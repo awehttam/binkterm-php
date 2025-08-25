@@ -227,7 +227,7 @@ class BinkpServer
             $connection['session']->close();
         }
         
-        if ($connection['socket']) {
+        if (is_resource($connection['socket'])) {
             socket_close($connection['socket']);
         }
         
