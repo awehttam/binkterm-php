@@ -30,12 +30,13 @@ provides users with a delighftful, modern web experience that allows them to sen
  - The web interface should use ajax requests by api for queries
  - This is for FTN style networks and forums.  
  - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done..
- 
+ - When adding features to netmail and echomail, keep in mind feature parity.  Ask for clarification about whether a feature is appropriate to both. 
  
 ## Known Issues
  - Regular users have too much permission.  For example, a regular user should not be able to poll the uplinks.
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - For some reason new echoareas are created if a parsing error occurs on incoming packets.  
+ - The date/time is wrong for messages.  I suspect there is timezone conversion going on causing skew.  Most likely related to the sort order of the Received messages (by Received date) is wrong - likely due to the time skew issue reported previously.
  
 ## Future Plans
  - Using this as a library in future applications

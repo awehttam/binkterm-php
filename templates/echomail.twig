@@ -57,6 +57,9 @@
                     <dt class="col-6">Total:</dt>
                     <dd class="col-6" id="totalMessages">-</dd>
                     
+                    <dt class="col-6">Unread:</dt>
+                    <dd class="col-6" id="unreadMessages">-</dd>
+                    
                     <dt class="col-6">Recent:</dt>
                     <dd class="col-6" id="recentMessages">-</dd>
                     
@@ -114,6 +117,25 @@
                         </div>
                     </div>
                 </div>
+                <!-- Read/Unread Filter Tabs -->
+                <ul class="nav nav-tabs card-header-tabs mt-2">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" onclick="setFilter('all')" id="allTab">
+                            <i class="fas fa-list"></i> All Messages
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="setFilter('unread')" id="unreadTab">
+                            <i class="fas fa-envelope"></i> Unread
+                            <span class="badge bg-primary ms-1" id="unreadCount">0</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="setFilter('read')" id="readTab">
+                            <i class="far fa-envelope-open"></i> Read
+                        </a>
+                    </li>
+                </ul>
             </div>
             <div class="card-body p-0">
                 <div id="messagesContainer">
@@ -166,6 +188,7 @@ let currentEchoarea = '{{ echoarea }}' || null;
 let currentPage = 1;
 let currentSort = 'date_desc';
 let currentMessageId = null;
+let currentFilter = 'all';
 
 $(document).ready(function() {
     loadEchoareas();
@@ -261,12 +284,13 @@ function loadMessages() {
     if (currentEchoarea) {
         url += `/${encodeURIComponent(currentEchoarea)}`;
     }
-    url += `?page=${currentPage}&sort=${currentSort}`;
+    url += `?page=${currentPage}&sort=${currentSort}&filter=${currentFilter}`;
     
     $.get(url)
         .done(function(data) {
             displayMessages(data.messages);
             updatePagination(data.pagination);
+            updateUnreadCount(data.unreadCount || 0);
         })
         .fail(function() {
             $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load messages</div>');
@@ -390,8 +414,56 @@ function refreshMessages() {
     showSuccess('Messages refreshed');
 }
 
+function setFilter(filter) {
+    currentFilter = filter;
+    currentPage = 1;
+    updateFilterTabs();
+    loadMessages();
+}
+
+function updateFilterTabs() {
+    // Remove active class from all tabs
+    $('.nav-tabs .nav-link').removeClass('active');
+    
+    // Add active class to current tab
+    if (currentFilter === 'all') {
+        $('#allTab').addClass('active');
+    } else if (currentFilter === 'unread') {
+        $('#unreadTab').addClass('active');
+    } else if (currentFilter === 'read') {
+        $('#readTab').addClass('active');
+    }
+}
+
+function updateUnreadCount(count) {
+    $('#unreadCount').text(count);
+}
+
+function markEchomailAsRead(messageId) {
+    $.post(`/api/messages/echomail/${messageId}/read`)
+        .done(function() {
+            // Update the UI to show message as read
+            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
+            if (messageRow.length) {
+                messageRow.removeClass('unread').addClass('read');
+                // Change envelope icon from closed to open
+                messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
+                // Remove bold formatting from subject
+                messageRow.find('strong').contents().unwrap();
+                // Update title attribute
+                messageRow.find('.fa-envelope-open').attr('title', 'Read');
+            }
+        })
+        .fail(function() {
+            console.log('Failed to mark echomail as read');
+        });
+}
+
 function viewMessage(messageId) {
     currentMessageId = messageId;
+    
+    // Mark as read immediately
+    markEchomailAsRead(messageId);
     
     $('#messageContent').html(`
         <div class="loading-spinner">
@@ -527,6 +599,7 @@ window.addEventListener('popstate', function(event) {
 });
 
 function loadStats() {
+    console.log('Loading echomail statistics...');
     let url = '/api/messages/echomail/stats';
     if (currentEchoarea) {
         url += '/' + encodeURIComponent(currentEchoarea);
@@ -534,7 +607,9 @@ function loadStats() {
     
     $.get(url)
         .done(function(data) {
+            console.log('Echomail stats response:', data);
             $('#totalMessages').text(data.total || 0);
+            $('#unreadMessages').text(data.unread || 0);
             $('#recentMessages').text(data.recent || 0);
             
             if (data.areas !== undefined) {
@@ -543,8 +618,11 @@ function loadStats() {
                 $('#totalAreas').text('-');
             }
         })
-        .fail(function() {
+        .fail(function(xhr, status, error) {
+            console.error('Echomail stats loading failed:', xhr.status, status, error);
+            console.error('Response text:', xhr.responseText);
             $('#totalMessages').text('Error');
+            $('#unreadMessages').text('Error');
             $('#recentMessages').text('Error');
             $('#totalAreas').text('Error');
         });

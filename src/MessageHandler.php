@@ -89,9 +89,19 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $page = 1, $limit = 25, $userId = null)
+    public function getEchomail($echoareaTag = null, $page = 1, $limit = 25, $userId = null, $filter = 'all')
     {
         $offset = ($page - 1) * $limit;
+        
+        // Build the WHERE clause based on filter
+        $filterClause = "";
+        $filterParams = [];
+        
+        if ($filter === 'unread' && $userId) {
+            $filterClause = " AND mrs.read_at IS NULL";
+        } elseif ($filter === 'read' && $userId) {
+            $filterClause = " AND mrs.read_at IS NOT NULL";
+        }
         
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
@@ -100,22 +110,25 @@ class MessageHandler
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ?
+                WHERE ea.tag = ?{$filterClause}
                 ORDER BY CASE 
                     WHEN em.date_written > datetime('now') THEN 0 
                     ELSE 1 
                 END, em.date_written DESC 
                 LIMIT ? OFFSET ?
             ");
-            $stmt->execute([$userId, $echoareaTag, $limit, $offset]);
+            $params = [$userId, $echoareaTag, $limit, $offset];
+            $stmt->execute($params);
             $messages = $stmt->fetchAll();
 
             $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
-                WHERE ea.tag = ?
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.tag = ?{$filterClause}
             ");
-            $countStmt->execute([$echoareaTag]);
+            $countParams = [$userId, $echoareaTag];
+            $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
@@ -123,22 +136,53 @@ class MessageHandler
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE 1=1{$filterClause}
                 ORDER BY CASE 
                     WHEN em.date_written > datetime('now') THEN 0 
                     ELSE 1 
                 END, em.date_written DESC 
                 LIMIT ? OFFSET ?
             ");
-            $stmt->execute([$userId, $limit, $offset]);
+            $params = [$userId, $limit, $offset];
+            $stmt->execute($params);
             $messages = $stmt->fetchAll();
 
-            $countStmt = $this->db->query("SELECT COUNT(*) as total FROM echomail");
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as total FROM echomail em
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE 1=1{$filterClause}
+            ");
+            $countParams = [$userId];
+            $countStmt->execute($countParams);
         }
 
         $total = $countStmt->fetch()['total'];
+        
+        // Get unread count for the current user
+        $unreadCount = 0;
+        if ($userId) {
+            if ($echoareaTag) {
+                $unreadCountStmt = $this->db->prepare("
+                    SELECT COUNT(*) as count FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    WHERE ea.tag = ? AND mrs.read_at IS NULL
+                ");
+                $unreadCountStmt->execute([$userId, $echoareaTag]);
+            } else {
+                $unreadCountStmt = $this->db->prepare("
+                    SELECT COUNT(*) as count FROM echomail em
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    WHERE mrs.read_at IS NULL
+                ");
+                $unreadCountStmt->execute([$userId]);
+            }
+            $unreadCount = $unreadCountStmt->fetch()['count'];
+        }
 
         return [
             'messages' => $messages,
+            'unreadCount' => $unreadCount,
             'pagination' => [
                 'page' => $page,
                 'limit' => $limit,
@@ -164,8 +208,12 @@ class MessageHandler
         $stmt->execute([$messageId]);
         $message = $stmt->fetch();
 
-        if ($message && $type === 'netmail') {
-            $this->markNetmailAsRead($messageId, $userId);
+        if ($message) {
+            if ($type === 'netmail') {
+                $this->markNetmailAsRead($messageId, $userId);
+            } elseif ($type === 'echomail') {
+                $this->markEchomailAsRead($messageId, $userId);
+            }
         }
 
         return $message;
@@ -361,6 +409,24 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 INSERT OR REPLACE INTO message_read_status (user_id, message_id, message_type, read_at)
                 VALUES (?, ?, 'netmail', datetime('now'))
+            ");
+            $stmt->execute([$userId, $messageId]);
+        }
+    }
+
+    private function markEchomailAsRead($messageId, $userId = null)
+    {
+        // Get the current user ID if not provided
+        if ($userId === null) {
+            $auth = new Auth();
+            $user = $auth->getCurrentUser();
+            $userId = $user['user_id'] ?? $user['id'] ?? null;
+        }
+        
+        if ($userId) {
+            $stmt = $this->db->prepare("
+                INSERT OR REPLACE INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'echomail', datetime('now'))
             ");
             $stmt->execute([$userId, $messageId]);
         }

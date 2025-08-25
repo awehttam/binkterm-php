@@ -383,11 +383,20 @@ function searchMessages() {
 }
 
 function loadStats() {
+    console.log('Loading netmail statistics...');
     $.get('/api/messages/netmail/stats')
         .done(function(data) {
+            console.log('Netmail stats response:', data);
             $('#totalCount').text(data.total || 0);
             $('#unreadCount').text(data.unread || 0);
             $('#sentCount').text(data.sent || 0);
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Netmail stats loading failed:', xhr.status, status, error);
+            console.error('Response text:', xhr.responseText);
+            $('#totalCount').text('Error');
+            $('#unreadCount').text('Error');
+            $('#sentCount').text('Error');
         });
 }
 
