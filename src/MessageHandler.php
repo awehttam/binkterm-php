@@ -11,11 +11,17 @@ class MessageHandler
         $this->db = Database::getInstance()->getPdo();
     }
 
-    public function getNetmail($userId, $page = 1, $limit = 25, $filter = 'all')
+    public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all')
     {
         $user = $this->getUserById($userId);
         if (!$user) {
             return ['messages' => [], 'pagination' => []];
+        }
+
+        // Get user's messages_per_page setting if limit not specified
+        if ($limit === null) {
+            $settings = $this->getUserSettings($userId);
+            $limit = $settings['messages_per_page'] ?? 25;
         }
 
         // Get system's FidoNet address for sent message filtering
@@ -95,8 +101,16 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $page = 1, $limit = 25, $userId = null, $filter = 'all')
+    public function getEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
     {
+        // Get user's messages_per_page setting if limit not specified
+        if ($limit === null && $userId) {
+            $settings = $this->getUserSettings($userId);
+            $limit = $settings['messages_per_page'] ?? 25;
+        } elseif ($limit === null) {
+            $limit = 25; // Default fallback if no user ID
+        }
+
         $offset = ($page - 1) * $limit;
         
         // Build the WHERE clause based on filter
@@ -643,6 +657,33 @@ class MessageHandler
     {
         // Check if user is admin - adjust this logic based on your user role system
         return isset($user['is_admin']) && $user['is_admin'] == 1;
+    }
+
+    /**
+     * Get user settings including messages_per_page
+     */
+    private function getUserSettings($userId)
+    {
+        if (!$userId) {
+            return ['messages_per_page' => 25]; // Default fallback
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM user_settings WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $settings = $stmt->fetch();
+
+        if (!$settings) {
+            // Create default settings for user if they don't exist
+            $insertStmt = $this->db->prepare("
+                INSERT OR IGNORE INTO user_settings (user_id, messages_per_page) 
+                VALUES (?, 25)
+            ");
+            $insertStmt->execute([$userId]);
+            
+            return ['messages_per_page' => 25];
+        }
+
+        return $settings;
     }
 
     /**

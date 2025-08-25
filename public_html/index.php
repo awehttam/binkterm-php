@@ -613,7 +613,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
-        $result = $handler->getNetmail($user['user_id'], $page, 25, $filter);
+        $result = $handler->getNetmail($user['user_id'], $page, null, $filter);
         echo json_encode($result);
     });
     
@@ -718,7 +718,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
-        $result = $handler->getEchomail(null, $page, 25, $userId, $filter);
+        $result = $handler->getEchomail(null, $page, null, $userId, $filter);
         echo json_encode($result);
     });
     
@@ -838,7 +838,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
-        $result = $handler->getEchomail($echoarea, $page, 25, $userId, $filter);
+        $result = $handler->getEchomail($echoarea, $page, null, $userId, $filter);
         echo json_encode($result);
     })->where(['echoarea' => '[A-Za-z0-9._-]+']);
     
