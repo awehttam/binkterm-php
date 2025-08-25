@@ -52,8 +52,8 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 
 ### Step 1: Clone Repository
 ```bash
-git clone https://github.com/yourusername/binktest.git
-cd binktest
+git clone https://github.com/awehttam/binkterm-php
+cd binkterm-php
 ```
 
 ### Step 2: Install Dependencies
