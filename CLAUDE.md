@@ -1,4 +1,4 @@
-# Project: binktest
+# Project: binkterm-php
 
 ## Project Description
 
