@@ -78,8 +78,14 @@ class MessageHandler
         $countStmt->execute($countAllParams);
         $total = $countStmt->fetch()['total'];
 
+        // Clean message data for proper JSON encoding
+        $cleanMessages = [];
+        foreach ($messages as $message) {
+            $cleanMessages[] = $this->cleanMessageForJson($message);
+        }
+
         return [
-            'messages' => $messages,
+            'messages' => $cleanMessages,
             'pagination' => [
                 'page' => $page,
                 'limit' => $limit,
@@ -180,8 +186,14 @@ class MessageHandler
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
 
+        // Clean message data for proper JSON encoding
+        $cleanMessages = [];
+        foreach ($messages as $message) {
+            $cleanMessages[] = $this->cleanMessageForJson($message);
+        }
+
         return [
-            'messages' => $messages,
+            'messages' => $cleanMessages,
             'unreadCount' => $unreadCount,
             'pagination' => [
                 'page' => $page,
@@ -214,6 +226,9 @@ class MessageHandler
             } elseif ($type === 'echomail') {
                 $this->markEchomailAsRead($messageId, $userId);
             }
+            
+            // Clean message for JSON encoding
+            $message = $this->cleanMessageForJson($message);
         }
 
         return $message;
@@ -628,5 +643,43 @@ class MessageHandler
     {
         // Check if user is admin - adjust this logic based on your user role system
         return isset($user['is_admin']) && $user['is_admin'] == 1;
+    }
+
+    /**
+     * Clean message data to ensure proper JSON encoding
+     * Fixes UTF-8 encoding issues that prevent json_encode from working
+     */
+    private function cleanMessageForJson($message)
+    {
+        if (!is_array($message)) {
+            return $message;
+        }
+
+        $cleaned = [];
+        foreach ($message as $key => $value) {
+            if (is_string($value)) {
+                // Convert to UTF-8 and remove invalid sequences
+                $cleaned[$key] = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+                
+                // If that didn't work, try converting from CP437 (common in FidoNet)
+                if (!mb_check_encoding($cleaned[$key], 'UTF-8')) {
+                    $cleaned[$key] = mb_convert_encoding($value, 'UTF-8', 'CP437');
+                }
+                
+                // If still not valid, force UTF-8 conversion with substitution
+                if (!mb_check_encoding($cleaned[$key], 'UTF-8')) {
+                    $cleaned[$key] = mb_convert_encoding($value, 'UTF-8', mb_detect_encoding($value, ['UTF-8', 'ISO-8859-1', 'CP437', 'ASCII'], true));
+                }
+                
+                // As a last resort, remove invalid bytes
+                if (!mb_check_encoding($cleaned[$key], 'UTF-8')) {
+                    $cleaned[$key] = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+                }
+            } else {
+                $cleaned[$key] = $value;
+            }
+        }
+
+        return $cleaned;
     }
 }
