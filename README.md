@@ -61,18 +61,19 @@ cd binkterm-php
 composer install
 ```
 
-### Step 3: Set Up Database
-The SQLite database will be created automatically on first run. Initialize with:
+### Step 3: Set Up Database and Admin User
+Use the installation script for automated setup:
 ```bash
-php -r "require 'vendor/autoload.php'; BinktermPHP\Database::getInstance();"
+# Interactive installation (prompts for admin credentials)
+php scripts/install.php
+
+# Non-interactive installation (creates admin/admin123 - CHANGE IMMEDIATELY!)
+php scripts/install.php --non-interactive
 ```
 
-### Step 4: Create Initial User
-Add a user to the database (modify as needed):
-```sql
-sqlite3 data/binktest.db
-INSERT INTO users (username, password_hash, real_name) 
-VALUES ('admin', '$2y$10$example_hash', 'An AI Assisted Sysop');
+Alternatively, use the setup script which auto-detects whether to install or upgrade:
+```bash
+php scripts/setup.php
 ```
 
 ### Step 5: Configure Web Server
@@ -179,6 +180,34 @@ Edit `config/binkp.json` to configure your system:
 - **enabled**: Whether uplink is active
 - **compression**: Enable compression (not yet implemented)
 - **crypt**: Enable encryption (not yet implemented)
+
+## Database Management
+
+### Installation and Upgrades
+BinktermPHP includes scripts for database installation and schema migrations:
+
+```bash
+# Install fresh database with admin user
+php scripts/install.php                    # Interactive mode
+php scripts/install.php --non-interactive  # Uses defaults
+
+# Auto-detect and run install or upgrade
+php scripts/setup.php                      # Smart setup
+php scripts/setup.php status               # Show system status
+
+# Database migrations
+php scripts/upgrade.php                    # Apply pending migrations
+php scripts/upgrade.php status             # Show migration status
+php scripts/upgrade.php create 1.3.0 "add feature"  # Create new migration
+```
+
+### Migration System
+Database changes are managed through versioned SQL migration files stored in `database/migrations/`:
+
+- **Filename format**: `vX.Y.Z_description.sql` (e.g., `v1.1.0_add_user_preferences.sql`)
+- **Automatic tracking**: Migration status is recorded in `database_migrations` table
+- **Safe execution**: Each migration runs in a transaction with rollback on failure
+- **Comment support**: SQL comments are automatically stripped during execution
 
 ## Command Line Scripts
 

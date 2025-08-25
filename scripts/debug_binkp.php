@@ -27,7 +27,7 @@ try {
     $config = BinkpConfig::getInstance();
     
     // Enable debug logging
-    $logger = new Logger('data/logs/binkp_debug.log', Logger::LEVEL_DEBUG, true);
+    $logger = new Logger(\BinktermPHP\Config::getLogPath('binkp_debug.log'), Logger::LEVEL_DEBUG, true);
     $client = new BinkpClient($config, $logger);
     
     echo "=== BINKP DEBUG SESSION ===\n";

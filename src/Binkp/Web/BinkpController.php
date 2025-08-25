@@ -18,7 +18,7 @@ class BinkpController
     public function __construct()
     {
         $this->config = BinkpConfig::getInstance();
-        $this->logger = new Logger('data/logs/binkp_web.log');
+        $this->logger = new Logger(\BinktermPHP\Config::getLogPath('binkp_web.log'));
     }
     
     public function getStatus()

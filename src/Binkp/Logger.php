@@ -17,7 +17,12 @@ class Logger
     
     public function __construct($logFile = null, $logLevel = self::LEVEL_INFO, $logToConsole = true)
     {
-        $this->logFile = $logFile ?: 'data/logs/binkp.log';
+        if ($logFile) {
+            $this->logFile = $logFile;
+        } else {
+            // Use absolute path from Config
+            $this->logFile = \BinktermPHP\Config::getLogPath('binkp.log');
+        }
         $this->logLevel = $logLevel;
         $this->logToConsole = $logToConsole;
         $this->dateFormat = 'Y-m-d H:i:s';

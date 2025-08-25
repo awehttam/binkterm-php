@@ -13,7 +13,7 @@ function showUsage()
     echo "  --port=PORT       Listen on specific port (default: from config)\n";
     echo "  --bind=ADDRESS    Bind to specific address (default: from config)\n";
     echo "  --log-level=LEVEL Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
-    echo "  --log-file=FILE   Log file path (default: data/logs/binkp_server.log)\n";
+    echo "  --log-file=FILE   Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_server.log') . ")\n";
     echo "  --no-console      Disable console logging\n";
     echo "  --daemon          Run as daemon (detach from terminal)\n";
     echo "  --help            Show this help message\n";
@@ -80,7 +80,7 @@ try {
     }
     
     $logLevel = isset($args['log-level']) ? $args['log-level'] : 'INFO';
-    $logFile = isset($args['log-file']) ? $args['log-file'] : 'data/logs/binkp_server.log';
+    $logFile = isset($args['log-file']) ? $args['log-file'] : \BinktermPHP\Config::getLogPath('binkp_server.log');
     $logToConsole = !isset($args['no-console']);
     
     $logger = new Logger($logFile, $logLevel, $logToConsole);

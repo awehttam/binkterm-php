@@ -12,7 +12,7 @@ function showUsage()
     echo "Options:\n";
     echo "  --interval=SECONDS   Polling interval in seconds (default: 60)\n";
     echo "  --log-level=LEVEL    Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
-    echo "  --log-file=FILE      Log file path (default: data/logs/binkp_scheduler.log)\n";
+    echo "  --log-file=FILE      Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_scheduler.log') . ")\n";
     echo "  --no-console         Disable console logging\n";
     echo "  --daemon             Run as daemon (detach from terminal)\n";
     echo "  --once               Run once and exit\n";
@@ -73,7 +73,7 @@ try {
     $config = BinkpConfig::getInstance();
     
     $logLevel = isset($args['log-level']) ? $args['log-level'] : 'INFO';
-    $logFile = isset($args['log-file']) ? $args['log-file'] : 'data/logs/binkp_scheduler.log';
+    $logFile = isset($args['log-file']) ? $args['log-file'] : \BinktermPHP\Config::getLogPath('binkp_scheduler.log');
     $logToConsole = !isset($args['no-console']);
     $interval = isset($args['interval']) ? (int) $args['interval'] : 60;
     
