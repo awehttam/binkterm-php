@@ -1,10 +1,10 @@
-# BinkTest - Modern Fidonet Mailer & Web Interface
+# binkterm-php - Modern Fidonet Mailer & Web Interface
 
-BinkTest is a modern Fidonet mailer that provides both a web interface and native binkp TCP/IP connectivity for FTN (Fidonet Technology Network) message handling. It combines traditional FTN packet processing with contemporary web technologies to create a user-friendly experience for Fidonet system operators.
+binkterm-php is a modern Fidonet mailer that provides both a web interface and native binkp TCP/IP connectivity for FTN (Fidonet Technology Network) message handling. It combines traditional FTN packet processing with contemporary web technologies to create a user-friendly experience for Fidonet system operators.
 
-BinkTest was written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for a more forgotten technology.
+ binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
 
-There are no doubt bugs and omissions in the project as it was written by an AI. YMMV.  
+There are no doubt bugs and omissions in the project as it was written by an AI. YMMV.  This code is released under the terms of a [BSD License](LICENSE.md).  
 
 ## Features
 
