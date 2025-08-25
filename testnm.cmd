@@ -1,0 +1,1 @@
+  php scripts/post_message.php --type=netmail --from=1:153/149.57599 --from-name="Claude the Coder"  --to=1:153/149 --to-name="awehttam"  --subject="Test Message"  --text="Hello, this is a test message!

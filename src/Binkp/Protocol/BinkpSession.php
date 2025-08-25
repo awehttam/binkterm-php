@@ -258,6 +258,13 @@ class BinkpSession
                 $matchedAddress = null;
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
+                    
+                    // Strip domain suffix like @fidonet
+                    if (strpos($addr, '@') !== false) {
+                        $addr = substr($addr, 0, strpos($addr, '@'));
+                        $this->log("Stripped domain from address: {$addr}");
+                    }
+                    
                     if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
                         $matchedAddress = $addr;
                         $this->log("Found matching uplink address: {$addr}");
@@ -266,7 +273,11 @@ class BinkpSession
                 }
                 
                 // Use first address if no match found (fallback)
-                $this->remoteAddress = $matchedAddress ?: $addresses[0];
+                $fallbackAddress = $addresses[0];
+                if (strpos($fallbackAddress, '@') !== false) {
+                    $fallbackAddress = substr($fallbackAddress, 0, strpos($fallbackAddress, '@'));
+                }
+                $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
                 $this->log("Using remote address: {$this->remoteAddress}");
                 
                 if ($this->state === self::STATE_INIT) {

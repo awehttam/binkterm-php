@@ -33,9 +33,10 @@ provides users with a delighftful, modern web experience that allows them to sen
  - When adding features to netmail and echomail, keep in mind feature parity.  Ask for clarification about whether a feature is appropriate to both. 
  
 ## Known Issues
-  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
-  - The date/time is wrong for messages.  I suspect there is timezone conversion going on causing skew.  Most likely related to the sort order of the Received messages (by Received date) is wrong - likely due to the time skew issue reported previously.
- 
+ - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
+ - The date/time is wrong for messages.  I suspect there is timezone conversion going on causing skew.  Most likely related to the sort order of the Received messages (by Received date) is wrong - likely due to the time skew issue reported previously.
+ - We strip the domain (ie: @fidonet) from the remote host presented during a bink poll.  At some point we should add @domain support.
+
 ## Future Plans
  - Using the binkp library in other applications
  - Less bugs

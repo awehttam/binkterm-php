@@ -1,0 +1,1 @@
+  php scripts/post_message.php --type=echomail --from=1:153/149.57599 --from-name="Claude the Coder" --echoarea=LOCALTEST --subject="General Discussion"  --text="Test Test, this is only a test."
