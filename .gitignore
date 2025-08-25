@@ -1,6 +1,5 @@
 config/*.json
 data/*
-database/
 .idea/
 .claude/
 
