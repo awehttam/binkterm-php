@@ -1,0 +1,196 @@
+{% extends "base.twig" %}
+
+{% block title %}Profile - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-user"></i>
+        My Profile
+    </h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Profile Information</h5>
+            </div>
+            <div class="card-body">
+                <form id="profileForm">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" value="{{ user_username }}" readonly>
+                        <div class="form-text">Username cannot be changed</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="realName" class="form-label">Real Name</label>
+                        <input type="text" class="form-control" id="realName" name="real_name" value="{{ user_real_name }}" maxlength="100">
+                        <div class="form-text">Your real name as displayed in messages</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" value="{{ user_email }}" maxlength="100">
+                        <div class="form-text">Email address (optional, not shown publicly)</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h6>Change Password</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="currentPassword" class="form-label">Current Password</label>
+                                    <input type="password" class="form-control" id="currentPassword" name="current_password">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="newPassword" class="form-label">New Password</label>
+                                    <input type="password" class="form-control" id="newPassword" name="new_password">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-text">Leave password fields blank to keep current password</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <small class="text-muted">
+                                Account created: {{ user_created_at|date('F j, Y') }}<br>
+                                Last login: {{ user_last_login ? user_last_login|date('F j, Y g:i A') : 'Never' }}
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-fidonet">
+                            <i class="fas fa-save"></i>
+                            Update Profile
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="profileStatus" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">System Information</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6">System:</dt>
+                    <dd class="col-6">{{ system_name_display }}</dd>
+                    
+                    <dt class="col-6">Address:</dt>
+                    <dd class="col-6">{{ system_address_display }}</dd>
+                    
+                    <dt class="col-6">Role:</dt>
+                    <dd class="col-6">
+                        {% if user_is_admin %}
+                            <span class="badge bg-danger">Administrator</span>
+                        {% else %}
+                            <span class="badge bg-primary">User</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Activity Summary</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-8">Netmail Sent:</dt>
+                    <dd class="col-4"><span id="netmailCount">-</span></dd>
+                    
+                    <dt class="col-8">Echomail Posted:</dt>
+                    <dd class="col-4"><span id="echomailCount">-</span></dd>
+                    
+                    <dt class="col-8">Total Messages:</dt>
+                    <dd class="col-4"><strong><span id="totalCount">-</span></strong></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    loadActivityStats();
+    
+    $('#profileForm').on('submit', function(e) {
+        e.preventDefault();
+        updateProfile();
+    });
+});
+
+function loadActivityStats() {
+    $.get('/api/user/stats')
+        .done(function(data) {
+            $('#netmailCount').text(data.netmail_count || 0);
+            $('#echomailCount').text(data.echomail_count || 0);
+            $('#totalCount').text((data.netmail_count || 0) + (data.echomail_count || 0));
+        })
+        .fail(function() {
+            $('#netmailCount, #echomailCount, #totalCount').text('?');
+        });
+}
+
+function updateProfile() {
+    const formData = new FormData($('#profileForm')[0]);
+    
+    // Show loading status
+    $('#profileStatus').show().html(`
+        <div class="alert alert-info">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Updating profile...
+        </div>
+    `);
+    
+    $.ajax({
+        url: '/api/user/profile',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            $('#profileStatus').html(`
+                <div class="alert alert-success">
+                    <i class="fas fa-check me-2"></i>
+                    Profile updated successfully!
+                </div>
+            `);
+            
+            // Clear password fields
+            $('#currentPassword, #newPassword').val('');
+            
+            // Update displayed name in navbar if it changed
+            if (response.real_name) {
+                // The navbar shows username, not real name, so no update needed
+            }
+            
+            // Hide success message after 3 seconds
+            setTimeout(function() {
+                $('#profileStatus').fadeOut();
+            }, 3000);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to update profile';
+            $('#profileStatus').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${escapeHtml(error)}
+                </div>
+            `);
+        }
+    });
+}
+</script>
+{% endblock %}

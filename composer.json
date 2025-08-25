@@ -1,0 +1,20 @@
+{
+    "name": "binktest/fidonet-web",
+    "description": "Modern web interface for Fidonet messaging with binkd integration",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "pecee/simple-router": "^5.3",
+        "twig/twig": "^3.7",
+        "ext-pdo": "*",
+        "ext-sqlite3": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Binktest\\": "src/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    }
+}

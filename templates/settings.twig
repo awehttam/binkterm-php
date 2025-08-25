@@ -1,0 +1,366 @@
+{% extends "base.twig" %}
+
+{% block title %}Settings - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-cog"></i>
+        Settings
+    </h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Display Preferences</h5>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm">
+                    <div class="mb-3">
+                        <label for="messagesPerPage" class="form-label">Messages per Page</label>
+                        <select class="form-select" id="messagesPerPage" name="messages_per_page">
+                            <option value="10">10 messages</option>
+                            <option value="25" selected>25 messages</option>
+                            <option value="50">50 messages</option>
+                            <option value="100">100 messages</option>
+                        </select>
+                        <div class="form-text">Number of messages to display per page</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="timezone" class="form-label">Timezone</label>
+                        <select class="form-select" id="timezone" name="timezone">
+                            <option value="UTC">UTC (Coordinated Universal Time)</option>
+                            <option value="America/New_York">Eastern Time (US/Canada)</option>
+                            <option value="America/Chicago">Central Time (US/Canada)</option>
+                            <option value="America/Denver">Mountain Time (US/Canada)</option>
+                            <option value="America/Los_Angeles" selected>Pacific Time (US/Canada)</option>
+                            <option value="Europe/London">London (GMT/BST)</option>
+                            <option value="Europe/Berlin">Central European Time</option>
+                            <option value="Asia/Tokyo">Japan Standard Time</option>
+                            <option value="Australia/Sydney">Australian Eastern Time</option>
+                        </select>
+                        <div class="form-text">Your local timezone for displaying dates</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="theme" class="form-label">Theme</label>
+                        <select class="form-select" id="theme" name="theme">
+                            <option value="light" selected>Light</option>
+                            <option value="dark">Dark</option>
+                            <option value="auto">Auto (follows system)</option>
+                        </select>
+                        <div class="form-text">Interface color theme (dark theme coming soon)</div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Message Display Options</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="showOrigin" name="show_origin" checked>
+                    <label class="form-check-label" for="showOrigin">
+                        Show origin lines in messages
+                    </label>
+                    <div class="form-text">Display the origin line (system information) at the bottom of messages</div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="showTearline" name="show_tearline" checked>
+                    <label class="form-check-label" for="showTearline">
+                        Show tearlines in messages
+                    </label>
+                    <div class="form-text">Display the tearline (software signature) in messages</div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="autoRefresh" name="auto_refresh">
+                    <label class="form-check-label" for="autoRefresh">
+                        Auto-refresh message lists
+                    </label>
+                    <div class="form-text">Automatically refresh message lists every 5 minutes</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Session & Security</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Active Sessions</h6>
+                        <p class="text-muted">Manage your active login sessions</p>
+                        <button type="button" class="btn btn-outline-warning" onclick="showActiveSessions()">
+                            <i class="fas fa-list"></i>
+                            View Sessions
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Security Actions</h6>
+                        <p class="text-muted">Logout from all devices</p>
+                        <button type="button" class="btn btn-outline-danger" onclick="logoutAllSessions()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout All
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-end mt-4">
+            <button type="button" class="btn btn-fidonet" onclick="saveSettings()">
+                <i class="fas fa-save"></i>
+                Save Settings
+            </button>
+        </div>
+        
+        <div id="settingsStatus" class="mt-3" style="display: none;"></div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">System Status</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-7">BinkP Status:</dt>
+                    <dd class="col-5"><span class="badge bg-success">Online</span></dd>
+                    
+                    <dt class="col-7">Last Poll:</dt>
+                    <dd class="col-5"><span id="lastPoll">-</span></dd>
+                    
+                    <dt class="col-7">Messages Today:</dt>
+                    <dd class="col-5"><span id="messagesToday">-</span></dd>
+                </dl>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/compose/netmail" class="btn btn-outline-primary">
+                        <i class="fas fa-envelope"></i>
+                        Compose Netmail
+                    </a>
+                    <a href="/compose/echomail" class="btn btn-outline-primary">
+                        <i class="fas fa-comments"></i>
+                        Post Echomail
+                    </a>
+                    {#
+                    <button type="button" class="btn btn-outline-secondary" onclick="pollUplinks()">
+                        <i class="fas fa-sync"></i>
+                        Poll Uplinks
+                    </button>
+                    #}
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Help & Support</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li><a href="#" class="text-decoration-none"><i class="fas fa-book"></i> User Guide</a></li>
+                    <li><a href="#" class="text-decoration-none"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                    <li><a href="#" class="text-decoration-none"><i class="fas fa-bug"></i> Report Issue</a></li>
+                    <li><a href="#" class="text-decoration-none"><i class="fas fa-info-circle"></i> About</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Sessions Modal -->
+<div class="modal fade" id="sessionsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Active Sessions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="sessionsList">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Loading sessions...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    loadSettings();
+    loadSystemStatus();
+});
+
+function loadSettings() {
+    $.get('/api/user/settings')
+        .done(function(data) {
+            if (data.messages_per_page) $('#messagesPerPage').val(data.messages_per_page);
+            if (data.timezone) $('#timezone').val(data.timezone);
+            if (data.theme) $('#theme').val(data.theme);
+            
+            $('#showOrigin').prop('checked', data.show_origin !== false);
+            $('#showTearline').prop('checked', data.show_tearline !== false);
+            $('#autoRefresh').prop('checked', data.auto_refresh === true);
+        });
+}
+
+function loadSystemStatus() {
+    $.get('/api/system/status')
+        .done(function(data) {
+            $('#lastPoll').text(data.last_poll ? formatDate(data.last_poll) : 'Never');
+            $('#messagesToday').text(data.messages_today || '0');
+        })
+        .fail(function() {
+            $('#lastPoll, #messagesToday').text('?');
+        });
+}
+
+function saveSettings() {
+    const formData = new FormData($('#settingsForm')[0]);
+    
+    // Add checkbox values
+    formData.set('show_origin', $('#showOrigin').is(':checked') ? '1' : '0');
+    formData.set('show_tearline', $('#showTearline').is(':checked') ? '1' : '0');
+    formData.set('auto_refresh', $('#autoRefresh').is(':checked') ? '1' : '0');
+    
+    $('#settingsStatus').show().html(`
+        <div class="alert alert-info">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Saving settings...
+        </div>
+    `);
+    
+    $.ajax({
+        url: '/api/user/settings',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            $('#settingsStatus').html(`
+                <div class="alert alert-success">
+                    <i class="fas fa-check me-2"></i>
+                    Settings saved successfully!
+                </div>
+            `);
+            
+            setTimeout(function() {
+                $('#settingsStatus').fadeOut();
+            }, 3000);
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to save settings';
+            $('#settingsStatus').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${escapeHtml(error)}
+                </div>
+            `);
+        }
+    });
+}
+
+function showActiveSessions() {
+    $('#sessionsModal').modal('show');
+    
+    $.get('/api/user/sessions')
+        .done(function(data) {
+            let html = '';
+            if (data.sessions && data.sessions.length > 0) {
+                data.sessions.forEach(function(session) {
+                    const isCurrent = session.is_current;
+                    html += `
+                        <div class="card mb-2">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>${escapeHtml(session.ip_address)}</strong>
+                                        ${isCurrent ? '<span class="badge bg-success ms-2">Current</span>' : ''}
+                                        <br>
+                                        <small class="text-muted">
+                                            Created: ${formatDate(session.created_at)}<br>
+                                            Expires: ${formatDate(session.expires_at)}
+                                        </small>
+                                    </div>
+                                    ${!isCurrent ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeSession('${session.id}')">Revoke</button>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html = '<p class="text-muted">No active sessions found.</p>';
+            }
+            $('#sessionsList').html(html);
+        })
+        .fail(function() {
+            $('#sessionsList').html('<div class="alert alert-danger">Failed to load sessions</div>');
+        });
+}
+
+function revokeSession(sessionId) {
+    if (!confirm('Are you sure you want to revoke this session?')) return;
+    
+    $.ajax({
+        url: `/api/user/sessions/${sessionId}`,
+        method: 'DELETE',
+        success: function() {
+            showActiveSessions(); // Refresh the list
+            showSuccess('Session revoked successfully');
+        },
+        error: function() {
+            showError('Failed to revoke session');
+        }
+    });
+}
+
+function logoutAllSessions() {
+    if (!confirm('Are you sure you want to logout from all devices? You will need to login again.')) return;
+    
+    $.ajax({
+        url: '/api/user/sessions/all',
+        method: 'DELETE',
+        success: function() {
+            window.location.href = '/login';
+        },
+        error: function() {
+            showError('Failed to logout all sessions');
+        }
+    });
+}
+
+function pollUplinks() {
+    showSuccess('Polling uplinks... (this may take a moment)');
+    
+    $.post('/api/binkp/poll')
+        .done(function(data) {
+            showSuccess('Uplink poll completed: ' + (data.message || 'Success'));
+        })
+        .fail(function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Poll failed';
+            showError('Poll failed: ' + error);
+        });
+}
+</script>
+{% endblock %}

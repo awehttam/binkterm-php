@@ -1,0 +1,747 @@
+{% extends "base.twig" %}
+
+{% block title %}Binkp Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>Binkp Management</h1>
+            <p class="text-muted">Monitor and manage your Binkp TCP/IP connections</p>
+        </div>
+    </div>
+
+    <!-- Status Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">System Status</h5>
+                    <p class="card-text" id="system-status">Loading...</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Inbound Queue</h5>
+                    <p class="card-text" id="inbound-count">Loading...</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Outbound Queue</h5>
+                    <p class="card-text" id="outbound-count">Loading...</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Uplinks</h5>
+                    <p class="card-text" id="uplink-count">Loading...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs" id="binkpTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab">Status</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="uplinks-tab" data-bs-toggle="tab" data-bs-target="#uplinks" type="button" role="tab">Uplinks</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues" type="button" role="tab">Queues</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">Logs</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab">Configuration</button>
+        </li>
+    </ul>
+
+    <div class="tab-content mt-3" id="binkpTabContent">
+        <!-- Status Tab -->
+        <div class="tab-pane fade show active" id="status" role="tabpanel">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5>System Information</h5>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshStatus()">
+                                <i class="fas fa-refresh"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body" id="system-info">
+                            Loading system information...
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5>Uplink Status</h5>
+                            <button class="btn btn-sm btn-success" onclick="pollAllUplinks()">
+                                <i class="fas fa-sync"></i> Poll All
+                            </button>
+                        </div>
+                        <div class="card-body" id="uplink-status">
+                            Loading uplink status...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Polling Schedule</h5>
+                        </div>
+                        <div class="card-body" id="schedule-status">
+                            Loading schedule status...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Uplinks Tab -->
+        <div class="tab-pane fade" id="uplinks" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5>Configured Uplinks</h5>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUplinkModal">
+                    <i class="fas fa-plus"></i> Add Uplink
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped" id="uplinksTable">
+                    <thead>
+                        <tr>
+                            <th>Address</th>
+                            <th>Hostname</th>
+                            <th>Port</th>
+                            <th>Status</th>
+                            <th>Schedule</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Queues Tab -->
+        <div class="tab-pane fade" id="queues" role="tabpanel">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5>Inbound Queue</h5>
+                            <button class="btn btn-sm btn-success" onclick="processInbound()">
+                                <i class="fas fa-play"></i> Process
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="inbound-files">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5>Outbound Queue</h5>
+                            <button class="btn btn-sm btn-success" onclick="processOutbound()">
+                                <i class="fas fa-paper-plane"></i> Send
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="outbound-files">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div class="tab-pane fade" id="logs" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5>Binkp Logs</h5>
+                <div>
+                    <select class="form-select form-select-sm d-inline-block w-auto" id="logLines">
+                        <option value="50">50 lines</option>
+                        <option value="100" selected>100 lines</option>
+                        <option value="200">200 lines</option>
+                        <option value="500">500 lines</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="refreshLogs()">
+                        <i class="fas fa-refresh"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <pre id="log-content" style="height: 400px; overflow-y: auto; background: #f8f9fa; padding: 10px;">Loading logs...</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Tab -->
+        <div class="tab-pane fade" id="config" role="tabpanel">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>System Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="systemConfigForm">
+                                <div class="mb-3">
+                                    <label class="form-label">FTN Address</label>
+                                    <input type="text" class="form-control" name="address" id="system-address">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Sysop Name</label>
+                                    <input type="text" class="form-control" name="sysop" id="system-sysop">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Location</label>
+                                    <input type="text" class="form-control" name="location" id="system-location">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Hostname</label>
+                                    <input type="text" class="form-control" name="hostname" id="system-hostname">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Binkp Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="binkpConfigForm">
+                                <div class="mb-3">
+                                    <label class="form-label">Port</label>
+                                    <input type="number" class="form-control" name="port" id="binkp-port" min="1" max="65535">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Timeout (seconds)</label>
+                                    <input type="number" class="form-control" name="timeout" id="binkp-timeout" min="30" max="3600">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Max Connections</label>
+                                    <input type="number" class="form-control" name="max_connections" id="binkp-max-connections" min="1" max="100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Bind Address</label>
+                                    <input type="text" class="form-control" name="bind_address" id="binkp-bind-address">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Uplink Modal -->
+<div class="modal fade" id="addUplinkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Uplink</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUplinkForm">
+                    <div class="mb-3">
+                        <label class="form-label">FTN Address *</label>
+                        <input type="text" class="form-control" name="address" required placeholder="1:123/456">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Hostname *</label>
+                        <input type="text" class="form-control" name="hostname" required placeholder="bbs.example.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Port</label>
+                        <input type="number" class="form-control" name="port" value="24554" min="1" max="65535">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" name="password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Poll Schedule (cron format)</label>
+                        <input type="text" class="form-control" name="poll_schedule" value="0 */4 * * *" placeholder="0 */4 * * *">
+                        <small class="form-text text-muted">Default: every 4 hours</small>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" name="enabled" checked>
+                        <label class="form-check-label">Enabled</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addUplink()">Add Uplink</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let binkpData = {};
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    refreshStatus();
+    refreshUplinks();
+    refreshQueues();
+    refreshLogs();
+    refreshConfig();
+});
+
+// Auto-refresh every 30 seconds
+setInterval(refreshStatus, 30000);
+
+function refreshStatus() {
+    console.log('Calling /api/binkp/status...');
+    fetch('/api/binkp/status')
+        .then(response => {
+            console.log('Status response:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Status data received:', data);
+            binkpData = data;
+            updateStatusDisplay(data);
+        })
+        .catch(error => {
+            console.error('Error fetching status:', error);
+            document.getElementById('system-status').textContent = 'Error: ' + error.message;
+            document.getElementById('system-info').innerHTML = '<div class="alert alert-danger">Error loading status: ' + error.message + '</div>';
+        });
+}
+
+function updateStatusDisplay(data) {
+    // Update cards
+    document.getElementById('system-status').textContent = data.system.address;
+    document.getElementById('inbound-count').textContent = data.queues.inbound.pending_files + ' files';
+    document.getElementById('outbound-count').textContent = data.queues.outbound.pending_files + ' files';
+    document.getElementById('uplink-count').textContent = Object.keys(data.uplinks).length + ' configured';
+
+    // Update system info
+    const systemInfo = document.getElementById('system-info');
+    systemInfo.innerHTML = `
+        <dl class="row">
+            <dt class="col-sm-4">Address:</dt>
+            <dd class="col-sm-8">${data.system.address}</dd>
+            <dt class="col-sm-4">Sysop:</dt>
+            <dd class="col-sm-8">${data.system.sysop}</dd>
+            <dt class="col-sm-4">Location:</dt>
+            <dd class="col-sm-8">${data.system.location}</dd>
+            <dt class="col-sm-4">Port:</dt>
+            <dd class="col-sm-8">${data.system.port}</dd>
+            <dt class="col-sm-4">Hostname:</dt>
+            <dd class="col-sm-8">${data.system.hostname}</dd>
+        </dl>
+    `;
+
+    // Update uplink status
+    const uplinkStatus = document.getElementById('uplink-status');
+    let uplinkHtml = '';
+    for (const [address, uplink] of Object.entries(data.uplinks)) {
+        const status = uplink.success ? 
+            '<span class="badge bg-success">Online</span>' : 
+            '<span class="badge bg-danger">Offline</span>';
+        uplinkHtml += `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span>${address}</span>
+                ${status}
+            </div>
+        `;
+    }
+    uplinkStatus.innerHTML = uplinkHtml || '<p class="text-muted">No uplinks configured</p>';
+
+    // Update schedule status
+    const scheduleStatus = document.getElementById('schedule-status');
+    let scheduleHtml = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Address</th><th>Schedule</th><th>Last Poll</th><th>Next Poll</th><th>Status</th></tr></thead><tbody>';
+    for (const [address, info] of Object.entries(data.schedule)) {
+        const status = info.due_now ? 
+            '<span class="badge bg-warning">Due Now</span>' : 
+            '<span class="badge bg-secondary">Scheduled</span>';
+        scheduleHtml += `
+            <tr>
+                <td>${address}</td>
+                <td><code>${info.schedule}</code></td>
+                <td>${info.last_poll}</td>
+                <td>${info.next_poll}</td>
+                <td>${status}</td>
+            </tr>
+        `;
+    }
+    scheduleHtml += '</tbody></table></div>';
+    scheduleStatus.innerHTML = scheduleHtml;
+}
+
+function refreshUplinks() {
+    console.log('Calling /api/binkp/uplinks...');
+    fetch('/api/binkp/uplinks')
+        .then(response => {
+            console.log('Uplinks response:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Uplinks data received:', data);
+            updateUplinksTable(data.uplinks);
+        })
+        .catch(error => {
+            console.error('Error fetching uplinks:', error);
+            const tbody = document.querySelector('#uplinksTable tbody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Error loading uplinks: ' + error.message + '</td></tr>';
+            }
+        });
+}
+
+function updateUplinksTable(uplinks) {
+    const tbody = document.querySelector('#uplinksTable tbody');
+    tbody.innerHTML = '';
+
+    uplinks.forEach(uplink => {
+        const status = uplink.enabled ? 
+            '<span class="badge bg-success">Enabled</span>' : 
+            '<span class="badge bg-secondary">Disabled</span>';
+        
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td>${uplink.address}</td>
+            <td>${uplink.hostname}</td>
+            <td>${uplink.port}</td>
+            <td>${status}</td>
+            <td><code>${uplink.poll_schedule}</code></td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="pollUplink('${uplink.address}')">Poll</button>
+                <button class="btn btn-sm btn-danger" onclick="removeUplink('${uplink.address}')">Remove</button>
+            </td>
+        `;
+    });
+}
+
+function refreshQueues() {
+    console.log('Calling /api/binkp/files/inbound and /api/binkp/files/outbound...');
+    Promise.all([
+        fetch('/api/binkp/files/inbound').then(r => {
+            console.log('Inbound response:', r.status, r.statusText);
+            if (!r.ok) throw new Error(`Inbound API: HTTP ${r.status}`);
+            return r.json();
+        }),
+        fetch('/api/binkp/files/outbound').then(r => {
+            console.log('Outbound response:', r.status, r.statusText);
+            if (!r.ok) throw new Error(`Outbound API: HTTP ${r.status}`);
+            return r.json();
+        })
+    ])
+    .then(([inboundData, outboundData]) => {
+        console.log('Queue data received:', {inboundData, outboundData});
+        updateInboundFiles(inboundData);
+        updateOutboundFiles(outboundData);
+    })
+    .catch(error => {
+        console.error('Error fetching queues:', error);
+        document.getElementById('inbound-files').innerHTML = '<div class="text-danger">Error: ' + error.message + '</div>';
+        document.getElementById('outbound-files').innerHTML = '<div class="text-danger">Error: ' + error.message + '</div>';
+    });
+}
+
+function updateInboundFiles(data) {
+    const container = document.getElementById('inbound-files');
+    let html = `<p><strong>Pending:</strong> ${data.pending.length} files</p>`;
+    
+    if (data.pending.length > 0) {
+        html += '<ul class="list-group list-group-flush">';
+        data.pending.forEach(file => {
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                ${file.filename} <small class="text-muted">${formatBytes(file.size)}</small>
+            </li>`;
+        });
+        html += '</ul>';
+    }
+
+    if (data.errors.length > 0) {
+        html += `<p class="mt-3"><strong>Errors:</strong> ${data.errors.length} files</p>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function updateOutboundFiles(data) {
+    const container = document.getElementById('outbound-files');
+    let html = `<p><strong>Pending:</strong> ${data.files.length} files</p>`;
+    
+    if (data.files.length > 0) {
+        html += '<ul class="list-group list-group-flush">';
+        data.files.forEach(file => {
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                ${file.filename} <small class="text-muted">${formatBytes(file.size)} • ${file.message_count} msgs</small>
+            </li>`;
+        });
+        html += '</ul>';
+    }
+
+    container.innerHTML = html;
+}
+
+function refreshLogs() {
+    const lines = document.getElementById('logLines').value;
+    fetch(`/api/binkp/logs?lines=${lines}`)
+        .then(response => response.json())
+        .then(data => {
+            const logContent = document.getElementById('log-content');
+            logContent.textContent = data.logs.join('\n');
+            logContent.scrollTop = logContent.scrollHeight;
+        })
+        .catch(error => console.error('Error fetching logs:', error));
+}
+
+function refreshConfig() {
+    fetch('/api/binkp/config')
+        .then(response => response.json())
+        .then(data => {
+            const config = data.config;
+            
+            // System config
+            document.getElementById('system-address').value = config.system.address;
+            document.getElementById('system-sysop').value = config.system.sysop;
+            document.getElementById('system-location').value = config.system.location;
+            document.getElementById('system-hostname').value = config.system.hostname;
+            
+            // Binkp config
+            document.getElementById('binkp-port').value = config.binkp.port;
+            document.getElementById('binkp-timeout').value = config.binkp.timeout;
+            document.getElementById('binkp-max-connections').value = config.binkp.max_connections;
+            document.getElementById('binkp-bind-address').value = config.binkp.bind_address;
+        })
+        .catch(error => console.error('Error fetching config:', error));
+}
+
+function pollUplink(address) {
+    console.log('Polling uplink:', address);
+    
+    fetch('/api/binkp/poll', { 
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ address: address })
+    })
+        .then(response => {
+            console.log('Poll response status:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Poll response data:', data);
+            if (data.success) {
+                showAlert('Poll completed successfully', 'success');
+            } else {
+                showAlert('Poll failed: ' + data.error, 'danger');
+            }
+            refreshStatus();
+        })
+        .catch(error => {
+            console.error('Poll error:', error);
+            showAlert('Error polling uplink: ' + error.message, 'danger');
+        });
+}
+
+function pollAllUplinks() {
+    fetch('/api/binkp/poll-all', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('All uplinks polled', 'success');
+            } else {
+                showAlert('Polling failed: ' + data.error, 'danger');
+            }
+            refreshStatus();
+        })
+        .catch(error => {
+            showAlert('Error polling uplinks: ' + error.message, 'danger');
+        });
+}
+
+function processInbound() {
+    fetch('/api/binkp/process/inbound', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Inbound processing completed', 'success');
+                refreshQueues();
+                refreshStatus();
+            } else {
+                showAlert('Processing failed: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error processing inbound: ' + error.message, 'danger');
+        });
+}
+
+function processOutbound() {
+    fetch('/api/binkp/process/outbound', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Outbound processing completed', 'success');
+                refreshQueues();
+                refreshStatus();
+            } else {
+                showAlert('Processing failed: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error processing outbound: ' + error.message, 'danger');
+        });
+}
+
+function addUplink() {
+    const form = document.getElementById('addUplinkForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    data.enabled = formData.has('enabled');
+
+    fetch('/api/binkp/uplinks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert('Uplink added successfully', 'success');
+            document.getElementById('addUplinkModal').querySelector('.btn-close').click();
+            form.reset();
+            refreshUplinks();
+            refreshStatus();
+        } else {
+            showAlert('Failed to add uplink: ' + result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error adding uplink: ' + error.message, 'danger');
+    });
+}
+
+function removeUplink(address) {
+    if (!confirm(`Remove uplink ${address}?`)) return;
+
+    fetch(`/api/binkp/uplinks/${address}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Uplink removed successfully', 'success');
+                refreshUplinks();
+                refreshStatus();
+            } else {
+                showAlert('Failed to remove uplink: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error removing uplink: ' + error.message, 'danger');
+        });
+}
+
+// Config form handlers
+document.getElementById('systemConfigForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch('/api/binkp/config/system', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert('System configuration updated', 'success');
+        } else {
+            showAlert('Failed to update configuration: ' + result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error updating configuration: ' + error.message, 'danger');
+    });
+});
+
+document.getElementById('binkpConfigForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch('/api/binkp/config/binkp', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert('Binkp configuration updated', 'success');
+        } else {
+            showAlert('Failed to update configuration: ' + result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error updating configuration: ' + error.message, 'danger');
+    });
+});
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+</script>
+{% endblock %}

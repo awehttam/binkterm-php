@@ -1,0 +1,747 @@
+{% extends "base.twig" %}
+
+{% block title %}Echomail{% if echoarea %} - {{ echoarea }}{% endif %} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-comments"></i>
+        Echomail
+        {% if echoarea %}
+            <small class="text-muted">/ {{ echoarea }}</small>
+        {% endif %}
+    </h2>
+    <button class="btn btn-fidonet" onclick="composeMessage('echomail')">
+        <i class="fas fa-plus"></i>
+        Post Message
+    </button>
+</div>
+
+<div class="row">
+    <div class="col-lg-3">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Echo Areas</h6>
+            </div>
+            <div class="card-body p-0">
+                <div id="echoareasList">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading areas...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Search Messages</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search...">
+                </div>
+                <button class="btn btn-outline-primary btn-sm w-100" onclick="searchMessages()">
+                    <i class="fas fa-search"></i>
+                    Search
+                </button>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6">Total:</dt>
+                    <dd class="col-6" id="totalMessages">-</dd>
+                    
+                    <dt class="col-6">Recent:</dt>
+                    <dd class="col-6" id="recentMessages">-</dd>
+                    
+                    <dt class="col-6">Areas:</dt>
+                    <dd class="col-6" id="totalAreas">-</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        {% if echoarea %}
+                            {{ echoarea }} Messages
+                        {% else %}
+                            Recent Messages
+                        {% endif %}
+                    </h6>
+                    <div class="d-flex align-items-center gap-2">
+                        {% if current_user.is_admin %}
+                        <div id="bulkActions" class="d-none">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-danger" onclick="deleteSelectedMessages()">
+                                    <i class="fas fa-trash"></i>
+                                    Delete Selected (<span id="selectedCount">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="clearSelection()">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="btn-group btn-group-sm" role="group">
+                            {% if current_user.is_admin %}
+                            <button type="button" class="btn btn-outline-secondary" onclick="toggleSelectMode()" id="selectModeBtn">
+                                <i class="fas fa-check-square"></i>
+                                Select
+                            </button>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-secondary" onclick="refreshMessages()">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="fas fa-sort"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">Newest First</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">Oldest First</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">By Subject</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">By Author</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="messagesContainer">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading messages...
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <nav id="pagination">
+                    <!-- Pagination will be inserted here -->
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Message View Modal -->
+<div class="modal fade" id="messageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="messageSubject">Message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="messageContent">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading message...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-fidonet" id="replyButton">
+                    <i class="fas fa-reply"></i>
+                    Reply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentEchoarea = '{{ echoarea }}' || null;
+let currentPage = 1;
+let currentSort = 'date_desc';
+let currentMessageId = null;
+
+$(document).ready(function() {
+    loadEchoareas();
+    loadMessages();
+    loadStats();
+    
+    // Search on enter key
+    $('#searchInput').on('keypress', function(e) {
+        if (e.which === 13) {
+            searchMessages();
+        }
+    });
+    
+    // Auto refresh every 5 minutes
+    startAutoRefresh(function() {
+        loadMessages();
+        loadStats();
+    }, 300000);
+});
+
+function loadEchoareas() {
+    $.get('/api/echoareas')
+        .done(function(data) {
+            displayEchoareas(data.echoareas);
+        })
+        .fail(function() {
+            $('#echoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
+        });
+}
+
+function displayEchoareas(echoareas) {
+    const container = $('#echoareasList');
+    let html = '';
+    
+    if (echoareas && echoareas.length > 0) {
+        // All messages option
+        html += `
+            <div class="node-item ${!currentEchoarea ? 'bg-primary text-white' : ''}" onclick="selectEchoarea(null)">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="node-system">All Messages</div>
+                        <small class="text-muted">View all echo areas</small>
+                    </div>
+                    <span class="badge bg-secondary">All</span>
+                </div>
+            </div>
+        `;
+        
+        echoareas.forEach(function(area) {
+            const isActive = currentEchoarea === area.tag;
+            html += `
+                <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${area.tag}')">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="node-address">${area.tag}</div>
+                            <div class="node-system">${escapeHtml(area.description)}</div>
+                        </div>
+                        <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${area.message_count || 0}</span>
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        html = '<div class="text-center text-muted p-3">No echo areas available</div>';
+    }
+    
+    container.html(html);
+}
+
+function selectEchoarea(tag) {
+    currentEchoarea = tag;
+    currentPage = 1;
+    
+    // Update URL without page reload
+    const url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
+    history.pushState({echoarea: tag}, '', url);
+    
+    // Update title
+    const title = tag ? `Echomail - ${tag}` : 'Echomail';
+    $('h2 small').remove();
+    if (tag) {
+        $('h2').append(`<small class="text-muted">/ ${tag}</small>`);
+    }
+    
+    loadEchoareas(); // Refresh to show active state
+    loadMessages();
+}
+
+function loadMessages() {
+    showLoading('#messagesContainer');
+    
+    let url = '/api/messages/echomail';
+    if (currentEchoarea) {
+        url += `/${encodeURIComponent(currentEchoarea)}`;
+    }
+    url += `?page=${currentPage}&sort=${currentSort}`;
+    
+    $.get(url)
+        .done(function(data) {
+            displayMessages(data.messages);
+            updatePagination(data.pagination);
+        })
+        .fail(function() {
+            $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load messages</div>');
+        });
+}
+
+function displayMessages(messages) {
+    const container = $('#messagesContainer');
+    let html = '';
+    
+    if (messages.length === 0) {
+        html = '<div class="text-center text-muted py-4">No messages found</div>';
+    } else {
+        // Create table structure
+        html = `
+            <div class="table-responsive">
+                <table class="table table-hover message-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%" id="selectAllColumn" class="d-none">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAllMessages" onchange="toggleSelectAll()">
+                                </div>
+                            </th>
+                            <th style="width: 25%">From</th>
+                            <th style="width: 45%">Subject</th>
+                            <th style="width: 15%">Echo Area</th>
+                            <th style="width: 15%">Received</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        messages.forEach(function(msg) {
+            const toInfo = msg.to_name && msg.to_name !== 'All' ? ` (to: ${escapeHtml(msg.to_name)})` : '';
+            const isRead = msg.is_read == 1;
+            const readClass = isRead ? 'read' : 'unread';
+            const readIcon = isRead ? '<i class="fas fa-envelope-open text-muted me-1" title="Read"></i>' : '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>';
+            
+            html += `
+                <tr class="message-row ${readClass}" data-message-id="${msg.id}">
+                    <td class="message-checkbox d-none">
+                        <div class="form-check">
+                            <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
+                        </div>
+                    </td>
+                    <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                        ${readIcon}${escapeHtml(msg.from_name)}
+                    </td>
+                    <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                        ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}
+                        ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
+                    </td>
+                    <td class="clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                        <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
+                    </td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written date: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    container.html(html);
+}
+
+function updatePagination(pagination) {
+    const container = $('#pagination');
+    let html = '';
+    
+    if (pagination.pages > 1) {
+        html = '<ul class="pagination pagination-sm mb-0">';
+        
+        // Previous button
+        if (pagination.page > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">Previous</a></li>`;
+        }
+        
+        // Page numbers (show max 5 pages)
+        let startPage = Math.max(1, pagination.page - 2);
+        let endPage = Math.min(pagination.pages, startPage + 4);
+        
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const active = i === pagination.page ? 'active' : '';
+            html += `<li class="page-item ${active}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
+        }
+        
+        // Next button
+        if (pagination.page < pagination.pages) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page + 1})">Next</a></li>`;
+        }
+        
+        html += '</ul>';
+    }
+    
+    container.html(html);
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadMessages();
+}
+
+function sortMessages(sortBy) {
+    currentSort = sortBy;
+    currentPage = 1;
+    loadMessages();
+}
+
+function refreshMessages() {
+    loadMessages();
+    showSuccess('Messages refreshed');
+}
+
+function viewMessage(messageId) {
+    currentMessageId = messageId;
+    
+    $('#messageContent').html(`
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Loading message...
+        </div>
+    `);
+    
+    $('#messageModal').modal('show');
+    
+    // Choose the appropriate API endpoint based on whether we have a specific echoarea
+    let apiUrl;
+    if (currentEchoarea) {
+        apiUrl = `/api/messages/echomail/${encodeURIComponent(currentEchoarea)}/${messageId}`;
+    } else {
+        apiUrl = `/api/messages/echomail/message/${messageId}`;
+    }
+    
+    $.get(apiUrl)
+        .done(function(data) {
+            displayMessageContent(data);
+        })
+        .fail(function() {
+            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+        });
+}
+
+function displayMessageContent(message) {
+    $('#messageSubject').text(message.subject || '(No Subject)');
+    
+    // Parse message to separate kludge lines from body
+    const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
+    
+    const html = `
+        <div class="message-header-full mb-3">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>From:</strong> ${escapeHtml(message.from_name)}<br>
+                    <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
+                </div>
+                <div class="col-md-6">
+                    <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>
+                    <span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <strong>Date:</strong> <span title="${formatFullDate(message.date_written)}">${formatDate(message.date_written)}</span>
+                </div>
+                <div class="col-md-6">
+                    <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
+                </div>
+            </div>
+        </div>
+        
+        <div class="message-headers mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0 text-muted">Message Headers</h6>
+                <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
+                    <i class="fas fa-eye-slash" id="toggleIcon"></i>
+                    <span id="toggleText">Show Headers</span>
+                </button>
+            </div>
+            <div id="kludgeContainer" class="kludge-lines" style="display: none;">
+                <pre class="bg-dark text-light p-3 rounded small">${parsedMessage.kludgeLines.length > 0 ? formatKludgeLines(parsedMessage.kludgeLines) : 'No headers found'}</pre>
+            </div>
+        </div>
+        
+        <div class="message-text">
+            <pre class="bg-light p-3 rounded">${escapeHtml(parsedMessage.messageBody)}</pre>
+        </div>
+        ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
+    `;
+    
+    $('#messageContent').html(html);
+    
+    // Set up reply button
+    $('#replyButton').show().off('click').on('click', function() {
+        $('#messageModal').modal('hide');
+        composeMessage('echomail', currentMessageId);
+    });
+}
+
+function composeMessage(type, replyToId = null) {
+    let url = `/compose/echomail`;
+    const params = new URLSearchParams();
+    
+    if (replyToId) {
+        params.append('reply', replyToId);
+    }
+    if (currentEchoarea) {
+        params.append('echoarea', currentEchoarea);
+    }
+    
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+    
+    window.location.href = url;
+}
+
+function searchMessages() {
+    const query = $('#searchInput').val().trim();
+    if (query.length < 2) {
+        showError('Please enter at least 2 characters to search');
+        return;
+    }
+    
+    showLoading('#messagesContainer');
+    
+    let url = `/api/messages/search?q=${encodeURIComponent(query)}&type=echomail`;
+    if (currentEchoarea) {
+        url += `&echoarea=${encodeURIComponent(currentEchoarea)}`;
+    }
+    
+    $.get(url)
+        .done(function(data) {
+            displayMessages(data.messages);
+            $('#pagination').empty();
+        })
+        .fail(function() {
+            showError('Search failed');
+        });
+}
+
+// Handle browser back/forward
+window.addEventListener('popstate', function(event) {
+    if (event.state && event.state.echoarea !== undefined) {
+        currentEchoarea = event.state.echoarea;
+        loadEchoareas();
+        loadMessages();
+    }
+});
+
+function loadStats() {
+    let url = '/api/messages/echomail/stats';
+    if (currentEchoarea) {
+        url += '/' + encodeURIComponent(currentEchoarea);
+    }
+    
+    $.get(url)
+        .done(function(data) {
+            $('#totalMessages').text(data.total || 0);
+            $('#recentMessages').text(data.recent || 0);
+            
+            if (data.areas !== undefined) {
+                $('#totalAreas').text(data.areas || 0);
+            } else {
+                $('#totalAreas').text('-');
+            }
+        })
+        .fail(function() {
+            $('#totalMessages').text('Error');
+            $('#recentMessages').text('Error');
+            $('#totalAreas').text('Error');
+        });
+}
+
+// Selection and bulk operations functionality
+let selectMode = false;
+let selectedMessages = new Set();
+
+function toggleSelectMode() {
+    selectMode = !selectMode;
+    const btn = $('#selectModeBtn');
+    const checkboxColumn = $('#selectAllColumn');
+    const checkboxCells = $('.message-checkbox');
+    const bulkActions = $('#bulkActions');
+    
+    if (selectMode) {
+        // Enable select mode
+        btn.html('<i class="fas fa-times"></i> Cancel');
+        btn.removeClass('btn-outline-secondary').addClass('btn-outline-warning');
+        checkboxColumn.removeClass('d-none');
+        checkboxCells.removeClass('d-none');
+        bulkActions.removeClass('d-none');
+    } else {
+        // Disable select mode
+        btn.html('<i class="fas fa-check-square"></i> Select');
+        btn.removeClass('btn-outline-warning').addClass('btn-outline-secondary');
+        checkboxColumn.addClass('d-none');
+        checkboxCells.addClass('d-none');
+        bulkActions.addClass('d-none');
+        clearSelection();
+    }
+}
+
+function toggleSelectAll() {
+    const selectAllCheckbox = $('#selectAllMessages');
+    const messageCheckboxes = $('.message-select');
+    
+    if (selectAllCheckbox.prop('checked')) {
+        messageCheckboxes.prop('checked', true);
+        messageCheckboxes.each(function() {
+            selectedMessages.add(parseInt($(this).val()));
+        });
+    } else {
+        messageCheckboxes.prop('checked', false);
+        selectedMessages.clear();
+    }
+    
+    updateSelectionDisplay();
+}
+
+function updateSelection() {
+    const messageCheckboxes = $('.message-select');
+    const checkedBoxes = $('.message-select:checked');
+    
+    // Update selected messages set
+    selectedMessages.clear();
+    checkedBoxes.each(function() {
+        selectedMessages.add(parseInt($(this).val()));
+    });
+    
+    // Update select all checkbox
+    const selectAllCheckbox = $('#selectAllMessages');
+    if (checkedBoxes.length === 0) {
+        selectAllCheckbox.prop('indeterminate', false);
+        selectAllCheckbox.prop('checked', false);
+    } else if (checkedBoxes.length === messageCheckboxes.length) {
+        selectAllCheckbox.prop('indeterminate', false);
+        selectAllCheckbox.prop('checked', true);
+    } else {
+        selectAllCheckbox.prop('indeterminate', true);
+        selectAllCheckbox.prop('checked', false);
+    }
+    
+    updateSelectionDisplay();
+}
+
+function updateSelectionDisplay() {
+    const count = selectedMessages.size;
+    $('#selectedCount').text(count);
+    
+    if (count === 0) {
+        $('#bulkActions .btn-outline-danger').prop('disabled', true);
+    } else {
+        $('#bulkActions .btn-outline-danger').prop('disabled', false);
+    }
+}
+
+function clearSelection() {
+    selectedMessages.clear();
+    $('.message-select').prop('checked', false);
+    $('#selectAllMessages').prop('checked', false).prop('indeterminate', false);
+    updateSelectionDisplay();
+    
+    if (selectMode) {
+        toggleSelectMode();
+    }
+}
+
+function deleteSelectedMessages() {
+    {% if not current_user.is_admin %}
+    showError('Admin privileges required to delete echomail messages');
+    return;
+    {% endif %}
+    
+    if (selectedMessages.size === 0) {
+        showError('No messages selected');
+        return;
+    }
+    
+    const count = selectedMessages.size;
+    const confirmMessage = `Are you sure you want to delete ${count} selected message${count > 1 ? 's' : ''}?`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // Convert Set to Array for API call
+    const messageIds = Array.from(selectedMessages);
+    
+    // Show loading state
+    const deleteBtn = $('#bulkActions .btn-outline-danger');
+    const originalText = deleteBtn.html();
+    deleteBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
+    
+    $.ajax({
+        url: '/api/messages/echomail/delete',
+        type: 'POST',
+        data: JSON.stringify({ messageIds: messageIds }),
+        contentType: 'application/json',
+        success: function(response) {
+            if (response.success) {
+                showSuccess(response.message);
+                clearSelection();
+                loadMessages(); // Reload messages
+                loadStats(); // Update statistics
+            } else {
+                showError(response.error || 'Failed to delete messages');
+            }
+        },
+        error: function(xhr) {
+            let errorMessage = 'Failed to delete messages';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMessage = response.error || errorMessage;
+            } catch (e) {
+                // Use default error message
+            }
+            showError(errorMessage);
+        },
+        complete: function() {
+            deleteBtn.prop('disabled', false).html(originalText);
+        }
+    });
+}
+
+// Mark message as read when viewed
+function markMessageAsRead(messageId) {
+    $.post(`/api/messages/echomail/${messageId}/read`)
+        .done(function() {
+            // Update the UI to show message as read
+            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
+            messageRow.removeClass('unread').addClass('read');
+            messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('fas fa-envelope-open text-muted');
+            messageRow.find('.message-subject strong').contents().unwrap();
+            messageRow.css('opacity', '0.85');
+        })
+        .fail(function() {
+            console.log('Failed to mark message as read');
+        });
+}
+
+// Update viewMessage function to mark as read
+const originalViewMessage = window.viewMessage;
+window.viewMessage = function(id) {
+    markMessageAsRead(id);
+    if (originalViewMessage) {
+        originalViewMessage(id);
+    }
+};
+
+</script>
+
+<style>
+/* Read/Unread message styling */
+.message-row.unread {
+    background-color: #f8f9fa;
+}
+
+.message-row.unread .message-from,
+.message-row.unread .message-subject {
+    font-weight: 600;
+}
+
+.message-row.read {
+    opacity: 0.85;
+}
+</style>
+
+{% endblock %}

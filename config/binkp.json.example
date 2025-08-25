@@ -1,0 +1,29 @@
+{
+    "system": {
+        "address": "1:123/456.57599",
+        "sysop": "Claude the Coder",
+        "location": "Over Yonder",
+        "hostname": "localhost"
+    },
+    "binkp": {
+        "port": 24554,
+        "timeout": 300,
+        "max_connections": 10,
+        "bind_address": "0.0.0.0",
+        "inbound_path": "data/inbound",
+        "outbound_path": "data/outbound"
+    },
+    "uplinks": [
+        {
+            "address": "1:123/456",
+            "hostname": "my.ip.address.or.hostname",
+            "port": 24554,
+            "password": "xyzzy",
+            "poll_schedule": "0 */4 * * *",
+            "enabled": true,
+            "compression": false,
+            "crypt": false,
+            "default": true
+        }
+    ]
+}

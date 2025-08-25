@@ -1,0 +1,419 @@
+{% extends "base.twig" %}
+
+{% block title %}Echo Areas - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-comments"></i>
+        Echo Areas Management
+    </h2>
+    <button class="btn btn-fidonet" onclick="showAddEchoareaModal()">
+        <i class="fas fa-plus"></i>
+        Add Echo Area
+    </button>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Active Echo Areas</h6>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="filter" id="active" value="active" checked>
+                        <label class="btn btn-outline-secondary" for="active">Active</label>
+                        
+                        <input type="radio" class="btn-check" name="filter" id="all" value="all">
+                        <label class="btn btn-outline-secondary" for="all">All</label>
+                        
+                        <input type="radio" class="btn-check" name="filter" id="inactive" value="inactive">
+                        <label class="btn btn-outline-secondary" for="inactive">Inactive</label>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="echoareasContainer">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading echo areas...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-8">Active Areas:</dt>
+                    <dd class="col-4" id="activeCount">-</dd>
+                    
+                    <dt class="col-8">Total Messages:</dt>
+                    <dd class="col-4" id="totalMessages">-</dd>
+                    
+                    <dt class="col-8">Today's Messages:</dt>
+                    <dd class="col-4" id="todayMessages">-</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="syncWithUplinks()">
+                        <i class="fas fa-sync"></i>
+                        Sync with Uplinks
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="exportConfiguration()">
+                        <i class="fas fa-download"></i>
+                        Export Configuration
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="validateConfiguration()">
+                        <i class="fas fa-check"></i>
+                        Validate Configuration
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Color Legend</h6>
+            </div>
+            <div class="card-body">
+                <small class="text-muted">
+                    Echo areas can be color-coded for easy identification:
+                </small>
+                <ul class="list-unstyled mt-2 small">
+                    <li><span class="badge me-2" style="background-color: #28a745;">Green</span> General topics</li>
+                    <li><span class="badge me-2" style="background-color: #17a2b8;">Blue</span> Technical/Testing</li>
+                    <li><span class="badge me-2" style="background-color: #dc3545;">Red</span> Important/Official</li>
+                    <li><span class="badge me-2" style="background-color: #ffc107;">Yellow</span> Administrative</li>
+                    <li><span class="badge me-2" style="background-color: #6f42c1;">Purple</span> Special interest</li>
+                    <li><span class="badge me-2" style="background-color: #fd7e14;">Orange</span> Regional</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Echoarea Modal -->
+<div class="modal fade" id="echoareaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="echoareaModalTitle">Add Echo Area</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="echoareaForm">
+                    <input type="hidden" id="echoareaId">
+                    
+                    <div class="mb-3">
+                        <label for="echoareaTag" class="form-label">Tag *</label>
+                        <input type="text" class="form-control text-uppercase" id="echoareaTag" name="tag" required maxlength="50">
+                        <div class="form-text">Echo area tag (e.g., FIDONET.GEN, LOCAL.TEST)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="echoareaDescription" class="form-label">Description *</label>
+                        <textarea class="form-control" id="echoareaDescription" name="description" rows="2" required maxlength="255"></textarea>
+                        <div class="form-text">Brief description of the echo area</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="echoareaUplink" class="form-label">Uplink Address</label>
+                            <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
+                            <div class="form-text">FidoNet address of uplink node</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="echoareaColor" class="form-label">Color</label>
+                            <input type="color" class="form-control form-control-color" id="echoareaColor" name="color" value="#28a745">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="echoareaModerator" class="form-label">Moderator</label>
+                        <input type="text" class="form-control" id="echoareaModerator" name="moderator" maxlength="100">
+                        <div class="form-text">Name of the echo area moderator</div>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="echoareaActive" name="is_active" checked>
+                        <label class="form-check-label" for="echoareaActive">
+                            Active
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-fidonet" onclick="saveEchoarea()">
+                    <i class="fas fa-save"></i>
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the echo area <strong id="deleteEchoareaName"></strong>?</p>
+                <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone and will affect message routing.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">
+                    <i class="fas fa-trash"></i>
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'active';
+let currentEchoareaId = null;
+
+$(document).ready(function() {
+    loadEchoareas();
+    loadStats();
+    
+    // Filter change handler
+    $('input[name="filter"]').change(function() {
+        currentFilter = $(this).val();
+        loadEchoareas();
+    });
+    
+    // Form validation
+    $('#echoareaTag').on('input', function() {
+        $(this).val($(this).val().toUpperCase());
+    });
+});
+
+function loadEchoareas() {
+    showLoading('#echoareasContainer');
+    
+    let url = '/api/echoareas';
+    if (currentFilter !== 'all') {
+        url += `?filter=${currentFilter}`;
+    }
+    
+    $.get(url)
+        .done(function(data) {
+            displayEchoareas(data.echoareas);
+        })
+        .fail(function() {
+            $('#echoareasContainer').html('<div class="text-center text-danger py-4">Failed to load echo areas</div>');
+        });
+}
+
+function displayEchoareas(echoareas) {
+    const container = $('#echoareasContainer');
+    let html = '';
+    
+    if (echoareas.length === 0) {
+        html = '<div class="text-center text-muted py-4">No echo areas found</div>';
+    } else {
+        html = `
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th width="5%"></th>
+                            <th width="20%">Tag</th>
+                            <th width="35%">Description</th>
+                            <th width="15%">Messages</th>
+                            <th width="15%">Uplink</th>
+                            <th width="10%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        echoareas.forEach(function(area) {
+            const isActive = area.is_active;
+            const rowClass = isActive ? '' : 'table-secondary';
+            const statusIcon = isActive ? 
+                '<i class="fas fa-check-circle text-success" title="Active"></i>' : 
+                '<i class="fas fa-pause-circle text-warning" title="Inactive"></i>';
+            
+            html += `
+                <tr class="${rowClass}">
+                    <td class="text-center">${statusIcon}</td>
+                    <td>
+                        <span class="badge" style="background-color: ${area.color || '#28a745'}; color: white;">
+                            ${escapeHtml(area.tag)}
+                        </span>
+                    </td>
+                    <td>
+                        <strong>${escapeHtml(area.description)}</strong>
+                        ${area.moderator ? `<br><small class="text-muted">Mod: ${escapeHtml(area.moderator)}</small>` : ''}
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">${area.message_count || 0}</span>
+                    </td>
+                    <td>
+                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'None')}</small>
+                    </td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editEchoarea(${area.id})" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${area.id}, '${escapeHtml(area.tag)}')" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    container.html(html);
+}
+
+function showAddEchoareaModal() {
+    currentEchoareaId = null;
+    $('#echoareaModalTitle').text('Add Echo Area');
+    $('#echoareaForm')[0].reset();
+    $('#echoareaId').val('');
+    $('#echoareaColor').val('#28a745');
+    $('#echoareaActive').prop('checked', true);
+    $('#echoareaModal').modal('show');
+}
+
+function editEchoarea(id) {
+    currentEchoareaId = id;
+    $('#echoareaModalTitle').text('Edit Echo Area');
+    
+    $.get(`/api/echoareas/${id}`)
+        .done(function(data) {
+            const area = data.echoarea;
+            $('#echoareaId').val(area.id);
+            $('#echoareaTag').val(area.tag);
+            $('#echoareaDescription').val(area.description);
+            $('#echoareaUplink').val(area.uplink_address || '');
+            $('#echoareaColor').val(area.color || '#28a745');
+            $('#echoareaModerator').val(area.moderator || '');
+            $('#echoareaActive').prop('checked', area.is_active);
+            $('#echoareaModal').modal('show');
+        })
+        .fail(function() {
+            showError('Failed to load echo area details');
+        });
+}
+
+function saveEchoarea() {
+    const form = $('#echoareaForm');
+    if (!form[0].checkValidity()) {
+        form[0].reportValidity();
+        return;
+    }
+    
+    const formData = {
+        tag: $('#echoareaTag').val().toUpperCase(),
+        description: $('#echoareaDescription').val(),
+        uplink_address: $('#echoareaUplink').val() || null,
+        color: $('#echoareaColor').val(),
+        moderator: $('#echoareaModerator').val() || null,
+        is_active: $('#echoareaActive').is(':checked')
+    };
+    
+    const url = currentEchoareaId ? `/api/echoareas/${currentEchoareaId}` : '/api/echoareas';
+    const method = currentEchoareaId ? 'PUT' : 'POST';
+    
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function() {
+            $('#echoareaModal').modal('hide');
+            showSuccess(`Echo area ${currentEchoareaId ? 'updated' : 'created'} successfully`);
+            loadEchoareas();
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Operation failed';
+            showError(error);
+        }
+    });
+}
+
+function showDeleteModal(id, tag) {
+    currentEchoareaId = id;
+    $('#deleteEchoareaName').text(tag);
+    $('#deleteModal').modal('show');
+    
+    $('#confirmDelete').off('click').on('click', function() {
+        deleteEchoarea();
+    });
+}
+
+function deleteEchoarea() {
+    $.ajax({
+        url: `/api/echoareas/${currentEchoareaId}`,
+        method: 'DELETE',
+        success: function() {
+            $('#deleteModal').modal('hide');
+            showSuccess('Echo area deleted successfully');
+            loadEchoareas();
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Delete failed';
+            showError(error);
+        }
+    });
+}
+
+function loadStats() {
+    $.get('/api/echoareas/stats')
+        .done(function(data) {
+            $('#activeCount').text(data.active_count || 0);
+            $('#totalMessages').text(data.total_messages || 0);
+            $('#todayMessages').text(data.today_messages || 0);
+        });
+}
+
+function syncWithUplinks() {
+    showSuccess('Sync functionality not yet implemented');
+}
+
+function exportConfiguration() {
+    showSuccess('Export functionality not yet implemented');
+}
+
+function validateConfiguration() {
+    showSuccess('Validation functionality not yet implemented');
+}
+</script>
+{% endblock %}
