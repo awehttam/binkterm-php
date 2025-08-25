@@ -1,6 +1,6 @@
 <?php
 
-namespace Binktest;
+namespace BinktermPHP;
 
 use PDO;
 use PDOException;

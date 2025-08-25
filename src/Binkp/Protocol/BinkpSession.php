@@ -1,8 +1,8 @@
 <?php
 
-namespace Binktest\Binkp\Protocol;
+namespace BinktermPHP\Binkp\Protocol;
 
-use Binktest\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 
 class BinkpSession
 {

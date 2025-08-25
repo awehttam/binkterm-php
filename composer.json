@@ -1,5 +1,5 @@
 {
-    "name": "binktest/fidonet-web",
+    "name": "binkterm-php/fidonet-web",
     "description": "Modern web interface for Fidonet messaging with binkd integration",
     "type": "project",
     "require": {
@@ -11,7 +11,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Binktest\\": "src/"
+            "BinktermPHP\\": "src/"
         }
     },
     "require-dev": {

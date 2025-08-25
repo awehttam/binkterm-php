@@ -1,13 +1,13 @@
 <?php
 
-namespace Binktest;
+namespace BinktermPHP;
 
 class SystemConfig
 {
     public static function getSystemFidonetAddress()
     {
         try {
-            $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             return $binkpConfig->getSystemAddress();
         } catch (\Exception $e) {
             // Fall back to a default or config value
@@ -18,7 +18,7 @@ class SystemConfig
     public static function getSystemSysop()
     {
         try {
-            $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             return $binkpConfig->getSystemSysop();
         } catch (\Exception $e) {
             // Fall back to a default

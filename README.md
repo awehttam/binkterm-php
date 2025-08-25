@@ -54,7 +54,7 @@ composer install
 ### Step 3: Set Up Database
 The SQLite database will be created automatically on first run. Initialize with:
 ```bash
-php -r "require 'vendor/autoload.php'; Binktest\Database::getInstance();"
+php -r "require 'vendor/autoload.php'; BinktermPHP\Database::getInstance();"
 ```
 
 ### Step 4: Create Initial User

@@ -1,14 +1,14 @@
 <?php
 
-namespace Binktest\Binkp\Web;
+namespace BinktermPHP\Binkp\Web;
 
-use Binktest\Binkp\Config\BinkpConfig;
-use Binktest\Binkp\Protocol\BinkpClient;
-use Binktest\Binkp\Connection\Scheduler;
-use Binktest\Binkp\Queue\InboundQueue;
-use Binktest\Binkp\Queue\OutboundQueue;
-use Binktest\Binkp\Logger;
-use Binktest\Auth;
+use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Protocol\BinkpClient;
+use BinktermPHP\Binkp\Connection\Scheduler;
+use BinktermPHP\Binkp\Queue\InboundQueue;
+use BinktermPHP\Binkp\Queue\OutboundQueue;
+use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Auth;
 
 class BinkpController
 {

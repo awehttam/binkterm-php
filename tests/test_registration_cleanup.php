@@ -2,8 +2,8 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Binktest\MessageHandler;
-use Binktest\Database;
+use BinktermPHP\MessageHandler;
+use BinktermPHP\Database;
 
 // Initialize database
 Database::getInstance();

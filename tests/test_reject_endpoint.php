@@ -25,7 +25,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 ]);
 
 // Add cookie if we have a session (you'd need to get this from browser)
-// curl_setopt($ch, CURLOPT_COOKIE, 'binktest_session=your_session_id_here');
+// curl_setopt($ch, CURLOPT_COOKIE, 'binktermphp_session=your_session_id_here');
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

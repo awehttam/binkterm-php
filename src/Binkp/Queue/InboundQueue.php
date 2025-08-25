@@ -1,9 +1,9 @@
 <?php
 
-namespace Binktest\Binkp\Queue;
+namespace BinktermPHP\Binkp\Queue;
 
-use Binktest\BinkdProcessor;
-use Binktest\Binkp\Config\BinkpConfig;
+use BinktermPHP\BinkdProcessor;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 
 class InboundQueue
 {

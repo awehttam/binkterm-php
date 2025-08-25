@@ -2,13 +2,13 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Binktest\AdminController;
-use Binktest\MessageHandler;
+use BinktermPHP\AdminController;
+use BinktermPHP\MessageHandler;
 
 
-use Binktest\Auth;
-use Binktest\Template;
-use Binktest\Database;
+use BinktermPHP\Auth;
+use BinktermPHP\Template;
+use BinktermPHP\Database;
 use Pecee\SimpleRouter\SimpleRouter;
 
 // Initialize database
@@ -72,7 +72,7 @@ SimpleRouter::get('/netmail', function() {
     
     // Get system address for message filtering
     try {
-        $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemAddress = $binkpConfig->getSystemAddress();
     } catch (\Exception $e) {
         $systemAddress = 'Unknown';
@@ -141,12 +141,12 @@ SimpleRouter::get('/profile', function() {
     
     // Get system configuration for display
     try {
-        $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemName = $binkpConfig->getSystemName();
         $systemAddress = $binkpConfig->getSystemAddress();
         $sysopName = $binkpConfig->getSystemSysop();
     } catch (\Exception $e) {
-        $systemName = 'BinkTest System';
+        $systemName = 'BinktermPHP System';
         $systemAddress = 'Not configured';
         $sysopName = 'Unknown';
     }
@@ -177,12 +177,12 @@ SimpleRouter::get('/settings', function() {
     
     // Get system configuration for display
     try {
-        $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemName = $binkpConfig->getSystemName();
         $systemAddress = $binkpConfig->getSystemAddress();
         $sysopName = $binkpConfig->getSystemSysop();
     } catch (\Exception $e) {
-        $systemName = 'BinkTest System';
+        $systemName = 'BinktermPHP System';
         $systemAddress = 'Not configured';
         $sysopName = 'Unknown';
     }
@@ -254,11 +254,11 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $echoarea = $_GET['echoarea'] ?? null;
     // Get system configuration for display
     try {
-        $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemName = $binkpConfig->getSystemName();
         $systemAddress = $binkpConfig->getSystemAddress();
     } catch (\Exception $e) {
-        $systemName = 'BinkTest System';
+        $systemName = 'BinktermPHP System';
         $systemAddress = 'Not configured';
     }
     
@@ -345,7 +345,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sessionId = $auth->login($username, $password);
         
         if ($sessionId) {
-            setcookie('binktest_session', $sessionId, time() + 86400 * 30, '/', '', false, true);
+            setcookie('binktermphp_session', $sessionId, time() + 86400 * 30, '/', '', false, true);
             echo json_encode(['success' => true]);
         } else {
             http_response_code(401);
@@ -356,11 +356,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/auth/logout', function() {
         header('Content-Type: application/json');
         
-        $sessionId = $_COOKIE['binktest_session'] ?? null;
+        $sessionId = $_COOKIE['binktermphp_session'] ?? null;
         if ($sessionId) {
             $auth = new Auth();
             $auth->logout($sessionId);
-            setcookie('binktest_session', '', time() - 3600, '/');
+            setcookie('binktermphp_session', '', time() - 3600, '/');
         }
         
         echo json_encode(['success' => true]);
@@ -755,7 +755,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         // Get system's FidoNet address
         try {
-            $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             $systemAddress = $binkpConfig->getSystemAddress();
         } catch (\Exception $e) {
             $systemAddress = null;
@@ -1270,7 +1270,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         // For echomail, we need to count by system address since users don't have individual addresses
         try {
-            $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             $systemAddress = $binkpConfig->getSystemAddress();
             
             $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE from_address = ?");
@@ -1302,7 +1302,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ORDER BY created_at DESC
         ");
         
-        $currentSessionId = $_COOKIE['binktest_session'] ?? '';
+        $currentSessionId = $_COOKIE['binktermphp_session'] ?? '';
         $stmt->execute([$currentSessionId, $user['user_id']]);
         $sessions = $stmt->fetchAll();
         
@@ -1343,7 +1343,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         if ($result) {
             // Clear the current session cookie
-            setcookie('binktest_session', '', time() - 3600, '/');
+            setcookie('binktermphp_session', '', time() - 3600, '/');
             echo json_encode(['success' => true]);
         } else {
             http_response_code(500);
@@ -1386,7 +1386,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         try {
             // Trigger a poll of all uplinks
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $result = $controller->pollAllUplinks();
             
             echo json_encode(['success' => true, 'message' => 'Poll initiated']);
@@ -1414,7 +1414,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         
         try {
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $status = $controller->getStatus();
             
             // Clean any unwanted output
@@ -1443,7 +1443,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Address is required');
             }
             
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $result = $controller->pollUplink($address);
             
             ob_clean();
@@ -1463,7 +1463,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = requireBinkpAdmin();
         
         try {
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $result = $controller->pollAllUplinks();
             
             ob_clean();
@@ -1483,7 +1483,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = requireBinkpAdmin();
         
         try {
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $uplinks = $controller->getUplinks();
             
             ob_clean();
@@ -1503,7 +1503,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         
         $input = json_decode(file_get_contents('php://input'), true);
-        $controller = new \Binktest\Binkp\Web\BinkpController();
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
         echo json_encode($controller->addUplink($input));
     });
     
@@ -1513,7 +1513,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         
         $input = json_decode(file_get_contents('php://input'), true);
-        $controller = new \Binktest\Binkp\Web\BinkpController();
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
         echo json_encode($controller->updateUplink($address, $input));
     });
     
@@ -1522,7 +1522,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         header('Content-Type: application/json');
         
-        $controller = new \Binktest\Binkp\Web\BinkpController();
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
         echo json_encode($controller->removeUplink($address));
     });
     
@@ -1533,7 +1533,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $auth->requireAuth();
         
         try {
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $files = $controller->getInboundFiles();
             
             ob_clean();
@@ -1554,7 +1554,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $auth->requireAuth();
         
         try {
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $files = $controller->getOutboundFiles();
             
             ob_clean();
@@ -1581,7 +1581,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \ErrorException($message, 0, $severity, $file, $line);
             });
             
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $result = $controller->processInbound();
             
             restore_error_handler();
@@ -1605,7 +1605,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
         
         try {
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $result = $controller->processOutbound();
             
             ob_clean();
@@ -1627,7 +1627,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         
         $lines = intval($_GET['lines'] ?? 100);
-        $controller = new \Binktest\Binkp\Web\BinkpController();
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
         echo json_encode($controller->getLogs($lines));
     });
     
@@ -1639,7 +1639,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
         
         try {
-            $controller = new \Binktest\Binkp\Web\BinkpController();
+            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
             $config = $controller->getConfig();
             
             ob_clean();
@@ -1661,7 +1661,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         
         $input = json_decode(file_get_contents('php://input'), true);
-        $controller = new \Binktest\Binkp\Web\BinkpController();
+        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
         echo json_encode($controller->updateConfig($section, $input));
     });
     
@@ -2066,8 +2066,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $response = [
                 'user' => $user,
                 'is_admin' => $user ? (bool)$user['is_admin'] : false,
-                'cookie_present' => isset($_COOKIE['binktest_session']),
-                'cookie_value' => $_COOKIE['binktest_session'] ?? null
+                'cookie_present' => isset($_COOKIE['binktermphp_session']),
+                'cookie_value' => $_COOKIE['binktermphp_session'] ?? null
             ];
             
             echo json_encode($response);

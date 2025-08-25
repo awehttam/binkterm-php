@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Binktest\Database;
+use BinktermPHP\Database;
 
 $db = Database::getInstance()->getPdo();
 

@@ -1,9 +1,9 @@
 <?php
 
-namespace Binktest\Binkp\Connection;
+namespace BinktermPHP\Binkp\Connection;
 
-use Binktest\Binkp\Config\BinkpConfig;
-use Binktest\Binkp\Protocol\BinkpClient;
+use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Protocol\BinkpClient;
 
 class Scheduler
 {

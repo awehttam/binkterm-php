@@ -1,6 +1,6 @@
 <?php
 
-namespace Binktest\Binkp\Protocol;
+namespace BinktermPHP\Binkp\Protocol;
 
 class BinkpFrame
 {

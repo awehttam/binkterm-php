@@ -1,6 +1,6 @@
 <?php
 
-namespace Binktest\Binkp\Config;
+namespace BinktermPHP\Binkp\Config;
 
 class BinkpConfig
 {
@@ -65,7 +65,7 @@ class BinkpConfig
     {
         $defaultConfig = [
             'system' => [
-                'name' => 'BinkTest System',
+                'name' => 'BinktermPHP System',
                 'address' => '1:123/456',
                 'sysop' => 'System Operator',
                 'location' => 'Unknown Location',
@@ -93,7 +93,7 @@ class BinkpConfig
     
     public function getSystemName()
     {
-        return $this->config['system']['name'] ?? 'BinkTest System';
+        return $this->config['system']['name'] ?? 'BinktermPHP System';
     }
     
     public function getSystemAddress()

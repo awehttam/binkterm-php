@@ -2,9 +2,9 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Binktest\Binkp\Connection\Scheduler;
-use Binktest\Binkp\Config\BinkpConfig;
-use Binktest\Binkp\Logger;
+use BinktermPHP\Binkp\Connection\Scheduler;
+use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Logger;
 
 function showUsage()
 {

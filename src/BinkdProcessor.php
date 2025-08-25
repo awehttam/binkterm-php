@@ -1,8 +1,8 @@
 <?php
 
-namespace Binktest;
+namespace BinktermPHP;
 
-use Binktest\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 
 class BinkdProcessor
 {

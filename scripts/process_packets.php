@@ -4,8 +4,8 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Binktest\BinkdProcessor;
-use Binktest\Database;
+use BinktermPHP\BinkdProcessor;
+use BinktermPHP\Database;
 
 // Initialize database
 Database::getInstance();

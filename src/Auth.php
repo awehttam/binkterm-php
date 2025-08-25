@@ -1,6 +1,6 @@
 <?php
 
-namespace Binktest;
+namespace BinktermPHP;
 
 class Auth
 {
@@ -74,7 +74,7 @@ class Auth
 
     public function getCurrentUser()
     {
-        $sessionId = $_COOKIE['binktest_session'] ?? null;
+        $sessionId = $_COOKIE['binktermphp_session'] ?? null;
         if ($sessionId) {
             return $this->validateSession($sessionId);
         }

@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Binktest\MessageHandler;
+use BinktermPHP\MessageHandler;
 
 $handler = new MessageHandler();
 $pending = $handler->getPendingUsers();

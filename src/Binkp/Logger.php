@@ -1,6 +1,6 @@
 <?php
 
-namespace Binktest\Binkp;
+namespace BinktermPHP\Binkp;
 
 class Logger
 {

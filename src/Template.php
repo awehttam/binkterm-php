@@ -1,6 +1,6 @@
 <?php
 
-namespace Binktest;
+namespace BinktermPHP;
 
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
@@ -28,7 +28,7 @@ class Template
         
         // Get dynamic system info from BinkP config
         try {
-            $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             //$systemName = $binkpConfig->getSystemSysop() . "'s System";
             $systemName = $binkpConfig->getSystemName();
             $sysopName = $binkpConfig->getSystemSysop();

@@ -2,11 +2,11 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Binktest\Binkp\Protocol\BinkpClient;
-use Binktest\Binkp\Config\BinkpConfig;
-use Binktest\Binkp\Connection\Scheduler;
-use Binktest\Binkp\Queue\InboundQueue;
-use Binktest\Binkp\Queue\OutboundQueue;
+use BinktermPHP\Binkp\Protocol\BinkpClient;
+use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Connection\Scheduler;
+use BinktermPHP\Binkp\Queue\InboundQueue;
+use BinktermPHP\Binkp\Queue\OutboundQueue;
 
 function showUsage()
 {
