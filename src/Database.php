@@ -34,6 +34,11 @@ class Database
     {
         return $this->pdo;
     }
+    
+    public function getDatabasePath()
+    {
+        return Config::DB_PATH;
+    }
 
     private function initTables()
     {

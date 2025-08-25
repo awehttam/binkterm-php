@@ -33,17 +33,11 @@ provides users with a delighftful, modern web experience that allows them to sen
  - When adding features to netmail and echomail, keep in mind feature parity.  Ask for clarification about whether a feature is appropriate to both. 
  
 ## Known Issues
- - Regular users have too much permission.  For example, a regular user should not be able to poll the uplinks.
- - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
- - For some reason new echoareas are created if a parsing error occurs on incoming packets.  
- - The date/time is wrong for messages.  I suspect there is timezone conversion going on causing skew.  Most likely related to the sort order of the Received messages (by Received date) is wrong - likely due to the time skew issue reported previously.
+  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
+  - The date/time is wrong for messages.  I suspect there is timezone conversion going on causing skew.  Most likely related to the sort order of the Received messages (by Received date) is wrong - likely due to the time skew issue reported previously.
  
 ## Future Plans
- - Using this as a library in future applications
- - Adding QWK support
- - Adding support for the user settings: Dark Mode, Messages per page, Timezone.
- - Working echomail
+ - Using the binkp library in other applications
  - Less bugs
- - Add support for zipped bundles of packets
   
   

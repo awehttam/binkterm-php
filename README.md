@@ -35,7 +35,7 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 ## Installation
 
 ### Requirements
-- **PHP 8.0+** with extensions: PDO, SQLite, Sockets, JSON
+- **PHP 8.0+** with extensions: PDO, SQLite, Sockets, JSON, DOM
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
 - **Operating System** - Windows, Linux, or macOS

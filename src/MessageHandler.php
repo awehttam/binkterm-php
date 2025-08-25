@@ -132,9 +132,9 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE ea.tag = ?{$filterClause}
                 ORDER BY CASE 
-                    WHEN em.date_written > datetime('now') THEN 0 
+                    WHEN em.date_received > datetime('now') THEN 0 
                     ELSE 1 
-                END, em.date_written DESC 
+                END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $echoareaTag, $limit, $offset];
@@ -158,9 +158,9 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE 1=1{$filterClause}
                 ORDER BY CASE 
-                    WHEN em.date_written > datetime('now') THEN 0 
+                    WHEN em.date_received > datetime('now') THEN 0 
                     ELSE 1 
-                END, em.date_written DESC 
+                END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $limit, $offset];

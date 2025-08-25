@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Cat head -->
+  <circle cx="16" cy="18" r="10" fill="#ff8c42" stroke="#333" stroke-width="1"/>
+  
+  <!-- Cat ears -->
+  <polygon points="8,12 12,8 16,12" fill="#ff8c42" stroke="#333" stroke-width="1"/>
+  <polygon points="16,12 20,8 24,12" fill="#ff8c42" stroke="#333" stroke-width="1"/>
+  <polygon points="9.5,11 11.5,9.5 14.5,11" fill="#ff6b1a"/>
+  <polygon points="17.5,11 19.5,9.5 22.5,11" fill="#ff6b1a"/>
+  
+  <!-- Cat eyes -->
+  <ellipse cx="12" cy="16" rx="1.5" ry="2" fill="#333"/>
+  <ellipse cx="20" cy="16" rx="1.5" ry="2" fill="#333"/>
+  <ellipse cx="12.3" cy="15.5" rx="0.5" ry="0.8" fill="#fff"/>
+  <ellipse cx="20.3" cy="15.5" rx="0.5" ry="0.8" fill="#fff"/>
+  
+  <!-- Cat nose -->
+  <polygon points="16,19 15,20.5 17,20.5" fill="#ff1a7a"/>
+  
+  <!-- Floppy disk in mouth -->
+  <rect x="12" y="22" width="8" height="6" fill="#333" rx="0.5"/>
+  <rect x="12.5" y="22.5" width="7" height="5" fill="#4a4a4a" rx="0.3"/>
+  <rect x="13" y="23" width="6" height="1" fill="#666"/>
+  <rect x="15" y="24.5" width="2" height="2" fill="#222"/>
+  <circle cx="18" cy="24" r="0.5" fill="#666"/>
+  <rect x="13.5" y="26.5" width="5" height="0.5" fill="#888"/>
+  
+  <!-- Cat mouth lines -->
+  <path d="M 16 20.5 Q 13 22 12 22" stroke="#333" stroke-width="0.5" fill="none"/>
+  <path d="M 16 20.5 Q 19 22 20 22" stroke="#333" stroke-width="0.5" fill="none"/>
+  
+  <!-- Whiskers -->
+  <line x1="6" y1="17" x2="10" y2="17" stroke="#333" stroke-width="0.5"/>
+  <line x1="6" y1="19" x2="10" y2="18.5" stroke="#333" stroke-width="0.5"/>
+  <line x1="22" y1="17" x2="26" y2="17" stroke="#333" stroke-width="0.5"/>
+  <line x1="22" y1="18.5" x2="26" y2="19" stroke="#333" stroke-width="0.5"/>
+</svg>
