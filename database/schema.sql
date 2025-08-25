@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS echomail (
     reply_to_id INTEGER,
     message_id VARCHAR(100),
     origin_line VARCHAR(255),
+    kludge_lines TEXT,
     FOREIGN KEY (echoarea_id) REFERENCES echoareas(id),
     FOREIGN KEY (reply_to_id) REFERENCES echomail(id)
 );
@@ -121,6 +122,17 @@ CREATE TABLE IF NOT EXISTS user_settings (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Message read status tracking
+CREATE TABLE IF NOT EXISTS message_read_status (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    message_type VARCHAR(10) NOT NULL,
+    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, message_id, message_type)
+);
+
 -- User sessions table (renamed from sessions to avoid conflicts)
 CREATE TABLE IF NOT EXISTS user_sessions (
     session_id VARCHAR(128) PRIMARY KEY,
@@ -143,6 +155,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_message_read_status_user ON message_read_status(user_id);
+CREATE INDEX IF NOT EXISTS idx_message_read_status_message ON message_read_status(message_id, message_type);
 
 -- Insert default echo areas
 INSERT OR IGNORE INTO echoareas (tag, description, uplink_address, color) VALUES 

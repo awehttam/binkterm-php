@@ -118,6 +118,7 @@
 
 {% block scripts %}
 <script>
+window.systemAddress = '{{ system_address }}';
 let currentPage = 1;
 let currentFilter = 'all';
 let currentMessageId = null;
@@ -189,11 +190,11 @@ function displayMessages(messages) {
         
         messages.forEach(function(msg) {
             const isUnread = !msg.is_read;
-            const isSent = msg.from_address === '{{ current_user.fidonet_address }}';
+            const isSent = msg.is_sent || (msg.from_address && msg.from_address === window.systemAddress);
             const rowClass = isUnread ? 'table-light' : '';
             
             html += `
-                <tr class="${rowClass} message-row" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                <tr class="${rowClass} message-row" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                     <td class="text-center">
                         ${isUnread ? '<i class="fas fa-envelope text-primary" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted" title="Read"></i>'}
                     </td>
@@ -203,7 +204,7 @@ function displayMessages(messages) {
                         <small class="text-muted">${isSent ? 'Sent' : 'Received'}</small>
                     </td>
                     <td>
-                        <span>${escapeHtml(msg.subject || '(No Subject)')}</span>
+                        ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || '(No Subject)')}</span>${isUnread ? '</strong>' : ''}
                         <br>
                         <small class="text-muted">
                             <span class="badge bg-secondary">NETMAIL</span>
@@ -290,7 +291,7 @@ function viewMessage(messageId) {
 }
 
 function displayMessageContent(message) {
-    const isSent = message.from_address === '{{ current_user.fidonet_address }}';
+    const isSent = message.is_sent || (message.from_address && message.from_address === window.systemAddress);
     
     $('#messageSubject').text(message.subject || '(No Subject)');
     
@@ -413,5 +414,73 @@ function deleteMessage(messageId) {
         }
     });
 }
+
+// Mark message as read when viewed
+function markMessageAsRead(messageId) {
+    $.post(`/api/messages/netmail/${messageId}/read`)
+        .done(function() {
+            // Update the UI to show message as read
+            const messageRow = $(`.message-row[data-message-id="${messageId}"]`);
+            if (messageRow.length) {
+                messageRow.removeClass('table-light');
+                // Change envelope icon from closed to open
+                messageRow.find('.fa-envelope').removeClass('fas fa-envelope text-primary').addClass('far fa-envelope-open text-muted');
+                // Remove bold formatting from subject
+                messageRow.find('strong').contents().unwrap();
+                // Update title attribute
+                messageRow.find('.fa-envelope-open').attr('title', 'Read');
+                // Reduce opacity slightly to show as read
+                messageRow.css('opacity', '0.85');
+            }
+        })
+        .fail(function() {
+            console.log('Failed to mark netmail as read');
+        });
+}
+
+// Override viewMessage function to mark as read
+function viewMessage(messageId) {
+    currentMessageId = messageId;
+    
+    // Mark as read immediately
+    markMessageAsRead(messageId);
+    
+    $('#messageContent').html(`
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Loading message...
+        </div>
+    `);
+    
+    $('#messageModal').modal('show');
+    
+    $.get(`/api/messages/netmail/${messageId}`)
+        .done(function(data) {
+            displayMessageContent(data);
+        })
+        .fail(function() {
+            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+        });
+}
 </script>
+
+<style>
+/* Read/Unread message styling */
+.message-row.table-light {
+    background-color: #f8f9fa;
+}
+
+.message-row.table-light strong {
+    font-weight: 600;
+}
+
+.message-row:not(.table-light) {
+    opacity: 0.85;
+}
+
+.message-row:hover {
+    background-color: #e9ecef;
+    opacity: 1 !important;
+}
+</style>
 {% endblock %}

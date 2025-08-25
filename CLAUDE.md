@@ -29,6 +29,7 @@ provides users with a delighftful, modern web experience that allows them to sen
  - User authentication is simple username and password with long lived cookie
  - The web interface should use ajax requests by api for queries
  - This is for FTN style networks and forums.  
+ - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done..
  
  
 ## Known Issues

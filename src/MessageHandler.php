@@ -11,32 +11,71 @@ class MessageHandler
         $this->db = Database::getInstance()->getPdo();
     }
 
-    public function getNetmail($userId, $page = 1, $limit = 25)
+    public function getNetmail($userId, $page = 1, $limit = 25, $filter = 'all')
     {
         $user = $this->getUserById($userId);
         if (!$user) {
             return ['messages' => [], 'pagination' => []];
         }
 
+        // Get system's FidoNet address for sent message filtering
+        try {
+            $binkpConfig = \Binktest\Binkp\Config\BinkpConfig::getInstance();
+            $systemAddress = $binkpConfig->getSystemAddress();
+        } catch (\Exception $e) {
+            $systemAddress = null;
+        }
+
         $offset = ($page - 1) * $limit;
         
+        // Build the WHERE clause based on filter
+        $whereClause = "WHERE n.user_id = ?";
+        $params = [$userId];
+        
+        if ($filter === 'unread') {
+            $whereClause .= " AND mrs.read_at IS NULL";
+        } elseif ($filter === 'sent' && $systemAddress) {
+            $whereClause = "WHERE n.from_address = ?";
+            $params = [$systemAddress];
+        }
+        
         $stmt = $this->db->prepare("
-            SELECT * FROM netmail 
-            WHERE user_id = ?
+            SELECT n.*, 
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
+            FROM netmail n
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            $whereClause
             ORDER BY CASE 
-                WHEN date_written > datetime('now') THEN 0 
+                WHEN n.date_written > datetime('now') THEN 0 
                 ELSE 1 
-            END, date_written DESC 
+            END, n.date_written DESC 
             LIMIT ? OFFSET ?
         ");
-        $stmt->execute([$userId, $limit, $offset]);
+        
+        // Insert userId at the beginning for the LEFT JOIN, then add existing params
+        $allParams = [$userId];
+        foreach ($params as $param) {
+            $allParams[] = $param;
+        }
+        $allParams[] = $limit;
+        $allParams[] = $offset;
+        
+        $stmt->execute($allParams);
         $messages = $stmt->fetchAll();
 
+        // Get total count with same filter - need to include the LEFT JOIN for unread filter
+        $countAllParams = [$userId];
+        foreach ($params as $param) {
+            $countAllParams[] = $param;
+        }
+        
         $countStmt = $this->db->prepare("
-            SELECT COUNT(*) as total FROM netmail 
-            WHERE user_id = ?
+            SELECT COUNT(*) as total 
+            FROM netmail n
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            $whereClause
         ");
-        $countStmt->execute([$userId]);
+        $countStmt->execute($countAllParams);
         $total = $countStmt->fetch()['total'];
 
         return [
@@ -109,7 +148,7 @@ class MessageHandler
         ];
     }
 
-    public function getMessage($messageId, $type)
+    public function getMessage($messageId, $type, $userId = null)
     {
         if ($type === 'netmail') {
             $stmt = $this->db->prepare("SELECT * FROM netmail WHERE id = ?");
@@ -126,7 +165,7 @@ class MessageHandler
         $message = $stmt->fetch();
 
         if ($message && $type === 'netmail') {
-            $this->markNetmailAsRead($messageId);
+            $this->markNetmailAsRead($messageId, $userId);
         }
 
         return $message;
@@ -309,10 +348,22 @@ class MessageHandler
         return $deleteStmt->execute([$messageId]);
     }
 
-    private function markNetmailAsRead($messageId)
+    private function markNetmailAsRead($messageId, $userId = null)
     {
-        $stmt = $this->db->prepare("UPDATE netmail SET is_read = 1 WHERE id = ?");
-        $stmt->execute([$messageId]);
+        // Get the current user ID if not provided
+        if ($userId === null) {
+            $auth = new Auth();
+            $user = $auth->getCurrentUser();
+            $userId = $user['user_id'] ?? $user['id'] ?? null;
+        }
+        
+        if ($userId) {
+            $stmt = $this->db->prepare("
+                INSERT OR REPLACE INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'netmail', datetime('now'))
+            ");
+            $stmt->execute([$userId, $messageId]);
+        }
     }
 
     private function incrementEchoareaCount($echoareaId)
