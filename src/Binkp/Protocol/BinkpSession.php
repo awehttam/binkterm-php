@@ -567,17 +567,19 @@ class BinkpSession
     
     private function validatePassword($password)
     {
+        $expectedPassword = $this->getPasswordForRemote();
+        
         if ($this->isOriginator) {
-            // As originator, we validate the remote's password against what we expect for them
-            $expectedPassword = $this->getPasswordForRemote();
             $this->log("Validating remote password (originator mode)");
-            return $password === $expectedPassword;
         } else {
-            // As answerer, we validate the remote's password against our uplink config
-            $expectedPassword = $this->getPasswordForRemote();
             $this->log("Validating remote password (answerer mode)");
-            return $password === $expectedPassword;
         }
+        
+        $this->log("Received password: '" . $password . "'");
+        $this->log("Expected password: '" . $expectedPassword . "'");
+        $this->log("Passwords match: " . ($password === $expectedPassword ? 'YES' : 'NO'));
+        
+        return $password === $expectedPassword;
     }
     
     private function getPasswordForRemote()
