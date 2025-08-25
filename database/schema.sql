@@ -165,6 +165,24 @@ INSERT OR IGNORE INTO echoareas (tag, description, uplink_address, color) VALUES
     ('FIDONET.NA', 'Fidonet North America', '1:123/1', '#dc3545'),
     ('SYSOP', 'Sysop Discussion', '1:123/1', '#ffc107');
 
+-- Pending user registrations (awaiting admin approval)
+CREATE TABLE IF NOT EXISTS pending_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    email VARCHAR(100),
+    real_name VARCHAR(100),
+    reason TEXT,
+    requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    status VARCHAR(20) DEFAULT 'pending', -- pending, approved, rejected
+    reviewed_by INTEGER,
+    reviewed_at DATETIME,
+    admin_notes TEXT,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+
 -- Insert default admin user (password: admin123)
 INSERT OR IGNORE INTO users (username, password_hash, real_name, is_admin) VALUES 
     ('admin', '$2y$12$rlwxN0Ov3N0.B9DD0DzDxOQfTNa1k6ITH.mWauNacqes0KNpA4bOu', 'System Administrator', 1);

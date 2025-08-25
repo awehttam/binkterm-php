@@ -50,6 +50,18 @@ SimpleRouter::get('/login', function() {
     $template->renderResponse('login.twig');
 });
 
+SimpleRouter::get('/register', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    
+    if ($user) {
+        return SimpleRouter::response()->redirect('/');
+    }
+    
+    $template = new Template();
+    $template->renderResponse('register.twig');
+});
+
 SimpleRouter::get('/netmail', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -183,6 +195,29 @@ SimpleRouter::get('/settings', function() {
     
     $template = new Template();
     $template->renderResponse('settings.twig', $templateVars);
+});
+
+SimpleRouter::get('/admin/users', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+    
+    // Check if user is admin
+    if (!$user['is_admin']) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title' => 'Access Denied',
+            'error_message' => 'Only administrators can access user management.'
+        ]);
+        return;
+    }
+    
+    $template = new Template();
+    $template->renderResponse('admin_users.twig');
 });
 
 SimpleRouter::get('/echoareas', function() {
@@ -329,6 +364,97 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         
         echo json_encode(['success' => true]);
+    });
+    
+    SimpleRouter::post('/register', function() {
+        header('Content-Type: application/json');
+        
+        // Get form data (not JSON for form submission)
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $realName = $_POST['real_name'] ?? '';
+        $reason = $_POST['reason'] ?? '';
+        
+        // Validate required fields
+        if (empty($username) || empty($password) || empty($realName)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Username, password, and real name are required']);
+            return;
+        }
+        
+        // Validate username format
+        if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Username must be 3-20 characters, letters, numbers, and underscores only']);
+            return;
+        }
+        
+        // Validate password length
+        if (strlen($password) < 8) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Password must be at least 8 characters long']);
+            return;
+        }
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            
+            // Check if username already exists in users or pending_users
+            $checkStmt = $db->prepare("
+                SELECT 1 FROM users WHERE username = ? 
+                UNION 
+                SELECT 1 FROM pending_users WHERE username = ? AND status = 'pending'
+            ");
+            $checkStmt->execute([$username, $username]);
+            
+            if ($checkStmt->fetch()) {
+                http_response_code(409);
+                echo json_encode(['error' => 'Username already exists or registration is pending']);
+                return;
+            }
+            
+            // Hash password
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            
+            // Get client info
+            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
+            // Insert pending user
+            $insertStmt = $db->prepare("
+                INSERT INTO pending_users (username, password_hash, email, real_name, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            
+            $insertStmt->execute([
+                $username,
+                $passwordHash,
+                $email ?: null,
+                $realName,
+                $reason ?: null,
+                $ipAddress,
+                $userAgent
+            ]);
+            
+            $pendingUserId = $db->lastInsertId();
+            
+            // Send notification to sysop
+            try {
+                $handler = new MessageHandler();
+                $handler->sendRegistrationNotification($pendingUserId, $username, $realName, $email, $reason, $ipAddress);
+            } catch (Exception $e) {
+                // Log error but don't fail registration
+                error_log("Failed to send registration notification: " . $e->getMessage());
+            }
+            
+            echo json_encode(['success' => true]);
+            
+        } catch (Exception $e) {
+            error_log("Registration error: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Registration failed. Please try again later.']);
+        }
     });
     
     SimpleRouter::get('/dashboard/stats', function() {
@@ -1543,6 +1669,411 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/messages/echomail/delete-test', function() {
         header('Content-Type: application/json');
         echo json_encode(['success' => true, 'message' => 'Delete endpoint is accessible']);
+    });
+    
+    // Admin API endpoints for user management
+    SimpleRouter::get('/admin/pending-users', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $handler = new MessageHandler();
+            $users = $handler->getPendingUsers();
+            echo json_encode(['success' => true, 'users' => $users]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+    
+    SimpleRouter::get('/admin/pending-users/{id}', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->prepare("SELECT * FROM pending_users WHERE id = ?");
+            $stmt->execute([$id]);
+            $pendingUser = $stmt->fetch();
+            
+            if (!$pendingUser) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Pending user not found']);
+                return;
+            }
+            
+            echo json_encode(['success' => true, 'user' => $pendingUser]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+    
+    SimpleRouter::post('/admin/pending-users/{id}/approve', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        $notes = $_POST['notes'] ?? '';
+        
+        try {
+            $handler = new MessageHandler();
+            $newUserId = $handler->approveUserRegistration($id, $user['id'], $notes);
+            echo json_encode(['success' => true, 'new_user_id' => $newUserId]);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+    
+    SimpleRouter::post('/admin/pending-users/{id}/reject', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        $notes = $_POST['notes'] ?? '';
+        
+        try {
+            $handler = new MessageHandler();
+            $handler->rejectUserRegistration($id, $user['id'], $notes);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+    
+    SimpleRouter::get('/admin/users', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->query("
+                SELECT id, username, real_name, email, created_at, last_login, is_active, is_admin
+                FROM users 
+                ORDER BY created_at DESC
+            ");
+            $users = $stmt->fetchAll();
+            echo json_encode(['success' => true, 'users' => $users]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+    
+    // Get single user for editing
+    SimpleRouter::get('/admin/users/{id}', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->prepare("SELECT id, username, real_name, email, is_active, is_admin, created_at, last_login FROM users WHERE id = ?");
+            $stmt->execute([$id]);
+            $userData = $stmt->fetch();
+            
+            if (!$userData) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found']);
+                return;
+            }
+            
+            echo json_encode(['success' => true, 'user' => $userData]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+    
+    // Update user
+    SimpleRouter::post('/admin/users/{id}', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            
+            // Get the user to update
+            $checkStmt = $db->prepare("SELECT id FROM users WHERE id = ?");
+            $checkStmt->execute([$id]);
+            if (!$checkStmt->fetch()) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found']);
+                return;
+            }
+            
+            $realName = $_POST['real_name'] ?? '';
+            $email = $_POST['email'] ?? '';
+            $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
+            $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+            $password = $_POST['password'] ?? '';
+            
+            if (empty($realName)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Real name is required']);
+                return;
+            }
+            
+            // Build update query
+            $updateFields = [
+                'real_name = ?',
+                'email = ?',
+                'is_active = ?',
+                'is_admin = ?'
+            ];
+            $updateParams = [$realName, $email ?: null, $isActive, $isAdmin];
+            
+            // Add password if provided
+            if ($password) {
+                if (strlen($password) < 8) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Password must be at least 8 characters long']);
+                    return;
+                }
+                $updateFields[] = 'password_hash = ?';
+                $updateParams[] = password_hash($password, PASSWORD_DEFAULT);
+            }
+            
+            $updateParams[] = $id; // WHERE clause parameter
+            
+            $updateStmt = $db->prepare("
+                UPDATE users 
+                SET " . implode(', ', $updateFields) . "
+                WHERE id = ?
+            ");
+            
+            $updateStmt->execute($updateParams);
+            
+            echo json_encode(['success' => true]);
+            
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+    
+    // Toggle user status
+    SimpleRouter::post('/admin/users/{id}/toggle-status', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            
+            $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
+            
+            $updateStmt = $db->prepare("UPDATE users SET is_active = ? WHERE id = ?");
+            $updateStmt->execute([$isActive, $id]);
+            
+            if ($updateStmt->rowCount() === 0) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found']);
+                return;
+            }
+            
+            echo json_encode(['success' => true]);
+            
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+    
+    // Create new user
+    SimpleRouter::post('/admin/users/create', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $username = $_POST['username'] ?? '';
+            $realName = $_POST['real_name'] ?? '';
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
+            $isActive = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
+            $isAdmin = isset($_POST['is_admin']) ? (int)$_POST['is_admin'] : 0;
+            
+            // Validate required fields
+            if (empty($username) || empty($realName) || empty($password)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Username, real name, and password are required']);
+                return;
+            }
+            
+            // Validate username format
+            if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Username must be 3-20 characters, letters, numbers, and underscores only']);
+                return;
+            }
+            
+            // Validate password length
+            if (strlen($password) < 8) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Password must be at least 8 characters long']);
+                return;
+            }
+            
+            $db = Database::getInstance()->getPdo();
+            
+            // Check if username already exists
+            $checkStmt = $db->prepare("SELECT 1 FROM users WHERE username = ?");
+            $checkStmt->execute([$username]);
+            
+            if ($checkStmt->fetch()) {
+                http_response_code(409);
+                echo json_encode(['error' => 'Username already exists']);
+                return;
+            }
+            
+            // Hash password
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            
+            // Create user
+            $insertStmt = $db->prepare("
+                INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            
+            $insertStmt->execute([
+                $username,
+                $passwordHash,
+                $realName,
+                $email ?: null,
+                $isActive,
+                $isAdmin,
+                date('Y-m-d H:i:s')
+            ]);
+            
+            $newUserId = $db->lastInsertId();
+            
+            // Create default user settings
+            $settingsStmt = $db->prepare("
+                INSERT INTO user_settings (user_id, messages_per_page) 
+                VALUES (?, 25)
+            ");
+            $settingsStmt->execute([$newUserId]);
+            
+            echo json_encode(['success' => true, 'user_id' => $newUserId]);
+            
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+    
+    // Cleanup old registrations
+    SimpleRouter::post('/admin/users/cleanup', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $handler = new MessageHandler();
+            $result = $handler->performFullCleanup();
+            echo json_encode(['success' => true, 'result' => $result]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+    
+    // Debug endpoint to test auth
+    SimpleRouter::get('/admin/debug', function() {
+        header('Content-Type: application/json');
+        
+        try {
+            $auth = new Auth();
+            $user = $auth->getCurrentUser();
+            
+            $response = [
+                'user' => $user,
+                'is_admin' => $user ? (bool)$user['is_admin'] : false,
+                'cookie_present' => isset($_COOKIE['binktest_session']),
+                'cookie_value' => $_COOKIE['binktest_session'] ?? null
+            ];
+            
+            echo json_encode($response);
+        } catch (Exception $e) {
+            echo json_encode(['error' => $e->getMessage()]);
+        }
     });
 });
 
