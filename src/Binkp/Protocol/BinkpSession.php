@@ -247,8 +247,27 @@ class BinkpSession
         
         switch ($frame->getCommand()) {
             case BinkpFrame::M_ADR:
-                $this->remoteAddress = $frame->getData();
-                $this->log("Remote address: {$this->remoteAddress}");
+                $addressData = $frame->getData();
+                $this->log("Remote sent address data: {$addressData}");
+                
+                // Handle multiple addresses - remote may send "1:153/149 1:153/149.1 1:153/149.2"
+                $addresses = explode(' ', $addressData);
+                $this->log("Parsed addresses: " . implode(', ', $addresses));
+                
+                // Try to find a matching address in our uplinks
+                $matchedAddress = null;
+                foreach ($addresses as $addr) {
+                    $addr = trim($addr);
+                    if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
+                        $matchedAddress = $addr;
+                        $this->log("Found matching uplink address: {$addr}");
+                        break;
+                    }
+                }
+                
+                // Use first address if no match found (fallback)
+                $this->remoteAddress = $matchedAddress ?: $addresses[0];
+                $this->log("Using remote address: {$this->remoteAddress}");
                 
                 if ($this->state === self::STATE_INIT) {
                     $this->sendAddress();
