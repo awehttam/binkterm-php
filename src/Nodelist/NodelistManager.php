@@ -202,7 +202,7 @@ class NodelistManager
         $sql = "SELECT 
             COUNT(*) as total_nodes,
             COUNT(DISTINCT zone) as total_zones,
-            COUNT(DISTINCT CONCAT(zone, ':', net)) as total_nets,
+            COUNT(DISTINCT zone || ':' || net) as total_nets,
             COUNT(CASE WHEN keyword_type IS NOT NULL THEN 1 END) as special_nodes,
             COUNT(CASE WHEN point > 0 THEN 1 END) as point_nodes
         FROM nodelist";
