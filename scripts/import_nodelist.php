@@ -1,3 +1,4 @@
+#!/usr/bin/php
 <?php
 /**
  * Command-line nodelist import script for binkterm-php
