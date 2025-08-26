@@ -52,9 +52,9 @@ class MessageHandler
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
             ORDER BY CASE 
-                WHEN n.date_written > datetime('now') THEN 0 
+                WHEN n.date_received > datetime('now') THEN 0 
                 ELSE 1 
-            END, n.date_written DESC 
+            END, n.date_received DESC 
             LIMIT ? OFFSET ?
         ");
         
@@ -354,9 +354,9 @@ class MessageHandler
                 SELECT * FROM netmail 
                 WHERE subject LIKE ? OR message_text LIKE ? OR from_name LIKE ?
                 ORDER BY CASE 
-                    WHEN date_written > datetime('now') THEN 0 
+                    WHEN date_received > datetime('now') THEN 0 
                     ELSE 1 
-                END, date_written DESC
+                END, date_received DESC
                 LIMIT 50
             ");
             $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
