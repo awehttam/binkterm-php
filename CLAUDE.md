@@ -30,9 +30,11 @@ provides users with a delighftful, modern web experience that allows them to sen
  - User authentication is simple username and password with long lived cookie
  - The web interface should use ajax requests by api for queries
  - This is for FTN style networks and forums.  
- - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done..
+ - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.1.0_description.sql
  - When adding features to netmail and echomail, keep in mind feature parity.  Ask for clarification about whether a feature is appropriate to both. 
  - Leave the vendor directory alone. It's managed by composer only.
+
+   
  - 
 ## Known Issues
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
