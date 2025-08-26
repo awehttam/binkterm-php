@@ -252,6 +252,10 @@ SimpleRouter::get('/compose/{type}', function($type) {
     // Handle reply and echoarea parameters
     $replyId = $_GET['reply'] ?? null;
     $echoarea = $_GET['echoarea'] ?? null;
+    
+    // Handle new message parameters (from nodelist)
+    $toAddress = $_GET['to'] ?? null;
+    $toName = $_GET['to_name'] ?? null;
     // Get system configuration for display
     try {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -296,6 +300,14 @@ SimpleRouter::get('/compose/{type}', function($type) {
     
     if ($echoarea) {
         $templateVars['echoarea'] = $echoarea;
+    }
+    
+    // Handle new message parameters (from nodelist)
+    if ($toAddress && $type === 'netmail' && !$replyId) {
+        $templateVars['reply_to_address'] = $toAddress;
+        if ($toName) {
+            $templateVars['reply_to_name'] = $toName;
+        }
     }
     
     // Ensure reply_to_name has a safe default value and add a processed version
@@ -2216,6 +2228,56 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $stats = $adminController->getSystemStats();
             echo json_encode($stats);
         });
+    });
+});
+
+// Nodelist routes
+SimpleRouter::get('/nodelist', function() {
+    $controller = new BinktermPHP\Web\NodelistController();
+    echo $controller->index($_GET['search'] ?? '', $_GET['zone'] ?? '', $_GET['net'] ?? '', (int)($_GET['page'] ?? 1));
+});
+
+SimpleRouter::get('/nodelist/view', function() {
+    $controller = new BinktermPHP\Web\NodelistController();
+    $address = $_GET['address'] ?? '';
+    echo $controller->view($address);
+});
+
+SimpleRouter::get('/nodelist/import', function() {
+    $controller = new BinktermPHP\Web\NodelistController();
+    echo $controller->import();
+});
+
+SimpleRouter::post('/nodelist/import', function() {
+    $controller = new BinktermPHP\Web\NodelistController();
+    echo $controller->import();
+});
+
+// Nodelist API routes
+SimpleRouter::group(['prefix' => '/api/nodelist'], function() {
+    SimpleRouter::get('/search', function() {
+        $controller = new BinktermPHP\Web\NodelistController();
+        $controller->api('search');
+    });
+    
+    SimpleRouter::get('/node', function() {
+        $controller = new BinktermPHP\Web\NodelistController();
+        $controller->api('node');
+    });
+    
+    SimpleRouter::get('/zones', function() {
+        $controller = new BinktermPHP\Web\NodelistController();
+        $controller->api('zones');
+    });
+    
+    SimpleRouter::get('/nets', function() {
+        $controller = new BinktermPHP\Web\NodelistController();
+        $controller->api('nets');
+    });
+    
+    SimpleRouter::get('/stats', function() {
+        $controller = new BinktermPHP\Web\NodelistController();
+        $controller->api('stats');
     });
 });
 

@@ -1,0 +1,181 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ title }} - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-sitemap"></i> Node List Browser</h2>
+                {% if user.is_admin %}
+                    <a href="/nodelist/import" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Import Nodelist
+                    </a>
+                {% endif %}
+            </div>
+
+            {% if activeNodelist %}
+                <div class="alert alert-info mb-4 text-center">
+                    <strong>{{ stats.total_nodes|number_format }}</strong> nodes, 
+                    <strong>{{ stats.total_zones }}</strong> zones, 
+                    <strong>{{ stats.total_nets|number_format }}</strong> nets, 
+                    <strong>{{ stats.point_nodes|number_format }}</strong> points, 
+                    <strong>{{ stats.special_nodes|number_format }}</strong> special
+                    <br>
+                    <small class="text-muted">Last imported: {{ activeNodelist.imported_at|date('M d, Y') }}</small>
+                </div>
+            {% endif %}
+
+            <!-- Search Form -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="GET" action="/nodelist" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   value="{{ search }}" placeholder="Sysop, location, or system name">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="zone" class="form-label">Zone</label>
+                            <select class="form-select" id="zone" name="zone">
+                                <option value="">All Zones</option>
+                                {% for z in zones %}
+                                    <option value="{{ z }}" {% if selectedZone == z %}selected{% endif %}>Zone {{ z }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="net" class="form-label">Net</label>
+                            <select class="form-select" id="net" name="net">
+                                <option value="">All Nets</option>
+                                {% for n in nets %}
+                                    <option value="{{ n }}" {% if selectedNet == n %}selected{% endif %}>Net {{ n }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Results -->
+            {% if nodes %}
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Search Results ({{ nodes|length }} nodes)</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Address</th>
+                                        <th>Type</th>
+                                        <th>System Name</th>
+                                        <th>Sysop</th>
+                                        <th>Location</th>
+                                        <th>Phone</th>
+                                        <th>Speed</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for node in nodes %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ node.full_address }}</strong>
+                                            </td>
+                                            <td>
+                                                {% if node.keyword_type %}
+                                                    <span class="badge bg-primary">{{ node.keyword_type }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">Node</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ node.system_name|default('') }}</td>
+                                            <td>{{ node.sysop_name|default('') }}</td>
+                                            <td>{{ node.location|default('') }}</td>
+                                            <td>
+                                                {% if node.phone and node.phone != '-Unpublished-' %}
+                                                    <small>{{ node.phone }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if node.baud_rate > 0 %}
+                                                    {{ node.baud_rate }}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <a href="/nodelist/view?address={{ node.full_address|url_encode }}" class="btn btn-outline-primary btn-sm">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <a href="/compose/netmail?to={{ node.full_address|url_encode }}&to_name={{ node.sysop_name|url_encode }}" class="btn btn-outline-success btn-sm">
+                                                        <i class="fas fa-envelope"></i>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    {% if search or selectedZone or selectedNet %}
+                        No nodes found matching your search criteria.
+                    {% else %}
+                        Use the search form above to find nodes in the nodelist.
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const zoneSelect = document.getElementById('zone');
+    const netSelect = document.getElementById('net');
+    
+    zoneSelect.addEventListener('change', function() {
+        const selectedZone = this.value;
+        
+        // Clear net options except "All Nets"
+        netSelect.innerHTML = '<option value="">All Nets</option>';
+        
+        if (selectedZone) {
+            // Fetch nets for selected zone
+            fetch(`/api/nodelist/nets?zone=${selectedZone}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.nets) {
+                        data.nets.forEach(net => {
+                            const option = document.createElement('option');
+                            option.value = net;
+                            option.textContent = `Net ${net}`;
+                            netSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error fetching nets:', error));
+        }
+    });
+});
+</script>
+{% endblock %}

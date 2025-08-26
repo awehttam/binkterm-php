@@ -1,0 +1,187 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ title }} - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-upload"></i> Import Nodelist</h2>
+                <a href="/nodelist" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to List
+                </a>
+            </div>
+
+            {% if message %}
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endif %}
+
+            {% if error %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-triangle"></i> {{ error }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Upload New Nodelist</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data" id="importForm">
+                                <div class="mb-3">
+                                    <label for="nodelist" class="form-label">Nodelist File</label>
+                                    <input type="file" class="form-control" id="nodelist" name="nodelist" required
+                                           accept=".txt,.lst,.nodelist">
+                                    <div class="form-text">
+                                        Upload a standard FidoNet nodelist file (NODELIST.xxx format).
+                                        Supported formats: .txt, .lst, .nodelist
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="archiveOld" name="archive_old" checked>
+                                        <label class="form-check-label" for="archiveOld">
+                                            Archive current nodelist before importing
+                                        </label>
+                                        <div class="form-text">
+                                            Recommended: Keep the current nodelist as inactive backup before importing the new one.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <strong>Warning:</strong> Importing a new nodelist will replace the current active nodelist data.
+                                    This operation cannot be undone. Make sure you have a backup if needed.
+                                </div>
+
+                                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                    <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancel</button>
+                                    <button type="submit" class="btn btn-primary" id="importBtn">
+                                        <span class="spinner-border spinner-border-sm d-none" id="spinner"></span>
+                                        <i class="fas fa-upload" id="uploadIcon"></i>
+                                        Import Nodelist
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <!-- Current Status -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">Current Nodelist Status</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if activeNodelist %}
+                                <table class="table table-sm mb-0">
+                                    <tr>
+                                        <th>File:</th>
+                                        <td>{{ activeNodelist.filename }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Day of Year:</th>
+                                        <td>{{ activeNodelist.day_of_year }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Release Date:</th>
+                                        <td>{{ activeNodelist.release_date|date('M d, Y') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Total Nodes:</th>
+                                        <td>{{ activeNodelist.total_nodes|number_format }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Imported:</th>
+                                        <td>{{ activeNodelist.imported_at|date('M d, Y H:i') }}</td>
+                                    </tr>
+                                </table>
+                            {% else %}
+                                <p class="text-muted mb-0">No active nodelist found.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Statistics -->
+                    {% if stats %}
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Node Statistics</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <h4 class="text-primary mb-0">{{ stats.total_nodes|number_format }}</h4>
+                                        <small class="text-muted">Total Nodes</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <h4 class="text-info mb-0">{{ stats.total_zones }}</h4>
+                                        <small class="text-muted">Zones</small>
+                                    </div>
+                                </div>
+                                <hr>
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <strong>{{ stats.total_nets }}</strong><br>
+                                        <small class="text-muted">Nets</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong>{{ stats.point_nodes }}</strong><br>
+                                        <small class="text-muted">Points</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong>{{ stats.special_nodes }}</strong><br>
+                                        <small class="text-muted">Special</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Import Guidelines -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">Import Guidelines</h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> Standard FTS-0005 format</li>
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> ASCII text with CR/LF endings</li>
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> Proper header with CRC</li>
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> Zone/Net/Node hierarchy</li>
+                                <li class="mb-0"><i class="fas fa-info text-info"></i> Compressed files not supported</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('importForm');
+    const importBtn = document.getElementById('importBtn');
+    const spinner = document.getElementById('spinner');
+    const uploadIcon = document.getElementById('uploadIcon');
+    
+    form.addEventListener('submit', function() {
+        importBtn.disabled = true;
+        spinner.classList.remove('d-none');
+        uploadIcon.classList.add('d-none');
+        importBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Importing...';
+    });
+});
+</script>
+{% endblock %}
