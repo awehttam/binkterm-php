@@ -98,7 +98,9 @@ class BinkdProcessor
 
             try {
                 $packetInfo = $this->parsePacketHeader($header);
-                error_log("[BINKD] Processing packet $packetName from " . $packetInfo['orig_address'] . " to " . $packetInfo['dest_address']);
+                $origAddress = $packetInfo['origZone'] . ':' . $packetInfo['origNet'] . '/' . $packetInfo['origNode'];
+                $destAddress = $packetInfo['destZone'] . ':' . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
+                error_log("[BINKD] Processing packet $packetName from $origAddress to $destAddress");
             } catch (\Exception $e) {
                 fclose($handle);
                 $error = "Failed to parse packet header for $packetName: " . $e->getMessage();
