@@ -1,4 +1,7 @@
+#!/usr/bin/php
 <?php
+
+chdir(__DIR__);
 
 // Packet processing script - run this via cron or as a service
 
