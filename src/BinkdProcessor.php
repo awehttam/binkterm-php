@@ -232,6 +232,22 @@ class BinkdProcessor
         $origZone = $packetInfo['origZone'] ?? 1;
         $destZone = $packetInfo['destZone'] ?? 1;
         
+        // Parse INTL kludge line for correct zone information in netmail
+        if (($header['attr'] & 0x0001) && strpos($messageText, "\x01INTL") !== false) {
+            $lines = explode("\n", $messageText);
+            foreach ($lines as $line) {
+                if (strpos($line, "\x01INTL") === 0) {
+                    // INTL format: \x01INTL dest_zone:net/node orig_zone:net/node
+                    if (preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches)) {
+                        $destZone = (int)$matches[1];
+                        $origZone = (int)$matches[5];
+                        error_log("[BINKD] Found INTL kludge: dest zone $destZone, orig zone $origZone");
+                        break;
+                    }
+                }
+            }
+        }
+        
         return [
             'origAddr' => $origZone . ':' . $header['origNet'] . '/' . $header['origNode'],
             'destAddr' => $destZone . ':' . $header['destNet'] . '/' . $header['destNode'], 
