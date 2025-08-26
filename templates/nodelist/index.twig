@@ -122,9 +122,11 @@
                                                     <a href="/nodelist/view?address={{ node.full_address|url_encode }}" class="btn btn-outline-primary btn-sm">
                                                         <i class="fas fa-eye"></i>
                                                     </a>
+                                                    {% if user %}
                                                     <a href="/compose/netmail?to={{ node.full_address|url_encode }}&to_name={{ node.sysop_name|url_encode }}" class="btn btn-outline-success btn-sm">
                                                         <i class="fas fa-envelope"></i>
                                                     </a>
+                                                    {% endif %}
                                                 </div>
                                             </td>
                                         </tr>

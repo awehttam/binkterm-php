@@ -116,9 +116,15 @@
                         </div>
                         <div class="card-body">
                             <div class="d-grid gap-2">
+                                {% if user %}
                                 <a href="/compose/netmail?to={{ node.full_address|url_encode }}&to_name={{ node.sysop_name|url_encode }}" class="btn btn-success">
                                     <i class="fas fa-envelope"></i> Send Netmail
                                 </a>
+                                {% else %}
+                                <a href="/login" class="btn btn-outline-primary">
+                                    <i class="fas fa-sign-in-alt"></i> Login to Send Netmail
+                                </a>
+                                {% endif %}
                                 {% if node.flags and node.flags['FREQ'] is defined %}
                                     <button class="btn btn-info" onclick="alert('File request feature coming soon!')">
                                         <i class="fas fa-download"></i> File Request

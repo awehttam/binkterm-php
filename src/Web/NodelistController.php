@@ -24,11 +24,7 @@ class NodelistController
     
     public function index($search = '', $zone = '', $net = '', $page = 1)
     {
-        $user = $this->auth->getCurrentUser();
-        if (!$user) {
-            header('Location: /login');
-            exit;
-        }
+        $user = $this->auth->getCurrentUser(); // Get user if logged in, but don't require auth
         
         $limit = 50;
         $offset = ($page - 1) * $limit;
@@ -73,11 +69,7 @@ class NodelistController
     
     public function view($address)
     {
-        $user = $this->auth->getCurrentUser();
-        if (!$user) {
-            header('Location: /login');
-            exit;
-        }
+        $user = $this->auth->getCurrentUser(); // Get user if logged in, but don't require auth
         
         if (empty($address)) {
             http_response_code(400);
@@ -168,12 +160,7 @@ class NodelistController
     {
         header('Content-Type: application/json');
         
-        $user = $this->auth->getCurrentUser();
-        if (!$user) {
-            http_response_code(401);
-            echo json_encode(['error' => 'Authentication required']);
-            return;
-        }
+        $user = $this->auth->getCurrentUser(); // Get user if logged in, but don't require auth
         
         try {
             switch ($action) {
