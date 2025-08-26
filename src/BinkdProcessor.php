@@ -76,36 +76,67 @@ class BinkdProcessor
 
     public function processPacket($filename)
     {
+        $packetName = basename($filename);
         $this->logPacket($filename, 'IN', 'pending');
         
-        $handle = fopen($filename, 'rb');
-        if (!$handle) {
-            throw new \Exception('Cannot open packet file');
-        }
-
-        // Read packet header (58 bytes)
-        $header = fread($handle, 58);
-        if (strlen($header) < 58) {
-            fclose($handle);
-            throw new \Exception('Invalid packet header');
-        }
-
-        $packetInfo = $this->parsePacketHeader($header);
-        
-        // Process messages in packet
-        $messageCount = 0;
-        while (!feof($handle)) {
-            $message = $this->readMessage($handle, $packetInfo);
-            if ($message) {
-                $this->storeMessage($message, $packetInfo);
-                $messageCount++;
+        try {
+            $handle = fopen($filename, 'rb');
+            if (!$handle) {
+                $error = "Cannot open packet file: $packetName";
+                error_log("[BINKD] $error");
+                throw new \Exception($error);
             }
+
+            // Read packet header (58 bytes)
+            $header = fread($handle, 58);
+            if (strlen($header) < 58) {
+                fclose($handle);
+                $error = "Invalid packet header in $packetName: only " . strlen($header) . " bytes read, expected 58";
+                error_log("[BINKD] $error");
+                throw new \Exception($error);
+            }
+
+            try {
+                $packetInfo = $this->parsePacketHeader($header);
+                error_log("[BINKD] Processing packet $packetName from " . $packetInfo['orig_address'] . " to " . $packetInfo['dest_address']);
+            } catch (\Exception $e) {
+                fclose($handle);
+                $error = "Failed to parse packet header for $packetName: " . $e->getMessage();
+                error_log("[BINKD] $error");
+                throw new \Exception($error);
+            }
+            
+            // Process messages in packet
+            $messageCount = 0;
+            $failedMessages = 0;
+            while (!feof($handle)) {
+                try {
+                    $message = $this->readMessage($handle, $packetInfo);
+                    if ($message) {
+                        $this->storeMessage($message, $packetInfo);
+                        $messageCount++;
+                    }
+                } catch (\Exception $e) {
+                    $failedMessages++;
+                    error_log("[BINKD] Failed to process message #" . ($messageCount + $failedMessages) . " in $packetName: " . $e->getMessage());
+                    // Continue processing other messages
+                }
+            }
+            
+            fclose($handle);
+            
+            error_log("[BINKD] Packet $packetName processed: $messageCount messages stored, $failedMessages failed");
+            $this->logPacket($filename, 'IN', 'processed');
+            
+            // Return true even if some messages failed, as long as the packet was readable
+            return true;
+            
+        } catch (\Exception $e) {
+            $error = "Packet processing failed for $packetName: " . $e->getMessage();
+            error_log("[BINKD] $error");
+            $this->logPacket($filename, 'IN', 'error');
+            throw $e;
         }
-        
-        fclose($handle);
-        
-        $this->logPacket($filename, 'IN', 'processed');
-        return true;
     }
 
     private function parsePacketHeader($header)

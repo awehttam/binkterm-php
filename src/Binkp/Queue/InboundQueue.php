@@ -194,8 +194,36 @@ class InboundQueue
     
     private function processPacketFile($filepath)
     {
-        // Use the existing BinkdProcessor to handle the packet
-        return $this->binkdProcessor->processPacket($filepath);
+        $filename = basename($filepath);
+        $this->log("Starting packet processing for: {$filename}");
+        
+        try {
+            // Use the existing BinkdProcessor to handle the packet
+            $result = $this->binkdProcessor->processPacket($filepath);
+            
+            if ($result) {
+                $this->log("Packet processed successfully: {$filename}");
+            } else {
+                $this->log("BinkdProcessor returned false for: {$filename}", 'WARNING');
+            }
+            
+            return $result;
+            
+        } catch (\Exception $e) {
+            $this->log("Exception during packet processing for {$filename}: " . $e->getMessage(), 'ERROR');
+            
+            // Log additional details if available
+            if (method_exists($e, 'getCode') && $e->getCode()) {
+                $this->log("Error code: " . $e->getCode(), 'ERROR');
+            }
+            
+            if (method_exists($e, 'getFile')) {
+                $this->log("Error location: " . $e->getFile() . ':' . $e->getLine(), 'ERROR');
+            }
+            
+            // Re-throw the exception so it's handled by the caller
+            throw $e;
+        }
     }
 
     public function retryErrorFile($filename)
