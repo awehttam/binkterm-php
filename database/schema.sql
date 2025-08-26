@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100),
     real_name VARCHAR(100),
+    fidonet_address VARCHAR(50),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login DATETIME,
     is_active BOOLEAN DEFAULT 1,
@@ -145,6 +146,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 
 -- Create indexes
+CREATE INDEX IF NOT EXISTS idx_users_fidonet_address ON users(fidonet_address);
 CREATE INDEX IF NOT EXISTS idx_netmail_user_id ON netmail(user_id);
 CREATE INDEX IF NOT EXISTS idx_netmail_to_address ON netmail(to_address);
 CREATE INDEX IF NOT EXISTS idx_netmail_from_address ON netmail(from_address);
