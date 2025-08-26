@@ -10,6 +10,34 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use BinktermPHP\Database;
 use BinktermPHP\Nodelist\NodelistManager;
 
+function initializeLogging() {
+    $logDir = __DIR__ . '/../data/logs';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0755, true);
+    }
+    
+    $logFile = $logDir . '/nodelist_import_' . date('Y-m-d') . '.log';
+    return $logFile;
+}
+
+function writeLog($message, $logFile = null) {
+    static $defaultLogFile = null;
+    
+    if ($defaultLogFile === null) {
+        $defaultLogFile = initializeLogging();
+    }
+    
+    $logFile = $logFile ?: $defaultLogFile;
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[$timestamp] $message\n";
+    
+    // Write to log file
+    file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX);
+    
+    // Also echo to console
+    echo $message . "\n";
+}
+
 function printUsage() {
     echo "Usage: php import_nodelist.php <nodelist_file> [--force]\n";
     echo "\nSupported formats:\n";
@@ -185,10 +213,10 @@ function main($argc, $argv) {
         exit(1);
     }
     
-    echo "BinkTerm-PHP Nodelist Importer\n";
-    echo "==============================\n";
-    echo "File: {$nodelistFile}\n";
-    echo "Size: " . number_format(filesize($nodelistFile)) . " bytes\n";
+    writeLog("BinkTerm-PHP Nodelist Importer");
+    writeLog("==============================");
+    writeLog("File: {$nodelistFile}");
+    writeLog("Size: " . number_format(filesize($nodelistFile)) . " bytes");
     
     // Detect archive type and extract if needed
     $archiveType = detectArchiveType($nodelistFile);
@@ -196,25 +224,25 @@ function main($argc, $argv) {
     $tempDir = null;
     
     if ($archiveType !== 'PLAIN') {
-        echo "Format: {$archiveType} archive\n";
-        echo "Extracting archive...\n";
+        writeLog("Format: {$archiveType} archive");
+        writeLog("Extracting archive...");
         
         $tempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nodelist_' . uniqid();
         mkdir($tempDir);
         
         try {
             $actualNodelistFile = extractArchive($nodelistFile, $archiveType, $tempDir);
-            echo "Extracted to: " . basename($actualNodelistFile) . "\n";
-            echo "Extracted size: " . number_format(filesize($actualNodelistFile)) . " bytes\n";
+            writeLog("Extracted to: " . basename($actualNodelistFile));
+            writeLog("Extracted size: " . number_format(filesize($actualNodelistFile)) . " bytes");
         } catch (Exception $e) {
             cleanupTempFiles($tempDir);
-            echo "Error: " . $e->getMessage() . "\n";
+            writeLog("Error: " . $e->getMessage());
             exit(1);
         }
     } else {
-        echo "Format: Plain text\n";
+        writeLog("Format: Plain text");
     }
-    echo "\n";
+    writeLog("");
     
     try {
         $nodelistManager = new NodelistManager();
@@ -222,22 +250,24 @@ function main($argc, $argv) {
         // Check for existing nodelist
         $activeNodelist = $nodelistManager->getActiveNodelist();
         if ($activeNodelist && !$force) {
-            echo "Warning: An active nodelist already exists:\n";
-            echo "  File: {$activeNodelist['filename']}\n";
-            echo "  Date: {$activeNodelist['release_date']}\n";
-            echo "  Nodes: " . number_format($activeNodelist['total_nodes']) . "\n\n";
-            echo "This will archive the current nodelist and import the new one.\n";
+            writeLog("Warning: An active nodelist already exists:");
+            writeLog("  File: {$activeNodelist['filename']}");
+            writeLog("  Date: {$activeNodelist['release_date']}");
+            writeLog("  Nodes: " . number_format($activeNodelist['total_nodes']));
+            writeLog("");
+            writeLog("This will archive the current nodelist and import the new one.");
             echo "Continue? (y/N): ";
             
             $response = trim(fgets(STDIN));
             if (strtolower($response) !== 'y' && strtolower($response) !== 'yes') {
-                echo "Import cancelled.\n";
+                writeLog("Import cancelled by user.");
                 exit(0);
             }
-            echo "\n";
+            writeLog("User confirmed import continuation.");
+            writeLog("");
         }
         
-        echo "Starting import...\n";
+        writeLog("Starting import...");
         $startTime = microtime(true);
         
         $result = $nodelistManager->importNodelist($actualNodelistFile, true);
@@ -245,24 +275,39 @@ function main($argc, $argv) {
         $endTime = microtime(true);
         $duration = round($endTime - $startTime, 2);
         
-        echo "Import completed successfully!\n\n";
-        echo "Results:\n";
-        echo "  Filename: {$result['filename']}\n";
-        echo "  Total nodes: " . number_format($result['total_nodes']) . "\n";
-        echo "  Inserted nodes: " . number_format($result['inserted_nodes']) . "\n";
-        echo "  Duration: {$duration} seconds\n\n";
+        writeLog("Import completed successfully!");
+        writeLog("");
+        writeLog("Import Results:");
+        writeLog("==============");
+        writeLog("  Filename: {$result['filename']}");
+        writeLog("  Total nodes processed: " . number_format($result['total_nodes']));
+        writeLog("  Successfully inserted: " . number_format($result['inserted_nodes']));
+        writeLog("  Failed/skipped: " . number_format($result['total_nodes'] - $result['inserted_nodes']));
+        writeLog("  Duration: {$duration} seconds");
+        writeLog("  Processing rate: " . number_format($result['total_nodes'] / max($duration, 0.001), 0) . " nodes/sec");
+        writeLog("");
         
-        // Show statistics
+        // Show detailed statistics
         $stats = $nodelistManager->getNodelistStats();
-        echo "Current nodelist statistics:\n";
-        echo "  Total nodes: " . number_format($stats['total_nodes']) . "\n";
-        echo "  Zones: " . $stats['total_zones'] . "\n";
-        echo "  Nets: " . $stats['total_nets'] . "\n";
-        echo "  Points: " . number_format($stats['point_nodes']) . "\n";
-        echo "  Special nodes: " . number_format($stats['special_nodes']) . "\n";
+        writeLog("Nodelist Statistics:");
+        writeLog("===================");
+        writeLog("  Total nodes: " . number_format($stats['total_nodes']));
+        writeLog("  Zones: " . $stats['total_zones']);
+        writeLog("  Networks: " . $stats['total_nets']);
+        writeLog("  Point systems: " . number_format($stats['point_nodes']));
+        writeLog("  Special nodes: " . number_format($stats['special_nodes']) . " (PVT, HOLD, DOWN, etc.)");
+        writeLog("  Regular nodes: " . number_format($stats['total_nodes'] - $stats['point_nodes'] - $stats['special_nodes']));
+        
+        // Calculate success rate
+        $successRate = ($result['inserted_nodes'] / max($result['total_nodes'], 1)) * 100;
+        writeLog("");
+        writeLog("Import Summary:");
+        writeLog("==============");
+        writeLog("  Success rate: " . number_format($successRate, 1) . "%");
+        writeLog("  Import completed at: " . date('Y-m-d H:i:s'));
         
     } catch (Exception $e) {
-        echo "Error: " . $e->getMessage() . "\n";
+        writeLog("Error: " . $e->getMessage());
         if ($tempDir) {
             cleanupTempFiles($tempDir);
         }
@@ -270,6 +315,7 @@ function main($argc, $argv) {
     } finally {
         // Clean up temporary files
         if ($tempDir) {
+            writeLog("Cleaning up temporary files...");
             cleanupTempFiles($tempDir);
         }
     }
