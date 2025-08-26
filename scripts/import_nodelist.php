@@ -11,12 +11,158 @@ use BinktermPHP\Nodelist\NodelistManager;
 
 function printUsage() {
     echo "Usage: php import_nodelist.php <nodelist_file> [--force]\n";
+    echo "\nSupported formats:\n";
+    echo "  - Plain text: NODELIST.xxx\n";
+    echo "  - ZIP: NODELIST.Zxx (requires zip extension)\n";
+    echo "  - ARC: NODELIST.Axx (requires external arc command)\n";
+    echo "  - ARJ: NODELIST.Jxx (requires external arj command)\n";
+    echo "  - LZH: NODELIST.Lxx (requires external lha command)\n";
+    echo "  - RAR: NODELIST.Rxx (requires external rar command)\n";
     echo "\nOptions:\n";
     echo "  --force     Skip confirmation prompts\n";
     echo "  --help      Show this help message\n";
-    echo "\nExample:\n";
+    echo "\nExamples:\n";
     echo "  php import_nodelist.php NODELIST.001\n";
-    echo "  php import_nodelist.php NODELIST.150 --force\n";
+    echo "  php import_nodelist.php NODELIST.Z150 --force\n";
+    echo "  php import_nodelist.php NODELIST.A365\n";
+}
+
+function detectArchiveType($filename) {
+    $ext = strtoupper(pathinfo($filename, PATHINFO_EXTENSION));
+    
+    if (preg_match('/^Z(\d+)$/', $ext, $matches)) {
+        return 'ZIP';
+    } elseif (preg_match('/^A(\d+)$/', $ext, $matches)) {
+        return 'ARC';
+    } elseif (preg_match('/^J(\d+)$/', $ext, $matches)) {
+        return 'ARJ';
+    } elseif (preg_match('/^L(\d+)$/', $ext, $matches)) {
+        return 'LZH';
+    } elseif (preg_match('/^R(\d+)$/', $ext, $matches)) {
+        return 'RAR';
+    }
+    
+    return 'PLAIN';
+}
+
+function extractArchive($archiveFile, $type, $tempDir) {
+    $extractedFile = null;
+    
+    switch ($type) {
+        case 'ZIP':
+            if (!extension_loaded('zip')) {
+                throw new Exception("ZIP extension not available");
+            }
+            
+            $zip = new ZipArchive;
+            if ($zip->open($archiveFile) === TRUE) {
+                // Look for nodelist file inside zip
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $filename = $zip->getNameIndex($i);
+                    if (preg_match('/nodelist/i', $filename) || preg_match('/\.(\d{3})$/', $filename)) {
+                        $extractedFile = $tempDir . DIRECTORY_SEPARATOR . basename($filename);
+                        $zip->extractTo($tempDir, $filename);
+                        if (basename($filename) !== basename($extractedFile)) {
+                            rename($tempDir . DIRECTORY_SEPARATOR . $filename, $extractedFile);
+                        }
+                        break;
+                    }
+                }
+                $zip->close();
+            } else {
+                throw new Exception("Could not open ZIP file");
+            }
+            break;
+            
+        case 'ARC':
+            $extractedFile = $tempDir . DIRECTORY_SEPARATOR . 'NODELIST.TXT';
+            $cmd = "arc e \"$archiveFile\" \"$tempDir\"";
+            exec($cmd, $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new Exception("ARC extraction failed. Make sure 'arc' command is available.");
+            }
+            // Find the extracted nodelist file
+            $files = glob($tempDir . DIRECTORY_SEPARATOR . '*');
+            foreach ($files as $file) {
+                if (is_file($file) && (preg_match('/nodelist/i', basename($file)) || preg_match('/\.(\d{3})$/', basename($file)))) {
+                    $extractedFile = $file;
+                    break;
+                }
+            }
+            break;
+            
+        case 'ARJ':
+            $extractedFile = $tempDir . DIRECTORY_SEPARATOR . 'NODELIST.TXT';
+            $cmd = "arj e \"$archiveFile\" \"$tempDir\"";
+            exec($cmd, $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new Exception("ARJ extraction failed. Make sure 'arj' command is available.");
+            }
+            // Find the extracted nodelist file
+            $files = glob($tempDir . DIRECTORY_SEPARATOR . '*');
+            foreach ($files as $file) {
+                if (is_file($file) && (preg_match('/nodelist/i', basename($file)) || preg_match('/\.(\d{3})$/', basename($file)))) {
+                    $extractedFile = $file;
+                    break;
+                }
+            }
+            break;
+            
+        case 'LZH':
+            $extractedFile = $tempDir . DIRECTORY_SEPARATOR . 'NODELIST.TXT';
+            $cmd = "lha e \"$archiveFile\" \"$tempDir\"";
+            exec($cmd, $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new Exception("LZH extraction failed. Make sure 'lha' command is available.");
+            }
+            // Find the extracted nodelist file
+            $files = glob($tempDir . DIRECTORY_SEPARATOR . '*');
+            foreach ($files as $file) {
+                if (is_file($file) && (preg_match('/nodelist/i', basename($file)) || preg_match('/\.(\d{3})$/', basename($file)))) {
+                    $extractedFile = $file;
+                    break;
+                }
+            }
+            break;
+            
+        case 'RAR':
+            $extractedFile = $tempDir . DIRECTORY_SEPARATOR . 'NODELIST.TXT';
+            $cmd = "rar e \"$archiveFile\" \"$tempDir\"";
+            exec($cmd, $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new Exception("RAR extraction failed. Make sure 'rar' command is available.");
+            }
+            // Find the extracted nodelist file
+            $files = glob($tempDir . DIRECTORY_SEPARATOR . '*');
+            foreach ($files as $file) {
+                if (is_file($file) && (preg_match('/nodelist/i', basename($file)) || preg_match('/\.(\d{3})$/', basename($file)))) {
+                    $extractedFile = $file;
+                    break;
+                }
+            }
+            break;
+            
+        default:
+            return $archiveFile; // Plain text file
+    }
+    
+    if (!$extractedFile || !file_exists($extractedFile)) {
+        throw new Exception("Could not find nodelist file in archive");
+    }
+    
+    return $extractedFile;
+}
+
+function cleanupTempFiles($tempDir) {
+    if (is_dir($tempDir)) {
+        $files = glob($tempDir . DIRECTORY_SEPARATOR . '*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+        rmdir($tempDir);
+    }
 }
 
 function main($argc, $argv) {
@@ -41,7 +187,33 @@ function main($argc, $argv) {
     echo "BinkTerm-PHP Nodelist Importer\n";
     echo "==============================\n";
     echo "File: {$nodelistFile}\n";
-    echo "Size: " . number_format(filesize($nodelistFile)) . " bytes\n\n";
+    echo "Size: " . number_format(filesize($nodelistFile)) . " bytes\n";
+    
+    // Detect archive type and extract if needed
+    $archiveType = detectArchiveType($nodelistFile);
+    $actualNodelistFile = $nodelistFile;
+    $tempDir = null;
+    
+    if ($archiveType !== 'PLAIN') {
+        echo "Format: {$archiveType} archive\n";
+        echo "Extracting archive...\n";
+        
+        $tempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nodelist_' . uniqid();
+        mkdir($tempDir);
+        
+        try {
+            $actualNodelistFile = extractArchive($nodelistFile, $archiveType, $tempDir);
+            echo "Extracted to: " . basename($actualNodelistFile) . "\n";
+            echo "Extracted size: " . number_format(filesize($actualNodelistFile)) . " bytes\n";
+        } catch (Exception $e) {
+            cleanupTempFiles($tempDir);
+            echo "Error: " . $e->getMessage() . "\n";
+            exit(1);
+        }
+    } else {
+        echo "Format: Plain text\n";
+    }
+    echo "\n";
     
     try {
         $nodelistManager = new NodelistManager();
@@ -67,7 +239,7 @@ function main($argc, $argv) {
         echo "Starting import...\n";
         $startTime = microtime(true);
         
-        $result = $nodelistManager->importNodelist($nodelistFile, true);
+        $result = $nodelistManager->importNodelist($actualNodelistFile, true);
         
         $endTime = microtime(true);
         $duration = round($endTime - $startTime, 2);
@@ -90,7 +262,15 @@ function main($argc, $argv) {
         
     } catch (Exception $e) {
         echo "Error: " . $e->getMessage() . "\n";
+        if ($tempDir) {
+            cleanupTempFiles($tempDir);
+        }
         exit(1);
+    } finally {
+        // Clean up temporary files
+        if ($tempDir) {
+            cleanupTempFiles($tempDir);
+        }
     }
 }
 

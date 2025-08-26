@@ -279,6 +279,7 @@ class BinkdProcessor
         $kludgeLines = [];
         $messageId = null;
         $originLine = null;
+        $originalAuthorAddress = null;
         
         foreach ($lines as $i => $line) {
             // Extract AREA: tag from first line
@@ -300,9 +301,16 @@ class BinkdProcessor
             if (strlen($line) > 0 && ord($line[0]) === 0x01) {
                 $kludgeLines[] = $line;
                 
-                // Extract MSGID for storage
+                // Extract MSGID for storage and original author address
                 if (strpos($line, "\x01MSGID:") === 0) {
                     $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
+                    
+                    // Extract original author address from MSGID
+                    // MSGID format: "MSGID: address serial" (e.g., "1:123/456 12345678")
+                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                        $originalAuthorAddress = $matches[1];
+                        error_log("DEBUG: Extracted original author address from MSGID: " . $originalAuthorAddress);
+                    }
                 }
                 
                 error_log("Echomail kludge line: " . $line);
@@ -319,6 +327,14 @@ class BinkdProcessor
             // Check for origin line (starts with " * Origin:")
             if (strpos($line, ' * Origin:') === 0) {
                 $originLine = $line;
+                
+                // Extract original author address from Origin line
+                // Origin format: " * Origin: System Name (1:123/456)"
+                if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
+                    $originalAuthorAddress = $matches[1];
+                    error_log("DEBUG: Extracted original author address from Origin: " . $originalAuthorAddress);
+                }
+                
                 $cleanedLines[] = $line; // Keep origin line in message body
                 continue;
             }
@@ -339,9 +355,16 @@ class BinkdProcessor
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);
         $kludgeText = implode("\n", $kludgeLines);
         
+        // Use original author address from MSGID if available, otherwise fall back to packet sender
+        $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
+        
+        error_log("DEBUG: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') . 
+                  ", Packet sender: " . $message['origAddr'] . 
+                  ", Using: " . $fromAddress);
+        
         $stmt->execute([
             $echoarea['id'],
-            $message['origAddr'],
+            $fromAddress,
             $message['fromName'],
             $message['toName'],
             $message['subject'],

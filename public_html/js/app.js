@@ -227,16 +227,15 @@ function formatFullDate(dateString) {
     // Database stores dates in UTC, so parse as UTC
     const date = new Date(dateString + 'Z'); // Add 'Z' to treat as UTC
     const userTimezone = window.userSettings?.timezone || 'America/Los_Angeles';
-    //const date = new Date();
+    
     return date.toLocaleString("en-US", {
         timeZone: userTimezone,
         year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
         minute: '2-digit',
-        second: '2-digit',
-        timeZoneName: 'short'
+        hour12: true
     });
 }
 
@@ -285,7 +284,7 @@ function displayMessages(messages, type) {
                             ${formatFidonetAddress(msg.from_address)}
                             ${type === 'echomail' ? `<span class="echoarea-tag ms-2">${msg.echoarea}</span>` : '<span class="netmail-indicator ms-2">NETMAIL</span>'}
                         </div>
-                        <small class="message-date">${formatDate(msg.date_written)}</small>
+                        <small class="message-date">${type === 'echomail' ? formatFullDate(msg.date_written) : formatDate(msg.date_written)}</small>
                     </div>
                     <div class="message-subject">${escapeHtml(msg.subject || '(No Subject)')}</div>
                     ${msg.to_name ? `<small class="text-muted">To: ${escapeHtml(msg.to_name)}</small>` : ''}

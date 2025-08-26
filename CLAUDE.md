@@ -24,14 +24,16 @@ provides users with a delighftful, modern web experience that allows them to sen
  - templates/ - html templates
  - public_html/ - the web site files, static assets
  - tests/ - test scripts used in debugging and trouble shooting
-
+ - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude.
+ - 
 ## Important Notes
  - User authentication is simple username and password with long lived cookie
  - The web interface should use ajax requests by api for queries
  - This is for FTN style networks and forums.  
  - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done..
  - When adding features to netmail and echomail, keep in mind feature parity.  Ask for clarification about whether a feature is appropriate to both. 
- 
+ - Leave the vendor directory alone. It's managed by composer only.
+ - 
 ## Known Issues
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - The date/time is wrong for messages.  I suspect there is timezone conversion going on causing skew.  Most likely related to the sort order of the Received messages (by Received date) is wrong - likely due to the time skew issue reported previously.

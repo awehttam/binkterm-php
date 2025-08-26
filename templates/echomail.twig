@@ -511,7 +511,7 @@ function displayMessageContent(message) {
             </div>
             <div class="row mt-2">
                 <div class="col-md-6">
-                    <strong>Date:</strong> <span title="${formatFullDate(message.date_written)}">${formatDate(message.date_written)}</span>
+                    <strong>Date:</strong> ${formatFullDate(message.date_written)}
                 </div>
                 <div class="col-md-6">
                     <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}

@@ -128,12 +128,16 @@ class NodelistController
                 
                 $uploadedFile = $_FILES['nodelist'];
                 $tempPath = $uploadedFile['tmp_name'];
+                $originalName = $uploadedFile['name'];
                 
-                if (!$this->validateNodelistFile($tempPath)) {
+                // Handle compressed files
+                $actualNodelistFile = $this->handleCompressedFile($tempPath, $originalName);
+                
+                if (!$this->validateNodelistFile($actualNodelistFile)) {
                     throw new \Exception('Invalid nodelist format');
                 }
                 
-                $result = $this->nodelistManager->importNodelist($tempPath);
+                $result = $this->nodelistManager->importNodelist($actualNodelistFile);
                 
                 $message = sprintf(
                     'Successfully imported %d nodes from %s (Day %d)',
@@ -300,5 +304,97 @@ class NodelistController
     {
         $content = file_get_contents($filepath, false, null, 0, 1000);
         return strpos($content, ';') === 0;
+    }
+    
+    private function handleCompressedFile($tempPath, $originalName)
+    {
+        $archiveType = $this->detectArchiveType($originalName);
+        
+        if ($archiveType === 'PLAIN') {
+            return $tempPath;
+        }
+        
+        // Create temp directory for extraction
+        $extractDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'nodelist_web_' . uniqid();
+        mkdir($extractDir);
+        
+        try {
+            return $this->extractArchive($tempPath, $archiveType, $extractDir);
+        } catch (\Exception $e) {
+            $this->cleanupTempFiles($extractDir);
+            throw new \Exception('Failed to extract archive: ' . $e->getMessage());
+        }
+    }
+    
+    private function detectArchiveType($filename)
+    {
+        $ext = strtoupper(pathinfo($filename, PATHINFO_EXTENSION));
+        
+        if (preg_match('/^Z(\d+)$/', $ext)) {
+            return 'ZIP';
+        } elseif (preg_match('/^A(\d+)$/', $ext)) {
+            return 'ARC';
+        } elseif (preg_match('/^J(\d+)$/', $ext)) {
+            return 'ARJ';
+        } elseif (preg_match('/^L(\d+)$/', $ext)) {
+            return 'LZH';
+        } elseif (preg_match('/^R(\d+)$/', $ext)) {
+            return 'RAR';
+        }
+        
+        return 'PLAIN';
+    }
+    
+    private function extractArchive($archiveFile, $type, $tempDir)
+    {
+        $extractedFile = null;
+        
+        switch ($type) {
+            case 'ZIP':
+                if (!extension_loaded('zip')) {
+                    throw new \Exception("ZIP extension not available");
+                }
+                
+                $zip = new \ZipArchive;
+                if ($zip->open($archiveFile) === TRUE) {
+                    for ($i = 0; $i < $zip->numFiles; $i++) {
+                        $filename = $zip->getNameIndex($i);
+                        if (preg_match('/nodelist/i', $filename) || preg_match('/\.(\d{3})$/', $filename)) {
+                            $extractedFile = $tempDir . DIRECTORY_SEPARATOR . basename($filename);
+                            $zip->extractTo($tempDir, $filename);
+                            if (basename($filename) !== basename($extractedFile)) {
+                                rename($tempDir . DIRECTORY_SEPARATOR . $filename, $extractedFile);
+                            }
+                            break;
+                        }
+                    }
+                    $zip->close();
+                } else {
+                    throw new \Exception("Could not open ZIP file");
+                }
+                break;
+                
+            default:
+                throw new \Exception("Archive format {$type} not supported in web interface (use command line)");
+        }
+        
+        if (!$extractedFile || !file_exists($extractedFile)) {
+            throw new \Exception("Could not find nodelist file in archive");
+        }
+        
+        return $extractedFile;
+    }
+    
+    private function cleanupTempFiles($tempDir)
+    {
+        if (is_dir($tempDir)) {
+            $files = glob($tempDir . DIRECTORY_SEPARATOR . '*');
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+            rmdir($tempDir);
+        }
     }
 }

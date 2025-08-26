@@ -38,10 +38,10 @@
                                 <div class="mb-3">
                                     <label for="nodelist" class="form-label">Nodelist File</label>
                                     <input type="file" class="form-control" id="nodelist" name="nodelist" required
-                                           accept=".txt,.lst,.nodelist">
+                                           accept=".txt,.lst,.nodelist,.z*">
                                     <div class="form-text">
-                                        Upload a standard FidoNet nodelist file (NODELIST.xxx format).
-                                        Supported formats: .txt, .lst, .nodelist
+                                        Upload a FidoNet nodelist file (NODELIST.xxx format).
+                                        Supported: Plain text (.txt, .lst, .nodelist) and ZIP compressed (.Zxxx)
                                     </div>
                                 </div>
                                 
@@ -159,8 +159,14 @@
                                 <li class="mb-2"><i class="fas fa-check text-success"></i> ASCII text with CR/LF endings</li>
                                 <li class="mb-2"><i class="fas fa-check text-success"></i> Proper header with CRC</li>
                                 <li class="mb-2"><i class="fas fa-check text-success"></i> Zone/Net/Node hierarchy</li>
-                                <li class="mb-0"><i class="fas fa-info text-info"></i> Compressed files not supported</li>
+                                <li class="mb-0"><i class="fas fa-check text-success"></i> ZIP compressed files (.Zxxx)</li>
                             </ul>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    For ARC, ARJ, LZH, RAR files, use the command-line import script
+                                </small>
+                            </div>
                         </div>
                     </div>
                 </div>
