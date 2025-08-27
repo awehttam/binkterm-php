@@ -503,7 +503,7 @@ Please follow the existing code style and include appropriate documentation for 
 
 ## License
 
-This project is licensed under the MIT License. See LICENSE file for details.
+This project is licensed under a BSD License. See LICENSE.md for more information.
 
 ## Support
 
