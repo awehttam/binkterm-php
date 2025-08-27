@@ -14,12 +14,13 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 ![User Management](docs/screenshots/usermanagement.png)
 ![Echoarea management](docs/screenshots/echomanagement.png)
 ![BinkP management](docs/screenshots/binkp_management.png)
-
+![Mobile Echolist](docs/screenshots/moble_echolist.png)
+![Mobile Echoread](docs/screenshots/mobile_echoread.png) 
 
 ## Features
 
 ### Web Interface
-- **Modern Bootstrap 5 UI** - Clean, responsive interface accessible from any device
+- **Modern Bootstrap 5 UI** - Clean, responsive interface accessible from any device including mobile phones. 
 - **Netmail Management** - Send and receive private messages
 - **Echomail Support** - Participate in public discussion areas (forums)
 - **Message Composition** - Rich text editor with reply functionality
