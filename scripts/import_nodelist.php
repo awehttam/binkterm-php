@@ -16,7 +16,8 @@ function initializeLogging() {
         mkdir($logDir, 0755, true);
     }
     
-    $logFile = $logDir . '/nodelist_import_' . date('Y-m-d') . '.log';
+    //$logFile = $logDir . '/nodelist_import_' . date('Y-m-d') . '.log';
+    $logFile = $logDir . '/nodelist_import.log';
     return $logFile;
 }
 
