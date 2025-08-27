@@ -12,6 +12,7 @@ body {
     background-color: #f8f9fa;
 }
 
+
 .navbar-brand {
     font-weight: bold;
 }
@@ -112,6 +113,15 @@ body {
 
 .message-row:hover {
     background-color: #f8f9fa;
+}
+
+/* Override Bootstrap table-hover to preserve text colors */
+.table-hover > tbody > tr:hover > * {
+    color: inherit !important;
+}
+
+.table-hover > tbody > tr:hover {
+    background-color: #f8f9fa !important;
 }
 
 .message-table .message-from {
@@ -241,7 +251,12 @@ body {
 
 .node-item {
     padding: 12px 16px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.node-item:hover {
+    background-color: var(--message-bg);
 }
 
 .node-item:last-child {
@@ -301,13 +316,16 @@ body {
 .kludge-lines {
     font-family: 'Courier New', monospace;
     border-radius: 8px;
-    border: 1px solid #495057;
+    border: 1px solid var(--border-color);
+    background-color: var(--kludge-bg);
 }
 
 .kludge-lines pre {
     margin: 0;
     white-space: pre-wrap;
     word-wrap: break-word;
+    color: var(--kludge-text);
+    background-color: var(--kludge-bg);
     line-height: 1.3;
 }
 
@@ -414,34 +432,34 @@ body {
 }
 
 .message-quote {
-    border-left: 3px solid #007bff;
+    border-left: 3px solid var(--message-quote-border);
     padding-left: 1rem;
     margin: 1rem 0;
-    background-color: #f8f9fa;
+    background-color: var(--message-quote-bg);
     border-radius: 0 0.25rem 0.25rem 0;
 }
 
 .quote-line {
     margin-bottom: 0.25rem;
-    color: #6c757d;
+    color: var(--text-color-muted);
     font-style: italic;
 }
 
 .message-signature {
-    color: #6c757d;
+    color: var(--text-color-muted);
     font-size: 0.9em;
     margin-bottom: 0.5rem;
 }
 
 .message-signature-separator {
-    color: #adb5bd;
+    color: var(--text-color-muted);
     margin: 1rem 0 0.5rem 0;
     font-family: monospace;
 }
 
 .message-preformatted {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
+    background-color: var(--message-bg);
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
@@ -451,12 +469,13 @@ body {
     word-wrap: break-word;
     overflow-wrap: break-word;
     overflow-x: auto;
+    color: var(--text-color);
 }
 
 /* Legacy message text styles - enhanced for mobile */
 .message-text pre {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
+    background-color: var(--message-bg);
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
@@ -466,6 +485,7 @@ body {
     word-wrap: break-word;
     overflow-wrap: break-word;
     overflow-x: auto;
+    color: var(--text-color);
 }
 
 @media (max-width: 768px) {
@@ -521,3 +541,4 @@ body {
         border-left-width: 2px;
     }
 }
+

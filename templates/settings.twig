@@ -45,15 +45,6 @@
                         <div class="form-text">Your local timezone for displaying dates</div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="theme" class="form-label">Theme</label>
-                        <select class="form-select" id="theme" name="theme">
-                            <option value="light" selected>Light</option>
-                            <option value="dark">Dark</option>
-                            <option value="auto">Auto (follows system)</option>
-                        </select>
-                        <div class="form-text">Interface color theme (dark theme coming soon)</div>
-                    </div>
                 </form>
             </div>
         </div>
@@ -221,7 +212,6 @@ function loadSettings() {
         .done(function(data) {
             if (data.messages_per_page) $('#messagesPerPage').val(data.messages_per_page);
             if (data.timezone) $('#timezone').val(data.timezone);
-            if (data.theme) $('#theme').val(data.theme);
             
             $('#showOrigin').prop('checked', data.show_origin !== false);
             $('#showTearline').prop('checked', data.show_tearline !== false);
@@ -268,6 +258,7 @@ function saveSettings() {
                     Settings saved successfully!
                 </div>
             `);
+            
             
             setTimeout(function() {
                 $('#settingsStatus').fadeOut();

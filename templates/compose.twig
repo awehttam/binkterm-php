@@ -124,21 +124,6 @@
             </div>
         </div>
 
-        {% if reply_to_id %}
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">Replying To</h6>
-            </div>
-            <div class="card-body">
-                <div id="originalMessage">
-                    <div class="loading-spinner">
-                        <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading original message...
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
         
         <div class="card mt-3">
             <div class="card-header">
@@ -172,10 +157,6 @@ $(document).ready(function() {
         loadEchoareas();
     }
     
-    // Load original message if replying
-    if (replyToId) {
-        loadOriginalMessage(replyToId, messageType);
-    }
     
     // Form submit handler
     $('#composeForm').on('submit', function(e) {
@@ -227,26 +208,6 @@ function loadEchoareas() {
         });
 }
 
-function loadOriginalMessage(messageId, type) {
-    $.get(`/api/messages/${type}/${messageId}`)
-        .done(function(data) {
-            const html = `
-                <div class="small">
-                    <strong>From:</strong> ${escapeHtml(data.from_name)}<br>
-                    <strong>Date:</strong> <span title="${formatFullDate(data.date_written)}">${formatDate(data.date_written)}</span><br>
-                    <strong>Subject:</strong> ${escapeHtml(data.subject || '(No Subject)')}<br>
-                    <hr>
-                    <div style="max-height: 150px; overflow-y: auto;">
-                        <pre class="small">${escapeHtml(data.message_text.substring(0, 500))}${data.message_text.length > 500 ? '...' : ''}</pre>
-                    </div>
-                </div>
-            `;
-            $('#originalMessage').html(html);
-        })
-        .fail(function() {
-            $('#originalMessage').html('<div class="text-danger small">Failed to load original message</div>');
-        });
-}
 
 function validateFidonetAddressField(field) {
     const address = $(field).val().trim();

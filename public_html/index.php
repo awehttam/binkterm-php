@@ -237,6 +237,36 @@ SimpleRouter::get('/echoareas', function() {
     $template->renderResponse('echoareas.twig');
 });
 
+// Helper function to filter kludge lines from message text
+function filterKludgeLines($messageText) {
+    // First normalize line endings - split on both \r\n, \n, and \r
+    $lines = preg_split('/\r\n|\r|\n/', $messageText);
+    $messageLines = [];
+    
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        
+        // Skip empty lines
+        if ($trimmed === '') {
+            continue;
+        }
+        
+        // Skip kludge lines - those that start with specific patterns
+        if (preg_match('/^(INTL|FMPT|TOPT|MSGID|REPLY|PID|TZUTC)\s/', $trimmed) ||
+            preg_match('/^Via\s+\d+:\d+\/\d+\s+@\d{8}\.\d{6}\.UTC/', $trimmed) ||  // Via lines with timestamp
+            strpos($trimmed, "\x01") === 0 ||  // Traditional kludge lines starting with \x01
+            strpos($trimmed, 'SEEN-BY:') === 0 || 
+            strpos($trimmed, 'PATH:') === 0) {
+            continue;
+        }
+        
+        // Keep all other lines (actual message content, signatures, tearlines)
+        $messageLines[] = $line;
+    }
+    
+    return implode("\n", $messageLines);
+}
+
 SimpleRouter::get('/compose/{type}', function($type) {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -284,16 +314,27 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 $templateVars['reply_to_address'] = $originalMessage['from_address'];
                 $templateVars['reply_to_name'] = $originalMessage['from_name'];
                 $templateVars['reply_subject'] = 'Re: ' . ltrim($originalMessage['subject'] ?? '', 'Re: ');
+                
+                // Filter out kludge lines from the quoted message
+                $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
                 $templateVars['reply_text'] = "\n\n--- Original Message ---\n" . 
                     "From: {$originalMessage['from_name']} <{$originalMessage['from_address']}>\n" .
                     "Date: {$originalMessage['date_written']}\n" .
                     "Subject: {$originalMessage['subject']}\n\n" .
-                    "> " . str_replace("\n", "\n> ", $originalMessage['message_text']);
+                    "> " . str_replace("\n", "\n> ", $cleanMessageText);
             } else {
                 $templateVars['reply_to_id'] = $replyId;
                 $templateVars['reply_to_name'] = $originalMessage['from_name'];
                 $templateVars['reply_subject'] = 'Re: ' . ltrim($originalMessage['subject'] ?? '', 'Re: ');
                 $echoarea = $originalMessage['echoarea']; // Use original echoarea for reply
+                
+                // Filter out kludge lines from the quoted message
+                $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
+                $templateVars['reply_text'] = "\n\n--- Original Message ---\n" . 
+                    "From: {$originalMessage['from_name']}\n" .
+                    "Date: {$originalMessage['date_written']}\n" .
+                    "Subject: {$originalMessage['subject']}\n\n" .
+                    "> " . str_replace("\n", "\n> ", $cleanMessageText);
             }
         }
     }

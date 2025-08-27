@@ -44,6 +44,7 @@ class Template
         $this->twig->addGlobal('system_name', $systemName);
         $this->twig->addGlobal('sysop_name', $sysopName);
         $this->twig->addGlobal('fidonet_origin', $fidonetOrigin);
+        $this->twig->addGlobal('system_address', $fidonetOrigin);
     }
 
     public function render($template, $variables = [])
