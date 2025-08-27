@@ -336,7 +336,7 @@ function displayMessageContent(message) {
         ` : ''}
         
         <div class="message-text">
-            <pre class="bg-light p-3 rounded">${escapeHtml(parsedMessage.messageBody)}</pre>
+            ${formatMessageText(parsedMessage.messageBody)}
         </div>
     `;
     

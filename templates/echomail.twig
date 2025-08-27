@@ -533,7 +533,7 @@ function displayMessageContent(message) {
         </div>
         
         <div class="message-text">
-            <pre class="bg-light p-3 rounded">${escapeHtml(parsedMessage.messageBody)}</pre>
+            ${formatMessageText(parsedMessage.messageBody)}
         </div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;

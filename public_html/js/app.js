@@ -82,6 +82,71 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
     };
 }
 
+// Smart text processing for mobile-friendly rendering
+function formatMessageText(messageText) {
+    if (!messageText || messageText.trim() === '') {
+        return '';
+    }
+    
+    // Detect if message contains formatting that should be preserved
+    const hasAsciiArt = /[\|\+\-_=~`]{3,}/.test(messageText) || /[^\w\s]{5,}/.test(messageText);
+    const hasIndentation = /^\s{4,}/.test(messageText) || messageText.includes('\t');
+    const hasQuotes = /^\s*[>|]/.test(messageText);
+    const hasSignature = messageText.includes('---') || messageText.includes('___');
+    
+    // If message has special formatting, use responsive preformatted style
+    if (hasAsciiArt || hasIndentation) {
+        return `<pre class="message-preformatted">${escapeHtml(messageText)}</pre>`;
+    }
+    
+    // Otherwise, format as readable text
+    const lines = messageText.split(/\r?\n/);
+    let formattedLines = [];
+    let inQuoteBlock = false;
+    let inSignature = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmedLine = line.trim();
+        
+        // Handle signature separator
+        if (trimmedLine === '---' || trimmedLine === '___' || trimmedLine.match(/^-{2,}$/)) {
+            inSignature = true;
+            formattedLines.push(`<div class="message-signature-separator">${escapeHtml(trimmedLine)}</div>`);
+            continue;
+        }
+        
+        // Handle quoted text
+        if (/^\s*[>|]/.test(line)) {
+            if (!inQuoteBlock) {
+                formattedLines.push('<div class="message-quote">');
+                inQuoteBlock = true;
+            }
+            formattedLines.push(`<div class="quote-line">${escapeHtml(line)}</div>`);
+        } else {
+            if (inQuoteBlock) {
+                formattedLines.push('</div>');
+                inQuoteBlock = false;
+            }
+            
+            // Empty lines become paragraph breaks
+            if (trimmedLine === '') {
+                formattedLines.push('<br>');
+            } else {
+                const cssClass = inSignature ? 'message-signature' : 'message-paragraph';
+                formattedLines.push(`<div class="${cssClass}">${escapeHtml(line)}</div>`);
+            }
+        }
+    }
+    
+    // Close any open quote block
+    if (inQuoteBlock) {
+        formattedLines.push('</div>');
+    }
+    
+    return `<div class="message-formatted">${formattedLines.join('')}</div>`;
+}
+
 function formatKludgeLines(kludgeLines) {
     return kludgeLines.map(line => {
         // Clean up control characters completely
