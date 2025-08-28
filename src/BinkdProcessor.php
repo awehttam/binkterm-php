@@ -721,12 +721,12 @@ class BinkdProcessor
         if (!empty($messageText) && !str_ends_with($messageText, "\r\n")) {
             $messageText .= "\r\n";
         }
-        $messageText .= "--- BinkTest v1.0\r\n";
+        $messageText .= "--- BinktermPHP v1.0\r\n";
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
         
-        $messageText .= " * Origin: " . $this->config->getSystemSysop() . " (" . $systemAddress . ")";
+        $messageText .= " * Origin: " . $this->config->getSystemName() . " (" . $systemAddress . ")";
         
         // Add echomail-specific control lines after origin
         if ($isEchomail) {
