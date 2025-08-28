@@ -84,7 +84,7 @@ class NodelistManager
     
     public function findNodesByLocation($location)
     {
-        $sql = "SELECT * FROM nodelist WHERE location LIKE ? ORDER BY zone, net, node, point";
+        $sql = "SELECT * FROM nodelist WHERE location ILIKE ? ORDER BY zone, net, node, point";
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['%' . $location . '%']);
         
@@ -93,7 +93,7 @@ class NodelistManager
     
     public function findNodesBySysop($sysop)
     {
-        $sql = "SELECT * FROM nodelist WHERE sysop_name LIKE ? ORDER BY zone, net, node, point";
+        $sql = "SELECT * FROM nodelist WHERE sysop_name ILIKE ? ORDER BY zone, net, node, point";
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['%' . $sysop . '%']);
         
@@ -119,18 +119,28 @@ class NodelistManager
             }
         }
         
+        // Handle general search term (search across multiple fields with OR logic)
+        if (!empty($criteria['search_term'])) {
+            $searchTerm = '%' . $criteria['search_term'] . '%';
+            $whereClauses[] = "(sysop_name ILIKE ? OR location ILIKE ? OR system_name ILIKE ?)";
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
+        }
+        
+        // Handle specific field searches (these use AND logic with other criteria)
         if (!empty($criteria['sysop'])) {
-            $whereClauses[] = "sysop_name LIKE ?";
+            $whereClauses[] = "sysop_name ILIKE ?";
             $params[] = '%' . $criteria['sysop'] . '%';
         }
         
         if (!empty($criteria['location'])) {
-            $whereClauses[] = "location LIKE ?";
+            $whereClauses[] = "location ILIKE ?";
             $params[] = '%' . $criteria['location'] . '%';
         }
         
         if (!empty($criteria['system_name'])) {
-            $whereClauses[] = "system_name LIKE ?";
+            $whereClauses[] = "system_name ILIKE ?";
             $params[] = '%' . $criteria['system_name'] . '%';
         }
         

@@ -1195,8 +1195,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             
             // Insert or update read status
             $stmt = $db->prepare("
-                INSERT OR REPLACE INTO message_read_status (user_id, message_id, message_type, read_at)
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
                 VALUES (?, ?, ?, NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = EXCLUDED.read_at
             ");
             
             $result = $stmt->execute([$userId, (int)$id, $type]);
@@ -1337,9 +1339,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             
             // Insert or update settings
             $stmt = $db->prepare("
-                INSERT OR REPLACE INTO user_settings 
+                INSERT INTO user_settings 
                 (user_id, messages_per_page, timezone, theme, show_origin, show_tearline, auto_refresh)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    messages_per_page = EXCLUDED.messages_per_page,
+                    timezone = EXCLUDED.timezone,
+                    theme = EXCLUDED.theme,
+                    show_origin = EXCLUDED.show_origin,
+                    show_tearline = EXCLUDED.show_tearline,
+                    auto_refresh = EXCLUDED.auto_refresh
             ");
             
             $result = $stmt->execute([

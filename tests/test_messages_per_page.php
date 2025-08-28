@@ -22,7 +22,7 @@ try {
     if (empty($settings)) {
         echo "   No user settings found. Creating test setting...\n";
         // Create a test setting for user ID 1
-        $insertStmt = $db->prepare("INSERT OR REPLACE INTO user_settings (user_id, messages_per_page) VALUES (1, 10)");
+        $insertStmt = $db->prepare("INSERT INTO user_settings (user_id, messages_per_page) VALUES (1, 10) ON CONFLICT (user_id) DO UPDATE SET messages_per_page = EXCLUDED.messages_per_page");
         $insertStmt->execute();
         echo "   Created test setting: User 1 -> 10 messages per page\n";
     } else {
