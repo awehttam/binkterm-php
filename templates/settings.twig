@@ -44,6 +44,35 @@
                         </select>
                         <div class="form-text">Your local timezone for displaying dates</div>
                     </div>
+
+                    <div class="mb-3">
+                        <label for="fontFamily" class="form-label">Message Font</label>
+                        <select class="form-select" id="fontFamily" name="font_family">
+                            <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
+                            <option value="Monaco, Consolas, 'Courier New', monospace">Monaco (Monospace)</option>
+                            <option value="Consolas, 'Courier New', Monaco, monospace">Consolas (Monospace)</option>
+                            <option value="'Lucida Console', Monaco, monospace">Lucida Console (Monospace)</option>
+                            <option value="Arial, sans-serif">Arial (Sans-serif)</option>
+                            <option value="Helvetica, Arial, sans-serif">Helvetica (Sans-serif)</option>
+                            <option value="Georgia, serif">Georgia (Serif)</option>
+                            <option value="'Times New Roman', serif">Times New Roman (Serif)</option>
+                            <option value="Verdana, sans-serif">Verdana (Sans-serif)</option>
+                        </select>
+                        <div class="form-text">Font family for displaying netmail and echomail messages</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="fontSize" class="form-label">Message Font Size</label>
+                        <select class="form-select" id="fontSize" name="font_size">
+                            <option value="12">12px (Small)</option>
+                            <option value="14">14px (Medium)</option>
+                            <option value="16" selected>16px (Large)</option>
+                            <option value="18">18px (Extra Large)</option>
+                            <option value="20">20px (Very Large)</option>
+                            <option value="22">22px (Huge)</option>
+                        </select>
+                        <div class="form-text">Font size for displaying netmail and echomail messages</div>
+                    </div>
                     
                 </form>
             </div>
@@ -212,6 +241,8 @@ function loadSettings() {
         .done(function(data) {
             if (data.messages_per_page) $('#messagesPerPage').val(data.messages_per_page);
             if (data.timezone) $('#timezone').val(data.timezone);
+            if (data.font_family) $('#fontFamily').val(data.font_family);
+            if (data.font_size) $('#fontSize').val(data.font_size);
             
             $('#showOrigin').prop('checked', data.show_origin !== false);
             $('#showTearline').prop('checked', data.show_tearline !== false);
