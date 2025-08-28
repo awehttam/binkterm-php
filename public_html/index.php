@@ -38,6 +38,41 @@ SimpleRouter::get('/', function() {
     $template->renderResponse('dashboard.twig');
 });
 
+// Web routes
+SimpleRouter::get('/appmanifestjson', function() {
+    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    //$systemName = $binkpConfig->getSystemSysop() . "'s System";
+    $systemName = $binkpConfig->getSystemName();
+    $ret=<<<_EOT_
+{
+  "name": "{{$systemName}}",
+  "short_name": "{{$systemName}}",
+  "description": "Binkley Fido Terminal",
+  "start_url": "/index.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0000ff",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+
+_EOT_;
+    header("Content-type: application/json");
+    echo $ret;
+    exit;
+
+});
+
 SimpleRouter::get('/login', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();

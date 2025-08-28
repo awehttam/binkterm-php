@@ -1,5 +1,6 @@
 {
     "system": {
+        "name": "My new BinktermPHP system",
         "address": "1:123/456.57599",
         "sysop": "Claude the Coder",
         "location": "Over Yonder",
