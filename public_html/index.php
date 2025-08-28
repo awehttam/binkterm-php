@@ -101,8 +101,17 @@ SimpleRouter::get('/login', function() {
         return SimpleRouter::response()->redirect('/');
     }
     
+    // Read welcome message if it exists
+    $welcomeMessage = '';
+    $welcomeFile = __DIR__ . '/../config/welcome.txt';
+    if (file_exists($welcomeFile)) {
+        $welcomeMessage = file_get_contents($welcomeFile);
+    }
+    
     $template = new Template();
-    $template->renderResponse('login.twig');
+    $template->renderResponse('login.twig', [
+        'welcome_message' => $welcomeMessage
+    ]);
 });
 
 SimpleRouter::get('/register', function() {
