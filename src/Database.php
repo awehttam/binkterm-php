@@ -42,8 +42,6 @@ class Database
                 $config['password'], 
                 $config['options'] ?? []
             );
-            
-            $this->initTables();
         } catch (PDOException $e) {
             die('Database connection failed: ' . $e->getMessage());
         }
