@@ -3,7 +3,7 @@
 
 -- Enhanced nodelist table to replace/extend existing basic 'nodes' table
 CREATE TABLE IF NOT EXISTS nodelist (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     zone INTEGER NOT NULL,
     net INTEGER NOT NULL,
     node INTEGER NOT NULL,
@@ -15,30 +15,29 @@ CREATE TABLE IF NOT EXISTS nodelist (
     phone VARCHAR(50),
     baud_rate INTEGER,
     flags TEXT, -- JSON array of flags
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(zone, net, node, point)
 );
 
 -- Nodelist metadata table
 CREATE TABLE IF NOT EXISTS nodelist_metadata (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     filename VARCHAR(50) NOT NULL,
     day_of_year INTEGER NOT NULL,
     release_date DATE NOT NULL,
     crc_checksum VARCHAR(10),
-    imported_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     total_nodes INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT 1
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 -- Nodelist flags lookup table for easier querying
 CREATE TABLE IF NOT EXISTS nodelist_flags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nodelist_id INTEGER NOT NULL,
+    id SERIAL PRIMARY KEY,
+    nodelist_id INTEGER NOT NULL REFERENCES nodelist(id) ON DELETE CASCADE,
     flag_name VARCHAR(20) NOT NULL,
-    flag_value VARCHAR(50),
-    FOREIGN KEY (nodelist_id) REFERENCES nodelist(id) ON DELETE CASCADE
+    flag_value VARCHAR(50)
 );
 
 -- Create indexes for performance

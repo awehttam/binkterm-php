@@ -36,8 +36,10 @@ class SetupManager
             $db = Database::getInstance()->getPdo();
             
             // Check if users table exists and has data
-            $stmt = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
-            if (!$stmt->fetch()) {
+            $stmt = $db->query("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')");
+            $result = $stmt->fetch();
+            
+            if (!$result['exists']) {
                 return false;
             }
             
@@ -97,7 +99,7 @@ class SetupManager
                 $db = Database::getInstance()->getPdo();
                 
                 echo "✓ Database initialized\n";
-                echo "  Path: " . Database::getInstance()->getDatabasePath() . "\n";
+                echo "  PostgreSQL connection established\n";
                 
                 // User count
                 $stmt = $db->query("SELECT COUNT(*) as count FROM users");
@@ -105,7 +107,7 @@ class SetupManager
                 echo "  Users: $userCount\n";
                 
                 // Admin count
-                $stmt = $db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = 1");
+                $stmt = $db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = TRUE");
                 $adminCount = $stmt->fetch()['count'];
                 echo "  Admins: $adminCount\n";
                 

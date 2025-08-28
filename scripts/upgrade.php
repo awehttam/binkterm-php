@@ -66,10 +66,10 @@ class DatabaseUpgrader
     {
         $this->db->exec("
             CREATE TABLE IF NOT EXISTS database_migrations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 version VARCHAR(20) NOT NULL UNIQUE,
                 description TEXT,
-                executed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 checksum VARCHAR(64)
             )
         ");

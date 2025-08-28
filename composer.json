@@ -7,7 +7,7 @@
         "pecee/simple-router": "^5.3",
         "twig/twig": "^3.7",
         "ext-pdo": "*",
-        "ext-sqlite3": "*"
+        "ext-pgsql": "*"
     },
     "autoload": {
         "psr-4": {

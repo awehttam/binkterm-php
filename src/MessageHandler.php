@@ -52,7 +52,7 @@ class MessageHandler
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
             ORDER BY CASE 
-                WHEN n.date_received > datetime('now') THEN 0 
+                WHEN n.date_received > NOW() THEN 0 
                 ELSE 1 
             END, n.date_received DESC 
             LIMIT ? OFFSET ?
@@ -132,7 +132,7 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE ea.tag = ?{$filterClause}
                 ORDER BY CASE 
-                    WHEN em.date_received > datetime('now') THEN 0 
+                    WHEN em.date_received > NOW() THEN 0 
                     ELSE 1 
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
@@ -158,7 +158,7 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE 1=1{$filterClause}
                 ORDER BY CASE 
-                    WHEN em.date_received > datetime('now') THEN 0 
+                    WHEN em.date_received > NOW() THEN 0 
                     ELSE 1 
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
@@ -268,7 +268,7 @@ class MessageHandler
 
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 0)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 0)
         ");
         
         $result = $stmt->execute([
@@ -314,7 +314,7 @@ class MessageHandler
 
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
@@ -341,7 +341,7 @@ class MessageHandler
 
     public function getEchoareas()
     {
-        $stmt = $this->db->query("SELECT * FROM echoareas WHERE is_active = 1 ORDER BY tag");
+        $stmt = $this->db->query("SELECT * FROM echoareas WHERE is_active = TRUE ORDER BY tag");
         return $stmt->fetchAll();
     }
 
@@ -354,7 +354,7 @@ class MessageHandler
                 SELECT * FROM netmail 
                 WHERE subject LIKE ? OR message_text LIKE ? OR from_name LIKE ?
                 ORDER BY CASE 
-                    WHEN date_received > datetime('now') THEN 0 
+                    WHEN date_received > NOW() THEN 0 
                     ELSE 1 
                 END, date_received DESC
                 LIMIT 50
@@ -376,7 +376,7 @@ class MessageHandler
             }
             
             $sql .= " ORDER BY CASE 
-                WHEN em.date_written > datetime('now') THEN 0 
+                WHEN em.date_written > NOW() THEN 0 
                 ELSE 1 
             END, em.date_written DESC LIMIT 50";
             
@@ -396,7 +396,7 @@ class MessageHandler
 
     private function getEchoareaByTag($tag)
     {
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = 1");
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = TRUE");
         $stmt->execute([$tag]);
         return $stmt->fetch();
     }
@@ -436,8 +436,10 @@ class MessageHandler
         
         if ($userId) {
             $stmt = $this->db->prepare("
-                INSERT OR REPLACE INTO message_read_status (user_id, message_id, message_type, read_at)
-                VALUES (?, ?, 'netmail', datetime('now'))
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'netmail', NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = NOW()
             ");
             $stmt->execute([$userId, $messageId]);
         }
@@ -454,8 +456,10 @@ class MessageHandler
         
         if ($userId) {
             $stmt = $this->db->prepare("
-                INSERT OR REPLACE INTO message_read_status (user_id, message_id, message_type, read_at)
-                VALUES (?, ?, 'echomail', datetime('now'))
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'echomail', NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = NOW()
             ");
             $stmt->execute([$userId, $messageId]);
         }
@@ -552,7 +556,7 @@ class MessageHandler
 
     private function getEchoareaUplink($echoareaTag)
     {
-        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND is_active = 1");
+        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND is_active = TRUE");
         $stmt->execute([$echoareaTag]);
         $result = $stmt->fetch();
         
@@ -743,7 +747,7 @@ class MessageHandler
         }
 
         // Find admin user ID for the netmail
-        $adminStmt = $this->db->prepare("SELECT id FROM users WHERE is_admin = 1 ORDER BY id LIMIT 1");
+        $adminStmt = $this->db->prepare("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
         $adminStmt->execute();
         $admin = $adminStmt->fetch();
         $adminUserId = $admin ? $admin['id'] : 1;
@@ -818,15 +822,14 @@ class MessageHandler
             // Create actual user account
             $userStmt = $this->db->prepare("
                 INSERT INTO users (username, password_hash, email, real_name, created_at, is_active)
-                VALUES (?, ?, ?, ?, ?, 1)
+                VALUES (?, ?, ?, ?, NOW(), TRUE)
             ");
             
             $userStmt->execute([
                 $pendingUser['username'],
                 $pendingUser['password_hash'],
                 $pendingUser['email'],
-                $pendingUser['real_name'],
-                date('Y-m-d H:i:s')
+                $pendingUser['real_name']
             ]);
             
             $newUserId = $this->db->lastInsertId();
@@ -918,7 +921,7 @@ class MessageHandler
             INSERT INTO netmail (
                 user_id, from_address, to_address, from_name, to_name, 
                 subject, message_text, date_written, date_received, attributes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
         ");
 
         $insertStmt->execute([
@@ -929,9 +932,7 @@ class MessageHandler
             $realName,       // to_name
             $subject,
             $messageText,
-            date('Y-m-d H:i:s'),
-            date('Y-m-d H:i:s'),
-            0
+            0                // attributes
         ]);
     }
 

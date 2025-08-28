@@ -93,7 +93,7 @@ class OutboundQueue
         // First try to get the specific uplink for this echoarea from database
         try {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND is_active = 1");
+            $stmt = $db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND is_active = TRUE");
             $stmt->execute([$echoareaTag]);
             $result = $stmt->fetch();
             

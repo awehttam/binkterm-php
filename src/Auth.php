@@ -13,7 +13,7 @@ class Auth
 
     public function login($username, $password)
     {
-        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE username = ? AND is_active = 1');
+        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE username = ? AND is_active = TRUE');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
@@ -38,7 +38,7 @@ class Auth
             SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.password_hash, u.created_at, u.last_login
             FROM user_sessions s 
             JOIN users u ON s.user_id = u.id 
-            WHERE s.session_id = ? AND s.expires_at > datetime("now") AND u.is_active = 1
+            WHERE s.session_id = ? AND s.expires_at > NOW() AND u.is_active = TRUE
         ');
         $stmt->execute([$sessionId]);
         return $stmt->fetch();
@@ -47,17 +47,14 @@ class Auth
     public function createSession($userId)
     {
         $sessionId = bin2hex(random_bytes(32));
-        // Use UTC time to match SQLite's datetime('now') function
-        $expiresAt = gmdate('Y-m-d H:i:s', time() + Config::SESSION_LIFETIME);
         
         $stmt = $this->db->prepare('
             INSERT INTO user_sessions (session_id, user_id, expires_at, ip_address, user_agent) 
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, NOW() + INTERVAL \'' . Config::SESSION_LIFETIME . ' seconds\', ?, ?)
         ');
         $stmt->execute([
             $sessionId, 
             $userId, 
-            $expiresAt, 
             $_SERVER['REMOTE_ADDR'] ?? '', 
             $_SERVER['HTTP_USER_AGENT'] ?? ''
         ]);
@@ -67,8 +64,7 @@ class Auth
 
     private function updateLastLogin($userId)
     {
-        // Use datetime('now') which is already UTC in SQLite
-        $stmt = $this->db->prepare('UPDATE users SET last_login = datetime("now") WHERE id = ?');
+        $stmt = $this->db->prepare('UPDATE users SET last_login = NOW() WHERE id = ?');
         $stmt->execute([$userId]);
     }
 
@@ -95,7 +91,7 @@ class Auth
 
     public function cleanExpiredSessions()
     {
-        $stmt = $this->db->prepare('DELETE FROM user_sessions WHERE expires_at < datetime("now")');
+        $stmt = $this->db->prepare('DELETE FROM user_sessions WHERE expires_at < NOW()');
         $stmt->execute();
     }
 }

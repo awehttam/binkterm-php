@@ -296,7 +296,7 @@ class BinkdProcessor
         
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, date_received, attributes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);
@@ -398,7 +398,7 @@ class BinkdProcessor
         
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, date_received, message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);
@@ -436,7 +436,7 @@ class BinkdProcessor
         $echoarea = $stmt->fetch();
         
         if (!$echoarea) {
-            $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active) VALUES (?, ?, 1)");
+            $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active) VALUES (?, ?, TRUE)");
             $stmt->execute([$tag, 'Auto-created: ' . $tag]);
             
             $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ?");
@@ -761,7 +761,7 @@ class BinkdProcessor
     {
         $stmt = $this->db->prepare("
             INSERT INTO packets (filename, packet_type, status, created_at) 
-            VALUES (?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, NOW())
         ");
         $stmt->execute([basename($filename), $direction, $status]);
     }
@@ -770,7 +770,7 @@ class BinkdProcessor
     {
         $stmt = $this->db->prepare("
             INSERT INTO packets (filename, packet_type, status, error_message, created_at) 
-            VALUES (?, 'IN', 'error', ?, datetime('now'))
+            VALUES (?, 'IN', 'error', ?, NOW())
         ");
         $stmt->execute([basename($filename), $error]);
     }

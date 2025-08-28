@@ -163,7 +163,7 @@ class NodelistManager
     
     public function getActiveNodelist()
     {
-        $sql = "SELECT * FROM nodelist_metadata WHERE is_active = 1 ORDER BY release_date DESC LIMIT 1";
+        $sql = "SELECT * FROM nodelist_metadata WHERE is_active = TRUE ORDER BY release_date DESC LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         
@@ -215,7 +215,7 @@ class NodelistManager
     
     public function archiveOldNodelist()
     {
-        $sql = "UPDATE nodelist_metadata SET is_active = 0 WHERE is_active = 1";
+        $sql = "UPDATE nodelist_metadata SET is_active = FALSE WHERE is_active = TRUE";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
         
@@ -225,25 +225,50 @@ class NodelistManager
     private function insertMetadata($metadata, $totalNodes)
     {
         $sql = "INSERT INTO nodelist_metadata (filename, day_of_year, release_date, crc_checksum, total_nodes, is_active) 
-                VALUES (?, ?, ?, ?, ?, 1)";
+                VALUES (?, ?, ?, ?, ?, TRUE)";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
-            $metadata['filename'],
+            $this->truncateString($metadata['filename'], 100),
             $metadata['day_of_year'],
             $metadata['release_date'],
-            $metadata['crc_checksum'],
+            $this->truncateString($metadata['crc_checksum'], 10),
             $totalNodes
         ]);
         
         return $this->db->lastInsertId();
     }
     
+    /**
+     * Safely truncate string to specified length
+     */
+    private function truncateString($string, $maxLength)
+    {
+        if (empty($string)) {
+            return $string;
+        }
+        
+        if (mb_strlen($string) <= $maxLength) {
+            return $string;
+        }
+        
+        return mb_substr($string, 0, $maxLength);
+    }
+    
     private function insertNode($node)
     {
-        $sql = "INSERT OR REPLACE INTO nodelist 
+        $sql = "INSERT INTO nodelist 
                 (zone, net, node, point, keyword_type, system_name, location, sysop_name, phone, baud_rate, flags) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (zone, net, node, point) DO UPDATE SET
+                    keyword_type = EXCLUDED.keyword_type,
+                    system_name = EXCLUDED.system_name,
+                    location = EXCLUDED.location,
+                    sysop_name = EXCLUDED.sysop_name,
+                    phone = EXCLUDED.phone,
+                    baud_rate = EXCLUDED.baud_rate,
+                    flags = EXCLUDED.flags,
+                    updated_at = CURRENT_TIMESTAMP";
         
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
@@ -251,11 +276,11 @@ class NodelistManager
             $node['net'],
             $node['node'],
             $node['point'],
-            $node['keyword_type'],
-            $node['system_name'],
-            $node['location'],
-            $node['sysop_name'],
-            $node['phone'],
+            $this->truncateString($node['keyword_type'], 10),
+            $this->truncateString($node['system_name'], 200),
+            $this->truncateString($node['location'], 200),
+            $this->truncateString($node['sysop_name'], 150),
+            $this->truncateString($node['phone'], 100),
             $node['baud_rate'],
             $node['flags']
         ]);

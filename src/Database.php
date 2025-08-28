@@ -13,9 +13,36 @@ class Database
     private function __construct()
     {
         try {
-            $this->pdo = new PDO('sqlite:' . Config::DB_PATH);
-            $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+            $config = Config::getDatabaseConfig();
+            
+            $dsn = sprintf(
+                'pgsql:host=%s;port=%s;dbname=%s',
+                $config['host'],
+                $config['port'],
+                $config['database']
+            );
+            
+            // Add SSL configuration if enabled
+            if (isset($config['ssl']) && $config['ssl']['enabled']) {
+                $dsn .= ';sslmode=require';
+                if (isset($config['ssl']['ca_cert'])) {
+                    $dsn .= ';sslrootcert=' . $config['ssl']['ca_cert'];
+                }
+                if (isset($config['ssl']['client_cert'])) {
+                    $dsn .= ';sslcert=' . $config['ssl']['client_cert'];
+                }
+                if (isset($config['ssl']['client_key'])) {
+                    $dsn .= ';sslkey=' . $config['ssl']['client_key'];
+                }
+            }
+            
+            $this->pdo = new PDO(
+                $dsn, 
+                $config['username'], 
+                $config['password'], 
+                $config['options'] ?? []
+            );
+            
             $this->initTables();
         } catch (PDOException $e) {
             die('Database connection failed: ' . $e->getMessage());
@@ -34,15 +61,10 @@ class Database
     {
         return $this->pdo;
     }
-    
-    public function getDatabasePath()
-    {
-        return Config::DB_PATH;
-    }
 
     private function initTables()
     {
-        $sql = file_get_contents(__DIR__ . '/../database/schema.sql');
+        $sql = file_get_contents(__DIR__ . '/../database/postgresql_schema.sql');
         $this->pdo->exec($sql);
     }
 }

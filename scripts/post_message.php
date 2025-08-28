@@ -114,7 +114,7 @@ function listUsers()
 function listEchoAreas()
 {
     $db = Database::getInstance()->getPdo();
-    $stmt = $db->query("SELECT tag, description, message_count FROM echoareas WHERE is_active = 1 ORDER BY tag");
+    $stmt = $db->query("SELECT tag, description, message_count FROM echoareas WHERE is_active = TRUE ORDER BY tag");
     $areas = $stmt->fetchAll();
     
     echo "Available echo areas:\n";
@@ -174,7 +174,7 @@ function validateEchomailArgs($args)
     
     // Check if echoarea exists
     $db = Database::getInstance()->getPdo();
-    $stmt = $db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = 1");
+    $stmt = $db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = TRUE");
     $stmt->execute([$args['echoarea']]);
     $area = $stmt->fetch();
     
