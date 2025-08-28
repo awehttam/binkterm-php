@@ -262,7 +262,7 @@ class UserManager
             $stmt->execute([$userId]);
             
             // Assign role if role system exists
-            $stmt = $this->db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='user_roles'");
+            $stmt = $this->db->query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_roles'");
             if ($stmt->fetch()) {
                 $roleName = $isAdmin ? 'admin' : 'user';
                 $stmt = $this->db->prepare("

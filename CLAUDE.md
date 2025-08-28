@@ -9,7 +9,7 @@ provides users with a delighftful, modern web experience that allows them to sen
 
  - Frontend: jQuery, Bootstrap 5
  - Backend: PHP, SimpleRouter request library, Twig templates
- - Database: SQLite
+ - Database: Postgres
  
 
 ## Code Conventions
