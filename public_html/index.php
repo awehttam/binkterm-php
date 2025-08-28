@@ -2382,5 +2382,11 @@ try {
     SimpleRouter::start();
 } catch (\Pecee\SimpleRouter\Exceptions\NotFoundHttpException $ex){
     http_response_code(404);
-    echo "Sorry, file not found..";
+    
+    // Use the pretty 404 template instead of plain text
+    $template = new Template();
+    $requestedUrl = $_SERVER['REQUEST_URI'] ?? '';
+    $template->renderResponse('404.twig', [
+        'requested_url' => htmlspecialchars($requestedUrl)
+    ]);
 }
