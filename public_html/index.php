@@ -601,11 +601,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         
         $stmt = $db->prepare("
-            SELECT 'netmail' as type, from_name, subject, date_written, NULL as echoarea, NULL as echoarea_color
+            SELECT id, 'netmail' as type, from_name, subject, date_written, NULL as echoarea, NULL as echoarea_color
             FROM netmail 
             WHERE user_id = ? 
             UNION ALL
-            SELECT 'echomail' as type, from_name, subject, date_written, e.tag as echoarea, e.color as echoarea_color
+            SELECT em.id, 'echomail' as type, em.from_name, em.subject, em.date_written, e.tag as echoarea, e.color as echoarea_color
             FROM echomail em
             JOIN echoareas e ON em.echoarea_id = e.id
             ORDER BY date_written DESC

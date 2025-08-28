@@ -93,6 +93,37 @@
         </div>
     </div>
 </div>
+
+<!-- Message View Modal -->
+<div class="modal fade" id="dashboardMessageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dashboardMessageSubject">Message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dashboardMessageContent">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading message...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-fidonet" id="dashboardReplyButton" style="display: none;">
+                    <i class="fas fa-reply"></i>
+                    Reply
+                </button>
+                <button type="button" class="btn btn-primary" id="dashboardGoToButton">
+                    <i class="fas fa-external-link-alt"></i>
+                    Go to Messages
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -124,7 +155,7 @@ function loadRecentMessages() {
             if (data.messages && data.messages.length > 0) {
                 data.messages.forEach(function(msg) {
                     html += `
-                        <div class="border-bottom py-2">
+                        <div class="border-bottom py-2 message-item-clickable" onclick="viewDashboardMessage(${msg.id}, '${msg.type}', ${msg.echoarea ? `'${msg.echoarea}'` : 'null'})" style="cursor: pointer;">
                             <div class="d-flex justify-content-between">
                                 <strong>${msg.from_name}</strong>
                                 <small class="text-muted" title="${formatFullDate(msg.date_written)}">${formatDate(msg.date_written)}</small>
@@ -164,5 +195,163 @@ function loadEchoareas() {
             $('#echoareaList').html(html);
         });
 }
+
+function viewDashboardMessage(messageId, messageType, echoarea) {
+    // Show loading modal
+    $('#dashboardMessageContent').html(`
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Loading message...
+        </div>
+    `);
+    $('#dashboardMessageModal').modal('show');
+    
+    // Set up "Go to Messages" button
+    $('#dashboardGoToButton').off('click').on('click', function() {
+        if (messageType === 'netmail') {
+            window.location.href = `/netmail`;
+        } else if (messageType === 'echomail') {
+            if (echoarea && echoarea !== 'null') {
+                window.location.href = `/echomail/${encodeURIComponent(echoarea)}`;
+            } else {
+                window.location.href = `/echomail`;
+            }
+        }
+    });
+    
+    // Determine API endpoint
+    let apiUrl;
+    if (messageType === 'netmail') {
+        apiUrl = `/api/messages/netmail/${messageId}`;
+    } else if (messageType === 'echomail') {
+        if (echoarea && echoarea !== 'null') {
+            apiUrl = `/api/messages/echomail/${encodeURIComponent(echoarea)}/${messageId}`;
+        } else {
+            apiUrl = `/api/messages/echomail/message/${messageId}`;
+        }
+    }
+    
+    // Fetch message content
+    $.get(apiUrl)
+        .done(function(data) {
+            displayDashboardMessage(data, messageType);
+        })
+        .fail(function() {
+            $('#dashboardMessageContent').html('<div class="text-danger">Failed to load message</div>');
+        });
+}
+
+function displayDashboardMessage(message, messageType) {
+    $('#dashboardMessageSubject').text(message.subject || '(No Subject)');
+    
+    let parsedMessage;
+    if (messageType === 'netmail') {
+        parsedMessage = parseNetmailMessage(message.message_text || '');
+    } else {
+        parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
+    }
+    
+    let html = `
+        <div class="message-header-full mb-3">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>From:</strong> ${escapeHtml(message.from_name)}<br>
+                    <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
+                </div>
+                <div class="col-md-6">
+                    <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>`;
+    
+    if (messageType === 'netmail') {
+        html += `<small class="text-muted">${formatFidonetAddress(message.to_address)}</small>`;
+    } else {
+        html += `<span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>`;
+    }
+    
+    html += `
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <strong>Date:</strong> ${formatFullDate(message.date_written)}
+                </div>
+                <div class="col-md-6">
+                    <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
+                </div>
+            </div>
+        </div>
+        
+        ${parsedMessage.kludgeLines.length > 0 ? `
+        <div class="message-headers mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0 text-muted">Message Headers</h6>
+                <button class="btn btn-sm btn-outline-secondary" id="toggleDashboardHeaders" onclick="toggleDashboardKludgeLines()">
+                    <i class="fas fa-eye-slash" id="toggleDashboardIcon"></i>
+                    <span id="toggleDashboardText">Show Headers</span>
+                </button>
+            </div>
+            <div id="dashboardKludgeContainer" class="kludge-lines" style="display: none;">
+                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLines(parsedMessage.kludgeLines)}</pre>
+            </div>
+        </div>
+        ` : ''}
+        
+        <div class="message-text">
+            ${formatMessageText(parsedMessage.messageBody)}
+        </div>`;
+    
+    if (messageType === 'echomail' && message.origin_line) {
+        html += `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>`;
+    }
+    
+    $('#dashboardMessageContent').html(html);
+    
+    // Set up reply button for appropriate messages
+    const isSent = message.is_sent || (message.from_address && message.from_address === window.systemAddress);
+    if (!isSent && messageType === 'netmail') {
+        $('#dashboardReplyButton').show().off('click').on('click', function() {
+            $('#dashboardMessageModal').modal('hide');
+            window.location.href = `/compose/netmail?reply=${message.id}`;
+        });
+    } else if (messageType === 'echomail') {
+        $('#dashboardReplyButton').show().off('click').on('click', function() {
+            $('#dashboardMessageModal').modal('hide');
+            let url = `/compose/echomail?reply=${message.id}`;
+            if (message.echoarea) {
+                url += `&echoarea=${encodeURIComponent(message.echoarea)}`;
+            }
+            window.location.href = url;
+        });
+    } else {
+        $('#dashboardReplyButton').hide();
+    }
+}
+
+function toggleDashboardKludgeLines() {
+    const container = $('#dashboardKludgeContainer');
+    const icon = $('#toggleDashboardIcon');
+    const text = $('#toggleDashboardText');
+    
+    if (container.is(':visible')) {
+        container.slideUp();
+        icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
+        text.text('Show Headers');
+    } else {
+        container.slideDown();
+        icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
+        text.text('Hide Headers');
+    }
+}
 </script>
+
+<style>
+.message-item-clickable:hover {
+    background-color: #f8f9fa;
+    transform: translateX(2px);
+    transition: all 0.2s ease;
+}
+
+.message-item-clickable:active {
+    background-color: #e9ecef;
+}
+</style>
 {% endblock %}
