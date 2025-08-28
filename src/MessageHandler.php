@@ -268,7 +268,7 @@ class MessageHandler
 
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 0)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE)
         ");
         
         $result = $stmt->execute([
@@ -491,7 +491,7 @@ class MessageHandler
             $binkdProcessor->createOutboundPacket([$message], $message['to_address']);
             
             // Mark message as sent
-            $this->db->prepare("UPDATE netmail SET is_sent = 1 WHERE id = ?")
+            $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
             
             return true;
