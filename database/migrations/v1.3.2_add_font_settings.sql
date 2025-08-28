@@ -1,5 +1,5 @@
 -- Add font family and size settings to user_settings table
--- v1.3.0 - Font customization support
+-- v1.3.2 - Font customization support
 
 ALTER TABLE user_settings 
 ADD COLUMN IF NOT EXISTS font_family VARCHAR(100) DEFAULT 'Courier New, Monaco, Consolas, monospace';
