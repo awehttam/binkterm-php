@@ -622,6 +622,10 @@ class BinkdProcessor
         // Message text with proper FTN control lines
         $messageText = $message['message_text'];
         
+        // Convert line breaks to FidoNet format (\r\n) and ensure proper formatting
+        // This fixes the issue where outgoing messages have improper line breaks
+        $messageText = str_replace(["\r\n", "\r", "\n"], "\r\n", $messageText);
+        
         // Determine message type based on attributes and content
         $isNetmail = ($message['attributes'] ?? 0) & 0x0001; // Private bit set
         // For echomail detection, we need a different approach since we'll add the kludge line
