@@ -45,8 +45,8 @@ SimpleRouter::get('/appmanifestjson', function() {
     $systemName = $binkpConfig->getSystemName();
     $ret=<<<_EOT_
 {
-  "name": "{{$systemName}}",
-  "short_name": "{{$systemName}}",
+  "name": "{$systemName}",
+  "short_name": "{$systemName}",
   "description": "Binkley Fido Terminal",
   "start_url": "/",
   "display": "standalone",
