@@ -370,7 +370,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
     
     if ($replyId) {
         $handler = new MessageHandler();
-        $originalMessage = $handler->getMessage($replyId, $type);
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $originalMessage = $handler->getMessage($replyId, $type, $userId);
         
         if ($originalMessage) {
             if ($type === 'netmail') {

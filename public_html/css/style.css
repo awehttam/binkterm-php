@@ -5,6 +5,12 @@
     --fidonet-green: #009900;
     --fidonet-red: #cc0000;
     --fidonet-orange: #ff6600;
+    --text-color: #000000;
+    --text-color-muted: #6c757d;
+    --message-bg: #ffffff;
+    --message-quote-bg: #f8f9fa;
+    --message-quote-border: #dee2e6;
+    --border-color: #dee2e6;
 }
 
 body {
@@ -479,7 +485,7 @@ body {
     border-radius: 0.375rem;
     padding: 1rem;
     font-family: 'Courier New', Monaco, Consolas, monospace;
-    font-size: 0.875rem;
+    font-size: 16px;
     line-height: 1.5;
     white-space: pre-wrap;
     word-wrap: break-word;

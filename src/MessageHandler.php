@@ -35,15 +35,20 @@ class MessageHandler
         $offset = ($page - 1) * $limit;
         
         // Build the WHERE clause based on filter
-        $whereClause = "WHERE n.user_id = ?";
-        $params = [$userId];
+        // Show messages where user is sender OR recipient
+        $whereClause = "WHERE (n.user_id = ? OR LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))";
+        $params = [$userId, $user['username'], $user['real_name']];
         
         if ($filter === 'unread') {
             $whereClause .= " AND mrs.read_at IS NULL";
         } elseif ($filter === 'sent' && $systemAddress) {
-            // Show messages sent by this user (from_address matches system AND user_id matches)
+            // Show only messages sent by this user
             $whereClause = "WHERE n.from_address = ? AND n.user_id = ?";
             $params = [$systemAddress, $userId];
+        } elseif ($filter === 'received') {
+            // Show only messages received by this user (where they are the recipient)
+            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.user_id != ?";
+            $params = [$user['username'], $user['real_name'], $userId];
         }
         
         $stmt = $this->db->prepare("
@@ -222,9 +227,16 @@ class MessageHandler
     public function getMessage($messageId, $type, $userId = null)
     {
         if ($type === 'netmail') {
-            // For netmail, ensure user can only access their own messages
-            $stmt = $this->db->prepare("SELECT * FROM netmail WHERE id = ? AND user_id = ?");
-            $stmt->execute([$messageId, $userId]);
+            // For netmail, user can access messages they sent OR received
+            $user = $this->getUserById($userId);
+            if (!$user) {
+                return null;
+            }
+            $stmt = $this->db->prepare("
+                SELECT * FROM netmail 
+                WHERE id = ? AND (user_id = ? OR LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?))
+            ");
+            $stmt->execute([$messageId, $userId, $user['username'], $user['real_name']]);
         } else {
             // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
