@@ -48,7 +48,7 @@ SimpleRouter::get('/appmanifestjson', function() {
   "name": "{{$systemName}}",
   "short_name": "{{$systemName}}",
   "description": "Binkley Fido Terminal",
-  "start_url": "/index.php",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0000ff",
