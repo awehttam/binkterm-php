@@ -2377,5 +2377,10 @@ SimpleRouter::group(['prefix' => '/api/nodelist'], function() {
     });
 });
 
+try {
 // Start router
-SimpleRouter::start();
+    SimpleRouter::start();
+} catch (\Pecee\SimpleRouter\Exceptions\NotFoundHttpException $ex){
+    http_response_code(404);
+    echo "Sorry, file not found..";
+}
