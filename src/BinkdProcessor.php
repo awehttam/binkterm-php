@@ -676,7 +676,20 @@ class BinkdProcessor
         $kludgeLines = '';
         
         if ($isNetmail) {
-            // Netmail-specific kludge lines
+            // Add TZUTC kludge line for netmail
+            $timezone = $this->config->getSystemTimezone();
+            try {
+                $tz = new \DateTimeZone($timezone);
+                $now = new \DateTime('now', $tz);
+                $offset = $now->getOffset();
+                $offsetHours = intval($offset / 3600);
+                $offsetMinutes = intval(abs($offset % 3600) / 60);
+                $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
+                $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
+            } catch (\Exception $e) {
+                // Fallback to UTC if timezone is invalid
+                $kludgeLines .= "\x01TZUTC: +0000\r\n";
+            }
             
             // Add MSGID kludge (required for netmail)
             $msgId = time() . sprintf('%04x', rand(0, 65535)); // Simple message ID
@@ -711,15 +724,33 @@ class BinkdProcessor
                 $kludgeLines .= "\x01FLAGS " . implode(' ', $flags) . "\r\n";
             }
         } elseif ($isEchomail) {
-            // Test plain text AREA: format (no SOH character)
-            if (isset($message['echoarea_tag'])) {
-                // Try plain text AREA: line as first line (no ^A prefix)
-                $messageText = "AREA:{$message['echoarea_tag']}\r\n" . $messageText;
-                error_log("DEBUG: PLAIN TEXT - AREA line added: " . bin2hex("AREA:{$message['echoarea_tag']}\r\n"));
+            // Add TZUTC kludge line for echomail
+            $timezone = $this->config->getSystemTimezone();
+            try {
+                $tz = new \DateTimeZone($timezone);
+                $now = new \DateTime('now', $tz);
+                $offset = $now->getOffset();
+                $offsetHours = intval($offset / 3600);
+                $offsetMinutes = intval(abs($offset % 3600) / 60);
+                $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
+                $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
+            } catch (\Exception $e) {
+                // Fallback to UTC if timezone is invalid
+                $kludgeLines .= "\x01TZUTC: +0000\r\n";
             }
+            
+            // Add MSGID kludge (required for echomail)
+            $msgId = time() . sprintf('%04x', rand(0, 65535)); // Simple message ID
+            $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
         }
         
-        $messageText = $kludgeLines . $messageText;
+        // For echomail, add AREA control field first (plain text, no ^A prefix)
+        $areaLine = '';
+        if ($isEchomail && isset($message['echoarea_tag'])) {
+            $areaLine = "AREA:{$message['echoarea_tag']}\r\n";
+        }
+        
+        $messageText = $areaLine . $kludgeLines . $messageText;
         
         // Add tearline and origin
         if (!empty($messageText) && !str_ends_with($messageText, "\r\n")) {

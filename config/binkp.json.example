@@ -4,7 +4,8 @@
         "address": "1:123/456.57599",
         "sysop": "Claude the Coder",
         "location": "Over Yonder",
-        "hostname": "localhost"
+        "hostname": "localhost",
+        "timezone": "UTC"
     },
     "binkp": {
         "port": 24554,

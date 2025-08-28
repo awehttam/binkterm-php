@@ -69,7 +69,8 @@ class BinkpConfig
                 'address' => '1:123/456',
                 'sysop' => 'System Operator',
                 'location' => 'Unknown Location',
-                'hostname' => 'localhost'
+                'hostname' => 'localhost',
+                'timezone' => 'UTC'
             ],
             'binkp' => [
                 'port' => 24554,
@@ -114,6 +115,11 @@ class BinkpConfig
     public function getSystemHostname()
     {
         return $this->config['system']['hostname'] ?? 'localhost';
+    }
+    
+    public function getSystemTimezone()
+    {
+        return $this->config['system']['timezone'] ?? 'UTC';
     }
     
     public function getBinkpPort()
