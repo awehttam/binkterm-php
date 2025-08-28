@@ -63,6 +63,26 @@ SimpleRouter::get('/appmanifestjson', function() {
       "sizes": "512x512",
       "type": "image/svg+xml"
     }
+  ],
+  "shortcuts": [
+    {  
+        "name": "Compose new Netmail",
+        "short_name": "New Netmail",
+        "description":"Post a new Netmail Message",
+        "url":"/compose/netmail"
+    },
+    {  
+        "name": "Compose new Echomail",
+        "short_name": "New Echomail",
+        "description":"Post a new Echomail Message",
+        "url":"/compose/echomail"
+    },
+    {  
+        "name": "Nodelist",
+        "short_name": "Nodelist",
+        "description":"Browse the nodelist",
+        "url":"/nodelist"
+    }    
   ]
 }
 
