@@ -1,0 +1,75 @@
+{% extends "base.twig" %}
+
+{% block title %}Page Not Found - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-6">
+        <div class="card border-warning shadow">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Page Not Found
+                </h5>
+            </div>
+            <div class="card-body text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-search text-warning" style="font-size: 5rem; opacity: 0.7;"></i>
+                </div>
+                
+                <h1 class="display-4 text-muted mb-3">404</h1>
+                <h4 class="mb-3">Page Not Found</h4>
+                <p class="text-muted mb-4">
+                    The page you're looking for doesn't exist or has been moved to another location.
+                    {% if requested_url %}
+                    <br><small class="text-muted">Requested: <code>{{ requested_url }}</code></small>
+                    {% endif %}
+                </p>
+                
+                <div class="row g-2 justify-content-center">
+                    <div class="col-auto">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>
+                            Dashboard
+                        </a>
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-outline-secondary" onclick="history.back()">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Go Back
+                        </button>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="mt-4 p-3 bg-light rounded">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        If you believe this is an error, please contact the System Operator.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.btn {
+    transition: all 0.2s ease-in-out;
+}
+
+.display-4 {
+    font-weight: 300;
+    font-family: 'Courier New', monospace;
+}
+</style>
+{% endblock %}

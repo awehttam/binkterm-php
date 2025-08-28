@@ -584,7 +584,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadStmt->execute([$userId, $userId]);
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
         
-        $newEchomail = $db->query("SELECT COUNT(*) as count FROM echomail WHERE date_received > datetime('now', '-1 day')")->fetch()['count'] ?? 0;
+        $newEchomail = $db->query("SELECT COUNT(*) as count FROM echomail WHERE date_received > NOW() - INTERVAL '1 day'")->fetch()['count'] ?? 0;
         
         echo json_encode([
             'unread_netmail' => $unreadNetmail,
@@ -631,9 +631,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $params = [];
         
         if ($filter === 'active') {
-            $sql .= " WHERE is_active = 1";
+            $sql .= " WHERE is_active = TRUE";
         } elseif ($filter === 'inactive') {
-            $sql .= " WHERE is_active = 0";
+            $sql .= " WHERE is_active = FALSE";
         }
         // 'all' filter shows everything
         
@@ -826,7 +826,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         $db = Database::getInstance()->getPdo();
         
-        $activeCount = $db->query("SELECT COUNT(*) as count FROM echoareas WHERE is_active = 1")->fetch()['count'];
+        $activeCount = $db->query("SELECT COUNT(*) as count FROM echoareas WHERE is_active = TRUE")->fetch()['count'];
         $totalMessages = $db->query("SELECT SUM(message_count) as count FROM echoareas")->fetch()['count'] ?? 0;
         $todayMessages = $db->query("SELECT COUNT(*) as count FROM echomail WHERE date_received > date('now')")->fetch()['count'];
         
@@ -970,10 +970,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $totalStmt = $db->query("SELECT COUNT(*) as count FROM echomail");
         $total = $totalStmt->fetch()['count'];
         
-        $recentStmt = $db->query("SELECT COUNT(*) as count FROM echomail WHERE date_received > datetime('now', '-1 day')");
+        $recentStmt = $db->query("SELECT COUNT(*) as count FROM echomail WHERE date_received > NOW() - INTERVAL '1 day'");
         $recent = $recentStmt->fetch()['count'];
         
-        $areasStmt = $db->query("SELECT COUNT(*) as count FROM echoareas WHERE is_active = 1");
+        $areasStmt = $db->query("SELECT COUNT(*) as count FROM echoareas WHERE is_active = TRUE");
         $areas = $areasStmt->fetch()['count'];
         
         // Unread echomail count for this user
@@ -1011,7 +1011,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Statistics for specific echoarea
         $stmt = $db->prepare("
             SELECT COUNT(*) as total, 
-                   COUNT(CASE WHEN date_received > datetime('now', '-1 day') THEN 1 END) as recent
+                   COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             WHERE ea.tag = ?
@@ -1195,8 +1195,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             
             // Insert or update read status
             $stmt = $db->prepare("
-                INSERT OR REPLACE INTO message_read_status (user_id, message_id, message_type, read_at)
-                VALUES (?, ?, ?, datetime('now'))
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, ?, NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = EXCLUDED.read_at
             ");
             
             $result = $stmt->execute([$userId, (int)$id, $type]);
@@ -1337,9 +1339,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             
             // Insert or update settings
             $stmt = $db->prepare("
-                INSERT OR REPLACE INTO user_settings 
+                INSERT INTO user_settings 
                 (user_id, messages_per_page, timezone, theme, show_origin, show_tearline, auto_refresh)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    messages_per_page = EXCLUDED.messages_per_page,
+                    timezone = EXCLUDED.timezone,
+                    theme = EXCLUDED.theme,
+                    show_origin = EXCLUDED.show_origin,
+                    show_tearline = EXCLUDED.show_tearline,
+                    auto_refresh = EXCLUDED.auto_refresh
             ");
             
             $result = $stmt->execute([
@@ -1406,7 +1415,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             SELECT session_id as id, ip_address, created_at, expires_at,
                    CASE WHEN session_id = ? THEN 1 ELSE 0 END as is_current
             FROM user_sessions 
-            WHERE user_id = ? AND expires_at > datetime('now')
+            WHERE user_id = ? AND expires_at > NOW()
             ORDER BY created_at DESC
         ");
         
@@ -1849,7 +1858,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         try {
             $handler = new MessageHandler();
-            $newUserId = $handler->approveUserRegistration($id, $user['id'], $notes);
+            $newUserId = $handler->approveUserRegistration($id, $user['user_id'], $notes);
             echo json_encode(['success' => true, 'new_user_id' => $newUserId]);
         } catch (Exception $e) {
             http_response_code(400);
@@ -1873,7 +1882,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         try {
             $handler = new MessageHandler();
-            $handler->rejectUserRegistration($id, $user['id'], $notes);
+            $handler->rejectUserRegistration($id, $user['user_id'], $notes);
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
             http_response_code(400);
@@ -2382,5 +2391,11 @@ try {
     SimpleRouter::start();
 } catch (\Pecee\SimpleRouter\Exceptions\NotFoundHttpException $ex){
     http_response_code(404);
-    echo "Sorry, file not found..";
+    
+    // Use the pretty 404 template instead of plain text
+    $template = new Template();
+    $requestedUrl = $_SERVER['REQUEST_URI'] ?? '';
+    $template->renderResponse('404.twig', [
+        'requested_url' => htmlspecialchars($requestedUrl)
+    ]);
 }

@@ -189,7 +189,7 @@ class AdminController
     public function deleteUser($userId)
     {
         // Don't allow deleting the last admin
-        $adminCount = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = 1")->fetch()['count'];
+        $adminCount = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = TRUE")->fetch()['count'];
         
         $user = $this->getUser($userId);
         if ($user && $user['is_admin'] && $adminCount <= 1) {
@@ -231,11 +231,11 @@ class AdminController
         $stats = [];
         
         $stats['total_users'] = $this->db->query("SELECT COUNT(*) as count FROM users")->fetch()['count'];
-        $stats['active_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_active = 1")->fetch()['count'];
-        $stats['admin_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = 1")->fetch()['count'];
+        $stats['active_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_active = TRUE")->fetch()['count'];
+        $stats['admin_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = TRUE")->fetch()['count'];
         $stats['total_netmail'] = $this->db->query("SELECT COUNT(*) as count FROM netmail")->fetch()['count'];
         $stats['total_echomail'] = $this->db->query("SELECT COUNT(*) as count FROM echomail")->fetch()['count'];
-        $stats['active_sessions'] = $this->db->query("SELECT COUNT(*) as count FROM sessions WHERE expires_at > datetime('now')")->fetch()['count'];
+        $stats['active_sessions'] = $this->db->query("SELECT COUNT(*) as count FROM sessions WHERE expires_at > NOW()")->fetch()['count'];
         
         return $stats;
     }

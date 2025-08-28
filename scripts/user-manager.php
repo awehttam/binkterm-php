@@ -24,11 +24,11 @@ class UserManager
             $params = [];
             
             if (!$showAdmin) {
-                $whereClause .= " AND is_admin = 0";
+                $whereClause .= " AND is_admin = FALSE";
             }
             
             if (!$showInactive) {
-                $whereClause .= " AND is_active = 1";
+                $whereClause .= " AND is_active = TRUE";
             }
             
             $stmt = $this->db->prepare("

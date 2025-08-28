@@ -50,15 +50,15 @@ class Installer
     private function isAlreadyInstalled()
     {
         try {
-            // Check if database_migrations table exists (indicates proper installation)
-            $stmt = $this->db->query("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='database_migrations'");
+            // Check if users table exists (indicates proper installation)
+            $stmt = $this->db->query("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')");
             $result = $stmt->fetch();
             
-            if ($result['count'] > 0) {
-                // Check if there are any migrations recorded
-                $stmt = $this->db->query("SELECT COUNT(*) as count FROM database_migrations");
-                $migrationCount = $stmt->fetch();
-                return $migrationCount['count'] > 0;
+            if ($result['exists']) {
+                // Check if there are any users
+                $stmt = $this->db->query("SELECT COUNT(*) as count FROM users");
+                $userCount = $stmt->fetch();
+                return $userCount['count'] > 0;
             }
             
             return false;
@@ -71,9 +71,9 @@ class Installer
     {
         echo "1. Creating database tables...\n";
         
-        $schemaFile = __DIR__ . '/../database/schema.sql';
+        $schemaFile = __DIR__ . '/../database/postgresql_schema.sql';
         if (!file_exists($schemaFile)) {
-            throw new Exception("Schema file not found: $schemaFile");
+            throw new Exception("PostgreSQL schema file not found: $schemaFile");
         }
         
         $schema = file_get_contents($schemaFile);
@@ -89,9 +89,9 @@ class Installer
                 try {
                     $this->db->exec($statement);
                 } catch (Exception $e) {
-                    // Skip statements that might fail (like INSERT OR IGNORE on existing data)
+                    // Skip statements that might fail (like ON CONFLICT DO NOTHING on existing data)
                     if (strpos($e->getMessage(), 'already exists') === false && 
-                        strpos($e->getMessage(), 'UNIQUE constraint failed') === false) {
+                        strpos($e->getMessage(), 'duplicate key') === false) {
                         throw $e;
                     }
                 }

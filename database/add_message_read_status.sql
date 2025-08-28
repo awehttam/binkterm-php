@@ -2,12 +2,11 @@
 
 -- Create message read status tracking table
 CREATE TABLE IF NOT EXISTS message_read_status (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     message_id INTEGER NOT NULL,
     message_type VARCHAR(10) NOT NULL,
-    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, message_id, message_type)
 );
 

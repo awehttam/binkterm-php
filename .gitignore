@@ -4,3 +4,5 @@ data/*
 .claude/
 vendor/
 *~
+.env
+.env.local

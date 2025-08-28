@@ -31,9 +31,7 @@ class NodelistController
         
         $criteria = [];
         if ($search) {
-            $criteria['sysop'] = $search;
-            $criteria['location'] = $search;
-            $criteria['system_name'] = $search;
+            $criteria['search_term'] = $search;
         }
         if ($zone) {
             $criteria['zone'] = $zone;
