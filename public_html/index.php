@@ -1174,7 +1174,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         $handler = new MessageHandler();
         
-        $messages = $handler->searchMessages($query, $type, $echoarea);
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
+        $messages = $handler->searchMessages($query, $type, $echoarea, $userId);
         echo json_encode(['messages' => $messages]);
     });
     

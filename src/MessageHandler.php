@@ -41,8 +41,9 @@ class MessageHandler
         if ($filter === 'unread') {
             $whereClause .= " AND mrs.read_at IS NULL";
         } elseif ($filter === 'sent' && $systemAddress) {
-            $whereClause = "WHERE n.from_address = ?";
-            $params = [$systemAddress];
+            // Show messages sent by this user (from_address matches system AND user_id matches)
+            $whereClause = "WHERE n.from_address = ? AND n.user_id = ?";
+            $params = [$systemAddress, $userId];
         }
         
         $stmt = $this->db->prepare("
@@ -221,17 +222,20 @@ class MessageHandler
     public function getMessage($messageId, $type, $userId = null)
     {
         if ($type === 'netmail') {
-            $stmt = $this->db->prepare("SELECT * FROM netmail WHERE id = ?");
+            // For netmail, ensure user can only access their own messages
+            $stmt = $this->db->prepare("SELECT * FROM netmail WHERE id = ? AND user_id = ?");
+            $stmt->execute([$messageId, $userId]);
         } else {
+            // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 WHERE em.id = ?
             ");
+            $stmt->execute([$messageId]);
         }
         
-        $stmt->execute([$messageId]);
         $message = $stmt->fetch();
 
         if ($message) {
@@ -345,21 +349,26 @@ class MessageHandler
         return $stmt->fetchAll();
     }
 
-    public function searchMessages($query, $type = null, $echoarea = null)
+    public function searchMessages($query, $type = null, $echoarea = null, $userId = null)
     {
         $searchTerm = '%' . $query . '%';
         
         if ($type === 'netmail') {
+            if ($userId === null) {
+                // If no user ID provided, return empty results for privacy
+                return [];
+            }
             $stmt = $this->db->prepare("
                 SELECT * FROM netmail 
-                WHERE subject LIKE ? OR message_text LIKE ? OR from_name LIKE ?
+                WHERE (subject LIKE ? OR message_text LIKE ? OR from_name LIKE ?) 
+                AND user_id = ?
                 ORDER BY CASE 
                     WHEN date_received > NOW() THEN 0 
                     ELSE 1 
                 END, date_received DESC
                 LIMIT 50
             ");
-            $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
+            $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
         } else {
             $sql = "
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
