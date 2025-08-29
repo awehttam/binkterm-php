@@ -30,22 +30,8 @@ ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS allow_sharing BOOLEAN DEFAULT
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS default_share_expiry INTEGER DEFAULT 168;
 ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS max_shares_per_user INTEGER DEFAULT 50;
 
--- Create function to clean up expired shares
-CREATE OR REPLACE FUNCTION cleanup_expired_shares()
-RETURNS INTEGER
-LANGUAGE plpgsql
-AS '
-DECLARE
-    deleted_count INTEGER;
-BEGIN
-    DELETE FROM shared_messages 
-    WHERE expires_at IS NOT NULL 
-      AND expires_at < NOW();
-    
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
-    RETURN deleted_count;
-END;
-';
+-- Note: cleanup_expired_shares() function can be added manually later if needed
+-- Simple cleanup can be done with: DELETE FROM shared_messages WHERE expires_at IS NOT NULL AND expires_at < NOW();
 
 -- Add comments for documentation
 COMMENT ON TABLE shared_messages IS 'Stores information about shared message links';
@@ -53,4 +39,3 @@ COMMENT ON COLUMN shared_messages.share_key IS 'Unique random string used in sha
 COMMENT ON COLUMN shared_messages.expires_at IS 'When the share link expires (NULL = never expires)';
 COMMENT ON COLUMN shared_messages.is_public IS 'Whether the share can be accessed without login';
 COMMENT ON COLUMN shared_messages.is_active IS 'Whether the share is currently active (allows soft deletion)';
-COMMENT ON FUNCTION cleanup_expired_shares() IS 'Removes expired share links and returns count of deleted records';
