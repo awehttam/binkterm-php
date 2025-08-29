@@ -297,12 +297,39 @@ class BinkdProcessor
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
         
+        // Parse netmail message text for kludge lines to extract TZUTC
+        $messageText = $message['text'];
+        $messageText = str_replace("\r\n", "\n", $messageText); // Normalize line endings
+        $messageText = str_replace("\r", "\n", $messageText);
+        
+        $lines = explode("\n", $messageText);
+        $tzutcOffset = null;
+        
+        foreach ($lines as $line) {
+            // Process kludge lines (lines starting with \x01) in netmail
+            if (strlen($line) > 0 && ord($line[0]) === 0x01) {
+                // Extract TZUTC offset for proper date calculation
+                if (strpos($line, "\x01TZUTC:") === 0) {
+                    $tzutcLine = trim(substr($line, 7)); // Remove "\x01TZUTC:" prefix
+                    // TZUTC format: "+HHMM" or "-HHMM" (e.g., "+0800", "-0500")  
+                    if (preg_match('/^([+-])(\d{2})(\d{2})/', $tzutcLine, $matches)) {
+                        $sign = $matches[1];
+                        $hours = (int)$matches[2];
+                        $minutes = (int)$matches[3];
+                        $totalMinutes = ($hours * 60) + $minutes;
+                        $tzutcOffset = ($sign === '+') ? $totalMinutes : -$totalMinutes;
+                        error_log("DEBUG: Found TZUTC offset in netmail: {$tzutcLine} = {$tzutcOffset} minutes");
+                    }
+                }
+            }
+        }
+        
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, date_received, attributes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
         ");
         
-        $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);
+        $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
         
         $stmt->execute([
             $userId,
@@ -332,6 +359,7 @@ class BinkdProcessor
         $messageId = null;
         $originLine = null;
         $originalAuthorAddress = null;
+        $tzutcOffset = null;
         
         foreach ($lines as $i => $line) {
             // Extract AREA: tag from first line
@@ -362,6 +390,20 @@ class BinkdProcessor
                     if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
                         //error_log("DEBUG: Extracted original author address from MSGID: " . $originalAuthorAddress);
+                    }
+                }
+                
+                // Extract TZUTC offset for proper date calculation
+                if (strpos($line, "\x01TZUTC:") === 0) {
+                    $tzutcLine = trim(substr($line, 7)); // Remove "\x01TZUTC:" prefix
+                    // TZUTC format: "+HHMM" or "-HHMM" (e.g., "+0800", "-0500")
+                    if (preg_match('/^([+-])(\d{2})(\d{2})/', $tzutcLine, $matches)) {
+                        $sign = $matches[1];
+                        $hours = (int)$matches[2];
+                        $minutes = (int)$matches[3];
+                        $totalMinutes = ($hours * 60) + $minutes;
+                        $tzutcOffset = ($sign === '+') ? $totalMinutes : -$totalMinutes;
+                        error_log("DEBUG: Found TZUTC offset: {$tzutcLine} = {$tzutcOffset} minutes");
                     }
                 }
                 
@@ -404,7 +446,7 @@ class BinkdProcessor
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
         ");
         
-        $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);
+        $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
         $kludgeText = implode("\n", $kludgeLines);
         
         // Use original author address from MSGID if available, otherwise fall back to packet sender
@@ -450,7 +492,7 @@ class BinkdProcessor
         return $echoarea;
     }
 
-    private function parseFidonetDate($dateStr, $packetInfo = null)
+    private function parseFidonetDate($dateStr, $packetInfo = null, $tzutcOffsetMinutes = null)
     {
         // Parse Fidonet date format - can be incomplete like "Aug 25  17:42:39"
         $dateStr = trim($dateStr);
@@ -485,7 +527,8 @@ class BinkdProcessor
             error_log("DEBUG: Reconstructed malformed date '$dateStr' as '$fullDateStr'");
             $timestamp = strtotime($fullDateStr);
             if ($timestamp) {
-                return date('Y-m-d H:i:s', $timestamp);
+                $parsedDate = date('Y-m-d H:i:s', $timestamp);
+                return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
         
@@ -520,7 +563,8 @@ class BinkdProcessor
             $fullDateStr = "$day $monthName $year $hour:$minute:$second";
             $timestamp = strtotime($fullDateStr);
             if ($timestamp) {
-                return date('Y-m-d H:i:s', $timestamp);
+                $parsedDate = date('Y-m-d H:i:s', $timestamp);
+                return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
         
@@ -543,17 +587,42 @@ class BinkdProcessor
             $fullDateStr = "$day $monthName $year4digit $hour:$minute:$second";
             $timestamp = strtotime($fullDateStr);
             if ($timestamp) {
-                return date('Y-m-d H:i:s', $timestamp);
+                $parsedDate = date('Y-m-d H:i:s', $timestamp);
+                return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
         
         // Fallback to original parsing for non-standard formats
         $timestamp = strtotime($dateStr);
         if ($timestamp) {
-            return date('Y-m-d H:i:s', $timestamp);
+            $parsedDate = date('Y-m-d H:i:s', $timestamp);
+            return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
         }
         
-        return date('Y-m-d H:i:s'); // Current time as fallback
+        $fallbackDate = date('Y-m-d H:i:s'); // Current time as fallback
+        return $this->applyTzutcOffset($fallbackDate, $tzutcOffsetMinutes);
+    }
+    
+    private function applyTzutcOffset($dateString, $tzutcOffsetMinutes)
+    {
+        // If no TZUTC offset is available, return the date as-is
+        if ($tzutcOffsetMinutes === null) {
+            return $dateString;
+        }
+        
+        try {
+            // The raw date from the message is in the sender's local timezone
+            // TZUTC tells us the offset from UTC (+0800 means UTC+8, -0500 means UTC-5)
+            // To convert to UTC, we need to subtract the offset
+            $dt = new \DateTime($dateString, new \DateTimeZone('UTC'));
+            $dt->modify("-{$tzutcOffsetMinutes} minutes"); // Convert from sender's timezone to UTC
+            $result = $dt->format('Y-m-d H:i:s');
+            error_log("DEBUG: Applied TZUTC offset {$tzutcOffsetMinutes}min: '{$dateString}' -> '{$result}'");
+            return $result;
+        } catch (\Exception $e) {
+            error_log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
+            return $dateString; // Return original date if offset application fails
+        }
     }
 
     public function createOutboundPacket($messages, $destAddr)
