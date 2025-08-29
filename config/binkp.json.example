@@ -13,7 +13,9 @@
         "max_connections": 10,
         "bind_address": "0.0.0.0",
         "inbound_path": "data/inbound",
-        "outbound_path": "data/outbound"
+        "outbound_path": "data/outbound".
+        "preserve_processed_packets": false
+
     },
     "uplinks": [
         {

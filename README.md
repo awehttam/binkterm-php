@@ -127,10 +127,12 @@ Edit `config/binkp.json` to configure your system:
 ```json
 {
     "system": {
+        "name": "Claude's BBS",
         "address": "1:1/0.123",
         "sysop": "Your Name",
         "location": "Your City, State",
-        "hostname": "your.domain.com"
+        "hostname": "your.domain.com",
+        "timezone": "UTC"
     },
     "binkp": {
         "port": 24554,
@@ -138,7 +140,8 @@ Edit `config/binkp.json` to configure your system:
         "max_connections": 10,
         "bind_address": "0.0.0.0",
         "inbound_path": "data/inbound",
-        "outbound_path": "data/outbound"
+        "outbound_path": "data/outbound",
+        "preserve_processed_packets": false
     },
     "uplinks": [
         {
@@ -159,10 +162,12 @@ Edit `config/binkp.json` to configure your system:
 ### Configuration Options
 
 #### System Settings
+- **name**: The system's name
 - **address**: Your FTN address (zone:net/node.point)
 - **sysop**: System operator name
 - **location**: Geographic location
 - **hostname**: Your internet hostname
+- **timezone**: The system's timezone (https://www.php.net/manual/en/timezones.php)
 
 #### Binkp Settings
 - **port**: TCP port for binkp server (default: 24554)
@@ -171,8 +176,10 @@ Edit `config/binkp.json` to configure your system:
 - **bind_address**: IP address to bind to (0.0.0.0 for all)
 - **inbound_path**: Directory for incoming files
 - **outbound_path**: Directory for outgoing files
+- **preserve_processed_packets**: Move packets to the processed directory after processing
 
 #### Uplink Configuration
+- **default**: Whether this is the default uplink or not
 - **address**: Uplink FTN address
 - **hostname**: Uplink hostname or IP
 - **port**: Uplink port (usually 24554)
