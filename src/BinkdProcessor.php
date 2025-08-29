@@ -31,7 +31,7 @@ class BinkdProcessor
             try {
                 if ($this->processPacket($file)) {
                     $processed++;
-                    unlink($file); // Remove processed packet
+                    $this->handleProcessedPacket($file);
                 }
             } catch (\Exception $e) {
                 $this->logPacketError($file, $e->getMessage());
@@ -62,7 +62,7 @@ class BinkdProcessor
                     $extractedCount = $this->processBundle($file);
                     if ($extractedCount > 0) {
                         $processed += $extractedCount;
-                        unlink($file); // Remove processed bundle
+                        $this->handleProcessedPacket($file);
                     }
                 } catch (\Exception $e) {
                     $this->logPacketError($file, $e->getMessage());
@@ -207,12 +207,12 @@ class BinkdProcessor
             return null;
         }
 
-        // Read message structure
-        $msgHeader = fread($handle, 14);
-        if (strlen($msgHeader) < 14) {
+        // Read message structure (12 bytes)
+        $msgHeader = fread($handle, 12);
+        if (strlen($msgHeader) < 12) {
             return null;
         }
-
+        
         // Parse message header
         $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
         
@@ -247,8 +247,9 @@ class BinkdProcessor
                 }
             }
         }
+
         
-        return [
+        $ret =  [
             'origAddr' => $origZone . ':' . $header['origNet'] . '/' . $header['origNode'],
             'destAddr' => $destZone . ':' . $header['destNet'] . '/' . $header['destNode'], 
             'fromName' => trim($fromName),
@@ -258,6 +259,8 @@ class BinkdProcessor
             'text' => $messageText,
             'attributes' => $header['attr']
         ];
+        error_log(print_r($ret, TRUE));
+        return $ret;
     }
 
     private function readNullString($handle, $maxLen)
@@ -455,7 +458,38 @@ class BinkdProcessor
         // Debug: Log the raw date string being parsed
         error_log("DEBUG: Parsing Fidonet date: '$dateStr'");
         
-        // Handle incomplete date format (missing day and year)
+        // Handle malformed date format (missing day) - starts with month name
+        if (preg_match('/^\s*(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
+            $monthName = $matches[1];
+            $year2digit = (int)$matches[2]; // This is actually the year, not day
+            $hour = (int)$matches[3];
+            $minute = (int)$matches[4];
+            $second = (int)$matches[5];
+            
+            // Convert 2-digit year to 4-digit using Fidonet convention
+            if ($year2digit >= 80) {
+                $year4digit = 1900 + $year2digit;  // 80-99 = 1980-1999
+            } else {
+                $year4digit = 2000 + $year2digit;  // 00-79 = 2000-2079
+            }
+            
+            // Use packet date for the day if available, otherwise use current day
+            $day = 1; // Default fallback
+            if ($packetInfo && isset($packetInfo['day'])) {
+                $day = $packetInfo['day'];
+            } else {
+                $day = date('j'); // Current day as fallback
+            }
+            
+            $fullDateStr = "$day $monthName $year4digit $hour:$minute:$second";
+            error_log("DEBUG: Reconstructed malformed date '$dateStr' as '$fullDateStr'");
+            $timestamp = strtotime($fullDateStr);
+            if ($timestamp) {
+                return date('Y-m-d H:i:s', $timestamp);
+            }
+        }
+        
+        // Handle incomplete date format (missing day and year) - original pattern
         if (preg_match('/(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
             $monthName = $matches[1];
             $day = (int)$matches[2];
@@ -976,5 +1010,26 @@ class BinkdProcessor
         }
         
         rename($file, $destFile);
+    }
+
+    private function handleProcessedPacket($file)
+    {
+        if ($this->config->getPreserveProcessedPackets()) {
+            // Move to processed folder
+            $processedDir = $this->config->getProcessedPacketsPath();
+            $destFile = $processedDir . DIRECTORY_SEPARATOR . basename($file);
+            
+            // Handle duplicate filenames by appending timestamp
+            if (file_exists($destFile)) {
+                $pathInfo = pathinfo($destFile);
+                $destFile = $processedDir . DIRECTORY_SEPARATOR . $pathInfo['filename'] . '_' . time() . '.' . $pathInfo['extension'];
+            }
+            
+            rename($file, $destFile);
+            error_log("[BINKD] Moved processed packet to: " . basename($destFile));
+        } else {
+            // Delete the packet (default behavior)
+            unlink($file);
+        }
     }
 }

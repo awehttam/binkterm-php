@@ -78,7 +78,8 @@ class BinkpConfig
                 'max_connections' => 10,
                 'bind_address' => '0.0.0.0',
                 'inbound_path' => 'data/inbound',
-                'outbound_path' => 'data/outbound'
+                'outbound_path' => 'data/outbound',
+                'preserve_processed_packets' => false
             ],
             'uplinks' => []
         ];
@@ -160,6 +161,21 @@ class BinkpConfig
             mkdir($path, 0755, true);
         }
         return $path;
+    }
+    
+    public function getPreserveProcessedPackets()
+    {
+        return $this->config['binkp']['preserve_processed_packets'] ?? false;
+    }
+    
+    public function getProcessedPacketsPath()
+    {
+        $inboundPath = $this->getInboundPath();
+        $processedPath = $inboundPath . DIRECTORY_SEPARATOR . 'processed';
+        if (!is_dir($processedPath)) {
+            mkdir($processedPath, 0755, true);
+        }
+        return $processedPath;
     }
     
     public function getUplinks()

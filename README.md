@@ -484,9 +484,8 @@ binktest/
 │   ├── inbound/              # Incoming packets
 │   ├── outbound/             # Outgoing packets
 │   ├── logs/                 # Log files
-│   └── binktest.db          # SQLite database
 └── database/
-    └── schema.sql            # Database schema
+    └── postgresql_schema.sql            # Database schema
 ```
 
 ## Contributing
