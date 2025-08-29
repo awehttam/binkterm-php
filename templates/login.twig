@@ -8,7 +8,7 @@
         {% if welcome_message %}
         <div class="card mb-3">
             <div class="card-body text-center">
-                {{ welcome_message|nl2br }}
+                {{ welcome_message|raw|nl2br }}
             </div>
         </div>
         {% endif %}
