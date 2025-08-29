@@ -3,6 +3,7 @@
 namespace BinktermPHP;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Version;
 
 class BinkdProcessor
 {
@@ -918,12 +919,20 @@ class BinkdProcessor
         if (!empty($messageText) && !str_ends_with($messageText, "\r\n")) {
             $messageText .= "\r\n";
         }
-        $messageText .= "--- BinktermPHP v1.0\r\n";
+        $messageText .= Version::getTearline() . "\r\n";
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
         
-        $messageText .= " * Origin: " . $this->config->getSystemName() . " (" . $systemAddress . ")";
+        // Build origin line with optional website
+        $originText = " * Origin: " . $this->config->getSystemName();
+        $website = $this->config->getSystemWebsite();
+        if (!empty($website)) {
+            $originText .= " <" . $website . ">";
+        }
+        $originText .= " (" . $systemAddress . ")";
+        
+        $messageText .= $originText;
         
         // Add echomail-specific control lines after origin
         if ($isEchomail) {

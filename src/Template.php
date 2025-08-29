@@ -45,6 +45,11 @@ class Template
         $this->twig->addGlobal('sysop_name', $sysopName);
         $this->twig->addGlobal('fidonet_origin', $fidonetOrigin);
         $this->twig->addGlobal('system_address', $fidonetOrigin);
+        
+        // Add version information
+        $this->twig->addGlobal('app_version', Version::getVersion());
+        $this->twig->addGlobal('app_name', Version::getAppName());
+        $this->twig->addGlobal('app_full_version', Version::getFullVersion());
     }
 
     public function render($template, $variables = [])

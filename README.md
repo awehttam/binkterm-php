@@ -133,6 +133,7 @@ Edit `config/binkp.json` to configure your system:
         "sysop": "Your Name",
         "location": "Your City, State",
         "hostname": "your.domain.com",
+        "website": "https://yourbbs.com",
         "timezone": "UTC"
     },
     "binkp": {
@@ -168,7 +169,12 @@ Edit `config/binkp.json` to configure your system:
 - **sysop**: System operator name
 - **location**: Geographic location
 - **hostname**: Your internet hostname
+- **website**: Optional website URL (displayed in message origin lines)
 - **timezone**: The system's timezone (https://www.php.net/manual/en/timezones.php)
+
+**Note**: When the `website` field is configured, it will be included in FidoNet message origin lines:
+- Without website: `* Origin: My BBS System (1:234/567)`
+- With website: `* Origin: My BBS System <https://mybbs.com> (1:234/567)`
 
 #### Binkp Settings
 - **port**: TCP port for binkp server (default: 24554)

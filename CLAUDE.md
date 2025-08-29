@@ -85,5 +85,136 @@ provides users with a delighftful, modern web experience that allows them to sen
 ## Future Plans
  - Using the binkp library in other applications
  - Less bugs
+ - Multiple network support (see Multiple Network Support Plan below)
   
+## Multiple Network Support Plan
+
+### Current Limitations
+- System strips @domain suffixes from FTN addresses (e.g., `1:234/567@fidonet` becomes `1:234/567`)
+- Each echoarea has only a single `uplink_address` field
+- No way to distinguish between different networks (FidoNet, DoveNet, etc.)
+- All echomail treated as belonging to one network
+
+### Proposed Implementation
+
+#### 1. Database Schema Changes
+- **networks table**: `id`, `domain`, `name`, `description`, `is_active`, `created_at`
+- **echoareas table**: Add `network_id` field referencing networks table
+- **uplinks table**: Network-specific uplink configuration
+
+#### 2. Code Changes Required
+- **BinkpSession.php**: Stop stripping domains, preserve for routing
+- **BinkdProcessor.php**: Route messages based on network domains
+- **MessageHandler.php**: Network-aware message handling
+- **AdminController.php**: Network management interface
+
+#### 3. Configuration Updates
+- **binkp.json**: Network-specific uplink configuration
+- Support multiple uplinks per network
+- Domain-based routing rules
+
+#### 4. Migration Strategy
+- Create networks table with default "fidonet" network
+- Migrate existing echoareas to default network
+- Update existing uplinks to use network domains
+- Preserve backward compatibility
+
+### Benefits
+- Support multiple FTN networks simultaneously
+- Proper message routing based on @domain
+- Network isolation and management
+- Scalable architecture for adding new networks
+
+## Version Management
+
+### Overview
+BinktermPHP uses a centralized version management system that ensures consistent version numbers across:
+- Message tearlines in FidoNet packets
+- Web interface footer display
+- Package metadata (composer.json)
+- API responses and system information
+
+### How to Update the Version
+
+When releasing a new version of BinktermPHP, follow these steps:
+
+#### 1. Update the Version Constant
+Edit `src/Version.php` and change the `VERSION` constant:
+
+```php
+private const VERSION = '1.4.3';  // Update this line
+```
+
+#### 2. Update composer.json (Optional but Recommended)
+Edit `composer.json` to match the new version:
+
+```json
+{
+    "name": "binkterm-php/fidonet-web",
+    "version": "1.4.3",  // Update this line
+    ...
+}
+```
+
+#### 3. Update Recent Updates Template
+Add an entry to `templates/recent_updates.twig` documenting the changes in this version:
+
+```html
+<div class="update-item mb-3" data-version="1.4.3" data-date="2025-08-29">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Version Management System</h6>
+            <p class="mb-1 text-muted">Added centralized version management with consistent tearlines and web interface display.</p>
+        </div>
+        <small class="text-muted">v1.4.3</small>
+    </div>
+</div>
+```
+
+#### 4. Commit and Tag
+Commit your changes and create a git tag:
+
+```bash
+git add src/Version.php composer.json templates/recent_updates.twig
+git commit -m "Bump version to 1.4.3"
+git tag -a v1.4.3 -m "Release version 1.4.3"
+git push origin main --tags
+```
+
+### What Updates Automatically
+
+Once you change the version in `src/Version.php`, the following will automatically use the new version:
+
+- **Message Tearlines**: All outbound FidoNet messages will include `--- BinktermPHP v1.4.3`
+- **Web Interface Footer**: All web pages will show "BinktermPHP v1.4.3 on Github"
+- **API Responses**: Any code using `Version::getVersionInfo()` will return current version
+- **Template Variables**: All Twig templates have access to `{{ app_version }}`, `{{ app_full_version }}`, etc.
+
+### Version Format
+
+BinktermPHP follows semantic versioning (semver):
+- **MAJOR.MINOR.PATCH** format (e.g., 1.4.2)
+- **Major**: Breaking changes
+- **Minor**: New features, backwards compatible
+- **Patch**: Bug fixes, backwards compatible
+
+### Version Class Methods
+
+The `Version` class provides several methods for different use cases:
+
+```php
+Version::getVersion()        // "1.4.2"
+Version::getAppName()        // "BinktermPHP"  
+Version::getFullVersion()    // "BinktermPHP v1.4.2"
+Version::getTearline()       // "--- BinktermPHP v1.4.2"
+Version::getVersionInfo()    // Complete array with all info
+Version::compareVersion('1.4.1')  // Version comparison
+```
+
+### Notes
+- Only edit the version in `src/Version.php` - all other locations will update automatically
+- The tearline format follows FidoNet standards (starts with "---" and under 79 characters)
+- Version is displayed to users, so keep it professional and consistent
+- Database migrations have their own versioning system separate from application version
+
   
