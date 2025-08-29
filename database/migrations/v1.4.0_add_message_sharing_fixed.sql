@@ -24,34 +24,11 @@ CREATE INDEX idx_shared_messages_message ON shared_messages(message_id, message_
 CREATE INDEX idx_shared_messages_expires ON shared_messages(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX idx_shared_messages_active ON shared_messages(is_active) WHERE is_active = TRUE;
 
--- Try to add sharing preference columns to user_settings table (if it exists)
--- These will fail silently if the table doesn't exist or columns already exist
-DO $settings$
-BEGIN
-    -- Try to add allow_sharing column
-    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_settings') THEN
-        BEGIN
-            ALTER TABLE user_settings ADD COLUMN allow_sharing BOOLEAN DEFAULT TRUE;
-        EXCEPTION
-            WHEN duplicate_column THEN -- Column already exists
-                NULL;
-        END;
-        
-        BEGIN
-            ALTER TABLE user_settings ADD COLUMN default_share_expiry INTEGER DEFAULT 168;
-        EXCEPTION
-            WHEN duplicate_column THEN -- Column already exists
-                NULL;
-        END;
-        
-        BEGIN
-            ALTER TABLE user_settings ADD COLUMN max_shares_per_user INTEGER DEFAULT 50;
-        EXCEPTION
-            WHEN duplicate_column THEN -- Column already exists
-                NULL;
-        END;
-    END IF;
-END $settings$;
+-- Add sharing preference columns to user_settings table
+-- These will fail if columns already exist, but that's OK for migrations
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS allow_sharing BOOLEAN DEFAULT TRUE;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS default_share_expiry INTEGER DEFAULT 168;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS max_shares_per_user INTEGER DEFAULT 50;
 
 -- Create function to clean up expired shares
 CREATE OR REPLACE FUNCTION cleanup_expired_shares()
