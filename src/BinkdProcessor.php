@@ -227,6 +227,9 @@ class BinkdProcessor
         while (($char = fread($handle, 1)) !== false && ord($char) !== 0) {
             $messageText .= $char;
         }
+        
+        // Convert message text from CP437/CP850 to UTF-8 for database storage
+        $messageText = $this->convertToUtf8($messageText);
 
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
@@ -277,7 +280,30 @@ class BinkdProcessor
             $count++;
         }
         
-        return $string;
+        // Convert from CP437/CP850 to UTF-8 for database storage
+        return $this->convertToUtf8($string);
+    }
+
+    private function convertToUtf8($string)
+    {
+        // Skip conversion if string is already valid UTF-8
+        if (mb_check_encoding($string, 'UTF-8')) {
+            return $string;
+        }
+        
+        // Try converting from common Fidonet character encodings
+        $encodings = ['CP437', 'CP850', 'ISO-8859-1', 'Windows-1252'];
+        
+        foreach ($encodings as $encoding) {
+            $converted = mb_convert_encoding($string, 'UTF-8', $encoding);
+            if (mb_check_encoding($converted, 'UTF-8')) {
+                return $converted;
+            }
+        }
+        
+        // If all else fails, use mb_convert_encoding with error handling
+        // This will convert invalid bytes to ? characters but prevent database errors
+        return mb_convert_encoding($string, 'UTF-8', 'UTF-8//IGNORE');
     }
 
     private function storeMessage($message, $packetInfo = null)
@@ -323,10 +349,10 @@ class BinkdProcessor
                 }
             }
         }
-        
+        // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, date_received, attributes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?,  ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -440,10 +466,11 @@ class BinkdProcessor
         
         // Get or create echoarea
         $echoarea = $this->getOrCreateEchoarea($echoareaTag);
-        
+
+        // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, date_received, message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines)
+            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
