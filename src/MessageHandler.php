@@ -1135,12 +1135,12 @@ class MessageHandler
         ");
 
         // Bind parameters explicitly with proper types
-        $stmt->bindValue(1, $messageId, PDO::PARAM_INT);
-        $stmt->bindValue(2, $messageType, PDO::PARAM_STR);
-        $stmt->bindValue(3, $userId, PDO::PARAM_INT);
-        $stmt->bindValue(4, $shareKey, PDO::PARAM_STR);
-        $stmt->bindValue(5, $expiresAt, PDO::PARAM_STR);
-        $stmt->bindValue(6, (bool)$isPublic, PDO::PARAM_BOOL);
+        $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
+        $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
+        $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
+        $stmt->bindValue(5, $expiresAt, \PDO::PARAM_STR);
+        $stmt->bindValue(6, (bool)$isPublic, \PDO::PARAM_BOOL);
         
         error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
         

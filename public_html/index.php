@@ -1773,8 +1773,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         
         $input = json_decode(file_get_contents('php://input'), true);
-        $isPublic = !empty($input['public']) && $input['public'] !== 'false';
-        $expiresHours = !empty($input['expires_hours']) ? intval($input['expires_hours']) : null;
+        
+        // Properly handle boolean conversion for is_public
+        $isPublic = false;
+        if (isset($input['public'])) {
+            $isPublic = filter_var($input['public'], FILTER_VALIDATE_BOOLEAN);
+        }
+        
+        // Properly handle expires_hours
+        $expiresHours = null;
+        if (isset($input['expires_hours']) && $input['expires_hours'] !== '' && $input['expires_hours'] !== null) {
+            $expiresHours = intval($input['expires_hours']);
+            if ($expiresHours <= 0) {
+                $expiresHours = null; // Treat 0 or negative as no expiration
+            }
+        }
         
         // Debug logging
         error_log("Share API - isPublic: " . var_export($isPublic, true) . ", expiresHours: " . var_export($expiresHours, true));
