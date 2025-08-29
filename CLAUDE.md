@@ -2,8 +2,8 @@
 
 ## Project Description
 
-A modern web interface and mailer tool that receives and sends Fidonet message packets using the binkd Fidonet mailer.  The project
-provides users with a delighftful, modern web experience that allows them to send and receive netmail (private messages) and echomail (forums) with the help of the binkd daemon.
+A modern web interface and mailer tool that receives and sends Fidonet message packets using its own binkp Fidonet mailer.  The project
+provides users with a delighftful, modern web experience that allows them to send and receive netmail (private messages) and echomail (forums) with the help of binkp.
 
 ## Tech Stack
 
@@ -80,10 +80,10 @@ provides users with a delighftful, modern web experience that allows them to sen
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
  - We strip the domain (ie: @fidonet) from the remote host presented during a bink poll.  At some point we should add @domain support.
-
+ - Postgres is picky about boolean values.  Ensure they are properly cast
+ 
 ## Future Plans
  - Using the binkp library in other applications
  - Less bugs
   
   
-- Postgres is picky about boolean values.  Ensure they are properly cast
