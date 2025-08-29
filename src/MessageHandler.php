@@ -1412,4 +1412,23 @@ class MessageHandler
 
         return $result;
     }
+
+    /**
+     * Generate FidoNet MSGID using CRC32B hash
+     * Format: MSGID: <zone>:<net>/<node>.<point> <8-character-hex-crc32>
+     */
+    private function generateMsgId($fromName, $toName, $subject, $nodeAddress)
+    {
+        // Get current timestamp in microseconds for more uniqueness
+        $timestamp = microtime(true);
+        
+        // Create the data string to hash (from, to, subject, timestamp, node)
+        $dataString = $fromName . $toName . $subject . $timestamp . $nodeAddress;
+        
+        // Generate CRC32B hash and convert to uppercase hex (8 characters)
+        $crc32 = sprintf('%08X', crc32($dataString));
+        
+        // Return the MSGID in standard FidoNet format
+        return "MSGID: {$nodeAddress} {$crc32}";
+    }
 }

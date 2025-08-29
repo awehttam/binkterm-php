@@ -854,7 +854,7 @@ class BinkdProcessor
             }
             
             // Add MSGID kludge (required for netmail)
-            $msgId = time() . sprintf('%04x', rand(0, 65535)); // Simple message ID
+            $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
             $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
             
             // Add reply address information in multiple formats for compatibility
@@ -902,7 +902,7 @@ class BinkdProcessor
             }
             
             // Add MSGID kludge (required for echomail)
-            $msgId = time() . sprintf('%04x', rand(0, 65535)); // Simple message ID
+            $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
             $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
         }
         
@@ -1159,5 +1159,23 @@ class BinkdProcessor
             // Delete the packet (default behavior)
             unlink($file);
         }
+    }
+
+    /**
+     * Generate message ID using CRC32B hash
+     * Format: <8-character-hex-crc32>
+     */
+    private function generateMessageId($fromName, $toName, $subject, $nodeAddress)
+    {
+        // Get current timestamp in microseconds for more uniqueness
+        $timestamp = microtime(true);
+        
+        // Create the data string to hash (from, to, subject, timestamp)
+        $dataString = $fromName . $toName . $subject . $timestamp;
+        
+        // Generate CRC32B hash and convert to uppercase hex (8 characters)
+        $crc32 = sprintf('%08X', crc32($dataString));
+        
+        return $crc32;
     }
 }
