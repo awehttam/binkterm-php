@@ -23,7 +23,8 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 - **Modern Bootstrap 5 UI** - Clean, responsive interface accessible from any device including mobile phones. 
 - **Netmail Management** - Send and receive private messages
 - **Echomail Support** - Participate in public discussion areas (forums)
-- **Message Composition** - Rich text editor with reply functionality
+- **Message Composition** - Text editor with reply functionality
+- **Message Sharing** - Share echomail messages via secure web links with privacy controls
 - **Search Capabilities** - Full-text search across messages and echo areas
 - **Real-time Dashboard** - Live statistics and recent message activity
 - **Binkp Management** - Web-based uplink configuration and monitoring
@@ -46,7 +47,7 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 ## Installation
 
 ### Requirements
-- **PHP 8.0+** with extensions: PDO, SQLite, Sockets, JSON, DOM
+- **PHP 8.0+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
 - **Operating System** - Windows, Linux, or macOS
@@ -492,7 +493,7 @@ binktest/
 │   ├── outbound/             # Outgoing packets
 │   ├── logs/                 # Log files
 └── database/
-    └── postgresql_schema.sql            # Database schema
+    └── migrations/                # Database migration files
 ```
 
 ## Contributing

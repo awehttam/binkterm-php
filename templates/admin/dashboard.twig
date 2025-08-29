@@ -75,6 +75,25 @@
         </div>
     </div>
 
+    <!-- Recent Updates -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-bullhorn me-2"></i>
+                        Recent Updates
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="adminRecentUpdates">
+                        {% include 'recent_updates.twig' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Quick Actions -->
     <div class="row">
         <div class="col-lg-6 mb-4">
@@ -148,6 +167,34 @@
 }
 .border-left-warning {
     border-left: 0.25rem solid #f6c23e !important;
+}
+
+/* Recent Updates Styling for Admin Dashboard */
+.update-item {
+    border-left: 3px solid #4e73df;
+    padding-left: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem !important;
+}
+
+.update-item:hover {
+    background-color: #e9ecef;
+    transition: background-color 0.2s ease;
+}
+
+.update-item .badge {
+    font-size: 0.7em;
+}
+
+.update-item h6 {
+    line-height: 1.2;
+}
+
+.update-item p {
+    font-size: 0.9em;
+    line-height: 1.3;
 }
 </style>
 {% endblock %}

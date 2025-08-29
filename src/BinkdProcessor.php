@@ -291,13 +291,38 @@ class BinkdProcessor
             return $string;
         }
         
-        // Try converting from common Fidonet character encodings
+        // Try converting from common Fidonet character encodings using iconv
         $encodings = ['CP437', 'CP850', 'ISO-8859-1', 'Windows-1252'];
         
+        // Check if iconv is available
+        if (function_exists('iconv')) {
+            foreach ($encodings as $encoding) {
+                try {
+                    $converted = iconv($encoding, 'UTF-8//IGNORE', $string);
+                    if ($converted !== false && mb_check_encoding($converted, 'UTF-8')) {
+                        return $converted;
+                    }
+                } catch (Exception $e) {
+                    // Skip this encoding and try the next one
+                    error_log("iconv encoding $encoding failed: " . $e->getMessage());
+                    continue;
+                }
+            }
+        }
+        
+        // Fallback to mb_convert_encoding if iconv fails or is not available
+        $supportedEncodings = mb_list_encodings();
         foreach ($encodings as $encoding) {
-            $converted = mb_convert_encoding($string, 'UTF-8', $encoding);
-            if (mb_check_encoding($converted, 'UTF-8')) {
-                return $converted;
+            if (in_array($encoding, $supportedEncodings)) {
+                try {
+                    $converted = mb_convert_encoding($string, 'UTF-8', $encoding);
+                    if (mb_check_encoding($converted, 'UTF-8')) {
+                        return $converted;
+                    }
+                } catch (ValueError $e) {
+                    error_log("mb_convert_encoding $encoding failed: " . $e->getMessage());
+                    continue;
+                }
             }
         }
         
@@ -529,6 +554,7 @@ class BinkdProcessor
         
         // Handle malformed date format (missing day) - starts with month name
         if (preg_match('/^\s*(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
+            error_log("DEBUG: Malformed date pattern matched for '$dateStr'");
             $monthName = $matches[1];
             $year2digit = (int)$matches[2]; // This is actually the year, not day
             $hour = (int)$matches[3];
@@ -559,8 +585,9 @@ class BinkdProcessor
             }
         }
         
-        // Handle incomplete date format (missing day and year) - original pattern
-        if (preg_match('/(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
+        // Handle incomplete date format (missing year only) - "Aug 29  11:05:00" 
+        if (preg_match('/^(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})$/', $dateStr, $matches)) {
+            error_log("DEBUG: Incomplete date pattern matched for '$dateStr'");
             $monthName = $matches[1];
             $day = (int)$matches[2];
             $hour = (int)$matches[3];
@@ -597,12 +624,15 @@ class BinkdProcessor
         
         // Handle full date format: "01 Jan 70  02:34:56" or "24 Aug 25  17:37:38"
         if (preg_match('/(\d{1,2})\s+(\w{3})\s+(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
+            error_log("DEBUG: Full date pattern matched for '$dateStr'");
             $day = (int)$matches[1];
             $monthName = $matches[2];
             $year2digit = (int)$matches[3];
             $hour = (int)$matches[4];
             $minute = (int)$matches[5];
             $second = (int)$matches[6];
+            
+            error_log("DEBUG: Full date pattern matched - day: $day, month: $monthName, year2: $year2digit, time: $hour:$minute:$second");
             
             // Convert 2-digit year to 4-digit using Fidonet convention
             if ($year2digit >= 80) {
@@ -612,9 +642,11 @@ class BinkdProcessor
             }
             
             $fullDateStr = "$day $monthName $year4digit $hour:$minute:$second";
+            error_log("DEBUG: Reconstructed full date: '$fullDateStr'");
             $timestamp = strtotime($fullDateStr);
             if ($timestamp) {
                 $parsedDate = date('Y-m-d H:i:s', $timestamp);
+                error_log("DEBUG: Parsed to: '$parsedDate'");
                 return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
