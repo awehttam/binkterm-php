@@ -1134,11 +1134,17 @@ class MessageHandler
             VALUES (?, ?, ?, ?, ?, ?)
         ");
 
-        // Use boolean directly - PDO will handle PostgreSQL conversion
-        $params = [$messageId, $messageType, $userId, $shareKey, $expiresAt, $isPublic];
-        error_log("MessageHandler::createMessageShare - SQL params: " . var_export($params, true));
+        // Bind parameters explicitly with proper types
+        $stmt->bindValue(1, $messageId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $messageType, PDO::PARAM_STR);
+        $stmt->bindValue(3, $userId, PDO::PARAM_INT);
+        $stmt->bindValue(4, $shareKey, PDO::PARAM_STR);
+        $stmt->bindValue(5, $expiresAt, PDO::PARAM_STR);
+        $stmt->bindValue(6, (bool)$isPublic, PDO::PARAM_BOOL);
         
-        $result = $stmt->execute($params);
+        error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
+        
+        $result = $stmt->execute();
 
         if ($result) {
             return [
