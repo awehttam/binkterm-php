@@ -24,17 +24,40 @@ CREATE INDEX idx_shared_messages_message ON shared_messages(message_id, message_
 CREATE INDEX idx_shared_messages_expires ON shared_messages(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX idx_shared_messages_active ON shared_messages(is_active) WHERE is_active = TRUE;
 
--- Try to add sharing preference columns to user_settings table
+-- Try to add sharing preference columns to user_settings table (if it exists)
 -- These will fail silently if the table doesn't exist or columns already exist
-ALTER TABLE user_settings ADD COLUMN allow_sharing BOOLEAN DEFAULT TRUE;
-ALTER TABLE user_settings ADD COLUMN default_share_expiry INTEGER DEFAULT 168;
-ALTER TABLE user_settings ADD COLUMN max_shares_per_user INTEGER DEFAULT 50;
+DO $$
+BEGIN
+    -- Try to add allow_sharing column
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_settings') THEN
+        BEGIN
+            ALTER TABLE user_settings ADD COLUMN allow_sharing BOOLEAN DEFAULT TRUE;
+        EXCEPTION
+            WHEN duplicate_column THEN -- Column already exists
+                NULL;
+        END;
+        
+        BEGIN
+            ALTER TABLE user_settings ADD COLUMN default_share_expiry INTEGER DEFAULT 168;
+        EXCEPTION
+            WHEN duplicate_column THEN -- Column already exists
+                NULL;
+        END;
+        
+        BEGIN
+            ALTER TABLE user_settings ADD COLUMN max_shares_per_user INTEGER DEFAULT 50;
+        EXCEPTION
+            WHEN duplicate_column THEN -- Column already exists
+                NULL;
+        END;
+    END IF;
+END $$;
 
 -- Create function to clean up expired shares
 CREATE OR REPLACE FUNCTION cleanup_expired_shares()
 RETURNS INTEGER
 LANGUAGE plpgsql
-AS $func$
+AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
@@ -45,7 +68,7 @@ BEGIN
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
-$func$;
+$$;
 
 -- Add comments for documentation
 COMMENT ON TABLE shared_messages IS 'Stores information about shared message links';
