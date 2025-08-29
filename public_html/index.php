@@ -337,6 +337,61 @@ function filterKludgeLines($messageText) {
     return implode("\n", $messageLines);
 }
 
+/**
+ * Generate initials from a person's name for echomail quoting
+ * Examples: "Mark Anderson" -> "MA", "John" -> "JO", "Mary Jane Smith" -> "MS"
+ */
+function generateInitials($name) {
+    $name = trim($name);
+    if (empty($name)) {
+        return "??";
+    }
+    
+    // Split name into parts (remove extra spaces)
+    $parts = array_filter(explode(' ', $name));
+    
+    if (count($parts) == 1) {
+        // Single name: take first two characters
+        $single = strtoupper($parts[0]);
+        return substr($single, 0, min(2, strlen($single))) ?: "?";
+    } else {
+        // Multiple parts: take first letter of first and last name
+        $first = strtoupper(substr($parts[0], 0, 1));
+        $last = strtoupper(substr(end($parts), 0, 1));
+        return $first . $last;
+    }
+}
+
+/**
+ * Quote message text intelligently - only quote original lines, not existing quotes
+ * Preserves existing quote attribution while adding new quotes with current author's initials
+ */
+function quoteMessageText($messageText, $initials) {
+    $lines = explode("\n", $messageText);
+    $quotedLines = [];
+    
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        
+        // Skip completely empty lines
+        if ($trimmed === '') {
+            $quotedLines[] = $line;
+            continue;
+        }
+        
+        // Check if line is already quoted (starts with initials> pattern or >)
+        if (preg_match('/^[A-Z]{1,3}>\s/', $trimmed) || preg_match('/^>\s/', $trimmed)) {
+            // This is already a quoted line, keep it as-is without adding new quote
+            $quotedLines[] = $line;
+        } else {
+            // This is an original line from the current author, quote it
+            $quotedLines[] = $initials . "> " . $line;
+        }
+    }
+    
+    return implode("\n", $quotedLines);
+}
+
 SimpleRouter::get('/compose/{type}', function($type) {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -401,11 +456,18 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 
                 // Filter out kludge lines from the quoted message
                 $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
+                
+                // Generate initials from the original poster's name
+                $initials = generateInitials($originalMessage['from_name']);
+                
+                // Quote the message intelligently - only quote original lines, not existing quotes
+                $quotedText = quoteMessageText($cleanMessageText, $initials);
+                
                 $templateVars['reply_text'] = "\n\n--- Original Message ---\n" . 
                     "From: {$originalMessage['from_name']}\n" .
                     "Date: {$originalMessage['date_written']}\n" .
                     "Subject: {$originalMessage['subject']}\n\n" .
-                    "> " . str_replace("\n", "\n> ", $cleanMessageText);
+                    $quotedText;
             }
         }
     }

@@ -105,6 +105,28 @@
                         bulletin board system network that allows users to send messages and participate in 
                         discussion areas (echoareas) across different systems.
                     </p>
+                    <div class="alert alert-primary" id="registrationPrompt" style="display: none;">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-user-plus me-3 mt-1"></i>
+                            <div class="flex-grow-1">
+                                <h6 class="alert-heading mb-2">Want to Join the Conversation?</h6>
+                                <p class="mb-2">
+                                    To view more messages, participate in discussions, and reply to posts like this one, 
+                                    you'll need to register for an account on this system.
+                                </p>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <a href="/register" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-user-plus me-1"></i>
+                                        Register Now
+                                    </a>
+                                    <a href="/login" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-sign-in-alt me-1"></i>
+                                        Already Have Account?
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-md-6">
                             <small class="text-muted">
@@ -221,6 +243,11 @@ function displaySharedMessage(message, shareInfo) {
     const isLoggedIn = checkUserStatus();
     if (!isLoggedIn && !shareInfo.is_public) {
         $('#loginBtn, #registerBtn').show();
+    }
+    
+    // Show registration prompt for anonymous users
+    if (!isLoggedIn) {
+        $('#registrationPrompt').show();
     }
 }
 

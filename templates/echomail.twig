@@ -243,7 +243,7 @@
                     </label>
                 </div>
                 
-                <div class="mb-3">
+                <div class="mb-3" id="shareExpirySection">
                     <label for="shareExpiry" class="form-label">Link expires after:</label>
                     <select class="form-select" id="shareExpiry">
                         <option value="">Never expires</option>
@@ -262,6 +262,16 @@
                             <i class="fas fa-copy"></i>
                             Copy
                         </button>
+                    </div>
+                    
+                    <div id="shareExpiryInfo" class="alert alert-info mb-3" style="display: none;">
+                        <i class="fas fa-clock me-2"></i>
+                        <span id="shareExpiryText"></span>
+                    </div>
+                    
+                    <div id="shareAccessInfo" class="alert alert-secondary mb-3" style="display: none;">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        <span id="shareAccessText"></span>
                     </div>
                     
                     <div class="alert alert-success">
@@ -492,8 +502,10 @@ function displayMessages(messages) {
         messages.forEach(function(msg) {
             const toInfo = msg.to_name && msg.to_name !== 'All' ? ` (to: ${escapeHtml(msg.to_name)})` : '';
             const isRead = msg.is_read == 1;
+            const isShared = msg.is_shared == 1;
             const readClass = isRead ? 'read' : 'unread';
             const readIcon = isRead ? '<i class="fas fa-envelope-open text-muted me-1" title="Read"></i>' : '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>';
+            const shareIcon = isShared ? '<i class="fas fa-share-alt text-success me-1" title="Shared"></i>' : '';
             
             html += `
                 <tr class="message-row ${readClass}" data-message-id="${msg.id}">
@@ -503,7 +515,7 @@ function displayMessages(messages) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${readIcon}${escapeHtml(msg.from_name)}
+                        ${readIcon}${shareIcon}${escapeHtml(msg.from_name)}
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}
@@ -1017,6 +1029,9 @@ function showShareDialog(messageId) {
     // Reset modal state
     $('#shareResult').addClass('d-none');
     $('#shareError').addClass('d-none');
+    $('#shareExpiryInfo').hide();
+    $('#shareAccessInfo').hide();
+    $('#shareExpirySection').show(); // Show expiry dropdown for new shares
     $('#createShareBtn').removeClass('d-none');
     $('#revokeShareBtn').addClass('d-none');
     $('#publicShare').prop('checked', false);
@@ -1030,17 +1045,50 @@ function showShareDialog(messageId) {
                 const share = data.shares[0];
                 $('#shareUrl').val(share.share_url);
                 $('#shareResult').removeClass('d-none');
+                $('#shareExpirySection').hide(); // Hide expiry dropdown for existing shares
                 $('#createShareBtn').addClass('d-none');
                 $('#revokeShareBtn').removeClass('d-none');
                 $('#publicShare').prop('checked', share.is_public);
                 
-                // Set expiry dropdown if applicable
+                // Show expiry information
                 if (share.expires_at) {
                     const expiresDate = new Date(share.expires_at);
+                    const now = new Date();
                     const createdDate = new Date(share.created_at);
+                    
+                    // Calculate time remaining
+                    if (expiresDate > now) {
+                        const diffMs = expiresDate - now;
+                        const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+                        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                        
+                        let expiryText;
+                        if (diffHours < 24) {
+                            expiryText = `Expires in ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
+                        } else {
+                            expiryText = `Expires in ${diffDays} day${diffDays !== 1 ? 's' : ''} (${expiresDate.toLocaleString()})`;
+                        }
+                        $('#shareExpiryText').text(expiryText);
+                        $('#shareExpiryInfo').show().removeClass('alert-warning').addClass('alert-info');
+                    } else {
+                        $('#shareExpiryText').text('This share link has expired');
+                        $('#shareExpiryInfo').show().removeClass('alert-info').addClass('alert-warning');
+                    }
+                    
+                    // Set expiry dropdown to match current settings for editing
                     const diffHours = Math.round((expiresDate - createdDate) / (1000 * 60 * 60));
                     $('#shareExpiry').val(diffHours.toString());
+                } else {
+                    $('#shareExpiryText').text('This link never expires');
+                    $('#shareExpiryInfo').show().removeClass('alert-warning').addClass('alert-info');
+                    $('#shareExpiry').val('');
                 }
+                
+                // Show access information
+                const accessCount = share.access_count || 0;
+                const lastAccessed = share.last_accessed_at ? new Date(share.last_accessed_at).toLocaleString() : 'Never';
+                $('#shareAccessText').text(`Accessed ${accessCount} time${accessCount !== 1 ? 's' : ''}. Last accessed: ${lastAccessed}`);
+                $('#shareAccessInfo').show();
             }
             $('#shareModal').modal('show');
         })

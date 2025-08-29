@@ -132,10 +132,12 @@ class MessageHandler
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
-                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 WHERE ea.tag = ?{$filterClause}
                 ORDER BY CASE 
                     WHEN em.date_received > NOW() THEN 0 
@@ -143,7 +145,7 @@ class MessageHandler
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $echoareaTag, $limit, $offset];
+            $params = [$userId, $userId, $echoareaTag, $limit, $offset];
             $stmt->execute($params);
             $messages = $stmt->fetchAll();
 
@@ -158,10 +160,12 @@ class MessageHandler
         } else {
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
-                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 WHERE 1=1{$filterClause}
                 ORDER BY CASE 
                     WHEN em.date_received > NOW() THEN 0 
@@ -169,7 +173,7 @@ class MessageHandler
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $limit, $offset];
+            $params = [$userId, $userId, $limit, $offset];
             $stmt->execute($params);
             $messages = $stmt->fetchAll();
 
