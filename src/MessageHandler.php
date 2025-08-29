@@ -1131,10 +1131,8 @@ class MessageHandler
             VALUES (?, ?, ?, ?, ?, ?)
         ");
 
-        // Convert boolean to PostgreSQL format
-        $isPublicStr = $isPublic ? 'true' : 'false';
-        
-        $params = [$messageId, $messageType, $userId, $shareKey, $expiresAt, $isPublicStr];
+        // Use boolean directly - PDO will handle PostgreSQL conversion
+        $params = [$messageId, $messageType, $userId, $shareKey, $expiresAt, $isPublic];
         error_log("MessageHandler::createMessageShare - SQL params: " . var_export($params, true));
         
         $result = $stmt->execute($params);
@@ -1176,9 +1174,11 @@ class MessageHandler
             return ['success' => false, 'error' => 'Share not found or expired'];
         }
 
-        // Check access permissions
-        error_log("Share access check - is_public: " . var_export($share['is_public'], true) . ", requestingUserId: " . var_export($requestingUserId, true));
-        if (!$share['is_public'] && !$requestingUserId) {
+        // Check access permissions - ensure proper boolean conversion
+        $isPublic = filter_var($share['is_public'], FILTER_VALIDATE_BOOLEAN);
+        error_log("Share access check - raw is_public: " . var_export($share['is_public'], true) . ", converted: " . var_export($isPublic, true) . ", requestingUserId: " . var_export($requestingUserId, true));
+        
+        if (!$isPublic && !$requestingUserId) {
             return ['success' => false, 'error' => 'Login required to access this share'];
         }
 
