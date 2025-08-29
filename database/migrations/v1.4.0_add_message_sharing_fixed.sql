@@ -34,7 +34,7 @@ ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS max_shares_per_user INTEGER D
 CREATE OR REPLACE FUNCTION cleanup_expired_shares()
 RETURNS INTEGER
 LANGUAGE plpgsql
-AS $func$
+AS '
 DECLARE
     deleted_count INTEGER;
 BEGIN
@@ -45,7 +45,7 @@ BEGIN
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
-$func$;
+';
 
 -- Add comments for documentation
 COMMENT ON TABLE shared_messages IS 'Stores information about shared message links';
