@@ -172,6 +172,12 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $template->renderResponse('echomail.twig', ['echoarea' => $echoarea]);
 })->where(['echoarea' => '[A-Za-z0-9._-]+']);
 
+SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
+    // Don't require authentication for shared messages - the API will handle access control
+    $template = new Template();
+    $template->renderResponse('shared_message.twig', ['shareKey' => $shareKey]);
+})->where(['shareKey' => '[a-f0-9]{32}']);
+
 SimpleRouter::get('/binkp', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -1694,6 +1700,119 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/messages/echomail/delete-test', function() {
         header('Content-Type: application/json');
         echo json_encode(['success' => true, 'message' => 'Delete endpoint is accessible']);
+    });
+    
+    // Message sharing API endpoints
+    SimpleRouter::post('/messages/echomail/{id}/share', function($id) {
+        header('Content-Type: application/json');
+        
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
+        $input = json_decode(file_get_contents('php://input'), true);
+        $isPublic = !empty($input['public']) && $input['public'] !== 'false';
+        $expiresHours = !empty($input['expires_hours']) ? intval($input['expires_hours']) : null;
+        
+        // Debug logging
+        error_log("Share API - isPublic: " . var_export($isPublic, true) . ", expiresHours: " . var_export($expiresHours, true));
+        
+        try {
+            $handler = new MessageHandler();
+            $result = $handler->createMessageShare($id, 'echomail', $userId, $isPublic, $expiresHours);
+            
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(400);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+    
+    SimpleRouter::get('/messages/echomail/{id}/shares', function($id) {
+        header('Content-Type: application/json');
+        
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
+        try {
+            $handler = new MessageHandler();
+            $result = $handler->getMessageShares($id, 'echomail', $userId);
+            echo json_encode($result);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+    
+    SimpleRouter::delete('/messages/echomail/{id}/share', function($id) {
+        header('Content-Type: application/json');
+        
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
+        try {
+            $handler = new MessageHandler();
+            $result = $handler->revokeShare($id, 'echomail', $userId);
+            
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(404);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+    
+    SimpleRouter::get('/messages/shared/{shareKey}', function($shareKey) {
+        header('Content-Type: application/json');
+        
+        // Get current user if logged in, but don't require auth
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+        $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+        
+        try {
+            $handler = new MessageHandler();
+            $result = $handler->getSharedMessage($shareKey, $userId);
+            
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                $statusCode = ($result['error'] === 'Login required to access this share') ? 401 : 404;
+                http_response_code($statusCode);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+    
+    SimpleRouter::get('/user/shares', function() {
+        header('Content-Type: application/json');
+        
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
+        try {
+            $handler = new MessageHandler();
+            $shares = $handler->getUserShares($userId);
+            echo json_encode(['success' => true, 'shares' => $shares]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
     });
     
     // Admin API endpoints for user management

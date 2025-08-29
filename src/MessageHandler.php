@@ -1069,4 +1069,334 @@ class MessageHandler
             'total_cleaned' => $approvedCleaned + $rejectedCleaned
         ];
     }
+
+    /**
+     * Create a share link for a message
+     */
+    public function createMessageShare($messageId, $messageType, $userId, $isPublic = false, $expiresHours = null)
+    {
+        // Ensure boolean conversion
+        $isPublic = (bool)$isPublic;
+        
+        // Validate user can access this message
+        if ($messageType === 'echomail') {
+            $message = $this->getMessage($messageId, $messageType, $userId);
+        } else {
+            // For netmail, ensure user owns or is recipient of the message
+            $message = $this->getMessage($messageId, $messageType, $userId);
+        }
+        
+        if (!$message) {
+            return ['success' => false, 'error' => 'Message not found or access denied'];
+        }
+
+        // Check user's sharing settings
+        $userSettings = $this->getUserSettings($userId);
+        if (isset($userSettings['allow_sharing']) && !$userSettings['allow_sharing']) {
+            return ['success' => false, 'error' => 'Sharing is disabled for your account'];
+        }
+
+        // Check if user has reached their share limit
+        $shareCount = $this->getUserActiveShareCount($userId);
+        $maxShares = $userSettings['max_shares_per_user'] ?? 50;
+        if ($shareCount >= $maxShares) {
+            return ['success' => false, 'error' => "Maximum number of active shares ($maxShares) reached"];
+        }
+
+        // Check if message is already shared by this user
+        $existingShare = $this->getExistingShare($messageId, $messageType, $userId);
+        if ($existingShare) {
+            return [
+                'success' => true,
+                'share_key' => $existingShare['share_key'],
+                'share_url' => $this->buildShareUrl($existingShare['share_key']),
+                'existing' => true
+            ];
+        }
+
+        // Generate unique share key
+        $shareKey = $this->generateShareKey();
+        
+        $expiresAt = null;
+        if ($expiresHours) {
+            $expiresAt = date('Y-m-d H:i:s', time() + ($expiresHours * 3600));
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+
+        // Convert boolean to PostgreSQL format
+        $isPublicStr = $isPublic ? 'true' : 'false';
+        
+        $params = [$messageId, $messageType, $userId, $shareKey, $expiresAt, $isPublicStr];
+        error_log("MessageHandler::createMessageShare - SQL params: " . var_export($params, true));
+        
+        $result = $stmt->execute($params);
+
+        if ($result) {
+            return [
+                'success' => true,
+                'share_key' => $shareKey,
+                'share_url' => $this->buildShareUrl($shareKey),
+                'expires_at' => $expiresAt,
+                'is_public' => $isPublic
+            ];
+        }
+
+        return ['success' => false, 'error' => 'Failed to create share link'];
+    }
+
+    /**
+     * Get shared message by share key
+     */
+    public function getSharedMessage($shareKey, $requestingUserId = null)
+    {
+        // Clean up expired shares first
+        $this->cleanupExpiredShares();
+
+        $stmt = $this->db->prepare("
+            SELECT sm.*, u.username as shared_by_username, u.real_name as shared_by_real_name
+            FROM shared_messages sm
+            JOIN users u ON sm.shared_by_user_id = u.id
+            WHERE sm.share_key = ? 
+              AND sm.is_active = TRUE 
+              AND (sm.expires_at IS NULL OR sm.expires_at > NOW())
+        ");
+
+        $stmt->execute([$shareKey]);
+        $share = $stmt->fetch();
+
+        if (!$share) {
+            return ['success' => false, 'error' => 'Share not found or expired'];
+        }
+
+        // Check access permissions
+        error_log("Share access check - is_public: " . var_export($share['is_public'], true) . ", requestingUserId: " . var_export($requestingUserId, true));
+        if (!$share['is_public'] && !$requestingUserId) {
+            return ['success' => false, 'error' => 'Login required to access this share'];
+        }
+
+        // Get the actual message
+        $message = null;
+        if ($share['message_type'] === 'echomail') {
+            $stmt = $this->db->prepare("
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                WHERE em.id = ?
+            ");
+            $stmt->execute([$share['message_id']]);
+            $message = $stmt->fetch();
+        } else if ($share['message_type'] === 'netmail') {
+            $stmt = $this->db->prepare("SELECT * FROM netmail WHERE id = ?");
+            $stmt->execute([$share['message_id']]);
+            $message = $stmt->fetch();
+        }
+
+        if (!$message) {
+            return ['success' => false, 'error' => 'Original message not found'];
+        }
+
+        // Update access statistics
+        $this->updateShareAccess($share['id']);
+
+        // Clean message for JSON encoding
+        $message = $this->cleanMessageForJson($message);
+
+        return [
+            'success' => true,
+            'message' => $message,
+            'share_info' => [
+                'shared_by' => $share['shared_by_real_name'] ?: $share['shared_by_username'],
+                'created_at' => $share['created_at'],
+                'expires_at' => $share['expires_at'],
+                'is_public' => $share['is_public'],
+                'access_count' => $share['access_count']
+            ]
+        ];
+    }
+
+    /**
+     * Get all shares for a message by a user
+     */
+    public function getMessageShares($messageId, $messageType, $userId)
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM shared_messages 
+            WHERE message_id = ? AND message_type = ? AND shared_by_user_id = ? AND is_active = TRUE
+            ORDER BY created_at DESC
+        ");
+
+        $stmt->execute([$messageId, $messageType, $userId]);
+        $shares = $stmt->fetchAll();
+
+        $result = [];
+        foreach ($shares as $share) {
+            $result[] = [
+                'share_key' => $share['share_key'],
+                'share_url' => $this->buildShareUrl($share['share_key']),
+                'created_at' => $share['created_at'],
+                'expires_at' => $share['expires_at'],
+                'is_public' => $share['is_public'],
+                'access_count' => $share['access_count'],
+                'last_accessed_at' => $share['last_accessed_at']
+            ];
+        }
+
+        return ['success' => true, 'shares' => $result];
+    }
+
+    /**
+     * Revoke a share link
+     */
+    public function revokeShare($messageId, $messageType, $userId)
+    {
+        $stmt = $this->db->prepare("
+            UPDATE shared_messages 
+            SET is_active = FALSE 
+            WHERE message_id = ? AND message_type = ? AND shared_by_user_id = ?
+        ");
+
+        $result = $stmt->execute([$messageId, $messageType, $userId]);
+        
+        if ($result && $stmt->rowCount() > 0) {
+            return ['success' => true, 'message' => 'Share link revoked'];
+        }
+
+        return ['success' => false, 'error' => 'Share not found or already revoked'];
+    }
+
+    /**
+     * Get user's active share count
+     */
+    private function getUserActiveShareCount($userId)
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) as count 
+            FROM shared_messages 
+            WHERE shared_by_user_id = ? 
+              AND is_active = TRUE 
+              AND (expires_at IS NULL OR expires_at > NOW())
+        ");
+
+        $stmt->execute([$userId]);
+        $result = $stmt->fetch();
+        return $result['count'];
+    }
+
+    /**
+     * Check for existing share
+     */
+    private function getExistingShare($messageId, $messageType, $userId)
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM shared_messages 
+            WHERE message_id = ? AND message_type = ? AND shared_by_user_id = ? 
+              AND is_active = TRUE 
+              AND (expires_at IS NULL OR expires_at > NOW())
+        ");
+
+        $stmt->execute([$messageId, $messageType, $userId]);
+        return $stmt->fetch();
+    }
+
+    /**
+     * Generate unique share key
+     */
+    private function generateShareKey()
+    {
+        do {
+            $shareKey = bin2hex(random_bytes(16));
+            $stmt = $this->db->prepare("SELECT id FROM shared_messages WHERE share_key = ?");
+            $stmt->execute([$shareKey]);
+        } while ($stmt->fetch());
+
+        return $shareKey;
+    }
+
+    /**
+     * Build share URL
+     */
+    private function buildShareUrl($shareKey)
+    {
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        return "$protocol://$host/shared/$shareKey";
+    }
+
+    /**
+     * Update share access statistics
+     */
+    private function updateShareAccess($shareId)
+    {
+        $stmt = $this->db->prepare("
+            UPDATE shared_messages 
+            SET access_count = access_count + 1, last_accessed_at = NOW() 
+            WHERE id = ?
+        ");
+        $stmt->execute([$shareId]);
+    }
+
+    /**
+     * Clean up expired shares
+     */
+    public function cleanupExpiredShares()
+    {
+        $stmt = $this->db->prepare("
+            DELETE FROM shared_messages 
+            WHERE expires_at IS NOT NULL AND expires_at < NOW()
+        ");
+        $stmt->execute();
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Get user's all shares (for management)
+     */
+    public function getUserShares($userId, $limit = 50)
+    {
+        $stmt = $this->db->prepare("
+            SELECT sm.*, 
+                   CASE 
+                       WHEN sm.message_type = 'echomail' THEN em.subject 
+                       ELSE nm.subject 
+                   END as message_subject,
+                   CASE 
+                       WHEN sm.message_type = 'echomail' THEN ea.tag 
+                       ELSE 'netmail' 
+                   END as area_tag
+            FROM shared_messages sm
+            LEFT JOIN echomail em ON (sm.message_type = 'echomail' AND sm.message_id = em.id)
+            LEFT JOIN netmail nm ON (sm.message_type = 'netmail' AND sm.message_id = nm.id)
+            LEFT JOIN echoareas ea ON (em.echoarea_id = ea.id)
+            WHERE sm.shared_by_user_id = ? AND sm.is_active = TRUE
+            ORDER BY sm.created_at DESC
+            LIMIT ?
+        ");
+
+        $stmt->execute([$userId, $limit]);
+        $shares = $stmt->fetchAll();
+
+        $result = [];
+        foreach ($shares as $share) {
+            $result[] = [
+                'id' => $share['id'],
+                'message_id' => $share['message_id'],
+                'message_type' => $share['message_type'],
+                'message_subject' => $share['message_subject'],
+                'area_tag' => $share['area_tag'],
+                'share_key' => $share['share_key'],
+                'share_url' => $this->buildShareUrl($share['share_key']),
+                'created_at' => $share['created_at'],
+                'expires_at' => $share['expires_at'],
+                'is_public' => $share['is_public'],
+                'access_count' => $share['access_count'],
+                'last_accessed_at' => $share['last_accessed_at']
+            ];
+        }
+
+        return $result;
+    }
 }

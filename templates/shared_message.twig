@@ -1,0 +1,363 @@
+{% extends "base.twig" %}
+
+{% block title %}Shared Message - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10">
+            <!-- Shared Message Header -->
+            <div class="alert alert-info mb-4" id="shareInfo" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-share-alt me-2"></i>
+                    <div>
+                        <strong>Shared Message</strong>
+                        <p class="mb-0 mt-1" id="shareDescription"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Card -->
+            <div class="card" id="messageCard" style="display: none;">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" id="messageSubject">Loading...</h5>
+                        <div class="btn-group btn-group-sm">
+                            <a href="/login" class="btn btn-outline-primary" id="loginBtn" style="display: none;">
+                                <i class="fas fa-sign-in-alt"></i>
+                                Login to Reply
+                            </a>
+                            <a href="/register" class="btn btn-outline-secondary" id="registerBtn" style="display: none;">
+                                <i class="fas fa-user-plus"></i>
+                                Register
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="messageContent">
+                        <div class="loading-spinner text-center py-4">
+                            <i class="fas fa-spinner fa-spin me-2"></i>
+                            Loading shared message...
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer text-muted small">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <i class="fas fa-info-circle me-1"></i>
+                            This message was shared on <span id="shareDate"></span>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <span id="shareStats"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Display -->
+            <div class="alert alert-danger" id="errorMessage" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <div>
+                        <strong>Unable to Load Message</strong>
+                        <p class="mb-0 mt-1" id="errorText"></p>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="/" class="btn btn-primary">
+                        <i class="fas fa-home"></i>
+                        Go to Main Site
+                    </a>
+                </div>
+            </div>
+
+            <!-- Authentication Required -->
+            <div class="alert alert-warning" id="authRequired" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-lock me-2"></i>
+                    <div>
+                        <strong>Login Required</strong>
+                        <p class="mb-0 mt-1">This shared message requires you to be logged in to view it.</p>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="/login" class="btn btn-primary me-2">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Login
+                    </a>
+                    <a href="/register" class="btn btn-outline-primary">
+                        <i class="fas fa-user-plus"></i>
+                        Register
+                    </a>
+                </div>
+            </div>
+
+            <!-- About This System -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>
+                        About This Message
+                    </h6>
+                    <p class="card-text">
+                        This message is from a <strong>FidoNet</strong> echomail system. FidoNet is a worldwide 
+                        bulletin board system network that allows users to send messages and participate in 
+                        discussion areas (echoareas) across different systems.
+                    </p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-network-wired me-1"></i>
+                                <strong>Network:</strong> FidoNet Technology Network
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-code me-1"></i>
+                                <strong>Powered by:</strong> BinktermPHP
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const shareKey = '{{ shareKey }}';
+
+$(document).ready(function() {
+    loadSharedMessage();
+    loadUserSettings();
+});
+
+function loadSharedMessage() {
+    $.get(`/api/messages/shared/${shareKey}`)
+        .done(function(data) {
+            if (data.success) {
+                displaySharedMessage(data.message, data.share_info);
+            } else {
+                showError(data.error);
+            }
+        })
+        .fail(function(xhr) {
+            if (xhr.status === 401) {
+                showAuthRequired();
+            } else if (xhr.status === 404) {
+                showError('This shared message is not available. It may have expired or been revoked.');
+            } else {
+                showError('Failed to load the shared message. Please try again later.');
+            }
+        });
+}
+
+function displaySharedMessage(message, shareInfo) {
+    // Set message subject
+    $('#messageSubject').text(message.subject || '(No Subject)');
+    
+    // Parse message to separate kludge lines from body
+    const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
+    
+    // Build message content
+    const html = `
+        <div class="message-header-full mb-3">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>From:</strong> ${escapeHtml(message.from_name)}<br>
+                    <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
+                </div>
+                <div class="col-md-6">
+                    <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>
+                    ${message.echoarea ? `<span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>` : ''}
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <strong>Date:</strong> ${formatFullDate(message.date_written)}
+                </div>
+                <div class="col-md-6">
+                    <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
+                </div>
+            </div>
+        </div>
+        
+        <div class="message-headers mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0 text-muted">Message Headers</h6>
+                <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
+                    <i class="fas fa-eye-slash" id="toggleIcon"></i>
+                    <span id="toggleText">Show Headers</span>
+                </button>
+            </div>
+            <div id="kludgeContainer" class="kludge-lines" style="display: none;">
+                <pre class="bg-dark text-light p-3 rounded small">${parsedMessage.kludgeLines.length > 0 ? formatKludgeLines(parsedMessage.kludgeLines) : 'No headers found'}</pre>
+            </div>
+        </div>
+        
+        <div class="message-text">
+            ${formatMessageText(parsedMessage.messageBody)}
+        </div>
+        ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
+    `;
+    
+    $('#messageContent').html(html);
+    $('#messageCard').show();
+    
+    // Show share info
+    const sharedBy = shareInfo.shared_by;
+    const sharedDate = formatDate(shareInfo.created_at);
+    const accessCount = shareInfo.access_count || 0;
+    
+    $('#shareDescription').text(`Shared by ${sharedBy}`);
+    $('#shareDate').text(sharedDate);
+    $('#shareStats').text(`Viewed ${accessCount} times`);
+    $('#shareInfo').show();
+    
+    // Show login/register buttons for anonymous users if not a public share
+    const isLoggedIn = checkUserStatus();
+    if (!isLoggedIn && !shareInfo.is_public) {
+        $('#loginBtn, #registerBtn').show();
+    }
+}
+
+function showError(errorText) {
+    $('#errorText').text(errorText);
+    $('#errorMessage').show();
+}
+
+function showAuthRequired() {
+    $('#authRequired').show();
+}
+
+function checkUserStatus() {
+    // Check if user is logged in by looking for the session cookie
+    const sessionCookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('binktermphp_session='));
+    return !!sessionCookie;
+}
+
+function loadUserSettings() {
+    // Load font settings if user is logged in
+    if (checkUserStatus()) {
+        $.get('/api/user/settings')
+            .done(function(data) {
+                const fontFamily = data.font_family || 'Courier New, Monaco, Consolas, monospace';
+                const fontSize = data.font_size || 16;
+                
+                // Apply font settings to message text
+                const css = `
+                    .message-text, .message-text pre, .message-formatted {
+                        font-family: ${fontFamily} !important;
+                        font-size: ${fontSize}px !important;
+                    }
+                `;
+                
+                $('<style id="user-font-styles">' + css + '</style>').appendTo('head');
+            })
+            .fail(function() {
+                console.log('Failed to load font settings, using defaults');
+            });
+    }
+}
+
+// Global settings for message parsing
+window.userSettings = {
+    timezone: 'America/Los_Angeles'  // Default timezone
+};
+</script>
+
+<style>
+/* Shared message specific styles */
+.message-header-full {
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+}
+
+.message-headers {
+    border-top: 1px solid #dee2e6;
+    padding-top: 1rem;
+}
+
+.kludge-lines pre {
+    font-size: 0.875rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.message-text {
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 16px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.message-formatted {
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+}
+
+.message-preformatted {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-size: 0.875rem;
+    overflow-x: auto;
+}
+
+.message-quote {
+    border-left: 3px solid #6c757d;
+    padding-left: 1rem;
+    margin: 0.5rem 0;
+    color: #6c757d;
+}
+
+.message-signature {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.message-signature-separator {
+    color: #adb5bd;
+    text-align: center;
+    margin: 1rem 0;
+}
+
+.quote-line {
+    margin: 0.25rem 0;
+}
+
+.message-paragraph {
+    margin: 0.5rem 0;
+}
+
+.message-origin {
+    border-top: 1px solid #dee2e6;
+    padding-top: 0.5rem;
+    margin-top: 1rem;
+}
+
+/* Loading spinner */
+.loading-spinner {
+    color: #6c757d;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .message-text {
+        font-size: 14px;
+    }
+    
+    .message-header-full {
+        padding: 0.75rem;
+    }
+}
+</style>
+{% endblock %}

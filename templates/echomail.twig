@@ -206,9 +206,86 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-fidonet" id="replyButton">
-                    <i class="fas fa-reply"></i>
-                    Reply
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-info" id="shareButton">
+                        <i class="fas fa-share-alt"></i>
+                        Share
+                    </button>
+                    <button type="button" class="btn btn-fidonet" id="replyButton">
+                        <i class="fas fa-reply"></i>
+                        Reply
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Share Modal -->
+<div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Share Message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Share this echomail message with others via a web link.
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="publicShare">
+                    <label class="form-check-label" for="publicShare">
+                        <strong>Allow anonymous access</strong>
+                        <br><small class="text-muted">Anyone with the link can view without logging in</small>
+                    </label>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="shareExpiry" class="form-label">Link expires after:</label>
+                    <select class="form-select" id="shareExpiry">
+                        <option value="">Never expires</option>
+                        <option value="1">1 hour</option>
+                        <option value="24">24 hours</option>
+                        <option value="168" selected>1 week</option>
+                        <option value="720">30 days</option>
+                    </select>
+                </div>
+                
+                <div id="shareResult" class="d-none">
+                    <label class="form-label">Share URL:</label>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="shareUrl" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyShareUrl()">
+                            <i class="fas fa-copy"></i>
+                            Copy
+                        </button>
+                    </div>
+                    
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Share link created successfully! You can now copy and share this URL.
+                    </div>
+                </div>
+                
+                <div id="shareError" class="d-none">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="shareErrorMessage"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="createShareBtn">
+                    <i class="fas fa-share-alt"></i>
+                    Create Share Link
+                </button>
+                <button type="button" class="btn btn-danger d-none" id="revokeShareBtn">
+                    <i class="fas fa-trash"></i>
+                    Revoke Share
                 </button>
             </div>
         </div>
@@ -633,6 +710,11 @@ function displayMessageContent(message) {
         $('#messageModal').modal('hide');
         composeMessage('echomail', currentMessageId);
     });
+    
+    // Set up share button
+    $('#shareButton').show().off('click').on('click', function() {
+        showShareDialog(currentMessageId);
+    });
 }
 
 function composeMessage(type, replyToId = null) {
@@ -928,6 +1010,190 @@ function loadFontSettings() {
         });
 }
 
+// Sharing functionality
+function showShareDialog(messageId) {
+    currentMessageId = messageId;
+    
+    // Reset modal state
+    $('#shareResult').addClass('d-none');
+    $('#shareError').addClass('d-none');
+    $('#createShareBtn').removeClass('d-none');
+    $('#revokeShareBtn').addClass('d-none');
+    $('#publicShare').prop('checked', false);
+    $('#shareExpiry').val('168');
+    
+    // Check if message is already shared
+    $.get(`/api/messages/echomail/${messageId}/shares`)
+        .done(function(data) {
+            if (data.shares && data.shares.length > 0) {
+                // Show existing share
+                const share = data.shares[0];
+                $('#shareUrl').val(share.share_url);
+                $('#shareResult').removeClass('d-none');
+                $('#createShareBtn').addClass('d-none');
+                $('#revokeShareBtn').removeClass('d-none');
+                $('#publicShare').prop('checked', share.is_public);
+                
+                // Set expiry dropdown if applicable
+                if (share.expires_at) {
+                    const expiresDate = new Date(share.expires_at);
+                    const createdDate = new Date(share.created_at);
+                    const diffHours = Math.round((expiresDate - createdDate) / (1000 * 60 * 60));
+                    $('#shareExpiry').val(diffHours.toString());
+                }
+            }
+            $('#shareModal').modal('show');
+        })
+        .fail(function() {
+            showError('Failed to check existing shares');
+        });
+}
+
+function createShare() {
+    const publicShare = $('#publicShare').is(':checked');
+    const expiryHours = $('#shareExpiry').val();
+    
+    // Disable button and show loading
+    const btn = $('#createShareBtn');
+    const originalText = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
+    
+    // Hide previous errors
+    $('#shareError').addClass('d-none');
+    
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/share`,
+        method: 'POST',
+        data: JSON.stringify({
+            public: publicShare,
+            expires_hours: expiryHours || null
+        }),
+        contentType: 'application/json',
+        success: function(data) {
+            if (data.success) {
+                $('#shareUrl').val(data.share_url);
+                $('#shareResult').removeClass('d-none');
+                $('#createShareBtn').addClass('d-none');
+                $('#revokeShareBtn').removeClass('d-none');
+                
+                if (data.existing) {
+                    showSuccess('Using existing share link');
+                } else {
+                    showSuccess('Share link created successfully!');
+                }
+            } else {
+                $('#shareErrorMessage').text(data.error || 'Failed to create share link');
+                $('#shareError').removeClass('d-none');
+            }
+        },
+        error: function(xhr) {
+            let errorMessage = 'Failed to create share link';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMessage = response.error || errorMessage;
+            } catch (e) {
+                // Use default error message
+            }
+            $('#shareErrorMessage').text(errorMessage);
+            $('#shareError').removeClass('d-none');
+        },
+        complete: function() {
+            btn.prop('disabled', false).html(originalText);
+        }
+    });
+}
+
+function revokeShare() {
+    if (!confirm('Are you sure you want to revoke this share link? It will no longer be accessible to others.')) {
+        return;
+    }
+    
+    const btn = $('#revokeShareBtn');
+    const originalText = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Revoking...');
+    
+    $.ajax({
+        url: `/api/messages/echomail/${currentMessageId}/share`,
+        method: 'DELETE',
+        success: function(data) {
+            if (data.success) {
+                $('#shareResult').addClass('d-none');
+                $('#createShareBtn').removeClass('d-none');
+                $('#revokeShareBtn').addClass('d-none');
+                showSuccess('Share link revoked');
+            } else {
+                showError(data.error || 'Failed to revoke share link');
+            }
+        },
+        error: function() {
+            showError('Failed to revoke share link');
+        },
+        complete: function() {
+            btn.prop('disabled', false).html(originalText);
+        }
+    });
+}
+
+function copyShareUrl() {
+    const shareUrl = $('#shareUrl').val();
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareUrl).then(function() {
+            showSuccess('Share URL copied to clipboard!');
+            
+            // Briefly highlight the input field
+            $('#shareUrl').select();
+        }).catch(function() {
+            // Fallback for older browsers
+            fallbackCopyTextToClipboard(shareUrl);
+        });
+    } else {
+        // Fallback for older browsers
+        fallbackCopyTextToClipboard(shareUrl);
+    }
+}
+
+function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    
+    // Avoid scrolling to bottom
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.position = 'fixed';
+    
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showSuccess('Share URL copied to clipboard!');
+        } else {
+            showError('Copy to clipboard failed. Please copy manually.');
+        }
+    } catch (err) {
+        showError('Copy to clipboard not supported. Please copy manually.');
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+// Event handlers for share modal
+$(document).ready(function() {
+    $('#createShareBtn').on('click', createShare);
+    $('#revokeShareBtn').on('click', revokeShare);
+    
+    // Reset modal when closed
+    $('#shareModal').on('hidden.bs.modal', function() {
+        $('#shareResult').addClass('d-none');
+        $('#shareError').addClass('d-none');
+        $('#createShareBtn').removeClass('d-none');
+        $('#revokeShareBtn').addClass('d-none');
+    });
+});
+
 </script>
 
 <style>
@@ -1012,6 +1278,116 @@ function loadFontSettings() {
     .message-table th:nth-child(4),
     .message-table td:nth-child(4) {
         display: none;
+    }
+}
+
+/* Sharing modal styles */
+.modal-dialog .alert {
+    margin-bottom: 1rem;
+}
+
+.modal-body .form-check {
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+}
+
+.modal-body .form-check:hover {
+    background-color: #e9ecef;
+}
+
+.modal-body .form-check-input:checked ~ .form-check-label {
+    color: #0d6efd;
+}
+
+.modal-body .input-group {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.075);
+    border-radius: 0.375rem;
+}
+
+.modal-body .input-group .form-control {
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 0.875rem;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.modal-body .input-group .btn {
+    border-left: none;
+}
+
+.modal-footer .btn-group {
+    gap: 0.25rem;
+}
+
+.modal-footer .btn-group .btn {
+    border-radius: 0.375rem !important;
+}
+
+#shareButton {
+    position: relative;
+}
+
+#shareButton:hover {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+/* Share result styling */
+#shareResult .alert-success {
+    border: 1px solid #d1e7dd;
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+#shareResult .alert-success .fas {
+    color: #0f5132;
+}
+
+/* Share error styling */
+#shareError .alert-danger {
+    border: 1px solid #f5c2c7;
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+#shareError .alert-danger .fas {
+    color: #842029;
+}
+
+/* Loading states */
+.btn .fa-spinner {
+    animation: fa-spin 1s infinite linear;
+}
+
+/* Responsive modal adjustments */
+@media (max-width: 576px) {
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    .modal-body .input-group .form-control {
+        font-size: 0.75rem;
+    }
+    
+    .modal-footer {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer .btn-group {
+        width: 100%;
+        flex-direction: column;
+    }
+    
+    .modal-footer .btn {
+        width: 100%;
     }
 }
 </style>
