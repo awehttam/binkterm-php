@@ -922,21 +922,8 @@ class MessageHandler
 
         $subject = "Welcome to $systemName!";
         
-        $messageText = "Welcome to $systemName, $realName!\n\n";
-        $messageText .= "Your user account has been approved and is now active.\n";
-        $messageText .= "You can now participate in all available echoareas and send netmail.\n\n";
-        $messageText .= "System Information:\n";
-        $messageText .= "==================\n";
-        $messageText .= "System Name: $systemName\n";
-        $messageText .= "System Address: $systemAddress\n";
-        $messageText .= "Sysop: $sysopName\n\n";
-        $messageText .= "Getting Started:\n";
-        $messageText .= "===============\n";
-        $messageText .= "- Visit the Echomail section to browse available discussion areas\n";
-        $messageText .= "- Use the Netmail section to send private messages\n";
-        $messageText .= "- Check your Settings to customize your experience\n\n";
-        $messageText .= "If you have any questions, feel free to send netmail to the sysop.\n\n";
-        $messageText .= "Welcome to the FidoNet community!";
+        // Load welcome message template
+        $messageText = $this->loadWelcomeTemplate($realName, $systemName, $systemAddress, $sysopName);
 
         $insertStmt = $this->db->prepare("
             INSERT INTO netmail (
@@ -955,6 +942,60 @@ class MessageHandler
             $messageText,
             0                // attributes
         ]);
+    }
+
+    /**
+     * Load welcome message template with variable substitution
+     */
+    private function loadWelcomeTemplate($realName, $systemName, $systemAddress, $sysopName)
+    {
+        $welcomeFile = __DIR__ . '/../config/newuser_welcome.txt';
+        
+        // Fallback message if template file doesn't exist
+        $defaultMessage = "Welcome to $systemName, $realName!\n\n";
+        $defaultMessage .= "Your user account has been approved and is now active.\n";
+        $defaultMessage .= "You can now participate in all available echoareas and send netmail.\n\n";
+        $defaultMessage .= "System Information:\n";
+        $defaultMessage .= "==================\n";
+        $defaultMessage .= "System Name: $systemName\n";
+        $defaultMessage .= "System Address: $systemAddress\n";
+        $defaultMessage .= "Sysop: $sysopName\n\n";
+        $defaultMessage .= "Getting Started:\n";
+        $defaultMessage .= "===============\n";
+        $defaultMessage .= "- Visit the Echomail section to browse available discussion areas\n";
+        $defaultMessage .= "- Use the Netmail section to send private messages\n";
+        $defaultMessage .= "- Check your Settings to customize your experience\n\n";
+        $defaultMessage .= "If you have any questions, feel free to send netmail to the sysop.\n\n";
+        $defaultMessage .= "Welcome to the FidoNet community!";
+        
+        if (!file_exists($welcomeFile)) {
+            return $defaultMessage;
+        }
+        
+        $template = file_get_contents($welcomeFile);
+        if ($template === false) {
+            return $defaultMessage;
+        }
+        
+        // Perform variable substitutions
+        $replacements = [
+            '{REAL_NAME}' => $realName,
+            '{SYSTEM_NAME}' => $systemName,
+            '{SYSTEM_ADDRESS}' => $systemAddress,
+            '{SYSOP_NAME}' => $sysopName,
+            '{real_name}' => $realName,
+            '{system_name}' => $systemName,
+            '{system_address}' => $systemAddress,
+            '{sysop_name}' => $sysopName
+        ];
+        
+        $messageText = str_replace(array_keys($replacements), array_values($replacements), $template);
+        
+        // Convert HTML tags to plain text for netmail
+        $messageText = str_replace(['<B>', '</B>'], ['', ''], $messageText);
+        $messageText = str_replace(['<b>', '</b>'], ['', ''], $messageText);
+        
+        return $messageText;
     }
 
     /**

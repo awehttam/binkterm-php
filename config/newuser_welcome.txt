@@ -1,0 +1,20 @@
+Welcome to {SYSTEM_NAME}, {REAL_NAME}!
+
+Your user account has been approved and is now active.
+You can now participate in all available echoareas and send netmail.
+
+System Information:
+==================
+System Name: {SYSTEM_NAME}
+System Address: {SYSTEM_ADDRESS}
+Sysop: {SYSOP_NAME}
+
+Getting Started:
+===============
+- Visit the Echomail section to browse available discussion areas
+- Use the Netmail section to send private messages
+- Check your Settings to customize your experience
+
+If you have any questions, feel free to send netmail to the sysop.
+
+Welcome to the FidoNet community!
