@@ -603,7 +603,7 @@ class MessageHandler
 
     public function deleteEchomail($messageIds, $userId)
     {
-        error_log("MessageHandler::deleteEchomail called with messageIds: " . print_r($messageIds, true) . ", userId: $userId");
+        //error_log("MessageHandler::deleteEchomail called with messageIds: " . print_r($messageIds, true) . ", userId: $userId");
         
         // Validate input
         if (empty($messageIds) || !is_array($messageIds)) {
@@ -613,7 +613,7 @@ class MessageHandler
 
         // Get user info for permission checking
         $user = $this->getUserById($userId);
-        error_log("MessageHandler::deleteEchomail - Retrieved user: " . print_r($user, true));
+        //error_log("MessageHandler::deleteEchomail - Retrieved user: " . print_r($user, true));
         if (!$user) {
             error_log("MessageHandler::deleteEchomail - User not found for ID: $userId");
             return ['success' => false, 'error' => 'User not found'];

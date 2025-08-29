@@ -259,7 +259,7 @@ class BinkdProcessor
             'text' => $messageText,
             'attributes' => $header['attr']
         ];
-        error_log(print_r($ret, TRUE));
+        //error_log(print_r($ret, TRUE));
         return $ret;
     }
 
@@ -361,18 +361,18 @@ class BinkdProcessor
                     // MSGID format: "MSGID: address serial" (e.g., "1:123/456 12345678")
                     if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        error_log("DEBUG: Extracted original author address from MSGID: " . $originalAuthorAddress);
+                        //error_log("DEBUG: Extracted original author address from MSGID: " . $originalAuthorAddress);
                     }
                 }
                 
-                error_log("Echomail kludge line: " . $line);
+                //error_log("Echomail kludge line: " . $line);
                 continue; // Don't include in message body
             }
             
             // Process SEEN-BY and PATH lines for storage
             if (strpos($line, 'SEEN-BY:') === 0 || strpos($line, 'PATH:') === 0) {
                 $kludgeLines[] = $line;
-                error_log("Echomail control line: " . $line);
+                //error_log("Echomail control line: " . $line);
                 continue; // Don't include in message body
             }
             
@@ -384,7 +384,7 @@ class BinkdProcessor
                 // Origin format: " * Origin: System Name (1:123/456)"
                 if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
                     $originalAuthorAddress = $matches[1];
-                    error_log("DEBUG: Extracted original author address from Origin: " . $originalAuthorAddress);
+                    //error_log("DEBUG: Extracted original author address from Origin: " . $originalAuthorAddress);
                 }
                 
                 $cleanedLines[] = $line; // Keep origin line in message body
