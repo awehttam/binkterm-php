@@ -86,3 +86,4 @@ provides users with a delighftful, modern web experience that allows them to sen
  - Less bugs
   
   
+- Postgres is picky about boolean values.  Ensure they are properly cast

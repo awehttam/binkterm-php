@@ -1142,7 +1142,7 @@ class MessageHandler
         $stmt->bindValue(5, $expiresAt, \PDO::PARAM_STR);
         $stmt->bindValue(6, (bool)$isPublic, \PDO::PARAM_BOOL);
         
-        error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
+        //error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
         
         $result = $stmt->execute();
 
@@ -1185,7 +1185,7 @@ class MessageHandler
 
         // Check access permissions - ensure proper boolean conversion
         $isPublic = filter_var($share['is_public'], FILTER_VALIDATE_BOOLEAN);
-        error_log("Share access check - raw is_public: " . var_export($share['is_public'], true) . ", converted: " . var_export($isPublic, true) . ", requestingUserId: " . var_export($requestingUserId, true));
+        //error_log("Share access check - raw is_public: " . var_export($share['is_public'], true) . ", converted: " . var_export($isPublic, true) . ", requestingUserId: " . var_export($requestingUserId, true));
         
         if (!$isPublic && !$requestingUserId) {
             return ['success' => false, 'error' => 'Login required to access this share'];

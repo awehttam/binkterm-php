@@ -1790,7 +1790,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         
         // Debug logging
-        error_log("Share API - isPublic: " . var_export($isPublic, true) . ", expiresHours: " . var_export($expiresHours, true));
+        //error_log("Share API - isPublic: " . var_export($isPublic, true) . ", expiresHours: " . var_export($expiresHours, true));
         
         try {
             $handler = new MessageHandler();
