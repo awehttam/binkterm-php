@@ -26,7 +26,7 @@ CREATE INDEX idx_shared_messages_active ON shared_messages(is_active) WHERE is_a
 
 -- Try to add sharing preference columns to user_settings table (if it exists)
 -- These will fail silently if the table doesn't exist or columns already exist
-DO $$
+DO $settings$
 BEGIN
     -- Try to add allow_sharing column
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_settings') THEN
@@ -51,13 +51,13 @@ BEGIN
                 NULL;
         END;
     END IF;
-END $$;
+END $settings$;
 
 -- Create function to clean up expired shares
 CREATE OR REPLACE FUNCTION cleanup_expired_shares()
 RETURNS INTEGER
 LANGUAGE plpgsql
-AS $$
+AS $func$
 DECLARE
     deleted_count INTEGER;
 BEGIN
@@ -68,7 +68,7 @@ BEGIN
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
-$$;
+$func$;
 
 -- Add comments for documentation
 COMMENT ON TABLE shared_messages IS 'Stores information about shared message links';
