@@ -132,6 +132,7 @@ $(document).ready(function() {
     loadDashboardData();
     loadRecentMessages();
     loadEchoareas();
+    loadFontSettings();
     
     // Refresh every 30 seconds
     setInterval(function() {
@@ -340,6 +341,35 @@ function toggleDashboardKludgeLines() {
         icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
         text.text('Hide Headers');
     }
+}
+
+function loadFontSettings() {
+    $.get('/api/user/settings')
+        .done(function(data) {
+            const fontFamily = data.font_family || 'Courier New, Monaco, Consolas, monospace';
+            const fontSize = data.font_size || 16;
+            
+            // Apply font settings to message text in dashboard
+            const css = `
+                .message-text, .message-text pre, .message-text code,
+                #dashboardMessageContent .message-text,
+                #dashboardMessageContent .message-text pre,
+                #dashboardMessageContent .message-text code,
+                #dashboardKludgeContainer pre {
+                    font-family: ${fontFamily} !important;
+                    font-size: ${fontSize}px !important;
+                }
+            `;
+            
+            // Remove existing font style if any
+            $('#dashboard-font-styles').remove();
+            
+            // Add new font styles
+            $('<style id="dashboard-font-styles">' + css + '</style>').appendTo('head');
+        })
+        .fail(function() {
+            console.log('Failed to load font settings, using defaults');
+        });
 }
 </script>
 
