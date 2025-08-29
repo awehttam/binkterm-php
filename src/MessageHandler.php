@@ -1079,8 +1079,11 @@ class MessageHandler
      */
     public function createMessageShare($messageId, $messageType, $userId, $isPublic = false, $expiresHours = null)
     {
-        // Ensure boolean conversion
-        $isPublic = (bool)$isPublic;
+        // Ensure proper boolean conversion - handle empty strings and various inputs
+        $isPublic = filter_var($isPublic, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($isPublic === null) {
+            $isPublic = false; // Default to false for any invalid input
+        }
         
         // Validate user can access this message
         if ($messageType === 'echomail') {
