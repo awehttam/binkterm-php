@@ -17,59 +17,40 @@
     </button>
 </div>
 
-<div class="row">
-    <div class="col-lg-3">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">Echo Areas</h6>
-            </div>
-            <div class="card-body p-0">
-                <div id="echoareasList">
-                    <div class="loading-spinner">
-                        <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading areas...
+<!-- Mobile Echo Areas Accordion -->
+<div class="d-lg-none mb-4">
+    <div class="accordion" id="mobileEchoAreasAccordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="echoAreasHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#echoAreasCollapse">
+                    <i class="fas fa-list me-2"></i>
+                    <span id="mobileAccordionText">
+                        {% if echoarea %}
+                            Viewing: {{ echoarea }}
+                        {% else %}
+                            Viewing: All Messages  
+                        {% endif %}
+                    </span>
+                </button>
+            </h2>
+            <div id="echoAreasCollapse" class="accordion-collapse collapse" data-bs-parent="#mobileEchoAreasAccordion">
+                <div class="accordion-body p-0">
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        <div id="mobileEchoareasList">
+                            <div class="loading-spinner">
+                                <i class="fas fa-spinner fa-spin me-2"></i>
+                                Loading areas...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">Search Messages</h6>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search...">
-                </div>
-                <button class="btn btn-outline-primary btn-sm w-100" onclick="searchMessages()">
-                    <i class="fas fa-search"></i>
-                    Search
-                </button>
-            </div>
-        </div>
-
-        <div class="card mt-3">
-            <div class="card-header">
-                <h6 class="mb-0">Statistics</h6>
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-6">Total:</dt>
-                    <dd class="col-6" id="totalMessages">-</dd>
-                    
-                    <dt class="col-6">Unread:</dt>
-                    <dd class="col-6" id="unreadMessages">-</dd>
-                    
-                    <dt class="col-6">Recent:</dt>
-                    <dd class="col-6" id="recentMessages">-</dd>
-                    
-                    <dt class="col-6">Areas:</dt>
-                    <dd class="col-6" id="totalAreas">-</dd>
-                </dl>
-            </div>
-        </div>
     </div>
+</div>
 
+<div class="row">
+    <!-- Messages Column -->
     <div class="col-lg-9">
         <div class="card">
             <div class="card-header">
@@ -152,6 +133,59 @@
             </div>
         </div>
     </div>
+    
+    <!-- Echo Areas Sidebar - Hidden on mobile -->
+    <div class="col-lg-3 d-none d-lg-block">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Echo Areas</h6>
+            </div>
+            <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                <div id="echoareasList">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading areas...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Search Messages</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search...">
+                </div>
+                <button class="btn btn-outline-primary btn-sm w-100" onclick="searchMessages()">
+                    <i class="fas fa-search"></i>
+                    Search
+                </button>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6">Total:</dt>
+                    <dd class="col-6" id="totalMessages">-</dd>
+                    
+                    <dt class="col-6">Unread:</dt>
+                    <dd class="col-6" id="unreadMessages">-</dd>
+                    
+                    <dt class="col-6">Recent:</dt>
+                    <dd class="col-6" id="recentMessages">-</dd>
+                    
+                    <dt class="col-6">Areas:</dt>
+                    <dd class="col-6" id="totalAreas">-</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Message View Modal -->
@@ -196,6 +230,9 @@ $(document).ready(function() {
     loadStats();
     loadFontSettings();
     
+    // Initialize mobile accordion text
+    updateMobileAccordionText(currentEchoarea);
+    
     // Search on enter key
     $('#searchInput').on('keypress', function(e) {
         if (e.which === 13) {
@@ -214,9 +251,11 @@ function loadEchoareas() {
     $.get('/api/echoareas')
         .done(function(data) {
             displayEchoareas(data.echoareas);
+            displayMobileEchoareas(data.echoareas);
         })
         .fail(function() {
             $('#echoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
+            $('#mobileEchoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
         });
 }
 
@@ -259,6 +298,48 @@ function displayEchoareas(echoareas) {
     container.html(html);
 }
 
+function displayMobileEchoareas(echoareas) {
+    const container = $('#mobileEchoareasList');
+    let html = '';
+    
+    if (echoareas && echoareas.length > 0) {
+        // All messages option
+        html += `
+            <div class="list-group-item list-group-item-action ${!currentEchoarea ? 'active' : ''}" onclick="selectEchoarea(null)">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold">All Messages</div>
+                        <small class="text-muted">View all echo areas</small>
+                    </div>
+                    <span class="badge bg-secondary">All</span>
+                </div>
+            </div>
+        `;
+        
+        echoareas.forEach(function(area) {
+            const isActive = currentEchoarea === area.tag;
+            html += `
+                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${area.tag}')">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-bold">${area.tag}</div>
+                            <div class="text-muted small">${escapeHtml(area.description)}</div>
+                        </div>
+                        <span class="badge bg-secondary">${area.message_count || 0}</span>
+                    </div>
+                </div>
+            `;
+        });
+        
+        // Wrap in list-group
+        html = '<div class="list-group list-group-flush">' + html + '</div>';
+    } else {
+        html = '<div class="text-center text-muted p-3">No echo areas available</div>';
+    }
+    
+    container.html(html);
+}
+
 function selectEchoarea(tag) {
     currentEchoarea = tag;
     currentPage = 1;
@@ -273,6 +354,12 @@ function selectEchoarea(tag) {
     if (tag) {
         $('h2').append(`<small class="text-muted">/ ${tag}</small>`);
     }
+    
+    // Update mobile accordion text
+    updateMobileAccordionText(tag);
+    
+    // Collapse mobile accordion after selection
+    $('#echoAreasCollapse').collapse('hide');
     
     loadEchoareas(); // Refresh to show active state
     loadMessages();
@@ -805,6 +892,17 @@ window.viewMessage = function(id) {
     }
 };
 
+function updateMobileAccordionText(selectedArea) {
+    const textSpan = $('#mobileAccordionText');
+    if (textSpan.length) {
+        if (selectedArea) {
+            textSpan.text(`Viewing: ${selectedArea}`);
+        } else {
+            textSpan.text('Viewing: All Messages');
+        }
+    }
+}
+
 function loadFontSettings() {
     $.get('/api/user/settings')
         .done(function(data) {
@@ -845,6 +943,75 @@ function loadFontSettings() {
 
 .message-row.read {
     opacity: 0.85;
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 991.98px) {
+    /* Mobile accordion styling */
+    #mobileEchoAreasAccordion .accordion-button {
+        font-weight: 500;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border: 2px solid #dee2e6;
+        text-align: left;
+    }
+    
+    #mobileEchoAreasAccordion .accordion-button:not(.collapsed) {
+        background-color: #e7f3ff;
+        border-color: #0d6efd;
+        color: #0d6efd;
+        box-shadow: none;
+    }
+    
+    #mobileEchoAreasAccordion .accordion-button:focus {
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        border-color: #0d6efd;
+    }
+    
+    /* Mobile areas list styling */
+    #mobileEchoareasList .list-group-item {
+        border: none;
+        border-bottom: 1px solid #dee2e6;
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+    }
+    
+    #mobileEchoareasList .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    #mobileEchoareasList .list-group-item.active {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    
+    /* Enhance message table readability on mobile */
+    .message-table {
+        font-size: 0.9rem;
+    }
+    
+    .message-table th,
+    .message-table td {
+        padding: 0.5rem;
+        vertical-align: middle;
+    }
+}
+
+/* Small mobile devices */
+@media (max-width: 575.98px) {
+    .message-table {
+        font-size: 0.8rem;
+    }
+    
+    .badge {
+        font-size: 0.7rem;
+    }
+    
+    /* Stack message table columns better on very small screens */
+    .message-table th:nth-child(4),
+    .message-table td:nth-child(4) {
+        display: none;
+    }
 }
 </style>
 
