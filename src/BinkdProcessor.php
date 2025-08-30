@@ -924,11 +924,11 @@ class BinkdProcessor
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
         
-        // Build origin line with optional website
+        // Build origin line with optional origin
         $originText = " * Origin: " . $this->config->getSystemName();
-        $website = $this->config->getSystemWebsite();
-        if (!empty($website)) {
-            $originText .= " <" . $website . ">";
+        $origin = $this->config->getSystemOrigin();
+        if (!empty($origin)) {
+            $originText .= " " . $origin;
         }
         $originText .= " (" . $systemAddress . ")";
         

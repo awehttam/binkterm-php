@@ -70,7 +70,7 @@ class BinkpConfig
                 'sysop' => 'System Operator',
                 'location' => 'Unknown Location',
                 'hostname' => 'localhost',
-                'website' => '',
+                'origin' => ''},
                 'timezone' => 'UTC'
             ],
             'binkp' => [
@@ -124,9 +124,9 @@ class BinkpConfig
         return $this->config['system']['timezone'] ?? 'UTC';
     }
     
-    public function getSystemWebsite()
+    public function getSystemOrigin()
     {
-        return $this->config['system']['website'] ?? '';
+        return $this->config['system']['origin'] ?? '';
     }
     
     public function getBinkpPort()
@@ -269,14 +269,14 @@ class BinkpConfig
         $this->saveConfig();
     }
     
-    public function setSystemConfig($name = null, $address = null, $sysop = null, $location = null, $hostname = null, $website = null)
+    public function setSystemConfig($name = null, $address = null, $sysop = null, $location = null, $hostname = null, $origin = null)
     {
         if ($name !== null) $this->config['system']['name'] = $name;
         if ($address !== null) $this->config['system']['address'] = $address;
         if ($sysop !== null) $this->config['system']['sysop'] = $sysop;
         if ($location !== null) $this->config['system']['location'] = $location;
         if ($hostname !== null) $this->config['system']['hostname'] = $hostname;
-        if ($website !== null) $this->config['system']['website'] = $website;
+        if ($origin !== null) $this->config['system']['origin'] = $origin;
         
         $this->saveConfig();
     }
