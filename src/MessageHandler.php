@@ -268,7 +268,7 @@ class MessageHandler
         return $message;
     }
 
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -287,8 +287,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?)
         ");
         
         $result = $stmt->execute([
@@ -298,7 +298,8 @@ class MessageHandler
             $senderName,
             $toName,
             $subject,
-            $messageText
+            $messageText,
+            $replyToId
         ]);
 
         if ($result) {

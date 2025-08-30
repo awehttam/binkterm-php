@@ -858,6 +858,14 @@ class BinkdProcessor
             $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
             $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
             
+            // Add REPLY kludge if this is a reply to another message
+            if (!empty($message['reply_to_id'])) {
+                $originalMsgId = $this->getOriginalMessageId($message['reply_to_id'], 'netmail');
+                if ($originalMsgId) {
+                    $kludgeLines .= "\x01REPLY: {$originalMsgId}\r\n";
+                }
+            }
+            
             // Add reply address information in multiple formats for compatibility
             $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r\n";
             $kludgeLines .= "\x01REPLYTO {$fromAddress}\r\n";
@@ -905,6 +913,14 @@ class BinkdProcessor
             // Add MSGID kludge (required for echomail)
             $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
             $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
+            
+            // Add REPLY kludge if this is a reply to another message
+            if (!empty($message['reply_to_id'])) {
+                $originalMsgId = $this->getOriginalMessageId($message['reply_to_id'], 'echomail');
+                if ($originalMsgId) {
+                    $kludgeLines .= "\x01REPLY: {$originalMsgId}\r\n";
+                }
+            }
         }
         
         // For echomail, add AREA control field first (plain text, no ^A prefix)
@@ -1186,5 +1202,31 @@ class BinkdProcessor
         $crc32 = sprintf('%08X', crc32($dataString));
         
         return $crc32;
+    }
+    
+    /**
+     * Get the original message's MSGID for REPLY kludge generation
+     */
+    private function getOriginalMessageId($messageId, $messageType = 'netmail')
+    {
+        $table = $messageType === 'echomail' ? 'echomail' : 'netmail';
+        
+        $stmt = $this->db->prepare("SELECT from_address, from_name, to_name, subject, date_written FROM {$table} WHERE id = ?");
+        $stmt->execute([$messageId]);
+        $originalMessage = $stmt->fetch();
+        
+        if (!$originalMessage) {
+            return null;
+        }
+        
+        // Generate the same MSGID that would have been used for the original message
+        $msgId = $this->generateMessageId(
+            $originalMessage['from_name'],
+            $originalMessage['to_name'], 
+            $originalMessage['subject'],
+            $originalMessage['from_address']
+        );
+        
+        return $originalMessage['from_address'] . ' ' . $msgId;
     }
 }

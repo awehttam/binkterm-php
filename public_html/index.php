@@ -1191,7 +1191,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['to_address'],
                     $input['to_name'],
                     $input['subject'],
-                    $input['message_text']
+                    $input['message_text'],
+                    null, // fromName
+                    $input['reply_to_id'] ?? null
                 );
             } elseif ($type === 'echomail') {
                 $result = $handler->postEchomail(
