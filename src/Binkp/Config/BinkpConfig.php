@@ -208,7 +208,7 @@ class BinkpConfig
                 WHERE nu.address = ? AND nu.is_enabled = TRUE
             ");
             $stmt->execute([$address]);
-            $uplink = $stmt->fetch();
+            $uplink = $stmt->fetch(\PDO::FETCH_ASSOC);
             
             if ($uplink) {
                 return [
@@ -233,7 +233,7 @@ class BinkpConfig
                     WHERE nu.address = ? AND nu.is_enabled = TRUE
                 ");
                 $stmt->execute([$addrWithoutDomain]);
-                $uplink = $stmt->fetch();
+                $uplink = $stmt->fetch(\PDO::FETCH_ASSOC);
                 
                 if ($uplink) {
                     return [
@@ -263,6 +263,41 @@ class BinkpConfig
     
     public function getEnabledUplinks()
     {
+        // Try database first
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query("
+                SELECT nu.*, n.domain as network_domain 
+                FROM network_uplinks nu
+                JOIN networks n ON nu.network_id = n.id
+                WHERE nu.is_enabled = TRUE
+                ORDER BY n.domain, nu.is_default DESC, nu.id
+            ");
+            $uplinks = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $result = [];
+            foreach ($uplinks as $uplink) {
+                $result[] = [
+                    'address' => $uplink['address'],
+                    'hostname' => $uplink['hostname'],
+                    'port' => $uplink['port'],
+                    'password' => $uplink['password'],
+                    'enabled' => $uplink['is_enabled'],
+                    'network_domain' => $uplink['network_domain'],
+                    'compression' => $uplink['compression'],
+                    'crypt' => $uplink['crypt'],
+                    'is_default' => $uplink['is_default']
+                ];
+            }
+            
+            if (!empty($result)) {
+                return $result;
+            }
+        } catch (\Exception $e) {
+            error_log("Database lookup failed in getEnabledUplinks: " . $e->getMessage());
+        }
+        
+        // Fall back to JSON-based uplinks
         return array_filter($this->getUplinks(), function($uplink) {
             return $uplink['enabled'] ?? true;
         });
@@ -270,7 +305,36 @@ class BinkpConfig
     
     public function getDefaultUplink()
     {
-        // First try to find an uplink marked as default
+        // Try database first
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query("
+                SELECT nu.*, n.domain as network_domain 
+                FROM network_uplinks nu
+                JOIN networks n ON nu.network_id = n.id
+                WHERE nu.is_enabled = TRUE AND nu.is_default = TRUE
+                LIMIT 1
+            ");
+            $uplink = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($uplink) {
+                return [
+                    'address' => $uplink['address'],
+                    'hostname' => $uplink['hostname'],
+                    'port' => $uplink['port'],
+                    'password' => $uplink['password'],
+                    'enabled' => $uplink['is_enabled'],
+                    'network_domain' => $uplink['network_domain'],
+                    'compression' => $uplink['compression'],
+                    'crypt' => $uplink['crypt'],
+                    'default' => $uplink['is_default']
+                ];
+            }
+        } catch (\Exception $e) {
+            error_log("Database lookup failed in getDefaultUplink: " . $e->getMessage());
+        }
+        
+        // Fall back to JSON-based uplinks
         foreach ($this->getUplinks() as $uplink) {
             if (($uplink['default'] ?? false) && ($uplink['enabled'] ?? true)) {
                 return $uplink;
@@ -369,47 +433,6 @@ class BinkpConfig
     }
     
     /**
-     * Get all networks from config
-     */
-    public function getNetworks()
-    {
-        return $this->config['networks'] ?? [];
-    }
-    
-    /**
-     * Get uplinks for a specific network domain
-     */
-    public function getNetworkUplinks($networkDomain)
-    {
-        $networks = $this->getNetworks();
-        return $networks[$networkDomain]['uplinks'] ?? [];
-    }
-    
-    /**
-     * Get uplink for a specific network domain
-     */
-    public function getUplinkForNetwork($networkDomain)
-    {
-        $uplinks = $this->getNetworkUplinks($networkDomain);
-        
-        // First try to find a default uplink for this network
-        foreach ($uplinks as $uplink) {
-            if (($uplink['default'] ?? false) && ($uplink['enabled'] ?? true)) {
-                return $uplink;
-            }
-        }
-        
-        // Fall back to first enabled uplink for this network
-        foreach ($uplinks as $uplink) {
-            if ($uplink['enabled'] ?? true) {
-                return $uplink;
-            }
-        }
-        
-        return null;
-    }
-    
-    /**
      * Get network domain from FTN address
      */
     public function getNetworkDomainFromAddress($address)
@@ -428,7 +451,7 @@ class BinkpConfig
         try {
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->query("SELECT * FROM networks WHERE is_active = TRUE ORDER BY domain");
-            return $stmt->fetchAll();
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } catch (\Exception $e) {
             error_log("Failed to get networks: " . $e->getMessage());
             return [];
@@ -444,7 +467,7 @@ class BinkpConfig
             $db = \BinktermPHP\Database::getInstance()->getPdo();
             $stmt = $db->prepare("SELECT * FROM networks WHERE domain = ? AND is_active = TRUE");
             $stmt->execute([$domain]);
-            return $stmt->fetch();
+            return $stmt->fetch(\PDO::FETCH_ASSOC);
         } catch (\Exception $e) {
             error_log("Failed to get network $domain: " . $e->getMessage());
             return null;
@@ -466,7 +489,7 @@ class BinkpConfig
                 ORDER BY nu.is_default DESC, nu.id
             ");
             $stmt->execute([$networkDomain]);
-            $uplinks = $stmt->fetchAll();
+            $uplinks = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             
             $result = [];
             foreach ($uplinks as $uplink) {
@@ -488,5 +511,29 @@ class BinkpConfig
             error_log("Failed to get uplinks for network $networkDomain: " . $e->getMessage());
             return [];
         }
+    }
+    
+    /**
+     * Get uplink for a specific network domain
+     */
+    public function getUplinkForNetwork($networkDomain)
+    {
+        $uplinks = $this->getNetworkUplinks($networkDomain);
+        
+        // First try to find a default uplink for this network
+        foreach ($uplinks as $uplink) {
+            if (($uplink['is_default'] ?? false) && ($uplink['enabled'] ?? true)) {
+                return $uplink;
+            }
+        }
+        
+        // Fall back to first enabled uplink for this network
+        foreach ($uplinks as $uplink) {
+            if ($uplink['enabled'] ?? true) {
+                return $uplink;
+            }
+        }
+        
+        return null;
     }
 }

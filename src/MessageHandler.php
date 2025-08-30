@@ -580,7 +580,13 @@ class MessageHandler
                 error_log("DEBUG: Creating echomail packet to uplink: " . $uplinkAddress);
                 $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
             } else {
-                error_log("WARNING: No uplink address configured for echoarea: " . $message['echoarea_tag']);
+                // Get network info for better error message
+                $stmt = $this->db->prepare("SELECT n.domain, n.name FROM echoareas e JOIN networks n ON e.network_id = n.id WHERE e.tag = ?");
+                $stmt->execute([$message['echoarea_tag']]);
+                $networkInfo = $stmt->fetch();
+                
+                $networkName = $networkInfo ? "{$networkInfo['name']} ({$networkInfo['domain']})" : "unknown network";
+                error_log("WARNING: No uplink configured for echoarea '{$message['echoarea_tag']}' on {$networkName}. Message not exported.");
             }
             
             return true;
@@ -595,7 +601,7 @@ class MessageHandler
     {
         // Get echoarea with network information
         $stmt = $this->db->prepare("
-            SELECT ea.uplink_address, ea.network_id, n.domain as network_domain 
+            SELECT ea.network_id, n.domain as network_domain 
             FROM echoareas ea
             LEFT JOIN networks n ON ea.network_id = n.id
             WHERE ea.tag = ? AND ea.is_active = TRUE
@@ -604,12 +610,7 @@ class MessageHandler
         $echoarea = $stmt->fetch();
         
         if ($echoarea) {
-            // First try the echoarea's specific uplink if set
-            if ($echoarea['uplink_address']) {
-                return $echoarea['uplink_address'];
-            }
-            
-            // Then try network-specific default uplink from database
+            // Get network-specific default uplink from database
             if ($echoarea['network_domain']) {
                 try {
                     $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -623,20 +624,9 @@ class MessageHandler
             }
         }
         
-        // Fall back to default uplink from JSON config  
-        try {
-            $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $defaultAddress = $config->getDefaultUplinkAddress();
-            if ($defaultAddress) {
-                return $defaultAddress;
-            }
-        } catch (\Exception $e) {
-            // Log error but continue with hardcoded fallback
-            error_log("Failed to get default uplink from config: " . $e->getMessage());
-        }
-        
-        // Ultimate fallback if config fails
-        return '1:123/1';
+        // No uplink found for this network - do not fall back to other networks
+        // Messages should not be sent if the network has no configured uplinks
+        return null;
     }
 
     public function deleteEchomail($messageIds, $userId)

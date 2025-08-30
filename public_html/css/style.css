@@ -11,6 +11,14 @@
     --message-quote-bg: #f8f9fa;
     --message-quote-border: #dee2e6;
     --border-color: #dee2e6;
+    
+    /* Network badge colors */
+    --network-fidonet: #0066cc;
+    --network-dovenet: #28a745;
+    --network-testnet: #ffc107;
+    --network-amiganet: #dc3545;
+    --network-retronet: #6f42c1;
+    --network-default: #6c757d;
 }
 
 body {
@@ -547,4 +555,70 @@ body {
         border-left-width: 2px;
     }
 }
+
+/* Network Badge Styles */
+.badge-network-fidonet {
+    background-color: var(--network-fidonet) !important;
+    color: white !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-network-dovenet {
+    background-color: var(--network-dovenet) !important;
+    color: white !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-network-testnet {
+    background-color: var(--network-testnet) !important;
+    color: black !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-network-amiganet {
+    background-color: var(--network-amiganet) !important;
+    color: white !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-network-retronet {
+    background-color: var(--network-retronet) !important;
+    color: white !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Default network badge for unknown networks */
+[class*="badge-network-"]:not(.badge-network-fidonet):not(.badge-network-dovenet):not(.badge-network-testnet):not(.badge-network-amiganet):not(.badge-network-retronet) {
+    background-color: var(--network-default) !important;
+    color: white !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Ensure network badges are compact and consistent */
+[class*="badge-network-"] {
+    display: inline-block;
+    padding: 0.25em 0.4em;
+    border-radius: 0.25rem;
+    line-height: 1;
+    white-space: nowrap;
+}
+
 

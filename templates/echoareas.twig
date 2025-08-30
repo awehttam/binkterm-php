@@ -4,10 +4,24 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>
-        <i class="fas fa-comments"></i>
-        Echo Areas Management
-    </h2>
+    <div>
+        <h2>
+            <i class="fas fa-comments"></i>
+            Echo Areas Management
+            {% if network_filter %}
+                <span class="badge bg-info ms-2">{{ network_info.name }} Network</span>
+            {% endif %}
+        </h2>
+        {% if network_filter %}
+            <p class="text-muted mb-0">
+                <i class="fas fa-filter me-1"></i>
+                Showing echoareas for {{ network_info.name }} ({{ network_info.domain }})
+                <a href="/admin/echoareas" class="ms-2 text-decoration-none">
+                    <i class="fas fa-times"></i> Clear filter
+                </a>
+            </p>
+        {% endif %}
+    </div>
     <button class="btn btn-fidonet" onclick="showAddEchoareaModal()">
         <i class="fas fa-plus"></i>
         Add Echo Area
@@ -139,16 +153,10 @@
                         <div class="form-text">FTN network this echoarea belongs to</div>
                     </div>
                     
-                    <div class="row mb-3">
-                        <div class="col-md-8">
-                            <label for="echoareaUplink" class="form-label">Uplink Address</label>
-                            <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
-                            <div class="form-text">FidoNet address of uplink node</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="echoareaColor" class="form-label">Color</label>
-                            <input type="color" class="form-control form-control-color" id="echoareaColor" name="color" value="#28a745">
-                        </div>
+                    <div class="mb-3">
+                        <label for="echoareaColor" class="form-label">Color</label>
+                        <input type="color" class="form-control form-control-color" id="echoareaColor" name="color" value="#28a745">
+                        <div class="form-text">Color coding for easy identification</div>
                     </div>
                     
                     <div class="mb-3">
@@ -204,6 +212,7 @@
 <script>
 let currentFilter = 'active';
 let currentEchoareaId = null;
+let networkFilter = {{ network_filter|json_encode|raw }};
 
 $(document).ready(function() {
     loadEchoareas();
@@ -243,8 +252,18 @@ function loadEchoareas() {
     showLoading('#echoareasContainer');
     
     let url = '/api/echoareas';
+    let params = [];
+    
     if (currentFilter !== 'all') {
-        url += `?filter=${currentFilter}`;
+        params.push(`filter=${currentFilter}`);
+    }
+    
+    if (networkFilter) {
+        params.push(`network=${networkFilter}`);
+    }
+    
+    if (params.length > 0) {
+        url += '?' + params.join('&');
     }
     
     $.get(url)
@@ -269,12 +288,11 @@ function displayEchoareas(echoareas) {
                     <thead>
                         <tr>
                             <th width="5%"></th>
-                            <th width="18%">Tag</th>
-                            <th width="30%">Description</th>
-                            <th width="12%">Network</th>
+                            <th width="20%">Tag</th>
+                            <th width="35%">Description</th>
+                            <th width="15%">Network</th>
                             <th width="10%">Messages</th>
-                            <th width="15%">Uplink</th>
-                            <th width="10%">Actions</th>
+                            <th width="15%">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -305,9 +323,6 @@ function displayEchoareas(echoareas) {
                     </td>
                     <td>
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
-                    </td>
-                    <td>
-                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'Auto')}</small>
                     </td>
                     <td>
                         <div class="btn-group" role="group">
@@ -354,7 +369,6 @@ function editEchoarea(id) {
             $('#echoareaId').val(area.id);
             $('#echoareaTag').val(area.tag);
             $('#echoareaDescription').val(area.description);
-            $('#echoareaUplink').val(area.uplink_address || '');
             $('#echoareaColor').val(area.color || '#28a745');
             $('#echoareaModerator').val(area.moderator || '');
             $('#echoareaActive').prop('checked', area.is_active);
@@ -377,7 +391,6 @@ function saveEchoarea() {
         tag: $('#echoareaTag').val().toUpperCase(),
         description: $('#echoareaDescription').val(),
         network_id: $('#echoareaNetwork').val(),
-        uplink_address: $('#echoareaUplink').val() || null,
         color: $('#echoareaColor').val(),
         moderator: $('#echoareaModerator').val() || null,
         is_active: $('#echoareaActive').is(':checked')

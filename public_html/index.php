@@ -705,15 +705,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         $db = Database::getInstance()->getPdo();
         
-        $sql = "SELECT id, tag, description, moderator, uplink_address, color, is_active, message_count, created_at FROM echoareas";
+        $sql = "SELECT e.id, e.tag, e.description, e.moderator, e.color, e.is_active, e.message_count, e.created_at, e.network_id, n.domain as network_domain, n.name as network_name FROM echoareas e LEFT JOIN networks n ON e.network_id = n.id";
         $params = [];
+        $whereConditions = [];
         
+        // Filter by active/inactive status
         if ($filter === 'active') {
-            $sql .= " WHERE is_active = TRUE";
+            $whereConditions[] = "e.is_active = TRUE";
         } elseif ($filter === 'inactive') {
-            $sql .= " WHERE is_active = FALSE";
+            $whereConditions[] = "e.is_active = FALSE";
         }
         // 'all' filter shows everything
+        
+        // Filter by network if specified
+        $networkFilter = $_GET['network'] ?? null;
+        if ($networkFilter) {
+            $whereConditions[] = "n.domain = ?";
+            $params[] = $networkFilter;
+        }
+        
+        // Add WHERE clause if there are conditions
+        if (!empty($whereConditions)) {
+            $sql .= " WHERE " . implode(" AND ", $whereConditions);
+        }
         
         $sql .= " ORDER BY tag";
         
@@ -767,7 +781,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $tag = strtoupper(trim($input['tag'] ?? ''));
             $description = trim($input['description'] ?? '');
             $moderator = trim($input['moderator'] ?? '') ?: null;
-            $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
+            $networkId = !empty($input['network_id']) ? (int)$input['network_id'] : null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
             
@@ -786,11 +800,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
             
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active) 
+                INSERT INTO echoareas (tag, description, moderator, color, is_active, network_id) 
                 VALUES (?, ?, ?, ?, ?, ?)
             ");
             
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0]);
+            $result = $stmt->execute([$tag, $description, $moderator, $color, $isActive ? 1 : 0, $networkId]);
             
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -821,7 +835,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $tag = strtoupper(trim($input['tag'] ?? ''));
             $description = trim($input['description'] ?? '');
             $moderator = trim($input['moderator'] ?? '') ?: null;
-            $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
+            $networkId = !empty($input['network_id']) ? (int)$input['network_id'] : null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
             
@@ -841,11 +855,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             
             $stmt = $db->prepare("
                 UPDATE echoareas 
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ? 
+                SET tag = ?, description = ?, moderator = ?, color = ?, is_active = ?, network_id = ? 
                 WHERE id = ?
             ");
             
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $color, $isActive ? 1 : 0, $networkId, $id]);
             
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);
@@ -2614,6 +2628,38 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $networks = $adminController->getNetworks();
         $template = new Template();
         $template->renderResponse('admin/networks.twig', ['networks' => $networks]);
+    });
+    
+    // Admin echoareas management
+    SimpleRouter::get('/echoareas', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+        
+        // Get network filter parameter
+        $networkFilter = $_GET['network'] ?? null;
+        $networkInfo = null;
+        
+        if ($networkFilter) {
+            // Get network information for the template
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("SELECT * FROM networks WHERE domain = ? AND is_active = TRUE");
+            $stmt->execute([$networkFilter]);
+            $networkInfo = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$networkInfo) {
+                // Network not found, redirect to echoareas without filter
+                return SimpleRouter::response()->redirect('/admin/echoareas');
+            }
+        }
+        
+        $template = new Template();
+        $template->renderResponse('echoareas.twig', [
+            'network_filter' => $networkFilter,
+            'network_info' => $networkInfo
+        ]);
     });
     
     // API routes for admin

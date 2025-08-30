@@ -113,28 +113,29 @@
 
         <!-- Uplinks Tab -->
         <div class="tab-pane fade" id="uplinks" role="tabpanel">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>Configured Uplinks</h5>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUplinkModal">
-                    <i class="fas fa-plus"></i> Add Uplink
-                </button>
+            <div class="alert alert-info" role="alert">
+                <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Uplink Management Has Moved</h5>
+                <p class="mb-3">
+                    Uplink configuration is now managed through the <strong>Networks Management</strong> system, 
+                    which provides better organization and supports multiple FTN networks.
+                </p>
+                <div class="d-flex gap-2">
+                    <a href="/admin/networks" class="btn btn-primary">
+                        <i class="fas fa-network-wired me-2"></i>Go to Networks Management
+                    </a>
+                    <button class="btn btn-outline-secondary" onclick="showMigrationInfo()">
+                        <i class="fas fa-question-circle me-2"></i>Learn More
+                    </button>
+                </div>
             </div>
-            <div class="table-responsive">
-                <table class="table table-striped" id="uplinksTable">
-                    <thead>
-                        <tr>
-                            <th>Address</th>
-                            <th>Hostname</th>
-                            <th>Port</th>
-                            <th>Status</th>
-                            <th>Schedule</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Populated by JavaScript -->
-                    </tbody>
-                </table>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Quick Network Overview</h6>
+                </div>
+                <div class="card-body" id="network-overview">
+                    Loading network information...
+                </div>
             </div>
         </div>
 
@@ -257,50 +258,6 @@
     </div>
 </div>
 
-<!-- Add Uplink Modal -->
-<div class="modal fade" id="addUplinkModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add New Uplink</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="addUplinkForm">
-                    <div class="mb-3">
-                        <label class="form-label">FTN Address *</label>
-                        <input type="text" class="form-control" name="address" required placeholder="1:123/456">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Hostname *</label>
-                        <input type="text" class="form-control" name="hostname" required placeholder="bbs.example.com">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Port</label>
-                        <input type="number" class="form-control" name="port" value="24554" min="1" max="65535">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" name="password">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Poll Schedule (cron format)</label>
-                        <input type="text" class="form-control" name="poll_schedule" value="0 */4 * * *" placeholder="0 */4 * * *">
-                        <small class="form-text text-muted">Default: every 4 hours</small>
-                    </div>
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" name="enabled" checked>
-                        <label class="form-check-label">Enabled</label>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="addUplink()">Add Uplink</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <script>
 let binkpData = {};
@@ -308,7 +265,7 @@ let binkpData = {};
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     refreshStatus();
-    refreshUplinks();
+    loadNetworkOverview();
     refreshQueues();
     refreshLogs();
     refreshConfig();
@@ -363,88 +320,244 @@ function updateStatusDisplay(data) {
         </dl>
     `;
 
-    // Update uplink status
-    const uplinkStatus = document.getElementById('uplink-status');
-    let uplinkHtml = '';
-    for (const [address, uplink] of Object.entries(data.uplinks)) {
-        const status = uplink.success ? 
-            '<span class="badge bg-success">Online</span>' : 
-            '<span class="badge bg-danger">Offline</span>';
-        uplinkHtml += `
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <span>${address}</span>
-                ${status}
-            </div>
-        `;
-    }
-    uplinkStatus.innerHTML = uplinkHtml || '<p class="text-muted">No uplinks configured</p>';
+    // Update uplink status using database-based network uplinks
+    updateUplinkStatus();
 
-    // Update schedule status
-    const scheduleStatus = document.getElementById('schedule-status');
-    let scheduleHtml = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Address</th><th>Schedule</th><th>Last Poll</th><th>Next Poll</th><th>Status</th></tr></thead><tbody>';
-    for (const [address, info] of Object.entries(data.schedule)) {
-        const status = info.due_now ? 
-            '<span class="badge bg-warning">Due Now</span>' : 
-            '<span class="badge bg-secondary">Scheduled</span>';
-        scheduleHtml += `
-            <tr>
-                <td>${address}</td>
-                <td><code>${info.schedule}</code></td>
-                <td>${info.last_poll}</td>
-                <td>${info.next_poll}</td>
-                <td>${status}</td>
-            </tr>
-        `;
-    }
-    scheduleHtml += '</tbody></table></div>';
-    scheduleStatus.innerHTML = scheduleHtml;
+    // Update schedule status using database-based uplinks
+    updateScheduleStatus();
 }
 
-function refreshUplinks() {
-    console.log('Calling /api/binkp/uplinks...');
-    fetch('/api/binkp/uplinks')
-        .then(response => {
-            console.log('Uplinks response:', response.status, response.statusText);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+function updateUplinkStatus() {
+    const uplinkStatus = document.getElementById('uplink-status');
+    uplinkStatus.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i>Loading uplinks...</div>';
+    
+    fetch('/api/admin/networks')
+        .then(response => response.json())
+        .then(networks => {
+            let uplinkHtml = '';
+            let totalUplinks = 0;
+            
+            networks.forEach(network => {
+                if (network.uplink_count > 0) {
+                    const networkBadge = `<span class="badge badge-network-${network.domain} me-2">${network.domain}</span>`;
+                    uplinkHtml += `
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                ${networkBadge}
+                                <strong>${network.name}</strong>
+                                <span class="badge bg-secondary ms-auto">${network.uplink_count} uplink${network.uplink_count !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div id="network-uplinks-${network.id}" class="ps-3">
+                                <small class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Loading network uplinks...</small>
+                            </div>
+                        </div>
+                    `;
+                    totalUplinks += network.uplink_count;
+                    
+                    // Load uplinks for this network
+                    loadNetworkUplinks(network.id, network.domain);
+                }
+            });
+            
+            if (totalUplinks === 0) {
+                uplinkHtml = '<div class="text-center text-muted py-3"><i class="fas fa-info-circle me-2"></i>No uplinks configured. <a href="/admin/networks">Manage Networks</a></div>';
             }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Uplinks data received:', data);
-            updateUplinksTable(data.uplinks);
+            
+            uplinkStatus.innerHTML = uplinkHtml;
         })
         .catch(error => {
-            console.error('Error fetching uplinks:', error);
-            const tbody = document.querySelector('#uplinksTable tbody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Error loading uplinks: ' + error.message + '</td></tr>';
-            }
+            uplinkStatus.innerHTML = '<div class="alert alert-warning">Error loading uplink status: ' + error.message + '</div>';
         });
 }
 
-function updateUplinksTable(uplinks) {
-    const tbody = document.querySelector('#uplinksTable tbody');
-    tbody.innerHTML = '';
+function loadNetworkUplinks(networkId, networkDomain) {
+    fetch(`/api/admin/networks/${networkId}/uplinks`)
+        .then(response => response.json())
+        .then(uplinks => {
+            const container = document.getElementById(`network-uplinks-${networkId}`);
+            let html = '';
+            
+            uplinks.forEach(uplink => {
+                const statusBadge = uplink.is_enabled ? 
+                    '<span class="badge bg-success">Enabled</span>' : 
+                    '<span class="badge bg-warning">Disabled</span>';
+                const defaultBadge = uplink.is_default ? 
+                    '<span class="badge bg-primary ms-1">Default</span>' : '';
+                
+                // Add schedule information if available
+                const scheduleInfo = uplink.poll_schedule ? 
+                    `<br><small class="text-muted">Schedule: <code>${uplink.poll_schedule}</code></small>` : '';
+                
+                html += `
+                    <div class="d-flex justify-content-between align-items-start py-1">
+                        <div>
+                            <strong>${uplink.address}</strong>
+                            <small class="text-muted">→ ${uplink.hostname}:${uplink.port}</small>
+                            ${scheduleInfo}
+                        </div>
+                        <div>
+                            ${statusBadge}${defaultBadge}
+                            <button class="btn btn-sm btn-outline-primary ms-2" onclick="pollUplink('${uplink.address}')" title="Poll this uplink">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById(`network-uplinks-${networkId}`).innerHTML = 
+                '<small class="text-danger">Error loading uplinks: ' + error.message + '</small>';
+        });
+}
 
-    uplinks.forEach(uplink => {
-        const status = uplink.enabled ? 
-            '<span class="badge bg-success">Enabled</span>' : 
-            '<span class="badge bg-secondary">Disabled</span>';
-        
-        const row = tbody.insertRow();
-        row.innerHTML = `
-            <td>${uplink.address}</td>
-            <td>${uplink.hostname}</td>
-            <td>${uplink.port}</td>
-            <td>${status}</td>
-            <td><code>${uplink.poll_schedule}</code></td>
-            <td>
-                <button class="btn btn-sm btn-primary" onclick="pollUplink('${uplink.address}')">Poll</button>
-                <button class="btn btn-sm btn-danger" onclick="removeUplink('${uplink.address}')">Remove</button>
-            </td>
-        `;
-    });
+function updateScheduleStatus() {
+    const scheduleStatus = document.getElementById('schedule-status');
+    scheduleStatus.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i>Loading schedule...</div>';
+    
+    fetch('/api/admin/networks')
+        .then(response => response.json())
+        .then(networks => {
+            const schedulePromises = networks.map(network => {
+                if (network.uplink_count > 0) {
+                    return fetch(`/api/admin/networks/${network.id}/uplinks`)
+                        .then(response => response.json())
+                        .then(uplinks => uplinks.map(uplink => ({
+                            ...uplink,
+                            network_name: network.name,
+                            network_domain: network.domain
+                        })));
+                } else {
+                    return Promise.resolve([]);
+                }
+            });
+            
+            return Promise.all(schedulePromises);
+        })
+        .then(networkUplinks => {
+            const allUplinks = networkUplinks.flat();
+            let scheduleHtml = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Network</th><th>Address</th><th>Schedule</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+            
+            if (allUplinks.length === 0) {
+                scheduleHtml += '<tr><td colspan="5" class="text-center text-muted">No uplinks configured</td></tr>';
+            } else {
+                allUplinks.forEach(uplink => {
+                    const networkBadge = `<span class="badge badge-network-${uplink.network_domain}">${uplink.network_domain}</span>`;
+                    const statusBadge = uplink.is_enabled ? 
+                        '<span class="badge bg-success">Enabled</span>' : 
+                        '<span class="badge bg-warning">Disabled</span>';
+                    const schedule = uplink.poll_schedule || 'Manual';
+                    const defaultIndicator = uplink.is_default ? ' <span class="badge bg-primary">Default</span>' : '';
+                    
+                    scheduleHtml += `
+                        <tr>
+                            <td>${networkBadge}</td>
+                            <td>${uplink.address}${defaultIndicator}</td>
+                            <td><code>${schedule}</code></td>
+                            <td>${statusBadge}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="pollUplink('${uplink.address}')" title="Poll this uplink">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            scheduleHtml += '</tbody></table></div>';
+            scheduleStatus.innerHTML = scheduleHtml;
+        })
+        .catch(error => {
+            scheduleStatus.innerHTML = '<div class="alert alert-warning">Error loading schedule: ' + error.message + '</div>';
+        });
+}
+
+function loadNetworkOverview() {
+    fetch('/api/admin/networks')
+        .then(response => response.json())
+        .then(networks => {
+            const container = document.getElementById('network-overview');
+            let html = '';
+            
+            if (networks.length === 0) {
+                html = '<p class="text-muted">No networks configured</p>';
+            } else {
+                html = '<div class="row">';
+                networks.forEach(network => {
+                    const statusBadge = network.is_active ? 
+                        '<span class="badge bg-success">Active</span>' : 
+                        '<span class="badge bg-warning">Inactive</span>';
+                    
+                    html += `
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">${network.name}</h6>
+                                        <small class="text-muted">${network.domain}</small>
+                                    </div>
+                                    ${statusBadge}
+                                </div>
+                                <div class="mt-2 small">
+                                    <span class="badge bg-info me-1">${network.echoarea_count} areas</span>
+                                    <span class="badge bg-secondary">${network.uplink_count} uplinks</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('network-overview').innerHTML = 
+                '<div class="alert alert-warning">Error loading networks: ' + error.message + '</div>';
+        });
+}
+
+function showMigrationInfo() {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Uplink Management Migration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>What Changed?</h6>
+                    <p>Uplink configuration has been moved to the <strong>Networks Management</strong> system to provide:</p>
+                    <ul>
+                        <li><strong>Multi-network support</strong> - Configure uplinks for different FTN networks (FidoNet, DoveNet, etc.)</li>
+                        <li><strong>Better organization</strong> - Group uplinks by network domain</li>
+                        <li><strong>Database storage</strong> - More reliable than JSON configuration files</li>
+                        <li><strong>Network isolation</strong> - Messages route only to appropriate network uplinks</li>
+                    </ul>
+                    <h6 class="mt-3">How to Manage Uplinks Now</h6>
+                    <ol>
+                        <li>Go to <strong>Admin → Networks Management</strong></li>
+                        <li>Create or select a network (e.g., FidoNet, TestNet)</li>
+                        <li>Click the uplinks management button for that network</li>
+                        <li>Add, edit, or remove uplinks as needed</li>
+                    </ol>
+                </div>
+                <div class="modal-footer">
+                    <a href="/admin/networks" class="btn btn-primary">Go to Networks Management</a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    modal.addEventListener('hidden.bs.modal', () => modal.remove());
 }
 
 function refreshQueues() {
@@ -577,13 +690,47 @@ function pollUplink(address) {
 }
 
 function pollAllUplinks() {
-    fetch('/api/binkp/poll-all', { method: 'POST' })
+    // Get all enabled uplinks from all networks and poll them
+    fetch('/api/admin/networks')
         .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showAlert('All uplinks polled', 'success');
+        .then(networks => {
+            const pollPromises = [];
+            
+            networks.forEach(network => {
+                if (network.uplink_count > 0) {
+                    const networkPromise = fetch(`/api/admin/networks/${network.id}/uplinks`)
+                        .then(response => response.json())
+                        .then(uplinks => {
+                            const enabledUplinks = uplinks.filter(uplink => uplink.is_enabled);
+                            return Promise.all(
+                                enabledUplinks.map(uplink => 
+                                    fetch('/api/binkp/poll', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ address: uplink.address })
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => ({ address: uplink.address, success: data.success, error: data.error }))
+                                    .catch(error => ({ address: uplink.address, success: false, error: error.message }))
+                                )
+                            );
+                        });
+                    pollPromises.push(networkPromise);
+                }
+            });
+            
+            return Promise.all(pollPromises);
+        })
+        .then(networkResults => {
+            const allResults = networkResults.flat();
+            const successCount = allResults.filter(result => result.success).length;
+            const totalCount = allResults.length;
+            
+            if (successCount === totalCount) {
+                showAlert(`All ${totalCount} uplinks polled successfully`, 'success');
             } else {
-                showAlert('Polling failed: ' + data.error, 'danger');
+                const failedCount = totalCount - successCount;
+                showAlert(`Polled ${successCount}/${totalCount} uplinks successfully (${failedCount} failed)`, 'warning');
             }
             refreshStatus();
         })
@@ -643,7 +790,7 @@ function addUplink() {
             showAlert('Uplink added successfully', 'success');
             document.getElementById('addUplinkModal').querySelector('.btn-close').click();
             form.reset();
-            refreshUplinks();
+            loadNetworkOverview();
             refreshStatus();
         } else {
             showAlert('Failed to add uplink: ' + result.error, 'danger');
@@ -662,7 +809,7 @@ function removeUplink(address) {
         .then(data => {
             if (data.success) {
                 showAlert('Uplink removed successfully', 'success');
-                refreshUplinks();
+                loadNetworkOverview();
                 refreshStatus();
             } else {
                 showAlert('Failed to remove uplink: ' + data.error, 'danger');

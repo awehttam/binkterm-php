@@ -218,6 +218,170 @@
         </div>
     </div>
 </div>
+
+<!-- Add Uplink Modal -->
+<div class="modal fade" id="addUplinkModal" tabindex="-1" aria-labelledby="addUplinkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addUplinkModalLabel">Add Uplink</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUplinkForm">
+                    <div class="mb-3">
+                        <label for="uplinkAddress" class="form-label">Address <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="uplinkAddress" required 
+                               placeholder="e.g., 1:123/456" 
+                               pattern="[0-9]+:[0-9]+/[0-9]+(\.[0-9]+)?" 
+                               title="FTN address format: zone:net/node or zone:net/node.point">
+                        <div class="form-text">FidoNet Technology Network address</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="uplinkHostname" class="form-label">Hostname <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="uplinkHostname" required 
+                               placeholder="e.g., bbs.example.com">
+                    </div>
+                    <div class="mb-3">
+                        <label for="uplinkPort" class="form-label">Port</label>
+                        <input type="number" class="form-control" id="uplinkPort" value="24554" min="1" max="65535">
+                        <div class="form-text">Default BinkP port is 24554</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="uplinkPassword" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="uplinkPassword" 
+                               placeholder="Optional session password">
+                    </div>
+                    <div class="mb-3">
+                        <label for="uplinkSchedule" class="form-label">Poll Schedule</label>
+                        <input type="text" class="form-control" id="uplinkSchedule" value="0 */4 * * *" 
+                               placeholder="0 */4 * * *">
+                        <div class="form-text">Cron format: minute hour day month weekday</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="uplinkEnabled" checked>
+                                <label class="form-check-label" for="uplinkEnabled">
+                                    Enabled
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="uplinkDefault">
+                                <label class="form-check-label" for="uplinkDefault">
+                                    Default uplink
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="uplinkCompression">
+                                <label class="form-check-label" for="uplinkCompression">
+                                    Compression
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="uplinkCrypt">
+                                <label class="form-check-label" for="uplinkCrypt">
+                                    Encryption
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveUplink()">Add Uplink</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Uplink Modal -->
+<div class="modal fade" id="editUplinkModal" tabindex="-1" aria-labelledby="editUplinkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editUplinkModalLabel">Edit Uplink</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUplinkForm">
+                    <input type="hidden" id="editUplinkId">
+                    <div class="mb-3">
+                        <label for="editUplinkAddress" class="form-label">Address <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editUplinkAddress" required 
+                               pattern="[0-9]+:[0-9]+/[0-9]+(\.[0-9]+)?" 
+                               title="FTN address format: zone:net/node or zone:net/node.point">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUplinkHostname" class="form-label">Hostname <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editUplinkHostname" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUplinkPort" class="form-label">Port</label>
+                        <input type="number" class="form-control" id="editUplinkPort" min="1" max="65535">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUplinkPassword" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="editUplinkPassword">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUplinkSchedule" class="form-label">Poll Schedule</label>
+                        <input type="text" class="form-control" id="editUplinkSchedule">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editUplinkEnabled">
+                                <label class="form-check-label" for="editUplinkEnabled">
+                                    Enabled
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editUplinkDefault">
+                                <label class="form-check-label" for="editUplinkDefault">
+                                    Default uplink
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editUplinkCompression">
+                                <label class="form-check-label" for="editUplinkCompression">
+                                    Compression
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editUplinkCrypt">
+                                <label class="form-check-label" for="editUplinkCrypt">
+                                    Encryption
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateUplink()">Update Uplink</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -370,6 +534,7 @@ function loadUplinks(networkId) {
 }
 
 function renderUplinksTable(uplinks) {
+    currentUplinks = uplinks; // Store uplinks data for editing
     const tbody = $('#uplinksTableBody');
     tbody.empty();
     
@@ -379,28 +544,137 @@ function renderUplinksTable(uplinks) {
     }
     
     uplinks.forEach(uplink => {
-        const row = $(`
-            <tr>
-                <td>${uplink.address}</td>
-                <td>${uplink.hostname}</td>
-                <td>${uplink.port}</td>
-                <td>
-                    <span class="badge bg-${uplink.is_default ? 'primary' : 'secondary'}">${uplink.is_default ? 'Yes' : 'No'}</span>
-                </td>
-                <td>
-                    <span class="badge bg-${uplink.is_enabled ? 'success' : 'warning'}">${uplink.is_enabled ? 'Enabled' : 'Disabled'}</span>
-                </td>
-                <td>
-                    <span class="text-muted">Uplink management coming soon</span>
-                </td>
-            </tr>
+        const row = $('<tr>');
+        row.html(`
+            <td>${uplink.address}</td>
+            <td>${uplink.hostname}</td>
+            <td>${uplink.port}</td>
+            <td>
+                <span class="badge bg-${uplink.is_default ? 'primary' : 'secondary'}">${uplink.is_default ? 'Yes' : 'No'}</span>
+            </td>
+            <td>
+                <span class="badge bg-${uplink.is_enabled ? 'success' : 'warning'}">${uplink.is_enabled ? 'Enabled' : 'Disabled'}</span>
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editUplink(${uplink.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUplink(${uplink.id}, '${uplink.address}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
         `);
         tbody.append(row);
     });
 }
 
+let currentUplinks = [];
+
 function addUplink() {
-    showAlert('Add uplink functionality will be available soon!', 'info');
+    // Reset form
+    $('#addUplinkForm')[0].reset();
+    $('#uplinkPort').val('24554');
+    $('#uplinkSchedule').val('0 */4 * * *');
+    $('#uplinkEnabled').prop('checked', true);
+    $('#addUplinkModal').modal('show');
+}
+
+function saveUplink() {
+    const formData = {
+        network_id: currentNetworkId,
+        address: $('#uplinkAddress').val(),
+        hostname: $('#uplinkHostname').val(),
+        port: parseInt($('#uplinkPort').val()) || 24554,
+        password: $('#uplinkPassword').val(),
+        poll_schedule: $('#uplinkSchedule').val() || '0 */4 * * *',
+        is_enabled: $('#uplinkEnabled').is(':checked'),
+        is_default: $('#uplinkDefault').is(':checked'),
+        compression: $('#uplinkCompression').is(':checked'),
+        crypt: $('#uplinkCrypt').is(':checked')
+    };
+    
+    $.post('/api/admin/networks/' + currentNetworkId + '/uplinks', formData, function(data) {
+        $('#addUplinkModal').modal('hide');
+        loadUplinks(currentNetworkId);
+        loadNetworks(); // Refresh network counts
+        showAlert('Uplink created successfully!', 'success');
+    }).fail(function(xhr) {
+        showAlert('Failed to create uplink: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+    });
+}
+
+function editUplink(uplinkId) {
+    const uplink = currentUplinks.find(u => u.id == uplinkId);
+    if (!uplink) return;
+    
+    $('#editUplinkId').val(uplink.id);
+    $('#editUplinkAddress').val(uplink.address);
+    $('#editUplinkHostname').val(uplink.hostname);
+    $('#editUplinkPort').val(uplink.port);
+    $('#editUplinkPassword').val(''); // Don't populate password for security
+    $('#editUplinkSchedule').val(uplink.poll_schedule);
+    $('#editUplinkEnabled').prop('checked', uplink.is_enabled);
+    $('#editUplinkDefault').prop('checked', uplink.is_default);
+    $('#editUplinkCompression').prop('checked', uplink.compression);
+    $('#editUplinkCrypt').prop('checked', uplink.crypt);
+    
+    $('#editUplinkModal').modal('show');
+}
+
+function updateUplink() {
+    const uplinkId = $('#editUplinkId').val();
+    const formData = {
+        address: $('#editUplinkAddress').val(),
+        hostname: $('#editUplinkHostname').val(),
+        port: parseInt($('#editUplinkPort').val()) || 24554,
+        poll_schedule: $('#editUplinkSchedule').val(),
+        is_enabled: $('#editUplinkEnabled').is(':checked'),
+        is_default: $('#editUplinkDefault').is(':checked'),
+        compression: $('#editUplinkCompression').is(':checked'),
+        crypt: $('#editUplinkCrypt').is(':checked')
+    };
+    
+    // Only include password if it was entered
+    const password = $('#editUplinkPassword').val();
+    if (password) {
+        formData.password = password;
+    }
+    
+    $.ajax({
+        url: '/api/admin/uplinks/' + uplinkId,
+        type: 'PUT',
+        data: formData,
+        success: function(data) {
+            $('#editUplinkModal').modal('hide');
+            loadUplinks(currentNetworkId);
+            loadNetworks(); // Refresh network counts
+            showAlert('Uplink updated successfully!', 'success');
+        },
+        error: function(xhr) {
+            showAlert('Failed to update uplink: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+        }
+    });
+}
+
+function deleteUplink(uplinkId, address) {
+    if (!confirm(`Are you sure you want to delete the uplink ${address}? This action cannot be undone.`)) {
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/admin/uplinks/' + uplinkId,
+        type: 'DELETE',
+        success: function(data) {
+            loadUplinks(currentNetworkId);
+            loadNetworks(); // Refresh network counts
+            showAlert('Uplink deleted successfully!', 'success');
+        },
+        error: function(xhr) {
+            showAlert('Failed to delete uplink: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+        }
+    });
 }
 
 function showAlert(message, type) {

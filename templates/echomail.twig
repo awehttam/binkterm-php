@@ -86,6 +86,14 @@
                             <button type="button" class="btn btn-outline-secondary" onclick="refreshMessages()">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" id="networkFilterBtn">
+                                <i class="fas fa-filter"></i> <span id="networkFilterText">All Networks</span>
+                            </button>
+                            <ul class="dropdown-menu" id="networkFilterDropdown">
+                                <li><a class="dropdown-item" href="#" onclick="filterByNetwork(null)">All Networks</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <!-- Networks populated by JavaScript -->
+                            </ul>
                             <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
                                 <i class="fas fa-sort"></i>
                             </button>
@@ -309,6 +317,8 @@ let currentEchoarea = '{{ echoarea }}' || null;
 let currentPage = 1;
 let currentSort = 'date_desc';
 let currentMessageId = null;
+let currentNetworkFilter = null;
+let availableNetworks = [];
 let currentFilter = 'all';
 let modalClosedByBackButton = false;
 
@@ -362,10 +372,63 @@ function loadEchoareas() {
         .done(function(data) {
             displayEchoareas(data.echoareas);
             displayMobileEchoareas(data.echoareas);
+            updateNetworkFilter(data.echoareas);
         })
         .fail(function() {
             $('#echoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
             $('#mobileEchoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
+        });
+}
+
+function updateNetworkFilter(echoareas) {
+    // Extract unique networks from echoareas
+    const networks = [];
+    const seen = new Set();
+    
+    echoareas.forEach(area => {
+        if (area.network_domain && !seen.has(area.network_domain)) {
+            seen.add(area.network_domain);
+            networks.push({
+                domain: area.network_domain,
+                name: area.network_name || area.network_domain
+            });
+        }
+    });
+    
+    availableNetworks = networks;
+    
+    // Update network filter dropdown
+    const dropdown = $('#networkFilterDropdown');
+    let html = '<li><a class="dropdown-item" href="#" onclick="filterByNetwork(null)">All Networks</a></li>';
+    
+    if (networks.length > 0) {
+        html += '<li><hr class="dropdown-divider"></li>';
+        networks.forEach(network => {
+            html += `<li><a class="dropdown-item" href="#" onclick="filterByNetwork('${network.domain}')">${network.name}</a></li>`;
+        });
+    }
+    
+    dropdown.html(html);
+}
+
+function filterByNetwork(networkDomain) {
+    currentNetworkFilter = networkDomain;
+    
+    // Update button text
+    const networkName = networkDomain ? 
+        (availableNetworks.find(n => n.domain === networkDomain)?.name || networkDomain) : 
+        'All Networks';
+    $('#networkFilterText').text(networkName);
+    
+    // Filter echoareas display
+    $.get('/api/echoareas')
+        .done(function(data) {
+            let filteredEchoareas = data.echoareas;
+            if (networkDomain) {
+                filteredEchoareas = data.echoareas.filter(area => area.network_domain === networkDomain);
+            }
+            displayEchoareas(filteredEchoareas);
+            displayMobileEchoareas(filteredEchoareas);
         });
 }
 
@@ -389,11 +452,15 @@ function displayEchoareas(echoareas) {
         
         echoareas.forEach(function(area) {
             const isActive = currentEchoarea === area.tag;
+            const networkBadge = area.network_domain ? `<span class="badge badge-network-${area.network_domain} me-1">${area.network_domain}</span>` : '';
             html += `
                 <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${area.tag}')">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="node-address">${area.tag}</div>
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-1">
+                                ${networkBadge}
+                                <span class="node-address">${area.tag}</span>
+                            </div>
                             <div class="node-system">${escapeHtml(area.description)}</div>
                         </div>
                         <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${area.message_count || 0}</span>
@@ -428,11 +495,15 @@ function displayMobileEchoareas(echoareas) {
         
         echoareas.forEach(function(area) {
             const isActive = currentEchoarea === area.tag;
+            const networkBadge = area.network_domain ? `<span class="badge badge-network-${area.network_domain} me-1">${area.network_domain}</span>` : '';
             html += `
                 <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${area.tag}')">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-bold">${area.tag}</div>
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-1">
+                                ${networkBadge}
+                                <span class="fw-bold">${area.tag}</span>
+                            </div>
                             <div class="text-muted small">${escapeHtml(area.description)}</div>
                         </div>
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
@@ -545,7 +616,10 @@ function displayMessages(messages) {
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
                     <td class="clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
+                        <div class="d-flex align-items-center">
+                            ${msg.network_domain ? `<span class="badge badge-network-${msg.network_domain} me-1">${msg.network_domain}</span>` : ''}
+                            <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
+                        </div>
                     </td>
                     <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written date: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
                 </tr>
@@ -711,7 +785,10 @@ function displayMessageContent(message) {
                 </div>
                 <div class="col-md-6">
                     <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>
-                    <span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>
+                    <div class="d-flex align-items-center">
+                        ${message.network_domain ? `<span class="badge badge-network-${message.network_domain} me-1">${message.network_domain}</span>` : ''}
+                        <span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>
+                    </div>
                 </div>
             </div>
             <div class="row mt-2">
