@@ -24,8 +24,8 @@ function parseNetmailMessage(messageText) {
         // True kludge lines ONLY: those starting with control characters or routing info
         if (line.startsWith('\x01') || line.startsWith('SEEN-BY:') || line.startsWith('PATH:')) {
             kludgeLines.push(line);
-        } else if (line.trim() !== '') {
-            // Any non-empty line that's not a kludge is message content
+        } else {
+            // All lines that aren't kludge lines are message content (including empty lines)
             messageLines.push(line);
         }
     }
@@ -70,8 +70,8 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
         if (line.startsWith('\x01') || line.startsWith('SEEN-BY:') || line.startsWith('PATH:') || 
             line.startsWith('AREA:')) {
             kludgeLines.push(line);
-        } else if (line.trim() !== '') {
-            // Any non-empty line that's not a kludge is message content
+        } else {
+            // All lines that aren't kludge lines are message content (including empty lines)
             messageLines.push(line);
         }
     }
@@ -99,7 +99,7 @@ function formatMessageText(messageText) {
         return `<pre class="message-preformatted">${escapeHtml(messageText)}</pre>`;
     }
     
-    // Otherwise, format as readable text
+    // Otherwise, format as readable text with preserved line breaks
     const lines = messageText.split(/\r?\n/);
     let formattedLines = [];
     let inQuoteBlock = false;
@@ -133,8 +133,12 @@ function formatMessageText(messageText) {
             if (trimmedLine === '') {
                 formattedLines.push('<br>');
             } else {
-                const cssClass = inSignature ? 'message-signature' : 'message-paragraph';
-                formattedLines.push(`<div class="${cssClass}">${escapeHtml(line)}</div>`);
+                const cssClass = inSignature ? 'message-signature' : 'message-line';
+                formattedLines.push(`<span class="${cssClass}">${escapeHtml(line)}</span>`);
+                // Add line break after each line except the last one
+                if (i < lines.length - 1) {
+                    formattedLines.push('<br>');
+                }
             }
         }
     }

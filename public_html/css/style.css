@@ -437,6 +437,13 @@ body {
     hyphens: auto;
 }
 
+.message-line {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    display: inline;
+}
+
 .message-quote {
     border-left: 3px solid var(--message-quote-border);
     padding-left: 1rem;
