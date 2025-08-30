@@ -1211,22 +1211,15 @@ class BinkdProcessor
     {
         $table = $messageType === 'echomail' ? 'echomail' : 'netmail';
         
-        $stmt = $this->db->prepare("SELECT from_address, from_name, to_name, subject, date_written FROM {$table} WHERE id = ?");
+        $stmt = $this->db->prepare("SELECT message_id FROM {$table} WHERE id = ?");
         $stmt->execute([$messageId]);
         $originalMessage = $stmt->fetch();
         
-        if (!$originalMessage) {
+        if (!$originalMessage || empty($originalMessage['message_id'])) {
             return null;
         }
         
-        // Generate the same MSGID that would have been used for the original message
-        $msgId = $this->generateMessageId(
-            $originalMessage['from_name'],
-            $originalMessage['to_name'], 
-            $originalMessage['subject'],
-            $originalMessage['from_address']
-        );
-        
-        return $originalMessage['from_address'] . ' ' . $msgId;
+        // Return the stored MSGID (format: "address hash")
+        return $originalMessage['message_id'];
     }
 }

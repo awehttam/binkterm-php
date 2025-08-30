@@ -286,9 +286,13 @@ class MessageHandler
             throw new \Exception('System FidoNet address not configured');
         }
 
+        // Generate MSGID for storage (address + hash format)
+        $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $systemAddress);
+        $msgId = $systemAddress . ' ' . $msgIdHash;
+
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?)
         ");
         
         $result = $stmt->execute([
@@ -299,7 +303,8 @@ class MessageHandler
             $toName,
             $subject,
             $messageText,
-            $replyToId
+            $replyToId,
+            $msgId
         ]);
 
         if ($result) {
@@ -346,7 +351,7 @@ class MessageHandler
             $subject,
             $messageText,
             $replyToId,
-            null, // message_id (will be generated when packet is created)
+            $systemAddress . ' ' . $this->generateMessageId($user['real_name'] ?: $user['username'], $toName ?: 'All', $subject, $systemAddress),
             null, // origin_line (will be added when packet is created) 
             null  // kludge_lines (empty for web-created messages)
         ]);
@@ -1438,21 +1443,20 @@ class MessageHandler
     }
 
     /**
-     * Generate FidoNet MSGID using CRC32B hash
-     * Format: MSGID: <zone>:<net>/<node>.<point> <8-character-hex-crc32>
+     * Generate message ID using CRC32B hash (same as BinkdProcessor)
+     * Format: <8-character-hex-crc32>
      */
-    private function generateMsgId($fromName, $toName, $subject, $nodeAddress)
+    private function generateMessageId($fromName, $toName, $subject, $nodeAddress)
     {
         // Get current timestamp in microseconds for more uniqueness
         $timestamp = microtime(true);
         
-        // Create the data string to hash (from, to, subject, timestamp, node)
-        $dataString = $fromName . $toName . $subject . $timestamp . $nodeAddress;
+        // Create the data string to hash (from, to, subject, timestamp)
+        $dataString = $fromName . $toName . $subject . $timestamp;
         
         // Generate CRC32B hash and convert to uppercase hex (8 characters)
         $crc32 = sprintf('%08X', crc32($dataString));
         
-        // Return the MSGID in standard FidoNet format
-        return "MSGID: {$nodeAddress} {$crc32}";
+        return $crc32;
     }
 }
