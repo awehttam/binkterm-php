@@ -1,3 +1,4 @@
+#!/usr/bin/php
 <?php
 /**
  * Database Backup Script for BinktermPHP
