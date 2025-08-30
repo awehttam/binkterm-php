@@ -447,8 +447,12 @@ class MessageHandler
             return false;
         }
         
-        // Only allow users to delete messages they sent
-        if ($message['user_id'] != $userId) {
+        // Allow users to delete messages they sent OR received (same logic as getNetmail/getMessage)
+        $isSender = ($message['user_id'] == $userId);
+        $isRecipient = (strtolower($message['to_name']) === strtolower($user['username']) || 
+                       strtolower($message['to_name']) === strtolower($user['real_name']));
+        
+        if (!$isSender && !$isRecipient) {
             return false;
         }
         
