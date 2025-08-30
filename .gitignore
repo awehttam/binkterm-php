@@ -3,6 +3,7 @@ config/*.json
 config/welcome.txt
 config/systemnews.twig
 data/*
+backups/*
 .idea/
 .claude/
 vendor/
