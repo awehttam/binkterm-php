@@ -929,6 +929,7 @@ class MessageHandler
         // Load welcome message template
         $messageText = $this->loadWelcomeTemplate($realName, $systemName, $systemAddress, $sysopName);
 
+        // Send netmail
         $insertStmt = $this->db->prepare("
             INSERT INTO netmail (
                 user_id, from_address, to_address, from_name, to_name, 
@@ -946,6 +947,28 @@ class MessageHandler
             $messageText,
             0                // attributes
         ]);
+        
+        // Also send email notification if email is available and SMTP is enabled
+        try {
+            // Get user's email address
+            $userStmt = $this->db->prepare("SELECT email FROM users WHERE id = ?");
+            $userStmt->execute([$userId]);
+            $user = $userStmt->fetch();
+            
+            if ($user && !empty($user['email'])) {
+                $mailer = new \BinktermPHP\Mail();
+                if ($mailer->isEnabled()) {
+                    $emailSent = $mailer->sendWelcomeEmail($user['email'], $username, $realName);
+                    if ($emailSent) {
+                        error_log("Welcome email sent successfully to {$user['email']} for user $username");
+                    } else {
+                        error_log("Failed to send welcome email to {$user['email']} for user $username");
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("Error sending welcome email for user $username: " . $e->getMessage());
+        }
     }
 
     /**
