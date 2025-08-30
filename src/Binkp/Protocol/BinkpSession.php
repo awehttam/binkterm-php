@@ -254,30 +254,33 @@ class BinkpSession
                 $addresses = explode(' ', $addressData);
                 $this->log("Parsed addresses: " . implode(', ', $addresses));
                 
-                // Try to find a matching address in our uplinks
+                // Try to find a matching address in our uplinks (preserve domain)
                 $matchedAddress = null;
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
                     
-                    // Strip domain suffix like @fidonet
-                    if (strpos($addr, '@') !== false) {
-                        $addr = substr($addr, 0, strpos($addr, '@'));
-                        $this->log("Stripped domain from address: {$addr}");
-                    }
-                    
-                    if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
-                        $matchedAddress = $addr;
-                        $this->log("Found matching uplink address: {$addr}");
-                        break;
+                    if (!empty($addr)) {
+                        // Check for exact match first (with domain)
+                        if ($this->config->getUplinkByAddress($addr)) {
+                            $matchedAddress = $addr;
+                            $this->log("Found exact matching uplink address: {$addr}");
+                            break;
+                        }
+                        
+                        // If no exact match and address has domain, try without domain for legacy compatibility
+                        if (strpos($addr, '@') !== false) {
+                            $addrWithoutDomain = substr($addr, 0, strpos($addr, '@'));
+                            if ($this->config->getUplinkByAddress($addrWithoutDomain)) {
+                                $matchedAddress = $addr; // Keep original with domain
+                                $this->log("Found matching uplink address (legacy lookup): {$addrWithoutDomain}, preserving full address: {$addr}");
+                                break;
+                            }
+                        }
                     }
                 }
                 
-                // Use first address if no match found (fallback)
-                $fallbackAddress = $addresses[0];
-                if (strpos($fallbackAddress, '@') !== false) {
-                    $fallbackAddress = substr($fallbackAddress, 0, strpos($fallbackAddress, '@'));
-                }
-                $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
+                // Use first address if no match found (preserve original format)
+                $this->remoteAddress = $matchedAddress ?: trim($addresses[0]);
                 $this->log("Using remote address: {$this->remoteAddress}");
                 
                 if ($this->state === self::STATE_INIT) {

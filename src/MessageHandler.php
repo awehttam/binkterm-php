@@ -367,7 +367,13 @@ class MessageHandler
 
     public function getEchoareas()
     {
-        $stmt = $this->db->query("SELECT * FROM echoareas WHERE is_active = TRUE ORDER BY tag");
+        $stmt = $this->db->query("
+            SELECT ea.*, n.domain as network_domain, n.name as network_name
+            FROM echoareas ea
+            LEFT JOIN networks n ON ea.network_id = n.id
+            WHERE ea.is_active = TRUE 
+            ORDER BY n.domain, ea.tag
+        ");
         return $stmt->fetchAll();
     }
 
@@ -587,15 +593,37 @@ class MessageHandler
 
     private function getEchoareaUplink($echoareaTag)
     {
-        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND is_active = TRUE");
+        // Get echoarea with network information
+        $stmt = $this->db->prepare("
+            SELECT ea.uplink_address, ea.network_id, n.domain as network_domain 
+            FROM echoareas ea
+            LEFT JOIN networks n ON ea.network_id = n.id
+            WHERE ea.tag = ? AND ea.is_active = TRUE
+        ");
         $stmt->execute([$echoareaTag]);
-        $result = $stmt->fetch();
+        $echoarea = $stmt->fetch();
         
-        if ($result && $result['uplink_address']) {
-            return $result['uplink_address'];
+        if ($echoarea) {
+            // First try the echoarea's specific uplink if set
+            if ($echoarea['uplink_address']) {
+                return $echoarea['uplink_address'];
+            }
+            
+            // Then try network-specific default uplink from database
+            if ($echoarea['network_domain']) {
+                try {
+                    $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                    $uplink = $config->getUplinkForNetwork($echoarea['network_domain']);
+                    if ($uplink && $uplink['address']) {
+                        return $uplink['address'];
+                    }
+                } catch (\Exception $e) {
+                    error_log("Failed to get network uplink for {$echoarea['network_domain']}: " . $e->getMessage());
+                }
+            }
         }
         
-        // Fall back to default uplink from JSON config
+        // Fall back to default uplink from JSON config  
         try {
             $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             $defaultAddress = $config->getDefaultUplinkAddress();

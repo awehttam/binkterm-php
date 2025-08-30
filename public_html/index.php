@@ -2412,6 +2412,167 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => $e->getMessage()]);
         }
     });
+    
+    // Admin networks API routes
+    SimpleRouter::group(['prefix' => '/admin'], function() {
+        
+        // Get all networks
+        SimpleRouter::get('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            $networks = $adminController->getNetworks();
+            echo json_encode($networks);
+        });
+        
+        // Get specific network
+        SimpleRouter::get('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            $network = $adminController->getNetwork($id);
+            if ($network) {
+                echo json_encode($network);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Network not found']);
+            }
+        });
+        
+        // Create network
+        SimpleRouter::post('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $data = $_POST;
+                $networkId = $adminController->createNetwork($data);
+                echo json_encode(['success' => true, 'id' => $networkId]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        // Update network
+        SimpleRouter::put('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $data = $_POST;
+                $result = $adminController->updateNetwork($id, $data);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        // Delete network
+        SimpleRouter::delete('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $result = $adminController->deleteNetwork($id);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        // Get network uplinks
+        SimpleRouter::get('/networks/{id}/uplinks', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            $uplinks = $adminController->getNetworkUplinks($id);
+            echo json_encode($uplinks);
+        });
+        
+        // Create network uplink
+        SimpleRouter::post('/networks/{id}/uplinks', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $data = $_POST;
+                $uplinkId = $adminController->createNetworkUplink($data);
+                echo json_encode(['success' => true, 'id' => $uplinkId]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        // Update uplink
+        SimpleRouter::put('/uplinks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $data = $_POST;
+                $result = $adminController->updateNetworkUplink($id, $data);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        // Delete uplink
+        SimpleRouter::delete('/uplinks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $result = $adminController->deleteNetworkUplink($id);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+    });
 });
 
 // Admin routes
@@ -2440,6 +2601,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         
         $template = new Template();
         $template->renderResponse('admin/users.twig');
+    });
+    
+    // Networks management page
+    SimpleRouter::get('/networks', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+        
+        $networks = $adminController->getNetworks();
+        $template = new Template();
+        $template->renderResponse('admin/networks.twig', ['networks' => $networks]);
     });
     
     // API routes for admin
@@ -2552,6 +2726,156 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
             $stats = $adminController->getSystemStats();
             echo json_encode($stats);
+        });
+        
+        // Networks management API
+        SimpleRouter::get('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            $networks = $adminController->getNetworks();
+            echo json_encode($networks);
+        });
+        
+        SimpleRouter::get('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            $network = $adminController->getNetwork($id);
+            if ($network) {
+                echo json_encode($network);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Network not found']);
+            }
+        });
+        
+        SimpleRouter::post('/networks', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $data = $_POST;
+                $networkId = $adminController->createNetwork($data);
+                echo json_encode(['success' => true, 'id' => $networkId]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        SimpleRouter::put('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                parse_str(file_get_contents('php://input'), $data);
+                $result = $adminController->updateNetwork($id, $data);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        SimpleRouter::delete('/networks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $result = $adminController->deleteNetwork($id);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        // Network uplinks API
+        SimpleRouter::get('/networks/{id}/uplinks', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            $uplinks = $adminController->getNetworkUplinks($id);
+            echo json_encode($uplinks);
+        });
+        
+        SimpleRouter::post('/networks/{networkId}/uplinks', function($networkId) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $data = $_POST;
+                $data['network_id'] = $networkId;
+                $uplinkId = $adminController->createNetworkUplink($data);
+                echo json_encode(['success' => true, 'id' => $uplinkId]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        SimpleRouter::put('/uplinks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                parse_str(file_get_contents('php://input'), $data);
+                $result = $adminController->updateNetworkUplink($id, $data);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+        
+        SimpleRouter::delete('/uplinks/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+            
+            header('Content-Type: application/json');
+            try {
+                $result = $adminController->deleteNetworkUplink($id);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
         });
     });
 });

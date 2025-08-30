@@ -1,0 +1,422 @@
+{% extends "base.twig" %}
+
+{% block title %}Networks Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-network-wired me-2"></i>
+            Networks Management
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addNetworkModal">
+                <i class="fas fa-plus me-2"></i>Add Network
+            </button>
+        </div>
+    </div>
+
+    <!-- Networks List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">FTN Networks</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="networksTable" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Echo Areas</th>
+                                    <th>Uplinks</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="networksTableBody">
+                                {% for network in networks %}
+                                <tr data-network-id="{{ network.id }}">
+                                    <td>
+                                        <span class="badge bg-primary">{{ network.domain }}</span>
+                                    </td>
+                                    <td>{{ network.name }}</td>
+                                    <td>{{ network.description|default('No description') }}</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ network.echoarea_count }}</span>
+                                        {% if network.echoarea_count > 0 %}
+                                        <a href="/admin/echoareas?network={{ network.domain }}" class="btn btn-sm btn-outline-info ms-1">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ network.uplink_count }}</span>
+                                        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="manageUplinks({{ network.id }}, '{{ network.domain }}')">
+                                            <i class="fas fa-cog"></i>
+                                        </button>
+                                    </td>
+                                    <td>
+                                        {% if network.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-warning">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="editNetwork({{ network.id }})">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            {% if network.domain != 'fidonet' %}
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteNetwork({{ network.id }}, '{{ network.domain }}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">No networks found</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Network Modal -->
+<div class="modal fade" id="addNetworkModal" tabindex="-1" aria-labelledby="addNetworkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addNetworkModalLabel">Add Network</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addNetworkForm">
+                    <div class="mb-3">
+                        <label for="networkDomain" class="form-label">Domain <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="networkDomain" required 
+                               placeholder="e.g., dovenet, fsxnet" 
+                               pattern="[a-z0-9]+" title="Only lowercase letters and numbers">
+                        <div class="form-text">Used in addresses like 1:123/456@domain</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="networkName" class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="networkName" required 
+                               placeholder="e.g., DoveNet, fsxNet">
+                    </div>
+                    <div class="mb-3">
+                        <label for="networkDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="networkDescription" rows="2" 
+                                  placeholder="Brief description of this network"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="networkActive" checked>
+                            <label class="form-check-label" for="networkActive">
+                                Network is active
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNetwork()">Add Network</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Network Modal -->
+<div class="modal fade" id="editNetworkModal" tabindex="-1" aria-labelledby="editNetworkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editNetworkModalLabel">Edit Network</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editNetworkForm">
+                    <input type="hidden" id="editNetworkId">
+                    <div class="mb-3">
+                        <label for="editNetworkDomain" class="form-label">Domain <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editNetworkDomain" required 
+                               pattern="[a-z0-9]+" title="Only lowercase letters and numbers">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editNetworkName" class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editNetworkName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editNetworkDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editNetworkDescription" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editNetworkActive">
+                            <label class="form-check-label" for="editNetworkActive">
+                                Network is active
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateNetwork()">Update Network</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Uplinks Management Modal -->
+<div class="modal fade" id="uplinksModal" tabindex="-1" aria-labelledby="uplinksModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uplinksModalLabel">Manage Uplinks</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6>Network: <span id="uplinksNetworkName" class="badge bg-primary"></span></h6>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="addUplink()">
+                        <i class="fas fa-plus me-1"></i>Add Uplink
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Address</th>
+                                <th>Hostname</th>
+                                <th>Port</th>
+                                <th>Default</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="uplinksTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentNetworkId = null;
+let networks = [];
+
+// Load networks on page load
+$(document).ready(function() {
+    loadNetworks();
+});
+
+function loadNetworks() {
+    $.get('/api/admin/networks', function(data) {
+        networks = data;
+        renderNetworksTable();
+    }).fail(function(xhr) {
+        showAlert('Failed to load networks: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+    });
+}
+
+function renderNetworksTable() {
+    const tbody = $('#networksTableBody');
+    tbody.empty();
+    
+    if (networks.length === 0) {
+        tbody.append('<tr><td colspan="7" class="text-center text-muted">No networks found</td></tr>');
+        return;
+    }
+    
+    networks.forEach(network => {
+        const row = $(`
+            <tr data-network-id="${network.id}">
+                <td><span class="badge bg-primary">${network.domain}</span></td>
+                <td>${network.name}</td>
+                <td>${network.description || 'No description'}</td>
+                <td>
+                    <span class="badge bg-info">${network.echoarea_count}</span>
+                    ${network.echoarea_count > 0 ? `<a href="/admin/echoareas?network=${network.domain}" class="btn btn-sm btn-outline-info ms-1"><i class="fas fa-eye"></i></a>` : ''}
+                </td>
+                <td>
+                    <span class="badge bg-secondary">${network.uplink_count}</span>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="manageUplinks(${network.id}, '${network.domain}')">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </td>
+                <td>
+                    <span class="badge bg-${network.is_active ? 'success' : 'warning'}">${network.is_active ? 'Active' : 'Inactive'}</span>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editNetwork(${network.id})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        ${network.domain !== 'fidonet' ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteNetwork(${network.id}, '${network.domain}')"><i class="fas fa-trash"></i></button>` : ''}
+                    </div>
+                </td>
+            </tr>
+        `);
+        tbody.append(row);
+    });
+}
+
+function saveNetwork() {
+    const formData = {
+        domain: $('#networkDomain').val(),
+        name: $('#networkName').val(),
+        description: $('#networkDescription').val(),
+        is_active: $('#networkActive').is(':checked')
+    };
+    
+    $.post('/api/admin/networks', formData, function(data) {
+        $('#addNetworkModal').modal('hide');
+        $('#addNetworkForm')[0].reset();
+        loadNetworks();
+        showAlert('Network created successfully!', 'success');
+    }).fail(function(xhr) {
+        showAlert('Failed to create network: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+    });
+}
+
+function editNetwork(networkId) {
+    const network = networks.find(n => n.id == networkId);
+    if (!network) return;
+    
+    $('#editNetworkId').val(network.id);
+    $('#editNetworkDomain').val(network.domain);
+    $('#editNetworkName').val(network.name);
+    $('#editNetworkDescription').val(network.description || '');
+    $('#editNetworkActive').prop('checked', network.is_active);
+    
+    $('#editNetworkModal').modal('show');
+}
+
+function updateNetwork() {
+    const networkId = $('#editNetworkId').val();
+    const formData = {
+        domain: $('#editNetworkDomain').val(),
+        name: $('#editNetworkName').val(),
+        description: $('#editNetworkDescription').val(),
+        is_active: $('#editNetworkActive').is(':checked')
+    };
+    
+    $.ajax({
+        url: '/api/admin/networks/' + networkId,
+        type: 'PUT',
+        data: formData,
+        success: function(data) {
+            $('#editNetworkModal').modal('hide');
+            loadNetworks();
+            showAlert('Network updated successfully!', 'success');
+        },
+        error: function(xhr) {
+            showAlert('Failed to update network: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+        }
+    });
+}
+
+function deleteNetwork(networkId, domain) {
+    if (!confirm(`Are you sure you want to delete the ${domain} network? This action cannot be undone.`)) {
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/admin/networks/' + networkId,
+        type: 'DELETE',
+        success: function(data) {
+            loadNetworks();
+            showAlert('Network deleted successfully!', 'success');
+        },
+        error: function(xhr) {
+            showAlert('Failed to delete network: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+        }
+    });
+}
+
+function manageUplinks(networkId, domain) {
+    currentNetworkId = networkId;
+    $('#uplinksNetworkName').text(domain);
+    $('#uplinksModal').modal('show');
+    loadUplinks(networkId);
+}
+
+function loadUplinks(networkId) {
+    $.get('/api/admin/networks/' + networkId + '/uplinks', function(data) {
+        renderUplinksTable(data);
+    }).fail(function(xhr) {
+        showAlert('Failed to load uplinks: ' + (xhr.responseJSON?.message || xhr.statusText), 'danger');
+    });
+}
+
+function renderUplinksTable(uplinks) {
+    const tbody = $('#uplinksTableBody');
+    tbody.empty();
+    
+    if (uplinks.length === 0) {
+        tbody.append('<tr><td colspan="6" class="text-center text-muted">No uplinks configured</td></tr>');
+        return;
+    }
+    
+    uplinks.forEach(uplink => {
+        const row = $(`
+            <tr>
+                <td>${uplink.address}</td>
+                <td>${uplink.hostname}</td>
+                <td>${uplink.port}</td>
+                <td>
+                    <span class="badge bg-${uplink.is_default ? 'primary' : 'secondary'}">${uplink.is_default ? 'Yes' : 'No'}</span>
+                </td>
+                <td>
+                    <span class="badge bg-${uplink.is_enabled ? 'success' : 'warning'}">${uplink.is_enabled ? 'Enabled' : 'Disabled'}</span>
+                </td>
+                <td>
+                    <span class="text-muted">Uplink management coming soon</span>
+                </td>
+            </tr>
+        `);
+        tbody.append(row);
+    });
+}
+
+function addUplink() {
+    showAlert('Add uplink functionality will be available soon!', 'info');
+}
+
+function showAlert(message, type) {
+    const alert = $(`
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `);
+    
+    $('.container-fluid').prepend(alert);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alert.alert('close');
+    }, 5000);
+}
+</script>
+{% endblock %}

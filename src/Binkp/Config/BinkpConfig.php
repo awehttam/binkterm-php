@@ -82,7 +82,12 @@ class BinkpConfig
                 'outbound_path' => 'data/outbound',
                 'preserve_processed_packets' => false
             ],
-            'uplinks' => []
+            'uplinks' => [],
+            'networks' => [
+                'fidonet' => [
+                    'uplinks' => []
+                ]
+            ]
         ];
         
         $configDir = dirname($this->configPath);
@@ -191,6 +196,63 @@ class BinkpConfig
     
     public function getUplinkByAddress($address)
     {
+        // First try database-based network uplinks
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            
+            // Try exact address match first
+            $stmt = $db->prepare("
+                SELECT nu.*, n.domain as network_domain 
+                FROM network_uplinks nu
+                JOIN networks n ON nu.network_id = n.id
+                WHERE nu.address = ? AND nu.is_enabled = TRUE
+            ");
+            $stmt->execute([$address]);
+            $uplink = $stmt->fetch();
+            
+            if ($uplink) {
+                return [
+                    'address' => $uplink['address'],
+                    'hostname' => $uplink['hostname'],
+                    'port' => $uplink['port'],
+                    'password' => $uplink['password'],
+                    'enabled' => $uplink['is_enabled'],
+                    'network_domain' => $uplink['network_domain'],
+                    'compression' => $uplink['compression'],
+                    'crypt' => $uplink['crypt']
+                ];
+            }
+            
+            // If address has domain, try without domain for legacy compatibility
+            if (strpos($address, '@') !== false) {
+                $addrWithoutDomain = substr($address, 0, strpos($address, '@'));
+                $stmt = $db->prepare("
+                    SELECT nu.*, n.domain as network_domain 
+                    FROM network_uplinks nu
+                    JOIN networks n ON nu.network_id = n.id
+                    WHERE nu.address = ? AND nu.is_enabled = TRUE
+                ");
+                $stmt->execute([$addrWithoutDomain]);
+                $uplink = $stmt->fetch();
+                
+                if ($uplink) {
+                    return [
+                        'address' => $uplink['address'],
+                        'hostname' => $uplink['hostname'],
+                        'port' => $uplink['port'],
+                        'password' => $uplink['password'],
+                        'enabled' => $uplink['is_enabled'],
+                        'network_domain' => $uplink['network_domain'],
+                        'compression' => $uplink['compression'],
+                        'crypt' => $uplink['crypt']
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("Database lookup failed in getUplinkByAddress: " . $e->getMessage());
+        }
+        
+        // Fall back to legacy JSON-based uplinks
         foreach ($this->getUplinks() as $uplink) {
             if ($uplink['address'] === $address) {
                 return $uplink;
@@ -304,5 +366,127 @@ class BinkpConfig
     public function reloadConfig()
     {
         $this->loadConfig();
+    }
+    
+    /**
+     * Get all networks from config
+     */
+    public function getNetworks()
+    {
+        return $this->config['networks'] ?? [];
+    }
+    
+    /**
+     * Get uplinks for a specific network domain
+     */
+    public function getNetworkUplinks($networkDomain)
+    {
+        $networks = $this->getNetworks();
+        return $networks[$networkDomain]['uplinks'] ?? [];
+    }
+    
+    /**
+     * Get uplink for a specific network domain
+     */
+    public function getUplinkForNetwork($networkDomain)
+    {
+        $uplinks = $this->getNetworkUplinks($networkDomain);
+        
+        // First try to find a default uplink for this network
+        foreach ($uplinks as $uplink) {
+            if (($uplink['default'] ?? false) && ($uplink['enabled'] ?? true)) {
+                return $uplink;
+            }
+        }
+        
+        // Fall back to first enabled uplink for this network
+        foreach ($uplinks as $uplink) {
+            if ($uplink['enabled'] ?? true) {
+                return $uplink;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get network domain from FTN address
+     */
+    public function getNetworkDomainFromAddress($address)
+    {
+        if (strpos($address, '@') !== false) {
+            return substr($address, strpos($address, '@') + 1);
+        }
+        return 'fidonet'; // Default to fidonet for addresses without domain
+    }
+    
+    /**
+     * Get all available networks
+     */
+    public function getNetworks()
+    {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->query("SELECT * FROM networks WHERE is_active = TRUE ORDER BY domain");
+            return $stmt->fetchAll();
+        } catch (\Exception $e) {
+            error_log("Failed to get networks: " . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Get network by domain
+     */
+    public function getNetworkByDomain($domain)
+    {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("SELECT * FROM networks WHERE domain = ? AND is_active = TRUE");
+            $stmt->execute([$domain]);
+            return $stmt->fetch();
+        } catch (\Exception $e) {
+            error_log("Failed to get network $domain: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Get uplinks for a network
+     */
+    public function getNetworkUplinks($networkDomain)
+    {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT nu.*, n.domain as network_domain 
+                FROM network_uplinks nu
+                JOIN networks n ON nu.network_id = n.id
+                WHERE n.domain = ? AND nu.is_enabled = TRUE
+                ORDER BY nu.is_default DESC, nu.id
+            ");
+            $stmt->execute([$networkDomain]);
+            $uplinks = $stmt->fetchAll();
+            
+            $result = [];
+            foreach ($uplinks as $uplink) {
+                $result[] = [
+                    'address' => $uplink['address'],
+                    'hostname' => $uplink['hostname'],
+                    'port' => $uplink['port'],
+                    'password' => $uplink['password'],
+                    'enabled' => $uplink['is_enabled'],
+                    'network_domain' => $uplink['network_domain'],
+                    'compression' => $uplink['compression'],
+                    'crypt' => $uplink['crypt'],
+                    'is_default' => $uplink['is_default']
+                ];
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            error_log("Failed to get uplinks for network $networkDomain: " . $e->getMessage());
+            return [];
+        }
     }
 }

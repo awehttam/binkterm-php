@@ -490,8 +490,8 @@ class BinkdProcessor
         
         $messageText = implode("\n", $cleanedLines);
         
-        // Get or create echoarea
-        $echoarea = $this->getOrCreateEchoarea($echoareaTag);
+        // Get or create echoarea (pass original sender address for network determination)
+        $echoarea = $this->getOrCreateEchoarea($echoareaTag, $originalAuthorAddress ?: $message['origAddr']);
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
@@ -527,22 +527,73 @@ class BinkdProcessor
                  ->execute([$echoarea['id']]);
     }
 
-    private function getOrCreateEchoarea($tag)
+    private function getOrCreateEchoarea($tag, $fromAddress = null)
     {
+        // Check if echoarea already exists
         $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ?");
         $stmt->execute([$tag]);
         $echoarea = $stmt->fetch();
         
         if (!$echoarea) {
-            $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active) VALUES (?, ?, TRUE)");
-            $stmt->execute([$tag, 'Auto-created: ' . $tag]);
+            // Determine network from sender address if provided
+            $networkId = null;
+            if ($fromAddress) {
+                $networkDomain = $this->getNetworkDomainFromAddress($fromAddress);
+                $network = $this->getNetworkByDomain($networkDomain);
+                if ($network) {
+                    $networkId = $network['id'];
+                }
+            }
             
+            // Fall back to default FidoNet network if network not determined
+            if (!$networkId) {
+                $network = $this->getNetworkByDomain('fidonet');
+                $networkId = $network ? $network['id'] : null;
+            }
+            
+            // Create new echoarea with network assignment
+            $stmt = $this->db->prepare("
+                INSERT INTO echoareas (tag, description, is_active, network_id) 
+                VALUES (?, ?, TRUE, ?)
+            ");
+            $stmt->execute([$tag, 'Auto-created: ' . $tag, $networkId]);
+            
+            // Retrieve the newly created echoarea
             $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ?");
             $stmt->execute([$tag]);
             $echoarea = $stmt->fetch();
+            
+            error_log("[BINKD] Auto-created echoarea '$tag' for network domain: " . 
+                     ($fromAddress ? $this->getNetworkDomainFromAddress($fromAddress) : 'fidonet'));
         }
         
         return $echoarea;
+    }
+    
+    /**
+     * Get network domain from FTN address
+     */
+    private function getNetworkDomainFromAddress($address)
+    {
+        if (strpos($address, '@') !== false) {
+            return substr($address, strpos($address, '@') + 1);
+        }
+        return 'fidonet'; // Default to fidonet for addresses without domain
+    }
+    
+    /**
+     * Get network by domain
+     */
+    private function getNetworkByDomain($domain)
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM networks WHERE domain = ? AND is_active = TRUE");
+            $stmt->execute([$domain]);
+            return $stmt->fetch();
+        } catch (\Exception $e) {
+            error_log("Failed to get network $domain: " . $e->getMessage());
+            return null;
+        }
     }
 
     private function parseFidonetDate($dateStr, $packetInfo = null, $tzutcOffsetMinutes = null)
