@@ -246,12 +246,9 @@ class AdminController
     {
         $stmt = $this->db->query("
             SELECT n.*, 
-                   COUNT(ea.id) as echoarea_count,
-                   COUNT(nu.id) as uplink_count
+                   (SELECT COUNT(*) FROM echoareas ea WHERE ea.network_id = n.id) as echoarea_count,
+                   (SELECT COUNT(*) FROM network_uplinks nu WHERE nu.network_id = n.id) as uplink_count
             FROM networks n
-            LEFT JOIN echoareas ea ON n.id = ea.network_id
-            LEFT JOIN network_uplinks nu ON n.id = nu.network_id
-            GROUP BY n.id
             ORDER BY n.domain
         ");
         return $stmt->fetchAll();
