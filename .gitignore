@@ -1,6 +1,7 @@
 composer.lock
 config/*.json
 config/welcome.txt
+config/systemnews.twig
 data/*
 .idea/
 .claude/

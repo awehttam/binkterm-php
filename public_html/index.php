@@ -35,7 +35,13 @@ SimpleRouter::get('/', function() {
     }
     
     $template = new Template();
-    $template->renderResponse('dashboard.twig');
+    
+    // Generate system news content
+    $systemNewsContent = $template->renderSystemNews();
+    
+    $template->renderResponse('dashboard.twig', [
+        'system_news_content' => $systemNewsContent
+    ]);
 });
 
 // Web routes

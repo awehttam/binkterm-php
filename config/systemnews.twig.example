@@ -1,0 +1,93 @@
+{# 
+   System News/Information Panel for BinktermPHP Dashboard
+   
+   This template replaces the "Recent Messages" section on the main dashboard.
+   Copy this file to "systemnews.twig" and customize it for your system.
+   
+   Available variables:
+   - current_user: Current logged-in user object  
+   - sysop_name: System operator name
+   - fidonet_origin: FidoNet node address
+   - app_version: Current BinktermPHP version
+   
+   You can use standard HTML, Bootstrap 5 classes, and Font Awesome icons.
+#}
+
+<div class="alert alert-info mb-3">
+    <i class="fas fa-info-circle me-2"></i>
+    <strong>Welcome to {{ sysop_name }}'s BBS!</strong>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="fas fa-newspaper me-2"></i>
+        <strong>System News</strong>
+    </div>
+    <div class="card-body">
+        <h6>📢 Latest Updates</h6>
+        <ul class="list-unstyled">
+            <li class="mb-2">
+                <i class="fas fa-calendar me-2 text-primary"></i>
+                <strong>August 30, 2025:</strong> System upgraded to BinktermPHP {{ app_version }}
+            </li>
+            <li class="mb-2">
+                <i class="fas fa-share-alt me-2 text-info"></i>
+                <strong>Message Sharing:</strong> You can now share echomail via web links
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="fas fa-cog me-2"></i>
+        <strong>System Information</strong>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-6">
+                <small class="text-muted">Node Address:</small><br>
+                <code>{{ fidonet_origin }}</code>
+            </div>
+            <div class="col-6">
+                <small class="text-muted">Sysop:</small><br>
+                <strong>{{ sysop_name }}</strong>
+            </div>
+        </div>
+        <hr class="my-2">
+        <div class="row">
+            <div class="col-6">
+                <small class="text-muted">Software:</small><br>
+                <small>BinktermPHP {{ app_version }}</small>
+            </div>
+            <div class="col-6">
+                <small class="text-muted">Networks:</small><br>
+                <span class="badge bg-primary me-1">FidoNet</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-users me-2"></i>
+        <strong>Community Guidelines</strong>
+    </div>
+    <div class="card-body">
+        <ul class="list-unstyled small">
+            <li><i class="fas fa-check text-success me-2"></i>Be respectful in all communications</li>
+            <li><i class="fas fa-check text-success me-2"></i>Keep messages on-topic for each echo area</li>
+            <li><i class="fas fa-check text-success me-2"></i>No spam or commercial messages</li>
+            <li><i class="fas fa-check text-success me-2"></i>Report technical issues to {{ sysop_name }}</li>
+        </ul>
+    </div>
+</div>
+
+{# 
+   Customization Tips:
+   - Add your own HTML content above
+   - Use Bootstrap 5 classes for styling: https://getbootstrap.com/docs/5.1/
+   - Font Awesome icons: https://fontawesome.com/icons
+   - Keep content concise for dashboard display
+   - Test your changes after editing systemnews.twig
+#}
