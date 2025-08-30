@@ -123,11 +123,34 @@ window.currentUser = {{ current_user|json_encode|raw }};
 let currentPage = 1;
 let currentFilter = 'all';
 let currentMessageId = null;
+let modalClosedByBackButton = false;
 
 $(document).ready(function() {
     loadMessages();
     loadStats();
     loadFontSettings();
+    
+    // Initialize history state
+    if (!history.state) {
+        history.replaceState({}, '', '');
+    }
+    
+    // Handle browser back button for modal
+    window.addEventListener('popstate', function(event) {
+        if ($('#messageModal').hasClass('show')) {
+            modalClosedByBackButton = true;
+            $('#messageModal').modal('hide');
+        }
+    });
+    
+    // Handle modal close events
+    $('#messageModal').on('hidden.bs.modal', function() {
+        // If modal wasn't closed by back button and we're in a modal state, go back in history
+        if (!modalClosedByBackButton && history.state && history.state.modal === 'message') {
+            history.back();
+        }
+        modalClosedByBackButton = false;
+    });
     
     // Filter change handler
     $('input[name="filter"]').change(function() {
@@ -274,6 +297,11 @@ function changePage(page) {
 
 function viewMessage(messageId) {
     currentMessageId = messageId;
+    
+    // Add history entry for mobile back button support
+    if (!history.state || history.state.modal !== 'message') {
+        history.pushState({modal: 'message', messageId: messageId}, '', '');
+    }
     
     $('#messageContent').html(`
         <div class="loading-spinner">
