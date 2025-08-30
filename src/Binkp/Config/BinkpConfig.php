@@ -70,7 +70,7 @@ class BinkpConfig
                 'sysop' => 'System Operator',
                 'location' => 'Unknown Location',
                 'hostname' => 'localhost',
-                'origin' => ''},
+                'origin' => '',
                 'timezone' => 'UTC'
             ],
             'binkp' => [
