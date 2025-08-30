@@ -928,7 +928,7 @@ class BinkdProcessor
         $originText = " * Origin: " . $this->config->getSystemName();
         $origin = $this->config->getSystemOrigin();
         if (!empty($origin)) {
-            $originText .= " " . $origin;
+            $originText .= " ~ " . $origin;
         }
         $originText .= " (" . $systemAddress . ")";
         
