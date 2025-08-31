@@ -935,6 +935,7 @@ class BinkdProcessor
         if (!empty($messageText) && !str_ends_with($messageText, "\r\n")) {
             $messageText .= "\r\n";
         }
+        $messageText.="\r\n";
         $messageText .= Version::getTearline() . "\r\n";
         
         // Origin line should show the actual system address (including point if it's a point system)
