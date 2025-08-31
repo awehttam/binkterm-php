@@ -714,8 +714,8 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INSERT OR IGNORE INTO user_settings (user_id, messages_per_page) 
-                VALUES (?, 25)
+                INTO user_settings (user_id, messages_per_page) 
+                VALUES (?, 25) ON CONFLICT DO NOTHING
             ");
             $insertStmt->execute([$userId]);
             
