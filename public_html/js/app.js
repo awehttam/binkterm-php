@@ -200,6 +200,9 @@ function toggleKludgeLines() {
     }
 }
 
+// Global user settings object
+window.userSettings = {};
+
 $(document).ready(function() {
     // Load user settings on page load
     loadUserSettings();
@@ -218,18 +221,78 @@ $(document).ready(function() {
     });
 });
 
-// Load user settings including timezone
+// Unified user settings management
 function loadUserSettings() {
-    $.get('/api/user/settings')
-        .done(function(data) {
-            if (data.timezone) {
-                window.userSettings.timezone = data.timezone;
-                console.log('Loaded user timezone:', data.timezone);
-            }
-        })
-        .fail(function() {
-            console.log('Failed to load user settings, using defaults');
-        });
+    return new Promise(function(resolve, reject) {
+        $.get('/api/user/settings')
+            .done(function(response) {
+                if (response.success && response.settings) {
+                    // Store all settings globally
+                    window.userSettings = response.settings;
+                    console.log('Loaded user settings:', window.userSettings);
+                } else if (response.timezone || response.messages_per_page) {
+                    // Handle old API response format
+                    window.userSettings = response;
+                    console.log('Loaded user settings (legacy format):', window.userSettings);
+                }
+                resolve(window.userSettings);
+            })
+            .fail(function() {
+                console.log('Failed to load user settings, using defaults');
+                // Set defaults
+                window.userSettings = {
+                    messages_per_page: 25,
+                    threaded_view: false,
+                    netmail_threaded_view: false,
+                    default_sort: 'date_desc',
+                    timezone: 'America/Los_Angeles',
+                    font_family: 'Courier New, Monaco, Consolas, monospace',
+                    font_size: 16
+                };
+                resolve(window.userSettings);
+            });
+    });
+}
+
+function saveUserSetting(key, value) {
+    // Update local cache
+    window.userSettings[key] = value;
+    
+    // Save to server
+    const settings = {};
+    settings[key] = value;
+    
+    return $.ajax({
+        url: '/api/user/settings',
+        method: 'POST',
+        data: JSON.stringify({ settings: settings }),
+        contentType: 'application/json',
+        success: function() {
+            console.log(`Saved setting: ${key} = ${value}`);
+        },
+        error: function() {
+            console.warn(`Failed to save setting: ${key}`);
+        }
+    });
+}
+
+function saveUserSettings(settings) {
+    // Update local cache
+    Object.assign(window.userSettings, settings);
+    
+    // Save to server
+    return $.ajax({
+        url: '/api/user/settings',
+        method: 'POST',
+        data: JSON.stringify({ settings: settings }),
+        contentType: 'application/json',
+        success: function() {
+            console.log('Saved settings:', settings);
+        },
+        error: function() {
+            console.warn('Failed to save settings');
+        }
+    });
 }
 
 // Authentication functions

@@ -73,6 +73,26 @@
                         </select>
                         <div class="form-text">Font size for displaying netmail and echomail messages</div>
                     </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Threading Preferences</label>
+                        
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="threadedView" name="threaded_view">
+                            <label class="form-check-label" for="threadedView">
+                                Enable threaded view for echomail
+                            </label>
+                            <div class="form-text">Group echomail messages by conversation threads</div>
+                        </div>
+                        
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="netmailThreadedView" name="netmail_threaded_view">
+                            <label class="form-check-label" for="netmailThreadedView">
+                                Enable threaded view for netmail
+                            </label>
+                            <div class="form-text">Group netmail messages by conversation threads</div>
+                        </div>
+                    </div>
                     
                 </form>
             </div>
@@ -238,15 +258,25 @@ $(document).ready(function() {
 
 function loadSettings() {
     $.get('/api/user/settings')
-        .done(function(data) {
+        .done(function(response) {
+            const data = response.success ? response.settings : response;
+            
             if (data.messages_per_page) $('#messagesPerPage').val(data.messages_per_page);
             if (data.timezone) $('#timezone').val(data.timezone);
             if (data.font_family) $('#fontFamily').val(data.font_family);
             if (data.font_size) $('#fontSize').val(data.font_size);
             
+            // Threading preferences
+            $('#threadedView').prop('checked', data.threaded_view === true);
+            $('#netmailThreadedView').prop('checked', data.netmail_threaded_view === true);
+            
+            // Commented out settings (not yet implemented)
             $('#showOrigin').prop('checked', data.show_origin !== false);
             $('#showTearline').prop('checked', data.show_tearline !== false);
             $('#autoRefresh').prop('checked', data.auto_refresh === true);
+        })
+        .fail(function() {
+            console.log('Failed to load settings');
         });
 }
 
@@ -262,12 +292,18 @@ function loadSystemStatus() {
 }
 
 function saveSettings() {
-    const formData = new FormData($('#settingsForm')[0]);
-    
-    // Add checkbox values
-    formData.set('show_origin', $('#showOrigin').is(':checked') ? '1' : '0');
-    formData.set('show_tearline', $('#showTearline').is(':checked') ? '1' : '0');
-    formData.set('auto_refresh', $('#autoRefresh').is(':checked') ? '1' : '0');
+    // Collect all settings as an object
+    const settings = {
+        messages_per_page: parseInt($('#messagesPerPage').val()),
+        timezone: $('#timezone').val(),
+        font_family: $('#fontFamily').val(),
+        font_size: parseInt($('#fontSize').val()),
+        threaded_view: $('#threadedView').is(':checked'),
+        netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
+        show_origin: $('#showOrigin').is(':checked'),
+        show_tearline: $('#showTearline').is(':checked'),
+        auto_refresh: $('#autoRefresh').is(':checked')
+    };
     
     $('#settingsStatus').show().html(`
         <div class="alert alert-info">
@@ -279,9 +315,8 @@ function saveSettings() {
     $.ajax({
         url: '/api/user/settings',
         method: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
+        data: JSON.stringify({ settings: settings }),
+        contentType: 'application/json',
         success: function(response) {
             $('#settingsStatus').html(`
                 <div class="alert alert-success">
@@ -290,6 +325,10 @@ function saveSettings() {
                 </div>
             `);
             
+            // Update global settings cache
+            if (typeof window.userSettings !== 'undefined') {
+                Object.assign(window.userSettings, settings);
+            }
             
             setTimeout(function() {
                 $('#settingsStatus').fadeOut();

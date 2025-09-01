@@ -320,7 +320,7 @@ let threadedView = false;
 let userSettings = {};
 
 $(document).ready(function() {
-    loadUserSettings().then(function() {
+    loadEchomailSettings().then(function() {
         loadEchoareas();
         loadMessages();
     });
@@ -528,7 +528,8 @@ function displayMessages(messages, isThreaded = false) {
                             <th style="width: 25%">From</th>
                             <th style="width: 45%">Subject</th>
                             <th style="width: 15%">Echo Area</th>
-                            <th style="width: 15%">Received</th>
+                            <th colspan="2" style="width: 15%">Received</th>
+
                         </tr>
                     </thead>
                     <tbody>
@@ -631,7 +632,7 @@ function sortMessages(sortBy) {
     currentPage = 1;
     
     // Save sort preference
-    saveUserSetting('default_sort', sortBy);
+    window.saveUserSetting('default_sort', sortBy);
     
     loadMessages();
 }
@@ -654,7 +655,7 @@ function toggleThreading() {
     }
     
     // Save preference
-    saveUserSetting('threaded_view', threadedView);
+    window.saveUserSetting('threaded_view', threadedView);
     
     loadMessages();
 }
@@ -1315,78 +1316,35 @@ $(document).ready(function() {
     });
 });
 
-// User settings functions
-function loadUserSettings() {
-    return new Promise(function(resolve, reject) {
-        $.get('/api/user/settings')
-            .done(function(response) {
-                if (response.success && response.settings) {
-                    userSettings = response.settings;
-                    
-                    // Apply saved preferences
-                    if (userSettings.threaded_view !== undefined) {
-                        threadedView = userSettings.threaded_view;
-                        const toggleText = $('#threadingToggleText');
-                        if (threadedView) {
-                            toggleText.text('Show Flat');
-                        } else {
-                            toggleText.text('Show Threaded');
-                        }
-                    }
-                    
-                    if (userSettings.default_sort) {
-                        currentSort = userSettings.default_sort;
-                    }
+// User settings functions - apply echomail-specific settings after loading
+function loadEchomailSettings() {
+    if (typeof window.loadUserSettings === 'function') {
+        return window.loadUserSettings().then(function() {
+            // Apply echomail-specific settings
+            userSettings = window.userSettings;
+            
+            if (userSettings.threaded_view !== undefined) {
+                threadedView = userSettings.threaded_view;
+                const toggleText = $('#threadingToggleText');
+                if (threadedView) {
+                    toggleText.text('Show Flat');
+                } else {
+                    toggleText.text('Show Threaded');
                 }
-                resolve();
-            })
-            .fail(function() {
-                console.warn('Failed to load user settings, using defaults');
-                resolve(); // Don't block page load
-            });
-    });
+            }
+            
+            if (userSettings.default_sort) {
+                currentSort = userSettings.default_sort;
+            }
+        });
+    } else {
+        // Fallback if global function not available
+        return Promise.resolve();
+    }
 }
 
-function saveUserSetting(key, value) {
-    // Update local cache
-    userSettings[key] = value;
-    
-    // Save to server
-    const settings = {};
-    settings[key] = value;
-    
-    $.ajax({
-        url: '/api/user/settings',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({settings: settings}),
-        success: function(response) {
-            console.log('Setting saved:', key, '=', value);
-        },
-        error: function() {
-            console.warn('Failed to save setting:', key);
-        }
-    });
-}
-
-function saveUserSettings(settings) {
-    // Update local cache
-    Object.assign(userSettings, settings);
-    
-    // Save to server
-    $.ajax({
-        url: '/api/user/settings',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({settings: settings}),
-        success: function(response) {
-            console.log('Settings saved:', settings);
-        },
-        error: function() {
-            console.warn('Failed to save settings:', settings);
-        }
-    });
-}
+// Use global settings functions directly - no local wrappers needed
+// All calls to saveUserSetting and saveUserSettings will use window.* functions
 
 </script>
 
