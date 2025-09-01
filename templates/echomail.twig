@@ -94,6 +94,11 @@
                                 <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">Oldest First</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">By Subject</a></li>
                                 <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">By Author</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleThreading()">
+                                    <i class="fas fa-project-diagram"></i>
+                                    <span id="threadingToggleText">Show Threaded</span>
+                                </a></li>
                             </ul>
                         </div>
                     </div>
@@ -311,6 +316,7 @@ let currentSort = 'date_desc';
 let currentMessageId = null;
 let currentFilter = 'all';
 let modalClosedByBackButton = false;
+let threadedView = false;
 
 $(document).ready(function() {
     loadEchoareas();
@@ -483,10 +489,13 @@ function loadMessages() {
         url += `/${encodeURIComponent(currentEchoarea)}`;
     }
     url += `?page=${currentPage}&sort=${currentSort}&filter=${currentFilter}`;
+    if (threadedView) {
+        url += '&threaded=true';
+    }
     
     $.get(url)
         .done(function(data) {
-            displayMessages(data.messages);
+            displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
             updateUnreadCount(data.unreadCount || 0);
         })
@@ -495,7 +504,7 @@ function loadMessages() {
         });
 }
 
-function displayMessages(messages) {
+function displayMessages(messages, isThreaded = false) {
     const container = $('#messagesContainer');
     let html = '';
     
@@ -530,18 +539,29 @@ function displayMessages(messages) {
             const readIcon = isRead ? '<i class="fas fa-envelope-open text-muted me-1" title="Read"></i>' : '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>';
             const shareIcon = isShared ? '<i class="fas fa-share-alt text-success me-1" title="Shared"></i>' : '';
             
+            // Threading support
+            const threadLevel = msg.thread_level || 0;
+            const replyCount = msg.reply_count || 0;
+            const isThreadRoot = msg.is_thread_root || false;
+            const threadPadding = threadLevel > 0 ? `style="padding-left: ${threadLevel * 20 + 8}px;"` : '';
+            const threadIcon = threadLevel > 0 ? '<i class="fas fa-reply me-1 text-muted" title="Reply"></i>' : '';
+            const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${replyCount} replies">${replyCount}</span>` : '';
+            
+            // Add thread-specific CSS classes
+            const threadClasses = isThreaded ? `thread-level-${threadLevel} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
+            
             html += `
-                <tr class="message-row ${readClass}" data-message-id="${msg.id}">
+                <tr class="message-row ${readClass} ${threadClasses}" data-message-id="${msg.id}">
                     <td class="message-checkbox d-none">
                         <div class="form-check">
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
                         </div>
                     </td>
-                    <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${readIcon}${shareIcon}${escapeHtml(msg.from_name)}
+                    <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" ${threadPadding}>
+                        ${threadIcon}${readIcon}${shareIcon}${escapeHtml(msg.from_name)}
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}
+                        ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
                     <td class="clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
@@ -612,6 +632,21 @@ function sortMessages(sortBy) {
 function refreshMessages() {
     loadMessages();
     showSuccess('Messages refreshed');
+}
+
+function toggleThreading() {
+    threadedView = !threadedView;
+    currentPage = 1; // Reset to first page when toggling
+    
+    // Update toggle text
+    const toggleText = $('#threadingToggleText');
+    if (threadedView) {
+        toggleText.text('Show Flat');
+    } else {
+        toggleText.text('Show Threaded');
+    }
+    
+    loadMessages();
 }
 
 function setFilter(filter) {
@@ -1464,6 +1499,98 @@ $(document).ready(function() {
     
     .modal-footer .btn {
         width: 100%;
+    }
+}
+
+/* Threading styles */
+.thread-root {
+    border-left: 3px solid #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.thread-reply {
+    position: relative;
+}
+
+.thread-level-1 {
+    border-left: 2px solid #6c757d;
+    background-color: rgba(108, 117, 125, 0.05);
+}
+
+.thread-level-2 {
+    border-left: 2px solid #28a745;
+    background-color: rgba(40, 167, 69, 0.05);
+}
+
+.thread-level-3 {
+    border-left: 2px solid #ffc107;
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+.thread-level-4, .thread-level-5, .thread-level-6, .thread-level-7, .thread-level-8, .thread-level-9 {
+    border-left: 2px solid #dc3545;
+    background-color: rgba(220, 53, 69, 0.05);
+}
+
+/* Threading connection lines */
+.thread-reply::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #dee2e6;
+}
+
+/* Thread root styling enhancement */
+.thread-root .message-subject {
+    font-weight: 500;
+}
+
+/* Reply badge styling */
+.thread-root .badge.bg-secondary {
+    background-color: #0d6efd !important;
+    font-size: 0.7em;
+}
+
+/* Hover effects for threads */
+.thread-root:hover {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+}
+
+.thread-reply:hover {
+    background-color: rgba(108, 117, 125, 0.1) !important;
+}
+
+/* Threading icons */
+.thread-reply .fa-reply {
+    color: #6c757d;
+    font-size: 0.8em;
+}
+
+/* Ensure proper spacing in threaded view */
+.thread-reply td {
+    vertical-align: middle;
+}
+
+/* Mobile threading adjustments */
+@media (max-width: 991.98px) {
+    .thread-level-1, .thread-level-2, .thread-level-3, 
+    .thread-level-4, .thread-level-5, .thread-level-6,
+    .thread-level-7, .thread-level-8, .thread-level-9 {
+        border-left-width: 1px;
+    }
+    
+    .thread-root {
+        border-left-width: 2px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    /* Reduce thread indentation on very small screens */
+    .message-from[style*="padding-left"] {
+        padding-left: 5px !important;
     }
 }
 </style>

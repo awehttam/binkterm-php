@@ -1036,7 +1036,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
-        $result = $handler->getEchomail(null, $page, null, $userId, $filter);
+        $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
+        $result = $handler->getEchomail(null, $page, null, $userId, $filter, $threaded);
         echo json_encode($result);
     });
     
@@ -1156,7 +1157,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
-        $result = $handler->getEchomail($echoarea, $page, null, $userId, $filter);
+        $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
+        $result = $handler->getEchomail($echoarea, $page, null, $userId, $filter, $threaded);
         echo json_encode($result);
     })->where(['echoarea' => '[A-Za-z0-9._-]+']);
     

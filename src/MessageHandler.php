@@ -107,7 +107,7 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    public function getEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false)
     {
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {
@@ -115,6 +115,11 @@ class MessageHandler
             $limit = $settings['messages_per_page'] ?? 25;
         } elseif ($limit === null) {
             $limit = 25; // Default fallback if no user ID
+        }
+
+        // If threaded view is requested, use the threading method
+        if ($threaded) {
+            return $this->getThreadedEchomail($echoareaTag, $page, $limit, $userId, $filter);
         }
 
         $offset = ($page - 1) * $limit;
@@ -714,7 +719,7 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INTO user_settings (user_id, messages_per_page) 
+                INSERT INTO user_settings (user_id, messages_per_page) 
                 VALUES (?, 25) ON CONFLICT DO NOTHING
             ");
             $insertStmt->execute([$userId]);
@@ -1462,5 +1467,273 @@ class MessageHandler
         $crc32 = sprintf('%08X', crc32($dataString));
         
         return $crc32;
+    }
+
+    /**
+     * Get threaded echomail messages using MSGID/REPLY relationships
+     */
+    public function getThreadedEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    {
+        // Get user's messages_per_page setting if limit not specified
+        if ($limit === null && $userId) {
+            $settings = $this->getUserSettings($userId);
+            $limit = $settings['messages_per_page'] ?? 25;
+        } elseif ($limit === null) {
+            $limit = 25; // Default fallback if no user ID
+        }
+
+        // Build the WHERE clause based on filter
+        $filterClause = "";
+        
+        if ($filter === 'unread' && $userId) {
+            $filterClause = " AND mrs.read_at IS NULL";
+        } elseif ($filter === 'read' && $userId) {
+            $filterClause = " AND mrs.read_at IS NOT NULL";
+        }
+
+        // Get all messages for the echoarea first
+        if ($echoareaTag) {
+            $stmt = $this->db->prepare("
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                WHERE ea.tag = ?{$filterClause}
+                ORDER BY em.date_received DESC
+            ");
+            $params = [$userId, $userId, $echoareaTag];
+            $stmt->execute($params);
+        } else {
+            $stmt = $this->db->prepare("
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                WHERE 1=1{$filterClause}
+                ORDER BY em.date_received DESC
+            ");
+            $params = [$userId, $userId];
+            $stmt->execute($params);
+        }
+        
+        $allMessages = $stmt->fetchAll();
+        
+        // Build threading relationships
+        $threads = $this->buildMessageThreads($allMessages);
+        
+        // Sort threads by most recent message in each thread
+        usort($threads, function($a, $b) {
+            $aLatest = $this->getLatestMessageInThread($a);
+            $bLatest = $this->getLatestMessageInThread($b);
+            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        });
+        
+        // Apply pagination to threads
+        $totalThreads = count($threads);
+        $offset = ($page - 1) * $limit;
+        $pagedThreads = array_slice($threads, $offset, $limit);
+        
+        // Flatten threads for display while maintaining structure
+        $messages = $this->flattenThreadsForDisplay($pagedThreads);
+        
+        // Get unread count
+        $unreadCount = 0;
+        if ($userId) {
+            foreach ($allMessages as $msg) {
+                if (!$msg['is_read']) {
+                    $unreadCount++;
+                }
+            }
+        }
+
+        // Clean message data for proper JSON encoding
+        $cleanMessages = [];
+        foreach ($messages as $message) {
+            $cleanMessages[] = $this->cleanMessageForJson($message);
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'threaded' => true,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $totalThreads,
+                'pages' => ceil($totalThreads / $limit)
+            ]
+        ];
+    }
+
+    /**
+     * Build message threads using MSGID/REPLY relationships
+     */
+    private function buildMessageThreads($messages)
+    {
+        $messagesByMsgId = [];
+        $messagesByReply = [];
+        $rootMessages = [];
+        
+        // Index messages by their MSGID and build reply relationships
+        foreach ($messages as $message) {
+            $msgId = $message['message_id'];
+            $messagesByMsgId[$msgId] = $message;
+            
+            // Extract REPLY from kludge lines
+            $replyTo = $this->extractReplyFromKludge($message['kludge_lines']);
+            
+            if ($replyTo) {
+                $messagesByReply[$replyTo][] = $message;
+                $message['reply_to_msgid'] = $replyTo;
+            } else {
+                // No REPLY found, this is a root message
+                $rootMessages[] = $message;
+            }
+        }
+        
+        // Build thread trees
+        $threads = [];
+        foreach ($rootMessages as $root) {
+            $thread = $this->buildThreadTree($root, $messagesByReply);
+            $threads[] = $thread;
+        }
+        
+        // Handle orphaned replies (replies that don't have parent messages)
+        foreach ($messagesByReply as $parentMsgId => $replies) {
+            if (!isset($messagesByMsgId[$parentMsgId])) {
+                // Parent not found, treat each orphaned reply as a separate thread
+                foreach ($replies as $orphan) {
+                    $thread = $this->buildThreadTree($orphan, $messagesByReply);
+                    $threads[] = $thread;
+                }
+            }
+        }
+        
+        return $threads;
+    }
+    
+    /**
+     * Recursively build a thread tree
+     */
+    private function buildThreadTree($message, $messagesByReply)
+    {
+        $msgId = $message['message_id'];
+        $thread = [
+            'message' => $message,
+            'replies' => []
+        ];
+        
+        if (isset($messagesByReply[$msgId])) {
+            foreach ($messagesByReply[$msgId] as $reply) {
+                $thread['replies'][] = $this->buildThreadTree($reply, $messagesByReply);
+            }
+            
+            // Sort replies by date
+            usort($thread['replies'], function($a, $b) {
+                return strtotime($a['message']['date_received']) - strtotime($b['message']['date_received']);
+            });
+        }
+        
+        return $thread;
+    }
+    
+    /**
+     * Extract REPLY MSGID from kludge lines
+     */
+    private function extractReplyFromKludge($kludgeLines)
+    {
+        if (empty($kludgeLines)) {
+            return null;
+        }
+        
+        // Look for ^AREPLY: line in kludge
+        $lines = explode("\n", $kludgeLines);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Check for REPLY kludge (starts with \x01 or ^A)
+            if (preg_match('/^\x01REPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+            // Also handle ^A notation (visible ^A character)
+            if (preg_match('/^\^AREPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+            // Also handle plain REPLY: without control character
+            if (preg_match('/^REPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get the latest message in a thread (recursively)
+     */
+    private function getLatestMessageInThread($thread)
+    {
+        $latest = $thread['message'];
+        
+        foreach ($thread['replies'] as $reply) {
+            $replyLatest = $this->getLatestMessageInThread($reply);
+            if (strtotime($replyLatest['date_received']) > strtotime($latest['date_received'])) {
+                $latest = $replyLatest;
+            }
+        }
+        
+        return $latest;
+    }
+    
+    /**
+     * Flatten threads for display while maintaining structure
+     */
+    private function flattenThreadsForDisplay($threads)
+    {
+        $flattened = [];
+        
+        foreach ($threads as $thread) {
+            $this->flattenThread($thread, $flattened, 0);
+        }
+        
+        return $flattened;
+    }
+    
+    /**
+     * Recursively flatten a thread
+     */
+    private function flattenThread($thread, &$flattened, $level)
+    {
+        // Add thread level and reply count info to message
+        $message = $thread['message'];
+        $message['thread_level'] = $level;
+        $message['reply_count'] = $this->countRepliesInThread($thread);
+        $message['is_thread_root'] = ($level == 0);
+        
+        $flattened[] = $message;
+        
+        // Add replies with increased level
+        foreach ($thread['replies'] as $reply) {
+            $this->flattenThread($reply, $flattened, $level + 1);
+        }
+    }
+    
+    /**
+     * Count total replies in a thread
+     */
+    private function countRepliesInThread($thread)
+    {
+        $count = count($thread['replies']);
+        
+        foreach ($thread['replies'] as $reply) {
+            $count += $this->countRepliesInThread($reply);
+        }
+        
+        return $count;
     }
 }
