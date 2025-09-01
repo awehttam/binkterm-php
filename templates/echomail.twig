@@ -317,10 +317,13 @@ let currentMessageId = null;
 let currentFilter = 'all';
 let modalClosedByBackButton = false;
 let threadedView = false;
+let userSettings = {};
 
 $(document).ready(function() {
-    loadEchoareas();
-    loadMessages();
+    loadUserSettings().then(function() {
+        loadEchoareas();
+        loadMessages();
+    });
     loadStats();
     loadFontSettings();
     
@@ -626,6 +629,10 @@ function changePage(page) {
 function sortMessages(sortBy) {
     currentSort = sortBy;
     currentPage = 1;
+    
+    // Save sort preference
+    saveUserSetting('default_sort', sortBy);
+    
     loadMessages();
 }
 
@@ -645,6 +652,9 @@ function toggleThreading() {
     } else {
         toggleText.text('Show Threaded');
     }
+    
+    // Save preference
+    saveUserSetting('threaded_view', threadedView);
     
     loadMessages();
 }
@@ -1304,6 +1314,79 @@ $(document).ready(function() {
         $('#revokeShareBtn').addClass('d-none');
     });
 });
+
+// User settings functions
+function loadUserSettings() {
+    return new Promise(function(resolve, reject) {
+        $.get('/api/user/settings')
+            .done(function(response) {
+                if (response.success && response.settings) {
+                    userSettings = response.settings;
+                    
+                    // Apply saved preferences
+                    if (userSettings.threaded_view !== undefined) {
+                        threadedView = userSettings.threaded_view;
+                        const toggleText = $('#threadingToggleText');
+                        if (threadedView) {
+                            toggleText.text('Show Flat');
+                        } else {
+                            toggleText.text('Show Threaded');
+                        }
+                    }
+                    
+                    if (userSettings.default_sort) {
+                        currentSort = userSettings.default_sort;
+                    }
+                }
+                resolve();
+            })
+            .fail(function() {
+                console.warn('Failed to load user settings, using defaults');
+                resolve(); // Don't block page load
+            });
+    });
+}
+
+function saveUserSetting(key, value) {
+    // Update local cache
+    userSettings[key] = value;
+    
+    // Save to server
+    const settings = {};
+    settings[key] = value;
+    
+    $.ajax({
+        url: '/api/user/settings',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({settings: settings}),
+        success: function(response) {
+            console.log('Setting saved:', key, '=', value);
+        },
+        error: function() {
+            console.warn('Failed to save setting:', key);
+        }
+    });
+}
+
+function saveUserSettings(settings) {
+    // Update local cache
+    Object.assign(userSettings, settings);
+    
+    // Save to server
+    $.ajax({
+        url: '/api/user/settings',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({settings: settings}),
+        success: function(response) {
+            console.log('Settings saved:', settings);
+        },
+        error: function() {
+            console.warn('Failed to save settings:', settings);
+        }
+    });
+}
 
 </script>
 

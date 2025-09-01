@@ -20,15 +20,33 @@
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">Messages</h6>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <input type="radio" class="btn-check" name="filter" id="all" value="all" checked>
-                        <label class="btn btn-outline-secondary" for="all">All</label>
-                        
-                        <input type="radio" class="btn-check" name="filter" id="unread" value="unread">
-                        <label class="btn btn-outline-secondary" for="unread">Unread</label>
-                        
-                        <input type="radio" class="btn-check" name="filter" id="sent" value="sent">
-                        <label class="btn btn-outline-secondary" for="sent">Sent</label>
+                    <div class="d-flex gap-2">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="filter" id="all" value="all" checked>
+                            <label class="btn btn-outline-secondary" for="all">All</label>
+                            
+                            <input type="radio" class="btn-check" name="filter" id="unread" value="unread">
+                            <label class="btn btn-outline-secondary" for="unread">Unread</label>
+                            
+                            <input type="radio" class="btn-check" name="filter" id="sent" value="sent">
+                            <label class="btn btn-outline-secondary" for="sent">Sent</label>
+                        </div>
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="fas fa-sort"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">Newest First</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">Oldest First</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">By Subject</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">By Author</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleThreading()">
+                                    <i class="fas fa-project-diagram"></i>
+                                    <span id="threadingToggleText">Show Threaded</span>
+                                </a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -122,11 +140,16 @@ window.systemAddress = '{{ system_address }}';
 window.currentUser = {{ current_user|json_encode|raw }};
 let currentPage = 1;
 let currentFilter = 'all';
+let currentSort = 'date_desc';
 let currentMessageId = null;
 let modalClosedByBackButton = false;
+let threadedView = false;
+let userSettings = {};
 
 $(document).ready(function() {
-    loadMessages();
+    loadUserSettings().then(function() {
+        loadMessages();
+    });
     loadStats();
     loadFontSettings();
     
@@ -176,14 +199,17 @@ $(document).ready(function() {
 function loadMessages() {
     showLoading('#messagesContainer');
     
-    let url = `/api/messages/netmail?page=${currentPage}`;
+    let url = `/api/messages/netmail?page=${currentPage}&sort=${currentSort}`;
     if (currentFilter !== 'all') {
         url += `&filter=${currentFilter}`;
+    }
+    if (threadedView) {
+        url += '&threaded=true';
     }
     
     $.get(url)
         .done(function(data) {
-            displayMessages(data.messages);
+            displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
         })
         .fail(function() {
@@ -191,7 +217,7 @@ function loadMessages() {
         });
 }
 
-function displayMessages(messages) {
+function displayMessages(messages, isThreaded = false) {
     const container = $('#messagesContainer');
     let html = '';
     
@@ -219,18 +245,29 @@ function displayMessages(messages) {
             const isSent = (msg.user_id && currentUserId && msg.user_id == currentUserId);
             const rowClass = isUnread ? 'table-light' : '';
             
+            // Threading support
+            const threadLevel = msg.thread_level || 0;
+            const replyCount = msg.reply_count || 0;
+            const isThreadRoot = msg.is_thread_root || false;
+            const threadPadding = threadLevel > 0 ? `style="padding-left: ${threadLevel * 20 + 8}px;"` : '';
+            const threadIcon = threadLevel > 0 ? '<i class="fas fa-reply me-1 text-muted" title="Reply"></i>' : '';
+            const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${replyCount} replies">${replyCount}</span>` : '';
+            
+            // Add thread-specific CSS classes
+            const threadClasses = isThreaded ? `thread-level-${threadLevel} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
+            
             html += `
-                <tr class="${rowClass} message-row" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                <tr class="${rowClass} message-row ${threadClasses}" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                     <td class="text-center">
                         ${isUnread ? '<i class="fas fa-envelope text-primary" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted" title="Read"></i>'}
                     </td>
-                    <td>
-                        <strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
+                    <td ${threadPadding}>
+                        ${threadIcon}<strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
                         <br>
                         <small class="text-muted">${isSent ? 'Sent' : 'Received'}</small>
                     </td>
                     <td>
-                        ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || '(No Subject)')}</span>${isUnread ? '</strong>' : ''}
+                        ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || '(No Subject)')}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
                         <br>
                         <small class="text-muted">
                             <span class="badge bg-secondary">NETMAIL</span>
@@ -529,6 +566,107 @@ function loadFontSettings() {
             console.log('Failed to load font settings, using defaults');
         });
 }
+
+function sortMessages(sortBy) {
+    currentSort = sortBy;
+    currentPage = 1;
+    
+    // Save sort preference
+    saveUserSetting('default_sort', sortBy);
+    
+    loadMessages();
+}
+
+function toggleThreading() {
+    threadedView = !threadedView;
+    currentPage = 1; // Reset to first page when toggling
+    
+    // Update toggle text
+    const toggleText = $('#threadingToggleText');
+    if (threadedView) {
+        toggleText.text('Show Flat');
+    } else {
+        toggleText.text('Show Threaded');
+    }
+    
+    // Save preference (netmail uses separate setting from echomail)
+    saveUserSetting('netmail_threaded_view', threadedView);
+    
+    loadMessages();
+}
+
+// User settings functions
+function loadUserSettings() {
+    return new Promise(function(resolve, reject) {
+        $.get('/api/user/settings')
+            .done(function(response) {
+                if (response.success && response.settings) {
+                    userSettings = response.settings;
+                    
+                    // Apply saved preferences
+                    if (userSettings.netmail_threaded_view !== undefined) {
+                        threadedView = userSettings.netmail_threaded_view;
+                        const toggleText = $('#threadingToggleText');
+                        if (threadedView) {
+                            toggleText.text('Show Flat');
+                        } else {
+                            toggleText.text('Show Threaded');
+                        }
+                    }
+                    
+                    if (userSettings.default_sort) {
+                        currentSort = userSettings.default_sort;
+                    }
+                }
+                resolve();
+            })
+            .fail(function() {
+                console.warn('Failed to load user settings, using defaults');
+                resolve(); // Don't block page load
+            });
+    });
+}
+
+function saveUserSetting(key, value) {
+    // Update local cache
+    userSettings[key] = value;
+    
+    // Save to server
+    const settings = {};
+    settings[key] = value;
+    
+    $.ajax({
+        url: '/api/user/settings',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({settings: settings}),
+        success: function(response) {
+            console.log('Setting saved:', key, '=', value);
+        },
+        error: function() {
+            console.warn('Failed to save setting:', key);
+        }
+    });
+}
+
+function saveUserSettings(settings) {
+    // Update local cache
+    Object.assign(userSettings, settings);
+    
+    // Save to server
+    $.ajax({
+        url: '/api/user/settings',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({settings: settings}),
+        success: function(response) {
+            console.log('Settings saved:', settings);
+        },
+        error: function() {
+            console.warn('Failed to save settings:', settings);
+        }
+    });
+}
 </script>
 
 <style>
@@ -548,6 +686,98 @@ function loadFontSettings() {
 .message-row:hover {
     background-color: #e9ecef;
     opacity: 1 !important;
+}
+
+/* Threading styles */
+.thread-root {
+    border-left: 3px solid #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.thread-reply {
+    position: relative;
+}
+
+.thread-level-1 {
+    border-left: 2px solid #6c757d;
+    background-color: rgba(108, 117, 125, 0.05);
+}
+
+.thread-level-2 {
+    border-left: 2px solid #28a745;
+    background-color: rgba(40, 167, 69, 0.05);
+}
+
+.thread-level-3 {
+    border-left: 2px solid #ffc107;
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+.thread-level-4, .thread-level-5, .thread-level-6, .thread-level-7, .thread-level-8, .thread-level-9 {
+    border-left: 2px solid #dc3545;
+    background-color: rgba(220, 53, 69, 0.05);
+}
+
+/* Threading connection lines */
+.thread-reply::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #dee2e6;
+}
+
+/* Thread root styling enhancement */
+.thread-root .message-subject {
+    font-weight: 500;
+}
+
+/* Reply badge styling */
+.thread-root .badge.bg-secondary {
+    background-color: #0d6efd !important;
+    font-size: 0.7em;
+}
+
+/* Hover effects for threads */
+.thread-root:hover {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+}
+
+.thread-reply:hover {
+    background-color: rgba(108, 117, 125, 0.1) !important;
+}
+
+/* Threading icons */
+.thread-reply .fa-reply {
+    color: #6c757d;
+    font-size: 0.8em;
+}
+
+/* Ensure proper spacing in threaded view */
+.thread-reply td {
+    vertical-align: middle;
+}
+
+/* Mobile threading adjustments */
+@media (max-width: 991.98px) {
+    .thread-level-1, .thread-level-2, .thread-level-3, 
+    .thread-level-4, .thread-level-5, .thread-level-6,
+    .thread-level-7, .thread-level-8, .thread-level-9 {
+        border-left-width: 1px;
+    }
+    
+    .thread-root {
+        border-left-width: 2px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    /* Reduce thread indentation on very small screens */
+    td[style*="padding-left"] {
+        padding-left: 5px !important;
+    }
 }
 </style>
 {% endblock %}

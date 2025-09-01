@@ -11,7 +11,7 @@ class MessageHandler
         $this->db = Database::getInstance()->getPdo();
     }
 
-    public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all')
+    public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
     {
         $user = $this->getUserById($userId);
         if (!$user) {
@@ -22,6 +22,11 @@ class MessageHandler
         if ($limit === null) {
             $settings = $this->getUserSettings($userId);
             $limit = $settings['messages_per_page'] ?? 25;
+        }
+
+        // If threaded view is requested, use the threading method
+        if ($threaded) {
+            return $this->getThreadedNetmail($userId, $page, $limit, $filter);
         }
 
         // Get system's FidoNet address for sent message filtering
@@ -706,7 +711,7 @@ class MessageHandler
     /**
      * Get user settings including messages_per_page
      */
-    private function getUserSettings($userId)
+    public function getUserSettings($userId)
     {
         if (!$userId) {
             return ['messages_per_page' => 25]; // Default fallback
@@ -719,15 +724,88 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page) 
-                VALUES (?, 25) ON CONFLICT DO NOTHING
+                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size) 
+                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16) 
+                ON CONFLICT (user_id) DO UPDATE SET
+                    messages_per_page = COALESCE(user_settings.messages_per_page, 25),
+                    threaded_view = COALESCE(user_settings.threaded_view, FALSE),
+                    netmail_threaded_view = COALESCE(user_settings.netmail_threaded_view, FALSE),
+                    default_sort = COALESCE(user_settings.default_sort, 'date_desc'),
+                    font_family = COALESCE(user_settings.font_family, 'Courier New, Monaco, Consolas, monospace'),
+                    font_size = COALESCE(user_settings.font_size, 16)
             ");
             $insertStmt->execute([$userId]);
             
-            return ['messages_per_page' => 25];
+            return [
+                'messages_per_page' => 25,
+                'threaded_view' => false,
+                'netmail_threaded_view' => false,
+                'default_sort' => 'date_desc',
+                'font_family' => 'Courier New, Monaco, Consolas, monospace',
+                'font_size' => 16
+            ];
         }
 
         return $settings;
+    }
+
+    /**
+     * Update user settings
+     */
+    public function updateUserSettings($userId, $settings)
+    {
+        if (!$userId || empty($settings)) {
+            return false;
+        }
+
+        $allowedSettings = [
+            'messages_per_page' => 'INTEGER',
+            'threaded_view' => 'BOOLEAN',
+            'netmail_threaded_view' => 'BOOLEAN',
+            'default_sort' => 'STRING',
+            'font_family' => 'STRING',
+            'font_size' => 'INTEGER',
+            'timezone' => 'STRING',
+            'theme' => 'STRING',
+            'show_origin' => 'BOOLEAN',
+            'show_tearline' => 'BOOLEAN',
+            'auto_refresh' => 'BOOLEAN'
+        ];
+
+        $updates = [];
+        $params = [];
+
+        foreach ($settings as $key => $value) {
+            if (!isset($allowedSettings[$key])) {
+                continue; // Skip unknown settings
+            }
+
+            $updates[] = "$key = ?";
+            
+            // Type casting for proper database storage
+            switch ($allowedSettings[$key]) {
+                case 'INTEGER':
+                    $params[] = (int)$value;
+                    break;
+                case 'BOOLEAN':
+                    $params[] = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'TRUE' : 'FALSE';
+                    break;
+                default:
+                    $params[] = $value;
+                    break;
+            }
+        }
+
+        if (empty($updates)) {
+            return false;
+        }
+
+        $params[] = $userId;
+
+        $sql = "UPDATE user_settings SET " . implode(', ', $updates) . " WHERE user_id = ?";
+        $stmt = $this->db->prepare($sql);
+        
+        return $stmt->execute($params);
     }
 
     /**
@@ -1735,5 +1813,110 @@ class MessageHandler
         }
         
         return $count;
+    }
+
+    /**
+     * Get threaded netmail messages using MSGID/REPLY relationships
+     */
+    public function getThreadedNetmail($userId, $page = 1, $limit = null, $filter = 'all')
+    {
+        $user = $this->getUserById($userId);
+        if (!$user) {
+            return ['messages' => [], 'pagination' => []];
+        }
+
+        // Get user's messages_per_page setting if limit not specified
+        if ($limit === null) {
+            $settings = $this->getUserSettings($userId);
+            $limit = $settings['messages_per_page'] ?? 25;
+        }
+
+        // Get system's FidoNet address for sent message filtering
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $systemAddress = $binkpConfig->getSystemAddress();
+        } catch (\Exception $e) {
+            $systemAddress = null;
+        }
+
+        // Build the WHERE clause based on filter
+        // Show messages where user is sender OR recipient
+        $whereClause = "WHERE (n.user_id = ? OR LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?))";
+        $params = [$userId, $user['username'], $user['real_name']];
+        
+        if ($filter === 'unread') {
+            $whereClause .= " AND mrs.read_at IS NULL";
+        } elseif ($filter === 'sent' && $systemAddress) {
+            // Show only messages sent by this user
+            $whereClause = "WHERE n.from_address = ? AND n.user_id = ?";
+            $params = [$systemAddress, $userId];
+        } elseif ($filter === 'received') {
+            // Show only messages received by this user (where they are the recipient)
+            $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.user_id != ?";
+            $params = [$user['username'], $user['real_name'], $userId];
+        }
+
+        // Get all messages first
+        $stmt = $this->db->prepare("
+            SELECT n.*, 
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
+            FROM netmail n
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+            $whereClause
+            ORDER BY n.date_received DESC
+        ");
+        
+        // Insert userId at the beginning for the LEFT JOIN, then add existing params
+        $allParams = [$userId];
+        foreach ($params as $param) {
+            $allParams[] = $param;
+        }
+        
+        $stmt->execute($allParams);
+        $allMessages = $stmt->fetchAll();
+        
+        // Build threading relationships
+        $threads = $this->buildMessageThreads($allMessages);
+        
+        // Sort threads by most recent message in each thread
+        usort($threads, function($a, $b) {
+            $aLatest = $this->getLatestMessageInThread($a);
+            $bLatest = $this->getLatestMessageInThread($b);
+            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        });
+        
+        // Apply pagination to threads
+        $totalThreads = count($threads);
+        $offset = ($page - 1) * $limit;
+        $pagedThreads = array_slice($threads, $offset, $limit);
+        
+        // Flatten threads for display while maintaining structure
+        $messages = $this->flattenThreadsForDisplay($pagedThreads);
+        
+        // Get unread count
+        $unreadCount = 0;
+        foreach ($allMessages as $msg) {
+            if (!$msg['is_read']) {
+                $unreadCount++;
+            }
+        }
+
+        // Clean message data for proper JSON encoding
+        $cleanMessages = [];
+        foreach ($messages as $message) {
+            $cleanMessages[] = $this->cleanMessageForJson($message);
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'threaded' => true,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $totalThreads,
+                'pages' => ceil($totalThreads / $limit)
+            ]
+        ];
     }
 }

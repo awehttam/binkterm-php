@@ -931,7 +931,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
-        $result = $handler->getNetmail($user['user_id'], $page, null, $filter);
+        $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
+        $result = $handler->getNetmail($user['user_id'], $page, null, $filter, $threaded);
         echo json_encode($result);
     });
     
@@ -1894,6 +1895,54 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $handler = new MessageHandler();
             $shares = $handler->getUserShares($userId);
             echo json_encode(['success' => true, 'shares' => $shares]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+    
+    // User settings API endpoints
+    SimpleRouter::get('/user/settings', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        header('Content-Type: application/json');
+        
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
+        try {
+            $handler = new MessageHandler();
+            $settings = $handler->getUserSettings($userId);
+            echo json_encode(['success' => true, 'settings' => $settings]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+    
+    SimpleRouter::post('/user/settings', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        header('Content-Type: application/json');
+        
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        if (!$input || !isset($input['settings'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid input']);
+            return;
+        }
+        
+        try {
+            $handler = new MessageHandler();
+            $result = $handler->updateUserSettings($userId, $input['settings']);
+            
+            if ($result) {
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Failed to update settings']);
+            }
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
