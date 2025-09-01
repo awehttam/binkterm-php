@@ -325,7 +325,6 @@ $(document).ready(function() {
         loadMessages();
     });
     loadStats();
-    loadFontSettings();
     
     // Initialize history state
     if (!history.state) {
@@ -1071,30 +1070,6 @@ function updateMobileAccordionText(selectedArea) {
     }
 }
 
-function loadFontSettings() {
-    $.get('/api/user/settings')
-        .done(function(data) {
-            const fontFamily = data.font_family || 'Courier New, Monaco, Consolas, monospace';
-            const fontSize = data.font_size || 16;
-            
-            // Apply font settings to message text
-            const css = `
-                .message-text, .message-text pre, .message-formatted {
-                    font-family: ${fontFamily} !important;
-                    font-size: ${fontSize}px !important;
-                }
-            `;
-            
-            // Remove existing font style if any
-            $('#user-font-styles').remove();
-            
-            // Add new font styles
-            $('<style id="user-font-styles">' + css + '</style>').appendTo('head');
-        })
-        .fail(function() {
-            console.log('Failed to load font settings, using defaults');
-        });
-}
 
 // Sharing functionality
 function showShareDialog(messageId) {

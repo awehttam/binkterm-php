@@ -235,6 +235,9 @@ function loadUserSettings() {
                     window.userSettings = response;
                     console.log('Loaded user settings (legacy format):', window.userSettings);
                 }
+                
+                // Apply font settings after loading
+                applyFontSettings();
                 resolve(window.userSettings);
             })
             .fail(function() {
@@ -249,6 +252,9 @@ function loadUserSettings() {
                     font_family: 'Courier New, Monaco, Consolas, monospace',
                     font_size: 16
                 };
+                
+                // Apply font settings after loading defaults
+                applyFontSettings();
                 resolve(window.userSettings);
             });
     });
@@ -257,6 +263,11 @@ function loadUserSettings() {
 function saveUserSetting(key, value) {
     // Update local cache
     window.userSettings[key] = value;
+    
+    // Apply font settings if font-related setting changed
+    if (key === 'font_family' || key === 'font_size') {
+        applyFontSettings();
+    }
     
     // Save to server
     const settings = {};
@@ -280,6 +291,11 @@ function saveUserSettings(settings) {
     // Update local cache
     Object.assign(window.userSettings, settings);
     
+    // Apply font settings if any font-related settings changed
+    if (settings.hasOwnProperty('font_family') || settings.hasOwnProperty('font_size')) {
+        applyFontSettings();
+    }
+    
     // Save to server
     return $.ajax({
         url: '/api/user/settings',
@@ -293,6 +309,43 @@ function saveUserSettings(settings) {
             console.warn('Failed to save settings');
         }
     });
+}
+
+// Apply font settings to message display areas
+function applyFontSettings() {
+    if (!window.userSettings) return;
+    
+    const fontFamily = window.userSettings.font_family || 'Courier New, Monaco, Consolas, monospace';
+    const fontSize = window.userSettings.font_size || 16;
+    
+    // Remove existing font style if present
+    $('#dynamicFontStyles').remove();
+    
+    // Apply font settings to message text and compose areas
+    const css = `
+        .message-text, .message-text pre, .message-formatted {
+            font-family: ${fontFamily} !important;
+            font-size: ${fontSize}px !important;
+        }
+        .message-content {
+            font-family: ${fontFamily} !important;
+            font-size: ${fontSize}px !important;
+        }
+        #messageText {
+            font-family: ${fontFamily} !important;
+            font-size: ${fontSize}px !important;
+        }
+        .message-text code,
+        #dashboardMessageContent .message-text,
+        #dashboardMessageContent .message-text pre,
+        #dashboardMessageContent .message-text code,
+        #dashboardKludgeContainer pre {
+            font-family: ${fontFamily} !important;
+            font-size: ${fontSize}px !important;
+        }
+    `;
+    
+    $('<style>').prop('type', 'text/css').prop('id', 'dynamicFontStyles').html(css).appendTo('head');
 }
 
 // Authentication functions

@@ -155,8 +155,7 @@ $(document).ready(function() {
     const messageType = $('#messageType').val();
     const replyToId = $('#replyToId').val();
     
-    // Load font settings for textarea
-    loadFontSettings();
+    // Font settings will be applied automatically by global settings
     
     // Load echo areas for echomail
     if (messageType === 'echomail') {
@@ -334,29 +333,5 @@ function saveDraft(silent = false) {
     });
 }
 
-function loadFontSettings() {
-    $.get('/api/user/settings')
-        .done(function(data) {
-            const fontFamily = data.font_family || 'Courier New, Monaco, Consolas, monospace';
-            const fontSize = data.font_size || 16;
-            
-            // Apply font settings to message textarea
-            const css = `
-                #messageText {
-                    font-family: ${fontFamily} !important;
-                    font-size: ${fontSize}px !important;
-                }
-            `;
-            
-            // Remove existing font style if any
-            $('#compose-font-styles').remove();
-            
-            // Add new font styles
-            $('<style id="compose-font-styles">' + css + '</style>').appendTo('head');
-        })
-        .fail(function() {
-            console.log('Failed to load font settings, using defaults');
-        });
-}
 </script>
 {% endblock %}
