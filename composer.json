@@ -1,6 +1,6 @@
 {
     "name": "binkterm-php/fidonet-web",
-    "version": "1.4.2",
+    "version": "1.4.5",
     "description": "Modern web interface for Fidonet messaging with binkd integration",
     "type": "project",
     "require": {

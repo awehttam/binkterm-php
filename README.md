@@ -26,15 +26,14 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 - **Message Composition** - Text editor with reply functionality
 - **Message Sharing** - Share echomail messages via secure web links with privacy controls
 - **Search Capabilities** - Full-text search across messages and echo areas
-- **Real-time Dashboard** - Live statistics and recent message activity
 - **Binkp Management** - Web-based uplink configuration and monitoring
 
 ### Native Binkp Protocol Support
 - **FTS-1026 Compliant** - Full (really?)  binkp/1.0 protocol implementation
 - **TCP/IP Connectivity** - Direct connections over internet (port 24554)
 - **Automated Scheduling** - Cron-style polling with configurable intervals
-- **File Transfer** - Reliable  packet exchange with resume support
-- **Password Authentication** - Secure uplink authentication
+- **File Transfer** - Reliable packet exchange with resume support (not FREQIT)
+- **Password Authentication** - Uplink authentication
 - **Connection Management** - Multiple concurrent connections with limits
 
 ### Command Line Tools
