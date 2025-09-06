@@ -147,6 +147,11 @@
                             <i class="fas fa-user"></i> To Me
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="setFilter('saved')" id="savedTab">
+                            <i class="fas fa-bookmark"></i> Saved Items
+                        </a>
+                    </li>
                 </ul>
             </div>
             <div class="card-body p-0">
@@ -603,9 +608,17 @@ function displayMessages(messages, isThreaded = false) {
                 ` (to: <span class="${isToCurrentUser ? 'text-green fw-bold' : ''}">${escapeHtml(msg.to_name)}</span>)` : '';
             const isRead = msg.is_read == 1;
             const isShared = msg.is_shared == 1;
+            const isSaved = msg.is_saved == 1;
             const readClass = isRead ? 'read' : 'unread';
             const readIcon = isRead ? '<i class="fas fa-envelope-open text-muted me-1" title="Read"></i>' : '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>';
             const shareIcon = isShared ? '<i class="fas fa-share-alt text-success me-1" title="Shared"></i>' : '';
+            const saveIcon = `<i class="fas fa-bookmark ${isSaved ? 'text-warning' : 'text-muted'} me-1 save-btn" 
+                                 data-message-id="${msg.id}" 
+                                 data-message-type="echomail" 
+                                 data-saved="${isSaved}" 
+                                 title="${isSaved ? 'Remove from saved' : 'Save for later'}" 
+                                 style="cursor: pointer;" 
+                                 onclick="toggleSaveMessage(${msg.id}, 'echomail', ${isSaved})"></i>`;
             
             // Threading support
             const threadLevel = msg.thread_level || 0;
@@ -625,7 +638,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${threadIcon}${readIcon}${shareIcon}${escapeHtml(msg.from_name)}
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}${escapeHtml(msg.from_name)}
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -743,6 +756,8 @@ function updateFilterTabs() {
         $('#readTab').addClass('active');
     } else if (currentFilter === 'tome') {
         $('#toMeTab').addClass('active');
+    } else if (currentFilter === 'saved') {
+        $('#savedTab').addClass('active');
     }
 }
 
@@ -930,6 +945,51 @@ function searchMessagesFromMobile() {
     const query = $('#mobileSearchInput').val().trim();
     $('#searchInput').val(query);
     searchMessages();
+}
+
+// Toggle save status of a message
+function toggleSaveMessage(messageId, messageType, isSaved) {
+    event.stopPropagation(); // Prevent triggering the row click
+    
+    const method = isSaved ? 'DELETE' : 'POST';
+    const url = `/messages/${messageType}/${messageId}/save`;
+    
+    $.ajax({
+        url: url,
+        type: method,
+        success: function(response) {
+            if (response.success) {
+                // Update the icon in the UI
+                const icon = $(`.save-btn[data-message-id="${messageId}"]`);
+                if (isSaved) {
+                    // Message was unsaved
+                    icon.removeClass('text-warning').addClass('text-muted');
+                    icon.attr('title', 'Save for later');
+                    icon.attr('data-saved', 'false');
+                    icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', false)`);
+                    showSuccess('Message removed from saved items');
+                } else {
+                    // Message was saved
+                    icon.removeClass('text-muted').addClass('text-warning');
+                    icon.attr('title', 'Remove from saved');
+                    icon.attr('data-saved', 'true');
+                    icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', true)`);
+                    showSuccess('Message saved for later');
+                }
+                
+                // If we're viewing saved messages, remove the message from view
+                if (isSaved && currentFilter === 'saved') {
+                    loadMessages();
+                }
+            } else {
+                showError(response.message || 'Failed to update save status');
+            }
+        },
+        error: function(xhr) {
+            const response = JSON.parse(xhr.responseText || '{}');
+            showError(response.error || 'Failed to update save status');
+        }
+    });
 }
 
 // Handle browser back/forward

@@ -144,17 +144,21 @@ class MessageHandler
                 $filterParams[] = $user['username'];
                 $filterParams[] = $user['real_name'];
             }
+        } elseif ($filter === 'saved' && $userId) {
+            $filterClause = " AND sav.id IS NOT NULL";
         }
         
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause}
                 ORDER BY CASE 
                     WHEN em.date_received > NOW() THEN 0 
@@ -162,7 +166,7 @@ class MessageHandler
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -175,9 +179,10 @@ class MessageHandler
                 SELECT COUNT(*) as total FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause}
             ");
-            $countParams = [$userId, $echoareaTag];
+            $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
@@ -186,11 +191,13 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
                 ORDER BY CASE 
                     WHEN em.date_received > NOW() THEN 0 
@@ -198,7 +205,7 @@ class MessageHandler
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId];
+            $params = [$userId, $userId, $userId];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -210,9 +217,10 @@ class MessageHandler
             $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM echomail em
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
             ");
-            $countParams = [$userId];
+            $countParams = [$userId, $userId];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
@@ -1598,6 +1606,8 @@ class MessageHandler
                 $filterParams[] = $user['username'];
                 $filterParams[] = $user['real_name'];
             }
+        } elseif ($filter === 'saved' && $userId) {
+            $filterClause = " AND sav.id IS NOT NULL";
         }
 
         // Get all messages for the echoarea first
@@ -1605,15 +1615,17 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause}
                 ORDER BY em.date_received DESC
             ");
-            $params = [$userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -1622,15 +1634,17 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
                 ORDER BY em.date_received DESC
             ");
-            $params = [$userId, $userId];
+            $params = [$userId, $userId, $userId];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }

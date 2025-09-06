@@ -1346,6 +1346,96 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
         }
     });
+
+    // Save message for later viewing
+    SimpleRouter::post('/messages/{type}/{id}/save', function($type, $id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        header('Content-Type: application/json');
+        
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(500);
+            echo json_encode(['error' => 'User ID not found in session']);
+            return;
+        }
+        
+        if (!in_array($type, ['echomail', 'netmail'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message type']);
+            return;
+        }
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            
+            // Insert saved message (ignore if already exists)
+            $stmt = $db->prepare("
+                INSERT INTO saved_messages (user_id, message_id, message_type, saved_at)
+                VALUES (?, ?, ?, NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO NOTHING
+            ");
+            
+            $result = $stmt->execute([$userId, (int)$id, $type]);
+            
+            if ($result) {
+                echo json_encode(['success' => true, 'message' => 'Message saved']);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to save message']);
+            }
+            
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+    });
+
+    // Unsave message
+    SimpleRouter::delete('/messages/{type}/{id}/save', function($type, $id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        header('Content-Type: application/json');
+        
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(500);
+            echo json_encode(['error' => 'User ID not found in session']);
+            return;
+        }
+        
+        if (!in_array($type, ['echomail', 'netmail'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message type']);
+            return;
+        }
+        
+        try {
+            $db = Database::getInstance()->getPdo();
+            
+            // Delete saved message
+            $stmt = $db->prepare("
+                DELETE FROM saved_messages 
+                WHERE user_id = ? AND message_id = ? AND message_type = ?
+            ");
+            
+            $result = $stmt->execute([$userId, (int)$id, $type]);
+            
+            if ($result && $stmt->rowCount() > 0) {
+                echo json_encode(['success' => true, 'message' => 'Message unsaved']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Message was not saved or already removed']);
+            }
+            
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+    });
     
     // Simple test endpoint  
     SimpleRouter::get('/test', function() {
