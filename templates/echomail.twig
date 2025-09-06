@@ -570,7 +570,11 @@ function displayMessages(messages, isThreaded = false) {
         `;
         
         messages.forEach(function(msg) {
-            const toInfo = msg.to_name && msg.to_name !== 'All' ? ` (to: ${escapeHtml(msg.to_name)})` : '';
+            // Check if message is addressed to current user
+            const currentUserName = '{{ user_name }}';
+            const isToCurrentUser = msg.to_name && msg.to_name === currentUserName;
+            const toInfo = msg.to_name && msg.to_name !== 'All' ? 
+                ` (to: <span class="${isToCurrentUser ? 'text-purple fw-bold' : ''}">${escapeHtml(msg.to_name)}</span>)` : '';
             const isRead = msg.is_read == 1;
             const isShared = msg.is_shared == 1;
             const readClass = isRead ? 'read' : 'unread';
@@ -1804,6 +1808,11 @@ function loadEchomailSettings() {
     .thread-reply .message-subject {
         padding-left: 0.5em;
     }
+}
+
+/* Purple text for messages addressed to current user */
+.text-purple {
+    color: #6f42c1 !important;
 }
 
 /* Threading icon styling */
