@@ -129,6 +129,7 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="#" onclick="setFilter('all')" id="allTab">
                             <i class="fas fa-list"></i> All Messages
+                            <span class="badge bg-secondary ms-1" id="allCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -140,16 +141,19 @@
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('read')" id="readTab">
                             <i class="far fa-envelope-open"></i> Read
+                            <span class="badge bg-success ms-1" id="readCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('tome')" id="toMeTab">
                             <i class="fas fa-user"></i> To Me
+                            <span class="badge bg-info ms-1" id="toMeCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('saved')" id="savedTab">
                             <i class="fas fa-bookmark"></i> Saved Items
+                            <span class="badge bg-warning ms-1" id="savedCount">0</span>
                         </a>
                     </li>
                 </ul>
@@ -568,6 +572,8 @@ function loadMessages() {
             displayMessages(data.messages, data.threaded || false);
             updatePagination(data.pagination);
             updateUnreadCount(data.unreadCount || 0);
+            // Refresh stats to get updated filter counts
+            loadStats();
         })
         .fail(function() {
             $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load messages</div>');
@@ -767,6 +773,14 @@ function updateFilterTabs() {
 
 function updateUnreadCount(count) {
     $('#unreadCount').text(count);
+}
+
+function updateFilterCounts(counts) {
+    $('#allCount').text(counts.all || 0);
+    $('#unreadCount').text(counts.unread || 0);
+    $('#readCount').text(counts.read || 0);
+    $('#toMeCount').text(counts.tome || 0);
+    $('#savedCount').text(counts.saved || 0);
 }
 
 function markEchomailAsRead(messageId) {
@@ -1170,6 +1184,11 @@ function loadStats() {
                 $('#totalAreas').text(data.areas || 0);
             } else {
                 $('#totalAreas').text('-');
+            }
+            
+            // Update filter counts if available
+            if (data.filter_counts) {
+                updateFilterCounts(data.filter_counts);
             }
         })
         .fail(function(xhr, status, error) {

@@ -1092,32 +1092,82 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         
         // Global echomail statistics
-        $totalStmt = $db->query("SELECT COUNT(*) as count FROM echomail");
+        $totalStmt = $db->query("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id WHERE ea.is_active = TRUE");
         $total = $totalStmt->fetch()['count'];
         
-        $recentStmt = $db->query("SELECT COUNT(*) as count FROM echomail WHERE date_received > NOW() - INTERVAL '1 day'");
+        $recentStmt = $db->query("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id WHERE ea.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'");
         $recent = $recentStmt->fetch()['count'];
         
         $areasStmt = $db->query("SELECT COUNT(*) as count FROM echoareas WHERE is_active = TRUE");
         $areas = $areasStmt->fetch()['count'];
         
-        // Unread echomail count for this user
+        // Filter counts for this user
+        $allCount = $total; // All messages is same as total
         $unreadCount = 0;
+        $readCount = 0;
+        $toMeCount = 0;
+        $savedCount = 0;
+        
         if ($userId) {
+            // Get user info for 'to me' filter
+            $userStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
+            $userStmt->execute([$userId]);
+            $userInfo = $userStmt->fetch();
+            
+            // Unread count
             $unreadStmt = $db->prepare("
                 SELECT COUNT(*) as count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE mrs.read_at IS NULL
+                WHERE ea.is_active = TRUE AND mrs.read_at IS NULL
             ");
             $unreadStmt->execute([$userId]);
             $unreadCount = $unreadStmt->fetch()['count'];
+            
+            // Read count
+            $readStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.is_active = TRUE AND mrs.read_at IS NOT NULL
+            ");
+            $readStmt->execute([$userId]);
+            $readCount = $readStmt->fetch()['count'];
+            
+            // To Me count
+            if ($userInfo) {
+                $toMeStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    WHERE ea.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                ");
+                $toMeStmt->execute([$userInfo['username'], $userInfo['real_name']]);
+                $toMeCount = $toMeStmt->fetch()['count'];
+            }
+            
+            // Saved count
+            $savedStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.is_active = TRUE AND sav.id IS NOT NULL
+            ");
+            $savedStmt->execute([$userId]);
+            $savedCount = $savedStmt->fetch()['count'];
         }
         
         echo json_encode([
             'total' => $total,
             'recent' => $recent,
             'areas' => $areas,
-            'unread' => $unreadCount
+            'unread' => $unreadCount,
+            'filter_counts' => [
+                'all' => $allCount,
+                'unread' => $unreadCount,
+                'read' => $readCount,
+                'tome' => $toMeCount,
+                'saved' => $savedCount
+            ]
         ]);
     });
     
@@ -1144,9 +1194,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $stmt->execute([$echoarea]);
         $stats = $stmt->fetch();
         
-        // Unread count for this echoarea and user
+        // Filter counts for this echoarea and user
+        $allCount = $stats['total']; // All messages is same as total
         $unreadCount = 0;
+        $readCount = 0;
+        $toMeCount = 0;
+        $savedCount = 0;
+        
         if ($userId) {
+            // Get user info for 'to me' filter
+            $userStmt = $db->prepare("SELECT username, real_name FROM users WHERE id = ?");
+            $userStmt->execute([$userId]);
+            $userInfo = $userStmt->fetch();
+            
+            // Unread count
             $unreadStmt = $db->prepare("
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
@@ -1155,13 +1216,51 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ");
             $unreadStmt->execute([$userId, $echoarea]);
             $unreadCount = $unreadStmt->fetch()['count'];
+            
+            // Read count
+            $readStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.tag = ? AND mrs.read_at IS NOT NULL
+            ");
+            $readStmt->execute([$userId, $echoarea]);
+            $readCount = $readStmt->fetch()['count'];
+            
+            // To Me count
+            if ($userInfo) {
+                $toMeStmt = $db->prepare("
+                    SELECT COUNT(*) as count FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    WHERE ea.tag = ? AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                ");
+                $toMeStmt->execute([$echoarea, $userInfo['username'], $userInfo['real_name']]);
+                $toMeCount = $toMeStmt->fetch()['count'];
+            }
+            
+            // Saved count
+            $savedStmt = $db->prepare("
+                SELECT COUNT(*) as count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.tag = ? AND sav.id IS NOT NULL
+            ");
+            $savedStmt->execute([$userId, $echoarea]);
+            $savedCount = $savedStmt->fetch()['count'];
         }
         
         echo json_encode([
             'echoarea' => $echoarea,
             'total' => $stats['total'],
             'recent' => $stats['recent'],
-            'unread' => $unreadCount
+            'unread' => $unreadCount,
+            'filter_counts' => [
+                'all' => $allCount,
+                'unread' => $unreadCount,
+                'read' => $readCount,
+                'tome' => $toMeCount,
+                'saved' => $savedCount
+            ]
         ]);
     })->where(['echoarea' => '[A-Za-z0-9._-]+']);
     
