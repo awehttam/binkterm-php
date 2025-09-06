@@ -1,5 +1,22 @@
 RewriteEngine On
 
+#RewriteCond %{REMOTE_ADDR} !^1\.2\.3\.4
+
+RewriteCond %{DOCUMENT_ROOT}/maint/ -d
+#RewriteCond %{SCRIPT_FILENAME} !yourip.php
+RewriteCond %{REQUEST_URI} !\.(jpe?g?|png|gif) [NC]
+RewriteCond %{DOCUMENT_ROOT}/maintenance.enable -f
+RewriteCond %{SCRIPT_FILENAME} !/maint/
+
+RewriteRule ^.*$ /maint/ [R=503,L]
+ErrorDocument 503 /maint/
+
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+
 # Handle trailing slashes
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} (.+)/$
