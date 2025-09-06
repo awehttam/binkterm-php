@@ -251,6 +251,10 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <div class="btn-group">
+                    <button type="button" class="btn btn-outline-warning" id="modalSaveButton">
+                        <i class="fas fa-bookmark"></i>
+                        <span id="modalSaveText">Save</span>
+                    </button>
                     <button type="button" class="btn btn-outline-info" id="shareButton">
                         <i class="fas fa-share-alt"></i>
                         Share
@@ -856,6 +860,15 @@ function displayMessageContent(message) {
                     <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
                 </div>
             </div>
+            <div class="row mt-2">
+                <div class="col-12">
+                    <i class="fas fa-bookmark modal-header-save-icon ${message.is_saved == 1 ? 'text-warning' : 'text-muted'}" 
+                       id="modalHeaderSaveIcon" 
+                       style="cursor: pointer;" 
+                       title="${message.is_saved == 1 ? 'Remove from saved' : 'Save for later'}"></i>
+                    ${message.is_shared == 1 ? '<i class="fas fa-share-alt text-success ms-2" title="Shared"></i>' : ''}
+                </div>
+            </div>
         </div>
         
         <div class="message-headers mb-3">
@@ -878,6 +891,9 @@ function displayMessageContent(message) {
     `;
     
     $('#messageContent').html(html);
+    
+    // Update save button state AFTER HTML is inserted
+    updateModalSaveButton(message);
     
     // Set up reply button
     $('#replyButton').show().off('click').on('click', function() {
@@ -975,6 +991,141 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
                     icon.attr('data-saved', 'true');
                     icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', true)`);
                     showSuccess('Message saved for later');
+                }
+                
+                // If we're viewing saved messages, remove the message from view
+                if (isSaved && currentFilter === 'saved') {
+                    loadMessages();
+                }
+            } else {
+                showError(response.message || 'Failed to update save status');
+            }
+        },
+        error: function(xhr) {
+            const response = JSON.parse(xhr.responseText || '{}');
+            showError(response.error || 'Failed to update save status');
+        }
+    });
+}
+
+// Update modal save button based on message save status
+function updateModalSaveButton(message) {
+    const saveBtn = $('#modalSaveButton');
+    const saveText = $('#modalSaveText');
+    const saveIcon = saveBtn.find('i');
+    
+    // Also update header save icon
+    const headerIcon = $('#modalHeaderSaveIcon');
+    
+    if (message.is_saved == 1) {
+        // Message is saved - show "Saved" button that will unsave when clicked
+        saveBtn.removeClass('btn-outline-warning').addClass('btn-warning');
+        saveIcon.removeClass('fa-bookmark').addClass('fa-bookmark');
+        saveText.text('Saved');
+        saveBtn.attr('title', 'Remove from saved');
+        
+        // Update header icon
+        headerIcon.removeClass('text-muted').addClass('text-warning');
+        headerIcon.attr('title', 'Remove from saved');
+        
+        // Click handlers to UNSAVE (isSaved = true)
+        saveBtn.off('click').on('click', function() {
+            toggleSaveMessageModal(message.id, 'echomail', true);
+        });
+        headerIcon.off('click').on('click', function() {
+            toggleSaveMessageModal(message.id, 'echomail', true);
+        });
+    } else {
+        // Message is not saved - show "Save" button that will save when clicked
+        saveBtn.removeClass('btn-warning').addClass('btn-outline-warning');
+        saveIcon.removeClass('fa-bookmark').addClass('fa-bookmark');
+        saveText.text('Save');
+        saveBtn.attr('title', 'Save for later');
+        
+        // Update header icon
+        headerIcon.removeClass('text-warning').addClass('text-muted');
+        headerIcon.attr('title', 'Save for later');
+        
+        // Click handlers to SAVE (isSaved = false)
+        saveBtn.off('click').on('click', function() {
+            toggleSaveMessageModal(message.id, 'echomail', false);
+        });
+        headerIcon.off('click').on('click', function() {
+            toggleSaveMessageModal(message.id, 'echomail', false);
+        });
+    }
+}
+
+// Toggle save status from modal
+function toggleSaveMessageModal(messageId, messageType, isSaved) {
+    const method = isSaved ? 'DELETE' : 'POST';
+    const url = `/api/messages/${messageType}/${messageId}/save`;
+    
+    $.ajax({
+        url: url,
+        type: method,
+        success: function(response) {
+            if (response.success) {
+                // Update modal button and header icon
+                const saveBtn = $('#modalSaveButton');
+                const saveText = $('#modalSaveText');
+                const saveIcon = saveBtn.find('i');
+                const headerIcon = $('#modalHeaderSaveIcon');
+                
+                if (isSaved) {
+                    // Message was unsaved
+                    saveBtn.removeClass('btn-warning').addClass('btn-outline-warning');
+                    saveText.text('Save');
+                    saveBtn.attr('title', 'Save for later');
+                    
+                    // Update header icon
+                    headerIcon.removeClass('text-warning').addClass('text-muted');
+                    headerIcon.attr('title', 'Save for later');
+                    
+                    showSuccess('Message removed from saved items');
+                    
+                    // Update click handlers for next time
+                    saveBtn.off('click').on('click', function() {
+                        toggleSaveMessageModal(messageId, messageType, false);
+                    });
+                    headerIcon.off('click').on('click', function() {
+                        toggleSaveMessageModal(messageId, messageType, false);
+                    });
+                } else {
+                    // Message was saved
+                    saveBtn.removeClass('btn-outline-warning').addClass('btn-warning');
+                    saveText.text('Saved');
+                    saveBtn.attr('title', 'Remove from saved');
+                    
+                    // Update header icon
+                    headerIcon.removeClass('text-muted').addClass('text-warning');
+                    headerIcon.attr('title', 'Remove from saved');
+                    
+                    showSuccess('Message saved for later');
+                    
+                    // Update click handlers for next time
+                    saveBtn.off('click').on('click', function() {
+                        toggleSaveMessageModal(messageId, messageType, true);
+                    });
+                    headerIcon.off('click').on('click', function() {
+                        toggleSaveMessageModal(messageId, messageType, true);
+                    });
+                }
+                
+                // Update the corresponding row icon in the message list
+                const icon = $(`.save-btn[data-message-id="${messageId}"]`);
+                if (icon.length) {
+                    if (isSaved) {
+                        icon.removeClass('text-warning').addClass('text-muted');
+                        icon.attr('title', 'Save for later');
+                        icon.attr('data-saved', 'false');
+                        icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', false)`);
+                    } else {
+                        icon.removeClass('text-muted').addClass('text-warning');
+                        icon.attr('title', 'Remove from saved');
+                        icon.attr('data-saved', 'true');
+                        icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', true)`);
+                    }
                 }
                 
                 // If we're viewing saved messages, remove the message from view

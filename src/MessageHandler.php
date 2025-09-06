@@ -285,12 +285,16 @@ class MessageHandler
         } else {
             // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 WHERE em.id = ?
             ");
-            $stmt->execute([$messageId]);
+            $stmt->execute([$userId, $userId, $messageId]);
         }
         
         $message = $stmt->fetch();

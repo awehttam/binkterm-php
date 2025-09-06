@@ -1171,8 +1171,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = $auth->requireAuth();
         
         header('Content-Type: application/json');
+        
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
         $handler = new MessageHandler();
-        $message = $handler->getMessage($id, 'echomail');
+        $message = $handler->getMessage($id, 'echomail', $userId);
         
         if ($message) {
             echo json_encode($message);
@@ -1210,8 +1214,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // URL decode the echoarea parameter to handle dots and special characters
         $echoarea = urldecode($echoarea);
         
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        
         $handler = new MessageHandler();
-        $message = $handler->getMessage($id, 'echomail');
+        $message = $handler->getMessage($id, 'echomail', $userId);
         
         if ($message) {
             echo json_encode($message);
