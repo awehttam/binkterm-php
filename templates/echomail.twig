@@ -952,7 +952,7 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
     event.stopPropagation(); // Prevent triggering the row click
     
     const method = isSaved ? 'DELETE' : 'POST';
-    const url = `/messages/${messageType}/${messageId}/save`;
+    const url = `/api/messages/${messageType}/${messageId}/save`;
     
     $.ajax({
         url: url,
