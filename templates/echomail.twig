@@ -17,9 +17,10 @@
     </button>
 </div>
 
-<!-- Mobile Echo Areas Accordion -->
+<!-- Mobile Controls -->
 <div class="d-lg-none mb-4">
-    <div class="accordion" id="mobileEchoAreasAccordion">
+    <!-- Mobile Echo Areas Accordion -->
+    <div class="accordion" id="mobileControlsAccordion">
         <div class="accordion-item">
             <h2 class="accordion-header" id="echoAreasHeading">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#echoAreasCollapse">
@@ -33,7 +34,7 @@
                     </span>
                 </button>
             </h2>
-            <div id="echoAreasCollapse" class="accordion-collapse collapse" data-bs-parent="#mobileEchoAreasAccordion">
+            <div id="echoAreasCollapse" class="accordion-collapse collapse" data-bs-parent="#mobileControlsAccordion">
                 <div class="accordion-body p-0">
                     <div style="max-height: 300px; overflow-y: auto;">
                         <div id="mobileEchoareasList">
@@ -43,6 +44,26 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Search Accordion -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="mobileSearchHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mobileSearchCollapse" aria-expanded="false">
+                    <i class="fas fa-search me-2"></i>
+                    Search Messages
+                </button>
+            </h2>
+            <div id="mobileSearchCollapse" class="accordion-collapse collapse" data-bs-parent="#mobileControlsAccordion">
+                <div class="accordion-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="mobileSearchInput" placeholder="Search messages...">
+                    </div>
+                    <button class="btn btn-outline-primary w-100" onclick="searchMessagesFromMobile()">
+                        <i class="fas fa-search"></i>
+                        Search
+                    </button>
                 </div>
             </div>
         </div>
@@ -389,8 +410,8 @@ $(document).ready(function() {
     // Initialize mobile accordion text
     updateMobileAccordionText(currentEchoarea);
     
-    // Search on enter key
-    $('#searchInput').on('keypress', function(e) {
+    // Search on enter key for both desktop and mobile
+    $('#searchInput, #mobileSearchInput').on('keypress', function(e) {
         if (e.which === 13) {
             searchMessages();
         }
@@ -874,7 +895,12 @@ function composeMessage(type, replyToId = null) {
 }
 
 function searchMessages() {
-    const query = $('#searchInput').val().trim();
+    // Get query from both desktop and mobile search inputs
+    let query = $('#searchInput').val().trim();
+    if (!query) {
+        query = $('#mobileSearchInput').val().trim();
+    }
+    
     if (query.length < 2) {
         showError('Please enter at least 2 characters to search');
         return;
@@ -891,10 +917,19 @@ function searchMessages() {
         .done(function(data) {
             displayMessages(data.messages);
             $('#pagination').empty();
+            // Collapse mobile search after searching
+            $('#mobileSearchCollapse').collapse('hide');
         })
         .fail(function() {
             showError('Search failed');
         });
+}
+
+function searchMessagesFromMobile() {
+    // Copy mobile search input to desktop input for consistency
+    const query = $('#mobileSearchInput').val().trim();
+    $('#searchInput').val(query);
+    searchMessages();
 }
 
 // Handle browser back/forward
