@@ -98,7 +98,9 @@ class WeatherReportGenerator
         
         foreach ($this->locations as $locationName => $coords) {
             $currentWeather = $this->getCurrentWeather($coords['lat'], $coords['lon']);
-            
+            if(!$currentWeather)
+                throw new Exception("Unable to getCurrentWeather");
+
             if ($currentWeather) {
                 $temp = round($currentWeather['main']['temp']);
                 $feelsLike = round($currentWeather['main']['feels_like']);
@@ -127,7 +129,10 @@ class WeatherReportGenerator
         $forecast = "5-DAY FORECAST\n" . str_repeat("=", 20) . "\n\n";
         
         foreach ($this->locations as $locationName => $coords) {
-            $forecast .= $this->getLocationForecast($locationName, $coords['lat'], $coords['lon']);
+            $res=$this->getLocationForecast($locationName, $coords['lat'], $coords['lon']);
+            if(!$res)
+                throw new Exception("Unable to getLocationForecast");
+            $forecast .= $res;
             $forecast .= "\n";
         }
         
@@ -154,7 +159,8 @@ class WeatherReportGenerator
         $data = $this->makeApiRequest($url);
         
         if (!$data || !isset($data['list'])) {
-            return "{$locationName}: Unable to retrieve forecast data\n";
+            throw new Exception("Unable to getLocationForecast");
+            //return "{$locationName}: Unable to retrieve forecast data\n";
         }
         
         $locationForecast = "{$locationName}:\n" . str_repeat("-", strlen($locationName) + 1) . "\n";
@@ -268,7 +274,7 @@ class WeatherReportGenerator
      */
     private function generateDemoCurrentConditions(): string 
     {
-        $conditions = "CURRENT CONDITIONS\n" . str_repeat("=", 20) . "\n\n";
+        $conditions = "DEMO CURRENT CONDITIONS\n" . str_repeat("=", 20) . "\n\n";
         
         $conditions .= "Vancouver: 18°C (Light rain)\n";
         $conditions .= "  Feels like 17°C, Humidity 78%, Wind 15.2 km/h\n";
@@ -378,6 +384,8 @@ class WeatherReportGenerator
     public function postWeatherReport(string $username = '', string $echoareas = 'LOCALTEST', string $toName = 'All', bool $demoMode = false): bool 
     {
         $report = $this->generateReport($demoMode);
+        if($report==false)
+            return false;
         $subject = "Pacific Northwest Weather Report - " . date('M j, Y');
         
         try {
