@@ -121,6 +121,11 @@
                             <i class="far fa-envelope-open"></i> Read
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="setFilter('tome')" id="toMeTab">
+                            <i class="fas fa-user"></i> To Me
+                        </a>
+                    </li>
                 </ul>
             </div>
             <div class="card-body p-0">
@@ -715,6 +720,8 @@ function updateFilterTabs() {
         $('#unreadTab').addClass('active');
     } else if (currentFilter === 'read') {
         $('#readTab').addClass('active');
+    } else if (currentFilter === 'tome') {
+        $('#toMeTab').addClass('active');
     }
 }
 

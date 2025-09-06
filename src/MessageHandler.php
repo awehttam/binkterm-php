@@ -137,6 +137,13 @@ class MessageHandler
             $filterClause = " AND mrs.read_at IS NULL";
         } elseif ($filter === 'read' && $userId) {
             $filterClause = " AND mrs.read_at IS NOT NULL";
+        } elseif ($filter === 'tome' && $userId) {
+            $user = $this->getUserById($userId);
+            if ($user) {
+                $filterClause = " AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))";
+                $filterParams[] = $user['username'];
+                $filterParams[] = $user['real_name'];
+            }
         }
         
         if ($echoareaTag) {
@@ -155,7 +162,12 @@ class MessageHandler
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $echoareaTag, $limit, $offset];
+            $params = [$userId, $userId, $echoareaTag];
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            $params[] = $limit;
+            $params[] = $offset;
             $stmt->execute($params);
             $messages = $stmt->fetchAll();
 
@@ -166,6 +178,9 @@ class MessageHandler
                 WHERE ea.tag = ?{$filterClause}
             ");
             $countParams = [$userId, $echoareaTag];
+            foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
@@ -183,7 +198,12 @@ class MessageHandler
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $limit, $offset];
+            $params = [$userId, $userId];
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            $params[] = $limit;
+            $params[] = $offset;
             $stmt->execute($params);
             $messages = $stmt->fetchAll();
 
@@ -193,6 +213,9 @@ class MessageHandler
                 WHERE 1=1{$filterClause}
             ");
             $countParams = [$userId];
+            foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
             $countStmt->execute($countParams);
         }
 
@@ -1562,11 +1585,19 @@ class MessageHandler
 
         // Build the WHERE clause based on filter
         $filterClause = "";
+        $filterParams = [];
         
         if ($filter === 'unread' && $userId) {
             $filterClause = " AND mrs.read_at IS NULL";
         } elseif ($filter === 'read' && $userId) {
             $filterClause = " AND mrs.read_at IS NOT NULL";
+        } elseif ($filter === 'tome' && $userId) {
+            $user = $this->getUserById($userId);
+            if ($user) {
+                $filterClause = " AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))";
+                $filterParams[] = $user['username'];
+                $filterParams[] = $user['real_name'];
+            }
         }
 
         // Get all messages for the echoarea first
@@ -1583,6 +1614,9 @@ class MessageHandler
                 ORDER BY em.date_received DESC
             ");
             $params = [$userId, $userId, $echoareaTag];
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
             $stmt->execute($params);
         } else {
             $stmt = $this->db->prepare("
@@ -1597,6 +1631,9 @@ class MessageHandler
                 ORDER BY em.date_received DESC
             ");
             $params = [$userId, $userId];
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
             $stmt->execute($params);
         }
         
