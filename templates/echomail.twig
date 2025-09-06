@@ -198,6 +198,14 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="Previous message (←)">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="Next message (→)">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
                 <h5 class="modal-title" id="messageSubject">Message</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -318,6 +326,8 @@ let currentFilter = 'all';
 let modalClosedByBackButton = false;
 let threadedView = false;
 let userSettings = {};
+let currentMessages = [];
+let currentMessageIndex = -1;
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
@@ -347,6 +357,29 @@ $(document).ready(function() {
         }
         modalClosedByBackButton = false;
     });
+    
+    // Add keyboard navigation for message modal
+    $(document).on('keydown', function(e) {
+        // Only handle keyboard shortcuts when the message modal is open
+        if ($('#messageModal').hasClass('show')) {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    navigateMessage(-1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    navigateMessage(1);
+                    break;
+                case 'Escape':
+                    // Let the default modal behavior handle this
+                    break;
+            }
+        }
+    });
+    
+    // Add touch/swipe navigation for message modal
+    setupModalSwipeNavigation();
     
     // Initialize mobile accordion text
     updateMobileAccordionText(currentEchoarea);
@@ -509,6 +542,9 @@ function loadMessages() {
 function displayMessages(messages, isThreaded = false) {
     const container = $('#messagesContainer');
     let html = '';
+    
+    // Store current messages for navigation
+    currentMessages = messages;
     
     if (messages.length === 0) {
         html = '<div class="text-center text-muted py-4">No messages found</div>';
@@ -705,6 +741,12 @@ function markEchomailAsRead(messageId) {
 function viewMessage(messageId) {
     currentMessageId = messageId;
     
+    // Find the current message index in the messages array
+    currentMessageIndex = currentMessages.findIndex(msg => msg.id == messageId);
+    
+    // Update navigation button states
+    updateNavigationButtons();
+    
     // Add history entry for mobile back button support
     if (!history.state || history.state.modal !== 'message') {
         history.pushState({modal: 'message', messageId: messageId}, '', '');
@@ -733,6 +775,8 @@ function viewMessage(messageId) {
     $.get(apiUrl)
         .done(function(data) {
             displayMessageContent(data);
+            // Auto-scroll to top of modal content
+            $('#messageModal .modal-body').scrollTop(0);
         })
         .fail(function() {
             $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
@@ -740,7 +784,7 @@ function viewMessage(messageId) {
 }
 
 function displayMessageContent(message) {
-    $('#messageSubject').text(message.subject || '(No Subject)');
+    updateModalTitle(message.subject);
     
     // Parse message to separate kludge lines from body
     const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
@@ -1066,6 +1110,161 @@ function updateMobileAccordionText(selectedArea) {
             textSpan.text('Viewing: All Messages');
         }
     }
+}
+
+function updateNavigationButtons() {
+    const prevBtn = $('#prevMessageBtn');
+    const nextBtn = $('#nextMessageBtn');
+    
+    // Disable/enable buttons based on current position
+    if (currentMessageIndex <= 0) {
+        prevBtn.prop('disabled', true);
+    } else {
+        prevBtn.prop('disabled', false);
+    }
+    
+    if (currentMessageIndex >= currentMessages.length - 1) {
+        nextBtn.prop('disabled', true);
+    } else {
+        nextBtn.prop('disabled', false);
+    }
+}
+
+function updateModalTitle(subject) {
+    const position = currentMessages.length > 0 ? `${currentMessageIndex + 1} of ${currentMessages.length}` : '';
+    const titleText = subject || '(No Subject)';
+    
+    if (position) {
+        $('#messageSubject').html(`${escapeHtml(titleText)} <small class="text-muted">(${position})</small>`);
+    } else {
+        $('#messageSubject').text(titleText);
+    }
+}
+
+function setupModalSwipeNavigation() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+    let touchEndY = 0;
+    let isDragging = false;
+    
+    const modal = document.getElementById('messageModal');
+    
+    // Touch start
+    modal.addEventListener('touchstart', function(e) {
+        // Only handle if modal is visible
+        if (!$('#messageModal').hasClass('show')) return;
+        
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        isDragging = false;
+    }, { passive: true });
+    
+    // Touch move - track dragging to avoid accidental swipes during scrolling
+    modal.addEventListener('touchmove', function(e) {
+        if (!$('#messageModal').hasClass('show')) return;
+        
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        
+        const deltaX = Math.abs(currentX - touchStartX);
+        const deltaY = Math.abs(currentY - touchStartY);
+        
+        // If we're moving more horizontally than vertically, we might be swiping
+        if (deltaX > deltaY && deltaX > 10) {
+            isDragging = true;
+        }
+    }, { passive: true });
+    
+    // Touch end - determine if it was a swipe
+    modal.addEventListener('touchend', function(e) {
+        if (!$('#messageModal').hasClass('show')) return;
+        
+        touchEndX = e.changedTouches[0].clientX;
+        touchEndY = e.changedTouches[0].clientY;
+        
+        handleSwipe();
+    }, { passive: true });
+    
+    function handleSwipe() {
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+        const absDeltaX = Math.abs(deltaX);
+        const absDeltaY = Math.abs(deltaY);
+        
+        // Minimum swipe distance (in pixels)
+        const minSwipeDistance = 50;
+        
+        // Must be more horizontal than vertical movement
+        // And must exceed minimum distance
+        if (absDeltaX > absDeltaY && absDeltaX > minSwipeDistance) {
+            if (deltaX > 0) {
+                // Swipe right - go to previous message
+                navigateMessage(-1);
+            } else {
+                // Swipe left - go to next message  
+                navigateMessage(1);
+            }
+        }
+        
+        // Reset values
+        touchStartX = 0;
+        touchStartY = 0;
+        touchEndX = 0;
+        touchEndY = 0;
+        isDragging = false;
+    }
+}
+
+function navigateMessage(direction) {
+    if (currentMessages.length === 0) return;
+    
+    const newIndex = currentMessageIndex + direction;
+    
+    // Check bounds
+    if (newIndex < 0 || newIndex >= currentMessages.length) {
+        return;
+    }
+    
+    // Get the new message
+    const newMessage = currentMessages[newIndex];
+    if (!newMessage) return;
+    
+    // Update current message info
+    currentMessageId = newMessage.id;
+    currentMessageIndex = newIndex;
+    
+    // Update navigation buttons
+    updateNavigationButtons();
+    
+    // Mark as read immediately
+    markEchomailAsRead(newMessage.id);
+    
+    // Show loading
+    $('#messageContent').html(`
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Loading message...
+        </div>
+    `);
+    
+    // Load the new message
+    let apiUrl;
+    if (currentEchoarea) {
+        apiUrl = `/api/messages/echomail/${encodeURIComponent(currentEchoarea)}/${newMessage.id}`;
+    } else {
+        apiUrl = `/api/messages/echomail/message/${newMessage.id}`;
+    }
+    
+    $.get(apiUrl)
+        .done(function(data) {
+            displayMessageContent(data);
+            // Auto-scroll to top of modal content
+            $('#messageModal .modal-body').scrollTop(0);
+        })
+        .fail(function() {
+            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+        });
 }
 
 
@@ -1617,6 +1816,95 @@ function loadEchomailSettings() {
 /* Enhanced threading icon visibility */
 .thread-reply .message-from .fa-reply {
     color: #0d6efd;
+}
+
+/* Message modal navigation buttons */
+.modal-header .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    min-width: 32px;
+}
+
+.modal-header .btn-sm:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.modal-header .btn-sm i {
+    font-size: 0.75rem;
+}
+
+/* Modal header layout improvements */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header .d-flex {
+    flex-shrink: 0;
+}
+
+.modal-title {
+    flex: 1;
+    text-align: center;
+    margin: 0 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Mobile modal navigation adjustments */
+@media (max-width: 576px) {
+    .modal-header .btn-sm {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.8rem;
+        min-width: 28px;
+    }
+    
+    .modal-header .btn-sm i {
+        font-size: 0.7rem;
+    }
+    
+    .modal-title {
+        font-size: 1rem;
+        margin: 0 0.5rem;
+    }
+}
+
+/* Touch/swipe improvements */
+.modal-dialog {
+    touch-action: pan-y; /* Allow vertical scrolling but enable horizontal swipe detection */
+}
+
+.modal-content {
+    overflow: hidden; /* Prevent content from extending beyond modal bounds during swipes */
+}
+
+/* Add a subtle hint for swipe functionality on touch devices */
+@media (pointer: coarse) {
+    .modal-header::after {
+        content: "← Swipe to navigate →";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.7rem;
+        color: #6c757d;
+        opacity: 0.7;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 1;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        animation: fadeInOut 4s ease-in-out;
+    }
+}
+
+@keyframes fadeInOut {
+    0%, 15%, 85%, 100% { opacity: 0; }
+    30%, 70% { opacity: 0.7; }
 }
 </style>
 
