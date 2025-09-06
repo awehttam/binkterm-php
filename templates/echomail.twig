@@ -525,8 +525,7 @@ function displayMessages(messages, isThreaded = false) {
                                 </div>
                             </th>
                             <th style="width: 25%">From</th>
-                            <th style="width: 45%">Subject</th>
-                            <th style="width: 15%">Echo Area</th>
+                            <th style="width: 60%">Subject</th>
                             <th colspan="2" style="width: 15%">Received</th>
 
                         </tr>
@@ -546,7 +545,6 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            const threadPadding = threadLevel > 0 ? `style="padding-left: ${threadLevel * 20 + 8}px;"` : '';
             const threadIcon = threadLevel > 0 ? '<i class="fas fa-reply me-1 text-muted" title="Reply"></i>' : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${replyCount} replies">${replyCount}</span>` : '';
             
@@ -560,15 +558,15 @@ function displayMessages(messages, isThreaded = false) {
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
                         </div>
                     </td>
-                    <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" ${threadPadding}>
+                    <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${threadIcon}${readIcon}${shareIcon}${escapeHtml(msg.from_name)}
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                        ${!currentEchoarea ? `<div class="mb-1">
+                            <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
+                        </div>` : ''}
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
-                    </td>
-                    <td class="clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
                     </td>
                     <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written date: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
                 </tr>
@@ -1329,6 +1327,12 @@ function loadEchomailSettings() {
     background-color: #f8f9fa;
 }
 
+/* Echoarea badge styling in subject column */
+.message-subject .badge {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
 .message-row.unread .message-from,
 .message-row.unread .message-subject {
     font-weight: 600;
@@ -1401,10 +1405,12 @@ function loadEchomailSettings() {
         font-size: 0.7rem;
     }
     
-    /* Stack message table columns better on very small screens */
-    .message-table th:nth-child(4),
-    .message-table td:nth-child(4) {
-        display: none;
+    /* Keep all columns visible since echoarea is now integrated into subject */
+    
+    /* Echoarea badge styling in message subject */
+    .message-subject .badge {
+        font-size: 0.6rem;
+        margin-bottom: 0.25rem;
     }
 }
 
@@ -1518,14 +1524,14 @@ function loadEchomailSettings() {
     }
 }
 
-/* Threading styles */
+/* Threading styles with colored left borders */
 .thread-root {
     border-left: 3px solid #0d6efd;
     background-color: rgba(13, 110, 253, 0.05);
 }
 
 .thread-reply {
-    position: relative;
+    background-color: rgba(108, 117, 125, 0.02);
 }
 
 .thread-level-1 {
@@ -1548,17 +1554,6 @@ function loadEchomailSettings() {
     background-color: rgba(220, 53, 69, 0.05);
 }
 
-/* Threading connection lines */
-.thread-reply::before {
-    content: '';
-    position: absolute;
-    left: -1px;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background-color: #dee2e6;
-}
-
 /* Thread root styling enhancement */
 .thread-root .message-subject {
     font-weight: 500;
@@ -1579,15 +1574,10 @@ function loadEchomailSettings() {
     background-color: rgba(108, 117, 125, 0.1) !important;
 }
 
-/* Threading icons */
-.thread-reply .fa-reply {
-    color: #6c757d;
-    font-size: 0.8em;
-}
-
-/* Ensure proper spacing in threaded view */
-.thread-reply td {
-    vertical-align: middle;
+/* Reply indentation */
+.thread-reply .message-from,
+.thread-reply .message-subject {
+    padding-left: 2em;
 }
 
 /* Mobile threading adjustments */
@@ -1601,13 +1591,32 @@ function loadEchomailSettings() {
     .thread-root {
         border-left-width: 2px;
     }
+    
+    /* Reduce reply padding on mobile */
+    .thread-reply .message-from,
+    .thread-reply .message-subject {
+        padding-left: 1em;
+    }
 }
 
 @media (max-width: 575.98px) {
-    /* Reduce thread indentation on very small screens */
-    .message-from[style*="padding-left"] {
-        padding-left: 5px !important;
+    /* Further reduce reply padding on very small screens */
+    .thread-reply .message-from,
+    .thread-reply .message-subject {
+        padding-left: 0.5em;
     }
+}
+
+/* Threading icon styling */
+.message-from .fa-reply {
+    color: #6c757d;
+    font-size: 0.85em;
+    margin-right: 0.25rem;
+}
+
+/* Enhanced threading icon visibility */
+.thread-reply .message-from .fa-reply {
+    color: #0d6efd;
 }
 </style>
 
