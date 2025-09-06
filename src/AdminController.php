@@ -27,7 +27,7 @@ class AdminController
         $sql = "
             SELECT id, username, email, real_name, fidonet_address, created_at, last_login, is_active, is_admin 
             FROM users 
-            WHERE username LIKE ? OR real_name LIKE ? OR email LIKE ? OR fidonet_address LIKE ?
+            WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
             ORDER BY created_at DESC 
             LIMIT ? OFFSET ?
         ";
@@ -38,7 +38,7 @@ class AdminController
 
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM users 
-            WHERE username LIKE ? OR real_name LIKE ? OR email LIKE ? OR fidonet_address LIKE ?
+            WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
         ");
         $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
         $total = $countStmt->fetch()['total'];

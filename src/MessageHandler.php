@@ -427,7 +427,7 @@ class MessageHandler
             }
             $stmt = $this->db->prepare("
                 SELECT * FROM netmail 
-                WHERE (subject LIKE ? OR message_text LIKE ? OR from_name LIKE ?) 
+                WHERE (subject ILIKE ? OR message_text ILIKE ? OR from_name ILIKE ?) 
                 AND user_id = ?
                 ORDER BY CASE 
                     WHEN date_received > NOW() THEN 0 
@@ -441,7 +441,7 @@ class MessageHandler
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
-                WHERE (em.subject LIKE ? OR em.message_text LIKE ? OR em.from_name LIKE ?)
+                WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
             ";
             
             $params = [$searchTerm, $searchTerm, $searchTerm];
