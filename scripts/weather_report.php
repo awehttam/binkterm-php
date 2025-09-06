@@ -1,3 +1,4 @@
+#!/usr/bin/php
 <?php
 
 // Include composer autoloader if available
