@@ -34,7 +34,7 @@
                                     <h4 id="echomailCount">0</h4>
                                     <p class="mb-0">
                                         <i class="fas fa-comments"></i>
-                                        New Echomail
+                                        Unread Echomail
                                     </p>
                                 </div>
                             </div>
@@ -126,13 +126,27 @@ function loadEchoareas() {
         .done(function(data) {
             let html = '';
             if (data.echoareas && data.echoareas.length > 0) {
+                // Add header row
+                html += `
+                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom mb-2">
+                        <div class="fw-bold text-muted small">Echo Area</div>
+                        <div class="fw-bold text-muted small">Unread&nbsp;&nbsp;Total</div>
+                    </div>
+                `;
+                
                 data.echoareas.forEach(function(area) {
+                    const unreadCount = area.unread_count || 0;
+                    const totalCount = area.message_count || 0;
+                    
                     html += `
                         <div class="d-flex justify-content-between align-items-center py-1">
                             <a href="/echomail/${area.tag}" class="text-decoration-none">
                                 ${area.tag}
                             </a>
-                            <span class="badge bg-secondary">${area.message_count || 0}</span>
+                            <div class="d-flex gap-1 align-items-center">
+                                <span class="badge ${unreadCount > 0 ? 'bg-warning text-dark' : 'bg-secondary'} text-center" style="min-width: 35px;">${unreadCount}</span>
+                                <span class="badge bg-secondary text-center" style="min-width: 35px;">${totalCount}</span>
+                            </div>
                         </div>
                     `;
                 });

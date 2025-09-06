@@ -668,11 +668,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadStmt->execute([$userId, $userId]);
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
         
-        $newEchomail = $db->query("SELECT COUNT(*) as count FROM echomail WHERE date_received > NOW() - INTERVAL '1 day'")->fetch()['count'] ?? 0;
+        // Unread echomail using message_read_status table (only from active echoareas)
+        $unreadEchomailStmt = $db->prepare("
+            SELECT COUNT(*) as count 
+            FROM echomail em
+            INNER JOIN echoareas e ON em.echoarea_id = e.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE
+        ");
+        $unreadEchomailStmt->execute([$userId]);
+        $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
+        
         
         echo json_encode([
             'unread_netmail' => $unreadNetmail,
-            'new_echomail' => $newEchomail
+            'new_echomail' => $unreadEchomail
         ]);
     });
     
@@ -708,20 +718,49 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         
         $filter = $_GET['filter'] ?? 'active';
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
         
         $db = Database::getInstance()->getPdo();
         
-        $sql = "SELECT id, tag, description, moderator, uplink_address, color, is_active, message_count, created_at FROM echoareas";
-        $params = [];
+        // Query with separate subqueries for total and unread counts
+        $sql = "SELECT 
+                    e.id, 
+                    e.tag, 
+                    e.description, 
+                    e.moderator, 
+                    e.uplink_address, 
+                    e.color, 
+                    e.is_active, 
+                    e.created_at,
+                    COALESCE(total_counts.message_count, 0) as message_count,
+                    COALESCE(unread_counts.unread_count, 0) as unread_count
+                FROM echoareas e
+                LEFT JOIN (
+                    SELECT echoarea_id, COUNT(*) as message_count
+                    FROM echomail 
+                    GROUP BY echoarea_id
+                ) total_counts ON e.id = total_counts.echoarea_id
+                LEFT JOIN (
+                    SELECT 
+                        em.echoarea_id,
+                        COUNT(*) as unread_count
+                    FROM echomail em
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    WHERE mrs.read_at IS NULL
+                    GROUP BY em.echoarea_id
+                ) unread_counts ON e.id = unread_counts.echoarea_id";
+        
+        $params = [$userId];
         
         if ($filter === 'active') {
-            $sql .= " WHERE is_active = TRUE";
+            $sql .= " WHERE e.is_active = TRUE";
         } elseif ($filter === 'inactive') {
-            $sql .= " WHERE is_active = FALSE";
+            $sql .= " WHERE e.is_active = FALSE";
         }
         // 'all' filter shows everything
         
-        $sql .= " ORDER BY tag";
+        $sql .= " ORDER BY e.tag";
         
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
