@@ -571,7 +571,7 @@ function displayMessages(messages, isThreaded = false) {
         
         messages.forEach(function(msg) {
             // Check if message is addressed to current user
-            const currentUserName = '{{ current_user.real_name or current_user.username }}';
+            const currentUserName = '{{ current_user.real_name }}';
             const isToCurrentUser = msg.to_name && msg.to_name === currentUserName;
             const toInfo = msg.to_name && msg.to_name !== 'All' ? 
                 ` (to: <span class="${isToCurrentUser ? 'text-purple fw-bold' : ''}">${escapeHtml(msg.to_name)}</span>)` : '';
