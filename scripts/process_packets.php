@@ -23,6 +23,10 @@ try {
     $processed = $processor->processInboundPackets();
     echo "Processed {$processed} inbound packets\n";
     
+    // Clean up old packet records (older than 6 months)
+    $cleaned = $processor->cleanupOldPackets();
+    echo "Cleaned up {$cleaned} old packet records\n";
+    
     // TODO: Process outbound queue (send pending messages)
     
     echo "Packet processing completed\n";

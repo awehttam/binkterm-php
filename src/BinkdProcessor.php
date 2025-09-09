@@ -462,7 +462,7 @@ class BinkdProcessor
                         $minutes = (int)$matches[3];
                         $totalMinutes = ($hours * 60) + $minutes;
                         $tzutcOffset = ($sign === '+') ? $totalMinutes : -$totalMinutes;
-                        error_log("DEBUG: Found TZUTC offset in netmail: {$tzutcLine} = {$tzutcOffset} minutes");
+                        //error_log("DEBUG: Found TZUTC offset in netmail: {$tzutcLine} = {$tzutcOffset} minutes");
                     }
                 }
                 
@@ -476,7 +476,7 @@ class BinkdProcessor
                     // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
                     if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        error_log("DEBUG: Extracted original author address from netmail MSGID: " . $originalAuthorAddress);
+                        //error_log("DEBUG: Extracted original author address from netmail MSGID: " . $originalAuthorAddress);
                     }
                 }
             }
@@ -502,6 +502,8 @@ class BinkdProcessor
             $messageId,
             $originalAuthorAddress
         ]);
+
+        error_log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
     }
 
     private function storeEchomail($message, $packetInfo = null)
@@ -565,7 +567,7 @@ class BinkdProcessor
                         $minutes = (int)$matches[3];
                         $totalMinutes = ($hours * 60) + $minutes;
                         $tzutcOffset = ($sign === '+') ? $totalMinutes : -$totalMinutes;
-                        error_log("DEBUG: Found TZUTC offset: {$tzutcLine} = {$tzutcOffset} minutes");
+                        //error_log("DEBUG: Found TZUTC offset: {$tzutcLine} = {$tzutcOffset} minutes");
                     }
                 }
                 
@@ -635,6 +637,8 @@ class BinkdProcessor
         // Update message count
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")
                  ->execute([$echoarea['id']]);
+
+        error_log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
     }
 
     private function getOrCreateEchoarea($tag)
@@ -661,11 +665,11 @@ class BinkdProcessor
         $dateStr = trim($dateStr);
         
         // Debug: Log the raw date string being parsed
-        error_log("DEBUG: Parsing Fidonet date: '$dateStr'");
+        //error_log("DEBUG: Parsing Fidonet date: '$dateStr'");
         
         // Handle malformed date format (missing day) - starts with month name
         if (preg_match('/^\s*(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
-            error_log("DEBUG: Malformed date pattern matched for '$dateStr'");
+            //error_log("DEBUG: Malformed date pattern matched for '$dateStr'");
             $monthName = $matches[1];
             $year2digit = (int)$matches[2]; // This is actually the year, not day
             $hour = (int)$matches[3];
@@ -688,7 +692,7 @@ class BinkdProcessor
             }
             
             $fullDateStr = "$day $monthName $year4digit $hour:$minute:$second";
-            error_log("DEBUG: Reconstructed malformed date '$dateStr' as '$fullDateStr'");
+            //error_log("DEBUG: Reconstructed malformed date '$dateStr' as '$fullDateStr'");
             $timestamp = strtotime($fullDateStr);
             if ($timestamp) {
                 $parsedDate = date('Y-m-d H:i:s', $timestamp);
@@ -698,7 +702,7 @@ class BinkdProcessor
         
         // Handle incomplete date format (missing year only) - "Aug 29  11:05:00" 
         if (preg_match('/^(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})$/', $dateStr, $matches)) {
-            error_log("DEBUG: Incomplete date pattern matched for '$dateStr'");
+            //error_log("DEBUG: Incomplete date pattern matched for '$dateStr'");
             $monthName = $matches[1];
             $day = (int)$matches[2];
             $hour = (int)$matches[3];
@@ -735,7 +739,7 @@ class BinkdProcessor
         
         // Handle full date format: "01 Jan 70  02:34:56" or "24 Aug 25  17:37:38"
         if (preg_match('/(\d{1,2})\s+(\w{3})\s+(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
-            error_log("DEBUG: Full date pattern matched for '$dateStr'");
+            //error_log("DEBUG: Full date pattern matched for '$dateStr'");
             $day = (int)$matches[1];
             $monthName = $matches[2];
             $year2digit = (int)$matches[3];
@@ -743,7 +747,7 @@ class BinkdProcessor
             $minute = (int)$matches[5];
             $second = (int)$matches[6];
             
-            error_log("DEBUG: Full date pattern matched - day: $day, month: $monthName, year2: $year2digit, time: $hour:$minute:$second");
+            //error_log("DEBUG: Full date pattern matched - day: $day, month: $monthName, year2: $year2digit, time: $hour:$minute:$second");
             
             // Convert 2-digit year to 4-digit using Fidonet convention
             if ($year2digit >= 80) {
@@ -753,11 +757,11 @@ class BinkdProcessor
             }
             
             $fullDateStr = "$day $monthName $year4digit $hour:$minute:$second";
-            error_log("DEBUG: Reconstructed full date: '$fullDateStr'");
+            //error_log("DEBUG: Reconstructed full date: '$fullDateStr'");
             $timestamp = strtotime($fullDateStr);
             if ($timestamp) {
                 $parsedDate = date('Y-m-d H:i:s', $timestamp);
-                error_log("DEBUG: Parsed to: '$parsedDate'");
+                //error_log("DEBUG: Parsed to: '$parsedDate'");
                 return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
@@ -787,10 +791,10 @@ class BinkdProcessor
             $dt = new \DateTime($dateString, new \DateTimeZone('UTC'));
             $dt->modify("-{$tzutcOffsetMinutes} minutes"); // Convert from sender's timezone to UTC
             $result = $dt->format('Y-m-d H:i:s');
-            error_log("DEBUG: Applied TZUTC offset {$tzutcOffsetMinutes}min: '{$dateString}' -> '{$result}'");
+  //          error_log("DEBUG: Applied TZUTC offset {$tzutcOffsetMinutes}min: '{$dateString}' -> '{$result}'");
             return $result;
         } catch (\Exception $e) {
-            error_log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
+//            error_log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
             return $dateString; // Return original date if offset application fails
         }
     }
@@ -1332,5 +1336,24 @@ class BinkdProcessor
         
         // Return the stored MSGID (format: "address hash")
         return $originalMessage['message_id'];
+    }
+
+    /**
+     * Clean up old packet records older than 6 months
+     * Returns the number of records deleted
+     */
+    public function cleanupOldPackets()
+    {
+        $stmt = $this->db->prepare("
+            DELETE FROM packets 
+            WHERE created_at < NOW() - INTERVAL '6 months'
+        ");
+        
+        $stmt->execute();
+        $deletedCount = $stmt->rowCount();
+        
+        error_log("[BINKD] Cleaned up {$deletedCount} old packet records");
+        
+        return $deletedCount;
     }
 }
