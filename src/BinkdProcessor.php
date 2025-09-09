@@ -471,8 +471,10 @@ class BinkdProcessor
                     $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
                     
                     // Extract original author address from MSGID
-                    // MSGID format: "MSGID: address serial" (e.g., "1:123/456 12345678")
-                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                    // MSGID formats: 
+                    // 1. Standard: "1:123/456 12345678"
+                    // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
+                    if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
                         error_log("DEBUG: Extracted original author address from netmail MSGID: " . $originalAuthorAddress);
                     }
@@ -544,8 +546,10 @@ class BinkdProcessor
                     $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
                     
                     // Extract original author address from MSGID
-                    // MSGID format: "MSGID: address serial" (e.g., "1:123/456 12345678")
-                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                    // MSGID formats: 
+                    // 1. Standard: "1:123/456 12345678"
+                    // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
+                    if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
                         //error_log("DEBUG: Extracted original author address from MSGID: " . $originalAuthorAddress);
                     }

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use BinktermPHP\Database\Database;
+use BinktermPHP\Database;
 use BinktermPHP\Binkd\BinkdProcessor;
 
 echo "MSGID Parsing Test\n";
@@ -9,7 +9,7 @@ echo "==================\n\n";
 
 try {
     // Initialize database
-    $db = Database::getInstance()->getPdo();
+    //$db = Database::getInstance()->getPdo();
     echo "✓ Database connection established\n";
     
     // Test MSGID parsing regex
@@ -18,12 +18,15 @@ try {
         "2:5020/1042.1 abcdef01", 
         "3:771/100 deadbeef",
         "1:123/456.789 98765432",
+        "244652.syncdata@1:103/705 2d1da177",
+
         "invalid_format"
     ];
     
     echo "\n1. Testing MSGID regex pattern:\n";
+    echo "   Testing original regex (standard format only):\n";
     foreach ($testMsgIds as $msgId) {
-        echo "   Testing: '$msgId' -> ";
+        echo "     '$msgId' -> ";
         if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $msgId, $matches)) {
             echo "✓ Address: {$matches[1]}\n";
         } else {
@@ -31,6 +34,19 @@ try {
         }
     }
     
+    echo "\n   Testing enhanced regex (both standard and alternate formats):\n";
+    foreach ($testMsgIds as $msgId) {
+        echo "     '$msgId' -> ";
+        // Enhanced regex to handle both formats:
+        // 1. Standard: "1:123/456 hash" 
+        // 2. Alternate: "serial.tag@1:123/456 hash"
+        if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $msgId, $matches)) {
+            echo "✓ Address: {$matches[1]}\n";
+        } else {
+            echo "✗ No match\n";
+        }
+    }
+    exit;
     // Test with sample netmail message with MSGID
     echo "\n2. Testing with sample netmail message:\n";
     $sampleMessage = [
