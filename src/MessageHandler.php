@@ -1485,6 +1485,15 @@ class MessageHandler
      */
     private function buildShareUrl($shareKey)
     {
+        $siteUrl = \BinktermPHP\Config::env('SITE_URL');
+        
+        if ($siteUrl) {
+            // Remove trailing slash if present
+            $siteUrl = rtrim($siteUrl, '/');
+            return "$siteUrl/shared/$shareKey";
+        }
+        
+        // Fallback to old protocol detection method if SITE_URL not configured
         $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         return "$protocol://$host/shared/$shareKey";
