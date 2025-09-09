@@ -446,6 +446,8 @@ class BinkdProcessor
         
         $lines = explode("\n", $messageText);
         $tzutcOffset = null;
+        $messageId = null;
+        $originalAuthorAddress = null;
         
         foreach ($lines as $line) {
             // Process kludge lines (lines starting with \x01) in netmail
@@ -463,12 +465,24 @@ class BinkdProcessor
                         error_log("DEBUG: Found TZUTC offset in netmail: {$tzutcLine} = {$tzutcOffset} minutes");
                     }
                 }
+                
+                // Extract MSGID for original author address
+                if (strpos($line, "\x01MSGID:") === 0) {
+                    $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
+                    
+                    // Extract original author address from MSGID
+                    // MSGID format: "MSGID: address serial" (e.g., "1:123/456 12345678")
+                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                        $originalAuthorAddress = $matches[1];
+                        error_log("DEBUG: Extracted original author address from netmail MSGID: " . $originalAuthorAddress);
+                    }
+                }
             }
         }
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?,  ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -482,7 +496,9 @@ class BinkdProcessor
             $message['subject'],
             $message['text'],
             $dateWritten,
-            $message['attributes']
+            $message['attributes'],
+            $messageId,
+            $originalAuthorAddress
         ]);
     }
 

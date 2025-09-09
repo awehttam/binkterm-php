@@ -417,6 +417,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
     // Handle new message parameters (from nodelist)
     $toAddress = $_GET['to'] ?? null;
     $toName = $_GET['to_name'] ?? null;
+    $subject = $_GET['subject'] ?? null;
     // Get system configuration for display
     try {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -443,14 +444,15 @@ SimpleRouter::get('/compose/{type}', function($type) {
         if ($originalMessage) {
             if ($type === 'netmail') {
                 $templateVars['reply_to_id'] = $replyId;
-                $templateVars['reply_to_address'] = $originalMessage['from_address'];
+                $templateVars['reply_to_address'] = $originalMessage['original_author_address'] ?: $originalMessage['from_address'];
                 $templateVars['reply_to_name'] = $originalMessage['from_name'];
                 $templateVars['reply_subject'] = 'Re: ' . ltrim($originalMessage['subject'] ?? '', 'Re: ');
                 
                 // Filter out kludge lines from the quoted message
                 $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
+                $replyToAddress = $originalMessage['original_author_address'] ?: $originalMessage['from_address'];
                 $templateVars['reply_text'] = "\n\n--- Original Message ---\n" . 
-                    "From: {$originalMessage['from_name']} <{$originalMessage['from_address']}>\n" .
+                    "From: {$originalMessage['from_name']} <{$replyToAddress}>\n" .
                     "Date: {$originalMessage['date_written']}\n" .
                     "Subject: {$originalMessage['subject']}\n\n" .
                     "> " . str_replace("\n", "\n> ", $cleanMessageText);
@@ -488,6 +490,11 @@ SimpleRouter::get('/compose/{type}', function($type) {
         if ($toName) {
             $templateVars['reply_to_name'] = $toName;
         }
+    }
+    
+    // Handle subject parameter independently (for user-click-to-compose functionality)
+    if ($subject && $type === 'netmail' && !$replyId) {
+        $templateVars['reply_subject'] = $subject;
     }
     
     // Ensure reply_to_name has a safe default value and add a processed version

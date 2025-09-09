@@ -261,7 +261,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isUnread ? '<i class="fas fa-envelope text-primary" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted" title="Read"></i>'}
                     </td>
                     <td ${threadPadding}>
-                        ${threadIcon}<strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
+                        ${threadIcon}<strong><a href="#" onclick="event.stopPropagation(); composeMessageToUser('${escapeHtml(isSent ? msg.to_name : msg.from_name)}', '${escapeHtml(isSent ? msg.to_address : (msg.original_author_address || msg.from_address))}', '${escapeHtml(msg.subject || '')}'); return false;" class="text-decoration-none">${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</a></strong>
                         <br>
                         <small class="text-muted">${isSent ? 'Sent' : 'Received'}</small>
                     </td>
@@ -430,6 +430,20 @@ function displayMessageContent(message) {
 
 function composeMessage(type, replyToId = null) {
     window.location.href = `/compose/netmail${replyToId ? '?reply=' + replyToId : ''}`;
+}
+
+function composeMessageToUser(toName, toAddress, subject) {
+    // Build URL with parameters for composing to a specific user
+    const params = new URLSearchParams();
+    params.set('to_name', toName);
+    params.set('to', toAddress);
+    if (subject && subject.trim()) {
+        // If subject doesn't start with "Re:", add it
+        const replySubject = subject.toLowerCase().startsWith('re:') ? subject : 'Re: ' + subject;
+        params.set('subject', replySubject);
+    }
+    
+    window.location.href = `/compose/netmail?${params.toString()}`;
 }
 
 function searchMessages() {

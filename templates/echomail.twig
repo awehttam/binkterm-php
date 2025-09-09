@@ -684,7 +684,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent(msg.from_address || '')}&to_name=${encodeURIComponent(msg.from_name)}" class="text-decoration-none" onclick="event.stopPropagation()" title="Send netmail to ${escapeHtml(msg.from_name)}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent(msg.from_address || '')}&to_name=${encodeURIComponent(msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="Send netmail to ${escapeHtml(msg.from_name)}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
