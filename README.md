@@ -124,7 +124,9 @@ php -S localhost:8080
 ## Configuration
 
 ### Basic System Configuration
-Edit `config/binkp.json` to configure your system:
+Edit `config/binkp.json` to configure your system.
+
+ - sysop must match the sysop user's name otherwise netmail destined to 'sysop' will fail.
 
 ```json
 {

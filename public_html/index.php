@@ -2777,8 +2777,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $data = json_decode(file_get_contents('php://input'), true);
                 
                 // Debug logging
-                error_log("[ADDRESS_BOOK] Creating entry for user: " . print_r($user, true));
-                error_log("[ADDRESS_BOOK] Entry data: " . print_r($data, true));
+                //error_log("[ADDRESS_BOOK] Creating entry for user: " . print_r($user, true));
+                //error_log("[ADDRESS_BOOK] Entry data: " . print_r($data, true));
                 
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 if (!$user || !$userId) {
@@ -2790,7 +2790,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 
                 echo json_encode(['success' => true, 'entry_id' => $entryId]);
             } catch (Exception $e) {
-                error_log("[ADDRESS_BOOK] Error creating entry: " . $e->getMessage());
+                //error_log("[ADDRESS_BOOK] Error creating entry: " . $e->getMessage());
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
