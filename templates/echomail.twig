@@ -355,6 +355,42 @@
 </div>
 {% endblock %}
 
+{% block styles %}
+<style>
+/* Style for clickable from names in echomail */
+.message-from a {
+    color: #0d6efd !important;
+    font-weight: 500;
+    border-bottom: 1px dotted #0d6efd;
+    transition: all 0.2s ease;
+}
+
+.message-from a:hover {
+    color: #0a58ca !important;
+    border-bottom: 1px solid #0a58ca;
+    text-decoration: none !important;
+}
+
+/* Ensure the link stands out from the cell background */
+.message-row.read .message-from a {
+    color: #6c757d !important;
+}
+
+.message-row.read .message-from a:hover {
+    color: #495057 !important;
+}
+
+.message-row.unread .message-from a {
+    color: #0d6efd !important;
+    font-weight: 600;
+}
+
+.message-row.unread .message-from a:hover {
+    color: #0a58ca !important;
+}
+</style>
+{% endblock %}
+
 {% block scripts %}
 <script>
 let currentEchoarea = '{{ echoarea }}' || null;
@@ -648,7 +684,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}${escapeHtml(msg.from_name)}
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent(msg.from_address || '')}&to_name=${encodeURIComponent(msg.from_name)}" class="text-decoration-none" onclick="event.stopPropagation()" title="Send netmail to ${escapeHtml(msg.from_name)}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
