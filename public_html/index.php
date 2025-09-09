@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use BinktermPHP\AdminController;
+use BinktermPHP\AddressBookController;
 use BinktermPHP\MessageHandler;
 
 
@@ -2716,6 +2717,172 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } catch (Exception $e) {
             echo json_encode(['error' => $e->getMessage()]);
         }
+    });
+    
+    // Address Book API routes
+    SimpleRouter::group(['prefix' => '/address-book'], function() {
+        
+        // Get user's address book entries
+        SimpleRouter::get('/', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            header('Content-Type: application/json');
+            
+            try {
+                $search = $_GET['search'] ?? '';
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $entries = $addressBook->getUserEntries($userId, $search);
+                
+                echo json_encode(['success' => true, 'entries' => $entries]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+        
+        // Get specific address book entry
+        SimpleRouter::get('/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            header('Content-Type: application/json');
+            
+            try {
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $entry = $addressBook->getEntry($id, $userId);
+                
+                if ($entry) {
+                    echo json_encode(['success' => true, 'entry' => $entry]);
+                } else {
+                    http_response_code(404);
+                    echo json_encode(['success' => false, 'error' => 'Entry not found']);
+                }
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        })->where(['id' => '[0-9]+']);
+        
+        // Create new address book entry
+        SimpleRouter::post('/', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            header('Content-Type: application/json');
+            
+            try {
+                $data = json_decode(file_get_contents('php://input'), true);
+                
+                // Debug logging
+                error_log("[ADDRESS_BOOK] Creating entry for user: " . print_r($user, true));
+                error_log("[ADDRESS_BOOK] Entry data: " . print_r($data, true));
+                
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                if (!$user || !$userId) {
+                    throw new Exception('User ID not found in authentication data');
+                }
+                
+                $addressBook = new AddressBookController();
+                $entryId = $addressBook->createEntry($userId, $data);
+                
+                echo json_encode(['success' => true, 'entry_id' => $entryId]);
+            } catch (Exception $e) {
+                error_log("[ADDRESS_BOOK] Error creating entry: " . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+        
+        // Update address book entry
+        SimpleRouter::put('/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            header('Content-Type: application/json');
+            
+            try {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $success = $addressBook->updateEntry($id, $userId, $data);
+                
+                if ($success) {
+                    echo json_encode(['success' => true]);
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Failed to update entry']);
+                }
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        })->where(['id' => '[0-9]+']);
+        
+        // Delete address book entry
+        SimpleRouter::delete('/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            header('Content-Type: application/json');
+            
+            try {
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $success = $addressBook->deleteEntry($id, $userId);
+                
+                if ($success) {
+                    echo json_encode(['success' => true]);
+                } else {
+                    http_response_code(404);
+                    echo json_encode(['success' => false, 'error' => 'Entry not found']);
+                }
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        })->where(['id' => '[0-9]+']);
+        
+        // Search address book for autocomplete
+        SimpleRouter::get('/search/{query}', function($query) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            header('Content-Type: application/json');
+            
+            try {
+                $limit = isset($_GET['limit']) ? min(20, (int)$_GET['limit']) : 10;
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $entries = $addressBook->searchEntries($userId, urldecode($query), $limit);
+                
+                echo json_encode(['success' => true, 'entries' => $entries]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+        
+        // Get address book statistics
+        SimpleRouter::get('/stats', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+            
+            header('Content-Type: application/json');
+            
+            try {
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                $addressBook = new AddressBookController();
+                $stats = $addressBook->getUserStats($userId);
+                
+                echo json_encode(['success' => true, 'stats' => $stats]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
     });
 });
 

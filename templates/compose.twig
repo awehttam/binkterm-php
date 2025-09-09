@@ -26,8 +26,34 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="toAddress" class="form-label">To Address *</label>
-                            <input type="text" class="form-control" id="toAddress" name="to_address" 
-                                   placeholder="1:123/456" value="{{ reply_to_address }}" required>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="toAddress" name="to_address" 
+                                       placeholder="1:123/456" value="{{ reply_to_address }}" required>
+                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
+                                        id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
+                                        title="Select from address book">
+                                    <i class="fas fa-address-book"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
+                                    <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
+                                        Address Book
+                                        <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </h6></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li class="px-3">
+                                        <input type="text" class="form-control form-control-sm" id="composeAddressSearch" 
+                                               placeholder="Search addresses..." onkeyup="searchAddressBookForCompose(this.value)">
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <div id="composeAddressList" style="max-height: 200px; overflow-y: auto;">
+                                        <li><div class="text-center text-muted py-2">
+                                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                                        </div></li>
+                                    </div>
+                                </ul>
+                            </div>
                             <div class="form-text">Fidonet address (e.g., 1:123/456)</div>
                         </div>
                         <div class="col-md-6">
@@ -333,5 +359,177 @@ function saveDraft(silent = false) {
     });
 }
 
+// Address Book Functions for Compose Page
+function loadComposeAddressBook(search = '') {
+    $.get('/api/address-book', { search: search })
+        .done(function(response) {
+            if (response.success) {
+                renderComposeAddressBook(response.entries);
+            } else {
+                $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
+            }
+        })
+        .fail(function() {
+            $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
+        });
+}
+
+function renderComposeAddressBook(entries) {
+    const container = $('#composeAddressList');
+    let html = '';
+    
+    if (entries.length === 0) {
+        html = '<li><div class="text-center text-muted py-2">No entries found</div></li>';
+    } else {
+        entries.forEach(function(entry) {
+            html += `
+                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.full_name)}', '${escapeHtml(entry.node_address)}')">
+                    <div class="fw-bold">${escapeHtml(entry.full_name)}</div>
+                    <div class="text-muted small font-monospace">${escapeHtml(entry.node_address)}</div>
+                    ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 40) + (entry.description.length > 40 ? '...' : ''))}</div>` : ''}
+                </a></li>
+            `;
+        });
+    }
+    
+    container.html(html);
+}
+
+function searchAddressBookForCompose(query) {
+    if (query.length > 0) {
+        loadComposeAddressBook(query);
+    } else {
+        loadComposeAddressBook();
+    }
+}
+
+function selectAddressBookEntry(fullName, nodeAddress) {
+    $('#toName').val(fullName);
+    $('#toAddress').val(nodeAddress);
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance($('#addressBookButton'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Clear search
+    $('#composeAddressSearch').val('');
+}
+
+// Initialize address book when dropdown is shown
+$(document).ready(function() {
+    $('#addressBookDropdown').on('show.bs.dropdown', function() {
+        // Only load if not already loaded
+        if ($('#composeAddressList').find('.fa-spinner').length > 0) {
+            loadComposeAddressBook();
+        }
+    });
+    
+    // Pre-load address book entries on page load for faster access
+    loadComposeAddressBook();
+});
+
 </script>
+
+<!-- Address Book Entry Modal (only for netmail) -->
+{% if type == 'netmail' %}
+<div class="modal fade" id="addressBookModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addressBookModalTitle">Add Address Book Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addressBookForm">
+                    <input type="hidden" id="addressBookEntryId">
+                    
+                    <div class="mb-3">
+                        <label for="addressBookFullName" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="addressBookFullName" required 
+                               placeholder="Enter the recipient's full name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="addressBookNodeAddress" class="form-label">Node Address</label>
+                        <input type="text" class="form-control" id="addressBookNodeAddress" required 
+                               placeholder="1:234/567" pattern="^\d+:\d+\/\d+(\.\d+)?$"
+                               title="Enter a valid Fidonet address (e.g., 1:234/567 or 1:234/567.0)">
+                        <div class="form-text">Format: zone:net/node or zone:net/node.point</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="addressBookEmail" class="form-label">Email Address <small class="text-muted">(optional)</small></label>
+                        <input type="email" class="form-control" id="addressBookEmail" 
+                               placeholder="email@example.com">
+                        <div class="form-text">For your reference only - not used for messaging</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="addressBookDescription" class="form-label">Description <small class="text-muted">(optional)</small></label>
+                        <textarea class="form-control" id="addressBookDescription" rows="3" 
+                                  placeholder="Notes about this contact..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveComposeAddressBookEntry()">
+                    <i class="fas fa-save"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Address book modal functions for compose page
+function showAddAddressModal() {
+    $('#addressBookModalTitle').text('Add Address Book Entry');
+    $('#addressBookEntryId').val('');
+    $('#addressBookForm')[0].reset();
+    $('#addressBookModal').modal('show');
+}
+
+function saveComposeAddressBookEntry() {
+    const data = {
+        full_name: $('#addressBookFullName').val().trim(),
+        node_address: $('#addressBookNodeAddress').val().trim(),
+        email: $('#addressBookEmail').val().trim(),
+        description: $('#addressBookDescription').val().trim()
+    };
+    
+    // Basic validation
+    if (!data.full_name || !data.node_address) {
+        showError('Full name and node address are required');
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/address-book/',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(response) {
+            if (response.success) {
+                $('#addressBookModal').modal('hide');
+                showSuccess('Entry added successfully');
+                // Optionally populate the compose form
+                if (confirm('Use this entry for the current message?')) {
+                    $('#toName').val(data.full_name);
+                    $('#toAddress').val(data.node_address);
+                }
+            } else {
+                showError(response.error || 'Failed to save entry');
+            }
+        },
+        error: function(xhr) {
+            const response = xhr.responseJSON;
+            showError(response && response.error ? response.error : 'Failed to save entry');
+        }
+    });
+}
+</script>
+{% endif %}
 {% endblock %}
