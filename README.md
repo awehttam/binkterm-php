@@ -6,6 +6,8 @@ binkterm-php is a modern Fidonet mailer that provides both a web interface and n
 
 There are no doubt bugs and omissions in the project as it was written by an AI. YMMV.  This code is released under the terms of a [BSD License](LICENSE.md).
 
+awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
+
 ## Screen shots
 
 ![Echomail list](docs/screenshots/echomail.png)
