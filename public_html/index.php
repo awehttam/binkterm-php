@@ -399,6 +399,54 @@ function quoteMessageText($messageText, $initials) {
     return implode("\n", $quotedLines);
 }
 
+/**
+ * Validate if an address is a proper FidoNet address
+ * Returns true if address matches FidoNet format: zone:net/node[.point][@domain]
+ */
+function isValidFidonetAddress($address) {
+    // Match FidoNet address pattern: zone:net/node[.point][@domain]
+    return preg_match('/^\d+:\d+\/\d+(?:\.\d+)?(?:@\w+)?$/', trim($address));
+}
+
+/**
+ * Parse REPLYTO kludge line to extract address and name
+ * Format: "REPLYTO 2:460/256 8421559770" -> ['address' => '2:460/256', 'name' => '8421559770']
+ * Only returns data if the address is a valid FidoNet address
+ */
+function parseReplyToKludge($messageText) {
+    if (empty($messageText)) {
+        return null;
+    }
+    
+    // Normalize line endings and split into lines
+    $lines = preg_split('/\r\n|\r|\n/', $messageText);
+    
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        
+        // Look for REPLYTO kludge line (with or without \x01 prefix)
+        if (preg_match('/^(?:\x01)?REPLYTO\s+(.+)$/i', $trimmed, $matches)) {
+            $replyToData = trim($matches[1]);
+            
+            // Parse "address name" or just "address"
+            if (preg_match('/^(\S+)(?:\s+(.+))?$/', $replyToData, $addressMatches)) {
+                $address = trim($addressMatches[1]);
+                $name = isset($addressMatches[2]) ? trim($addressMatches[2]) : null;
+                
+                // Only return if it's a valid FidoNet address
+                if (isValidFidonetAddress($address)) {
+                    return [
+                        'address' => $address,
+                        'name' => $name
+                    ];
+                }
+            }
+        }
+    }
+    
+    return null;
+}
+
 SimpleRouter::get('/compose/{type}', function($type) {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -445,13 +493,25 @@ SimpleRouter::get('/compose/{type}', function($type) {
         if ($originalMessage) {
             if ($type === 'netmail') {
                 $templateVars['reply_to_id'] = $replyId;
-                $templateVars['reply_to_address'] = $originalMessage['original_author_address'] ?: $originalMessage['from_address'];
-                $templateVars['reply_to_name'] = $originalMessage['from_name'];
+                
+                // Try to parse REPLYTO kludge from the original message text
+                $replyToData = parseReplyToKludge($originalMessage['message_text']);
+                
+                if ($replyToData) {
+                    // Use REPLYTO address and name if valid FidoNet address found
+                    $templateVars['reply_to_address'] = $replyToData['address'];
+                    $templateVars['reply_to_name'] = $replyToData['name'] ?: $originalMessage['from_name'];
+                } else {
+                    // Fallback to existing logic if no valid REPLYTO found
+                    $templateVars['reply_to_address'] = $originalMessage['reply_address'] ?: ($originalMessage['original_author_address'] ?: $originalMessage['from_address']);
+                    $templateVars['reply_to_name'] = $originalMessage['from_name'];
+                }
+                
                 $templateVars['reply_subject'] = 'Re: ' . ltrim($originalMessage['subject'] ?? '', 'Re: ');
                 
                 // Filter out kludge lines from the quoted message
                 $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
-                $replyToAddress = $originalMessage['original_author_address'] ?: $originalMessage['from_address'];
+                $replyToAddress = $templateVars['reply_to_address']; // Use the address we determined above
                 $templateVars['reply_text'] = "\n\n--- Original Message ---\n" . 
                     "From: {$originalMessage['from_name']} <{$replyToAddress}>\n" .
                     "Date: {$originalMessage['date_written']}\n" .

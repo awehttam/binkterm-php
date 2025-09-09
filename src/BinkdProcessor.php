@@ -448,6 +448,7 @@ class BinkdProcessor
         $tzutcOffset = null;
         $messageId = null;
         $originalAuthorAddress = null;
+        $replyAddress = null;
         
         foreach ($lines as $line) {
             // Process kludge lines (lines starting with \x01) in netmail
@@ -479,12 +480,23 @@ class BinkdProcessor
                         //error_log("DEBUG: Extracted original author address from netmail MSGID: " . $originalAuthorAddress);
                     }
                 }
+                
+                // Extract REPLYADDR kludge for reply addressing
+                if (strpos($line, "\x01REPLYADDR ") === 0) {
+                    $replyAddrLine = trim(substr($line, 11)); // Remove "\x01REPLYADDR " prefix
+                    
+                    // REPLYADDR format: "1:123/456" or "1:123/456.0"
+                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)/', $replyAddrLine, $matches)) {
+                        $replyAddress = $matches[1];
+                        error_log("DEBUG: Found REPLYADDR kludge in netmail: " . $replyAddress);
+                    }
+                }
             }
         }
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -500,7 +512,8 @@ class BinkdProcessor
             $dateWritten,
             $message['attributes'],
             $messageId,
-            $originalAuthorAddress
+            $originalAuthorAddress,
+            $replyAddress
         ]);
 
         error_log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
