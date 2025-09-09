@@ -148,7 +148,7 @@ class BinkdProcessor
         if (strlen($header) < 58) {
             throw new \Exception('Packet header too short: ' . strlen($header) . ' bytes');
         }
-        
+        //xdebug_break();
         // Parse first 24 bytes: standard FTS-0001 header
         $data = unpack('vorigNode/vdestNode/vyear/vmonth/vday/vhour/vminute/vsecond/vbaud/vpacketVersion/vorigNet/vdestNet', substr($header, 0, 24));
         
@@ -177,8 +177,11 @@ class BinkdProcessor
                     }
                 }
             }
+        } else {
+            echo __FILE__.":".__LINE__;
+            echo "funky";exit;
         }
-        
+
         return [
             'origNode' => $data['origNode'],
             'destNode' => $data['destNode'], 
@@ -235,14 +238,18 @@ class BinkdProcessor
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
         $destZone = $packetInfo['destZone'] ?? 1;
-        
+
+
         // Parse INTL kludge line for correct zone information in netmail
-        if (($header['attr'] & 0x0001) && strpos($messageText, "\x01INTL") !== false) {
+        //if (($header['attr'] & 0x0001) && strpos($messageText, "\x01INTL") !== false) {
+        if (strpos($messageText, "\x01INTL") !== false) {
             $lines = explode("\n", $messageText);
             foreach ($lines as $line) {
-                if (strpos($line, "\x01INTL") === 0) {
+                //if (strpos($line, "\x01INTL") === 0) {
+                if (strpos($line, "\x01INTL")) {
                     // INTL format: \x01INTL dest_zone:net/node orig_zone:net/node
-                    if (preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches)) {
+                    $res=preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches);
+                    if ($res) {
                         $destZone = (int)$matches[1];
                         $origZone = (int)$matches[5];
                         error_log("[BINKD] Found INTL kludge: dest zone $destZone, orig zone $origZone");
@@ -263,7 +270,7 @@ class BinkdProcessor
             'text' => $messageText,
             'attributes' => $header['attr']
         ];
-        //error_log(print_r($ret, TRUE));
+
         return $ret;
     }
 
