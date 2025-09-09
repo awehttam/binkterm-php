@@ -894,7 +894,7 @@ function displayMessageContent(message) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>From:</strong> ${escapeHtml(message.from_name)}<br>
+                    <strong>From:</strong> <a href="/compose/netmail?to=${encodeURIComponent(message.from_address || '')}&to_name=${encodeURIComponent(message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="Send netmail to ${escapeHtml(message.from_name)}">${escapeHtml(message.from_name)}</a><br>
                     <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
                 </div>
                 <div class="col-md-6">

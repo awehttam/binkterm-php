@@ -447,14 +447,53 @@ function displayMessageContent(message) {
     // Parse message to separate kludge lines from body
     const parsedMessage = parseNetmailMessage(message.message_text || '');
     
+    // Check if sender is already in address book before rendering
+    checkAndDisplayMessage(message, parsedMessage, isSent);
+}
+
+function checkAndDisplayMessage(message, parsedMessage, isSent) {
+    // Check if this contact already exists in address book
+    $.get('/api/address-book', { search: message.from_name })
+        .done(function(response) {
+            let isInAddressBook = false;
+            if (response.success && response.entries) {
+                const existingEntry = response.entries.find(entry => 
+                    entry.full_name.toLowerCase() === message.from_name.toLowerCase() &&
+                    entry.node_address === (message.original_author_address || message.from_address)
+                );
+                isInAddressBook = !!existingEntry;
+            }
+            
+            renderMessageContent(message, parsedMessage, isSent, isInAddressBook);
+        })
+        .fail(function() {
+            // On error, assume not in address book
+            renderMessageContent(message, parsedMessage, isSent, false);
+        });
+}
+
+function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
+    let addressBookButton;
+    if (isInAddressBook) {
+        addressBookButton = `
+            <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="Already in address book">
+                <i class="fas fa-check"></i> <i class="fas fa-address-book"></i>
+            </button>
+        `;
+    } else {
+        addressBookButton = `
+            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(message.from_name)}', '${escapeHtml(message.original_author_address || message.from_address)}')" title="Save to address book">
+                <i class="fas fa-address-book"></i>
+            </button>
+        `;
+    }
+    
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
                     <strong>From:</strong> ${escapeHtml(message.from_name)}
-                    <button class="btn btn-sm btn-outline-success ms-2" onclick="saveToAddressBook('${escapeHtml(message.from_name)}', '${escapeHtml(message.original_author_address || message.from_address)}')" title="Save to address book">
-                        <i class="fas fa-address-book"></i>
-                    </button>
+                    ${addressBookButton}
                     <br>
                     <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
                 </div>
@@ -846,6 +885,13 @@ function composeToAddressBookEntry(fullName, nodeAddress) {
 
 // Save sender to address book from message modal
 function saveToAddressBook(fromName, fromAddress) {
+    const button = $('#saveAddressBookBtn');
+    const originalHtml = button.html();
+    const originalTitle = button.attr('title');
+    
+    // Show loading state
+    button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>').attr('title', 'Saving...');
+    
     // First check if this contact already exists
     $.get('/api/address-book', { search: fromName })
         .done(function(response) {
@@ -857,6 +903,11 @@ function saveToAddressBook(fromName, fromAddress) {
                 );
                 
                 if (existingEntry) {
+                    // Already exists - show "already saved" state
+                    button.removeClass('btn-outline-success').addClass('btn-outline-secondary')
+                          .html('<i class="fas fa-check"></i> <i class="fas fa-address-book"></i>')
+                          .attr('title', 'Already in address book')
+                          .prop('disabled', true);
                     showError('This contact is already in your address book');
                     return;
                 }
@@ -875,25 +926,46 @@ function saveToAddressBook(fromName, fromAddress) {
                     data: JSON.stringify(data),
                     success: function(response) {
                         if (response.success) {
+                            // Show success state
+                            button.removeClass('btn-outline-success').addClass('btn-success')
+                                  .html('<i class="fas fa-check"></i> Saved')
+                                  .attr('title', 'Saved to address book')
+                                  .prop('disabled', true);
+                            
                             showSuccess(`${fromName} added to address book`);
+                            
                             // Refresh address book in sidebar if it exists
                             if (typeof loadAddressBook === 'function') {
                                 loadAddressBook();
                             }
                         } else {
+                            // Reset button on error
+                            button.removeClass('btn-outline-success').addClass('btn-outline-danger')
+                                  .html(originalHtml)
+                                  .attr('title', 'Error - click to retry')
+                                  .prop('disabled', false);
                             showError(response.error || 'Failed to save to address book');
                         }
                     },
                     error: function(xhr) {
+                        // Reset button on error
+                        button.removeClass('btn-outline-success').addClass('btn-outline-danger')
+                              .html(originalHtml)
+                              .attr('title', 'Error - click to retry')
+                              .prop('disabled', false);
                         const response = xhr.responseJSON;
                         showError(response && response.error ? response.error : 'Failed to save to address book');
                     }
                 });
             } else {
+                // Reset button on error
+                button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
                 showError('Failed to check existing contacts');
             }
         })
         .fail(function() {
+            // Reset button on error
+            button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
             showError('Failed to check existing contacts');
         });
 }

@@ -320,6 +320,11 @@ class MessageHandler
             throw new \Exception('User not found');
         }
 
+        // Special case: if sending to "sysop", route to local sysop user
+        if (!empty($toName) && strtolower($toName) === 'sysop') {
+            return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId);
+        }
+
         // Use provided fromName or fall back to user's real name
         $senderName = $fromName ?: ($user['real_name'] ?: $user['username']);
         
@@ -356,6 +361,70 @@ class MessageHandler
             $messageId = $this->db->lastInsertId();
             $this->spoolOutboundNetmail($messageId);
         }
+
+        return $result;
+    }
+
+    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null)
+    {
+        // Get sysop name from config
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $sysopName = $binkpConfig->getSystemSysop();
+            $systemAddress = $binkpConfig->getSystemAddress();
+        } catch (\Exception $e) {
+            throw new \Exception('System configuration not available');
+        }
+
+        if (empty($sysopName)) {
+            throw new \Exception('System sysop not configured');
+        }
+
+        // Find sysop user in database
+        $stmt = $this->db->prepare("
+            SELECT id FROM users 
+            WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+            LIMIT 1
+        ");
+        $stmt->execute([$sysopName, $sysopName]);
+        $sysopUser = $stmt->fetch();
+
+        if (!$sysopUser) {
+            // Fallback to admin user if sysop not found
+            $stmt = $this->db->prepare("SELECT id FROM users WHERE is_admin=true ORDER BY id LIMIT 1");
+            $stmt->execute();
+            $sysopUser = $stmt->fetch();
+            
+            if (!$sysopUser) {
+                throw new \Exception('Sysop user not found in database');
+            }
+        }
+
+        // Get sender info
+        $senderUser = $this->getUserById($fromUserId);
+        $senderName = $fromName ?: ($senderUser['real_name'] ?: $senderUser['username']);
+
+        // Generate MSGID for local message
+        $msgIdHash = $this->generateMessageId($senderName, $sysopName, $subject, $systemAddress);
+        $msgId = $systemAddress . ' ' . $msgIdHash;
+
+        // Create local netmail message to sysop
+        $stmt = $this->db->prepare("
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?)
+        ");
+        
+        $result = $stmt->execute([
+            $sysopUser['id'],
+            $systemAddress,
+            $systemAddress,  // Local delivery - same address
+            $senderName,
+            $sysopName,
+            $subject,
+            $messageText,
+            $replyToId,
+            $msgId
+        ]);
 
         return $result;
     }
@@ -1728,7 +1797,7 @@ class MessageHandler
             $messagesByMsgId[$msgId] = $message;
             
             // Extract REPLY from kludge lines
-            $replyTo = $this->extractReplyFromKludge($message['kludge_lines']);
+            $replyTo = @$this->extractReplyFromKludge($message['kludge_lines']);
             
             if ($replyTo) {
                 $messagesByReply[$replyTo][] = $message;
