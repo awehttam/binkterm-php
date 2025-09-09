@@ -1130,7 +1130,24 @@ class BinkdProcessor
             }
         }
         
-        // Strategy 3: Name-based matching (case-insensitive)
+        // Strategy 3: Special case for 'sysop' - lookup from binkd.config
+        if (!empty($toName) && strtolower($toName) === 'sysop') {
+            $sysopName = $this->config->getSystemSysop();
+            if (!empty($sysopName)) {
+                $stmt = $this->db->prepare("
+                    SELECT id FROM users 
+                    WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                    LIMIT 1
+                ");
+                $stmt->execute([$sysopName, $sysopName]);
+                $user = $stmt->fetch();
+                if ($user) {
+                    return $user['id'];
+                }
+            }
+        }
+        
+        // Strategy 4: Name-based matching (case-insensitive)
         if (!empty($toName)) {
             $stmt = $this->db->prepare("
                 SELECT id FROM users 
@@ -1144,8 +1161,23 @@ class BinkdProcessor
             }
         }
         
-        // Strategy 4: Fallback to system administrator (user ID 1)
-        $stmt = $this->db->prepare("SELECT id FROM users ORDER BY id LIMIT 1");
+        // Strategy 5: Fallback to system administrator from config
+        $sysopName = $this->config->getSystemSysop();
+        if (!empty($sysopName)) {
+            $stmt = $this->db->prepare("
+                SELECT id FROM users 
+                WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                LIMIT 1
+            ");
+            $stmt->execute([$sysopName, $sysopName]);
+            $user = $stmt->fetch();
+            if ($user) {
+                return $user['id'];
+            }
+        }
+        
+        // Final fallback: First user in database (assumed to be admin)
+        $stmt = $this->db->prepare("SELECT id FROM users WHERE is_admin=true ORDER BY id LIMIT 1");
         $stmt->execute();
         $user = $stmt->fetch();
         return $user ? $user['id'] : 1; // Default to ID 1 if no users exist
