@@ -239,4 +239,18 @@ class AdminController
         
         return $stats;
     }
+
+    public function getUsersNeedingReminder()
+    {
+        $stmt = $this->db->query("
+            SELECT id, username, real_name, email, created_at 
+            FROM users 
+            WHERE last_login IS NULL 
+              AND is_active = TRUE 
+              AND created_at < NOW() - INTERVAL '24 hours'
+            ORDER BY created_at ASC
+        ");
+        
+        return $stmt->fetchAll();
+    }
 }

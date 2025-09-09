@@ -12,6 +12,10 @@
                     <button class="btn btn-success me-2" onclick="createNewUser()">
                         <i class="fas fa-user-plus me-2"></i>Create New User
                     </button>
+                    <button class="btn btn-info me-2" onclick="showUsersNeedingReminders()">
+                        <i class="fas fa-bell me-2"></i>Need Reminders
+                        <span id="reminders-count" class="badge bg-light text-dark ms-1" style="display: none;">0</span>
+                    </button>
                     <button class="btn btn-warning me-2" onclick="cleanupRegistrations()">
                         <i class="fas fa-broom me-2"></i>Cleanup
                     </button>
@@ -257,11 +261,13 @@ let currentPendingUserId = null;
 $(document).ready(function() {
     loadPendingUsers();
     loadAllUsers();
+    loadUsersNeedingReminders();
 });
 
 function refreshData() {
     loadPendingUsers();
     loadAllUsers();
+    loadUsersNeedingReminders();
 }
 
 function loadPendingUsers() {
@@ -413,7 +419,17 @@ function renderAllUsers(users) {
                     </button>
                     <button class="btn btn-sm btn-${user.is_active ? 'warning' : 'success'} me-1" onclick="toggleUserStatus(${user.id}, ${user.is_active ? 'false' : 'true'})">
                         <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i> ${user.is_active ? 'Disable' : 'Enable'}
-                    </button>
+                    </button>`;
+        
+        // Add reminder button if user hasn't logged in yet
+        if (!user.last_login && user.is_active) {
+            html += `
+                    <button class="btn btn-sm btn-info me-1" onclick="sendAccountReminder(${user.id}, '${escapeHtml(user.username)}')" title="Send account reminder">
+                        <i class="fas fa-bell"></i> Remind
+                    </button>`;
+        }
+        
+        html += `
                 </td>
             </tr>
         `;
@@ -766,6 +782,100 @@ function cleanupRegistrations() {
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
+        }
+    });
+}
+
+function sendAccountReminder(userId, username) {
+    if (!confirm(`Send account reminder to ${username}? This will send a reminder message via netmail and email (if available).`)) {
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/admin/users/' + userId + '/send-reminder',
+        method: 'POST',
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                let message = response.message;
+                if (response.email_sent) {
+                    message += ' (sent via netmail and email)';
+                } else {
+                    message += ' (sent via netmail only)';
+                }
+                showSuccess(message);
+                refreshData(); // Refresh to update any status changes
+            } else {
+                showError('Failed to send reminder: ' + (response.error || 'Unknown error'));
+            }
+        },
+        error: function(xhr) {
+            console.error('AJAX error for send reminder:', xhr.status, xhr.statusText, xhr.responseText);
+            let errorMsg = 'Failed to send reminder';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg += ': ' + xhr.responseJSON.error;
+            } else {
+                errorMsg += ': ' + xhr.status + ' ' + xhr.statusText;
+            }
+            showError(errorMsg);
+        }
+    });
+}
+
+function loadUsersNeedingReminders() {
+    $.ajax({
+        url: '/api/admin/users/need-reminders',
+        method: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                updateRemindersCount(response.users.length);
+            }
+        },
+        error: function(xhr) {
+            console.error('AJAX error for users needing reminders:', xhr.status, xhr.statusText, xhr.responseText);
+            // Hide count on error
+            $('#reminders-count').hide();
+        }
+    });
+}
+
+function updateRemindersCount(count) {
+    const badge = $('#reminders-count');
+    if (count > 0) {
+        badge.text(count).show();
+    } else {
+        badge.hide();
+    }
+}
+
+function showUsersNeedingReminders() {
+    $.ajax({
+        url: '/api/admin/users/need-reminders',
+        method: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                if (response.users.length === 0) {
+                    showSuccess('No users currently need account reminders. All users have logged in!');
+                    return;
+                }
+                
+                let message = `Found ${response.users.length} user(s) who haven't logged in yet:\n\n`;
+                response.users.forEach(user => {
+                    const createdDate = new Date(user.created_at).toLocaleDateString();
+                    message += `• ${user.username} (${user.real_name || 'No real name'}) - created ${createdDate}\n`;
+                });
+                message += `\nYou can send individual reminders using the "Remind" buttons in the user list below.`;
+                
+                alert(message);
+            } else {
+                showError('Failed to load users needing reminders: ' + (response.error || 'Unknown error'));
+            }
+        },
+        error: function(xhr) {
+            console.error('AJAX error for show users needing reminders:', xhr.status, xhr.statusText, xhr.responseText);
+            showError('Failed to load users needing reminders: ' + xhr.status + ' ' + xhr.statusText);
         }
     });
 }

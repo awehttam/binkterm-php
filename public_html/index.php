@@ -649,6 +649,50 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
     
+    SimpleRouter::post('/account/reminder', function() {
+        header('Content-Type: application/json');
+        
+        // Get form data
+        $username = $_POST['username'] ?? '';
+        
+        // Validate required fields
+        if (empty($username)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Username is required']);
+            return;
+        }
+        
+        try {
+            $handler = new MessageHandler();
+            
+            // Check if user exists and hasn't logged in
+            if (!$handler->canSendReminder($username)) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found or already logged in']);
+                return;
+            }
+            
+            // Send reminder
+            $result = $handler->sendAccountReminder($username);
+            
+            if ($result['success']) {
+                echo json_encode([
+                    'success' => true, 
+                    'message' => 'Account reminder sent successfully',
+                    'email_sent' => $result['email_sent'] ?? false
+                ]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['error' => $result['error']]);
+            }
+            
+        } catch (Exception $e) {
+            error_log("Account reminder error: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to send reminder. Please try again later.']);
+        }
+    });
+    
     SimpleRouter::get('/dashboard/stats', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();
@@ -2562,6 +2606,84 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $handler = new MessageHandler();
             $result = $handler->performFullCleanup();
             echo json_encode(['success' => true, 'result' => $result]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+    
+    // Send account reminder to user
+    SimpleRouter::post('/admin/users/{userId}/send-reminder', function($userId) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            // Get user info to get username
+            $adminController = new AdminController();
+            $targetUser = $adminController->getUser($userId);
+            
+            if (!$targetUser) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found']);
+                return;
+            }
+            
+            $handler = new MessageHandler();
+            
+            // Check if user can receive reminder
+            if (!$handler->canSendReminder($targetUser['username'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'User has already logged in or is not eligible for reminders']);
+                return;
+            }
+            
+            // Send reminder
+            $result = $handler->sendAccountReminder($targetUser['username']);
+            
+            if ($result['success']) {
+                echo json_encode([
+                    'success' => true, 
+                    'message' => 'Account reminder sent successfully',
+                    'email_sent' => $result['email_sent'] ?? false
+                ]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['error' => $result['error']]);
+            }
+            
+        } catch (Exception $e) {
+            error_log("Admin reminder error: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+    
+    // Get users who need reminders
+    SimpleRouter::get('/admin/users/need-reminders', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        
+        if (!$user['is_admin']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+        
+        header('Content-Type: application/json');
+        
+        try {
+            $adminController = new AdminController();
+            $usersNeedingReminder = $adminController->getUsersNeedingReminder();
+            
+            echo json_encode(['success' => true, 'users' => $usersNeedingReminder]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['error' => $e->getMessage()]);

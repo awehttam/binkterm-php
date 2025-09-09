@@ -51,6 +51,42 @@
                 Don't have an account? <a href="/register" class="text-decoration-none">Request Access</a>
             </small>
         </div>
+        
+        <!-- Account Reminder Section -->
+        <div class="card mt-3" id="reminderCard" style="display: none;">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-bell"></i>
+                    Account Reminder
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Already have an account but haven't logged in yet? We can send you a reminder with your username and getting started instructions.
+                </p>
+                <form id="reminderForm">
+                    <div class="mb-3">
+                        <label for="reminderUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="reminderUsername" name="username" required>
+                    </div>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="hideReminderForm()">Cancel</button>
+                        <button type="submit" class="btn btn-info btn-sm">
+                            <i class="fas fa-paper-plane"></i>
+                            Send Reminder
+                        </button>
+                    </div>
+                </form>
+                <div id="reminderError" class="alert alert-danger mt-3" style="display: none;"></div>
+                <div id="reminderSuccess" class="alert alert-success mt-3" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-2">
+            <small class="text-muted">
+                <a href="#" onclick="showReminderForm()" class="text-decoration-none">Need an account reminder?</a>
+            </small>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -78,6 +114,63 @@ $('#loginForm').on('submit', function(e) {
         error: function(xhr) {
             const error = xhr.responseJSON ? xhr.responseJSON.error : 'Login failed';
             $('#loginError').text(error).show();
+        }
+    });
+});
+
+// Account reminder functionality
+function showReminderForm() {
+    $('#reminderCard').slideDown();
+    $('#reminderUsername').focus();
+}
+
+function hideReminderForm() {
+    $('#reminderCard').slideUp();
+    $('#reminderForm')[0].reset();
+    $('#reminderError').hide();
+    $('#reminderSuccess').hide();
+}
+
+$('#reminderForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    formData.append('username', $('#reminderUsername').val());
+    
+    // Hide previous messages
+    $('#reminderError').hide();
+    $('#reminderSuccess').hide();
+    
+    // Disable submit button
+    const submitBtn = $('#reminderForm button[type="submit"]');
+    const originalText = submitBtn.html();
+    submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+    
+    $.ajax({
+        url: '/api/account/reminder',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.success) {
+                let message = response.message;
+                if (response.email_sent) {
+                    message += ' (sent via netmail and email)';
+                } else {
+                    message += ' (sent via netmail)';
+                }
+                $('#reminderSuccess').text(message).show();
+                $('#reminderForm')[0].reset();
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to send reminder';
+            $('#reminderError').text(error).show();
+        },
+        complete: function() {
+            // Re-enable submit button
+            submitBtn.prop('disabled', false).html(originalText);
         }
     });
 });

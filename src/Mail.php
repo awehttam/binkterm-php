@@ -84,6 +84,43 @@ class Mail
         return $this->sendMail($email, $subject, $htmlMessage, $plainTextMessage);
     }
     
+    public function sendAccountReminder(string $email, string $username, string $realName): bool
+    {
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $systemAddress = $binkpConfig->getSystemAddress();
+            $sysopName = $binkpConfig->getSystemSysop();
+            $systemName = $binkpConfig->getSystemName();
+        } catch (\Exception $e) {
+            $systemAddress = '1:123/456';
+            $sysopName = 'Sysop';
+            $systemName = 'BinktermPHP System';
+        }
+
+        $subject = "Account Reminder - $systemName";
+        
+        $plainTextMessage = "Hello $realName,\n\n";
+        $plainTextMessage .= "This is a friendly reminder that your account on $systemName is ready to use!\n\n";
+        $plainTextMessage .= "Account Details:\n";
+        $plainTextMessage .= "===============\n";
+        $plainTextMessage .= "Username: $username\n";
+        $plainTextMessage .= "System: $systemName ($systemAddress)\n\n";
+        $plainTextMessage .= "Getting Started:\n";
+        $plainTextMessage .= "===============\n";
+        $plainTextMessage .= "1. Visit the web interface and log in with your username\n";
+        $plainTextMessage .= "2. Browse available echo areas for discussions\n";
+        $plainTextMessage .= "3. Send and receive netmail (private messages)\n";
+        $plainTextMessage .= "4. Customize your settings and preferences\n\n";
+        $plainTextMessage .= "If you've forgotten your password or have any questions,\n";
+        $plainTextMessage .= "please contact the sysop at $sysopName.\n\n";
+        $plainTextMessage .= "Welcome to the FidoNet community!";
+        
+        // Convert plain text to HTML for email
+        $htmlMessage = $this->convertTextToHtml($plainTextMessage);
+        
+        return $this->sendMail($email, $subject, $htmlMessage, $plainTextMessage);
+    }
+    
     private function loadWelcomeTemplate($realName, $systemName, $systemAddress, $sysopName)
     {
         $welcomeFile = __DIR__ . '/../config/newuser_welcome.txt';
