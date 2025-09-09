@@ -2086,6 +2086,18 @@ class MessageHandler
             error_log("Error sending reminder email for user " . $user['username'] . ": " . $e->getMessage());
         }
 
+        // Update last_reminded timestamp since reminder was sent successfully
+        try {
+            $updateStmt = $this->db->prepare("UPDATE users SET last_reminded = NOW() WHERE id = ?");
+            $updateResult = $updateStmt->execute([$user['id']]);
+            $rowsUpdated = $updateStmt->rowCount();
+            
+            error_log("[REMINDER] Updated last_reminded for user ID {$user['id']} ({$user['username']}): success=" . ($updateResult ? 'true' : 'false') . ", rows_affected=$rowsUpdated");
+        } catch (\Exception $e) {
+            error_log("[REMINDER] Failed to update last_reminded for user {$user['username']}: " . $e->getMessage());
+            error_log("[REMINDER] This likely means the database migration v1.4.8_add_last_reminded_field.sql has not been run");
+        }
+
         return [
             'success' => true, 
             'message' => 'Account reminder sent successfully',

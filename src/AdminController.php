@@ -25,7 +25,7 @@ class AdminController
         $searchTerm = '%' . $search . '%';
         
         $sql = "
-            SELECT id, username, email, real_name, fidonet_address, created_at, last_login, is_active, is_admin 
+            SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin 
             FROM users 
             WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
             ORDER BY created_at DESC 
@@ -35,6 +35,19 @@ class AdminController
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm, $limit, $offset]);
         $users = $stmt->fetchAll();
+
+        // Add calculated fields for days since reminder
+        foreach ($users as &$user) {
+            error_log("[ADMIN] Processing user {$user['username']}: " . print_r(array_keys($user), true));
+            if (array_key_exists('last_reminded', $user)) {
+                error_log("[ADMIN] User {$user['username']} last_reminded: " . ($user['last_reminded'] ?? 'NULL'));
+                $user['days_since_reminder'] = $this->calculateDaysSinceReminder($user['last_reminded']);
+            } else {
+                // Column doesn't exist yet - migration hasn't been run
+                error_log("[ADMIN] last_reminded column missing from users table - migration v1.4.8 needs to be run");
+                $user['days_since_reminder'] = null;
+            }
+        }
 
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM users 
@@ -252,5 +265,23 @@ class AdminController
         ");
         
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Calculate days since last reminder was sent
+     */
+    private function calculateDaysSinceReminder($lastReminded)
+    {
+        if (!$lastReminded) {
+            return null; // Never reminded
+        }
+
+        $reminderDate = new \DateTime($lastReminded);
+        $currentDate = new \DateTime();
+        $interval = $currentDate->diff($reminderDate);
+        
+        error_log("[ADMIN] calculateDaysSinceReminder: lastReminded='$lastReminded', days={$interval->days}");
+        
+        return $interval->days;
     }
 }

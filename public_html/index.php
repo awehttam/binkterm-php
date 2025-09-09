@@ -2350,14 +2350,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         
         try {
-            $db = Database::getInstance()->getPdo();
-            $stmt = $db->query("
-                SELECT id, username, real_name, email, created_at, last_login, is_active, is_admin
-                FROM users 
-                ORDER BY created_at DESC
-            ");
-            $users = $stmt->fetchAll();
-            echo json_encode(['success' => true, 'users' => $users]);
+            // Get pagination parameters
+            $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+            $limit = isset($_GET['limit']) ? max(1, min(100, (int)$_GET['limit'])) : 25;
+            $search = isset($_GET['search']) ? $_GET['search'] : '';
+            
+            $adminController = new AdminController();
+            $result = $adminController->getAllUsers($page, $limit, $search);
+            echo json_encode(['success' => true, 'users' => $result['users'], 'pagination' => $result['pagination']]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['error' => $e->getMessage()]);

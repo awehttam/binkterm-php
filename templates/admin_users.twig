@@ -54,6 +54,27 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    <!-- Search and pagination controls -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="user-search" placeholder="Search users...">
+                                <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-end">
+                                <select class="form-select" id="users-per-page" onchange="changeUsersPerPage()" style="width: auto;">
+                                    <option value="25">25 per page</option>
+                                    <option value="50">50 per page</option>
+                                    <option value="100">100 per page</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div id="users-container">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
@@ -61,6 +82,11 @@
                             </div>
                             <p class="mt-2">Loading users...</p>
                         </div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div id="users-pagination" class="d-flex justify-content-center mt-4" style="display: none !important;">
+                        <!-- Pagination will be inserted here -->
                     </div>
                 </div>
             </div>
@@ -257,11 +283,22 @@
 {% block scripts %}
 <script>
 let currentPendingUserId = null;
+let currentPage = 1;
+let currentLimit = 25;
+let currentSearch = '';
+let totalUsers = 0;
 
 $(document).ready(function() {
     loadPendingUsers();
     loadAllUsers();
     loadUsersNeedingReminders();
+    
+    // Setup search on enter key
+    $('#user-search').on('keypress', function(e) {
+        if (e.which === 13) {
+            searchUsers();
+        }
+    });
 });
 
 function refreshData() {
@@ -292,16 +329,28 @@ function loadPendingUsers() {
     });
 }
 
-function loadAllUsers() {
-    console.log('Loading all users...');
+function loadAllUsers(page = 1) {
+    currentPage = page;
+    console.log('Loading all users...', { page: currentPage, limit: currentLimit, search: currentSearch });
+    
+    const params = new URLSearchParams({
+        page: currentPage,
+        limit: currentLimit,
+        search: currentSearch
+    });
+    
     $.ajax({
-        url: '/api/admin/users',
+        url: '/api/admin/users?' + params.toString(),
         method: 'GET',
         dataType: 'json',
         success: function(response) {
             console.log('All users response:', response);
             if (response.success) {
                 renderAllUsers(response.users);
+                if (response.pagination) {
+                    renderUsersPagination(response.pagination);
+                    totalUsers = response.pagination.total;
+                }
             } else {
                 console.error('All users error:', response.error);
                 showError('Failed to load users: ' + (response.error || 'Unknown error'));
@@ -373,7 +422,7 @@ function renderPendingUsers(users) {
 
 function renderAllUsers(users) {
     const container = $('#users-container');
-    $('#users-count').text(users.length);
+    $('#users-count').text(totalUsers || users.length);
     
     let html = '<div class="table-responsive"><table class="table table-hover">';
     html += `
@@ -382,11 +431,11 @@ function renderAllUsers(users) {
                 <th>ID</th>
                 <th>Username</th>
                 <th>Real Name</th>
-                <th>Email</th>
                 <th>Status</th>
                 <th>Admin</th>
                 <th>Created</th>
                 <th>Last Login</th>
+                <th>Last Reminded</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -396,6 +445,19 @@ function renderAllUsers(users) {
     users.forEach(user => {
         const createdDate = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
         const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
+        let lastReminded = 'Never';
+        if (user.days_since_reminder !== null && user.days_since_reminder !== undefined) {
+            if (user.days_since_reminder === 0) {
+                lastReminded = 'Today';
+            } else if (user.days_since_reminder === 1) {
+                lastReminded = '1 day ago';
+            } else {
+                lastReminded = `${user.days_since_reminder} days ago`;
+            }
+        }
+        
+        // Debug logging
+        console.log('User:', user.username, 'days_since_reminder:', user.days_since_reminder, 'display:', lastReminded);
         const statusBadge = user.is_active ? 
             '<span class="badge bg-success">Active</span>' : 
             '<span class="badge bg-danger">Inactive</span>';
@@ -408,11 +470,11 @@ function renderAllUsers(users) {
                 <td>${user.id}</td>
                 <td><strong>${escapeHtml(user.username)}</strong></td>
                 <td>${escapeHtml(user.real_name || '')}</td>
-                <td>${escapeHtml(user.email || 'Not provided')}</td>
                 <td>${statusBadge}</td>
                 <td>${adminBadge}</td>
                 <td>${createdDate}</td>
                 <td>${lastLogin}</td>
+                <td>${lastReminded}</td>
                 <td>
                     <button class="btn btn-sm btn-primary me-1" onclick="editUser(${user.id})">
                         <i class="fas fa-edit"></i> Edit
@@ -878,6 +940,86 @@ function showUsersNeedingReminders() {
             showError('Failed to load users needing reminders: ' + xhr.status + ' ' + xhr.statusText);
         }
     });
+}
+
+function searchUsers() {
+    currentSearch = $('#user-search').val();
+    currentPage = 1; // Reset to first page
+    loadAllUsers(1);
+}
+
+function changeUsersPerPage() {
+    currentLimit = parseInt($('#users-per-page').val());
+    currentPage = 1; // Reset to first page
+    loadAllUsers(1);
+}
+
+function renderUsersPagination(pagination) {
+    const container = $('#users-pagination');
+    
+    if (pagination.pages <= 1) {
+        container.hide();
+        return;
+    }
+    
+    let html = '<nav aria-label="Users pagination"><ul class="pagination">';
+    
+    // Previous button
+    if (pagination.page > 1) {
+        html += `<li class="page-item">
+            <a class="page-link" href="#" onclick="loadAllUsers(${pagination.page - 1}); return false;">
+                <i class="fas fa-chevron-left"></i> Previous
+            </a>
+        </li>`;
+    }
+    
+    // Page numbers
+    const startPage = Math.max(1, pagination.page - 2);
+    const endPage = Math.min(pagination.pages, pagination.page + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item">
+            <a class="page-link" href="#" onclick="loadAllUsers(1); return false;">1</a>
+        </li>`;
+        if (startPage > 2) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<li class="page-item ${i === pagination.page ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="loadAllUsers(${i}); return false;">${i}</a>
+        </li>`;
+    }
+    
+    if (endPage < pagination.pages) {
+        if (endPage < pagination.pages - 1) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+        html += `<li class="page-item">
+            <a class="page-link" href="#" onclick="loadAllUsers(${pagination.pages}); return false;">${pagination.pages}</a>
+        </li>`;
+    }
+    
+    // Next button
+    if (pagination.page < pagination.pages) {
+        html += `<li class="page-item">
+            <a class="page-link" href="#" onclick="loadAllUsers(${pagination.page + 1}); return false;">
+                Next <i class="fas fa-chevron-right"></i>
+            </a>
+        </li>`;
+    }
+    
+    html += '</ul></nav>';
+    
+    // Add page info
+    const start = (pagination.page - 1) * pagination.limit + 1;
+    const end = Math.min(pagination.page * pagination.limit, pagination.total);
+    html += `<small class="text-muted ms-3">
+        Showing ${start}-${end} of ${pagination.total} users
+    </small>`;
+    
+    container.html(html).show();
 }
 </script>
 {% endblock %}
