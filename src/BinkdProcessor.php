@@ -334,14 +334,97 @@ class BinkdProcessor
 
     private function storeMessage($message, $packetInfo = null)
     {
-        // Determine if this is netmail or echomail based on attributes
-        $isNetmail = ($message['attributes'] & 0x0001) > 0; // Private bit set
+        // Determine if this is netmail or echomail based on FidoNet standards
+        // Use comprehensive detection that works with raw message text
+        $isNetmail = $this->isNetmailMessage($message);
         
         if ($isNetmail) {
             $this->storeNetmail($message, $packetInfo);
         } else {
             $this->storeEchomail($message, $packetInfo);
         }
+    }
+
+    /**
+     * Determine if a message is netmail or echomail based on FidoNet standards
+     * This function examines the raw message text before any processing
+     * 
+     * @param array $message The message array with 'text' and 'attributes'
+     * @return bool true if netmail, false if echomail
+     */
+    private function isNetmailMessage($message)
+    {
+        $messageText = $message['text'] ?? '';
+        $attributes = $message['attributes'] ?? 0;
+        
+        // Normalize line endings for consistent parsing
+        $messageText = str_replace("\r\n", "\n", $messageText);
+        $messageText = str_replace("\r", "\n", $messageText);
+        
+        $lines = explode("\n", $messageText);
+        if (empty($lines)) {
+            // Empty message - default to netmail for safety
+            return true;
+        }
+        
+        $firstLine = trim($lines[0]);
+        
+        // Primary check: Echomail ALWAYS has AREA: as the first line
+        if (strpos($firstLine, 'AREA:') === 0) {
+            return false; // This is echomail
+        }
+        
+        // Secondary check: Look for other echomail indicators
+        // Some malformed echomail might have the AREA: line elsewhere
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (strpos($line, 'AREA:') === 0) {
+                return false; // Found AREA: line, this is echomail
+            }
+            // Stop checking after reasonable number of lines to avoid processing entire message
+            if (count($lines) > 10) break;
+        }
+        
+        // Tertiary check: FTN kludge lines that indicate echomail
+        // Look for common echomail kludges in first few lines
+        foreach (array_slice($lines, 0, 10) as $line) {
+            if (strlen($line) > 1 && ord($line[0]) === 0x01) {
+                $kludge = strtoupper(substr($line, 1));
+                
+                // These kludges are typically found in echomail
+                if (strpos($kludge, 'MSGID:') === 0 || 
+                    strpos($kludge, 'REPLY:') === 0 ||
+                    strpos($kludge, 'PID:') === 0) {
+                    // These can be in both, but combined with no AREA: suggests netmail
+                    continue;
+                }
+                
+                // These are more echomail-specific
+                if (strpos($kludge, 'SEEN-BY:') === 0 || 
+                    strpos($kludge, 'PATH:') === 0) {
+                    return false; // This is echomail
+                }
+            }
+        }
+        
+        // Final fallback: If no clear indicators, assume netmail
+        // In FidoNet, when in doubt, treat as netmail for security/privacy
+        return true;
+    }
+
+    private function hasAreaKludgeLine($messageText)
+    {
+        // Normalize line endings and check first line for AREA: kludge
+        $messageText = str_replace("\r\n", "\n", $messageText);
+        $messageText = str_replace("\r", "\n", $messageText);
+        
+        $lines = explode("\n", $messageText);
+        if (empty($lines)) {
+            return false;
+        }
+        
+        $firstLine = trim($lines[0]);
+        return strpos($firstLine, 'AREA:') === 0;
     }
 
     private function storeNetmail($message, $packetInfo = null)
