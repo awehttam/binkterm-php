@@ -38,13 +38,13 @@ class AdminController
 
         // Add calculated fields for days since reminder
         foreach ($users as &$user) {
-            error_log("[ADMIN] Processing user {$user['username']}: " . print_r(array_keys($user), true));
+            //error_log("[ADMIN] Processing user {$user['username']}: " . print_r(array_keys($user), true));
             if (array_key_exists('last_reminded', $user)) {
-                error_log("[ADMIN] User {$user['username']} last_reminded: " . ($user['last_reminded'] ?? 'NULL'));
+//                error_log("[ADMIN] User {$user['username']} last_reminded: " . ($user['last_reminded'] ?? 'NULL'));
                 $user['days_since_reminder'] = $this->calculateDaysSinceReminder($user['last_reminded']);
             } else {
                 // Column doesn't exist yet - migration hasn't been run
-                error_log("[ADMIN] last_reminded column missing from users table - migration v1.4.8 needs to be run");
+//                error_log("[ADMIN] last_reminded column missing from users table - migration v1.4.8 needs to be run");
                 $user['days_since_reminder'] = null;
             }
         }

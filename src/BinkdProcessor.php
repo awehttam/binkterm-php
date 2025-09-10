@@ -630,7 +630,7 @@ class BinkdProcessor
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
         
-        error_log("DEBUG: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') . 
+        error_log("[BINKD]: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') .
                   ", Packet sender: " . $message['origAddr'] . 
                   ", Using: " . $fromAddress);
         
