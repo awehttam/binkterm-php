@@ -31,8 +31,8 @@ function parseReplyToKludge($messageText) {
     foreach ($lines as $line) {
         $trimmed = trim($line);
         
-        // Look for REPLYTO kludge line (with or without \x01 prefix)
-        if (preg_match('/^(?:\x01)?REPLYTO\s+(.+)$/i', $trimmed, $matches)) {
+        // Look for REPLYTO kludge line (must have \x01 prefix)
+        if (preg_match('/^\x01REPLYTO\s+(.+)$/i', $trimmed, $matches)) {
             $replyToData = trim($matches[1]);
             
             // Parse "address name" or just "address"

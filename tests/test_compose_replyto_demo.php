@@ -28,7 +28,7 @@ function parseReplyToKludge($messageText) {
     foreach ($lines as $line) {
         $trimmed = trim($line);
         
-        if (preg_match('/^(?:\x01)?REPLYTO\s+(.+)$/i', $trimmed, $matches)) {
+        if (preg_match('/^\x01REPLYTO\s+(.+)$/i', $trimmed, $matches)) {
             $replyToData = trim($matches[1]);
             
             if (preg_match('/^(\S+)(?:\s+(.+))?$/', $replyToData, $addressMatches)) {
