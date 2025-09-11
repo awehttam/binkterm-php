@@ -23,12 +23,13 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 
 ### Web Interface
 - **Modern Bootstrap 5 UI** - Clean, responsive interface accessible from any device including mobile phones. 
-- **Netmail Management** - Send and receive private messages
-- **Echomail Support** - Participate in public discussion areas (forums)
-- **Message Composition** - Text editor with reply functionality
+- **Netmail Management** - Send and receive private network mail messages
+- **Echomail Support** - Participate in public discussion areas (forums).  Sortable and threaded view available.
+- **Address Book Support** A handy address book to keep track of your netmail contacts
 - **Message Sharing** - Share echomail messages via secure web links with privacy controls
+- **Message Saving** - Ability to save messages
 - **Search Capabilities** - Full-text search across messages and echo areas
-- **Binkp Management** - Web-based uplink configuration and monitoring
+- **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 
 ### Native Binkp Protocol Support
 - **FTS-1026 Compliant** - Full (really?)  binkp/1.0 protocol implementation
@@ -169,7 +170,7 @@ Edit `config/binkp.json` to configure your system.
 #### System Settings
 - **name**: The system's name
 - **address**: Your FTN address (zone:net/node.point)
-- **sysop**: System operator name
+- **sysop**: System operator name.  Must match the actual real name as the sysops user account.
 - **location**: Geographic location
 - **hostname**: Your internet hostname
 - **website**: Optional website URL (displayed in message origin lines)
@@ -325,9 +326,10 @@ php scripts/process_packets.php
 ### Starting the System
 
 1. **Start Web Server**: Ensure Apache/Nginx is running, or use PHP built-in server
-2. **Start Binkp Server**: `php scripts/binkp_server.php --daemon`
-3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
-4. **Process Packets**: Set up cron job for `php scripts/process_packets.php`
+2. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` - not fully tested, see alternative polling
+3. **Polling** Configure cron to run `scripts/binkp_poll.php --all` periodically
+4. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
+5. **Process Packets**: Set up cron job for `php scripts/process_packets.php`
 
 ### Daily Operations
 
@@ -347,7 +349,8 @@ Add these entries to your crontab for automated operation:
 
 ```bash
 # Process inbound packets every 5 minutes
-*/5 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+*/3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+*/5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php
 
 # Backup database daily
 0 2 * * * cp /path/to/binktest/data/binktest.db /path/to/backups/binktest-$(date +\%Y\%m\%d).db
