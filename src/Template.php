@@ -56,6 +56,9 @@ class Template
         $this->twig->addGlobal('app_version', Version::getVersion());
         $this->twig->addGlobal('app_name', Version::getAppName());
         $this->twig->addGlobal('app_full_version', Version::getFullVersion());
+        
+        // Add terminal configuration
+        $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
     }
 
     public function render($template, $variables = [])

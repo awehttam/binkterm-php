@@ -29,6 +29,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - **Message Sharing** - Share echomail messages via secure web links with privacy controls
 - **Message Saving** - Ability to save messages
 - **Search Capabilities** - Full-text search across messages and echo areas
+- **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 
 ### Native Binkp Protocol Support
@@ -181,6 +182,48 @@ Edit `config/binkp.json` to configure your system.
 - Without website: `* Origin: My BBS System (1:234/567)`
 - With website: `* Origin: My BBS System <https://mybbs.com> (1:234/567)`
 
+### Web Terminal Configuration
+
+The web terminal feature provides SSH access through the browser interface. This requires both configuration in the `.env` file and a proxy server to handle WebSocket-to-SSH connections.
+
+#### .env Configuration
+Add these settings to your `.env` file:
+
+```bash
+# Web Terminal Configuration
+TERMINAL_ENABLED=true
+TERMINAL_HOST=your.ssh.server.com
+TERMINAL_PORT=22
+TERMINAL_PROXY_HOST=your.proxy.server.com
+TERMINAL_PROXY_PORT=443
+TERMINAL_TITLE=Terminal Gateway
+```
+
+#### Configuration Options
+- **TERMINAL_ENABLED**: Set to `true` to enable terminal access, `false` to disable
+- **TERMINAL_HOST**: The SSH server hostname/IP that users will connect to
+- **TERMINAL_PORT**: SSH server port (typically 22)
+- **TERMINAL_PROXY_HOST**: WebSocket proxy server hostname/IP
+- **TERMINAL_PROXY_PORT**: WebSocket proxy server port (typically 443 for HTTPS)
+- **TERMINAL_TITLE**: Custom title displayed on the terminal page
+
+#### Proxy Server Requirement
+
+The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebSocket connections to SSH servers. You can use a proxy server like [Terminal Gateway](https://github.com/awehttam/terminalgateway) which provides:
+
+- WebSocket to SSH connection bridging
+- Session management and authentication
+- Security isolation between web and SSH connections
+- Support for multiple concurrent sessions
+
+#### Security Considerations
+
+- Users must be authenticated in the web interface to access the terminal
+- The terminal is disabled by default (`TERMINAL_ENABLED=false`)
+- SSH authentication is handled separately from web authentication
+- Consider network security for both the proxy server and target SSH server
+- The proxy server should be properly secured and regularly updated
+
 #### Binkp Settings
 - **port**: TCP port for binkp server (default: 24554)
 - **timeout**: Connection timeout in seconds
@@ -214,7 +257,7 @@ composer install
 ### Configuration
 #### System configuration
 
-Postgres, SMTP, and other miscellaneous settings are controlled through ".env" in the main directory.  See .env.example for reference.
+Postgres, SMTP, web terminal, and other miscellaneous settings are controlled through ".env" in the main directory.  See .env.example for reference.
 
 #### Node configuration
 

@@ -52,6 +52,13 @@
                                 <i class="fas fa-sitemap"></i> Nodelist
                             </a>
                         </li>
+                        {% if terminal_enabled %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/terminal">
+                                <i class="fas fa-terminal"></i> Terminal
+                            </a>
+                        </li>
+                        {% endif %}
                         {% if current_user.is_admin %}
                         <li class="nav-item">
                             <a class="nav-link" href="/binkp">
@@ -79,6 +86,13 @@
                                 <i class="fas fa-sitemap"></i> Nodelist
                             </a>
                         </li>
+                        {% if terminal_enabled %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/terminal">
+                                <i class="fas fa-terminal"></i> Terminal
+                            </a>
+                        </li>
+                        {% endif %}
                     {% endif %}
                 </ul>
                 
