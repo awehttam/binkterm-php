@@ -130,8 +130,33 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false)
+    public function getEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
     {
+        // Check subscription access if user is specified and subscription checking is enabled
+        if ($userId && $checkSubscriptions && $echoareaTag) {
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            
+            // Get echoarea ID from tag
+            $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND is_active = TRUE");
+            $stmt->execute([$echoareaTag]);
+            $echoarea = $stmt->fetch();
+            
+            if ($echoarea && !$subscriptionManager->isUserSubscribed($userId, $echoarea['id'])) {
+                // User is not subscribed to this echoarea
+                return [
+                    'messages' => [],
+                    'pagination' => [
+                        'current_page' => $page,
+                        'total_pages' => 0,
+                        'total_messages' => 0,
+                        'has_next' => false,
+                        'has_prev' => false
+                    ],
+                    'error' => 'You are not subscribed to this echoarea.'
+                ];
+            }
+        }
+        
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {
             $settings = $this->getUserSettings($userId);
@@ -270,6 +295,152 @@ class MessageHandler
         }
 
         // Clean message data for proper JSON encoding and add REPLYTO parsing
+        $cleanMessages = [];
+        foreach ($messages as $message) {
+            $cleanMessage = $this->cleanMessageForJson($message);
+            
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = $this->parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'];
+            }
+            
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
+                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
+            $cleanMessages[] = $cleanMessage;
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'pages' => ceil($total / $limit)
+            ]
+        ];
+    }
+
+    /**
+     * Get echomail messages from only subscribed echoareas
+     */
+    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
+    {
+        if (!$userId) {
+            return ['messages' => [], 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0]];
+        }
+
+        $subscriptionManager = new EchoareaSubscriptionManager();
+        $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
+        
+        if (empty($subscribedEchoareas)) {
+            return [
+                'messages' => [],
+                'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
+                'info' => 'You are not subscribed to any echoareas. Visit /subscriptions to subscribe to echoareas.'
+            ];
+        }
+
+        // Get user's messages_per_page setting if limit not specified
+        if ($limit === null) {
+            $settings = $this->getUserSettings($userId);
+            $limit = $settings['messages_per_page'] ?? 25;
+        }
+
+        $offset = ($page - 1) * $limit;
+        
+        // Build the WHERE clause based on filter
+        $filterClause = "";
+        $filterParams = [];
+        
+        if ($filter === 'unread') {
+            $filterClause = " AND mrs.read_at IS NULL";
+        } elseif ($filter === 'read') {
+            $filterClause = " AND mrs.read_at IS NOT NULL";
+        } elseif ($filter === 'tome') {
+            $user = $this->getUserById($userId);
+            if ($user) {
+                $filterClause = " AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))";
+                $filterParams[] = $user['username'];
+                $filterParams[] = $user['real_name'];
+            }
+        } elseif ($filter === 'saved') {
+            $filterClause = " AND sav.id IS NOT NULL";
+        }
+        
+        // Create IN clause for subscribed echoareas
+        $echoareaIds = array_column($subscribedEchoareas, 'id');
+        $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+        
+        $stmt = $this->db->prepare("
+            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            ORDER BY em.date_received DESC 
+            LIMIT ? OFFSET ?
+        ");
+        
+        $params = [$userId, $userId, $userId];
+        $params = array_merge($params, $echoareaIds);
+        foreach ($filterParams as $param) {
+            $params[] = $param;
+        }
+        $params[] = $limit;
+        $params[] = $offset;
+        
+        $stmt->execute($params);
+        $messages = $stmt->fetchAll();
+
+        // Get total count for pagination
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+        ");
+        
+        $countParams = [$userId, $userId];
+        $countParams = array_merge($countParams, $echoareaIds);
+        foreach ($filterParams as $param) {
+            $countParams[] = $param;
+        }
+        
+        $countStmt->execute($countParams);
+        $total = $countStmt->fetch()['total'];
+
+        // Get unread count
+        $unreadCount = 0;
+        if ($userId) {
+            $unreadCountStmt = $this->db->prepare("
+                SELECT COUNT(*) as count FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE AND mrs.read_at IS NULL
+            ");
+            $unreadParams = [$userId];
+            $unreadParams = array_merge($unreadParams, $echoareaIds);
+            $unreadCountStmt->execute($unreadParams);
+            $unreadCount = $unreadCountStmt->fetch()['count'];
+        }
+
+        // Clean message data for proper JSON encoding
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
@@ -515,8 +686,14 @@ class MessageHandler
         return $result;
     }
 
-    public function getEchoareas()
+    public function getEchoareas($userId = null, $subscribedOnly = false)
     {
+        if ($userId && $subscribedOnly) {
+            // Get only echoareas the user is subscribed to
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            return $subscriptionManager->getUserSubscribedEchoareas($userId);
+        }
+        
         $stmt = $this->db->query("SELECT * FROM echoareas WHERE is_active = TRUE ORDER BY tag");
         return $stmt->fetchAll();
     }

@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use BinktermPHP\AdminController;
 use BinktermPHP\AddressBookController;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\SubscriptionController;
 
 
 use BinktermPHP\Auth;
@@ -780,15 +781,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadStmt->execute([$userId, $userId]);
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
         
-        // Unread echomail using message_read_status table (only from active echoareas)
+        // Unread echomail using message_read_status table (only from subscribed echoareas)
         $unreadEchomailStmt = $db->prepare("
             SELECT COUNT(*) as count 
             FROM echomail em
             INNER JOIN echoareas e ON em.echoarea_id = e.id
+            INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
             WHERE mrs.read_at IS NULL AND e.is_active = TRUE
         ");
-        $unreadEchomailStmt->execute([$userId]);
+        $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
         
         
@@ -806,6 +808,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         
         $db = Database::getInstance()->getPdo();
         
+        $userId = $user['user_id'] ?? $user['id'];
         $stmt = $db->prepare("
             SELECT id, 'netmail' as type, from_name, subject, date_written, NULL as echoarea, NULL as echoarea_color
             FROM netmail 
@@ -814,10 +817,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             SELECT em.id, 'echomail' as type, em.from_name, em.subject, em.date_written, e.tag as echoarea, e.color as echoarea_color
             FROM echomail em
             JOIN echoareas e ON em.echoarea_id = e.id
+            JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             ORDER BY date_written DESC
             LIMIT 10
         ");
-        $stmt->execute([$user['user_id']]);
+        $stmt->execute([$userId, $userId]);
         $messages = $stmt->fetchAll();
         
         echo json_encode(['messages' => $messages]);
@@ -830,6 +834,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
         
         $filter = $_GET['filter'] ?? 'active';
+        $subscribedOnly = $_GET['subscribed_only'] ?? 'false';
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         
@@ -847,8 +852,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.created_at,
                     COALESCE(total_counts.message_count, 0) as message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count
-                FROM echoareas e
-                LEFT JOIN (
+                FROM echoareas e";
+        
+        // Add subscription filtering if requested
+        if ($subscribedOnly === 'true') {
+            $sql .= " INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?";
+            $params = [$userId, $userId];
+        } else {
+            $params = [$userId];
+        }
+        
+        $sql .= " LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as message_count
                     FROM echomail 
                     GROUP BY echoarea_id
@@ -863,12 +877,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     GROUP BY em.echoarea_id
                 ) unread_counts ON e.id = unread_counts.echoarea_id";
         
-        $params = [$userId];
-        
-        if ($filter === 'active') {
-            $sql .= " WHERE e.is_active = TRUE";
-        } elseif ($filter === 'inactive') {
-            $sql .= " WHERE e.is_active = FALSE";
+        if ($subscribedOnly === 'true') {
+            // For subscribed only, we already have the JOIN, just need to add WHERE conditions
+            $conditions = [];
+            if ($filter === 'active') {
+                $conditions[] = "e.is_active = TRUE";
+            } elseif ($filter === 'inactive') {
+                $conditions[] = "e.is_active = FALSE";
+            }
+            if (!empty($conditions)) {
+                $sql .= " WHERE " . implode(' AND ', $conditions);
+            }
+        } else {
+            // Standard filtering
+            if ($filter === 'active') {
+                $sql .= " WHERE e.is_active = TRUE";
+            } elseif ($filter === 'inactive') {
+                $sql .= " WHERE e.is_active = FALSE";
+            }
         }
         // 'all' filter shows everything
         
@@ -1205,7 +1231,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getEchomail(null, $page, null, $userId, $filter, $threaded);
+        
+        // Get messages from subscribed echoareas only
+        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded);
         echo json_encode($result);
     });
     
@@ -1219,14 +1247,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         
-        // Global echomail statistics
-        $totalStmt = $db->query("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id WHERE ea.is_active = TRUE");
+        // Global echomail statistics (only from subscribed echoareas)
+        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE");
+        $totalStmt->execute([$userId]);
         $total = $totalStmt->fetch()['count'];
         
-        $recentStmt = $db->query("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id WHERE ea.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'");
+        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'");
+        $recentStmt->execute([$userId]);
         $recent = $recentStmt->fetch()['count'];
         
-        $areasStmt = $db->query("SELECT COUNT(*) as count FROM echoareas WHERE is_active = TRUE");
+        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE");
+        $areasStmt->execute([$userId]);
         $areas = $areasStmt->fetch()['count'];
         
         // Filter counts for this user
@@ -1246,20 +1277,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $unreadStmt = $db->prepare("
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
+                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE ea.is_active = TRUE AND mrs.read_at IS NULL
             ");
-            $unreadStmt->execute([$userId]);
+            $unreadStmt->execute([$userId, $userId]);
             $unreadCount = $unreadStmt->fetch()['count'];
             
             // Read count
             $readStmt = $db->prepare("
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
+                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 WHERE ea.is_active = TRUE AND mrs.read_at IS NOT NULL
             ");
-            $readStmt->execute([$userId]);
+            $readStmt->execute([$userId, $userId]);
             $readCount = $readStmt->fetch()['count'];
             
             // To Me count
@@ -1267,9 +1300,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $toMeStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
+                    JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                     WHERE ea.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
                 ");
-                $toMeStmt->execute([$userInfo['username'], $userInfo['real_name']]);
+                $toMeStmt->execute([$userId, $userInfo['username'], $userInfo['real_name']]);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
             
@@ -1277,10 +1311,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $savedStmt = $db->prepare("
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
+                JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.is_active = TRUE AND sav.id IS NOT NULL
             ");
-            $savedStmt->execute([$userId]);
+            $savedStmt->execute([$userId, $userId]);
             $savedCount = $savedStmt->fetch()['count'];
         }
         
@@ -3134,6 +3169,65 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             echo json_encode($stats);
         });
     });
+});
+
+// Subscription management routes
+SimpleRouter::get('/subscriptions', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+    
+    $controller = new BinktermPHP\SubscriptionController();
+    $data = $controller->renderUserSubscriptionPage();
+    
+    // Only render template if we got data back (not redirected)
+    if ($data !== null) {
+        $template = new Template();
+        $template->renderResponse('user_subscriptions.twig', $data);
+    }
+});
+
+// User subscription API routes
+SimpleRouter::group(['prefix' => '/api/subscriptions'], function() {
+    
+    // User subscription management
+    SimpleRouter::get('/user', function() {
+        $controller = new BinktermPHP\SubscriptionController();
+        $controller->handleUserSubscriptions();
+    });
+    
+    SimpleRouter::post('/user', function() {
+        $controller = new BinktermPHP\SubscriptionController();
+        $controller->handleUserSubscriptions();
+    });
+    
+    // Admin subscription management
+    SimpleRouter::get('/admin', function() {
+        $controller = new BinktermPHP\SubscriptionController();
+        $controller->handleAdminSubscriptions();
+    });
+    
+    SimpleRouter::post('/admin', function() {
+        $controller = new BinktermPHP\SubscriptionController();
+        $controller->handleAdminSubscriptions();
+    });
+});
+
+// Admin subscription management page
+SimpleRouter::get('/admin/subscriptions', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+    
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+    
+    $controller = new BinktermPHP\SubscriptionController();
+    $data = $controller->renderAdminSubscriptionPage();
+    
+    // Only render template if we got data back (not redirected)
+    if ($data !== null) {
+        $template = new Template();
+        $template->renderResponse('admin_subscriptions.twig', $data);
+    }
 });
 
 // Nodelist routes

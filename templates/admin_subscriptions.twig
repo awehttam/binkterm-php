@@ -1,0 +1,232 @@
+{% extends "base.twig" %}
+
+{% block title %}Admin: Manage Subscriptions - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-bookmark-plus me-2"></i>
+                    Subscription Management
+                </h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="/admin">Admin</a></li>
+                        <li class="breadcrumb-item active">Subscriptions</li>
+                    </ol>
+                </nav>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-comments fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="mb-1">{{ stats.total_echoareas }}</h5>
+                                    <small>Total Echoareas</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-star fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="mb-1">{{ stats.default_echoareas }}</h5>
+                                    <small>Default Echoareas</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-bookmark fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="mb-1">{{ stats.total_subscriptions }}</h5>
+                                    <small>Total Subscriptions</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-users fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="mb-1">{{ stats.subscribed_users }}</h5>
+                                    <small>Active Subscribers</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Echoarea Management -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>
+                        Echoarea Default Subscriptions
+                    </h5>
+                    <small class="text-muted">Manage which echoareas new users are automatically subscribed to</small>
+                </div>
+                <div class="card-body">
+                    <div id="admin-status" class="alert d-none" role="alert"></div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th width="80">Default</th>
+                                    <th width="150">Echoarea</th>
+                                    <th>Description</th>
+                                    <th width="100" class="text-center">Subscribers</th>
+                                    <th width="100" class="text-center">User Subs</th>
+                                    <th width="100" class="text-center">Auto Subs</th>
+                                    <th width="120" class="text-center">Messages</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for echoarea in echoareas %}
+                                <tr>
+                                    <td>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input default-toggle" 
+                                                   type="checkbox" 
+                                                   id="default-{{ echoarea.id }}"
+                                                   data-echoarea-id="{{ echoarea.id }}"
+                                                   {{ echoarea.is_default_subscription ? 'checked' : '' }}>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge me-2" style="background-color: {{ echoarea.color }};">
+                                            {{ echoarea.tag }}
+                                        </span>
+                                        {% if echoarea.is_default_subscription %}
+                                            <i class="fas fa-star text-warning" title="Default subscription"></i>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ echoarea.description }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary">{{ echoarea.subscriber_count }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success">{{ echoarea.user_subscribers }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info">{{ echoarea.auto_subscribers }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <small class="text-muted">{{ echoarea.message_count }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Legend:</h6>
+                                <ul class="list-unstyled small text-muted">
+                                    <li><i class="fas fa-star text-warning me-2"></i>Default subscription (new users auto-subscribed)</li>
+                                    <li><span class="badge bg-primary me-2">Total</span>All active subscribers</li>
+                                    <li><span class="badge bg-success me-2">User</span>User-initiated subscriptions</li>
+                                    <li><span class="badge bg-info me-2">Auto</span>Automatic/admin subscriptions</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-info-circle me-2"></i>How it works:</h6>
+                                    <ul class="mb-0 small">
+                                        <li>Toggle "Default" to make echoareas auto-subscribe for new users</li>
+                                        <li>When enabled, all existing users also get auto-subscribed</li>
+                                        <li>Users can still unsubscribe from default echoareas</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const defaultToggles = document.querySelectorAll('.default-toggle');
+    const statusDiv = document.getElementById('admin-status');
+    
+    // Default subscription toggle functionality
+    defaultToggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const echoareaId = this.dataset.echoareaId;
+            const isDefault = this.checked;
+            const originalState = !this.checked;
+            
+            // Disable toggle while processing
+            this.disabled = true;
+            
+            fetch('/api/subscriptions/admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'set_default',
+                    echoarea_id: parseInt(echoareaId),
+                    is_default: isDefault
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const action = isDefault ? 'enabled' : 'disabled';
+                    showStatus(`Default subscription ${action} successfully! Page will refresh to show updated stats.`, 'success');
+                    // Refresh page to update subscriber counts
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    // Revert toggle state
+                    this.checked = originalState;
+                    showStatus('Failed to update default subscription. Please try again.', 'danger');
+                }
+            })
+            .catch(error => {
+                // Revert toggle state
+                this.checked = originalState;
+                showStatus('Network error. Please try again.', 'danger');
+            })
+            .finally(() => {
+                this.disabled = false;
+            });
+        });
+    });
+    
+    function showStatus(message, type) {
+        statusDiv.className = `alert alert-${type}`;
+        statusDiv.textContent = message;
+        statusDiv.classList.remove('d-none');
+        
+        setTimeout(() => {
+            statusDiv.classList.add('d-none');
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}
