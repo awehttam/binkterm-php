@@ -6,7 +6,7 @@ This script generates configurable weather forecasts and current conditions for 
 
 - **Configurable Locations**: Define any cities worldwide via JSON configuration
 - **Custom Report Titles**: Personalize the report title and coverage area
-- **5-Day Forecast**: Detailed weather forecasts for configured cities
+- **3-Day Forecast**: Detailed weather forecasts for configured cities
 - **Current Conditions**: Real-time weather data including temperature, humidity, wind, pressure
 - **Echomail Integration**: Prepares reports for posting to echomail areas
 - **Demo Mode**: Test functionality without API key or live data
