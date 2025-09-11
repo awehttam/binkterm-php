@@ -369,7 +369,7 @@ function loadComposeAddressBook(search = '') {
                 $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
             }
         })
-        .fail(function() {
+        .fail(function(xhr, status, error) {
             $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
         });
 }

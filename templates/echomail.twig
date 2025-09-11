@@ -905,6 +905,7 @@ function checkAndDisplayEchomailMessage(message, parsedMessage) {
             let isInAddressBook = false;
             if (response.success && response.entries) {
                 const existingEntry = response.entries.find(entry => 
+                    entry.messaging_user_id && replyToName && 
                     entry.messaging_user_id.toLowerCase() === replyToName.toLowerCase() &&
                     entry.node_address === replyToAddress
                 );
@@ -1866,6 +1867,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
             if (response.success) {
                 // Check if contact already exists
                 const existingEntry = response.entries.find(entry => 
+                    entry.messaging_user_id && fromName && 
                     entry.messaging_user_id.toLowerCase() === fromName.toLowerCase() && 
                     entry.node_address === fromAddress
                 );

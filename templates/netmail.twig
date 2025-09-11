@@ -469,6 +469,7 @@ function checkAndDisplayMessage(message, parsedMessage, isSent) {
             let isInAddressBook = false;
             if (response.success && response.entries) {
                 const existingEntry = response.entries.find(entry => 
+                    entry.messaging_user_id && replyToName && 
                     entry.messaging_user_id.toLowerCase() === replyToName.toLowerCase() &&
                     entry.node_address === replyToAddress
                 );
@@ -575,7 +576,7 @@ function composeMessageToUser(toName, toAddress, subject) {
     params.set('to', toAddress);
     if (subject && subject.trim()) {
         // If subject doesn't start with "Re:", add it
-        const replySubject = subject.toLowerCase().startsWith('re:') ? subject : 'Re: ' + subject;
+        const replySubject = subject && subject.toLowerCase().startsWith('re:') ? subject : 'Re: ' + subject;
         params.set('subject', replySubject);
     }
     
@@ -914,6 +915,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
             if (response.success) {
                 // Check if contact already exists
                 const existingEntry = response.entries.find(entry => 
+                    entry.messaging_user_id && fromName && 
                     entry.messaging_user_id.toLowerCase() === fromName.toLowerCase() && 
                     entry.node_address === fromAddress
                 );
@@ -999,7 +1001,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
         });
 }
 
-// Debounce function for search
+/*// Debounce function for search
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -1009,6 +1011,17 @@ function debounce(func, wait) {
         };
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
+    };
+}*/
+// A typical debounce implementation
+function debounce(func, delay) {
+    let timeout;
+    return function(...args) {
+        const context = this; // Capture the correct 'this'
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            func.apply(context, args); // Apply the captured context
+        }, delay);
     };
 }
 </script>
