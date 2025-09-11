@@ -1,0 +1,42 @@
+{
+    "title": "Pacific Northwest Weather Report",
+    "coverage_area": "British Columbia & Pacific Northwest",
+    "api_key": "your_openweathermap_api_key_here",
+    "locations": [
+        {
+            "name": "Vancouver",
+            "lat": 49.2827,
+            "lon": -123.1207
+        },
+        {
+            "name": "Victoria", 
+            "lat": 48.4284,
+            "lon": -123.3656
+        },
+        {
+            "name": "Seattle",
+            "lat": 47.6062,
+            "lon": -122.3321
+        },
+        {
+            "name": "Portland",
+            "lat": 45.5152,
+            "lon": -122.6784
+        },
+        {
+            "name": "Kelowna",
+            "lat": 49.8880,
+            "lon": -119.4960
+        },
+        {
+            "name": "Prince George",
+            "lat": 53.9171,
+            "lon": -122.7497
+        }
+    ],
+    "settings": {
+        "api_timeout": 10,
+        "max_locations": 10,
+        "units": "metric"
+    }
+}

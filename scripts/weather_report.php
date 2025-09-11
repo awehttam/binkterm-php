@@ -18,30 +18,108 @@ use BinktermPHP\MessageHandler;
 use BinktermPHP\Version;
 
 /**
- * Weather Report Generator for British Columbia / Pacific Northwest
+ * Weather Report Generator
  * 
- * Generates a 7-day weather forecast and special weather statements
- * for posting to echomail forums or sending as netmail.
+ * Generates weather forecasts and current conditions for configurable locations.
+ * Configuration is loaded from config/weather.json
  */
 class WeatherReportGenerator 
 {
+    private $config;
     private $apiKey;
     private $locations;
+    private $title;
+    private $coverageArea;
+    private $settings;
     
-    public function __construct() 
+    public function __construct($configPath = null) 
     {
-        // OpenWeatherMap API key - get from environment or config
-        $this->apiKey = Config::env('WEATHER_API_KEY', '') ?: Config::env('weather_api_key', '');
+        $this->loadConfiguration($configPath);
+    }
+    
+    /**
+     * Load configuration from JSON file
+     */
+    private function loadConfiguration($configPath = null): void
+    {
+        if ($configPath === null) {
+            $configPath = __DIR__ . '/../config/weather.json';
+        }
         
-        // Major BC/PNW cities for weather reporting
-        $this->locations = [
-            'Vancouver' => ['lat' => 49.2827, 'lon' => -123.1207],
-            'Victoria' => ['lat' => 48.4284, 'lon' => -123.3656],
-            'Seattle' => ['lat' => 47.6062, 'lon' => -122.3321],
-            'Portland' => ['lat' => 45.5152, 'lon' => -122.6784],
-            'Kelowna' => ['lat' => 49.8880, 'lon' => -119.4960],
-            'Prince George' => ['lat' => 53.9171, 'lon' => -122.7497]
-        ];
+        // Check if config file exists
+        if (!file_exists($configPath)) {
+            // Fall back to example file for reference
+            $examplePath = __DIR__ . '/../config/weather.json.example';
+            if (file_exists($examplePath)) {
+                throw new \Exception("Weather configuration not found. Please copy {$examplePath} to " . dirname($configPath) . "/weather.json and configure it.");
+            } else {
+                throw new \Exception("Weather configuration file not found: {$configPath}");
+            }
+        }
+        
+        $configContent = file_get_contents($configPath);
+        if ($configContent === false) {
+            throw new \Exception("Could not read weather configuration file: {$configPath}");
+        }
+        
+        $this->config = json_decode($configContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \Exception("Invalid JSON in weather configuration: " . json_last_error_msg());
+        }
+        
+        // Validate required configuration sections
+        $this->validateConfiguration();
+        
+        // Set properties from configuration
+        $this->title = $this->config['title'];
+        $this->coverageArea = $this->config['coverage_area'];
+        $this->settings = $this->config['settings'] ?? [];
+        
+        // API key - prioritize config file, then fall back to environment
+        $this->apiKey = $this->config['api_key'] ?? Config::env('WEATHER_API_KEY', '') ?: Config::env('weather_api_key', '');
+        
+        // Convert locations array to associative array for backward compatibility
+        $this->locations = [];
+        foreach ($this->config['locations'] as $location) {
+            $this->locations[$location['name']] = [
+                'lat' => $location['lat'],
+                'lon' => $location['lon']
+            ];
+        }
+    }
+    
+    /**
+     * Validate configuration structure
+     */
+    private function validateConfiguration(): void
+    {
+        $required = ['title', 'coverage_area', 'locations'];
+        foreach ($required as $field) {
+            if (!isset($this->config[$field])) {
+                throw new \Exception("Missing required configuration field: {$field}");
+            }
+        }
+        
+        if (!is_array($this->config['locations']) || empty($this->config['locations'])) {
+            throw new \Exception("Configuration must include at least one location");
+        }
+        
+        // Validate each location has required fields
+        foreach ($this->config['locations'] as $index => $location) {
+            $requiredLocationFields = ['name', 'lat', 'lon'];
+            foreach ($requiredLocationFields as $field) {
+                if (!isset($location[$field])) {
+                    throw new \Exception("Location {$index} missing required field: {$field}");
+                }
+            }
+        }
+        
+        // Validate settings if present
+        if (isset($this->config['settings'])) {
+            if (isset($this->config['settings']['max_locations']) && count($this->config['locations']) > $this->config['settings']['max_locations']) {
+                throw new \Exception("Too many locations configured. Maximum allowed: " . $this->config['settings']['max_locations']);
+            }
+        }
     }
     
     /**
@@ -50,6 +128,14 @@ class WeatherReportGenerator
     public function getApiKey(): string 
     {
         return $this->apiKey;
+    }
+    
+    /**
+     * Get configuration for accessing config values
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
     }
     
     /**
@@ -82,11 +168,12 @@ class WeatherReportGenerator
     private function generateHeader(): string 
     {
         $date = date('l, F j, Y \a\t H:i T');
+        $title = strtoupper($this->title);
         
-        return "PACIFIC NORTHWEST WEATHER REPORT\n"
-             . str_repeat("=", 50) . "\n"
+        return "{$title}\n"
+             . str_repeat("=", max(50, strlen($title))) . "\n"
              . "Generated: {$date}\n"
-             . "Coverage: British Columbia & Pacific Northwest\n\n";
+             . "Coverage: {$this->coverageArea}\n\n";
     }
     
     /**
@@ -221,9 +308,11 @@ class WeatherReportGenerator
      */
     private function makeApiRequest(string $url): ?array 
     {
+        $timeout = $this->settings['api_timeout'] ?? 10;
+        
         $context = stream_context_create([
             'http' => [
-                'timeout' => 10,
+                'timeout' => $timeout,
                 'user_agent' => 'BinktermPHP Weather Reporter/' . Version::getVersion()
             ]
         ]);
@@ -276,29 +365,26 @@ class WeatherReportGenerator
     {
         $conditions = "DEMO CURRENT CONDITIONS\n" . str_repeat("=", 20) . "\n\n";
         
-        $conditions .= "Vancouver: 18°C (Light rain)\n";
-        $conditions .= "  Feels like 17°C, Humidity 78%, Wind 15.2 km/h\n";
-        $conditions .= "  Pressure 1013 hPa\n\n";
+        // Use configured locations with sample data
+        $sampleData = [
+            ['temp' => 18, 'desc' => 'Light rain', 'feels' => 17, 'humidity' => 78, 'wind' => 15.2, 'pressure' => 1013],
+            ['temp' => 16, 'desc' => 'Overcast', 'feels' => 15, 'humidity' => 82, 'wind' => 12.8, 'pressure' => 1011],
+            ['temp' => 17, 'desc' => 'Light rain', 'feels' => 16, 'humidity' => 80, 'wind' => 14.3, 'pressure' => 1012],
+            ['temp' => 19, 'desc' => 'Partly cloudy', 'feels' => 19, 'humidity' => 68, 'wind' => 9.7, 'pressure' => 1015],
+            ['temp' => 21, 'desc' => 'Clear', 'feels' => 22, 'humidity' => 55, 'wind' => 8.1, 'pressure' => 1018],
+            ['temp' => 14, 'desc' => 'Cloudy', 'feels' => 13, 'humidity' => 71, 'wind' => 11.5, 'pressure' => 1016]
+        ];
         
-        $conditions .= "Victoria: 16°C (Overcast)\n";
-        $conditions .= "  Feels like 15°C, Humidity 82%, Wind 12.8 km/h\n";
-        $conditions .= "  Pressure 1011 hPa\n\n";
-        
-        $conditions .= "Seattle: 17°C (Light rain)\n";
-        $conditions .= "  Feels like 16°C, Humidity 80%, Wind 14.3 km/h\n";
-        $conditions .= "  Pressure 1012 hPa\n\n";
-        
-        $conditions .= "Portland: 19°C (Partly cloudy)\n";
-        $conditions .= "  Feels like 19°C, Humidity 68%, Wind 9.7 km/h\n";
-        $conditions .= "  Pressure 1015 hPa\n\n";
-        
-        $conditions .= "Kelowna: 21°C (Clear)\n";
-        $conditions .= "  Feels like 22°C, Humidity 55%, Wind 8.1 km/h\n";
-        $conditions .= "  Pressure 1018 hPa\n\n";
-        
-        $conditions .= "Prince George: 14°C (Cloudy)\n";
-        $conditions .= "  Feels like 13°C, Humidity 71%, Wind 11.5 km/h\n";
-        $conditions .= "  Pressure 1016 hPa\n\n";
+        $index = 0;
+        foreach ($this->locations as $locationName => $coords) {
+            $data = $sampleData[$index % count($sampleData)];
+            
+            $conditions .= "{$locationName}: {$data['temp']}°C ({$data['desc']})\n";
+            $conditions .= "  Feels like {$data['feels']}°C, Humidity {$data['humidity']}%, Wind {$data['wind']} km/h\n";
+            $conditions .= "  Pressure {$data['pressure']} hPa\n\n";
+            
+            $index++;
+        }
         
         return $conditions;
     }
@@ -310,26 +396,40 @@ class WeatherReportGenerator
     {
         $forecast = "5-DAY FORECAST\n" . str_repeat("=", 20) . "\n\n";
         
-        $forecast .= "Vancouver:\n----------\n";
-        $forecast .= "Fri Sep 6: Light rain, High 19°C, Low 13°C, Humidity 78%, Wind 15.3 km/h\n";
-        $forecast .= "Sat Sep 7: Overcast, High 17°C, Low 12°C, Humidity 85%, Wind 12.1 km/h\n";
-        $forecast .= "Sun Sep 8: Partly cloudy, High 21°C, Low 14°C, Humidity 72%, Wind 8.7 km/h\n";
-        $forecast .= "Mon Sep 9: Sunny, High 24°C, Low 16°C, Humidity 58%, Wind 6.4 km/h\n";
-        $forecast .= "Tue Sep 10: Partly cloudy, High 23°C, Low 15°C, Humidity 61%, Wind 10.2 km/h\n\n";
+        // Sample forecast data to cycle through
+        $forecastData = [
+            [
+                ['desc' => 'Light rain', 'high' => 19, 'low' => 13, 'humidity' => 78, 'wind' => 15.3],
+                ['desc' => 'Overcast', 'high' => 17, 'low' => 12, 'humidity' => 85, 'wind' => 12.1],
+                ['desc' => 'Partly cloudy', 'high' => 21, 'low' => 14, 'humidity' => 72, 'wind' => 8.7],
+                ['desc' => 'Sunny', 'high' => 24, 'low' => 16, 'humidity' => 58, 'wind' => 6.4],
+                ['desc' => 'Partly cloudy', 'high' => 23, 'low' => 15, 'humidity' => 61, 'wind' => 10.2]
+            ],
+            [
+                ['desc' => 'Overcast', 'high' => 18, 'low' => 12, 'humidity' => 70, 'wind' => 13.8],
+                ['desc' => 'Heavy rain', 'high' => 16, 'low' => 11, 'humidity' => 90, 'wind' => 18.5],
+                ['desc' => 'Light rain', 'high' => 19, 'low' => 13, 'humidity' => 78, 'wind' => 11.3],
+                ['desc' => 'Sunny', 'high' => 22, 'low' => 14, 'humidity' => 55, 'wind' => 9.8],
+                ['desc' => 'Partly cloudy', 'high' => 21, 'low' => 13, 'humidity' => 63, 'wind' => 12.4]
+            ]
+        ];
         
-        $forecast .= "Victoria:\n---------\n";
-        $forecast .= "Fri Sep 6: Overcast, High 18°C, Low 12°C, Humidity 70%, Wind 13.8 km/h\n";
-        $forecast .= "Sat Sep 7: Heavy rain, High 16°C, Low 11°C, Humidity 90%, Wind 18.5 km/h\n";
-        $forecast .= "Sun Sep 8: Light rain, High 19°C, Low 13°C, Humidity 78%, Wind 11.3 km/h\n";
-        $forecast .= "Mon Sep 9: Sunny, High 22°C, Low 14°C, Humidity 55%, Wind 9.8 km/h\n";
-        $forecast .= "Tue Sep 10: Partly cloudy, High 21°C, Low 13°C, Humidity 63%, Wind 12.4 km/h\n\n";
-        
-        $forecast .= "Seattle:\n--------\n";
-        $forecast .= "Fri Sep 6: Rain, High 18°C, Low 12°C, Humidity 75%, Wind 16.2 km/h\n";
-        $forecast .= "Sat Sep 7: Heavy rain, High 16°C, Low 11°C, Humidity 88%, Wind 19.8 km/h\n";
-        $forecast .= "Sun Sep 8: Light rain, High 20°C, Low 13°C, Humidity 74%, Wind 9.5 km/h\n";
-        $forecast .= "Mon Sep 9: Sunny, High 23°C, Low 15°C, Humidity 59%, Wind 7.3 km/h\n";
-        $forecast .= "Tue Sep 10: Partly cloudy, High 22°C, Low 14°C, Humidity 64%, Wind 10.1 km/h\n\n";
+        $locationIndex = 0;
+        foreach ($this->locations as $locationName => $coords) {
+            $forecast .= "{$locationName}:\n" . str_repeat("-", strlen($locationName) + 1) . "\n";
+            
+            $dataSet = $forecastData[$locationIndex % count($forecastData)];
+            
+            $days = ['Fri Sep 6', 'Sat Sep 7', 'Sun Sep 8', 'Mon Sep 9', 'Tue Sep 10'];
+            for ($i = 0; $i < 5; $i++) {
+                $day = $dataSet[$i];
+                $forecast .= "{$days[$i]}: {$day['desc']}, High {$day['high']}°C, Low {$day['low']}°C, ";
+                $forecast .= "Humidity {$day['humidity']}%, Wind {$day['wind']} km/h\n";
+            }
+            $forecast .= "\n";
+            
+            $locationIndex++;
+        }
         
         return $forecast;
     }
@@ -340,7 +440,7 @@ class WeatherReportGenerator
     public function createEchomailMessage(string $echoarea = 'LOCALTEST', string $toName = 'All', string $username = '', bool $demoMode = false): array 
     {
         $report = $this->generateReport($demoMode);
-        $subject = "Pacific Northwest Weather Report - " . date('M j, Y');
+        $subject = $this->title . " - " . date('M j, Y');
         
         // Get user info if username provided
         $fromName = 'Weather Bot';
@@ -386,7 +486,7 @@ class WeatherReportGenerator
         $report = $this->generateReport($demoMode);
         if($report==false)
             return false;
-        $subject = "Pacific Northwest Weather Report - " . date('M j, Y');
+        $subject = $this->title . " - " . date('M j, Y');
         
         try {
             $handler = new MessageHandler();
@@ -460,10 +560,7 @@ class WeatherReportGenerator
 
 // Main execution if run directly
 if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
-    echo "Pacific Northwest Weather Report Generator\n";
-    echo str_repeat("=", 50) . "\n\n";
-    
-    // Parse command line arguments
+    // Parse command line arguments first
     $args = [];
     foreach ($argv ?? [] as $arg) {
         if (strpos($arg, '--') === 0) {
@@ -482,8 +579,39 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
     $postMode = isset($args['post']);
     $username = $args['user'] ?? '';
     $echoareas = $args['areas'] ?? 'LOCALTEST';
+    $configPath = $args['config'] ?? null;
     
-    $generator = new WeatherReportGenerator();
+    // Try to create the weather generator
+    try {
+        $generator = new WeatherReportGenerator($configPath);
+        $config = $generator->getConfig();
+        $title = $config['title'] ?? 'Weather Report Generator';
+        echo "{$title}\n";
+        echo str_repeat("=", max(50, strlen($title))) . "\n\n";
+    } catch (Exception $e) {
+        echo "Weather Report Generator\n";
+        echo str_repeat("=", 50) . "\n\n";
+        echo "❌ Configuration Error: " . $e->getMessage() . "\n\n";
+        
+        if (!$demoMode) {
+            echo "You can:\n";
+            echo "1. Copy config/weather.json.example to config/weather.json and configure it\n";
+            echo "2. Run in demo mode: php scripts/weather_report.php --demo\n";
+            echo "3. Specify custom config: php scripts/weather_report.php --config=/path/to/config.json\n";
+            exit(1);
+        } else {
+            echo "Demo mode enabled - using fallback configuration\n\n";
+            // Create a minimal generator for demo mode
+            $generator = new class {
+                public function generateReport($demo = true) { 
+                    return "Demo weather report - configuration file needed for live data\n"; 
+                }
+                public function createEchomailMessage($area = 'LOCALTEST', $to = 'All', $user = '', $demo = false) {
+                    return ['type' => 'demo', 'message' => 'Demo message'];
+                }
+            };
+        }
+    }
     
     // Debug mode - test API connectivity
     if ($debugMode) {
