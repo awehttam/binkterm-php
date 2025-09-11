@@ -454,8 +454,8 @@ tail -f data/logs/binkp_server.log
 
 ### Analytics 
 
-You can inject analytics tracking code into the page header by creating a template named templates/custom/header.insert.twig.  
-See templates/custom/header.insert.twig.example for reference.
+You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.  
+See `templates/custom/header.insert.twig.example` for reference with Google Analytics and other tracking examples.
 
 ### Performance Tuning
 
@@ -532,6 +532,7 @@ binktest/
 │   ├── post_message.php       # Message posting tool
 │   └── process_packets.php    # Packet processor
 ├── templates/                  # Twig templates
+│   └── custom/                # Custom template insertions
 ├── public_html/               # Web root
 │   ├── css/                   # Stylesheets
 │   ├── js/                    # JavaScript
