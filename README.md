@@ -452,6 +452,11 @@ php scripts/debug_binkp.php 1:153/149
 tail -f data/logs/binkp_server.log
 ```
 
+### Analytics 
+
+You can inject analytics tracking code into the page header by creating a template named templates/custom/header.insert.twig.  
+See templates/custom/header.insert.twig.example for reference.
+
 ### Performance Tuning
 
 #### High Traffic Systems
@@ -533,8 +538,8 @@ binktest/
 │   └── index.php             # Main application
 ├── data/
 │   ├── inbound/              # Incoming packets
-│   ├── outbound/             # Outgoing packets
-│   ├── logs/                 # Log files
+│   ├── outbound/             # Outgoing packets (shared permissions between web server and shell account)
+│   ├── logs/                 # Log files  (shared permissions between web server and shell account)
 └── database/
     └── migrations/                # Database migration files
 ```
