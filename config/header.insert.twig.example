@@ -1,0 +1,34 @@
+{# Header Insert Template Example #}
+{# This file allows you to inject custom HTML into the page header #}
+{# Copy this file to header.insert.twig and customize for your needs #}
+
+{# Example: Google Analytics #}
+{# 
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'GA_MEASUREMENT_ID');
+</script>
+#}
+
+{# Example: Custom CSS #}
+{#
+<style>
+/* Your custom styles here */
+</style>
+#}
+
+{# Example: Custom JavaScript #}
+{#
+<script>
+// Your custom JavaScript here
+</script>
+#}
+
+{# Example: Meta tags #}
+{#
+<meta name="custom-meta" content="your-value">
+#}
