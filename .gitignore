@@ -2,7 +2,7 @@ composer.lock
 config/*.json
 config/welcome.txt
 config/systemnews.twig
-config/header.insert.twig
+templates/custom/header.insert.twig
 data/*
 backups/*
 .idea/
