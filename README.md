@@ -45,6 +45,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - **Server Management** - Start/stop binkp server daemon (Linux/UNIX only)
 - **Status Monitoring** - Real-time system and connection status
 - **Scheduling Control** - Manage automated polling schedules
+- **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](scripts/README_weather.md))
 
 ## Installation
 
@@ -282,6 +283,25 @@ php scripts/post_message.php --type=echomail \
 php scripts/post_message.php --list-users
 php scripts/post_message.php --list-areas
 ```
+
+### Weather Report Generator
+Generate detailed weather forecasts for posting to echomail areas:
+
+```bash
+# Generate weather report using configured locations
+php scripts/weather_report.php
+
+# Test with demo data (no API key required)
+php scripts/weather_report.php --demo
+
+# Post weather report to echomail area
+php scripts/weather_report.php --post --areas=WEATHER --user=admin
+
+# Use custom configuration file
+php scripts/weather_report.php --config=/path/to/custom/weather.json
+```
+
+The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [scripts/README_weather.md](scripts/README_weather.md) for detailed setup instructions and configuration examples.
 
 ### Binkp Server Management
 
