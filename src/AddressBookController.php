@@ -17,7 +17,7 @@ class AddressBookController
     public function getUserEntries($userId, $search = '')
     {
         $sql = "
-            SELECT id, full_name, node_address, email, description, created_at, updated_at
+            SELECT id, name, messaging_user_id, node_address, email, description, created_at, updated_at
             FROM address_book 
             WHERE user_id = ?
         ";
@@ -25,14 +25,15 @@ class AddressBookController
         $params = [$userId];
         
         if (!empty($search)) {
-            $sql .= " AND (full_name ILIKE ? OR node_address ILIKE ? OR description ILIKE ?)";
+            $sql .= " AND (name ILIKE ? OR messaging_user_id ILIKE ? OR node_address ILIKE ? OR description ILIKE ?)";
             $searchTerm = '%' . $search . '%';
+            $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
         }
         
-        $sql .= " ORDER BY full_name ASC";
+        $sql .= " ORDER BY name ASC";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -46,7 +47,7 @@ class AddressBookController
     public function getEntry($entryId, $userId)
     {
         $stmt = $this->db->prepare("
-            SELECT id, full_name, node_address, email, description, created_at, updated_at
+            SELECT id, name, messaging_user_id, node_address, email, description, created_at, updated_at
             FROM address_book 
             WHERE id = ? AND user_id = ?
         ");
@@ -61,8 +62,8 @@ class AddressBookController
     public function createEntry($userId, $data)
     {
         // Validate required fields
-        if (empty($data['full_name']) || empty($data['node_address'])) {
-            throw new \Exception('Full name and node address are required');
+        if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
+            throw new \Exception('Name, user ID, and node address are required');
         }
 
         // Validate Fidonet address format
@@ -73,22 +74,23 @@ class AddressBookController
         // Check for duplicate entry
         $checkStmt = $this->db->prepare("
             SELECT id FROM address_book 
-            WHERE user_id = ? AND full_name = ? AND node_address = ?
+            WHERE user_id = ? AND messaging_user_id = ? AND node_address = ?
         ");
-        $checkStmt->execute([$userId, $data['full_name'], $data['node_address']]);
+        $checkStmt->execute([$userId, $data['messaging_user_id'], $data['node_address']]);
         
         if ($checkStmt->fetch()) {
             throw new \Exception('An entry with this name and address already exists');
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO address_book (user_id, full_name, node_address, email, description)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO address_book (user_id, name, messaging_user_id, node_address, email, description)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
             $userId,
-            $data['full_name'],
+            $data['name'],
+            $data['messaging_user_id'],
             $data['node_address'],
             $data['email'] ?? null,
             $data['description'] ?? null
@@ -113,8 +115,8 @@ class AddressBookController
         }
 
         // Validate required fields
-        if (empty($data['full_name']) || empty($data['node_address'])) {
-            throw new \Exception('Full name and node address are required');
+        if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
+            throw new \Exception('Name, user ID, and node address are required');
         }
 
         // Validate Fidonet address format
@@ -125,9 +127,9 @@ class AddressBookController
         // Check for duplicate entry (excluding current entry)
         $checkStmt = $this->db->prepare("
             SELECT id FROM address_book 
-            WHERE user_id = ? AND full_name = ? AND node_address = ? AND id != ?
+            WHERE user_id = ? AND messaging_user_id = ? AND node_address = ? AND id != ?
         ");
-        $checkStmt->execute([$userId, $data['full_name'], $data['node_address'], $entryId]);
+        $checkStmt->execute([$userId, $data['messaging_user_id'], $data['node_address'], $entryId]);
         
         if ($checkStmt->fetch()) {
             throw new \Exception('An entry with this name and address already exists');
@@ -135,12 +137,13 @@ class AddressBookController
 
         $stmt = $this->db->prepare("
             UPDATE address_book 
-            SET full_name = ?, node_address = ?, email = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, messaging_user_id = ?, node_address = ?, email = ?, description = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND user_id = ?
         ");
         
         return $stmt->execute([
-            $data['full_name'],
+            $data['name'],
+            $data['messaging_user_id'],
             $data['node_address'],
             $data['email'] ?? null,
             $data['description'] ?? null,
@@ -166,23 +169,24 @@ class AddressBookController
         $searchTerm = '%' . $query . '%';
         
         $stmt = $this->db->prepare("
-            SELECT id, full_name, node_address, email
+            SELECT id, name, messaging_user_id, node_address, email
             FROM address_book 
             WHERE user_id = ? 
-                AND (full_name ILIKE ? OR node_address ILIKE ?)
+                AND (name ILIKE ? OR messaging_user_id ILIKE ? OR node_address ILIKE ?)
             ORDER BY 
                 CASE 
-                    WHEN full_name ILIKE ? THEN 1
-                    WHEN node_address ILIKE ? THEN 2
-                    ELSE 3
+                    WHEN name ILIKE ? THEN 1
+                    WHEN messaging_user_id ILIKE ? THEN 2
+                    WHEN node_address ILIKE ? THEN 3
+                    ELSE 4
                 END,
-                full_name ASC
+                name ASC
             LIMIT ?
         ");
         
         // Priority search: exact matches first, then partial matches
         $exactTerm = $query . '%';
-        $stmt->execute([$userId, $searchTerm, $searchTerm, $exactTerm, $exactTerm, $limit]);
+        $stmt->execute([$userId, $searchTerm, $searchTerm, $searchTerm, $exactTerm, $exactTerm, $exactTerm, $limit]);
         
         return $stmt->fetchAll();
     }
@@ -234,7 +238,8 @@ class AddressBookController
         if ($autoAdd) {
             try {
                 return $this->createEntry($userId, [
-                    'full_name' => $fromName,
+                    'name' => $fromName,
+                    'messaging_user_id' => $fromName,
                     'node_address' => $fromAddress,
                     'description' => 'Auto-added from netmail'
                 ]);

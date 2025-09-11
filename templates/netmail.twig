@@ -170,9 +170,17 @@
                     <input type="hidden" id="addressBookEntryId">
                     
                     <div class="mb-3">
-                        <label for="addressBookFullName" class="form-label">Full Name</label>
-                        <input type="text" class="form-control" id="addressBookFullName" required 
-                               placeholder="Enter the recipient's full name">
+                        <label for="addressBookName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="addressBookName" required 
+                               placeholder="Enter a descriptive name (e.g., John Smith)">
+                        <div class="form-text">Descriptive name for this contact</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="addressBookUserId" class="form-label">User ID</label>
+                        <input type="text" class="form-control" id="addressBookUserId" required 
+                               placeholder="Enter the user ID for messaging">
+                        <div class="form-text">User ID/handle to use when sending messages</div>
                     </div>
                     
                     <div class="mb-3">
@@ -341,7 +349,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isUnread ? '<i class="fas fa-envelope text-primary" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted" title="Read"></i>'}
                     </td>
                     <td ${threadPadding}>
-                        ${threadIcon}<strong><a href="#" onclick="event.stopPropagation(); composeMessageToUser('${escapeHtml(isSent ? msg.to_name : msg.from_name)}', '${escapeHtml(isSent ? msg.to_address : (msg.original_author_address || msg.from_address))}', '${escapeHtml(msg.subject || '')}'); return false;" class="text-decoration-none" title="Send new netmail message">${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</a></strong>
+                        ${threadIcon}<strong><a href="#" onclick="event.stopPropagation(); composeMessageToUser('${escapeHtml(isSent ? msg.to_name : msg.from_name)}', '${escapeHtml(isSent ? msg.to_address : (msg.replyto_address || msg.reply_address || msg.original_author_address || msg.from_address))}', '${escapeHtml(msg.subject || '')}'); return false;" class="text-decoration-none" title="Send new netmail message">${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</a></strong>
                         <br>
                         <small class="text-muted">${isSent ? 'Sent' : 'Received'}</small>
                     </td>
@@ -453,13 +461,16 @@ function displayMessageContent(message) {
 
 function checkAndDisplayMessage(message, parsedMessage, isSent) {
     // Check if this contact already exists in address book
-    $.get('/api/address-book', { search: message.from_name })
+    const replyToAddress = message.replyto_address || message.reply_address || message.original_author_address || message.from_address;
+    const replyToName = message.replyto_name || message.from_name;
+    
+    $.get('/api/address-book', { search: replyToName })
         .done(function(response) {
             let isInAddressBook = false;
             if (response.success && response.entries) {
                 const existingEntry = response.entries.find(entry => 
-                    entry.full_name.toLowerCase() === message.from_name.toLowerCase() &&
-                    entry.node_address === (message.original_author_address || message.from_address)
+                    entry.messaging_user_id.toLowerCase() === replyToName.toLowerCase() &&
+                    entry.node_address === replyToAddress
                 );
                 isInAddressBook = !!existingEntry;
             }
@@ -481,8 +492,10 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
             </button>
         `;
     } else {
+        const replyToAddress = message.replyto_address || message.reply_address || message.original_author_address || message.from_address;
+        const replyToName = message.replyto_name || message.from_name;
         addressBookButton = `
-            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(message.from_name)}', '${escapeHtml(message.original_author_address || message.from_address)}')" title="Save to address book">
+            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(replyToName)}', '${escapeHtml(replyToAddress)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="Save to address book">
                 <i class="fas fa-address-book"></i>
             </button>
         `;
@@ -763,10 +776,11 @@ function renderAddressBook(entries) {
         entries.forEach(function(entry) {
             html += `
                 <div class="d-flex justify-content-between align-items-start mb-2 p-2 border rounded address-book-entry" 
-                     style="cursor: pointer;" onclick="composeToAddressBookEntry('${escapeHtml(entry.full_name)}', '${escapeHtml(entry.node_address)}')">
+                     style="cursor: pointer;" onclick="composeToAddressBookEntry('${escapeHtml(entry.messaging_user_id || '')}', '${escapeHtml(entry.node_address || '')}')">
                     <div class="flex-grow-1">
-                        <div class="fw-bold small">${escapeHtml(entry.full_name)}</div>
-                        <div class="text-muted small font-monospace">${escapeHtml(entry.node_address)}</div>
+                        <div class="fw-bold small">${escapeHtml(entry.name || 'Unnamed')}</div>
+                        <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
+                        <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || 'No address')}</div>
                         ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 30) + (entry.description.length > 30 ? '...' : ''))}</div>` : ''}
                     </div>
                     <div class="dropdown">
@@ -777,7 +791,7 @@ function renderAddressBook(entries) {
                             <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); editAddressBookEntry(${entry.id});">
                                 <i class="fas fa-edit"></i> Edit
                             </a></li>
-                            <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); deleteAddressBookEntry(${entry.id}, '${escapeHtml(entry.full_name)}');">
+                            <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); deleteAddressBookEntry(${entry.id}, '${escapeHtml(entry.name || 'Unnamed')}');">
                                 <i class="fas fa-trash"></i> Delete
                             </a></li>
                         </ul>
@@ -804,7 +818,8 @@ function editAddressBookEntry(entryId) {
                 const entry = response.entry;
                 $('#addressBookModalTitle').text('Edit Address Book Entry');
                 $('#addressBookEntryId').val(entry.id);
-                $('#addressBookFullName').val(entry.full_name);
+                $('#addressBookName').val(entry.name);
+                $('#addressBookUserId').val(entry.messaging_user_id);
                 $('#addressBookNodeAddress').val(entry.node_address);
                 $('#addressBookEmail').val(entry.email || '');
                 $('#addressBookDescription').val(entry.description || '');
@@ -821,15 +836,16 @@ function editAddressBookEntry(entryId) {
 function saveAddressBookEntry() {
     const entryId = $('#addressBookEntryId').val();
     const data = {
-        full_name: $('#addressBookFullName').val().trim(),
+        name: $('#addressBookName').val().trim(),
+        messaging_user_id: $('#addressBookUserId').val().trim(),
         node_address: $('#addressBookNodeAddress').val().trim(),
         email: $('#addressBookEmail').val().trim(),
         description: $('#addressBookDescription').val().trim()
     };
     
     // Basic validation
-    if (!data.full_name || !data.node_address) {
-        showError('Full name and node address are required');
+    if (!data.name || !data.messaging_user_id || !data.node_address) {
+        showError('Name, user ID, and node address are required');
         return;
     }
     
@@ -879,12 +895,12 @@ function deleteAddressBookEntry(entryId, entryName) {
     });
 }
 
-function composeToAddressBookEntry(fullName, nodeAddress) {
-    composeMessageToUser(fullName, nodeAddress, '');
+function composeToAddressBookEntry(messagingUserId, nodeAddress) {
+    composeMessageToUser(messagingUserId, nodeAddress, '');
 }
 
 // Save sender to address book from message modal
-function saveToAddressBook(fromName, fromAddress) {
+function saveToAddressBook(fromName, fromAddress, originalFromName, originalFromAddress) {
     const button = $('#saveAddressBookBtn');
     const originalHtml = button.html();
     const originalTitle = button.attr('title');
@@ -898,7 +914,7 @@ function saveToAddressBook(fromName, fromAddress) {
             if (response.success) {
                 // Check if contact already exists
                 const existingEntry = response.entries.find(entry => 
-                    entry.full_name.toLowerCase() === fromName.toLowerCase() && 
+                    entry.messaging_user_id.toLowerCase() === fromName.toLowerCase() && 
                     entry.node_address === fromAddress
                 );
                 
@@ -913,10 +929,23 @@ function saveToAddressBook(fromName, fromAddress) {
                 }
                 
                 // Contact doesn't exist, create new entry
+                // Build description with reference information
+                let description = 'Added from netmail message';
+                if (originalFromName && originalFromAddress) {
+                    if (fromName !== originalFromName || fromAddress !== originalFromAddress) {
+                        // REPLYTO was used - show both original and reply-to info
+                        description = `Added from netmail message. Original sender: ${originalFromName} (${originalFromAddress}), Reply-to: ${fromName} (${fromAddress})`;
+                    } else {
+                        // No REPLYTO - just show sender info
+                        description = `Added from netmail message. Sender: ${originalFromName} (${originalFromAddress})`;
+                    }
+                }
+                
                 const data = {
-                    full_name: fromName,
+                    name: originalFromName || fromName, // Use original name for description
+                    messaging_user_id: fromName, // Use the reply-to name for messaging
                     node_address: fromAddress,
-                    description: 'Added from netmail message'
+                    description: description
                 };
                 
                 $.ajax({

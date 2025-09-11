@@ -383,9 +383,10 @@ function renderComposeAddressBook(entries) {
     } else {
         entries.forEach(function(entry) {
             html += `
-                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.full_name)}', '${escapeHtml(entry.node_address)}')">
-                    <div class="fw-bold">${escapeHtml(entry.full_name)}</div>
-                    <div class="text-muted small font-monospace">${escapeHtml(entry.node_address)}</div>
+                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.messaging_user_id || 'unknown')}', '${escapeHtml(entry.node_address || '')}')">
+                    <div class="fw-bold">${escapeHtml(entry.name || 'Unnamed')}</div>
+                    <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
+                    <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || 'No address')}</div>
                     ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 40) + (entry.description.length > 40 ? '...' : ''))}</div>` : ''}
                 </a></li>
             `;
@@ -446,9 +447,17 @@ $(document).ready(function() {
                     <input type="hidden" id="addressBookEntryId">
                     
                     <div class="mb-3">
-                        <label for="addressBookFullName" class="form-label">Full Name</label>
-                        <input type="text" class="form-control" id="addressBookFullName" required 
-                               placeholder="Enter the recipient's full name">
+                        <label for="addressBookName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="addressBookName" required 
+                               placeholder="Enter a descriptive name (e.g., John Smith)">
+                        <div class="form-text">Descriptive name for this contact</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="addressBookUserId" class="form-label">User ID</label>
+                        <input type="text" class="form-control" id="addressBookUserId" required 
+                               placeholder="Enter the user ID for messaging">
+                        <div class="form-text">User ID/handle to use when sending messages</div>
                     </div>
                     
                     <div class="mb-3">
@@ -494,15 +503,16 @@ function showAddAddressModal() {
 
 function saveComposeAddressBookEntry() {
     const data = {
-        full_name: $('#addressBookFullName').val().trim(),
+        name: $('#addressBookName').val().trim(),
+        messaging_user_id: $('#addressBookUserId').val().trim(),
         node_address: $('#addressBookNodeAddress').val().trim(),
         email: $('#addressBookEmail').val().trim(),
         description: $('#addressBookDescription').val().trim()
     };
     
     // Basic validation
-    if (!data.full_name || !data.node_address) {
-        showError('Full name and node address are required');
+    if (!data.name || !data.messaging_user_id || !data.node_address) {
+        showError('Name, user ID, and node address are required');
         return;
     }
     
@@ -517,7 +527,7 @@ function saveComposeAddressBookEntry() {
                 showSuccess('Entry added successfully');
                 // Optionally populate the compose form
                 if (confirm('Use this entry for the current message?')) {
-                    $('#toName').val(data.full_name);
+                    $('#toName').val(data.messaging_user_id);
                     $('#toAddress').val(data.node_address);
                 }
             } else {

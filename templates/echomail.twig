@@ -890,11 +890,54 @@ function displayMessageContent(message) {
     // Parse message to separate kludge lines from body
     const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
     
+    // Check if sender is already in address book before rendering
+    checkAndDisplayEchomailMessage(message, parsedMessage);
+}
+
+function checkAndDisplayEchomailMessage(message, parsedMessage) {
+    // Check if this contact already exists in address book
+    $.get('/api/address-book', { search: message.from_name })
+        .done(function(response) {
+            let isInAddressBook = false;
+            if (response.success && response.entries) {
+                const existingEntry = response.entries.find(entry => 
+                    entry.messaging_user_id.toLowerCase() === message.from_name.toLowerCase() &&
+                    entry.node_address === message.from_address
+                );
+                isInAddressBook = !!existingEntry;
+            }
+            
+            renderEchomailMessageContent(message, parsedMessage, isInAddressBook);
+        })
+        .fail(function() {
+            // On error, assume not in address book
+            renderEchomailMessageContent(message, parsedMessage, false);
+        });
+}
+
+function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
+    let addressBookButton;
+    if (isInAddressBook) {
+        addressBookButton = `
+            <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="Already in address book">
+                <i class="fas fa-check"></i> <i class="fas fa-address-book"></i>
+            </button>
+        `;
+    } else {
+        addressBookButton = `
+            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="Save to address book">
+                <i class="fas fa-address-book"></i>
+            </button>
+        `;
+    }
+    
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>From:</strong> <a href="/compose/netmail?to=${encodeURIComponent(message.from_address || '')}&to_name=${encodeURIComponent(message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="Send netmail to ${escapeHtml(message.from_name)}">${escapeHtml(message.from_name)}</a><br>
+                    <strong>From:</strong> <a href="/compose/netmail?to=${encodeURIComponent(message.from_address || '')}&to_name=${encodeURIComponent(message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="Send netmail to ${escapeHtml(message.from_name)}">${escapeHtml(message.from_name)}</a>
+                    ${addressBookButton}
+                    <br>
                     <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
                 </div>
                 <div class="col-md-6">
@@ -1799,6 +1842,100 @@ $(document).ready(function() {
         $('#revokeShareBtn').addClass('d-none');
     });
 });
+
+// Save sender to address book from message modal
+function saveToAddressBook(fromName, fromAddress, originalFromName, originalFromAddress) {
+    const button = $('#saveAddressBookBtn');
+    const originalHtml = button.html();
+    const originalTitle = button.attr('title');
+    
+    // Show loading state
+    button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>').attr('title', 'Saving...');
+    
+    // First check if this contact already exists
+    $.get('/api/address-book', { search: fromName })
+        .done(function(response) {
+            if (response.success) {
+                // Check if contact already exists
+                const existingEntry = response.entries.find(entry => 
+                    entry.messaging_user_id.toLowerCase() === fromName.toLowerCase() && 
+                    entry.node_address === fromAddress
+                );
+                
+                if (existingEntry) {
+                    // Already exists - show "already saved" state
+                    button.removeClass('btn-outline-success').addClass('btn-outline-secondary')
+                          .html('<i class="fas fa-check"></i> <i class="fas fa-address-book"></i>')
+                          .attr('title', 'Already in address book')
+                          .prop('disabled', true);
+                    showError('This contact is already in your address book');
+                    return;
+                }
+                
+                // Contact doesn't exist, create new entry
+                // Build description with reference information
+                let description = 'Added from echomail message';
+                if (originalFromName && originalFromAddress) {
+                    description = `Added from echomail message. Sender: ${originalFromName} (${originalFromAddress})`;
+                }
+                
+                const data = {
+                    name: fromName, // For echomail, use fromName as descriptive name
+                    messaging_user_id: fromName, // And also as messaging user ID
+                    node_address: fromAddress,
+                    description: description
+                };
+                
+                $.ajax({
+                    url: '/api/address-book/',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(data),
+                    success: function(response) {
+                        if (response.success) {
+                            // Show success state
+                            button.removeClass('btn-outline-success').addClass('btn-success')
+                                  .html('<i class="fas fa-check"></i> Saved')
+                                  .attr('title', 'Saved to address book')
+                                  .prop('disabled', true);
+                            
+                            showSuccess(`${fromName} added to address book`);
+                            
+                            // Refresh address book in sidebar if it exists (for netmail page)
+                            if (typeof loadAddressBook === 'function') {
+                                loadAddressBook();
+                            }
+                        } else {
+                            // Reset button on error
+                            button.removeClass('btn-outline-success').addClass('btn-outline-danger')
+                                  .html(originalHtml)
+                                  .attr('title', 'Error - click to retry')
+                                  .prop('disabled', false);
+                            showError(response.error || 'Failed to save to address book');
+                        }
+                    },
+                    error: function(xhr) {
+                        // Reset button on error
+                        button.removeClass('btn-outline-success').addClass('btn-outline-danger')
+                              .html(originalHtml)
+                              .attr('title', 'Error - click to retry')
+                              .prop('disabled', false);
+                        const response = xhr.responseJSON;
+                        showError(response && response.error ? response.error : 'Failed to save to address book');
+                    }
+                });
+            } else {
+                // Reset button on error
+                button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
+                showError('Failed to check existing contacts');
+            }
+        })
+        .fail(function() {
+            // Reset button on error
+            button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
+            showError('Failed to check existing contacts');
+        });
+}
 
 // User settings functions - apply echomail-specific settings after loading
 function loadEchomailSettings() {

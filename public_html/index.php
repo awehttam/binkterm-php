@@ -1152,6 +1152,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'netmail', $userId);
         
         if ($message) {
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $message['replyto_address'] = $replyToData['address'];
+                $message['replyto_name'] = $replyToData['name'];
+            }
+            
             echo json_encode($message);
         } else {
             http_response_code(404);
