@@ -121,11 +121,34 @@ class NodelistManager
         
         // Handle general search term (search across multiple fields with OR logic)
         if (!empty($criteria['search_term'])) {
-            $searchTerm = '%' . $criteria['search_term'] . '%';
-            $whereClauses[] = "(sysop_name ILIKE ? OR location ILIKE ? OR system_name ILIKE ?)";
-            $params[] = $searchTerm;
-            $params[] = $searchTerm;
-            $params[] = $searchTerm;
+            // Check if search term looks like a FTN address
+            $addressParts = $this->parseAddress($criteria['search_term']);
+            if ($addressParts) {
+                // If it's a valid address format, search by address components
+                if ($addressParts['node'] !== null) {
+                    // Full address search: zone:net/node
+                    $whereClauses[] = "zone = ? AND net = ? AND node = ?";
+                    $params[] = $addressParts['zone'];
+                    $params[] = $addressParts['net'];
+                    $params[] = $addressParts['node'];
+                    if ($addressParts['point'] > 0) {
+                        $whereClauses[] = "point = ?";
+                        $params[] = $addressParts['point'];
+                    }
+                } else {
+                    // Partial address search: zone:net (all nodes in this net)
+                    $whereClauses[] = "zone = ? AND net = ?";
+                    $params[] = $addressParts['zone'];
+                    $params[] = $addressParts['net'];
+                }
+            } else {
+                // Regular text search across multiple fields
+                $searchTerm = '%' . $criteria['search_term'] . '%';
+                $whereClauses[] = "(sysop_name ILIKE ? OR location ILIKE ? OR system_name ILIKE ?)";
+                $params[] = $searchTerm;
+                $params[] = $searchTerm;
+                $params[] = $searchTerm;
+            }
         }
         
         // Handle specific field searches (these use AND logic with other criteria)
@@ -332,12 +355,34 @@ class NodelistManager
     
     private function parseAddress($address)
     {
+        // Standard full address format: zone:net/node.point or zone:net/node
         if (preg_match('/^(\d+):(\d+)\/(\d+)(?:\.(\d+))?$/', $address, $matches)) {
             return [
                 'zone' => (int)$matches[1],
                 'net' => (int)$matches[2],
                 'node' => (int)$matches[3],
                 'point' => isset($matches[4]) ? (int)$matches[4] : 0
+            ];
+        }
+        
+        // Partial formats for search flexibility (without points for primary nodes only)
+        // Format: zone:net/node (no point specified, assumes .0)
+        if (preg_match('/^(\d+):(\d+)\/(\d+)$/', $address, $matches)) {
+            return [
+                'zone' => (int)$matches[1],
+                'net' => (int)$matches[2], 
+                'node' => (int)$matches[3],
+                'point' => 0
+            ];
+        }
+        
+        // Partial format: zone:net (find all nodes in this net)
+        if (preg_match('/^(\d+):(\d+)$/', $address, $matches)) {
+            return [
+                'zone' => (int)$matches[1],
+                'net' => (int)$matches[2],
+                'node' => null, // null indicates wildcard search
+                'point' => null
             ];
         }
         
