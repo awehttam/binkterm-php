@@ -196,10 +196,24 @@ class WeatherReportGenerator
                 $pressure = $currentWeather['main']['pressure'];
                 $windSpeed = round($currentWeather['wind']['speed'] * 3.6, 1); // Convert m/s to km/h
                 $windDir = $currentWeather['wind']['deg'] ?? 0;
+                $visibility = isset($currentWeather['visibility']) ? round($currentWeather['visibility'] / 1000, 1) : null;
+                $cloudiness = $currentWeather['clouds']['all'] ?? 0;
                 
-                $conditions .= "{$locationName}: {$temp}°C ({$description})\n";
-                $conditions .= "  Feels like {$feelsLike}°C, Humidity {$humidity}%, Wind {$windSpeed} km/h\n";
-                $conditions .= "  Pressure {$pressure} hPa\n\n";
+                // Enhanced descriptive text
+                $conditions .= "{$locationName}: {$temp}°C - {$description}\n";
+                $conditions .= "  {$this->generateCurrentConditionsDescription($currentWeather)}\n";
+                $conditions .= "  Details: Feels like {$feelsLike}°C, Humidity {$humidity}%, Wind {$windSpeed} km/h";
+                if ($windDir > 0) {
+                    $conditions .= " from " . $this->getWindDirection($windDir);
+                }
+                $conditions .= "\n  Pressure {$pressure} hPa";
+                if ($cloudiness > 0) {
+                    $conditions .= ", Cloud cover {$cloudiness}%";
+                }
+                if ($visibility !== null) {
+                    $conditions .= ", Visibility {$visibility} km";
+                }
+                $conditions .= "\n\n";
             } else {
                 $conditions .= "{$locationName}: Unable to retrieve current conditions\n\n";
             }
@@ -209,11 +223,11 @@ class WeatherReportGenerator
     }
     
     /**
-     * Generate 5-day forecast section
+     * Generate 3-day forecast section
      */
     private function generateForecast(): string 
     {
-        $forecast = "5-DAY FORECAST\n" . str_repeat("=", 20) . "\n\n";
+        $forecast = "3-DAY FORECAST\n" . str_repeat("=", 20) . "\n\n";
         
         foreach ($this->locations as $locationName => $coords) {
             $res=$this->getLocationForecast($locationName, $coords['lat'], $coords['lon']);
@@ -237,7 +251,7 @@ class WeatherReportGenerator
     }
     
     /**
-     * Get 5-day forecast for a specific location
+     * Get 3-day forecast for a specific location
      */
     private function getLocationForecast(string $locationName, float $lat, float $lon): string 
     {
@@ -273,8 +287,8 @@ class WeatherReportGenerator
             $dailyData[$date]['wind_speed'][] = $item['wind']['speed'];
         }
         
-        // Process up to 5 days
-        $days = array_slice($dailyData, 0, 5, true);
+        // Process up to 3 days
+        $days = array_slice($dailyData, 0, 3, true);
         
         foreach ($days as $date => $dayData) {
             $dayName = date('D M j', $dayData['dt']);
@@ -289,15 +303,18 @@ class WeatherReportGenerator
             $avgHumidity = round(array_sum($dayData['humidity']) / count($dayData['humidity']));
             $avgWindSpeed = round((array_sum($dayData['wind_speed']) / count($dayData['wind_speed'])) * 3.6, 1);
             
+            // Generate detailed forecast description
+            $forecastDesc = $this->generateForecastDescription($mostCommonCondition, $high, $low, $avgHumidity, $avgWindSpeed);
+            
             $locationForecast .= sprintf(
-                "%s: %s, High %d°C, Low %d°C, Humidity %d%%, Wind %s km/h\n",
+                "%s: %s, High %d°C, Low %d°C\n",
                 $dayName,
                 $description,
                 $high,
-                $low,
-                $avgHumidity,
-                $avgWindSpeed
+                $low
             );
+            $locationForecast .= "  " . $forecastDesc . "\n";
+            $locationForecast .= sprintf("  Details: Humidity %d%%, Wind %s km/h\n\n", $avgHumidity, $avgWindSpeed);
         }
         
         return $locationForecast;
@@ -349,6 +366,245 @@ class WeatherReportGenerator
     }
     
     /**
+     * Generate descriptive current conditions text
+     */
+    private function generateCurrentConditionsDescription(array $weather): string
+    {
+        $description = strtolower($weather['weather'][0]['description']);
+        $main = strtolower($weather['weather'][0]['main']);
+        $temp = round($weather['main']['temp']);
+        $humidity = $weather['main']['humidity'];
+        $windSpeed = round($weather['wind']['speed'] * 3.6, 1);
+        $cloudiness = $weather['clouds']['all'] ?? 0;
+        
+        $desc = "";
+        
+        // Weather condition descriptions
+        switch ($main) {
+            case 'clear':
+                $desc = "Clear skies prevail with bright sunshine. ";
+                if ($temp > 25) {
+                    $desc .= "Warm and pleasant conditions for outdoor activities.";
+                } elseif ($temp < 10) {
+                    $desc .= "Cool and crisp with excellent visibility.";
+                } else {
+                    $desc .= "Comfortable temperatures with good visibility.";
+                }
+                break;
+                
+            case 'clouds':
+                if ($cloudiness < 25) {
+                    $desc = "Partly cloudy with occasional sunshine breaking through. ";
+                } elseif ($cloudiness < 75) {
+                    $desc = "Mostly cloudy skies with limited sunshine. ";
+                } else {
+                    $desc = "Overcast conditions with thick cloud cover blocking most sunlight. ";
+                }
+                $desc .= "Cloud cover may provide natural temperature regulation.";
+                break;
+                
+            case 'rain':
+                if (strpos($description, 'light') !== false) {
+                    $desc = "Light rain falling with gentle precipitation. ";
+                } elseif (strpos($description, 'heavy') !== false) {
+                    $desc = "Heavy rainfall with significant precipitation. ";
+                } else {
+                    $desc = "Steady rain with moderate precipitation. ";
+                }
+                $desc .= "Wet conditions - umbrellas and rain gear recommended.";
+                break;
+                
+            case 'drizzle':
+                $desc = "Fine drizzle creating misty conditions. Light moisture in the air with minimal accumulation.";
+                break;
+                
+            case 'thunderstorm':
+                $desc = "Thunderstorm activity with lightning and heavy rain. ";
+                $desc .= "Seek indoor shelter and avoid outdoor activities.";
+                break;
+                
+            case 'snow':
+                if (strpos($description, 'light') !== false) {
+                    $desc = "Light snowfall with gentle flakes. ";
+                } else {
+                    $desc = "Snow falling with accumulation likely. ";
+                }
+                $desc .= "Winter driving conditions - exercise caution on roads.";
+                break;
+                
+            case 'mist':
+            case 'fog':
+                $desc = "Foggy conditions reducing visibility. ";
+                $desc .= "Drive carefully and use headlights in reduced visibility.";
+                break;
+                
+            default:
+                $desc = ucfirst($description) . " conditions currently observed. ";
+        }
+        
+        // Add wind information
+        if ($windSpeed > 25) {
+            $desc .= " Strong winds may affect outdoor activities.";
+        } elseif ($windSpeed > 15) {
+            $desc .= " Moderate winds creating breezy conditions.";
+        } elseif ($windSpeed < 5) {
+            $desc .= " Calm winds with still air.";
+        }
+        
+        // Add humidity context
+        if ($humidity > 80) {
+            $desc .= " High humidity making it feel more muggy.";
+        } elseif ($humidity < 30) {
+            $desc .= " Low humidity creating dry air conditions.";
+        }
+        
+        return $this->wrapText($desc, 77);
+    }
+    
+    /**
+     * Convert wind direction degrees to compass direction
+     */
+    private function getWindDirection(int $degrees): string
+    {
+        $directions = [
+            'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+            'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'
+        ];
+        
+        $index = round($degrees / 22.5) % 16;
+        return $directions[$index];
+    }
+    
+    /**
+     * Generate descriptive forecast text
+     */
+    private function generateForecastDescription(string $condition, int $high, int $low, int $humidity, float $windSpeed): string
+    {
+        $condition = strtolower($condition);
+        $tempRange = $high - $low;
+        
+        $desc = "";
+        
+        // Weather condition forecast
+        if (strpos($condition, 'clear') !== false) {
+            $desc = "Expect bright, sunny skies throughout the day. ";
+            if ($high > 25) {
+                $desc .= "Hot temperatures - stay hydrated and seek shade during peak hours.";
+            } elseif ($high > 20) {
+                $desc .= "Perfect weather for outdoor activities and recreation.";
+            } else {
+                $desc .= "Cool but comfortable with plenty of sunshine.";
+            }
+        } elseif (strpos($condition, 'partly cloudy') !== false || strpos($condition, 'few clouds') !== false) {
+            $desc = "Mix of sun and clouds with pleasant conditions. ";
+            $desc .= "Good day for both indoor and outdoor activities.";
+        } elseif (strpos($condition, 'overcast') !== false || strpos($condition, 'cloudy') !== false) {
+            $desc = "Cloudy skies dominating with limited sunshine. ";
+            if ($tempRange > 8) {
+                $desc .= "Variable temperatures as clouds move in and out.";
+            } else {
+                $desc .= "Stable temperatures under cloud cover.";
+            }
+        } elseif (strpos($condition, 'light rain') !== false) {
+            $desc = "Periods of light rain with occasional breaks. ";
+            $desc .= "Keep an umbrella handy and dress in layers.";
+        } elseif (strpos($condition, 'heavy rain') !== false) {
+            $desc = "Significant rainfall expected throughout the day. ";
+            $desc .= "Plan indoor activities and expect wet road conditions.";
+        } elseif (strpos($condition, 'rain') !== false) {
+            $desc = "Rain likely with wet conditions prevailing. ";
+            $desc .= "Waterproof clothing recommended for any outdoor plans.";
+        } elseif (strpos($condition, 'snow') !== false) {
+            if (strpos($condition, 'light') !== false) {
+                $desc = "Light snowfall creating winter scenery. ";
+                $desc .= "Beautiful conditions but watch for slippery surfaces.";
+            } else {
+                $desc = "Snow accumulation likely with winter conditions. ";
+                $desc .= "Travel may be impacted - check road conditions before heading out.";
+            }
+        } elseif (strpos($condition, 'thunderstorm') !== false) {
+            $desc = "Thunderstorms possible with lightning and heavy rain. ";
+            $desc .= "Stay indoors during storm activity and avoid open areas.";
+        } elseif (strpos($condition, 'mist') !== false || strpos($condition, 'fog') !== false) {
+            $desc = "Misty conditions reducing visibility. ";
+            $desc .= "Allow extra time for travel and use caution on roads.";
+        } else {
+            $desc = "Weather conditions as described with typical seasonal patterns. ";
+        }
+        
+        // Add temperature context
+        if ($tempRange > 12) {
+            $desc .= " Large temperature swing from morning to afternoon.";
+        } elseif ($tempRange < 5) {
+            $desc .= " Steady temperatures throughout the day.";
+        }
+        
+        // Add wind context
+        if ($windSpeed > 25) {
+            $desc .= " Windy conditions may make it feel cooler.";
+        } elseif ($windSpeed > 15) {
+            $desc .= " Breezy conditions adding to the weather dynamic.";
+        }
+        
+        // Add humidity context for comfort
+        if ($humidity > 75 && $high > 20) {
+            $desc .= " High humidity will make it feel warmer and more uncomfortable.";
+        } elseif ($humidity < 35) {
+            $desc .= " Low humidity creating crisp, dry air conditions.";
+        }
+        
+        return $this->wrapText($desc, 77);
+    }
+    
+    /**
+     * Wrap text to specified line length
+     */
+    private function wrapText(string $text, int $width = 77): string
+    {
+        return wordwrap($text, $width, "\n  ", false);
+    }
+    
+    /**
+     * Generate demo conditions description for demo mode
+     */
+    private function generateDemoConditionsDescription(string $condition, int $temp, int $humidity, float $windSpeed): string
+    {
+        $condition = strtolower($condition);
+        
+        $desc = "";
+        
+        if ($condition === 'light rain') {
+            $desc = "Light rain falling with gentle precipitation. Wet conditions - umbrellas and rain gear recommended.";
+        } elseif ($condition === 'overcast') {
+            $desc = "Overcast conditions with thick cloud cover blocking most sunlight. Cloud cover may provide natural temperature regulation.";
+        } elseif ($condition === 'partly cloudy') {
+            $desc = "Mix of sun and clouds with pleasant conditions. Good day for both indoor and outdoor activities.";
+        } elseif ($condition === 'clear') {
+            $desc = "Clear skies prevail with bright sunshine. Perfect weather for outdoor activities and recreation.";
+        } elseif ($condition === 'cloudy') {
+            $desc = "Cloudy skies dominating with limited sunshine. Stable temperatures under cloud cover.";
+        } else {
+            $desc = ucfirst($condition) . " conditions currently observed.";
+        }
+        
+        // Add wind context
+        if ($windSpeed > 15) {
+            $desc .= " Moderate winds creating breezy conditions.";
+        } elseif ($windSpeed < 10) {
+            $desc .= " Calm winds with still air.";
+        }
+        
+        // Add humidity context
+        if ($humidity > 75) {
+            $desc .= " High humidity making it feel more muggy.";
+        } elseif ($humidity < 40) {
+            $desc .= " Low humidity creating dry air conditions.";
+        }
+        
+        return $this->wrapText($desc, 77);
+    }
+    
+    /**
      * Generate report footer
      */
     private function generateFooter(): string 
@@ -379,8 +635,12 @@ class WeatherReportGenerator
         foreach ($this->locations as $locationName => $coords) {
             $data = $sampleData[$index % count($sampleData)];
             
-            $conditions .= "{$locationName}: {$data['temp']}°C ({$data['desc']})\n";
-            $conditions .= "  Feels like {$data['feels']}°C, Humidity {$data['humidity']}%, Wind {$data['wind']} km/h\n";
+            $conditions .= "{$locationName}: {$data['temp']}°C - {$data['desc']}\n";
+            
+            // Generate demo descriptive text
+            $demoDesc = $this->generateDemoConditionsDescription($data['desc'], $data['temp'], $data['humidity'], $data['wind']);
+            $conditions .= "  {$demoDesc}\n";
+            $conditions .= "  Details: Feels like {$data['feels']}°C, Humidity {$data['humidity']}%, Wind {$data['wind']} km/h\n";
             $conditions .= "  Pressure {$data['pressure']} hPa\n\n";
             
             $index++;
@@ -394,23 +654,19 @@ class WeatherReportGenerator
      */
     private function generateDemoForecast(): string 
     {
-        $forecast = "5-DAY FORECAST\n" . str_repeat("=", 20) . "\n\n";
+        $forecast = "3-DAY FORECAST\n" . str_repeat("=", 20) . "\n\n";
         
         // Sample forecast data to cycle through
         $forecastData = [
             [
                 ['desc' => 'Light rain', 'high' => 19, 'low' => 13, 'humidity' => 78, 'wind' => 15.3],
                 ['desc' => 'Overcast', 'high' => 17, 'low' => 12, 'humidity' => 85, 'wind' => 12.1],
-                ['desc' => 'Partly cloudy', 'high' => 21, 'low' => 14, 'humidity' => 72, 'wind' => 8.7],
-                ['desc' => 'Sunny', 'high' => 24, 'low' => 16, 'humidity' => 58, 'wind' => 6.4],
-                ['desc' => 'Partly cloudy', 'high' => 23, 'low' => 15, 'humidity' => 61, 'wind' => 10.2]
+                ['desc' => 'Partly cloudy', 'high' => 21, 'low' => 14, 'humidity' => 72, 'wind' => 8.7]
             ],
             [
                 ['desc' => 'Overcast', 'high' => 18, 'low' => 12, 'humidity' => 70, 'wind' => 13.8],
                 ['desc' => 'Heavy rain', 'high' => 16, 'low' => 11, 'humidity' => 90, 'wind' => 18.5],
-                ['desc' => 'Light rain', 'high' => 19, 'low' => 13, 'humidity' => 78, 'wind' => 11.3],
-                ['desc' => 'Sunny', 'high' => 22, 'low' => 14, 'humidity' => 55, 'wind' => 9.8],
-                ['desc' => 'Partly cloudy', 'high' => 21, 'low' => 13, 'humidity' => 63, 'wind' => 12.4]
+                ['desc' => 'Light rain', 'high' => 19, 'low' => 13, 'humidity' => 78, 'wind' => 11.3]
             ]
         ];
         
@@ -420,11 +676,15 @@ class WeatherReportGenerator
             
             $dataSet = $forecastData[$locationIndex % count($forecastData)];
             
-            $days = ['Fri Sep 6', 'Sat Sep 7', 'Sun Sep 8', 'Mon Sep 9', 'Tue Sep 10'];
-            for ($i = 0; $i < 5; $i++) {
+            $days = ['Fri Sep 6', 'Sat Sep 7', 'Sun Sep 8'];
+            for ($i = 0; $i < 3; $i++) {
                 $day = $dataSet[$i];
-                $forecast .= "{$days[$i]}: {$day['desc']}, High {$day['high']}°C, Low {$day['low']}°C, ";
-                $forecast .= "Humidity {$day['humidity']}%, Wind {$day['wind']} km/h\n";
+                $forecast .= "{$days[$i]}: {$day['desc']}, High {$day['high']}°C, Low {$day['low']}°C\n";
+                
+                // Generate demo forecast description
+                $demoForecastDesc = $this->generateForecastDescription($day['desc'], $day['high'], $day['low'], $day['humidity'], $day['wind']);
+                $forecast .= "  {$demoForecastDesc}\n";
+                $forecast .= "  Details: Humidity {$day['humidity']}%, Wind {$day['wind']} km/h\n\n";
             }
             $forecast .= "\n";
             
