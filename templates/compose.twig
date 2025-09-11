@@ -203,9 +203,12 @@ $(document).ready(function() {
     }
     
     // Auto-save draft every 2 minutes
-    setInterval(function() {
-        saveDraft(true); // Silent save
-    }, 120000);
+    // Drafts aren't actually implemented server side
+    if(0) {
+        setInterval(function () {
+            saveDraft(true); // Silent save
+        }, 120000);
+    }
 });
 
 function loadEchoareas() {
