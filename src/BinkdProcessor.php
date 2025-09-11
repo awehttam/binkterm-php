@@ -220,11 +220,11 @@ class BinkdProcessor
         // Parse message header
         $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
         
-        // Read null-terminated strings
-        $dateTime = $this->readNullString($handle, 20);
-        $toName = $this->readNullString($handle, 36);
-        $fromName = $this->readNullString($handle, 36);
-        $subject = $this->readNullString($handle, 72);
+        // Read null-terminated strings (raw bytes first)
+        $dateTimeRaw = $this->readNullStringRaw($handle, 20);
+        $toNameRaw = $this->readNullStringRaw($handle, 36);
+        $fromNameRaw = $this->readNullStringRaw($handle, 36);
+        $subjectRaw = $this->readNullStringRaw($handle, 72);
         
         // Read message text until null terminator
         $messageText = '';
@@ -232,8 +232,15 @@ class BinkdProcessor
             $messageText .= $char;
         }
         
-        // Convert message text from CP437/CP850 to UTF-8 for database storage
-        $messageText = $this->convertToUtf8($messageText);
+        // Extract CHRS kludge to determine character encoding before conversion
+        $detectedEncoding = $this->extractChrsKludge($messageText);
+        
+        // Convert all strings from detected/default encoding to UTF-8 for database storage
+        $dateTime = $this->convertToUtf8($dateTimeRaw, $detectedEncoding);
+        $toName = $this->convertToUtf8($toNameRaw, $detectedEncoding);
+        $fromName = $this->convertToUtf8($fromNameRaw, $detectedEncoding);
+        $subject = $this->convertToUtf8($subjectRaw, $detectedEncoding);
+        $messageText = $this->convertToUtf8($messageText, $detectedEncoding);
 
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
@@ -274,7 +281,7 @@ class BinkdProcessor
         return $ret;
     }
 
-    private function readNullString($handle, $maxLen)
+    private function readNullString($handle, $maxLen, $encoding = null)
     {
         $string = '';
         $count = 0;
@@ -288,19 +295,44 @@ class BinkdProcessor
             $count++;
         }
         
-        // Convert from CP437/CP850 to UTF-8 for database storage
-        return $this->convertToUtf8($string);
+        // Convert from detected/default encoding to UTF-8 for database storage
+        return $this->convertToUtf8($string, $encoding);
     }
 
-    private function convertToUtf8($string)
+    private function readNullStringRaw($handle, $maxLen)
+    {
+        $string = '';
+        $count = 0;
+        
+        while ($count < $maxLen) {
+            $char = fread($handle, 1);
+            if ($char === false || ord($char) === 0) {
+                break;
+            }
+            $string .= $char;
+            $count++;
+        }
+        
+        // Return raw bytes without encoding conversion
+        return $string;
+    }
+
+    private function convertToUtf8($string, $preferredEncoding = null)
     {
         // Skip conversion if string is already valid UTF-8
         if (mb_check_encoding($string, 'UTF-8')) {
             return $string;
         }
         
-        // Try converting from common Fidonet character encodings using iconv
+        // Build encoding list: try CHRS-detected encoding first, then common Fidonet encodings
         $encodings = ['CP437', 'CP850', 'ISO-8859-1', 'Windows-1252'];
+        
+        // If CHRS kludge specified an encoding, try it first
+        if ($preferredEncoding) {
+            array_unshift($encodings, $preferredEncoding);
+            // Remove duplicates while preserving order
+            $encodings = array_unique($encodings);
+        }
         
         // Check if iconv is available
         if (function_exists('iconv')) {
@@ -337,6 +369,53 @@ class BinkdProcessor
         // If all else fails, use mb_convert_encoding with error handling
         // This will convert invalid bytes to ? characters but prevent database errors
         return mb_convert_encoding($string, 'UTF-8', 'UTF-8//IGNORE');
+    }
+
+    /**
+     * Extract character encoding from CHRS kludge line
+     * CHRS format: "CHRS: <charset> <level>"
+     * Example: "CHRS: CP866 2" or "CHRS: UTF-8 4"
+     * 
+     * @param string $messageText The raw message text
+     * @return string|null The detected encoding or null if no CHRS kludge found
+     */
+    private function extractChrsKludge($messageText)
+    {
+        // Normalize line endings for consistent parsing
+        $messageText = str_replace("\r\n", "\n", $messageText);
+        $messageText = str_replace("\r", "\n", $messageText);
+        
+        $lines = explode("\n", $messageText);
+        
+        foreach ($lines as $line) {
+            // Look for CHRS kludge line (starts with \x01CHRS: or plain CHRS:)
+            if (preg_match('/^(?:\x01)?CHRS:\s*([A-Za-z0-9\-]+)(?:\s+\d+)?/', trim($line), $matches)) {
+                $charset = strtoupper(trim($matches[1]));
+                
+                // Map common CHRS values to iconv/mbstring compatible encoding names
+                $encodingMap = [
+                    'CP437' => 'CP437',
+                    'CP850' => 'CP850', 
+                    'CP852' => 'CP852',
+                    'CP866' => 'CP866',
+                    'CP1250' => 'Windows-1250',
+                    'CP1251' => 'Windows-1251',
+                    'CP1252' => 'Windows-1252',
+                    'ISO-8859-1' => 'ISO-8859-1',
+                    'ISO-8859-2' => 'ISO-8859-2',
+                    'ISO-8859-5' => 'ISO-8859-5',
+                    'UTF-8' => 'UTF-8',
+                    'KOI8-R' => 'KOI8-R',
+                    'KOI8-U' => 'KOI8-U'
+                ];
+                
+                $encoding = $encodingMap[$charset] ?? $charset;
+                error_log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
+                return $encoding;
+            }
+        }
+        
+        return null; // No CHRS kludge found
     }
 
     private function storeMessage($message, $packetInfo = null)
