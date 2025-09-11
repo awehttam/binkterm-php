@@ -895,14 +895,18 @@ function displayMessageContent(message) {
 }
 
 function checkAndDisplayEchomailMessage(message, parsedMessage) {
+    // Use REPLYTO priority for checking existing contacts
+    const replyToAddress = message.replyto_address || message.from_address;
+    const replyToName = message.replyto_name || message.from_name;
+    
     // Check if this contact already exists in address book
-    $.get('/api/address-book', { search: message.from_name })
+    $.get('/api/address-book', { search: replyToName })
         .done(function(response) {
             let isInAddressBook = false;
             if (response.success && response.entries) {
                 const existingEntry = response.entries.find(entry => 
-                    entry.messaging_user_id.toLowerCase() === message.from_name.toLowerCase() &&
-                    entry.node_address === message.from_address
+                    entry.messaging_user_id.toLowerCase() === replyToName.toLowerCase() &&
+                    entry.node_address === replyToAddress
                 );
                 isInAddressBook = !!existingEntry;
             }
@@ -924,8 +928,12 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </button>
         `;
     } else {
+        // Use REPLYTO priority for address book save
+        const replyToAddress = message.replyto_address || message.from_address;
+        const replyToName = message.replyto_name || message.from_name;
+        
         addressBookButton = `
-            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="Save to address book">
+            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(replyToName)}', '${escapeHtml(replyToAddress)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="Save to address book">
                 <i class="fas fa-address-book"></i>
             </button>
         `;
@@ -1876,13 +1884,19 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                 // Build description with reference information
                 let description = 'Added from echomail message';
                 if (originalFromName && originalFromAddress) {
-                    description = `Added from echomail message. Sender: ${originalFromName} (${originalFromAddress})`;
+                    if (fromName !== originalFromName || fromAddress !== originalFromAddress) {
+                        // Using REPLYTO data
+                        description = `Added from echomail message. REPLYTO: ${fromName} (${fromAddress}), Original sender: ${originalFromName} (${originalFromAddress})`;
+                    } else {
+                        // Using original sender data
+                        description = `Added from echomail message. Sender: ${originalFromName} (${originalFromAddress})`;
+                    }
                 }
                 
                 const data = {
-                    name: fromName, // For echomail, use fromName as descriptive name
-                    messaging_user_id: fromName, // And also as messaging user ID
-                    node_address: fromAddress,
+                    name: originalFromName, // Use original from_name for descriptive name (e.g., "Aug")
+                    messaging_user_id: fromName, // Use REPLYTO name for messaging
+                    node_address: fromAddress, // Use REPLYTO address for messaging
                     description: description
                 };
                 

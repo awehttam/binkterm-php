@@ -1159,6 +1159,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $message['replyto_name'] = $replyToData['name'];
             }
             
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $message['replyto_address'] = $replyToDataKludge['address'];
+                    $message['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
             echo json_encode($message);
         } else {
             http_response_code(404);
@@ -1397,6 +1406,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'echomail', $userId);
         
         if ($message) {
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $message['replyto_address'] = $replyToData['address'];
+                $message['replyto_name'] = $replyToData['name'];
+            }
+            
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $message['replyto_address'] = $replyToDataKludge['address'];
+                    $message['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
             echo json_encode($message);
         } else {
             http_response_code(404);
@@ -1439,6 +1464,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'echomail', $userId);
         
         if ($message) {
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $message['replyto_address'] = $replyToData['address'];
+                $message['replyto_name'] = $replyToData['name'];
+            }
+            
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $message['replyto_address'] = $replyToDataKludge['address'];
+                    $message['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
             echo json_encode($message);
         } else {
             http_response_code(404);
