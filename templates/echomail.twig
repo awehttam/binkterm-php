@@ -684,7 +684,7 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent(msg.from_address || '')}&to_name=${encodeURIComponent(msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="Send netmail to ${escapeHtml(msg.from_name)}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="Send netmail to ${escapeHtml(msg.from_name)}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
@@ -943,7 +943,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>From:</strong> <a href="/compose/netmail?to=${encodeURIComponent(message.from_address || '')}&to_name=${encodeURIComponent(message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="Send netmail to ${escapeHtml(message.from_name)}">${escapeHtml(message.from_name)}</a>
+                    <strong>From:</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="Send netmail to ${escapeHtml(message.from_name)}">${escapeHtml(message.from_name)}</a>
                     ${addressBookButton}
                     <br>
                     <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>

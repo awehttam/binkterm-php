@@ -349,7 +349,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isUnread ? '<i class="fas fa-envelope text-primary" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted" title="Read"></i>'}
                     </td>
                     <td ${threadPadding}>
-                        ${threadIcon}<strong><a href="#" onclick="event.stopPropagation(); composeMessageToUser('${escapeHtml(isSent ? msg.to_name : msg.from_name)}', '${escapeHtml(isSent ? msg.to_address : (msg.replyto_address || msg.reply_address || msg.original_author_address || msg.from_address))}', '${escapeHtml(msg.subject || '')}'); return false;" class="text-decoration-none" title="Send new netmail message">${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</a></strong>
+                        ${threadIcon}<strong><a href="#" onclick="event.stopPropagation(); composeMessageToUser('${escapeHtml(isSent ? msg.to_name : ((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name))}', '${escapeHtml(isSent ? msg.to_address : (msg.replyto_address || msg.reply_address || msg.original_author_address || msg.from_address))}', '${escapeHtml(msg.subject || '')}'); return false;" class="text-decoration-none" title="Send new netmail message">${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</a></strong>
                         <br>
                         <small class="text-muted">${isSent ? 'Sent' : 'Received'}</small>
                     </td>

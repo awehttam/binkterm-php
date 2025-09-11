@@ -95,10 +95,28 @@ class MessageHandler
         $countStmt->execute($countAllParams);
         $total = $countStmt->fetch()['total'];
 
-        // Clean message data for proper JSON encoding
+        // Clean message data for proper JSON encoding and add REPLYTO parsing
         $cleanMessages = [];
         foreach ($messages as $message) {
-            $cleanMessages[] = $this->cleanMessageForJson($message);
+            $cleanMessage = $this->cleanMessageForJson($message);
+            
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = $this->parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'];
+            }
+            
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
+                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
+            $cleanMessages[] = $cleanMessage;
         }
 
         return [
@@ -251,10 +269,28 @@ class MessageHandler
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
 
-        // Clean message data for proper JSON encoding
+        // Clean message data for proper JSON encoding and add REPLYTO parsing
         $cleanMessages = [];
         foreach ($messages as $message) {
-            $cleanMessages[] = $this->cleanMessageForJson($message);
+            $cleanMessage = $this->cleanMessageForJson($message);
+            
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = $this->parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'];
+            }
+            
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
+                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
+            $cleanMessages[] = $cleanMessage;
         }
 
         return [
@@ -1763,10 +1799,28 @@ class MessageHandler
             }
         }
 
-        // Clean message data for proper JSON encoding
+        // Clean message data for proper JSON encoding and add REPLYTO parsing
         $cleanMessages = [];
         foreach ($messages as $message) {
-            $cleanMessages[] = $this->cleanMessageForJson($message);
+            $cleanMessage = $this->cleanMessageForJson($message);
+            
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = $this->parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'];
+            }
+            
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
+                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
+            $cleanMessages[] = $cleanMessage;
         }
 
         return [
@@ -2034,10 +2088,28 @@ class MessageHandler
             }
         }
 
-        // Clean message data for proper JSON encoding
+        // Clean message data for proper JSON encoding and add REPLYTO parsing
         $cleanMessages = [];
         foreach ($messages as $message) {
-            $cleanMessages[] = $this->cleanMessageForJson($message);
+            $cleanMessage = $this->cleanMessageForJson($message);
+            
+            // Parse REPLYTO kludge from message text and add to response
+            $replyToData = $this->parseReplyToKludge($message['message_text']);
+            if ($replyToData) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'];
+            }
+            
+            // Also check kludge_lines for REPLYTO
+            if (isset($message['kludge_lines'])) {
+                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
+                if ($replyToDataKludge) {
+                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
+                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
+                }
+            }
+            
+            $cleanMessages[] = $cleanMessage;
         }
 
         return [
@@ -2188,5 +2260,53 @@ class MessageHandler
         $result = $stmt->fetch();
         
         return $result['count'] > 0;
+    }
+
+    /**
+     * Parse REPLYTO kludge line to extract address and name
+     * Format: "REPLYTO 2:460/256 8421559770" -> ['address' => '2:460/256', 'name' => '8421559770']
+     * Only returns data if the address is a valid FidoNet address
+     */
+    private function parseReplyToKludge($messageText)
+    {
+        if (empty($messageText)) {
+            return null;
+        }
+        
+        // Normalize line endings and split into lines
+        $lines = preg_split('/\r\n|\r|\n/', $messageText);
+        
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            
+            // Look for REPLYTO kludge line (must have \x01 prefix)
+            if (preg_match('/^\x01REPLYTO\s+(.+)$/i', $trimmed, $matches)) {
+                $replyToData = trim($matches[1]);
+                
+                // Parse "address name" or just "address"
+                if (preg_match('/^(\S+)(?:\s+(.+))?$/', $replyToData, $addressMatches)) {
+                    $address = trim($addressMatches[1]);
+                    $name = isset($addressMatches[2]) ? trim($addressMatches[2]) : null;
+                    
+                    // Only return if it's a valid FidoNet address
+                    if ($this->isValidFidonetAddress($address)) {
+                        return [
+                            'address' => $address,
+                            'name' => $name
+                        ];
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Validate FidoNet address format
+     */
+    private function isValidFidonetAddress($address)
+    {
+        return preg_match('/^\d+:\d+\/\d+(?:\.\d+)?(?:@\w+)?$/', trim($address));
     }
 }
