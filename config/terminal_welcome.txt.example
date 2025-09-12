@@ -9,7 +9,7 @@ Features available through terminal access:
 - System administration tools
 - Real-time chat with other users
 
-Enter your BBS credentials below to establish a connection.
-For new users, contact the sysop for account setup.
+Enter your BBS credentials (seperate from your BinktermPHP login) below to 
+establish a connection. For new users, contact the sysop for account setup.
 
 System Status: Online | Users: Active | Last Update: Daily
