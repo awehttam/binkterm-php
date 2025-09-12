@@ -207,6 +207,32 @@ TERMINAL_TITLE=Terminal Gateway
 - **TERMINAL_PROXY_PORT**: WebSocket proxy server port (typically 443 for HTTPS)
 - **TERMINAL_TITLE**: Custom title displayed on the terminal page
 
+#### Custom Welcome Messages
+
+You can customize the welcome messages displayed to users in various parts of the system by creating optional text files in the `config/` directory:
+
+##### Terminal Welcome Message
+Create `config/terminal_welcome.txt` to display a custom message on the terminal login page. If this file exists, it replaces the default "SSH Connection to host:port" message. The content supports multiple lines and will be displayed exactly as written.
+
+Example `config/terminal_welcome.txt`:
+```
+Welcome to MyBBS Terminal Gateway!
+
+Connect to our shell server to access:
+- Email and messaging systems
+- File areas and downloads  
+- Games and utilities
+- Community forums
+
+Enter your credentials below to connect.
+```
+
+##### New User Welcome Email Template
+Create `config/newuser_welcome.txt` to customize the welcome email sent to newly registered users. This email template is sent automatically after user registration is approved by an administrator and can include instructions, rules, or helpful information for new users. The template supports basic text formatting and will be sent via the configured SMTP server.
+
+##### General Welcome Message
+Create `config/welcome.txt` to display a custom welcome message on the main page or login screen. This can be used for general announcements, system information, or greeting messages for all users.
+
 #### Proxy Server Requirement
 
 The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebSocket connections to SSH servers. You can use a proxy server like [Terminal Gateway](https://github.com/awehttam/terminalgateway) which provides:

@@ -44,6 +44,14 @@ try {
     $systemName = \BinktermPHP\Config::SYSTEM_NAME;
 }
 
+// Check for custom terminal welcome message
+$customWelcome = null;
+$welcomeFile = __DIR__ . '/../../config/terminal_welcome.txt';
+if (file_exists($welcomeFile)) {
+    $customWelcome = file_get_contents($welcomeFile);
+    $customWelcome = trim($customWelcome);
+}
+
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -139,6 +147,7 @@ try {
             display: none;
         }
         
+        
         /* Terminal specific navbar styling */
         .navbar-dark {
             background: rgba(13, 110, 253, 0.9) !important;
@@ -216,7 +225,13 @@ try {
             </div>
             
             <div id="login-form" class="login-form">
-                <h3>SSH Connection to <?php echo htmlspecialchars($terminalHost . ':' . $terminalPort); ?></h3>
+                <?php if ($customWelcome): ?>
+                    <div style="white-space: pre-line; line-height: 1.5; margin-bottom: 20px;">
+                        <?php echo htmlspecialchars($customWelcome); ?>
+                    </div>
+                <?php else: ?>
+                    <h3>SSH Connection to <?php echo htmlspecialchars($terminalHost . ':' . $terminalPort); ?></h3>
+                <?php endif; ?>
                 <input type="text" id="username" placeholder="Username" autocomplete="username">
                 <input type="password" id="password" placeholder="Password" autocomplete="current-password">
                 <button onclick="startConnection()">Connect</button>
@@ -242,6 +257,7 @@ try {
         const REMOTE_HOST = '<?php echo addslashes($terminalHost); ?>';
         const REMOTE_PORT = <?php echo intval($terminalPort); ?>;
         
+        
         // Initialize xterm.js
         const terminal = new Terminal({
             cursorBlink: true,
@@ -264,6 +280,7 @@ try {
 
         // Socket.IO connection
         let socket;
+        
         
         function startConnection() {
             const username = document.getElementById('username').value;
