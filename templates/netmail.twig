@@ -551,8 +551,17 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     // Set up reply button
     if (!isSent) {
         $('#replyButton').show().off('click').on('click', function() {
+            // Store the message ID for the reply
+            const messageId = currentMessageId;
+            
+            // Hide modal and wait for it to be fully closed before navigating
+            $('#messageModal').one('hidden.bs.modal', function() {
+                // Small delay to ensure other modal handlers complete first
+                setTimeout(function() {
+                    composeMessage('netmail', messageId);
+                }, 10);
+            });
             $('#messageModal').modal('hide');
-            composeMessage('netmail', currentMessageId);
         });
     } else {
         $('#replyButton').hide();
