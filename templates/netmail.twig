@@ -315,11 +315,10 @@ function displayMessages(messages, isThreaded = false) {
             <table class="table table-hover message-table mb-0">
                 <thead>
                     <tr>
-                        <th width="5%"></th>
-                        <th width="25%">From/To</th>
-                        <th width="35%">Subject</th>
+                        <th width="30%">From/To</th>
+                        <th width="40%">Subject</th>
                         <th width="15%">Address</th>
-                        <th width="15%">Received</th>
+                        <th width="10%">Received</th>
                         <th width="5%"></th>
                     </tr>
                 </thead>
@@ -344,11 +343,8 @@ function displayMessages(messages, isThreaded = false) {
             
             html += `
                 <tr class="${rowClass} message-row" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                    <td class="text-center">
-                        ${isUnread ? '<i class="fas fa-envelope text-primary" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted" title="Read"></i>'}
-                    </td>
                     <td ${threadIndent}>
-                        ${threadIcon}<strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
+                        ${isUnread ? '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted me-1" title="Read"></i>'}${threadIcon}<strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
                         <br>
                     </td>
                     <td ${threadIndent}>
