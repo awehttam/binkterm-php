@@ -414,6 +414,7 @@ let threadedView = false;
 let userSettings = {};
 let currentMessages = [];
 let currentMessageIndex = -1;
+let currentSearchTerms = [];
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
@@ -604,7 +605,10 @@ function selectEchoarea(tag) {
 
 function loadMessages() {
     showLoading('#messagesContainer');
-    
+
+    // Clear search terms when loading regular messages (not from search)
+    currentSearchTerms = [];
+
     let url = '/api/messages/echomail';
     if (currentEchoarea) {
         url += `/${encodeURIComponent(currentEchoarea)}`;
@@ -613,7 +617,7 @@ function loadMessages() {
     if (threadedView) {
         url += '&threaded=true';
     }
-    
+
     $.get(url)
         .done(function(data) {
             displayMessages(data.messages, data.threaded || false);
@@ -1053,19 +1057,22 @@ function searchMessages() {
     if (!query) {
         query = $('#mobileSearchInput').val().trim();
     }
-    
+
     if (query.length < 2) {
         showError('Please enter at least 2 characters to search');
         return;
     }
-    
+
     showLoading('#messagesContainer');
-    
+
+    // Store search terms for highlighting
+    currentSearchTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 1);
+
     let url = `/api/messages/search?q=${encodeURIComponent(query)}&type=echomail`;
     if (currentEchoarea) {
         url += `&echoarea=${encodeURIComponent(currentEchoarea)}`;
     }
-    
+
     $.get(url)
         .done(function(data) {
             displayMessages(data.messages);
@@ -2305,6 +2312,44 @@ function loadEchomailSettings() {
 /* Green text for messages addressed to current user */
 .text-green {
     color: #198754 !important;
+}
+
+/* Search term highlighting */
+.search-highlight {
+    background-color: #ffff00 !important;
+    color: #000000 !important;
+    font-weight: 600;
+    padding: 0.1em 0.2em;
+    border-radius: 0.2em;
+    box-shadow: 0 0 0 1px #cccc00;
+}
+
+/* Ensure highlighting works in different contexts */
+.message-formatted .search-highlight,
+.message-preformatted .search-highlight,
+.quote-line .search-highlight,
+.message-line .search-highlight,
+.message-signature .search-highlight {
+    background-color: #ffff00 !important;
+    color: #000000 !important;
+    font-weight: 600;
+    padding: 0.1em 0.2em;
+    border-radius: 0.2em;
+    box-shadow: 0 0 0 1px #cccc00;
+}
+
+/* Dark mode support for search highlighting */
+@media (prefers-color-scheme: dark) {
+    .search-highlight,
+    .message-formatted .search-highlight,
+    .message-preformatted .search-highlight,
+    .quote-line .search-highlight,
+    .message-line .search-highlight,
+    .message-signature .search-highlight {
+        background-color: #ffff66 !important;
+        color: #000000 !important;
+        box-shadow: 0 0 0 1px #cccc00;
+    }
 }
 
 /* Threading icon styling */

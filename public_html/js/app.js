@@ -93,58 +93,80 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
 }
 
 // Smart text processing for mobile-friendly rendering
-function formatMessageText(messageText) {
+function formatMessageText(messageText, searchTerms = []) {
     if (!messageText || messageText.trim() === '') {
         return '';
     }
-    
+
+    // Get search terms from global variable if not passed
+    if (!searchTerms || searchTerms.length === 0) {
+        searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
+    }
+
     // Detect if message contains formatting that should be preserved
     const hasAsciiArt = /[\|\+\-_=~`]{3,}/.test(messageText) || /[^\w\s]{5,}/.test(messageText);
     const hasIndentation = /^\s{4,}/.test(messageText) || messageText.includes('\t');
     const hasQuotes = /^\s*[>|]/.test(messageText);
     const hasSignature = messageText.includes('---') || messageText.includes('___');
-    
+
     // If message has special formatting, use responsive preformatted style
     if (hasAsciiArt || hasIndentation) {
-        return `<pre class="message-preformatted">${escapeHtml(messageText)}</pre>`;
+        let preformattedText = escapeHtml(messageText);
+        // Apply highlighting to preformatted text
+        if (searchTerms && searchTerms.length > 0) {
+            preformattedText = highlightSearchTerms(preformattedText, searchTerms);
+        }
+        return `<pre class="message-preformatted">${preformattedText}</pre>`;
     }
-    
+
     // Otherwise, format as readable text with preserved line breaks
     const lines = messageText.split(/\r?\n/);
     let formattedLines = [];
     let inQuoteBlock = false;
     let inSignature = false;
-    
+
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmedLine = line.trim();
-        
+
         // Handle signature separator
         if (trimmedLine === '---' || trimmedLine === '___' || trimmedLine.match(/^-{2,}$/)) {
             inSignature = true;
-            formattedLines.push(`<div class="message-signature-separator">${escapeHtml(trimmedLine)}</div>`);
+            let highlightedLine = escapeHtml(trimmedLine);
+            if (searchTerms && searchTerms.length > 0) {
+                highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
+            }
+            formattedLines.push(`<div class="message-signature-separator">${highlightedLine}</div>`);
             continue;
         }
-        
+
         // Handle quoted text
         if (/^\s*[>|]/.test(line)) {
             if (!inQuoteBlock) {
                 formattedLines.push('<div class="message-quote">');
                 inQuoteBlock = true;
             }
-            formattedLines.push(`<div class="quote-line">${escapeHtml(line)}</div>`);
+            let highlightedLine = escapeHtml(line);
+            if (searchTerms && searchTerms.length > 0) {
+                highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
+            }
+            formattedLines.push(`<div class="quote-line">${highlightedLine}</div>`);
         } else {
             if (inQuoteBlock) {
                 formattedLines.push('</div>');
                 inQuoteBlock = false;
             }
-            
+
             // Empty lines become paragraph breaks
             if (trimmedLine === '') {
                 formattedLines.push('<br>');
             } else {
                 const cssClass = inSignature ? 'message-signature' : 'message-line';
-                formattedLines.push(`<span class="${cssClass}">${escapeHtml(line)}</span>`);
+                let highlightedLine = escapeHtml(line);
+                if (searchTerms && searchTerms.length > 0) {
+                    highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
+                }
+                formattedLines.push(`<span class="${cssClass}">${highlightedLine}</span>`);
                 // Add line break after each line except the last one
                 if (i < lines.length - 1) {
                     formattedLines.push('<br>');
@@ -152,13 +174,49 @@ function formatMessageText(messageText) {
             }
         }
     }
-    
+
     // Close any open quote block
     if (inQuoteBlock) {
         formattedLines.push('</div>');
     }
-    
+
     return `<div class="message-formatted">${formattedLines.join('')}</div>`;
+}
+
+// Helper function to highlight search terms in escaped HTML text
+function highlightSearchTerms(htmlText, searchTerms) {
+    if (!searchTerms || searchTerms.length === 0 || !htmlText) {
+        return htmlText;
+    }
+
+    let highlightedText = htmlText;
+
+    // Sort search terms by length (longest first) to avoid partial matches inside longer terms
+    const sortedTerms = searchTerms.slice().sort((a, b) => b.length - a.length);
+
+    for (const term of sortedTerms) {
+        if (term.length < 2) continue; // Skip single character terms
+
+        // Create a case-insensitive regex that matches the term
+        const escapedTerm = escapeRegex(term);
+        const regex = new RegExp(escapedTerm, 'gi');
+
+        highlightedText = highlightedText.replace(regex, function(match) {
+            // Avoid double-highlighting by checking if we're already inside a highlight span
+            return `<span class="search-highlight">${match}</span>`;
+        });
+    }
+
+    // Clean up nested highlighting that might occur
+    highlightedText = highlightedText.replace(/<span class="search-highlight">([^<]*)<span class="search-highlight">([^<]*)<\/span>([^<]*)<\/span>/gi,
+        '<span class="search-highlight">$1$2$3</span>');
+
+    return highlightedText;
+}
+
+// Helper function to escape special regex characters
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function formatKludgeLines(kludgeLines) {
