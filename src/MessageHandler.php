@@ -2252,8 +2252,8 @@ class MessageHandler
         $echoareaIds = array_column($subscribedEchoareas, 'id');
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
 
-        // Get all messages for threading (load more data to ensure thread completeness)
-        $threadLimit = $limit * 3; // Load more to capture thread relationships
+        // Get messages for current page using standard pagination
+        $offset = ($page - 1) * $limit;
         $stmt = $this->db->prepare("
             SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
@@ -2266,7 +2266,7 @@ class MessageHandler
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
             ORDER BY em.date_received DESC
-            LIMIT {$threadLimit}
+            LIMIT ? OFFSET ?
         ");
         
         $params = [$userId, $userId, $userId];
@@ -2274,14 +2274,22 @@ class MessageHandler
         foreach ($filterParams as $param) {
             $params[] = $param;
         }
+        $params[] = $limit;
+        $params[] = $offset;
         $stmt->execute($params);
-        $allMessages = $stmt->fetchAll();
+        $pageMessages = $stmt->fetchAll();
         
-        // Ensure we have complete thread context
-        $allMessages = $this->ensureCompleteThreadContext($allMessages, $userId);
+        // Debug: log what we got
+        error_log("DEBUG: Page $page, got " . count($pageMessages) . " page messages");
+        
+        // For now, just use the page messages without complex threading
+        $allMessages = $pageMessages;
         
         // Build threading relationships
         $threads = $this->buildMessageThreads($allMessages);
+        
+        // Debug: log thread info
+        error_log("DEBUG: Built " . count($threads) . " threads from " . count($allMessages) . " messages");
         
         // Sort threads by most recent message in each thread
         usort($threads, function($a, $b) {
@@ -2290,13 +2298,32 @@ class MessageHandler
             return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
         });
         
-        // Apply pagination to threads
+        // Get total count for pagination (based on actual message count, not thread count)
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) as total FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+        ");
+        
+        $countParams = [$userId, $userId];
+        $countParams = array_merge($countParams, $echoareaIds);
+        foreach ($filterParams as $param) {
+            $countParams[] = $param;
+        }
+        
+        $countStmt->execute($countParams);
+        $totalMessages = $countStmt->fetch()['total'];
+        
+        // No need to paginate threads since we already got the right page from SQL
         $totalThreads = count($threads);
-        $offset = ($page - 1) * $limit;
-        $pagedThreads = array_slice($threads, $offset, $limit);
+        
+        // Debug: log final results
+        error_log("DEBUG: Using " . count($threads) . " threads for display");
         
         // Flatten threads for display while maintaining structure
-        $messages = $this->flattenThreadsForDisplay($pagedThreads);
+        $messages = $this->flattenThreadsForDisplay($threads);
         
         // Get unread count
         $unreadCount = 0;
@@ -2341,8 +2368,8 @@ class MessageHandler
             'pagination' => [
                 'page' => $page,
                 'limit' => $limit,
-                'total' => $totalThreads,
-                'pages' => ceil($totalThreads / $limit)
+                'total' => $totalMessages,
+                'pages' => ceil($totalMessages / $limit)
             ]
         ];
     }
@@ -2787,6 +2814,88 @@ class MessageHandler
                 'pages' => ceil($totalThreads / $limit)
             ]
         ];
+    }
+
+    /**
+     * Get thread context for specific messages efficiently
+     */
+    private function getThreadContextForMessages($pageMessages, $userId, $echoareaIds, $filterClause, $filterParams)
+    {
+        // Start with the page messages
+        $allMessages = $pageMessages;
+        
+        // Extract MSGID and REPLY values from page messages
+        $msgIds = [];
+        $replyIds = [];
+        
+        foreach ($pageMessages as $msg) {
+            if (!empty($msg['kludge_lines'])) {
+                $kludgeLines = explode("\n", $msg['kludge_lines']);
+                foreach ($kludgeLines as $line) {
+                    if (preg_match('/^\x01MSGID:\s*(.+)$/i', trim($line), $matches)) {
+                        $msgIds[] = trim($matches[1]);
+                    }
+                    if (preg_match('/^\x01REPLY:\s*(.+)$/i', trim($line), $matches)) {
+                        $replyIds[] = trim($matches[1]);
+                    }
+                }
+            }
+        }
+        
+        // If we have thread references, get the related messages
+        if (!empty($msgIds) || !empty($replyIds)) {
+            $threadIds = array_merge($msgIds, $replyIds);
+            $threadIds = array_unique($threadIds);
+            
+            if (!empty($threadIds)) {
+                $placeholders = str_repeat('?,', count($threadIds) - 1) . '?';
+                $echoareaPlaceholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+                
+                // Build LIKE conditions for thread IDs
+                $likeConditions = [];
+                $threadParams = [$userId, $userId, $userId];
+                $threadParams = array_merge($threadParams, $echoareaIds);
+                foreach ($filterParams as $param) {
+                    $threadParams[] = $param;
+                }
+                
+                foreach ($threadIds as $threadId) {
+                    $likeConditions[] = "(em.kludge_lines LIKE ? OR em.kludge_lines LIKE ?)";
+                    $threadParams[] = "%MSGID: " . $threadId . "%";
+                    $threadParams[] = "%REPLY: " . $threadId . "%";
+                }
+                
+                $likeClause = implode(' OR ', $likeConditions);
+                
+                // Get related thread messages
+                $threadStmt = $this->db->prepare("
+                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                           CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                           CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                           CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                    FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                    WHERE ea.id IN ($echoareaPlaceholders) AND ea.is_active = TRUE{$filterClause}
+                    AND ($likeClause)
+                ");
+                
+                $threadStmt->execute($threadParams);
+                $threadMessages = $threadStmt->fetchAll();
+                
+                // Merge with page messages, avoiding duplicates
+                $messageIds = array_column($allMessages, 'id');
+                foreach ($threadMessages as $threadMsg) {
+                    if (!in_array($threadMsg['id'], $messageIds)) {
+                        $allMessages[] = $threadMsg;
+                    }
+                }
+            }
+        }
+        
+        return $allMessages;
     }
 
     /**
