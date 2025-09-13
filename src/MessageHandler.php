@@ -3121,7 +3121,7 @@ class MessageHandler
                         subject = ?,
                         message_text = ?,
                         reply_to_id = ?,
-                        updated_at = CURRENT_TIMESTAMP
+                        updated_at = NOW() AT TIME ZONE 'UTC'
                     WHERE id = ?
                 ");
 
@@ -3139,8 +3139,8 @@ class MessageHandler
             } else {
                 // Create new draft
                 $stmt = $this->db->prepare("
-                    INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
                 ");
 
                 $stmt->execute([
