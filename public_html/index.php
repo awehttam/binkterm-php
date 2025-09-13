@@ -508,7 +508,10 @@ SimpleRouter::get('/compose/{type}', function($type) {
                     $templateVars['reply_to_name'] = $originalMessage['from_name'];
                 }
                 
-                $templateVars['reply_subject'] = 'Re: ' . ltrim($originalMessage['subject'] ?? '', 'Re: ');
+                $subject = $originalMessage['subject'] ?? '';
+                // Remove "Re: " prefix if it exists (case insensitive)
+                $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
+                $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
                 
                 // Filter out kludge lines from the quoted message
                 $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
@@ -521,7 +524,10 @@ SimpleRouter::get('/compose/{type}', function($type) {
             } else {
                 $templateVars['reply_to_id'] = $replyId;
                 $templateVars['reply_to_name'] = $originalMessage['from_name'];
-                $templateVars['reply_subject'] = 'Re: ' . ltrim($originalMessage['subject'] ?? '', 'Re: ');
+                $subject = $originalMessage['subject'] ?? '';
+                // Remove "Re: " prefix if it exists (case insensitive)
+                $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
+                $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
                 $echoarea = $originalMessage['echoarea']; // Use original echoarea for reply
                 
                 // Filter out kludge lines from the quoted message
