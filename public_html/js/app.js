@@ -1,7 +1,17 @@
 // BinkTest JavaScript Application
 
 // Message parsing and formatting functions
-function parseNetmailMessage(messageText) {
+function parseNetmailMessage(messageText, storedKludgeLines = null) {
+    // If we have stored kludge lines, use them instead of trying to parse from message text
+    if (storedKludgeLines && storedKludgeLines.trim()) {
+        const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        return {
+            kludgeLines: kludgeLines,
+            messageBody: messageText.trim()
+        };
+    }
+    
+    // Fallback to old parsing method for backwards compatibility
     // First, split by both \n and \r\n, then by \r to handle different line endings
     let lines = messageText.split(/\r?\n/);
     

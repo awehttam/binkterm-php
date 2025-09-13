@@ -518,12 +518,14 @@ class BinkdProcessor
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
         
-        // Parse netmail message text for kludge lines to extract TZUTC
+        // Parse netmail message text to separate kludges from content
         $messageText = $message['text'];
         $messageText = str_replace("\r\n", "\n", $messageText); // Normalize line endings
         $messageText = str_replace("\r", "\n", $messageText);
         
         $lines = explode("\n", $messageText);
+        $cleanedLines = [];
+        $kludgeLines = [];
         $tzutcOffset = null;
         $messageId = null;
         $originalAuthorAddress = null;
@@ -532,6 +534,8 @@ class BinkdProcessor
         foreach ($lines as $line) {
             // Process kludge lines (lines starting with \x01) in netmail
             if (strlen($line) > 0 && ord($line[0]) === 0x01) {
+                $kludgeLines[] = $line;
+                
                 // Extract TZUTC offset for proper date calculation
                 if (strpos($line, "\x01TZUTC:") === 0) {
                     $tzutcLine = trim(substr($line, 7)); // Remove "\x01TZUTC:" prefix
@@ -570,12 +574,21 @@ class BinkdProcessor
                         error_log("DEBUG: Found REPLYADDR kludge in netmail: " . $replyAddress);
                     }
                 }
+                
+                continue; // Don't include kludge lines in message body
             }
+            
+            // Include non-kludge lines in cleaned message text
+            $cleanedLines[] = $line;
         }
+        
+        // Create clean message text without kludges
+        $cleanMessageText = implode("\n", $cleanedLines);
+        $kludgeText = implode("\n", $kludgeLines);
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -587,12 +600,13 @@ class BinkdProcessor
             $message['fromName'],
             $message['toName'],
             $message['subject'],
-            $message['text'],
+            $cleanMessageText, // Use cleaned message text without kludges
             $dateWritten,
             $message['attributes'],
             $messageId,
             $originalAuthorAddress,
-            $replyAddress
+            $replyAddress,
+            $kludgeText // Store kludges separately
         ]);
 
         error_log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
@@ -1045,86 +1059,83 @@ class BinkdProcessor
         $kludgeLines = '';
         
         if ($isNetmail) {
-            // Add TZUTC kludge line for netmail
-            $timezone = $this->config->getSystemTimezone();
-            try {
-                $tz = new \DateTimeZone($timezone);
-                $now = new \DateTime('now', $tz);
-                $offset = $now->getOffset();
-                $offsetHours = intval($offset / 3600);
-                $offsetMinutes = intval(abs($offset % 3600) / 60);
-                $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
-                $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
-            } catch (\Exception $e) {
-                // Fallback to UTC if timezone is invalid
-                $kludgeLines .= "\x01TZUTC: +0000\r\n";
-            }
-            
-            // Add MSGID kludge (required for netmail)
-            $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
-            $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
-            
-            // Add REPLY kludge if this is a reply to another message
-            if (!empty($message['reply_to_id'])) {
-                $originalMsgId = $this->getOriginalMessageId($message['reply_to_id'], 'netmail');
-                if ($originalMsgId) {
-                    $kludgeLines .= "\x01REPLY: {$originalMsgId}\r\n";
+            // Use stored kludges from database if available
+            if (!empty($message['kludge_lines'])) {
+                // Convert stored kludges to packet format (with \r\n line endings)
+                $storedKludges = str_replace("\n", "\r\n", $message['kludge_lines']);
+                $kludgeLines .= $storedKludges . "\r\n";
+            } else {
+                // Fallback to generating kludges if not stored (for backward compatibility)
+                // Add TZUTC kludge line for netmail
+                $timezone = $this->config->getSystemTimezone();
+                try {
+                    $tz = new \DateTimeZone($timezone);
+                    $now = new \DateTime('now', $tz);
+                    $offset = $now->getOffset();
+                    $offsetHours = intval($offset / 3600);
+                    $offsetMinutes = intval(abs($offset % 3600) / 60);
+                    $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
+                    $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
+                } catch (\Exception $e) {
+                    // Fallback to UTC if timezone is invalid
+                    $kludgeLines .= "\x01TZUTC: +0000\r\n";
+                }
+                
+                // Add MSGID kludge (required for netmail)
+                $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
+                $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
+                
+                // Add reply address information in multiple formats for compatibility
+                $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r\n";
+                $kludgeLines .= "\x01REPLYTO {$fromAddress}\r\n";
+                
+                // Add INTL kludge for zone routing (required for inter-zone mail)
+                list($fromZone, $fromRest) = explode(':', $fromAddress);
+                list($toZone, $toRest) = explode(':', $toAddress);
+                $kludgeLines .= "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}\r\n";
+                
+                // Add FLAGS kludge for netmail attributes
+                $flags = [];
+                if (($message['attributes'] ?? 0) & 0x0001) $flags[] = 'PVT'; // Private
+                if (($message['attributes'] ?? 0) & 0x0004) $flags[] = 'RCV'; // Received
+                if (($message['attributes'] ?? 0) & 0x0008) $flags[] = 'SNT'; // Sent
+                if (!empty($flags)) {
+                    $kludgeLines .= "\x01FLAGS " . implode(' ', $flags) . "\r\n";
                 }
             }
-            
-            // Add reply address information in multiple formats for compatibility
-            $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r\n";
-            $kludgeLines .= "\x01REPLYTO {$fromAddress}\r\n";
-            
-            // Add INTL kludge for zone routing (required for inter-zone mail)
-            list($fromZone, $fromRest) = explode(':', $fromAddress);
-            list($toZone, $toRest) = explode(':', $toAddress);
-            $kludgeLines .= "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}\r\n";
-            
-            // Add FMPT/TOPT kludges for point addressing if needed
-            if (strpos($fromAddress, '.') !== false) {
-                list($mainAddr, $point) = explode('.', $fromAddress);
-                $kludgeLines .= "\x01FMPT {$point}\r\n";
-            }
-            
-            if (strpos($toAddress, '.') !== false) {
-                list($mainAddr, $point) = explode('.', $toAddress);  
-                $kludgeLines .= "\x01TOPT {$point}\r\n";
-            }
-            
-            // Add FLAGS kludge for netmail attributes
-            $flags = [];
-            if (($message['attributes'] ?? 0) & 0x0001) $flags[] = 'PVT'; // Private
-            if (($message['attributes'] ?? 0) & 0x0004) $flags[] = 'RCV'; // Received
-            if (($message['attributes'] ?? 0) & 0x0008) $flags[] = 'SNT'; // Sent
-            if (!empty($flags)) {
-                $kludgeLines .= "\x01FLAGS " . implode(' ', $flags) . "\r\n";
-            }
         } elseif ($isEchomail) {
-            // Add TZUTC kludge line for echomail
-            $timezone = $this->config->getSystemTimezone();
-            try {
-                $tz = new \DateTimeZone($timezone);
-                $now = new \DateTime('now', $tz);
-                $offset = $now->getOffset();
-                $offsetHours = intval($offset / 3600);
-                $offsetMinutes = intval(abs($offset % 3600) / 60);
-                $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
-                $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
-            } catch (\Exception $e) {
-                // Fallback to UTC if timezone is invalid
-                $kludgeLines .= "\x01TZUTC: +0000\r\n";
-            }
-            
-            // Add MSGID kludge (required for echomail)
-            $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
-            $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
-            
-            // Add REPLY kludge if this is a reply to another message
-            if (!empty($message['reply_to_id'])) {
-                $originalMsgId = $this->getOriginalMessageId($message['reply_to_id'], 'echomail');
-                if ($originalMsgId) {
-                    $kludgeLines .= "\x01REPLY: {$originalMsgId}\r\n";
+            // Use stored kludges from database if available
+            if (!empty($message['kludge_lines'])) {
+                // Convert stored kludges to packet format (with \r\n line endings)
+                $storedKludges = str_replace("\n", "\r\n", $message['kludge_lines']);
+                $kludgeLines .= $storedKludges . "\r\n";
+            } else {
+                // Fallback to generating kludges if not stored (for backward compatibility)
+                // Add TZUTC kludge line for echomail
+                $timezone = $this->config->getSystemTimezone();
+                try {
+                    $tz = new \DateTimeZone($timezone);
+                    $now = new \DateTime('now', $tz);
+                    $offset = $now->getOffset();
+                    $offsetHours = intval($offset / 3600);
+                    $offsetMinutes = intval(abs($offset % 3600) / 60);
+                    $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
+                    $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
+                } catch (\Exception $e) {
+                    // Fallback to UTC if timezone is invalid
+                    $kludgeLines .= "\x01TZUTC: +0000\r\n";
+                }
+                
+                // Add MSGID kludge (required for echomail)
+                $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
+                $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
+                
+                // Add REPLY kludge if this is a reply to another message
+                if (!empty($message['reply_to_id'])) {
+                    $originalMsgId = $this->getOriginalMessageId($message['reply_to_id'], 'echomail');
+                    if ($originalMsgId) {
+                        $kludgeLines .= "\x01REPLY: {$originalMsgId}\r\n";
+                    }
                 }
             }
         }

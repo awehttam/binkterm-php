@@ -312,7 +312,7 @@ function displayMessages(messages, isThreaded = false) {
         html = '<div class="text-center text-muted py-4">No messages found</div>';
     } else {
         html = `
-            <table class="table table-hover mb-0">
+            <table class="table table-hover message-table mb-0">
                 <thead>
                     <tr>
                         <th width="5%"></th>
@@ -336,24 +336,22 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            const threadPadding = threadLevel > 0 ? `style="padding-left: ${threadLevel * 20 + 8}px;"` : '';
+            const threadIndent = threadLevel > 0 ? `style="text-indent: ${threadLevel * 0.5}rem;"` : '';
             const threadIcon = threadLevel > 0 ? '<i class="fas fa-reply me-1 text-muted" title="Reply"></i>' : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${replyCount} replies">${replyCount}</span>` : '';
             
             // Add thread-specific CSS classes
-            const threadClasses = isThreaded ? `thread-level-${threadLevel} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
             
             html += `
-                <tr class="${rowClass} message-row ${threadClasses}" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                <tr class="${rowClass} message-row" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                     <td class="text-center">
                         ${isUnread ? '<i class="fas fa-envelope text-primary" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted" title="Read"></i>'}
                     </td>
-                    <td ${threadPadding}>
-                        ${threadIcon}<strong><a href="#" onclick="event.stopPropagation(); composeMessageToUser('${escapeHtml(isSent ? msg.to_name : ((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name))}', '${escapeHtml(isSent ? msg.to_address : (msg.replyto_address || msg.reply_address || msg.original_author_address || msg.from_address))}', '${escapeHtml(msg.subject || '')}'); return false;" class="text-decoration-none" title="Send new netmail message">${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</a></strong>
+                    <td ${threadIndent}>
+                        ${threadIcon}<strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
                         <br>
-                        <small class="text-muted">${isSent ? 'Sent' : 'Received'}</small>
                     </td>
-                    <td>
+                    <td ${threadIndent}>
                         ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || '(No Subject)')}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
                         <br>
                         <small class="text-muted">
@@ -452,8 +450,8 @@ function displayMessageContent(message) {
     
     $('#messageSubject').text(message.subject || '(No Subject)');
     
-    // Parse message to separate kludge lines from body
-    const parsedMessage = parseNetmailMessage(message.message_text || '');
+    // Parse message to separate kludge lines from body (use stored kludge_lines if available)
+    const parsedMessage = parseNetmailMessage(message.message_text || '', message.kludge_lines || null);
     
     // Check if sender is already in address book before rendering
     checkAndDisplayMessage(message, parsedMessage, isSent);

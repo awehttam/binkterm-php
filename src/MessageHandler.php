@@ -100,20 +100,22 @@ class MessageHandler
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
             
-            // Parse REPLYTO kludge from message text and add to response
-            $replyToData = $this->parseReplyToKludge($message['message_text']);
-            if ($replyToData) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'];
+            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
+            $replyToData = null;
+            
+            // For echomail, check kludge_lines first
+            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
+                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
             }
             
-            // Also check kludge_lines for REPLYTO
-            if (isset($message['kludge_lines'])) {
-                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
-                if ($replyToDataKludge) {
-                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
-                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
-                }
+            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
+            if (!$replyToData) {
+                $replyToData = $this->parseReplyToKludge($message);
+            }
+            
+            if ($replyToData && isset($replyToData['address'])) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
             
             $cleanMessages[] = $cleanMessage;
@@ -299,20 +301,22 @@ class MessageHandler
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
             
-            // Parse REPLYTO kludge from message text and add to response
-            $replyToData = $this->parseReplyToKludge($message['message_text']);
-            if ($replyToData) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'];
+            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
+            $replyToData = null;
+            
+            // For echomail, check kludge_lines first
+            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
+                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
             }
             
-            // Also check kludge_lines for REPLYTO
-            if (isset($message['kludge_lines'])) {
-                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
-                if ($replyToDataKludge) {
-                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
-                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
-                }
+            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
+            if (!$replyToData) {
+                $replyToData = $this->parseReplyToKludge($message);
+            }
+            
+            if ($replyToData && isset($replyToData['address'])) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
             
             $cleanMessages[] = $cleanMessage;
@@ -354,6 +358,11 @@ class MessageHandler
         if ($limit === null) {
             $settings = $this->getUserSettings($userId);
             $limit = $settings['messages_per_page'] ?? 25;
+        }
+
+        // If threaded view is requested, use the threading method
+        if ($threaded) {
+            return $this->getThreadedEchomailFromSubscribedAreas($userId, $page, $limit, $filter, $subscribedEchoareas);
         }
 
         $offset = ($page - 1) * $limit;
@@ -445,20 +454,22 @@ class MessageHandler
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
             
-            // Parse REPLYTO kludge from message text and add to response
-            $replyToData = $this->parseReplyToKludge($message['message_text']);
-            if ($replyToData) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'];
+            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
+            $replyToData = null;
+            
+            // For echomail, check kludge_lines first
+            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
+                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
             }
             
-            // Also check kludge_lines for REPLYTO
-            if (isset($message['kludge_lines'])) {
-                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
-                if ($replyToDataKludge) {
-                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
-                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
-                }
+            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
+            if (!$replyToData) {
+                $replyToData = $this->parseReplyToKludge($message);
+            }
+            
+            if ($replyToData && isset($replyToData['address'])) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
             
             $cleanMessages[] = $cleanMessage;
@@ -547,9 +558,12 @@ class MessageHandler
         $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $systemAddress);
         $msgId = $systemAddress . ' ' . $msgIdHash;
 
+        // Generate kludges for this netmail
+        $kludgeLines = $this->generateNetmailKludges($systemAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
+        
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
@@ -561,7 +575,8 @@ class MessageHandler
             $subject,
             $messageText,
             $replyToId,
-            $msgId
+            $msgId,
+            $kludgeLines
         ]);
 
         if ($result) {
@@ -615,10 +630,13 @@ class MessageHandler
         $msgIdHash = $this->generateMessageId($senderName, $sysopName, $subject, $systemAddress);
         $msgId = $systemAddress . ' ' . $msgIdHash;
 
+        // Generate kludges for this local netmail
+        $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId);
+
         // Create local netmail message to sysop
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
@@ -630,7 +648,8 @@ class MessageHandler
             $subject,
             $messageText,
             $replyToId,
-            $msgId
+            $msgId,
+            $kludgeLines
         ]);
 
         return $result;
@@ -659,6 +678,12 @@ class MessageHandler
             throw new \Exception('System FidoNet address not configured');
         }
 
+        // Generate kludges for this echomail
+        $fromName = $user['real_name'] ?: $user['username'];
+        $toName = $toName ?: 'All';
+        $kludgeLines = $this->generateEchomailKludges($systemAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
+        $msgId = $systemAddress . ' ' . $this->generateMessageId($fromName, $toName, $subject, $systemAddress);
+        
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
@@ -667,14 +692,14 @@ class MessageHandler
         $result = $stmt->execute([
             $echoarea['id'],
             $systemAddress,
-            $user['real_name'] ?: $user['username'],
-            $toName ?: 'All',
+            $fromName,
+            $toName,
             $subject,
             $messageText,
             $replyToId,
-            $systemAddress . ' ' . $this->generateMessageId($user['real_name'] ?: $user['username'], $toName ?: 'All', $subject, $systemAddress),
+            $msgId,
             null, // origin_line (will be added when packet is created) 
-            null  // kludge_lines (empty for web-created messages)
+            $kludgeLines  // Store generated kludges
         ]);
 
         if ($result) {
@@ -1874,10 +1899,328 @@ class MessageHandler
     }
 
     /**
-     * Get threaded echomail messages using MSGID/REPLY relationships
+     * Generate kludge lines for netmail messages
      */
-    public function getThreadedEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null)
     {
+        $kludgeLines = [];
+        
+        // Add TZUTC kludge line for netmail
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $timezone = $binkpConfig->getSystemTimezone();
+            $tz = new \DateTimeZone($timezone);
+            $now = new \DateTime('now', $tz);
+            $offset = $now->getOffset();
+            $offsetHours = intval($offset / 3600);
+            $offsetMinutes = intval(abs($offset % 3600) / 60);
+            $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
+            $kludgeLines[] = "\x01TZUTC: {$offsetStr}";
+        } catch (\Exception $e) {
+            // Fallback to UTC if timezone is invalid
+            $kludgeLines[] = "\x01TZUTC: +0000";
+        }
+        
+        // Add MSGID kludge (required for netmail)
+        $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);
+        $kludgeLines[] = "\x01MSGID: {$fromAddress} {$msgId}";
+        
+        // Add REPLY kludge if this is a reply to another message
+        if (!empty($replyToId)) {
+            $originalMsgId = $this->getOriginalNetmailMessageId($replyToId);
+            if ($originalMsgId) {
+                $kludgeLines[] = "\x01REPLY: {$originalMsgId}";
+            }
+        }
+        
+        // Add reply address information in multiple formats for compatibility
+        $kludgeLines[] = "\x01REPLYADDR {$fromAddress}";
+        $kludgeLines[] = "\x01REPLYTO {$fromAddress}";
+        
+        // Add INTL kludge for zone routing (required for inter-zone mail)
+        list($fromZone, $fromRest) = explode(':', $fromAddress);
+        list($toZone, $toRest) = explode(':', $toAddress);
+        $kludgeLines[] = "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}";
+        
+        // Add FMPT/TOPT kludges for point addressing if needed
+        if (strpos($fromAddress, '.') !== false) {
+            list($mainAddr, $point) = explode('.', $fromAddress);
+            $kludgeLines[] = "\x01FMPT {$point}";
+        }
+        
+        if (strpos($toAddress, '.') !== false) {
+            list($mainAddr, $point) = explode('.', $toAddress);  
+            $kludgeLines[] = "\x01TOPT {$point}";
+        }
+        
+        // Add FLAGS kludge for netmail attributes (always private)
+        $kludgeLines[] = "\x01FLAGS PVT";
+        
+        return implode("\n", $kludgeLines);
+    }
+
+    /**
+     * Generate kludge lines for echomail messages
+     */
+    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null)
+    {
+        $kludgeLines = [];
+        
+        // Add TZUTC kludge line for echomail
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $timezone = $binkpConfig->getSystemTimezone();
+            $tz = new \DateTimeZone($timezone);
+            $now = new \DateTime('now', $tz);
+            $offset = $now->getOffset();
+            $offsetHours = intval($offset / 3600);
+            $offsetMinutes = intval(abs($offset % 3600) / 60);
+            $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
+            $kludgeLines[] = "\x01TZUTC: {$offsetStr}";
+        } catch (\Exception $e) {
+            // Fallback to UTC if timezone is invalid
+            $kludgeLines[] = "\x01TZUTC: +0000";
+        }
+        
+        // Add MSGID kludge (required for echomail)
+        $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);
+        $kludgeLines[] = "\x01MSGID: {$fromAddress} {$msgId}";
+        
+        // Add REPLY kludge if this is a reply to another message
+        if (!empty($replyToId)) {
+            $originalMsgId = $this->getOriginalEchomailMessageId($replyToId);
+            if ($originalMsgId) {
+                $kludgeLines[] = "\x01REPLY: {$originalMsgId}";
+            }
+        }
+        
+        return implode("\n", $kludgeLines);
+    }
+
+    /**
+     * Get the original message's MSGID for REPLY kludge generation in echomail
+     */
+    private function getOriginalEchomailMessageId($messageId)
+    {
+        $stmt = $this->db->prepare("SELECT message_id FROM echomail WHERE id = ?");
+        $stmt->execute([$messageId]);
+        $originalMessage = $stmt->fetch();
+        
+        if (!$originalMessage || !$originalMessage['message_id']) {
+            return null;
+        }
+        
+        // Return the stored MSGID (format: "address hash")
+        return $originalMessage['message_id'];
+    }
+
+    /**
+     * Get the original message's MSGID for REPLY kludge generation in netmail
+     */
+    private function getOriginalNetmailMessageId($messageId)
+    {
+        $stmt = $this->db->prepare("SELECT message_id FROM netmail WHERE id = ?");
+        $stmt->execute([$messageId]);
+        $originalMessage = $stmt->fetch();
+        
+        if (!$originalMessage || !$originalMessage['message_id']) {
+            return null;
+        }
+        
+        // Return the stored MSGID (format: "address hash")
+        return $originalMessage['message_id'];
+    }
+
+    /**
+     * Ensure complete thread context for "all messages" view
+     * This loads any missing parent or child messages needed for proper threading
+     */
+    private function ensureCompleteThreadContext($messages, $userId)
+    {
+        $messagesByMsgId = [];
+        $missingMsgIds = [];
+        $messagesById = [];
+        
+        // Index existing messages
+        foreach ($messages as $message) {
+            $messagesByMsgId[$message['message_id']] = $message;
+            $messagesById[$message['id']] = $message;
+        }
+        
+        // Find missing parent messages (messages that are referenced in REPLY kludges)
+        foreach ($messages as $message) {
+            $replyTo = $this->extractReplyFromKludge($message['kludge_lines']);
+            if ($replyTo && !isset($messagesByMsgId[$replyTo])) {
+                $missingMsgIds[] = $replyTo;
+            }
+        }
+        
+        // Find missing child messages (messages that reply to current messages)
+        // Use a simpler approach - just look for messages with REPLY kludges
+        $currentMsgIds = array_keys($messagesByMsgId);
+        if (!empty($currentMsgIds)) {
+            foreach ($currentMsgIds as $currentMsgId) {
+                $stmt = $this->db->prepare("
+                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                           CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                           CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                           CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                    FROM echomail em
+                    JOIN echoareas ea ON em.echoarea_id = ea.id
+                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                    LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                    WHERE em.kludge_lines LIKE ? 
+                    LIMIT 10
+                ");
+                
+                $searchPattern = '%REPLY: ' . $currentMsgId . '%';
+                $stmt->execute([$userId, $userId, $userId, $searchPattern]);
+                $childMessages = $stmt->fetchAll();
+                
+                foreach ($childMessages as $childMessage) {
+                    if (!isset($messagesById[$childMessage['id']])) {
+                        // Verify this is actually a reply to avoid false positives
+                        $replyTo = $this->extractReplyFromKludge($childMessage['kludge_lines']);
+                        if ($replyTo === $currentMsgId) {
+                            $messages[] = $childMessage;
+                            $messagesByMsgId[$childMessage['message_id']] = $childMessage;
+                            $messagesById[$childMessage['id']] = $childMessage;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Load missing parent messages
+        if (!empty($missingMsgIds)) {
+            $placeholders = implode(',', array_fill(0, count($missingMsgIds), '?'));
+            $stmt = $this->db->prepare("
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE em.message_id IN ({$placeholders})
+            ");
+            
+            $params = [$userId, $userId, $userId];
+            foreach ($missingMsgIds as $msgId) {
+                $params[] = $msgId;
+            }
+            
+            $stmt->execute($params);
+            $parentMessages = $stmt->fetchAll();
+            
+            foreach ($parentMessages as $parentMessage) {
+                if (!isset($messagesById[$parentMessage['id']])) {
+                    $messages[] = $parentMessage;
+                }
+            }
+        }
+        
+        return $messages;
+    }
+
+    /**
+     * Parse kludges from either kludge_lines column or message_text (for backward compatibility)
+     * This provides a unified way to handle kludge parsing for netmail messages
+     */
+    private function parseNetmailKludges($message, $kludgeType = null)
+    {
+        $kludgeData = [];
+        $kludgeText = '';
+        
+        // First try the dedicated kludge_lines column
+        if (!empty($message['kludge_lines'])) {
+            $kludgeText = $message['kludge_lines'];
+        } else {
+            // Fallback to parsing from message_text for backward compatibility
+            $messageText = $message['message_text'] ?? '';
+            $lines = preg_split('/\r\n|\r|\n/', $messageText);
+            $kludgeLines = [];
+            
+            foreach ($lines as $line) {
+                if (strlen($line) > 0 && ord($line[0]) === 0x01) {
+                    $kludgeLines[] = $line;
+                }
+            }
+            
+            $kludgeText = implode("\n", $kludgeLines);
+        }
+        
+        if (empty($kludgeText)) {
+            return null;
+        }
+        
+        // Parse specific kludge types if requested
+        $lines = explode("\n", $kludgeText);
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            
+            // Parse REPLYTO kludge
+            if (preg_match('/^\x01REPLYTO\s+(.+)$/i', $trimmed, $matches)) {
+                $replyToData = trim($matches[1]);
+                if (preg_match('/^(\S+)(?:\s+(.+))?$/', $replyToData, $addressMatches)) {
+                    $address = trim($addressMatches[1]);
+                    $name = isset($addressMatches[2]) ? trim($addressMatches[2]) : null;
+                    
+                    if ($this->isValidFidonetAddress($address)) {
+                        $kludgeData['REPLYTO'] = [
+                            'address' => $address,
+                            'name' => $name
+                        ];
+                    }
+                }
+            }
+            
+            // Parse MSGID kludge
+            if (preg_match('/^\x01MSGID:\s*(.+)$/i', $trimmed, $matches)) {
+                $kludgeData['MSGID'] = trim($matches[1]);
+            }
+            
+            // Parse REPLY kludge  
+            if (preg_match('/^\x01REPLY:\s*(.+)$/i', $trimmed, $matches)) {
+                $kludgeData['REPLY'] = trim($matches[1]);
+            }
+            
+            // Parse TZUTC kludge
+            if (preg_match('/^\x01TZUTC:\s*(.+)$/i', $trimmed, $matches)) {
+                $kludgeData['TZUTC'] = trim($matches[1]);
+            }
+        }
+        
+        // Return specific kludge type if requested, otherwise return all
+        if ($kludgeType && isset($kludgeData[$kludgeType])) {
+            return $kludgeData[$kludgeType];
+        }
+        
+        return empty($kludgeData) ? null : $kludgeData;
+    }
+
+    /**
+     * Get threaded echomail messages from subscribed echoareas using MSGID/REPLY relationships
+     */
+    private function getThreadedEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $subscribedEchoareas = null)
+    {
+        // Get subscribed echoareas if not provided
+        if ($subscribedEchoareas === null) {
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
+        }
+        
+        if (empty($subscribedEchoareas)) {
+            return [
+                'messages' => [],
+                'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0],
+                'info' => 'You are not subscribed to any echoareas. Visit /subscriptions to subscribe to echoareas.'
+            ];
+        }
+
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {
             $settings = $this->getUserSettings($userId);
@@ -1905,48 +2248,37 @@ class MessageHandler
             $filterClause = " AND sav.id IS NOT NULL";
         }
 
-        // Get all messages for the echoarea first
-        if ($echoareaTag) {
-            $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
-                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
-                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
-                FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause}
-                ORDER BY em.date_received DESC
-            ");
-            $params = [$userId, $userId, $userId, $echoareaTag];
-            foreach ($filterParams as $param) {
-                $params[] = $param;
-            }
-            $stmt->execute($params);
-        } else {
-            $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
-                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
-                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
-                FROM echomail em
-                JOIN echoareas ea ON em.echoarea_id = ea.id
-                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE 1=1{$filterClause}
-                ORDER BY em.date_received DESC
-            ");
-            $params = [$userId, $userId, $userId];
-            foreach ($filterParams as $param) {
-                $params[] = $param;
-            }
-            $stmt->execute($params);
-        }
+        // Create IN clause for subscribed echoareas
+        $echoareaIds = array_column($subscribedEchoareas, 'id');
+        $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+
+        // Get all messages for threading (load more data to ensure thread completeness)
+        $threadLimit = $limit * 3; // Load more to capture thread relationships
+        $stmt = $this->db->prepare("
+            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                   CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                   CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                   CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+            LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+            LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+            WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
+            ORDER BY em.date_received DESC
+            LIMIT {$threadLimit}
+        ");
         
+        $params = [$userId, $userId, $userId];
+        $params = array_merge($params, $echoareaIds);
+        foreach ($filterParams as $param) {
+            $params[] = $param;
+        }
+        $stmt->execute($params);
         $allMessages = $stmt->fetchAll();
+        
+        // Ensure we have complete thread context
+        $allMessages = $this->ensureCompleteThreadContext($allMessages, $userId);
         
         // Build threading relationships
         $threads = $this->buildMessageThreads($allMessages);
@@ -1981,20 +2313,173 @@ class MessageHandler
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
             
-            // Parse REPLYTO kludge from message text and add to response
-            $replyToData = $this->parseReplyToKludge($message['message_text']);
-            if ($replyToData) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'];
+            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
+            $replyToData = null;
+            
+            // For echomail, check kludge_lines first
+            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
+                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
             }
             
-            // Also check kludge_lines for REPLYTO
-            if (isset($message['kludge_lines'])) {
-                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
-                if ($replyToDataKludge) {
-                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
-                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
+            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
+            if (!$replyToData) {
+                $replyToData = $this->parseReplyToKludge($message);
+            }
+            
+            if ($replyToData && isset($replyToData['address'])) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
+            }
+            
+            $cleanMessages[] = $cleanMessage;
+        }
+
+        return [
+            'messages' => $cleanMessages,
+            'unreadCount' => $unreadCount,
+            'threaded' => true,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $totalThreads,
+                'pages' => ceil($totalThreads / $limit)
+            ]
+        ];
+    }
+
+    /**
+     * Get threaded echomail messages using MSGID/REPLY relationships
+     */
+    public function getThreadedEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    {
+        // Get user's messages_per_page setting if limit not specified
+        if ($limit === null && $userId) {
+            $settings = $this->getUserSettings($userId);
+            $limit = $settings['messages_per_page'] ?? 25;
+        } elseif ($limit === null) {
+            $limit = 25; // Default fallback if no user ID
+        }
+
+        // Build the WHERE clause based on filter
+        $filterClause = "";
+        $filterParams = [];
+        
+        if ($filter === 'unread' && $userId) {
+            $filterClause = " AND mrs.read_at IS NULL";
+        } elseif ($filter === 'read' && $userId) {
+            $filterClause = " AND mrs.read_at IS NOT NULL";
+        } elseif ($filter === 'tome' && $userId) {
+            $user = $this->getUserById($userId);
+            if ($user) {
+                $filterClause = " AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))";
+                $filterParams[] = $user['username'];
+                $filterParams[] = $user['real_name'];
+            }
+        } elseif ($filter === 'saved' && $userId) {
+            $filterClause = " AND sav.id IS NOT NULL";
+        }
+
+        // Get all messages for threading (need to load more data to ensure thread completeness)
+        if ($echoareaTag) {
+            $stmt = $this->db->prepare("
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.tag = ?{$filterClause}
+                ORDER BY em.date_received DESC
+            ");
+            $params = [$userId, $userId, $userId, $echoareaTag];
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            $stmt->execute($params);
+        } else {
+            // For "all messages" view, we need to load thread-related messages too
+            // First get the base messages with a larger limit to include thread context
+            $threadLimit = $limit * 3; // Load more to capture thread relationships
+            $stmt = $this->db->prepare("
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE 1=1{$filterClause}
+                ORDER BY em.date_received DESC
+                LIMIT {$threadLimit}
+            ");
+            $params = [$userId, $userId, $userId];
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            $stmt->execute($params);
+        }
+        
+        $allMessages = $stmt->fetchAll();
+        
+        // For "all messages" view, ensure we have complete thread context
+        if (!$echoareaTag) {
+            $allMessages = $this->ensureCompleteThreadContext($allMessages, $userId);
+        }
+        
+        // Build threading relationships
+        $threads = $this->buildMessageThreads($allMessages);
+        
+        // Sort threads by most recent message in each thread
+        usort($threads, function($a, $b) {
+            $aLatest = $this->getLatestMessageInThread($a);
+            $bLatest = $this->getLatestMessageInThread($b);
+            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        });
+        
+        // Apply pagination to threads
+        $totalThreads = count($threads);
+        $offset = ($page - 1) * $limit;
+        $pagedThreads = array_slice($threads, $offset, $limit);
+        
+        // Flatten threads for display while maintaining structure
+        $messages = $this->flattenThreadsForDisplay($pagedThreads);
+        
+        // Get unread count
+        $unreadCount = 0;
+        if ($userId) {
+            foreach ($allMessages as $msg) {
+                if (!$msg['is_read']) {
+                    $unreadCount++;
                 }
+            }
+        }
+
+        // Clean message data for proper JSON encoding and add REPLYTO parsing
+        $cleanMessages = [];
+        foreach ($messages as $message) {
+            $cleanMessage = $this->cleanMessageForJson($message);
+            
+            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
+            $replyToData = null;
+            
+            // For echomail, check kludge_lines first
+            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
+                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
+            }
+            
+            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
+            if (!$replyToData) {
+                $replyToData = $this->parseReplyToKludge($message);
+            }
+            
+            if ($replyToData && isset($replyToData['address'])) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
             
             $cleanMessages[] = $cleanMessage;
@@ -2270,20 +2755,22 @@ class MessageHandler
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
             
-            // Parse REPLYTO kludge from message text and add to response
-            $replyToData = $this->parseReplyToKludge($message['message_text']);
-            if ($replyToData) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'];
+            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
+            $replyToData = null;
+            
+            // For echomail, check kludge_lines first
+            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
+                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
             }
             
-            // Also check kludge_lines for REPLYTO
-            if (isset($message['kludge_lines'])) {
-                $replyToDataKludge = $this->parseReplyToKludge($message['kludge_lines']);
-                if ($replyToDataKludge) {
-                    $cleanMessage['replyto_address'] = $replyToDataKludge['address'];
-                    $cleanMessage['replyto_name'] = $replyToDataKludge['name'];
-                }
+            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
+            if (!$replyToData) {
+                $replyToData = $this->parseReplyToKludge($message);
+            }
+            
+            if ($replyToData && isset($replyToData['address'])) {
+                $cleanMessage['replyto_address'] = $replyToData['address'];
+                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
             
             $cleanMessages[] = $cleanMessage;
@@ -2440,19 +2927,15 @@ class MessageHandler
     }
 
     /**
-     * Parse REPLYTO kludge line to extract address and name
-     * Format: "REPLYTO 2:460/256 8421559770" -> ['address' => '2:460/256', 'name' => '8421559770']
-     * Only returns data if the address is a valid FidoNet address
+     * Parse REPLYTO kludge from echomail kludge_lines
      */
-    private function parseReplyToKludge($messageText)
+    private function parseEchomailReplyToKludge($kludgeLines)
     {
-        if (empty($messageText)) {
+        if (empty($kludgeLines)) {
             return null;
         }
         
-        // Normalize line endings and split into lines
-        $lines = preg_split('/\r\n|\r|\n/', $messageText);
-        
+        $lines = explode("\n", $kludgeLines);
         foreach ($lines as $line) {
             $trimmed = trim($line);
             
@@ -2477,6 +2960,24 @@ class MessageHandler
         }
         
         return null;
+    }
+
+    /**
+     * Parse REPLYTO kludge line to extract address and name
+     * Format: "REPLYTO 2:460/256 8421559770" -> ['address' => '2:460/256', 'name' => '8421559770']
+     * Only returns data if the address is a valid FidoNet address
+     */
+    private function parseReplyToKludge($messageOrText)
+    {
+        // Handle both message array (new way) and message text (backward compatibility)
+        if (is_array($messageOrText)) {
+            // New way: pass entire message array to unified parser
+            return $this->parseNetmailKludges($messageOrText, 'REPLYTO');
+        } else {
+            // Backward compatibility: create a fake message array with just message_text
+            $fakeMessage = ['message_text' => $messageOrText, 'kludge_lines' => null];
+            return $this->parseNetmailKludges($fakeMessage, 'REPLYTO');
+        }
     }
 
     /**
