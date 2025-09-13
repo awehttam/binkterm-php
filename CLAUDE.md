@@ -218,3 +218,4 @@ Version::compareVersion('1.4.1')  // Version comparison
 - Database migrations have their own versioning system separate from application version
 
   
+- Perform a version bump to Version.php, composer.json et al when changing the version of the database through a migration
