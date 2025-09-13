@@ -673,8 +673,8 @@ function displayDrafts(drafts) {
                     <thead>
                         <tr>
                             <th style="width: 25%">To / Echo Area</th>
-                            <th style="width: 60%">Subject</th>
-                            <th colspan="2" style="width: 15%">Last Updated</th>
+                            <th style="width: 50%">Subject</th>
+                            <th colspan="2" style="width: 25%">Last Updated</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -695,7 +695,7 @@ function displayDrafts(drafts) {
                         ${draft.message_text ? `<br><small class="text-muted">${escapeHtml(draft.message_text.substring(0, 100))}${draft.message_text.length > 100 ? '...' : ''}</small>` : ''}
                     </td>
                     <td>
-                        <div>${formatDate(draft.updated_at)}</div>
+                        <div>${formatFullDate(draft.updated_at)}</div>
                         <div class="text-muted small">
                             <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteDraftConfirm(${draft.id})" title="Delete draft">
                                 <i class="fas fa-trash"></i>
