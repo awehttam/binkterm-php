@@ -245,6 +245,31 @@ SimpleRouter::get('/profile', function() {
     $template->renderResponse('profile.twig', $templateVars);
 });
 
+SimpleRouter::get('/development-history', function() {
+    // Get system configuration for display
+    try {
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $systemName = $binkpConfig->getSystemName();
+        $systemAddress = $binkpConfig->getSystemAddress();
+        $sysopName = $binkpConfig->getSystemSysop();
+    } catch (\Exception $e) {
+        $systemName = 'BinktermPHP System';
+        $systemAddress = 'Not configured';
+        $sysopName = 'Unknown';
+    }
+
+    $templateVars = [
+        'system_name' => $systemName,
+        'fidonet_origin' => $systemAddress,
+        'sysop_name' => $sysopName,
+        'app_version' => \BinktermPHP\Version::getVersion(),
+        'app_full_version' => \BinktermPHP\Version::getFullVersion()
+    ];
+
+    $template = new Template();
+    $template->renderResponse('development_history.twig', $templateVars);
+});
+
 SimpleRouter::get('/settings', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
