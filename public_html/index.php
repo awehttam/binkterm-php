@@ -1324,6 +1324,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $savedStmt->execute([$userId, $userId]);
             $savedCount = $savedStmt->fetch()['count'];
         }
+
+        // Drafts count
+        $draftsCount = 0;
+        if ($userId) {
+            $draftsStmt = $db->prepare("SELECT COUNT(*) as count FROM drafts WHERE user_id = ? AND type = 'echomail'");
+            $draftsStmt->execute([$userId]);
+            $draftsCount = $draftsStmt->fetch()['count'];
+        }
         
         echo json_encode([
             'total' => $total,
@@ -1335,7 +1343,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'unread' => $unreadCount,
                 'read' => $readCount,
                 'tome' => $toMeCount,
-                'saved' => $savedCount
+                'saved' => $savedCount,
+                'drafts' => $draftsCount
             ]
         ]);
     });
@@ -1576,7 +1585,131 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => $e->getMessage()]);
         }
     });
-    
+
+    // Save message draft
+    SimpleRouter::post('/messages/draft', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$input) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid JSON input']);
+            return;
+        }
+
+        $handler = new MessageHandler();
+
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(500);
+            echo json_encode(['error' => 'User ID not found in session']);
+            return;
+        }
+
+        try {
+            $result = $handler->saveDraft($userId, $input);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => $result['error'] ?? 'Failed to save draft']);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    // Get user's drafts
+    SimpleRouter::get('/messages/drafts', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $type = $_GET['type'] ?? null; // Optional filter by type
+
+        $handler = new MessageHandler();
+
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(500);
+            echo json_encode(['error' => 'User ID not found in session']);
+            return;
+        }
+
+        try {
+            $drafts = $handler->getUserDrafts($userId, $type);
+            echo json_encode(['success' => true, 'drafts' => $drafts]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    // Get specific draft
+    SimpleRouter::get('/messages/drafts/{id}', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $handler = new MessageHandler();
+
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(500);
+            echo json_encode(['error' => 'User ID not found in session']);
+            return;
+        }
+
+        try {
+            $draft = $handler->getDraft($userId, $id);
+            if ($draft) {
+                echo json_encode(['success' => true, 'draft' => $draft]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Draft not found']);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    // Delete draft
+    SimpleRouter::delete('/messages/drafts/{id}', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $handler = new MessageHandler();
+
+        // Handle both 'user_id' and 'id' field names for compatibility
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(500);
+            echo json_encode(['error' => 'User ID not found in session']);
+            return;
+        }
+
+        try {
+            $result = $handler->deleteDraft($userId, $id);
+            echo json_encode($result);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
     SimpleRouter::get('/messages/search', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();

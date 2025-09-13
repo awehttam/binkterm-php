@@ -156,6 +156,12 @@
                             <span class="badge bg-warning ms-1" id="savedCount">0</span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="setFilter('drafts')" id="draftsTab">
+                            <i class="fas fa-edit"></i> Drafts
+                            <span class="badge bg-secondary ms-1" id="draftsCount">0</span>
+                        </a>
+                    </li>
                 </ul>
             </div>
             <div class="card-body p-0">
@@ -609,6 +615,12 @@ function loadMessages() {
     // Clear search terms when loading regular messages (not from search)
     currentSearchTerms = [];
 
+    if (currentFilter === 'drafts') {
+        // Load drafts instead of regular messages
+        loadDrafts();
+        return;
+    }
+
     let url = '/api/messages/echomail';
     if (currentEchoarea) {
         url += `/${encodeURIComponent(currentEchoarea)}`;
@@ -629,6 +641,79 @@ function loadMessages() {
         .fail(function() {
             $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load messages</div>');
         });
+}
+
+function loadDrafts() {
+    $.get('/api/messages/drafts?type=echomail')
+        .done(function(data) {
+            if (data.success) {
+                displayDrafts(data.drafts);
+                // Clear pagination for drafts
+                $('#pagination').empty();
+            } else {
+                $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load drafts</div>');
+            }
+        })
+        .fail(function() {
+            $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load drafts</div>');
+        });
+}
+
+function displayDrafts(drafts) {
+    const container = $('#messagesContainer');
+    let html = '';
+
+    if (drafts.length === 0) {
+        html = '<div class="text-center text-muted py-4">No drafts found</div>';
+    } else {
+        // Create table structure
+        html = `
+            <div class="table-responsive">
+                <table class="table table-hover message-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%">To / Echo Area</th>
+                            <th style="width: 60%">Subject</th>
+                            <th colspan="2" style="width: 15%">Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        drafts.forEach(function(draft) {
+            const displayTarget = draft.to_name || 'All';
+            const displayArea = draft.echoarea || 'No area';
+
+            html += `
+                <tr class="message-row" style="cursor: pointer;" onclick="continueDraft(${draft.id})">
+                    <td>
+                        <div><strong>To:</strong> ${escapeHtml(displayTarget)}</div>
+                        <div class="text-muted small"><strong>Area:</strong> ${escapeHtml(displayArea)}</div>
+                    </td>
+                    <td>
+                        <strong>${escapeHtml(draft.subject || '(No Subject)')}</strong>
+                        ${draft.message_text ? `<br><small class="text-muted">${escapeHtml(draft.message_text.substring(0, 100))}${draft.message_text.length > 100 ? '...' : ''}</small>` : ''}
+                    </td>
+                    <td>
+                        <div>${formatDate(draft.updated_at)}</div>
+                        <div class="text-muted small">
+                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteDraftConfirm(${draft.id})" title="Delete draft">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    container.html(html);
 }
 
 function displayMessages(messages, isThreaded = false) {
@@ -807,7 +892,7 @@ function setFilter(filter) {
 function updateFilterTabs() {
     // Remove active class from all tabs
     $('.nav-tabs .nav-link').removeClass('active');
-    
+
     // Add active class to current tab
     if (currentFilter === 'all') {
         $('#allTab').addClass('active');
@@ -819,6 +904,8 @@ function updateFilterTabs() {
         $('#toMeTab').addClass('active');
     } else if (currentFilter === 'saved') {
         $('#savedTab').addClass('active');
+    } else if (currentFilter === 'drafts') {
+        $('#draftsTab').addClass('active');
     }
 }
 
@@ -832,6 +919,7 @@ function updateFilterCounts(counts) {
     $('#readCount').text(counts.read || 0);
     $('#toMeCount').text(counts.tome || 0);
     $('#savedCount').text(counts.saved || 0);
+    $('#draftsCount').text(counts.drafts || 0);
 }
 
 function markEchomailAsRead(messageId) {
@@ -2009,6 +2097,37 @@ function loadEchomailSettings() {
 
 // Use global settings functions directly - no local wrappers needed
 // All calls to saveUserSetting and saveUserSettings will use window.* functions
+
+// Draft management functions
+function continueDraft(draftId) {
+    // Navigate to compose page with draft data
+    window.location.href = `/compose/echomail?draft=${draftId}`;
+}
+
+function deleteDraftConfirm(draftId) {
+    if (confirm('Are you sure you want to delete this draft? This cannot be undone.')) {
+        deleteDraft(draftId);
+    }
+}
+
+function deleteDraft(draftId) {
+    $.ajax({
+        url: `/api/messages/drafts/${draftId}`,
+        method: 'DELETE',
+        success: function(response) {
+            if (response.success) {
+                // Reload drafts to show updated list
+                loadDrafts();
+                showSuccess('Draft deleted successfully');
+            } else {
+                showError('Failed to delete draft');
+            }
+        },
+        error: function() {
+            showError('Failed to delete draft');
+        }
+    });
+}
 
 </script>
 

@@ -101,12 +101,12 @@
                         Cancel
                     </button>
                     <div>
-                        {#
+
                         <button type="button" class="btn btn-outline-primary" onclick="saveDraft()">
                             <i class="fas fa-save"></i>
                             Save Draft
                         </button>
-                        #}
+
                         <button type="submit" class="btn btn-fidonet">
                             <i class="fas fa-paper-plane"></i>
                             Send {{ type|title }}
@@ -180,35 +180,46 @@
 $(document).ready(function() {
     const messageType = $('#messageType').val();
     const replyToId = $('#replyToId').val();
-    
+
     // Font settings will be applied automatically by global settings
-    
-    // Load echo areas for echomail
-    if (messageType === 'echomail') {
-        loadEchoareas();
+
+    // Check if we're loading a draft
+    const urlParams = new URLSearchParams(window.location.search);
+    const draftId = urlParams.get('draft');
+
+    if (draftId) {
+        // Load draft data first, then initialize other components
+        loadDraft(draftId).then(function() {
+            // Initialize echo areas after draft is loaded (for echomail)
+            if (messageType === 'echomail') {
+                loadEchoareas();
+            }
+        });
+    } else {
+        // Load echo areas for echomail (normal compose)
+        if (messageType === 'echomail') {
+            loadEchoareas();
+        }
     }
-    
-    
+
     // Form submit handler
     $('#composeForm').on('submit', function(e) {
         e.preventDefault();
         sendMessage();
     });
-    
+
     // Address validation for netmail
     if (messageType === 'netmail') {
         $('#toAddress').on('blur', function() {
             validateFidonetAddressField(this);
         });
     }
-    
+
     // Auto-save draft every 2 minutes
-    // Drafts aren't actually implemented server side
-    if(0) {
-        setInterval(function () {
-            saveDraft(true); // Silent save
-        }, 120000);
-    }
+    setInterval(function () {
+        saveDraft(true); // Silent save
+    }, 120000);
+
 });
 
 function loadEchoareas() {
@@ -233,11 +244,18 @@ function loadEchoareas() {
                 });
             }
             
-            // Pre-select if specified in URL or template
+            // Pre-select if specified in URL or template, or from loaded draft
             const urlParams = new URLSearchParams(window.location.search);
-            const preselect = urlParams.get('echoarea') || '{{ echoarea }}';
+            const preselect = urlParams.get('echoarea') || '{{ echoarea }}' || window.draftEchoarea;
             if (preselect) {
                 select.val(preselect);
+                // Trigger change event to apply color styling
+                select.trigger('change');
+            }
+
+            // Clear the temporary draft echoarea after using it
+            if (window.draftEchoarea) {
+                delete window.draftEchoarea;
             }
         });
 }
@@ -308,7 +326,12 @@ function sendMessage() {
                     ${messageType.charAt(0).toUpperCase() + messageType.slice(1)} sent successfully!
                 </div>
             `);
-            
+
+            // Delete draft after successful send if we loaded from a draft
+            if (window.currentDraftId) {
+                deleteDraftAfterSend(window.currentDraftId);
+            }
+
             setTimeout(function() {
                 window.location.href = `/${messageType}`;
             }, 2000);
@@ -338,12 +361,23 @@ function saveDraft(silent = false) {
         message_text: $('#messageText').val(),
         reply_to_id: $('#replyToId').val() || null
     };
-    
+
     // Only save if there's actual content
     if (!formData.subject.trim() && !formData.message_text.trim()) {
+        if (!silent) {
+            showError('Please add some content before saving draft');
+        }
         return;
     }
-    
+
+    // Get the save draft button and show loading state (only if not silent)
+    const saveButton = $('button[onclick="saveDraft()"]');
+    const originalButtonHtml = saveButton.html();
+
+    if (!silent && saveButton.length) {
+        saveButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+    }
+
     $.ajax({
         url: '/api/messages/draft',
         method: 'POST',
@@ -351,13 +385,87 @@ function saveDraft(silent = false) {
         data: JSON.stringify(formData),
         success: function(response) {
             if (!silent) {
-                showSuccess('Draft saved successfully');
+                // Show success state on button
+                if (saveButton.length) {
+                    saveButton.removeClass('btn-outline-primary').addClass('btn-success')
+                        .html('<i class="fas fa-check"></i> Saved!');
+
+                    // Reset button after 2 seconds
+                    setTimeout(function() {
+                        saveButton.addClass('btn-outline-primary').removeClass('btn-success')
+                            .prop('disabled', false).html(originalButtonHtml);
+                    }, 2000);
+                } else {
+                    showSuccess('Draft saved successfully');
+                }
+            } else {
+                // For silent saves, just reset button if it was showing loading
+                if (saveButton.length && saveButton.prop('disabled')) {
+                    saveButton.prop('disabled', false).html(originalButtonHtml);
+                }
             }
         },
         error: function() {
             if (!silent) {
+                // Reset button on error
+                if (saveButton.length) {
+                    saveButton.removeClass('btn-success').addClass('btn-outline-primary')
+                        .prop('disabled', false).html(originalButtonHtml);
+                }
                 showError('Failed to save draft');
             }
+        }
+    });
+}
+
+function loadDraft(draftId) {
+    return new Promise(function(resolve, reject) {
+        $.ajax({
+            url: `/api/messages/drafts/${draftId}`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.draft) {
+                    const draft = response.draft;
+
+                    // Populate form fields with draft data
+                    if (draft.to_address) $('#toAddress').val(draft.to_address);
+                    if (draft.to_name) $('#toName').val(draft.to_name);
+                    if (draft.subject) $('#subject').val(draft.subject);
+                    if (draft.message_text) $('#messageText').val(draft.message_text);
+                    if (draft.echoarea) {
+                        // For echomail, the echoarea will be set after loadEchoareas() completes
+                        window.draftEchoarea = draft.echoarea;
+                    }
+                    if (draft.reply_to_id) $('#replyToId').val(draft.reply_to_id);
+
+                    // Store draft ID for potential deletion after sending
+                    window.currentDraftId = draftId;
+
+                    console.log('Draft loaded successfully:', draft);
+                    resolve(draft);
+                } else {
+                    showError('Failed to load draft');
+                    reject('Draft not found');
+                }
+            },
+            error: function() {
+                showError('Failed to load draft');
+                reject('API error');
+            }
+        });
+    });
+}
+
+function deleteDraftAfterSend(draftId) {
+    $.ajax({
+        url: `/api/messages/drafts/${draftId}`,
+        method: 'DELETE',
+        success: function(response) {
+            console.log('Draft deleted successfully after sending message');
+        },
+        error: function() {
+            console.warn('Failed to delete draft after sending message');
+            // Don't show error to user since message was sent successfully
         }
     });
 }

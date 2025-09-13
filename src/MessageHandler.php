@@ -3096,4 +3096,158 @@ class MessageHandler
     {
         return preg_match('/^\d+:\d+\/\d+(?:\.\d+)?(?:@\w+)?$/', trim($address));
     }
+
+    /**
+     * Save a message draft
+     */
+    public function saveDraft($userId, $draftData)
+    {
+        try {
+            // Validate required fields
+            if (!isset($draftData['type']) || !in_array($draftData['type'], ['netmail', 'echomail'])) {
+                throw new \Exception('Invalid message type');
+            }
+
+            // Check if draft already exists for this user and type with same content
+            $existingDraft = $this->findExistingDraft($userId, $draftData);
+
+            if ($existingDraft) {
+                // Update existing draft
+                $stmt = $this->db->prepare("
+                    UPDATE drafts SET
+                        to_address = ?,
+                        to_name = ?,
+                        echoarea = ?,
+                        subject = ?,
+                        message_text = ?,
+                        reply_to_id = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ");
+
+                $stmt->execute([
+                    $draftData['to_address'] ?? null,
+                    $draftData['to_name'] ?? null,
+                    $draftData['echoarea'] ?? null,
+                    $draftData['subject'] ?? null,
+                    $draftData['message_text'] ?? null,
+                    $draftData['reply_to_id'] ?? null,
+                    $existingDraft['id']
+                ]);
+
+                return ['success' => true, 'draft_id' => $existingDraft['id'], 'updated' => true];
+            } else {
+                // Create new draft
+                $stmt = $this->db->prepare("
+                    INSERT INTO drafts (user_id, type, to_address, to_name, echoarea, subject, message_text, reply_to_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+
+                $stmt->execute([
+                    $userId,
+                    $draftData['type'],
+                    $draftData['to_address'] ?? null,
+                    $draftData['to_name'] ?? null,
+                    $draftData['echoarea'] ?? null,
+                    $draftData['subject'] ?? null,
+                    $draftData['message_text'] ?? null,
+                    $draftData['reply_to_id'] ?? null
+                ]);
+
+                $draftId = $this->db->lastInsertId();
+                return ['success' => true, 'draft_id' => $draftId, 'created' => true];
+            }
+        } catch (\Exception $e) {
+            error_log("Error saving draft: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Find existing draft that might be similar to current one
+     */
+    private function findExistingDraft($userId, $draftData)
+    {
+        try {
+            // Look for recent drafts (within last hour) for same user/type
+            $stmt = $this->db->prepare("
+                SELECT * FROM drafts
+                WHERE user_id = ?
+                AND type = ?
+                AND created_at > NOW() - INTERVAL '1 hour'
+                ORDER BY updated_at DESC
+                LIMIT 1
+            ");
+
+            $stmt->execute([$userId, $draftData['type']]);
+            return $stmt->fetch(\PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            error_log("Error finding existing draft: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Get user's drafts
+     */
+    public function getUserDrafts($userId, $type = null)
+    {
+        try {
+            $sql = "SELECT * FROM drafts WHERE user_id = ?";
+            $params = [$userId];
+
+            if ($type) {
+                $sql .= " AND type = ?";
+                $params[] = $type;
+            }
+
+            $sql .= " ORDER BY updated_at DESC";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            error_log("Error getting user drafts: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get a specific draft by ID
+     */
+    public function getDraft($userId, $draftId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM drafts
+                WHERE id = ? AND user_id = ?
+            ");
+
+            $stmt->execute([$draftId, $userId]);
+            return $stmt->fetch(\PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            error_log("Error getting draft: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Delete a draft
+     */
+    public function deleteDraft($userId, $draftId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+                DELETE FROM drafts
+                WHERE id = ? AND user_id = ?
+            ");
+
+            $stmt->execute([$draftId, $userId]);
+            return ['success' => true];
+        } catch (\Exception $e) {
+            error_log("Error deleting draft: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
 }
