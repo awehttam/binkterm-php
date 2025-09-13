@@ -2280,7 +2280,7 @@ class MessageHandler
         $pageMessages = $stmt->fetchAll();
         
         // Debug: log what we got
-        error_log("DEBUG: Page $page, got " . count($pageMessages) . " page messages");
+        //error_log("DEBUG: Page $page, got " . count($pageMessages) . " page messages");
         
         // For now, just use the page messages without complex threading
         $allMessages = $pageMessages;
@@ -2289,7 +2289,7 @@ class MessageHandler
         $threads = $this->buildMessageThreads($allMessages);
         
         // Debug: log thread info
-        error_log("DEBUG: Built " . count($threads) . " threads from " . count($allMessages) . " messages");
+        //error_log("DEBUG: Built " . count($threads) . " threads from " . count($allMessages) . " messages");
         
         // Sort threads by most recent message in each thread
         usort($threads, function($a, $b) {
@@ -2320,7 +2320,7 @@ class MessageHandler
         $totalThreads = count($threads);
         
         // Debug: log final results
-        error_log("DEBUG: Using " . count($threads) . " threads for display");
+        //error_log("DEBUG: Using " . count($threads) . " threads for display");
         
         // Flatten threads for display while maintaining structure
         $messages = $this->flattenThreadsForDisplay($threads);
