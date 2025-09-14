@@ -2,6 +2,7 @@
 
 // Web routes
 use BinktermPHP\Auth;
+use BinktermPHP\MessageHandler;
 use BinktermPHP\Template;
 use Pecee\SimpleRouter\SimpleRouter;
 
