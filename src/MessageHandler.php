@@ -1901,7 +1901,7 @@ class MessageHandler
     /**
      * Generate kludge lines for netmail messages
      */
-    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null)
+    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null, $replyToAddress = null)
     {
         $kludgeLines = [];
         
@@ -1933,9 +1933,13 @@ class MessageHandler
             }
         }
         
-        // Add reply address information in multiple formats for compatibility
+        // Add reply address information - REPLYADDR is always the sender
         $kludgeLines[] = "\x01REPLYADDR {$fromAddress}";
-        $kludgeLines[] = "\x01REPLYTO {$fromAddress}";
+
+        // Add REPLYTO only if reply-to address is different from sender
+        if (!empty($replyToAddress) && $replyToAddress !== $fromAddress) {
+            $kludgeLines[] = "\x01REPLYTO {$replyToAddress}";
+        }
         
         // Add INTL kludge for zone routing (required for inter-zone mail)
         list($fromZone, $fromRest) = explode(':', $fromAddress);

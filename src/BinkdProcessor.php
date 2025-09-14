@@ -1085,9 +1085,11 @@ class BinkdProcessor
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
                 $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
                 
-                // Add reply address information in multiple formats for compatibility
+                // Add reply address information - REPLYADDR is always the sender
                 $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r\n";
-                $kludgeLines .= "\x01REPLYTO {$fromAddress}\r\n";
+
+                // Only add REPLYTO if message has a different reply-to address
+                // For now, we don't add redundant REPLYTO that matches REPLYADDR
                 
                 // Add INTL kludge for zone routing (required for inter-zone mail)
                 list($fromZone, $fromRest) = explode(':', $fromAddress);
