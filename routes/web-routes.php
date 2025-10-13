@@ -112,6 +112,32 @@ SimpleRouter::get('/register', function() {
     $template->renderResponse('register.twig');
 });
 
+SimpleRouter::get('/forgot-password', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if ($user) {
+        return SimpleRouter::response()->redirect('/');
+    }
+
+    $template = new Template();
+    $template->renderResponse('forgot_password.twig');
+});
+
+SimpleRouter::get('/reset-password', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if ($user) {
+        return SimpleRouter::response()->redirect('/');
+    }
+
+    $token = $_GET['token'] ?? null;
+
+    $template = new Template();
+    $template->renderResponse('reset_password.twig', ['token' => $token]);
+});
+
 SimpleRouter::get('/netmail', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();

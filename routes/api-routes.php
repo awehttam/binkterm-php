@@ -47,6 +47,69 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true]);
     });
 
+    SimpleRouter::post('/auth/forgot-password', function() {
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $usernameOrEmail = $input['usernameOrEmail'] ?? '';
+
+        if (empty($usernameOrEmail)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Username or email is required']);
+            return;
+        }
+
+        $controller = new \BinktermPHP\PasswordResetController();
+        $result = $controller->requestPasswordReset($usernameOrEmail);
+
+        echo json_encode($result);
+    });
+
+    SimpleRouter::post('/auth/validate-reset-token', function() {
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $token = $input['token'] ?? '';
+
+        if (empty($token)) {
+            http_response_code(400);
+            echo json_encode(['valid' => false, 'error' => 'Token is required']);
+            return;
+        }
+
+        $controller = new \BinktermPHP\PasswordResetController();
+        $tokenData = $controller->validateToken($token);
+
+        if ($tokenData) {
+            echo json_encode(['valid' => true]);
+        } else {
+            echo json_encode(['valid' => false, 'error' => 'Invalid or expired token']);
+        }
+    });
+
+    SimpleRouter::post('/auth/reset-password', function() {
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $token = $input['token'] ?? '';
+        $newPassword = $input['newPassword'] ?? '';
+
+        if (empty($token) || empty($newPassword)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Token and new password are required']);
+            return;
+        }
+
+        $controller = new \BinktermPHP\PasswordResetController();
+        $result = $controller->resetPassword($token, $newPassword);
+
+        if (!$result['success']) {
+            http_response_code(400);
+        }
+
+        echo json_encode($result);
+    });
+
     SimpleRouter::post('/register', function() {
         header('Content-Type: application/json');
 
