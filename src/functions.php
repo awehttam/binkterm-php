@@ -135,7 +135,7 @@ function parseReplyToKludge($messageText) {
 
 // Helper function to check admin access for BinkP functionality
 function requireBinkpAdmin() {
-    $auth = new Auth();
+    $auth = new \BinktermPHP\Auth();
     $user = $auth->requireAuth();
 
     if (!$user['is_admin']) {
