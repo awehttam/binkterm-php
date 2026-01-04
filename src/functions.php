@@ -147,3 +147,36 @@ function requireBinkpAdmin() {
 
     return $user;
 }
+
+/**
+ * Generate TZUTC offset string for FidoNet messages
+ * TZUTC format: negative offsets include "-" (e.g., "-0500"), positive offsets have no sign (e.g., "0800")
+ *
+ * @param string|null $timezone Timezone identifier (e.g., "America/New_York"). If null, uses system timezone from BinkpConfig.
+ * @return string TZUTC offset string (e.g., "0000", "-0500", "0800")
+ */
+function generateTzutc($timezone = null) {
+    try {
+        // Use system timezone if not provided
+        if ($timezone === null) {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $timezone = $binkpConfig->getSystemTimezone();
+        }
+
+        $tz = new \DateTimeZone($timezone);
+        $now = new \DateTime('now', $tz);
+        $offset = $now->getOffset();
+        $offsetHours = intval($offset / 3600);
+        $offsetMinutes = intval(abs($offset % 3600) / 60);
+
+        // TZUTC format: negative offsets include "-", positive offsets have no sign
+        if ($offsetHours < 0) {
+            return sprintf('-%02d%02d', abs($offsetHours), $offsetMinutes);
+        } else {
+            return sprintf('%02d%02d', $offsetHours, $offsetMinutes);
+        }
+    } catch (\Exception $e) {
+        // Fallback to UTC if timezone is invalid
+        return '0000';
+    }
+}

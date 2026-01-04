@@ -1906,20 +1906,8 @@ class MessageHandler
         $kludgeLines = [];
         
         // Add TZUTC kludge line for netmail
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $timezone = $binkpConfig->getSystemTimezone();
-            $tz = new \DateTimeZone($timezone);
-            $now = new \DateTime('now', $tz);
-            $offset = $now->getOffset();
-            $offsetHours = intval($offset / 3600);
-            $offsetMinutes = intval(abs($offset % 3600) / 60);
-            $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
-            $kludgeLines[] = "\x01TZUTC: {$offsetStr}";
-        } catch (\Exception $e) {
-            // Fallback to UTC if timezone is invalid
-            $kludgeLines[] = "\x01TZUTC: +0000";
-        }
+        $tzutc = generateTzutc();
+        $kludgeLines[] = "\x01TZUTC: {$tzutc}";
         
         // Add MSGID kludge (required for netmail)
         $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);
@@ -1971,20 +1959,8 @@ class MessageHandler
         $kludgeLines = [];
         
         // Add TZUTC kludge line for echomail
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $timezone = $binkpConfig->getSystemTimezone();
-            $tz = new \DateTimeZone($timezone);
-            $now = new \DateTime('now', $tz);
-            $offset = $now->getOffset();
-            $offsetHours = intval($offset / 3600);
-            $offsetMinutes = intval(abs($offset % 3600) / 60);
-            $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
-            $kludgeLines[] = "\x01TZUTC: {$offsetStr}";
-        } catch (\Exception $e) {
-            // Fallback to UTC if timezone is invalid
-            $kludgeLines[] = "\x01TZUTC: +0000";
-        }
+        $tzutc = generateTzutc();
+        $kludgeLines[] = "\x01TZUTC: {$tzutc}";
         
         // Add MSGID kludge (required for echomail)
         $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);

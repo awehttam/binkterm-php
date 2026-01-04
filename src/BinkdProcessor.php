@@ -1067,19 +1067,8 @@ class BinkdProcessor
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for netmail
-                $timezone = $this->config->getSystemTimezone();
-                try {
-                    $tz = new \DateTimeZone($timezone);
-                    $now = new \DateTime('now', $tz);
-                    $offset = $now->getOffset();
-                    $offsetHours = intval($offset / 3600);
-                    $offsetMinutes = intval(abs($offset % 3600) / 60);
-                    $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
-                    $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
-                } catch (\Exception $e) {
-                    // Fallback to UTC if timezone is invalid
-                    $kludgeLines .= "\x01TZUTC: +0000\r\n";
-                }
+                $tzutc = generateTzutc();
+                $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
                 
                 // Add MSGID kludge (required for netmail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
@@ -1114,19 +1103,8 @@ class BinkdProcessor
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for echomail
-                $timezone = $this->config->getSystemTimezone();
-                try {
-                    $tz = new \DateTimeZone($timezone);
-                    $now = new \DateTime('now', $tz);
-                    $offset = $now->getOffset();
-                    $offsetHours = intval($offset / 3600);
-                    $offsetMinutes = intval(abs($offset % 3600) / 60);
-                    $offsetStr = sprintf('%+03d%02d', $offsetHours, $offsetMinutes);
-                    $kludgeLines .= "\x01TZUTC: {$offsetStr}\r\n";
-                } catch (\Exception $e) {
-                    // Fallback to UTC if timezone is invalid
-                    $kludgeLines .= "\x01TZUTC: +0000\r\n";
-                }
+                $tzutc = generateTzutc();
+                $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
                 
                 // Add MSGID kludge (required for echomail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
