@@ -334,10 +334,12 @@ class BinkpController
             switch ($section) {
                 case 'system':
                     $this->config->setSystemConfig(
-                        $data['address'] ?? null,
-                        $data['sysop'] ?? null,
-                        $data['location'] ?? null,
-                        $data['hostname'] ?? null
+                        null,                          // $name (not in form)
+                        $data['address'] ?? null,      // $address
+                        $data['sysop'] ?? null,        // $sysop
+                        $data['location'] ?? null,     // $location
+                        $data['hostname'] ?? null,     // $hostname
+                        null                           // $origin (not in form)
                     );
                     break;
                     
