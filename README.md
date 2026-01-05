@@ -636,15 +636,15 @@ binktest/
 
 ## Contributing
 
-BinkTest is open source software. Contributions are welcome:
+We welcome contributions to BinktermPHP! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on:
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+- Development setup and code conventions
+- Pull request workflow
+- Database migrations
+- Testing guidelines
+- Security considerations
 
-Please follow the existing code style and include appropriate documentation for new features.
+All contributions must be submitted via pull request and will be reviewed by project maintainers.
 
 ## License
 
