@@ -1139,11 +1139,14 @@ class BinkdProcessor
         $systemAddress = $fromAddress; // Use the full system address including point
         
         // Build origin line with optional origin
-        $originText = " * Origin: " . $this->config->getSystemName();
+        $originText = " * Origin: ";
         $origin = $this->config->getSystemOrigin();
         if (!empty($origin)) {
-            $originText .= " ~ " . $origin;
+            $originText .= $origin;
+        } else {
+            $originText .= $this->config->getSystemName();
         }
+        
         $originText .= " (" . $systemAddress . ")";
         
         $messageText .= $originText;
