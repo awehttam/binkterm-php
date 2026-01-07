@@ -1146,7 +1146,7 @@ class BinkdProcessor
         } else {
             $originText .= $this->config->getSystemName();
         }
-        
+
         $originText .= " (" . $systemAddress . ")";
         
         $messageText .= $originText;

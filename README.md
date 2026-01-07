@@ -47,6 +47,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - **Status Monitoring** - Real-time system and connection status
 - **Scheduling Control** - Manage automated polling schedules
 - **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](scripts/README_weather.md))
+- **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 
 ## Installation
 
@@ -371,6 +372,25 @@ php scripts/weather_report.php --config=/path/to/custom/weather.json
 ```
 
 The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [scripts/README_weather.md](scripts/README_weather.md) for detailed setup instructions and configuration examples.
+
+### Echomail Maintenance Utility
+Manage echomail storage by purging old messages based on age or message count limits:
+
+```bash
+# Delete messages older than 90 days from all echoes
+php scripts/echomail_maintenance.php --echo=all --max-age=90
+
+# Keep only newest 500 messages per echo
+php scripts/echomail_maintenance.php --echo=all --max-count=500
+
+# Preview what would be deleted (dry run)
+php scripts/echomail_maintenance.php --echo=COOKING --max-age=180 --dry-run
+
+# Combined age and count limits for specific echo
+php scripts/echomail_maintenance.php --echo=SYNCDATA --max-age=90 --max-count=2000
+```
+
+The maintenance script provides flexible echomail cleanup with age-based deletion, count-based limits, dry-run preview mode, and per-echo or bulk processing. See [scripts/README_echomail_maintenance.md](scripts/README_echomail_maintenance.md) for detailed documentation, cron job examples, and best practices.
 
 ### Binkp Server Management
 
