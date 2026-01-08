@@ -11,6 +11,7 @@ require_once __DIR__ . '/../src/Config.php';
 require_once __DIR__ . '/../src/Database.php';
 require_once __DIR__ . '/../src/MessageHandler.php';
 require_once __DIR__ . '/../src/Version.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\Database;
