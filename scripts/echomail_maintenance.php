@@ -349,15 +349,17 @@ function deleteByCount($pdo, $echoId, $maxCount, $dryRun, $quiet) {
         return $deleteCount;
     } else {
         // Delete oldest messages, keeping the newest maxCount
+        // Using CTE for better PostgreSQL performance
         $stmt = $pdo->prepare("
-            DELETE FROM echomail
-            WHERE echoarea_id = :echoarea_id
-            AND id IN (
-                SELECT id FROM echomail
+            WITH messages_to_delete AS (
+                SELECT id
+                FROM echomail
                 WHERE echoarea_id = :echoarea_id
                 ORDER BY date_received ASC, id ASC
                 LIMIT :delete_count
             )
+            DELETE FROM echomail
+            WHERE id IN (SELECT id FROM messages_to_delete)
         ");
         $stmt->execute([
             'echoarea_id' => $echoId,
