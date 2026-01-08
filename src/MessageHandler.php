@@ -1906,7 +1906,7 @@ class MessageHandler
         $kludgeLines = [];
         
         // Add TZUTC kludge line for netmail
-        $tzutc = generateTzutc();
+        $tzutc = \generateTzutc();
         $kludgeLines[] = "\x01TZUTC: {$tzutc}";
         
         // Add MSGID kludge (required for netmail)
@@ -1959,7 +1959,7 @@ class MessageHandler
         $kludgeLines = [];
         
         // Add TZUTC kludge line for echomail
-        $tzutc = generateTzutc();
+        $tzutc = \generateTzutc();
         $kludgeLines[] = "\x01TZUTC: {$tzutc}";
         
         // Add MSGID kludge (required for echomail)
