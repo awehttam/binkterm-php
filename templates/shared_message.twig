@@ -1,6 +1,45 @@
 {% extends "base.twig" %}
 
-{% block title %}Shared Message - {{ parent() }}{% endblock %}
+{% block title %}{% if message and message.subject %}{{ message.subject }} | Shared Message{% else %}Shared Message{% endif %} - {{ parent() }}{% endblock %}
+
+{% block meta_tags %}
+    {% if message %}
+        {# Description meta tag - use first 160 chars of message body #}
+        {% set description = message.message_text|striptags|slice(0, 160)|trim %}
+        {% if description %}
+            <meta name="description" content="{{ description }}{% if description|length >= 160 %}...{% endif %}">
+        {% endif %}
+
+        {# Open Graph meta tags for social media sharing #}
+        <meta property="og:title" content="{% if message.subject %}{{ message.subject }}{% else %}Shared Message{% endif %}">
+        <meta property="og:type" content="article">
+        <meta property="og:url" content="{{ share_url }}">
+        {% if description %}
+            <meta property="og:description" content="{{ description }}{% if description|length >= 160 %}...{% endif %}">
+        {% endif %}
+        {% if message.from_name %}
+            <meta property="og:site_name" content="{{ system_name }}">
+            <meta property="article:author" content="{{ message.from_name }}">
+        {% endif %}
+        {% if message.date_written %}
+            <meta property="article:published_time" content="{{ message.date_written }}">
+        {% endif %}
+
+        {# Twitter Card meta tags #}
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{% if message.subject %}{{ message.subject }}{% else %}Shared Message{% endif %}">
+        {% if description %}
+            <meta name="twitter:description" content="{{ description }}{% if description|length >= 160 %}...{% endif %}">
+        {% endif %}
+
+        {# Additional meta tags #}
+        {% if message.echoarea %}
+            <meta name="keywords" content="FidoNet, {{ message.echoarea }}, echomail, message board, BBS">
+        {% else %}
+            <meta name="keywords" content="FidoNet, netmail, BBS, message">
+        {% endif %}
+    {% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">

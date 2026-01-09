@@ -186,8 +186,48 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
 
 SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     // Don't require authentication for shared messages - the API will handle access control
+    // But we need to fetch the message data for SEO meta tags
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+    $messageData = null;
+    $shareInfo = null;
+
+    try {
+        $handler = new MessageHandler();
+        $result = $handler->getSharedMessage($shareKey, $userId);
+
+        if ($result['success']) {
+            $messageData = $result['message'];
+            $shareInfo = $result['share_info'];
+        }
+    } catch (Exception $e) {
+        // If there's an error fetching the message, we'll still render the page
+        // The JavaScript will handle showing the error to the user
+    }
+
+    // Build the full share URL for meta tags
+    // Use SITE_URL env variable first (important for apps behind HTTPS proxies)
+    $siteUrl = \BinktermPHP\Config::env('SITE_URL');
+
+    if ($siteUrl) {
+        // Use configured SITE_URL (handles proxies correctly)
+        $shareUrl = rtrim($siteUrl, '/') . '/shared/' . $shareKey;
+    } else {
+        // Fallback to protocol detection method if SITE_URL not configured
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $shareUrl = $protocol . '://' . $host . '/shared/' . $shareKey;
+    }
+
     $template = new Template();
-    $template->renderResponse('shared_message.twig', ['shareKey' => $shareKey]);
+    $template->renderResponse('shared_message.twig', [
+        'shareKey' => $shareKey,
+        'message' => $messageData,
+        'share_info' => $shareInfo,
+        'share_url' => $shareUrl
+    ]);
 })->where(['shareKey' => '[a-f0-9]{32}']);
 
 SimpleRouter::get('/binkp', function() {
