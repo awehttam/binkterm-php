@@ -105,6 +105,7 @@ try {
         echo "Processing " . count($echoareas) . " echo area(s)\n\n";
     }
 
+    $startTime = microtime(true);
     $totalDeleted = 0;
 
     // Process each echo area
@@ -121,11 +122,15 @@ try {
         $totalDeleted += $deletedCount;
     }
 
+    $endTime = microtime(true);
+    $elapsedTime = $endTime - $startTime;
+
     if (!$quiet) {
         echo "\n========================================\n";
         echo "Summary\n";
         echo "========================================\n";
         echo "Total messages " . ($dryRun ? "would be deleted" : "deleted") . ": $totalDeleted\n";
+        echo "Time elapsed: " . formatElapsedTime($elapsedTime) . "\n";
 
         if ($dryRun) {
             echo "\nRun without --dry-run to actually delete messages.\n";
@@ -381,4 +386,24 @@ function updateMessageCount($pdo, $echoId) {
         WHERE id = :echoarea_id
     ");
     $stmt->execute(['echoarea_id' => $echoId]);
+}
+
+/**
+ * Format elapsed time in a human-readable format
+ */
+function formatElapsedTime($seconds) {
+    if ($seconds < 1) {
+        return number_format($seconds * 1000, 0) . " ms";
+    } elseif ($seconds < 60) {
+        return number_format($seconds, 2) . " seconds";
+    } elseif ($seconds < 3600) {
+        $minutes = floor($seconds / 60);
+        $remainingSeconds = $seconds % 60;
+        return sprintf("%d min %d sec", $minutes, $remainingSeconds);
+    } else {
+        $hours = floor($seconds / 3600);
+        $remainingMinutes = floor(($seconds % 3600) / 60);
+        $remainingSeconds = $seconds % 60;
+        return sprintf("%d hr %d min %d sec", $hours, $remainingMinutes, $remainingSeconds);
+    }
 }
