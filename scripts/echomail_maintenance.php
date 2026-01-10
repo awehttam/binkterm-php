@@ -6,7 +6,8 @@
  * This script performs maintenance on echomail messages:
  * - Purge old messages over a certain age
  * - Delete oldest messages if maximum count exceeded
- * - Runs VACUUM ANALYZE on echomail table to reclaim storage
+ * - Clean up related records (read status, saved messages, shared links, threading)
+ * - Runs VACUUM ANALYZE on all affected tables to reclaim storage
  * - Works on per-echo basis
  *
  * Usage:
@@ -126,19 +127,27 @@ try {
     $endTime = microtime(true);
     $elapsedTime = $endTime - $startTime;
 
-    // Run VACUUM on echomail table after deletions
+
+    // Run VACUUM on affected tables after deletions
     $vacuumTime = 0;
     if (!$dryRun && $totalDeleted > 0) {
         if (!$quiet) {
             echo "\n========================================\n";
             echo "Database Maintenance\n";
             echo "========================================\n";
-            echo "Running VACUUM on echomail table to reclaim storage...\n";
+            echo "Running VACUUM on affected tables to reclaim storage...\n";
         }
 
         $vacuumStart = microtime(true);
+        $tables = ['echomail', 'message_read_status', 'saved_messages', 'shared_messages', 'message_links'];
+
         try {
-            $pdo->exec("VACUUM ANALYZE echomail");
+            foreach ($tables as $table) {
+                if (!$quiet) {
+                    echo "  Vacuuming $table...\n";
+                }
+                $pdo->exec("VACUUM ANALYZE $table");
+            }
             $vacuumTime = microtime(true) - $vacuumStart;
 
             if (!$quiet) {
@@ -210,6 +219,9 @@ function showHelp() {
 
     echo "\nEchomail Maintenance Utility\n";
     echo "============================\n\n";
+    echo "This script deletes echomail messages and cleans up related records from:\n";
+    echo "  - message_read_status, saved_messages, shared_messages, message_links\n";
+    echo "Then runs VACUUM ANALYZE on all affected tables.\n\n";
     echo "Usage:\n";
     echo "  php $script --echo=TAGNAME --max-age=DAYS [options]\n";
     echo "  php $script --echo=all --max-count=NUM [options]\n\n";
@@ -347,7 +359,28 @@ function deleteByAge($pdo, $echoId, $maxAge, $dryRun, $quiet) {
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return (int)$result['count'];
     } else {
-        // Delete messages
+        // Delete related records first, then echomail messages
+        // Get list of message IDs that will be deleted
+        $stmt = $pdo->prepare("
+            SELECT id
+            FROM echomail
+            WHERE echoarea_id = :echoarea_id
+            AND date_received < :cutoff_date
+        ");
+        $stmt->execute([
+            'echoarea_id' => $echoId,
+            'cutoff_date' => $cutoffDateStr
+        ]);
+        $messageIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($messageIds)) {
+            return 0;
+        }
+
+        // Delete related records
+        deleteRelatedRecords($pdo, $messageIds);
+
+        // Now delete the echomail messages
         $stmt = $pdo->prepare("
             DELETE FROM echomail
             WHERE echoarea_id = :echoarea_id
@@ -384,8 +417,28 @@ function deleteByCount($pdo, $echoId, $maxCount, $dryRun, $quiet) {
     if ($dryRun) {
         return $deleteCount;
     } else {
-        // Delete oldest messages, keeping the newest maxCount
-        // Using CTE for better PostgreSQL performance
+        // Get list of message IDs to delete (oldest messages)
+        $stmt = $pdo->prepare("
+            SELECT id
+            FROM echomail
+            WHERE echoarea_id = :echoarea_id
+            ORDER BY date_received ASC, id ASC
+            LIMIT :delete_count
+        ");
+        $stmt->execute([
+            'echoarea_id' => $echoId,
+            'delete_count' => $deleteCount
+        ]);
+        $messageIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($messageIds)) {
+            return 0;
+        }
+
+        // Delete related records first
+        deleteRelatedRecords($pdo, $messageIds);
+
+        // Now delete the echomail messages using CTE for better PostgreSQL performance
         $stmt = $pdo->prepare("
             WITH messages_to_delete AS (
                 SELECT id
@@ -417,6 +470,56 @@ function updateMessageCount($pdo, $echoId) {
         WHERE id = :echoarea_id
     ");
     $stmt->execute(['echoarea_id' => $echoId]);
+}
+
+/**
+ * Delete related records for echomail messages
+ * This handles cleanup of message_read_status, saved_messages, shared_messages, and message_links
+ */
+function deleteRelatedRecords($pdo, $messageIds) {
+    if (empty($messageIds)) {
+        return;
+    }
+
+    // For large batches, process in chunks to avoid query size limits
+    $chunkSize = 1000;
+    $chunks = array_chunk($messageIds, $chunkSize);
+
+    foreach ($chunks as $chunk) {
+        $placeholders = str_repeat('?,', count($chunk) - 1) . '?';
+
+        // Delete from message_read_status
+        $stmt = $pdo->prepare("
+            DELETE FROM message_read_status
+            WHERE message_type = 'echomail'
+            AND message_id IN ($placeholders)
+        ");
+        $stmt->execute($chunk);
+
+        // Delete from saved_messages
+        $stmt = $pdo->prepare("
+            DELETE FROM saved_messages
+            WHERE message_type = 'echomail'
+            AND message_id IN ($placeholders)
+        ");
+        $stmt->execute($chunk);
+
+        // Delete from shared_messages
+        $stmt = $pdo->prepare("
+            DELETE FROM shared_messages
+            WHERE message_type = 'echomail'
+            AND message_id IN ($placeholders)
+        ");
+        $stmt->execute($chunk);
+
+        // Delete from message_links
+        $stmt = $pdo->prepare("
+            DELETE FROM message_links
+            WHERE message_type = 'echomail'
+            AND message_id IN ($placeholders)
+        ");
+        $stmt->execute($chunk);
+    }
 }
 
 /**
