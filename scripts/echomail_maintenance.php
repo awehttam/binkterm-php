@@ -6,6 +6,7 @@
  * This script performs maintenance on echomail messages:
  * - Purge old messages over a certain age
  * - Delete oldest messages if maximum count exceeded
+ * - Runs VACUUM ANALYZE on echomail table to reclaim storage
  * - Works on per-echo basis
  *
  * Usage:
@@ -105,6 +106,7 @@ try {
         echo "Processing " . count($echoareas) . " echo area(s)\n\n";
     }
 
+    $startTime = microtime(true);
     $totalDeleted = 0;
 
     // Process each echo area
@@ -121,11 +123,45 @@ try {
         $totalDeleted += $deletedCount;
     }
 
+    $endTime = microtime(true);
+    $elapsedTime = $endTime - $startTime;
+
+    // Run VACUUM on echomail table after deletions
+    $vacuumTime = 0;
+    if (!$dryRun && $totalDeleted > 0) {
+        if (!$quiet) {
+            echo "\n========================================\n";
+            echo "Database Maintenance\n";
+            echo "========================================\n";
+            echo "Running VACUUM on echomail table to reclaim storage...\n";
+        }
+
+        $vacuumStart = microtime(true);
+        try {
+            $pdo->exec("VACUUM ANALYZE echomail");
+            $vacuumTime = microtime(true) - $vacuumStart;
+
+            if (!$quiet) {
+                echo "✓ VACUUM completed in " . formatElapsedTime($vacuumTime) . "\n";
+            }
+        } catch (Exception $e) {
+            if (!$quiet) {
+                echo "⚠ Warning: VACUUM failed: " . $e->getMessage() . "\n";
+            }
+            error_log("Echomail maintenance VACUUM warning: " . $e->getMessage());
+        }
+    }
+
     if (!$quiet) {
         echo "\n========================================\n";
         echo "Summary\n";
         echo "========================================\n";
         echo "Total messages " . ($dryRun ? "would be deleted" : "deleted") . ": $totalDeleted\n";
+        echo "Deletion time: " . formatElapsedTime($elapsedTime) . "\n";
+        if ($vacuumTime > 0) {
+            echo "VACUUM time: " . formatElapsedTime($vacuumTime) . "\n";
+            echo "Total time: " . formatElapsedTime($elapsedTime + $vacuumTime) . "\n";
+        }
 
         if ($dryRun) {
             echo "\nRun without --dry-run to actually delete messages.\n";
@@ -381,4 +417,24 @@ function updateMessageCount($pdo, $echoId) {
         WHERE id = :echoarea_id
     ");
     $stmt->execute(['echoarea_id' => $echoId]);
+}
+
+/**
+ * Format elapsed time in a human-readable format
+ */
+function formatElapsedTime($seconds) {
+    if ($seconds < 1) {
+        return number_format($seconds * 1000, 0) . " ms";
+    } elseif ($seconds < 60) {
+        return number_format($seconds, 2) . " seconds";
+    } elseif ($seconds < 3600) {
+        $minutes = floor($seconds / 60);
+        $remainingSeconds = $seconds % 60;
+        return sprintf("%d min %d sec", $minutes, $remainingSeconds);
+    } else {
+        $hours = floor($seconds / 3600);
+        $remainingMinutes = floor(($seconds % 3600) / 60);
+        $remainingSeconds = $seconds % 60;
+        return sprintf("%d hr %d min %d sec", $hours, $remainingMinutes, $remainingSeconds);
+    }
 }
