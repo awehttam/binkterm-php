@@ -15,6 +15,8 @@ class Config
     
     const SESSION_LIFETIME = 86400 * 30; // 30 days
 
+    const DEFAULT_STYLESHEET = '/css/style.css';
+
     const FIDONET_ORIGIN = '1:1/0';
     const SYSTEM_NAME = 'BinktermPHP System';
     const SYSOP_NAME = 'System Operator';
@@ -114,5 +116,14 @@ class Config
     public static function getLogPath($filename)
     {
         return self::LOG_PATH . '/' . $filename;
+    }
+
+    /**
+     * Get the configured stylesheet path
+     * @return string Path to the stylesheet
+     */
+    public static function getStylesheet()
+    {
+        return self::env('STYLESHEET', self::DEFAULT_STYLESHEET);
     }
 }

@@ -13,11 +13,15 @@ class Template
     public function __construct()
     {
         // Set up filesystem loader with multiple template paths
+        // Order matters: first path found wins, allowing custom overrides
         $templatePaths = [
-            Config::TEMPLATE_PATH,  // Primary templates directory
-            __DIR__ . '/../config'  // Config directory for custom templates
+            Config::TEMPLATE_PATH . '/custom',  // Custom overrides (checked first)
+            Config::TEMPLATE_PATH,              // Primary templates directory
         ];
-        
+
+        // Filter out non-existent paths to avoid Twig warnings
+        $templatePaths = array_filter($templatePaths, 'is_dir');
+
         $loader = new FilesystemLoader($templatePaths);
         $this->twig = new Environment($loader, [
             'cache' => false, // Disable for development
@@ -59,6 +63,9 @@ class Template
         
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
+
+        // Add stylesheet configuration
+        $this->twig->addGlobal('stylesheet', Config::getStylesheet());
     }
 
     public function render($template, $variables = [])
@@ -77,8 +84,8 @@ class Template
      */
     public function renderSystemNews($variables = [])
     {
-        $systemNewsPath = __DIR__ . '/../config/systemnews.twig';
-        
+        $systemNewsPath = Config::TEMPLATE_PATH . '/custom/systemnews.twig';
+
         if (file_exists($systemNewsPath)) {
             try {
                 return $this->render('systemnews.twig', $variables);
@@ -87,7 +94,7 @@ class Template
                 error_log("Failed to render systemnews.twig: " . $e->getMessage());
             }
         }
-        
+
         // Fallback content if template doesn't exist or fails to render
         return $this->getDefaultSystemNews($variables);
     }
@@ -113,7 +120,7 @@ class Template
                 <div class="card-body">
                     <p class="mb-2"><i class="fas fa-cog me-2 text-primary"></i>Running BinktermPHP v' . htmlspecialchars($appVersion) . '</p>
                     <p class="mb-0 small text-muted">
-                        To customize this section, copy <code>config/systemnews.twig.example</code> to <code>config/systemnews.twig</code> and edit it.
+                        To customize this section, copy <code>templates/custom/systemnews.twig.example</code> to <code>templates/custom/systemnews.twig</code> and edit it.
                     </p>
                 </div>
             </div>

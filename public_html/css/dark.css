@@ -1,0 +1,814 @@
+/* BinkTest Dark Theme */
+
+:root {
+    --fidonet-blue: #4da6ff;
+    --fidonet-green: #00cc44;
+    --fidonet-red: #ff4d4d;
+    --fidonet-orange: #ff8533;
+    --text-color: #e0e0e0;
+    --text-color-muted: #a0a0a0;
+    --message-bg: #2d2d2d;
+    --message-quote-bg: #383838;
+    --message-quote-border: #555555;
+    --border-color: #444444;
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #242424;
+    --bg-card: #2d2d2d;
+    --kludge-bg: #1e1e1e;
+    --kludge-text: #b0b0b0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-color);
+}
+
+/* Override Bootstrap navbar */
+.navbar.bg-primary {
+    background-color: #1e3a5f !important;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.navbar-brand i {
+    margin-right: 8px;
+}
+
+/* Cards */
+.card {
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    margin-bottom: 1rem;
+    background-color: var(--bg-card);
+    color: var(--text-color);
+}
+
+.card-header {
+    background-color: var(--bg-secondary) !important;
+    border-bottom: 2px solid var(--fidonet-blue);
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.card-body {
+    background-color: var(--bg-card);
+}
+
+/* Message items */
+.message-item {
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 0;
+    transition: background-color 0.2s;
+}
+
+.message-item:hover {
+    background-color: var(--bg-secondary);
+}
+
+.message-item:last-child {
+    border-bottom: none;
+}
+
+.message-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.message-from {
+    font-weight: 600;
+    color: var(--fidonet-blue);
+}
+
+.message-date {
+    font-size: 0.875em;
+    color: var(--text-color-muted);
+}
+
+.message-subject {
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 2px;
+}
+
+.message-origin {
+    font-size: 0.8em;
+    color: var(--text-color-muted);
+    font-style: italic;
+}
+
+.fidonet-address {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: #3d3d3d;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--text-color);
+}
+
+/* Table-based message list styles */
+.message-table {
+    border: none;
+    color: var(--text-color);
+}
+
+.message-table thead th {
+    background-color: #1e3a5f;
+    color: white;
+    border: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.5px;
+    padding: 12px 8px;
+    vertical-align: middle;
+}
+
+.message-table tbody td {
+    border-top: 1px solid var(--border-color);
+    padding: 12px 8px;
+    vertical-align: top;
+    background-color: var(--bg-card);
+    color: var(--text-color);
+}
+
+.message-row {
+    transition: background-color 0.2s ease;
+}
+
+.message-row:hover {
+    background-color: var(--bg-secondary);
+}
+
+/* Override Bootstrap table-hover for dark theme */
+.table-hover > tbody > tr:hover > * {
+    color: var(--text-color) !important;
+    background-color: var(--bg-secondary) !important;
+}
+
+.table-hover > tbody > tr:hover {
+    background-color: var(--bg-secondary) !important;
+}
+
+.table {
+    color: var(--text-color);
+}
+
+.message-table .message-from {
+    font-weight: 600;
+    color: var(--fidonet-blue);
+}
+
+.message-table .message-address {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    background-color: #3d3d3d;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    color: var(--text-color);
+}
+
+.message-table .message-subject {
+    font-weight: 500;
+    color: var(--text-color);
+    line-height: 1.4;
+}
+
+.message-table .message-date {
+    font-size: 0.875rem;
+    color: var(--text-color-muted);
+    white-space: nowrap;
+}
+
+.message-table .echoarea-tag {
+    background-color: var(--fidonet-orange);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 768px) {
+    .message-table thead th {
+        font-size: 0.75rem;
+        padding: 8px 4px;
+    }
+
+    .message-table tbody td {
+        padding: 8px 4px;
+        font-size: 0.875rem;
+    }
+
+    .message-table .message-subject {
+        font-size: 0.875rem;
+    }
+}
+
+.echoarea-tag {
+    background-color: var(--fidonet-green);
+    color: white;
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 10px;
+    text-transform: uppercase;
+}
+
+.netmail-indicator {
+    background-color: var(--fidonet-red);
+    color: white;
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+/* Forms */
+.compose-form {
+    background-color: var(--bg-card);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: 1px solid var(--border-color);
+}
+
+.compose-form .form-label {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.compose-form textarea {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.form-control {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.form-control:focus {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--fidonet-blue);
+    box-shadow: 0 0 0 0.2rem rgba(77, 166, 255, 0.25);
+}
+
+.form-control::placeholder {
+    color: var(--text-color-muted);
+}
+
+.form-select {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.form-select:focus {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--fidonet-blue);
+}
+
+/* Buttons */
+.btn-fidonet {
+    background-color: var(--fidonet-blue);
+    border-color: var(--fidonet-blue);
+    color: white;
+}
+
+.btn-fidonet:hover {
+    background-color: #3d8bd4;
+    border-color: #3d8bd4;
+    color: white;
+}
+
+.btn-primary {
+    background-color: #1e3a5f;
+    border-color: #1e3a5f;
+}
+
+.btn-primary:hover {
+    background-color: #2a4f7a;
+    border-color: #2a4f7a;
+}
+
+.btn-secondary {
+    background-color: #4a4a4a;
+    border-color: #4a4a4a;
+    color: var(--text-color);
+}
+
+.btn-secondary:hover {
+    background-color: #5a5a5a;
+    border-color: #5a5a5a;
+}
+
+.btn-outline-secondary {
+    color: var(--text-color-muted);
+    border-color: var(--border-color);
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border-color: var(--text-color-muted);
+}
+
+/* Status indicators */
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-online {
+    background-color: var(--fidonet-green);
+}
+
+.status-offline {
+    background-color: #6c757d;
+}
+
+.status-error {
+    background-color: var(--fidonet-red);
+}
+
+/* Node list */
+.node-list .card-body {
+    padding: 0;
+}
+
+.node-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.node-item:hover {
+    background-color: var(--bg-secondary);
+}
+
+.node-item:last-child {
+    border-bottom: none;
+}
+
+.node-address {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--fidonet-blue);
+}
+
+.node-system {
+    font-weight: 500;
+    margin-bottom: 2px;
+    color: var(--text-color);
+}
+
+.node-sysop {
+    color: var(--text-color-muted);
+    font-size: 0.9em;
+}
+
+/* Footer */
+.footer, footer.bg-light {
+    margin-top: auto;
+    padding: 20px 0;
+    background-color: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-color);
+}
+
+footer.bg-light .text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+footer.bg-light a {
+    color: var(--fidonet-blue) !important;
+}
+
+/* Loading and messages */
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    color: var(--text-color-muted);
+}
+
+.error-message {
+    background-color: #4a1c1c;
+    border: 1px solid #6b2d2d;
+    color: #ff9999;
+    padding: 12px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.success-message {
+    background-color: #1c4a1c;
+    border: 1px solid #2d6b2d;
+    color: #99ff99;
+    padding: 12px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+/* Bootstrap alerts */
+.alert-success {
+    background-color: #1c4a1c;
+    border-color: #2d6b2d;
+    color: #99ff99;
+}
+
+.alert-danger {
+    background-color: #4a1c1c;
+    border-color: #6b2d2d;
+    color: #ff9999;
+}
+
+.alert-warning {
+    background-color: #4a3c1c;
+    border-color: #6b5a2d;
+    color: #ffcc99;
+}
+
+.alert-info {
+    background-color: #1c3a4a;
+    border-color: #2d5a6b;
+    color: #99ccff;
+}
+
+/* Kludge lines styling */
+.kludge-lines {
+    font-family: 'Courier New', monospace;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--kludge-bg);
+}
+
+.kludge-lines pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--kludge-text);
+    background-color: var(--kludge-bg);
+    line-height: 1.3;
+}
+
+.message-headers {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.message-headers h6 {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+#toggleHeaders {
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+#toggleHeaders:hover {
+    background-color: #5a5a5a;
+    border-color: #5a5a5a;
+    color: white;
+}
+
+/* Animation for kludge line toggle */
+#kludgeContainer {
+    overflow: hidden;
+    transition: height 0.3s ease;
+}
+
+/* Echo area management styles */
+.echoarea-color-selector {
+    border-radius: 4px;
+    transition: border-left 0.2s ease;
+}
+
+.color-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+@media (max-width: 768px) {
+    .message-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .message-date {
+        margin-top: 4px;
+    }
+
+    .compose-form {
+        padding: 15px;
+    }
+
+    .message-headers {
+        padding: 10px;
+    }
+
+    .kludge-lines pre {
+        font-size: 0.8rem;
+    }
+
+    #toggleHeaders {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+}
+
+/* Mobile-friendly message formatting */
+.message-formatted {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    color: var(--text-color);
+}
+
+.message-paragraph {
+    margin-bottom: 0.75rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+.message-line {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    display: inline;
+}
+
+.message-quote {
+    border-left: 3px solid var(--message-quote-border);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    background-color: var(--message-quote-bg);
+    border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.quote-line {
+    margin-bottom: 0.25rem;
+    color: var(--text-color-muted);
+    font-style: italic;
+}
+
+.message-signature {
+    color: var(--text-color-muted);
+    font-size: 0.9em;
+    margin-bottom: 0.5rem;
+}
+
+.message-signature-separator {
+    color: var(--text-color-muted);
+    margin: 1rem 0 0.5rem 0;
+    font-family: monospace;
+}
+
+.message-preformatted {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-x: auto;
+    color: var(--text-color);
+}
+
+/* Legacy message text styles - enhanced for mobile */
+.message-text pre {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 16px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-x: auto;
+    color: var(--text-color);
+}
+
+@media (max-width: 768px) {
+    .message-formatted {
+        font-size: 16px;
+        line-height: 1.5;
+    }
+
+    .message-paragraph {
+        margin-bottom: 1rem;
+    }
+
+    .message-quote {
+        padding-left: 0.75rem;
+        margin: 0.75rem 0;
+    }
+
+    .message-preformatted {
+        font-size: 14px;
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+    }
+
+    .message-text pre {
+        font-size: 14px;
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+    }
+
+    .quote-line {
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 576px) {
+    .message-formatted {
+        font-size: 16px;
+        line-height: 1.4;
+    }
+
+    .message-preformatted {
+        font-size: 13px;
+        padding: 0.5rem;
+    }
+
+    .message-text pre {
+        font-size: 13px;
+        padding: 0.5rem;
+    }
+
+    .message-quote {
+        padding-left: 0.5rem;
+        border-left-width: 2px;
+    }
+}
+
+/* Bootstrap overrides for dark theme */
+.bg-light {
+    background-color: var(--bg-secondary) !important;
+}
+
+.text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+.border {
+    border-color: var(--border-color) !important;
+}
+
+.dropdown-menu {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+}
+
+.dropdown-item {
+    color: var(--text-color);
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+}
+
+.dropdown-divider {
+    border-color: var(--border-color);
+}
+
+/* Modal dark theme */
+.modal-content {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.modal-header {
+    border-color: var(--border-color);
+}
+
+.modal-footer {
+    border-color: var(--border-color);
+}
+
+.btn-close {
+    filter: invert(1);
+}
+
+/* List groups */
+.list-group-item {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.list-group-item:hover {
+    background-color: var(--bg-secondary);
+}
+
+/* Pagination */
+.page-link {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--fidonet-blue);
+}
+
+.page-link:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--fidonet-blue);
+}
+
+.page-item.active .page-link {
+    background-color: #1e3a5f;
+    border-color: #1e3a5f;
+}
+
+.page-item.disabled .page-link {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-color-muted);
+}
+
+/* Links */
+a {
+    color: var(--fidonet-blue);
+}
+
+a:hover {
+    color: #6db8ff;
+}
+
+/* Badge overrides */
+.badge.bg-secondary {
+    background-color: #4a4a4a !important;
+}
+
+/* Nav tabs */
+.nav-tabs {
+    border-color: var(--border-color);
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-color-muted);
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: var(--border-color);
+}
+
+.nav-tabs .nav-link.active {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
