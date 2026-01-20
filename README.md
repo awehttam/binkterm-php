@@ -561,10 +561,25 @@ php scripts/debug_binkp.php 1:153/149
 tail -f data/logs/binkp_server.log
 ```
 
-### Analytics 
+### Analytics
 
-You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.  
+You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.
 See `templates/custom/header.insert.twig.example` for reference with Google Analytics and other tracking examples.
+
+## Customization
+
+BinktermPHP provides several ways to customize the look and feel without modifying core files:
+
+- **Custom Stylesheet**: Set `STYLESHEET=/css/mytheme.css` in `.env` (includes built-in dark theme at `/css/dark.css`)
+- **Template Overrides**: Copy any template to `templates/custom/` to override it
+- **Custom Routes**: Create `routes/web-routes.local.php` to add new pages
+- **System News**: Create `templates/custom/systemnews.twig` for dashboard content
+- **Header Insertions**: Add CSS/JS via `templates/custom/header.insert.twig`
+- **Welcome Messages**: Customize login page via `config/welcome.txt`
+
+All customizations are upgrade-safe and won't be overwritten when updating BinktermPHP.
+
+For detailed instructions including Bootstrap 5 components, Twig template variables, and code examples, see **[CUSTOMIZING.md](CUSTOMIZING.md)**.
 
 ### Performance Tuning
 
