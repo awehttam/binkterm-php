@@ -531,3 +531,9 @@ SimpleRouter::get('/subscriptions', function() {
         $template->renderResponse('user_subscriptions.twig', $data);
     }
 });
+
+// Include local/custom routes if they exist
+$localRoutes = __DIR__ . '/web-routes.local.php';
+if (file_exists($localRoutes)) {
+    require_once $localRoutes;
+}

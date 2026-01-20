@@ -1,0 +1,44 @@
+<?php
+
+/**
+ * Local/Custom Routes
+ *
+ * Copy this file to web-routes.local.php to add custom routes.
+ * This file is automatically included by web-routes.php if it exists.
+ *
+ * Your custom routes here won't be overwritten when updating BinktermPHP.
+ */
+
+use BinktermPHP\Auth;
+use BinktermPHP\Template;
+use Pecee\SimpleRouter\SimpleRouter;
+
+// Example: Custom page route
+// SimpleRouter::get('/mypage', function() {
+//     $auth = new Auth();
+//     $user = $auth->getCurrentUser();
+//
+//     if (!$user) {
+//         return SimpleRouter::response()->redirect('/login');
+//     }
+//
+//     $template = new Template();
+//     $template->renderResponse('mypage.twig', [
+//         'custom_variable' => 'Hello World'
+//     ]);
+// });
+
+// Example: Public page (no auth required)
+// SimpleRouter::get('/about', function() {
+//     $template = new Template();
+//     $template->renderResponse('about.twig');
+// });
+
+// Example: Admin-only page
+// SimpleRouter::get('/admin/custom', function() {
+//     $auth = new Auth();
+//     $user = $auth->requireAdmin();
+//
+//     $template = new Template();
+//     $template->renderResponse('admin_custom.twig');
+// });
