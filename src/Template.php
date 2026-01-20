@@ -59,6 +59,9 @@ class Template
         
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
+
+        // Add stylesheet configuration
+        $this->twig->addGlobal('stylesheet', Config::getStylesheet());
     }
 
     public function render($template, $variables = [])
