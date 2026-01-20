@@ -1,6 +1,6 @@
 # Customizing BinktermPHP
 
-This document describes the current customization options available in BinktermPHP and proposes improvements for making UI customization easier.
+This document describes the current customization options available in BinktermPHP.
 
 ## Table of Contents
 
