@@ -8,6 +8,24 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 
 awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 
+## Table of Contents
+
+- [Screen shots](#screen-shots)
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Database Management](#database-management)
+- [Command Line Scripts](#command-line-scripts)
+- [Operation](#operation)
+- [Troubleshooting](#troubleshooting)
+- [Customization](#customization)
+- [Security Considerations](#security-considerations)
+- [File Structure](#file-structure)
+- [Contributing](#contributing)
+- [License](#license)
+- [Support](#support)
+- [Acknowledgments](#acknowledgments)
+
 ## Screen shots
 
 ![Echomail list](docs/screenshots/echomail.png)
