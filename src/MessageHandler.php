@@ -1905,10 +1905,13 @@ class MessageHandler
     {
         $kludgeLines = [];
         
+        // Add CHRS kludge for UTF-8 encoding
+        $kludgeLines[] = "\x01CHRS: UTF-8 4";
+
         // Add TZUTC kludge line for netmail
         $tzutc = \generateTzutc();
         $kludgeLines[] = "\x01TZUTC: {$tzutc}";
-        
+
         // Add MSGID kludge (required for netmail)
         $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);
         $kludgeLines[] = "\x01MSGID: {$fromAddress} {$msgId}";
@@ -1957,11 +1960,14 @@ class MessageHandler
     private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null)
     {
         $kludgeLines = [];
-        
+
+        // Add CHRS kludge for UTF-8 encoding
+        $kludgeLines[] = "\x01CHRS: UTF-8 4";
+
         // Add TZUTC kludge line for echomail
         $tzutc = \generateTzutc();
         $kludgeLines[] = "\x01TZUTC: {$tzutc}";
-        
+
         // Add MSGID kludge (required for echomail)
         $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);
         $kludgeLines[] = "\x01MSGID: {$fromAddress} {$msgId}";
