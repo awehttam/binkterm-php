@@ -1,3 +1,43 @@
+<div class="update-item mb-3" data-version="1.6.5" data-date="2026-01-20">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Template Customization System</h6>
+            <p class="mb-1 text-muted">Added comprehensive template override system allowing sysops to customize the interface without modifying core files. Custom templates in templates/custom/ automatically override default templates. Includes local routes support via routes/local-routes.php for adding custom pages and endpoints.</p>
+        </div>
+        <small class="text-muted">v1.6.5</small>
+    </div>
+</div>
+
+<div class="update-item mb-3" data-version="1.6.5" data-date="2026-01-20">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Dark Theme Support</h6>
+            <p class="mb-1 text-muted">Added configurable stylesheet system with dark theme support. Sysops can now configure custom CSS via public_html/css/local.css to style the interface, including full dark mode themes. Bootstrap 5 variables are fully supported for easy theming.</p>
+        </div>
+        <small class="text-muted">v1.6.5</small>
+    </div>
+</div>
+
+<div class="update-item mb-3" data-version="1.6.5" data-date="2026-01-20">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>CHRS UTF-8 Kludge for Outgoing Messages</h6>
+            <p class="mb-1 text-muted">Outgoing messages now include the CHRS: UTF-8 4 kludge line, properly identifying message encoding to receiving systems. This improves international character handling and compatibility with other FidoNet software.</p>
+        </div>
+        <small class="text-muted">v1.6.5</small>
+    </div>
+</div>
+
+<div class="update-item mb-3" data-version="1.6.5" data-date="2026-01-20">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>Echomail Maintenance Enhancements</h6>
+            <p class="mb-1 text-muted">Enhanced echomail maintenance utility with proper cascade deletion for related tables, VACUUM ANALYZE for storage reclamation, and timing display for operations. Fixes issues with maintenance script hanging on large datasets.</p>
+        </div>
+        <small class="text-muted">v1.6.5</small>
+    </div>
+</div>
+
 <div class="update-item mb-3" data-version="1.6.4" data-date="2025-10-12">
     <div class="d-flex justify-content-between align-items-start">
         <div>
@@ -148,52 +188,3 @@
     </div>
 </div>
 
-<div class="update-item mb-3" data-version="1.4.2" data-date="2025-08-30">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>SMTP Email Support</h6>
-            <p class="mb-1 text-muted">Added PHPMailer integration with SMTP configuration. Welcome messages are now sent via both netmail and email to approved users.</p>
-        </div>
-        <small class="text-muted">v1.4.2</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.4.1" data-date="2025-08-29">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Webshare Functionality</h6>
-            <p class="mb-1 text-muted">Users can now share echomail messages via secure web links with privacy controls and expiration settings.</p>
-        </div>
-        <small class="text-muted">v1.4.1</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.4.1" data-date="2025-08-29">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>Character Encoding Support</h6>
-            <p class="mb-1 text-muted">Enhanced CP437 and DOS codepage handling using iconv fallback for better FidoNet packet compatibility.</p>
-        </div>
-        <small class="text-muted">v1.4.1</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.4.1" data-date="2025-08-29">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-warning me-2">Fix</span>Date Parsing Improvements</h6>
-            <p class="mb-1 text-muted">Fixed regex patterns for parsing FidoNet timestamps in "DD MMM YY HH:MM:SS" format.</p>
-        </div>
-        <small class="text-muted">v1.4.1</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.4.0" data-date="2025-08-28">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-info me-2">Update</span>Database Migration System</h6>
-            <p class="mb-1 text-muted">Implemented comprehensive PostgreSQL migration system with automatic schema versioning.</p>
-        </div>
-        <small class="text-muted">v1.4.0</small>
-    </div>
-</div>
