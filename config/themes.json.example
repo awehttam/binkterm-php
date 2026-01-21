@@ -1,4 +1,5 @@
 {
     "Regular": "/css/style.css",
-    "Dark": "/css/dark.css"
+    "Dark": "/css/dark.css",
+    "Green Term": "/css/greenterm.css"
 }
