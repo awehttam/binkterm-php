@@ -91,8 +91,8 @@ class BinkpSession
     private function sendSystemInfo()
     {
         $systemName = $this->config->getSystemName();
-        $sysopName = $this->config->getSysopName();
-        $location = $this->config->getLocation();
+        $sysopName = $this->config->getSystemSysop();
+        $location = $this->config->getSystemLocation();
 
         // Send M_NUL frames with system information
         $this->sendNul("SYS {$systemName}");
