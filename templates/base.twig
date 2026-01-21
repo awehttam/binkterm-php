@@ -150,11 +150,11 @@
             timezone: 'America/Los_Angeles' // Default, will be loaded via AJAX
         };
     </script>
-    <script src="/js/app.js"></script>
+    <script src="/js/app.js?v={{ app_version }}"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('/sw.js?v={{ app_version }}')
                     .then(registration => {
                         console.log('Service Worker registered! Scope is:', registration.scope);
                     })
