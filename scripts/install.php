@@ -196,7 +196,7 @@ class Installer
     {
         echo "Post-Installation Information:\n";
         echo "=============================\n";
-        echo "• Database: " . Database::getInstance()->getDatabasePath() . "\n";
+        echo "• Database: PostgreSQL (configured in .env)\n";
         echo "• Web root: public_html/\n";
         echo "• Templates: templates/\n";
         echo "• Scripts: scripts/\n\n";
