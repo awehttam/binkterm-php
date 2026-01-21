@@ -70,34 +70,37 @@ class Installer
     private function createTables()
     {
         echo "1. Creating database tables...\n";
-        
+
         $schemaFile = __DIR__ . '/../database/postgresql_schema.sql';
         if (!file_exists($schemaFile)) {
             throw new Exception("PostgreSQL schema file not found: $schemaFile");
         }
-        
+
         $schema = file_get_contents($schemaFile);
-        
+
+        // Remove SQL comments (lines starting with --)
+        $schema = preg_replace('/^\s*--.*$/m', '', $schema);
+
         // Split schema by statements (semicolon followed by newline)
         $statements = array_filter(
             array_map('trim', preg_split('/;\s*\n/', $schema)),
-            function($stmt) { return !empty($stmt) && !preg_match('/^\s*--/', $stmt); }
+            function($stmt) { return !empty($stmt); }
         );
-        
+
         foreach ($statements as $statement) {
             if (!empty(trim($statement))) {
                 try {
                     $this->db->exec($statement);
                 } catch (Exception $e) {
                     // Skip statements that might fail (like ON CONFLICT DO NOTHING on existing data)
-                    if (strpos($e->getMessage(), 'already exists') === false && 
+                    if (strpos($e->getMessage(), 'already exists') === false &&
                         strpos($e->getMessage(), 'duplicate key') === false) {
                         throw $e;
                     }
                 }
             }
         }
-        
+
         echo "   ✓ Database tables created successfully\n";
     }
     
@@ -134,8 +137,8 @@ class Installer
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         
         $stmt = $this->db->prepare("
-            INSERT INTO users (username, password_hash, real_name, email, is_admin, is_active) 
-            VALUES (?, ?, ?, ?, 1, 1)
+            INSERT INTO users (username, password_hash, real_name, email, is_admin, is_active)
+            VALUES (?, ?, ?, ?, TRUE, TRUE)
         ");
         
         $stmt->execute([$username, $passwordHash, $realName, $email ?: null]);
@@ -193,7 +196,7 @@ class Installer
     {
         echo "Post-Installation Information:\n";
         echo "=============================\n";
-        echo "• Database: " . Database::getInstance()->getDatabasePath() . "\n";
+        echo "• Database: PostgreSQL (configured in .env)\n";
         echo "• Web root: public_html/\n";
         echo "• Templates: templates/\n";
         echo "• Scripts: scripts/\n\n";

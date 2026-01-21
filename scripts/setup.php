@@ -57,16 +57,22 @@ class SetupManager
     {
         $installScript = __DIR__ . '/install.php';
         $command = "php \"$installScript\" --non-interactive";
-        
+
         echo "Executing: $command\n";
-        
+
         $output = [];
         $returnCode = 0;
         exec($command, $output, $returnCode);
-        
+
         echo implode("\n", $output) . "\n";
-        
-        return $returnCode === 0;
+
+        if ($returnCode !== 0) {
+            return false;
+        }
+
+        // After base schema install, run migrations to bring database up to date
+        echo "\nApplying database migrations...\n";
+        return $this->runUpgrade();
     }
     
     private function runUpgrade()

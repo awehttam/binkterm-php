@@ -5,6 +5,16 @@ config/terminal_welcome.txt
 config/systemnews.twig
 templates/custom/header.insert.twig
 data/*
+!data/.gitkeep
+!data/logs/
+data/logs/*
+!data/logs/.gitkeep
+!data/inbound/
+data/inbound/*
+!data/inbound/.gitkeep
+!data/outbound/
+data/outbound/*
+!data/outbound/.gitkeep
 backups/*
 .idea/
 .claude/
