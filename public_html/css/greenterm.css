@@ -670,6 +670,27 @@ a:hover {
     font-style: italic;
 }
 
+/* Multi-level quote coloring - greenterm theme */
+.quote-level-1 {
+    color: #00cc00;  /* Bright green */
+    font-style: normal;
+}
+
+.quote-level-2 {
+    color: #00ff66;  /* Lighter green */
+    font-style: normal;
+}
+
+.quote-level-3 {
+    color: #66ff99;  /* Even lighter */
+    font-style: normal;
+}
+
+.quote-level-4 {
+    color: #99ffcc;  /* Palest green */
+    font-style: normal;
+}
+
 .message-signature {
     color: var(--term-green-dim);
     font-size: 0.9em;

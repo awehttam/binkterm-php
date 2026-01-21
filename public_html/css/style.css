@@ -458,6 +458,27 @@ body {
     font-style: italic;
 }
 
+/* Multi-level quote coloring */
+.quote-level-1 {
+    color: #2e7d32;  /* Green */
+    font-style: normal;
+}
+
+.quote-level-2 {
+    color: #1565c0;  /* Blue */
+    font-style: normal;
+}
+
+.quote-level-3 {
+    color: #7b1fa2;  /* Purple */
+    font-style: normal;
+}
+
+.quote-level-4 {
+    color: #c62828;  /* Red - deepest quotes */
+    font-style: normal;
+}
+
 .message-signature {
     color: var(--text-color-muted);
     font-size: 0.9em;

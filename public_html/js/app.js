@@ -103,23 +103,7 @@ function formatMessageText(messageText, searchTerms = []) {
         searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
     }
 
-    // Detect if message contains formatting that should be preserved
-    const hasAsciiArt = /[\|\+\-_=~`]{3,}/.test(messageText) || /[^\w\s]{5,}/.test(messageText);
-    const hasIndentation = /^\s{4,}/.test(messageText) || messageText.includes('\t');
-    const hasQuotes = /^\s*[>|]/.test(messageText);
-    const hasSignature = messageText.includes('---') || messageText.includes('___');
-
-    // If message has special formatting, use responsive preformatted style
-    if (hasAsciiArt || hasIndentation) {
-        let preformattedText = escapeHtml(messageText);
-        // Apply highlighting to preformatted text
-        if (searchTerms && searchTerms.length > 0) {
-            preformattedText = highlightSearchTerms(preformattedText, searchTerms);
-        }
-        return `<pre class="message-preformatted">${preformattedText}</pre>`;
-    }
-
-    // Otherwise, format as readable text with preserved line breaks
+    // Format as readable text with preserved line breaks and quote coloring
     const lines = messageText.split(/\r?\n/);
     let formattedLines = [];
     let inQuoteBlock = false;
@@ -140,8 +124,12 @@ function formatMessageText(messageText, searchTerms = []) {
             continue;
         }
 
-        // Handle quoted text
-        if (/^\s*[>|]/.test(line)) {
+        // Handle quoted text - supports multi-level and initials-style quotes
+        // Matches lines starting with: >, >>, MA>, MA> >, CM>>, CN>>>, etc.
+        const trimmedForQuote = line.trim();
+        const isQuoteLine = /^[A-Za-z]{0,3}>/.test(trimmedForQuote);
+
+        if (isQuoteLine) {
             if (!inQuoteBlock) {
                 formattedLines.push('<div class="message-quote">');
                 inQuoteBlock = true;
@@ -150,7 +138,23 @@ function formatMessageText(messageText, searchTerms = []) {
             if (searchTerms && searchTerms.length > 0) {
                 highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
             }
-            formattedLines.push(`<div class="quote-line">${highlightedLine}</div>`);
+
+            // Calculate quote depth by counting > characters at start of line
+            const quoteColoring = window.userSettings?.quote_coloring !== false;
+            if (quoteColoring) {
+                // Count all > characters in the quote prefix portion
+                // For "CN>>> text" or "MA> > text" or ">> text", count all the >'s
+                const allGts = trimmedForQuote.match(/>/g) || ['>'];
+                // Only count >'s that appear before the main text content
+                // Extract prefix: optional initials, then all > and spaces until non-> non-space
+                const prefixMatch = trimmedForQuote.match(/^([A-Za-z]{0,3}[>\s]+)/);
+                const prefix = prefixMatch ? prefixMatch[1] : '>';
+                const depth = (prefix.match(/>/g) || []).length;
+                const depthClass = Math.min(depth, 4); // Cap at 4 levels
+                formattedLines.push(`<div class="quote-line quote-level-${depthClass}">${highlightedLine}</div>`);
+            } else {
+                formattedLines.push(`<div class="quote-line">${highlightedLine}</div>`);
+            }
         } else {
             if (inQuoteBlock) {
                 formattedLines.push('</div>');
@@ -315,6 +319,7 @@ function loadUserSettings() {
                     messages_per_page: 25,
                     threaded_view: false,
                     netmail_threaded_view: false,
+                    quote_coloring: true,
                     default_sort: 'date_desc',
                     timezone: 'America/Los_Angeles',
                     font_family: 'Courier New, Monaco, Consolas, monospace',
