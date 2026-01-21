@@ -1320,3 +1320,10 @@ tbody, td, tfoot, th, thead, tr {
     color: var(--cyber-yellow);
     text-shadow: 0 0 10px var(--cyber-yellow), 0 0 20px var(--cyber-yellow);
 }
+
+/* Message header full (expanded view) */
+.message-header-full {
+    background-color: var(--cyber-dark-light);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+}
