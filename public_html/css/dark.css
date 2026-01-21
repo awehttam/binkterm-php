@@ -270,6 +270,14 @@ body {
     color: var(--text-color-muted);
 }
 
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: var(--bg-primary);
+    color: var(--text-color-muted);
+    border-color: var(--border-color);
+    opacity: 0.7;
+}
+
 .form-select {
     background-color: var(--bg-secondary);
     color: var(--text-color);
@@ -280,6 +288,13 @@ body {
     background-color: var(--bg-secondary);
     color: var(--text-color);
     border-color: var(--fidonet-blue);
+}
+
+.form-select:disabled {
+    background-color: var(--bg-primary);
+    color: var(--text-color-muted);
+    border-color: var(--border-color);
+    opacity: 0.7;
 }
 
 /* Buttons */

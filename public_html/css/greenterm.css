@@ -354,6 +354,14 @@ a:hover {
     color: var(--term-green-dark);
 }
 
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: var(--term-black);
+    color: var(--term-green-dark);
+    border-color: var(--term-green-dark);
+    opacity: 0.6;
+}
+
 .form-select {
     background-color: var(--term-black);
     color: var(--term-green);
@@ -365,6 +373,13 @@ a:hover {
     color: var(--term-green);
     border-color: var(--term-green);
     box-shadow: 0 0 10px rgba(51, 255, 51, 0.5);
+}
+
+.form-select:disabled {
+    background-color: var(--term-black);
+    color: var(--term-green-dark);
+    border-color: var(--term-green-dark);
+    opacity: 0.6;
 }
 
 .btn-fidonet {
