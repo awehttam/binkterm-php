@@ -103,7 +103,19 @@
                             <div class="form-text">Group netmail messages by conversation threads</div>
                         </div>
                     </div>
-                    
+
+                    <div class="mb-3">
+                        <label class="form-label">Quote Display</label>
+
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="quoteColoring" name="quote_coloring" checked>
+                            <label class="form-check-label" for="quoteColoring">
+                                Color quoted text by depth
+                            </label>
+                            <div class="form-text">Show quoted message lines (starting with &gt;) in different colors based on nesting level</div>
+                        </div>
+                    </div>
+
                 </form>
             </div>
         </div>
@@ -287,6 +299,9 @@ function loadSettings() {
             $('#threadedView').prop('checked', data.threaded_view === true);
             $('#netmailThreadedView').prop('checked', data.netmail_threaded_view === true);
 
+            // Quote coloring (defaults to true if not set)
+            $('#quoteColoring').prop('checked', data.quote_coloring !== false);
+
             // Commented out settings (not yet implemented)
             $('#showOrigin').prop('checked', data.show_origin !== false);
             $('#showTearline').prop('checked', data.show_tearline !== false);
@@ -318,6 +333,7 @@ function saveSettings() {
         font_size: parseInt($('#fontSize').val()),
         threaded_view: $('#threadedView').is(':checked'),
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
+        quote_coloring: $('#quoteColoring').is(':checked'),
         show_origin: $('#showOrigin').is(':checked'),
         show_tearline: $('#showTearline').is(':checked'),
         auto_refresh: $('#autoRefresh').is(':checked')

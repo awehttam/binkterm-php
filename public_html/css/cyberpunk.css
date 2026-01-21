@@ -161,6 +161,23 @@ a:hover {
     color: var(--text-color);
 }
 
+/* Recent updates items */
+.update-item {
+    background-color: var(--cyber-dark-light);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.update-item h6 {
+    color: var(--text-color);
+}
+
+.update-item p {
+    color: var(--text-color-muted);
+}
+
 .message-item {
     border-bottom: 1px solid var(--cyber-purple-dim);
     padding: 12px 0;
@@ -365,6 +382,13 @@ a:hover {
     box-shadow: 0 0 15px rgba(5, 217, 232, 0.5);
 }
 
+.compose-form textarea:disabled {
+    background-color: var(--cyber-dark);
+    color: var(--text-color-muted);
+    border-color: var(--cyber-dark-lighter);
+    opacity: 0.7;
+}
+
 /* Form controls */
 .form-control {
     background-color: var(--cyber-dark-light);
@@ -384,6 +408,14 @@ a:hover {
     color: var(--text-color-muted);
 }
 
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: var(--cyber-dark);
+    color: var(--text-color-muted);
+    border-color: var(--cyber-dark-lighter);
+    opacity: 0.7;
+}
+
 .form-select {
     background-color: var(--cyber-dark-light);
     color: var(--text-color);
@@ -396,6 +428,13 @@ a:hover {
     color: var(--text-color);
     border-color: var(--cyber-cyan);
     box-shadow: 0 0 15px rgba(5, 217, 232, 0.5);
+}
+
+.form-select:disabled {
+    background-color: var(--cyber-dark);
+    color: var(--text-color-muted);
+    border-color: var(--cyber-dark-lighter);
+    opacity: 0.7;
 }
 
 .btn-fidonet {
@@ -717,6 +756,27 @@ a:hover {
     margin-bottom: 0.25rem;
     color: var(--text-color-muted);
     font-style: italic;
+}
+
+/* Multi-level quote coloring - cyberpunk theme */
+.quote-level-1 {
+    color: #00ff9f;  /* Neon green */
+    font-style: normal;
+}
+
+.quote-level-2 {
+    color: #00d4ff;  /* Neon cyan */
+    font-style: normal;
+}
+
+.quote-level-3 {
+    color: #ff00ff;  /* Neon magenta */
+    font-style: normal;
+}
+
+.quote-level-4 {
+    color: #ff6b35;  /* Neon orange */
+    font-style: normal;
 }
 
 .message-signature {
@@ -1319,4 +1379,11 @@ tbody, td, tfoot, th, thead, tr {
 .neon-yellow {
     color: var(--cyber-yellow);
     text-shadow: 0 0 10px var(--cyber-yellow), 0 0 20px var(--cyber-yellow);
+}
+
+/* Message header full (expanded view) */
+.message-header-full {
+    background-color: var(--cyber-dark-light);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
 }

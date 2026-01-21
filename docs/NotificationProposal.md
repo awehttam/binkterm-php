@@ -1,0 +1,283 @@
+# Web Browser Push Notifications for New Netmail
+
+## Overview
+
+This proposal outlines adding web browser push notifications to BinktermPHP so users receive immediate alerts when new netmail arrives, even when their browser is closed.
+
+## Requirements
+
+- Web Push API notifications triggered on new netmail receipt
+- Immediate delivery (not batched)
+- Per-user toggle in Settings page
+- Works across devices/browsers
+
+---
+
+## Implementation Steps
+
+### 1. Database Migration
+
+**File:** `database/migrations/v1.7.0_add_push_subscriptions.sql`
+
+```sql
+-- Table to store push notification subscriptions
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL,
+    p256dh_key TEXT NOT NULL,
+    auth_key TEXT NOT NULL,
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    UNIQUE(user_id, endpoint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_active ON push_subscriptions(user_id, is_active);
+
+-- Add push notification preference to user_settings
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS push_notifications_enabled BOOLEAN DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_user_settings_push_enabled ON user_settings(push_notifications_enabled);
+```
+
+### 2. Add Composer Dependency
+
+```bash
+composer require minishlink/web-push
+```
+
+The `minishlink/web-push` library handles VAPID authentication and push message encryption.
+
+### 3. Environment Configuration
+
+Add to `.env`:
+
+```
+# VAPID keys for Web Push Notifications
+# Generate with: vendor/bin/web-push generate:vapid-keys
+VAPID_PUBLIC_KEY=<generated_public_key>
+VAPID_PRIVATE_KEY=<generated_private_key>
+VAPID_SUBJECT=mailto:admin@example.com
+```
+
+### 4. Create Push Notification Service
+
+**New File:** `src/PushNotificationService.php`
+
+Key methods:
+
+| Method | Purpose |
+|--------|---------|
+| `isEnabled()` | Check if VAPID keys are configured |
+| `getVapidPublicKey()` | Return public key for frontend |
+| `saveSubscription()` | Store browser push subscription |
+| `removeSubscription()` | Remove subscription on unsubscribe |
+| `getUserSubscriptions()` | Get all active subscriptions for a user |
+| `isUserPushEnabled()` | Check user preference setting |
+| `sendNetmailNotification()` | Send push to user's subscribed browsers |
+
+The service will:
+- Use the web-push library to send encrypted notifications
+- Support multiple subscriptions per user (different browsers/devices)
+- Automatically deactivate expired subscriptions
+- Log failures without blocking message storage
+
+### 5. Update Service Worker
+
+**File:** `public_html/sw.js`
+
+Add handlers for:
+
+```javascript
+// Handle incoming push notifications
+self.addEventListener('push', (event) => {
+    const data = event.data.json();
+    const options = {
+        body: data.body,
+        icon: '/favicon.svg',
+        tag: data.tag,
+        data: { url: '/netmail' },
+        requireInteraction: true
+    };
+    event.waitUntil(
+        self.registration.showNotification(data.title, options)
+    );
+});
+
+// Handle notification click - navigate to netmail
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    event.waitUntil(
+        clients.openWindow(event.notification.data?.url || '/netmail')
+    );
+});
+
+// Handle subscription changes (browser regenerates keys)
+self.addEventListener('pushsubscriptionchange', (event) => {
+    // Re-subscribe and update server
+});
+```
+
+### 6. Create Frontend JavaScript Module
+
+**New File:** `public_html/js/push-notifications.js`
+
+`PushNotificationManager` object with:
+
+| Method | Purpose |
+|--------|---------|
+| `init()` | Fetch VAPID key from server |
+| `getPermissionState()` | Check current browser permission |
+| `requestPermission()` | Request browser notification permission |
+| `subscribe()` | Create push subscription and send to server |
+| `unsubscribe()` | Remove push subscription |
+| `isSubscribed()` | Check if currently subscribed |
+
+### 7. Update Settings Page
+
+**File:** `templates/settings.twig`
+
+Add "Push Notifications" card section with:
+
+- Toggle switch for enabling/disabling notifications
+- Permission request button (shown if permission not yet granted)
+- Status indicator showing if notifications are active
+- Test notification button
+- Browser support detection with fallback message
+
+### 8. Add API Routes
+
+**File:** `routes/api-routes.php`
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/push/vapid-key` | GET | Return public VAPID key for subscription |
+| `/api/push/subscribe` | POST | Save browser subscription to database |
+| `/api/push/unsubscribe` | POST | Remove subscription from database |
+| `/api/push/test` | POST | Send test notification to current user |
+
+All endpoints except `vapid-key` require authentication.
+
+### 9. Update MessageHandler
+
+**File:** `src/MessageHandler.php`
+
+Add `push_notifications_enabled` to `$allowedSettings` whitelist in `updateUserSettings()` method:
+
+```php
+$allowedSettings = [
+    // ... existing settings ...
+    'push_notifications_enabled' => 'BOOLEAN'
+];
+```
+
+### 10. Hook into Netmail Storage
+
+**File:** `src/BinkdProcessor.php`
+
+In `storeNetmail()` method, after the message is stored (around line 612), add:
+
+```php
+// Send push notification for new netmail
+if ($userId) {
+    try {
+        $pushService = new \BinktermPHP\PushNotificationService();
+        $pushService->sendNetmailNotification($userId, [
+            'id' => $this->db->lastInsertId(),
+            'from_name' => $message['fromName'],
+            'subject' => $message['subject']
+        ]);
+    } catch (\Exception $e) {
+        // Log but don't fail message storage
+        error_log("[BINKD] Push notification failed: " . $e->getMessage());
+    }
+}
+```
+
+### 11. Version Bump
+
+Update version to 1.7.0 in:
+- `src/Version.php`
+- `composer.json`
+- `templates/recent_updates.twig` (add changelog entry)
+
+---
+
+## Files Summary
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `database/migrations/v1.7.0_add_push_subscriptions.sql` | Database schema changes |
+| `src/PushNotificationService.php` | Backend push notification logic |
+| `public_html/js/push-notifications.js` | Frontend subscription manager |
+
+### Modified Files
+
+| File | Changes |
+|------|---------|
+| `public_html/sw.js` | Add push/notification event handlers |
+| `templates/settings.twig` | Add notifications UI section |
+| `routes/api-routes.php` | Add 4 new push API endpoints |
+| `src/MessageHandler.php` | Allow new setting in whitelist |
+| `src/BinkdProcessor.php` | Trigger notification on netmail receipt |
+| `src/Version.php` | Bump to 1.7.0 |
+| `composer.json` | Add web-push dependency, bump version |
+| `templates/recent_updates.twig` | Add changelog entry |
+
+---
+
+## Security Considerations
+
+1. **VAPID Keys**: Generate unique keys per installation; store in `.env` (never commit to source control)
+2. **Authentication**: All push API endpoints (except vapid-key) require user authentication
+3. **Data Minimization**: Push payloads contain only sender name and subject, not message body
+4. **Subscription Validation**: Endpoints validated by web-push library
+5. **Expired Cleanup**: Automatically deactivate subscriptions that return expired errors
+6. **HTTPS Required**: Web Push API requires HTTPS (except localhost for development)
+7. **User Control**: Users can enable/disable notifications at any time
+
+---
+
+## Browser Support
+
+Web Push is supported in:
+- Chrome/Edge (desktop and Android)
+- Firefox (desktop and Android)
+- Safari 16+ (macOS Ventura and iOS 16.4+)
+- Opera
+
+Not supported:
+- Safari < 16
+- iOS Safari < 16.4
+- Internet Explorer
+
+The settings page will detect support and show appropriate messaging.
+
+---
+
+## Verification Steps
+
+1. Run migration: `psql -f database/migrations/v1.7.0_add_push_subscriptions.sql`
+2. Install dependency: `composer require minishlink/web-push`
+3. Generate VAPID keys and add to `.env`
+4. Visit Settings page → "Push Notifications" section should appear
+5. Click "Enable Notifications" → Browser should prompt for permission
+6. Grant permission and toggle on → Should show "active" status
+7. Click "Send Test Notification" → Should receive browser notification
+8. Receive a netmail via binkp poll → Should receive push notification
+9. Click notification → Should open/focus app and navigate to netmail
+10. Toggle off in settings → Should stop receiving notifications
+
+---
+
+## Future Enhancements
+
+- Notification for echomail in subscribed areas (optional per-area setting)
+- Notification grouping/batching option for high-volume users
+- Notification sound customization
+- Do Not Disturb schedule
+- Admin broadcast notifications

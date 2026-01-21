@@ -1111,7 +1111,8 @@ class MessageHandler
             'theme' => 'STRING',
             'show_origin' => 'BOOLEAN',
             'show_tearline' => 'BOOLEAN',
-            'auto_refresh' => 'BOOLEAN'
+            'auto_refresh' => 'BOOLEAN',
+            'quote_coloring' => 'BOOLEAN'
         ];
 
         $updates = [];

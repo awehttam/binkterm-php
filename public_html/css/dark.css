@@ -57,6 +57,23 @@ body {
     background-color: var(--bg-card);
 }
 
+/* Recent updates items */
+.update-item {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.update-item h6 {
+    color: var(--text-color);
+}
+
+.update-item p {
+    color: var(--text-color-muted);
+}
+
 /* Message items */
 .message-item {
     border-bottom: 1px solid var(--border-color);
@@ -270,6 +287,14 @@ body {
     color: var(--text-color-muted);
 }
 
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: var(--bg-primary);
+    color: var(--text-color-muted);
+    border-color: var(--border-color);
+    opacity: 0.7;
+}
+
 .form-select {
     background-color: var(--bg-secondary);
     color: var(--text-color);
@@ -280,6 +305,13 @@ body {
     background-color: var(--bg-secondary);
     color: var(--text-color);
     border-color: var(--fidonet-blue);
+}
+
+.form-select:disabled {
+    background-color: var(--bg-primary);
+    color: var(--text-color-muted);
+    border-color: var(--border-color);
+    opacity: 0.7;
 }
 
 /* Buttons */
@@ -577,6 +609,27 @@ footer.bg-light a {
     margin-bottom: 0.25rem;
     color: var(--text-color-muted);
     font-style: italic;
+}
+
+/* Multi-level quote coloring - dark theme */
+.quote-level-1 {
+    color: #81c784;  /* Light green */
+    font-style: normal;
+}
+
+.quote-level-2 {
+    color: #64b5f6;  /* Light blue */
+    font-style: normal;
+}
+
+.quote-level-3 {
+    color: #ba68c8;  /* Light purple */
+    font-style: normal;
+}
+
+.quote-level-4 {
+    color: #e57373;  /* Light red */
+    font-style: normal;
 }
 
 .message-signature {
