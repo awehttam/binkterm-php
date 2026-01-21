@@ -1,0 +1,1241 @@
+/* BinkTest Green Terminal Theme - Classic Retro Style */
+
+:root {
+    --term-green: #33ff33;
+    --term-green-dim: #22aa22;
+    --term-green-bright: #66ff66;
+    --term-green-dark: #116611;
+    --term-black: #0a0a0a;
+    --term-black-light: #1a1a1a;
+    --term-black-lighter: #252525;
+    --term-amber: #ffaa00;
+    --term-red: #ff3333;
+    --term-cyan: #33ffff;
+    --text-color: #33ff33;
+    --text-color-muted: #22aa22;
+    --message-bg: #0a0a0a;
+    --message-quote-bg: #151515;
+    --message-quote-border: #33ff33;
+    --border-color: #33ff33;
+    --kludge-bg: #0a0a0a;
+    --kludge-text: #33ff33;
+}
+
+/* Phosphor glow effect */
+@keyframes flicker {
+    0% { opacity: 0.97; }
+    50% { opacity: 1; }
+    100% { opacity: 0.98; }
+}
+
+body {
+    font-family: 'Courier New', 'Lucida Console', Monaco, monospace;
+    background-color: var(--term-black);
+    color: var(--term-green);
+    text-shadow: 0 0 5px rgba(51, 255, 51, 0.5);
+    animation: flicker 0.15s infinite;
+}
+
+/* Scanline effect overlay */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    z-index: 9999;
+}
+
+a {
+    color: var(--term-green-bright);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--term-amber);
+    text-shadow: 0 0 8px rgba(255, 170, 0, 0.7);
+}
+
+.navbar {
+    background-color: var(--term-black) !important;
+    border-bottom: 1px solid var(--term-green);
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.3);
+}
+
+.navbar-brand {
+    font-weight: bold;
+    color: var(--term-green) !important;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.navbar-brand i {
+    margin-right: 8px;
+}
+
+.nav-link {
+    color: var(--term-green) !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.nav-link:hover {
+    color: var(--term-green-bright) !important;
+    text-shadow: 0 0 10px rgba(51, 255, 51, 0.8);
+}
+
+.nav-link.active {
+    color: var(--term-amber) !important;
+}
+
+.dropdown-menu {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-green);
+    box-shadow: 0 0 15px rgba(51, 255, 51, 0.3);
+}
+
+.dropdown-item {
+    color: var(--term-green);
+}
+
+.dropdown-item:hover {
+    background-color: var(--term-green);
+    color: var(--term-black);
+}
+
+.card {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-green);
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.2);
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    background-color: var(--term-black-light);
+    border-bottom: 1px solid var(--term-green);
+    font-weight: 600;
+    color: var(--term-green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.card-body {
+    background-color: var(--term-black);
+    color: var(--term-green);
+}
+
+.message-item {
+    border-bottom: 1px solid var(--term-green-dark);
+    padding: 12px 0;
+    transition: background-color 0.2s;
+}
+
+.message-item:hover {
+    background-color: var(--term-black-light);
+}
+
+.message-item:last-child {
+    border-bottom: none;
+}
+
+.message-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.message-from {
+    font-weight: 600;
+    color: var(--term-green-bright);
+}
+
+.message-date {
+    font-size: 0.875em;
+    color: var(--term-green-dim);
+}
+
+.message-subject {
+    font-weight: 500;
+    color: var(--term-green);
+    margin-bottom: 2px;
+}
+
+.message-origin {
+    font-size: 0.8em;
+    color: var(--term-green-dim);
+    font-style: italic;
+}
+
+.fidonet-address {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: var(--term-black-light);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--term-green-dark);
+    color: var(--term-cyan);
+}
+
+/* Table-based message list styles */
+.message-table {
+    border: 1px solid var(--term-green);
+}
+
+.message-table thead th {
+    background-color: var(--term-green);
+    color: var(--term-black);
+    border: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.5px;
+    padding: 12px 8px;
+    vertical-align: middle;
+    text-shadow: none;
+}
+
+.message-table tbody td {
+    border-top: 1px solid var(--term-green-dark);
+    padding: 12px 8px;
+    vertical-align: top;
+    color: var(--term-green);
+}
+
+.message-row {
+    transition: background-color 0.2s ease;
+}
+
+.message-row:hover {
+    background-color: var(--term-black-lighter);
+}
+
+/* Override Bootstrap table-hover */
+.table-hover > tbody > tr:hover > * {
+    color: var(--term-green-bright) !important;
+    background-color: var(--term-black-lighter) !important;
+}
+
+.table-hover > tbody > tr:hover {
+    background-color: var(--term-black-lighter) !important;
+}
+
+.message-table .message-from {
+    font-weight: 600;
+    color: var(--term-green-bright);
+}
+
+.message-table .message-address {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    background-color: var(--term-black-light);
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    color: var(--term-cyan);
+    border: 1px solid var(--term-green-dark);
+}
+
+.message-table .message-subject {
+    font-weight: 500;
+    color: var(--term-green);
+    line-height: 1.4;
+}
+
+.message-table .message-date {
+    font-size: 0.875rem;
+    color: var(--term-green-dim);
+    white-space: nowrap;
+}
+
+.message-table .echoarea-tag {
+    background-color: var(--term-amber);
+    color: var(--term-black);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-shadow: none;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 768px) {
+    .message-table thead th {
+        font-size: 0.75rem;
+        padding: 8px 4px;
+    }
+
+    .message-table tbody td {
+        padding: 8px 4px;
+        font-size: 0.875rem;
+    }
+
+    .message-table .message-subject {
+        font-size: 0.875rem;
+    }
+}
+
+.echoarea-tag {
+    background-color: var(--term-green);
+    color: var(--term-black);
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    text-shadow: none;
+}
+
+.netmail-indicator {
+    background-color: var(--term-red);
+    color: var(--term-black);
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 10px;
+    text-shadow: none;
+}
+
+.compose-form {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-green);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 0 15px rgba(51, 255, 51, 0.2);
+}
+
+.compose-form .form-label {
+    font-weight: 600;
+    color: var(--term-green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.compose-form textarea {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    background-color: var(--term-black);
+    color: var(--term-green);
+    border: 1px solid var(--term-green-dark);
+}
+
+.compose-form textarea:focus {
+    background-color: var(--term-black);
+    color: var(--term-green);
+    border-color: var(--term-green);
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.5);
+}
+
+/* Form controls */
+.form-control {
+    background-color: var(--term-black);
+    color: var(--term-green);
+    border: 1px solid var(--term-green-dark);
+}
+
+.form-control:focus {
+    background-color: var(--term-black);
+    color: var(--term-green);
+    border-color: var(--term-green);
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.5);
+}
+
+.form-control::placeholder {
+    color: var(--term-green-dark);
+}
+
+.form-select {
+    background-color: var(--term-black);
+    color: var(--term-green);
+    border: 1px solid var(--term-green-dark);
+}
+
+.form-select:focus {
+    background-color: var(--term-black);
+    color: var(--term-green);
+    border-color: var(--term-green);
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.5);
+}
+
+.btn-fidonet {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+    text-shadow: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.btn-fidonet:hover {
+    background-color: var(--term-green-bright);
+    border-color: var(--term-green-bright);
+    color: var(--term-black);
+    box-shadow: 0 0 15px rgba(51, 255, 51, 0.7);
+}
+
+.btn-primary {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+    text-shadow: none;
+}
+
+.btn-primary:hover {
+    background-color: var(--term-green-bright);
+    border-color: var(--term-green-bright);
+    color: var(--term-black);
+    box-shadow: 0 0 15px rgba(51, 255, 51, 0.7);
+}
+
+.btn-secondary {
+    background-color: var(--term-black-lighter);
+    border-color: var(--term-green);
+    color: var(--term-green);
+}
+
+.btn-secondary:hover {
+    background-color: var(--term-green-dark);
+    border-color: var(--term-green);
+    color: var(--term-green-bright);
+}
+
+.btn-outline-secondary {
+    border-color: var(--term-green);
+    color: var(--term-green);
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--term-green);
+    color: var(--term-black);
+}
+
+.btn-danger {
+    background-color: var(--term-red);
+    border-color: var(--term-red);
+    color: var(--term-black);
+    text-shadow: none;
+}
+
+.btn-danger:hover {
+    background-color: #ff5555;
+    border-color: #ff5555;
+    box-shadow: 0 0 15px rgba(255, 51, 51, 0.7);
+}
+
+.btn-success {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+    text-shadow: none;
+}
+
+.btn-warning {
+    background-color: var(--term-amber);
+    border-color: var(--term-amber);
+    color: var(--term-black);
+    text-shadow: none;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-online {
+    background-color: var(--term-green);
+    box-shadow: 0 0 8px var(--term-green);
+}
+
+.status-offline {
+    background-color: var(--term-green-dark);
+}
+
+.status-error {
+    background-color: var(--term-red);
+    box-shadow: 0 0 8px var(--term-red);
+}
+
+.node-list .card-body {
+    padding: 0;
+}
+
+.node-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--term-green-dark);
+    color: var(--term-green);
+}
+
+.node-item:hover {
+    background-color: var(--term-black-light);
+}
+
+.node-item:last-child {
+    border-bottom: none;
+}
+
+.node-address {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--term-cyan);
+}
+
+.node-system {
+    font-weight: 500;
+    margin-bottom: 2px;
+    color: var(--term-green);
+}
+
+.node-sysop {
+    color: var(--term-green-dim);
+    font-size: 0.9em;
+}
+
+.footer {
+    margin-top: auto;
+    padding: 20px 0;
+    background-color: var(--term-black);
+    border-top: 1px solid var(--term-green);
+    color: var(--term-green-dim);
+}
+
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    color: var(--term-green);
+}
+
+.error-message {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-red);
+    color: var(--term-red);
+    padding: 12px;
+    border-radius: 4px;
+    margin: 10px 0;
+    text-shadow: 0 0 5px rgba(255, 51, 51, 0.5);
+}
+
+.success-message {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-green);
+    color: var(--term-green);
+    padding: 12px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+/* Kludge lines styling */
+.kludge-lines {
+    font-family: 'Courier New', monospace;
+    border-radius: 8px;
+    border: 1px solid var(--term-green-dark);
+    background-color: var(--term-black);
+}
+
+.kludge-lines pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--term-green);
+    background-color: var(--term-black);
+    line-height: 1.3;
+}
+
+.message-headers {
+    background-color: var(--term-black-light);
+    border: 1px solid var(--term-green-dark);
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.message-headers h6 {
+    color: var(--term-green);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+#toggleHeaders {
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    background-color: var(--term-black-lighter);
+    border-color: var(--term-green);
+    color: var(--term-green);
+}
+
+#toggleHeaders:hover {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+}
+
+/* Animation for kludge line toggle */
+#kludgeContainer {
+    overflow: hidden;
+    transition: height 0.3s ease;
+}
+
+/* Echo area management styles */
+.echoarea-color-selector {
+    border-radius: 4px;
+    transition: border-left 0.2s ease;
+}
+
+.color-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+    border: 1px solid var(--term-green);
+}
+
+@media (max-width: 768px) {
+    .message-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .message-date {
+        margin-top: 4px;
+    }
+
+    .compose-form {
+        padding: 15px;
+    }
+
+    .message-headers {
+        padding: 10px;
+    }
+
+    .kludge-lines pre {
+        font-size: 0.8rem;
+    }
+
+    #toggleHeaders {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+}
+
+/* Mobile-friendly message formatting */
+.message-formatted {
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    color: var(--term-green);
+}
+
+.message-paragraph {
+    margin-bottom: 0.75rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+.message-line {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    display: inline;
+}
+
+.message-quote {
+    border-left: 3px solid var(--term-green);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    background-color: var(--term-black-light);
+    border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.quote-line {
+    margin-bottom: 0.25rem;
+    color: var(--term-green-dim);
+    font-style: italic;
+}
+
+.message-signature {
+    color: var(--term-green-dim);
+    font-size: 0.9em;
+    margin-bottom: 0.5rem;
+}
+
+.message-signature-separator {
+    color: var(--term-green-dim);
+    margin: 1rem 0 0.5rem 0;
+    font-family: monospace;
+}
+
+.message-preformatted {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-green-dark);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-x: auto;
+    color: var(--term-green);
+}
+
+/* Legacy message text styles */
+.message-text pre {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-green-dark);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 16px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-x: auto;
+    color: var(--term-green);
+}
+
+@media (max-width: 768px) {
+    .message-formatted {
+        font-size: 16px;
+        line-height: 1.5;
+    }
+
+    .message-paragraph {
+        margin-bottom: 1rem;
+    }
+
+    .message-quote {
+        padding-left: 0.75rem;
+        margin: 0.75rem 0;
+    }
+
+    .message-preformatted {
+        font-size: 14px;
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+    }
+
+    .message-text pre {
+        font-size: 14px;
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+    }
+
+    .quote-line {
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 576px) {
+    .message-formatted {
+        font-size: 16px;
+        line-height: 1.4;
+    }
+
+    .message-preformatted {
+        font-size: 13px;
+        padding: 0.5rem;
+    }
+
+    .message-text pre {
+        font-size: 13px;
+        padding: 0.5rem;
+    }
+
+    .message-quote {
+        padding-left: 0.5rem;
+        border-left-width: 2px;
+    }
+}
+
+/* Bootstrap overrides for dark terminal theme */
+.table {
+    color: var(--term-green);
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: var(--term-black-light);
+    color: var(--term-green);
+}
+
+.modal-content {
+    background-color: var(--term-black);
+    border: 1px solid var(--term-green);
+    color: var(--term-green);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--term-green-dark);
+}
+
+.modal-footer {
+    border-top: 1px solid var(--term-green-dark);
+}
+
+.modal-title {
+    color: var(--term-green);
+}
+
+.btn-close {
+    filter: invert(1) sepia(1) saturate(5) hue-rotate(80deg);
+}
+
+.alert-info {
+    background-color: var(--term-black);
+    border-color: var(--term-cyan);
+    color: var(--term-cyan);
+}
+
+.alert-warning {
+    background-color: var(--term-black);
+    border-color: var(--term-amber);
+    color: var(--term-amber);
+}
+
+.alert-danger {
+    background-color: var(--term-black);
+    border-color: var(--term-red);
+    color: var(--term-red);
+}
+
+.alert-success {
+    background-color: var(--term-black);
+    border-color: var(--term-green);
+    color: var(--term-green);
+}
+
+.badge {
+    text-shadow: none;
+}
+
+.badge.bg-primary {
+    background-color: var(--term-green) !important;
+    color: var(--term-black);
+}
+
+.badge.bg-secondary {
+    background-color: var(--term-green-dim) !important;
+    color: var(--term-black);
+}
+
+.badge.bg-success {
+    background-color: var(--term-green) !important;
+    color: var(--term-black);
+}
+
+.badge.bg-warning {
+    background-color: var(--term-amber) !important;
+    color: var(--term-black);
+}
+
+.badge.bg-danger {
+    background-color: var(--term-red) !important;
+    color: var(--term-black);
+}
+
+.badge.bg-info {
+    background-color: var(--term-cyan) !important;
+    color: var(--term-black);
+}
+
+.text-muted {
+    color: var(--term-green-dim) !important;
+}
+
+.text-primary {
+    color: var(--term-green) !important;
+}
+
+.text-danger {
+    color: var(--term-red) !important;
+}
+
+.text-success {
+    color: var(--term-green) !important;
+}
+
+.text-warning {
+    color: var(--term-amber) !important;
+}
+
+.bg-light {
+    background-color: var(--term-black-light) !important;
+}
+
+.bg-dark {
+    background-color: var(--term-black) !important;
+}
+
+.border {
+    border-color: var(--term-green-dark) !important;
+}
+
+/* Pagination */
+.page-link {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dark);
+    color: var(--term-green);
+}
+
+.page-link:hover {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+}
+
+.page-item.active .page-link {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+}
+
+.page-item.disabled .page-link {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dark);
+    color: var(--term-green-dark);
+}
+
+/* List groups */
+.list-group-item {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dark);
+    color: var(--term-green);
+}
+
+.list-group-item:hover {
+    background-color: var(--term-black-light);
+}
+
+.list-group-item.active {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+}
+
+/* Breadcrumb */
+.breadcrumb {
+    background-color: var(--term-black-light);
+}
+
+.breadcrumb-item a {
+    color: var(--term-green);
+}
+
+.breadcrumb-item.active {
+    color: var(--term-green-dim);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--term-green-dark);
+}
+
+/* Cursor blink effect for inputs */
+input:focus, textarea:focus {
+    caret-color: var(--term-green);
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--term-black);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--term-green-dark);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--term-green);
+}
+
+/* Selection color */
+::selection {
+    background-color: var(--term-green);
+    color: var(--term-black);
+}
+
+/* Bootstrap table overrides */
+.table-light {
+    background-color: var(--term-black-lighter) !important;
+    color: var(--term-green) !important;
+}
+
+.table-light > td,
+.table-light > th {
+    background-color: var(--term-black-lighter) !important;
+    color: var(--term-green) !important;
+}
+
+.table > :not(caption) > * > * {
+    background-color: var(--term-black);
+    color: var(--term-green);
+}
+
+.table-responsive {
+    background-color: var(--term-black);
+}
+
+/* Message row styling for green terminal theme */
+.message-row.table-light {
+    background-color: var(--term-black-lighter) !important;
+}
+
+.message-row.table-light td {
+    background-color: var(--term-black-lighter) !important;
+    color: var(--term-green-bright) !important;
+}
+
+.message-row.table-light strong {
+    color: var(--term-green-bright) !important;
+}
+
+.message-row:not(.table-light) {
+    opacity: 0.85;
+}
+
+.message-row:hover {
+    background-color: var(--term-black-light) !important;
+    opacity: 1 !important;
+}
+
+.message-row:hover td {
+    background-color: var(--term-black-light) !important;
+}
+
+/* Threading styles for green terminal */
+.thread-root {
+    border-left: 3px solid var(--term-green) !important;
+    background-color: rgba(51, 255, 51, 0.1) !important;
+}
+
+.thread-reply {
+    position: relative;
+}
+
+.thread-level-1 {
+    border-left: 2px solid var(--term-green-dim) !important;
+    background-color: rgba(34, 170, 34, 0.05) !important;
+}
+
+.thread-level-2 {
+    border-left: 2px solid var(--term-cyan) !important;
+    background-color: rgba(51, 255, 255, 0.05) !important;
+}
+
+.thread-level-3 {
+    border-left: 2px solid var(--term-amber) !important;
+    background-color: rgba(255, 170, 0, 0.05) !important;
+}
+
+.thread-level-4, .thread-level-5, .thread-level-6, .thread-level-7, .thread-level-8, .thread-level-9 {
+    border-left: 2px solid var(--term-red) !important;
+    background-color: rgba(255, 51, 51, 0.05) !important;
+}
+
+.thread-reply::before {
+    background-color: var(--term-green-dark) !important;
+}
+
+.thread-root:hover {
+    background-color: rgba(51, 255, 51, 0.15) !important;
+}
+
+.thread-reply:hover {
+    background-color: rgba(34, 170, 34, 0.1) !important;
+}
+
+/* Search highlight for green terminal */
+.search-highlight {
+    background-color: var(--term-amber) !important;
+    color: var(--term-black) !important;
+    text-shadow: none !important;
+}
+
+/* Address book entry styling */
+.address-book-entry {
+    background-color: var(--term-black) !important;
+    border-color: var(--term-green-dark) !important;
+}
+
+.address-book-entry:hover {
+    background-color: var(--term-black-light) !important;
+    border-color: var(--term-green) !important;
+}
+
+/* Accordion for green terminal */
+.accordion {
+    background-color: var(--term-black);
+}
+
+.accordion-item {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dark);
+}
+
+.accordion-button {
+    background-color: var(--term-black);
+    color: var(--term-green);
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--term-black-light);
+    color: var(--term-green-bright);
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(51, 255, 51, 0.25);
+    border-color: var(--term-green);
+}
+
+.accordion-button::after {
+    filter: invert(1) sepia(1) saturate(5) hue-rotate(80deg);
+}
+
+.accordion-body {
+    background-color: var(--term-black);
+    color: var(--term-green);
+}
+
+/* Nav tabs for green terminal */
+.nav-tabs {
+    border-bottom-color: var(--term-green-dark);
+}
+
+.nav-tabs .nav-link {
+    color: var(--term-green);
+    border-color: transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: var(--term-green-dark) var(--term-green-dark) var(--term-green-dark);
+    color: var(--term-green-bright);
+}
+
+.nav-tabs .nav-link.active {
+    background-color: var(--term-black);
+    border-color: var(--term-green) var(--term-green) var(--term-black);
+    color: var(--term-green-bright);
+}
+
+.card-header-tabs {
+    border-bottom-color: var(--term-green-dark);
+}
+
+/* Card footer for green terminal */
+.card-footer {
+    background-color: var(--term-black-light);
+    border-top-color: var(--term-green-dark);
+}
+
+/* Spinner for green terminal */
+.fa-spinner {
+    color: var(--term-green);
+}
+
+/* Input group for green terminal */
+.input-group-text {
+    background-color: var(--term-black-light);
+    border-color: var(--term-green-dark);
+    color: var(--term-green);
+}
+
+/* Definition list styling */
+dt {
+    color: var(--term-green);
+}
+
+dd {
+    color: var(--term-green-dim);
+}
+
+/* Small/muted text overrides */
+small, .small {
+    color: var(--term-green-dim) !important;
+}
+
+.font-monospace {
+    color: var(--term-cyan);
+}
+
+/* Ensure all text in tables is green themed */
+.message-table td,
+.message-table th {
+    color: var(--term-green);
+}
+
+.message-table .text-muted {
+    color: var(--term-green-dim) !important;
+}
+
+.message-table strong {
+    color: var(--term-green-bright);
+}
+
+/* Ensure proper background on card bodies */
+.card .card-body {
+    background-color: var(--term-black) !important;
+}
+
+/* Override any white backgrounds */
+.bg-white {
+    background-color: var(--term-black) !important;
+}
+
+/* Ensure echoarea list has proper background */
+#echoareasList,
+#mobileEchoareasList {
+    background-color: var(--term-black);
+}
+
+#echoareasList .list-group-item,
+#mobileEchoareasList .list-group-item {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dark);
+    color: var(--term-green);
+}
+
+#echoareasList .list-group-item:hover,
+#mobileEchoareasList .list-group-item:hover {
+    background-color: var(--term-black-light);
+}
+
+#echoareasList .list-group-item.active,
+#mobileEchoareasList .list-group-item.active {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+    color: var(--term-black);
+}
+
+/* Override table tbody background */
+.table tbody {
+    background-color: var(--term-black);
+}
+
+tbody, td, tfoot, th, thead, tr {
+    border-color: var(--term-green-dark);
+}
