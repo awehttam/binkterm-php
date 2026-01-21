@@ -410,6 +410,46 @@ php scripts/echomail_maintenance.php --echo=SYNCDATA --max-age=90 --max-count=20
 
 The maintenance script provides flexible echomail cleanup with age-based deletion, count-based limits, dry-run preview mode, and per-echo or bulk processing. See [scripts/README_echomail_maintenance.md](scripts/README_echomail_maintenance.md) for detailed documentation, cron job examples, and best practices.
 
+### User Management Tool
+Manage user accounts from the command line:
+
+```bash
+# List all active non-admin users
+php scripts/user-manager.php list
+
+# List all users including admins and inactive
+php scripts/user-manager.php list --show-admin --show-inactive
+
+# Show detailed information for a user
+php scripts/user-manager.php show username
+
+# Change a user's password (interactive)
+php scripts/user-manager.php passwd username
+
+# Create a new user (interactive)
+php scripts/user-manager.php create alice --real-name="Alice Smith" --email=alice@example.com
+
+# Create an admin user with password (non-interactive)
+php scripts/user-manager.php create sysop --admin --password=secret123
+
+# Delete a user (requires confirmation)
+php scripts/user-manager.php delete testuser --confirm
+
+# Activate or deactivate user accounts
+php scripts/user-manager.php activate username
+php scripts/user-manager.php deactivate username
+```
+
+Options:
+- `--password=<pwd>`: Set password non-interactively
+- `--real-name=<name>`: Set real name for new users
+- `--email=<email>`: Set email for new users
+- `--admin`: Create user as administrator
+- `--show-admin`: Include admins in user list
+- `--show-inactive`: Include inactive users in list
+- `--confirm`: Confirm destructive operations
+- `--non-interactive`: Don't prompt for input
+
 ### Binkp Server Management
 
 Polling is supported on all platforms, except for Windows where binkp_server will not operate.
