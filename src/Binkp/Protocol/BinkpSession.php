@@ -63,29 +63,50 @@ class BinkpSession
     public function handshake()
     {
         try {
-            if ($this->isOriginator) {
-                $this->sendAddress();
-                $this->state = self::STATE_ADDR_SENT;
-            }
-            
+            // Both sides send system info and address at start of session
+            $this->sendSystemInfo();
+            $this->sendAddress();
+            $this->state = self::STATE_ADDR_SENT;
+
             while ($this->state < self::STATE_AUTHENTICATED) {
                 $frame = BinkpFrame::parseFromSocket($this->socket);
                 if (!$frame) {
                     throw new \Exception('Failed to read frame during handshake');
                 }
-                
+
                 $this->log("Received: {$frame}");
                 $this->processHandshakeFrame($frame);
             }
-            
+
             $this->log('Handshake completed successfully');
             return true;
-            
+
         } catch (\Exception $e) {
             $this->log("Handshake failed: " . $e->getMessage(), 'ERROR');
             $this->sendError($e->getMessage());
             return false;
         }
+    }
+
+    private function sendSystemInfo()
+    {
+        $systemName = $this->config->getSystemName();
+        $sysopName = $this->config->getSysopName();
+        $location = $this->config->getLocation();
+
+        // Send M_NUL frames with system information
+        $this->sendNul("SYS {$systemName}");
+        $this->sendNul("ZYZ {$sysopName}");
+        $this->sendNul("LOC {$location}");
+        $this->sendNul("VER BinktermPHP/1.0 binkp/1.0");
+        $this->sendNul("TIME " . gmdate('D, d M Y H:i:s') . " UTC");
+    }
+
+    private function sendNul($data)
+    {
+        $frame = BinkpFrame::createCommand(BinkpFrame::M_NUL, $data);
+        $frame->writeToSocket($this->socket);
+        $this->log("Sent NUL: {$data}");
     }
     
     public function processSession()
