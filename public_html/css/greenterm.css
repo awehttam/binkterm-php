@@ -133,6 +133,23 @@ a:hover {
     color: var(--term-green);
 }
 
+/* Recent updates items */
+.update-item {
+    background-color: var(--term-black-light);
+    border: 1px solid var(--term-green-dark);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.update-item h6 {
+    color: var(--term-green);
+}
+
+.update-item p {
+    color: var(--term-green-dim);
+}
+
 .message-item {
     border-bottom: 1px solid var(--term-green-dark);
     padding: 12px 0;

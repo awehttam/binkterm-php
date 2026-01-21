@@ -161,6 +161,23 @@ a:hover {
     color: var(--text-color);
 }
 
+/* Recent updates items */
+.update-item {
+    background-color: var(--cyber-dark-light);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.update-item h6 {
+    color: var(--text-color);
+}
+
+.update-item p {
+    color: var(--text-color-muted);
+}
+
 .message-item {
     border-bottom: 1px solid var(--cyber-purple-dim);
     padding: 12px 0;

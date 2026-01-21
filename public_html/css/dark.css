@@ -57,6 +57,23 @@ body {
     background-color: var(--bg-card);
 }
 
+/* Recent updates items */
+.update-item {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.update-item h6 {
+    color: var(--text-color);
+}
+
+.update-item p {
+    color: var(--text-color-muted);
+}
+
 /* Message items */
 .message-item {
     border-bottom: 1px solid var(--border-color);
