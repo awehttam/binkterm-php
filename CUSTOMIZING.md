@@ -5,6 +5,7 @@ This document describes the current customization options available in BinktermP
 ## Table of Contents
 
 1. [Current Customization Options](#current-customization-options)
+   - [Theme Selector (User Preference)](#theme-selector-user-preference)
 2. [Customizing the Color Scheme](#customizing-the-color-scheme)
 3. [Customizing the Menu](#customizing-the-menu)
 4. [Adding New Pages](#adding-new-pages)
@@ -91,11 +92,55 @@ BinktermPHP includes the following themes:
 - `/css/style.css` - Default light theme
 - `/css/dark.css` - Dark theme with dark backgrounds and light text
 
-To enable the dark theme:
+To enable the dark theme as the system default:
 
 ```env
 STYLESHEET=/css/dark.css
 ```
+
+### Theme Selector (User Preference)
+
+Users can select their preferred theme from the Settings page. Available themes are configured in `config/themes.json`.
+
+**Setup:**
+
+```bash
+cp config/themes.json.example config/themes.json
+```
+
+**Configuration format:**
+
+```json
+{
+    "Regular": "/css/style.css",
+    "Dark": "/css/dark.css"
+}
+```
+
+Each entry maps a display name to a stylesheet path. The display name appears in the Settings dropdown, and the path should point to a CSS file in `public_html/`.
+
+**Adding custom themes:**
+
+1. Create your stylesheet in `public_html/css/` (e.g., `mytheme.css`)
+2. Add it to `config/themes.json`:
+
+```json
+{
+    "Regular": "/css/style.css",
+    "Dark": "/css/dark.css",
+    "My Custom Theme": "/css/mytheme.css"
+}
+```
+
+3. Users can now select "My Custom Theme" from their Settings page
+
+**How it works:**
+
+- Theme selection is stored per-user in the database
+- Changes take effect immediately when selected (live preview)
+- Users must click "Save Settings" to persist their choice
+- Anonymous users and users without a theme preference use the `STYLESHEET` environment variable
+- If `config/themes.json` doesn't exist, defaults to Regular and Dark themes
 
 ---
 
@@ -339,6 +384,7 @@ These variables are automatically available in **all templates**:
 | `app_full_version` | String | Full version string (e.g., `BinktermPHP v1.4.2`) |
 | `terminal_enabled` | Boolean | Whether terminal feature is enabled |
 | `stylesheet` | String | Path to the active stylesheet |
+| `available_themes` | Array | Theme name => stylesheet path mapping from config/themes.json |
 
 ### User Object Properties
 

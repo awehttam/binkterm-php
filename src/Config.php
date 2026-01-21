@@ -126,4 +126,40 @@ class Config
     {
         return self::env('STYLESHEET', self::DEFAULT_STYLESHEET);
     }
+
+    /**
+     * Cache for loaded themes
+     */
+    private static $themes = null;
+
+    /**
+     * Get available themes from config file
+     * @return array Theme name => stylesheet path mapping
+     */
+    public static function getThemes(): array
+    {
+        if (self::$themes !== null) {
+            return self::$themes;
+        }
+
+        $themesFile = __DIR__ . '/../config/themes.json';
+
+        if (file_exists($themesFile)) {
+            $content = file_get_contents($themesFile);
+            $themes = json_decode($content, true);
+
+            if (is_array($themes) && !empty($themes)) {
+                self::$themes = $themes;
+                return self::$themes;
+            }
+        }
+
+        // Default themes if file missing or invalid
+        self::$themes = [
+            'Regular' => '/css/style.css',
+            'Dark' => '/css/dark.css'
+        ];
+
+        return self::$themes;
+    }
 }

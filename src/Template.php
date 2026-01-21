@@ -35,7 +35,7 @@ class Template
     private function addGlobalVariables()
     {
         $currentUser = $this->auth->getCurrentUser();
-        
+
         // Get dynamic system info from BinkP config
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -49,23 +49,42 @@ class Template
             $sysopName = Config::SYSOP_NAME;
             $fidonetOrigin = Config::FIDONET_ORIGIN;
         }
-        
+
         $this->twig->addGlobal('current_user', $currentUser);
         $this->twig->addGlobal('system_name', $systemName);
         $this->twig->addGlobal('sysop_name', $sysopName);
         $this->twig->addGlobal('fidonet_origin', $fidonetOrigin);
         $this->twig->addGlobal('system_address', $fidonetOrigin);
-        
+
         // Add version information
         $this->twig->addGlobal('app_version', Version::getVersion());
         $this->twig->addGlobal('app_name', Version::getAppName());
         $this->twig->addGlobal('app_full_version', Version::getFullVersion());
-        
+
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
 
-        // Add stylesheet configuration
-        $this->twig->addGlobal('stylesheet', Config::getStylesheet());
+        // Add available themes
+        $availableThemes = Config::getThemes();
+        $this->twig->addGlobal('available_themes', $availableThemes);
+
+        // Determine stylesheet to use - check user's theme preference if logged in
+        $stylesheet = Config::getStylesheet();
+        if ($currentUser && !empty($currentUser['user_id'])) {
+            try {
+                $handler = new MessageHandler();
+                $settings = $handler->getUserSettings($currentUser['user_id']);
+                if (!empty($settings['theme'])) {
+                    // Validate that the user's theme is in the available themes
+                    if (in_array($settings['theme'], $availableThemes, true)) {
+                        $stylesheet = $settings['theme'];
+                    }
+                }
+            } catch (\Exception $e) {
+                // Fall back to default stylesheet on error
+            }
+        }
+        $this->twig->addGlobal('stylesheet', $stylesheet);
     }
 
     public function render($template, $variables = [])

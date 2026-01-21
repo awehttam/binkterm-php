@@ -46,6 +46,16 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="theme" class="form-label">Theme</label>
+                        <select class="form-select" id="theme" name="theme">
+                            {% for name, path in available_themes %}
+                                <option value="{{ path }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Choose your preferred color scheme</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="fontFamily" class="form-label">Message Font</label>
                         <select class="form-select" id="fontFamily" name="font_family">
                             <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
@@ -254,22 +264,29 @@
 $(document).ready(function() {
     loadSettings();
     loadSystemStatus();
+
+    // Apply theme immediately when changed
+    $('#theme').on('change', function() {
+        const newTheme = $(this).val();
+        $('#theme-stylesheet').attr('href', newTheme + '?v=' + Date.now());
+    });
 });
 
 function loadSettings() {
     $.get('/api/user/settings')
         .done(function(response) {
             const data = response.success ? response.settings : response;
-            
+
             if (data.messages_per_page) $('#messagesPerPage').val(data.messages_per_page);
             if (data.timezone) $('#timezone').val(data.timezone);
+            if (data.theme) $('#theme').val(data.theme);
             if (data.font_family) $('#fontFamily').val(data.font_family);
             if (data.font_size) $('#fontSize').val(data.font_size);
-            
+
             // Threading preferences
             $('#threadedView').prop('checked', data.threaded_view === true);
             $('#netmailThreadedView').prop('checked', data.netmail_threaded_view === true);
-            
+
             // Commented out settings (not yet implemented)
             $('#showOrigin').prop('checked', data.show_origin !== false);
             $('#showTearline').prop('checked', data.show_tearline !== false);
@@ -296,6 +313,7 @@ function saveSettings() {
     const settings = {
         messages_per_page: parseInt($('#messagesPerPage').val()),
         timezone: $('#timezone').val(),
+        theme: $('#theme').val(),
         font_family: $('#fontFamily').val(),
         font_size: parseInt($('#fontSize').val()),
         threaded_view: $('#threadedView').is(':checked'),
