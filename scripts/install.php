@@ -137,8 +137,8 @@ class Installer
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         
         $stmt = $this->db->prepare("
-            INSERT INTO users (username, password_hash, real_name, email, is_admin, is_active) 
-            VALUES (?, ?, ?, ?, 1, 1)
+            INSERT INTO users (username, password_hash, real_name, email, is_admin, is_active)
+            VALUES (?, ?, ?, ?, TRUE, TRUE)
         ");
         
         $stmt->execute([$username, $passwordHash, $realName, $email ?: null]);
