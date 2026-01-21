@@ -1,0 +1,1322 @@
+/* BinkTest Cyberpunk Theme - Neon Future Aesthetic */
+
+:root {
+    --cyber-pink: #ff2a6d;
+    --cyber-pink-dim: #cc2057;
+    --cyber-pink-bright: #ff5c8d;
+    --cyber-cyan: #05d9e8;
+    --cyber-cyan-dim: #04a9b5;
+    --cyber-cyan-bright: #6eeef8;
+    --cyber-yellow: #f9f002;
+    --cyber-purple: #9d4edd;
+    --cyber-purple-dim: #7b2cbf;
+    --cyber-blue: #005678;
+    --cyber-dark: #0d0221;
+    --cyber-dark-light: #1a0a2e;
+    --cyber-dark-lighter: #2d1b4e;
+    --cyber-black: #05010d;
+    --text-color: #e0e0e0;
+    --text-color-muted: #8892b0;
+    --message-bg: #0d0221;
+    --message-quote-bg: #1a0a2e;
+    --message-quote-border: #ff2a6d;
+    --border-color: #9d4edd;
+    --kludge-bg: #0d0221;
+    --kludge-text: #05d9e8;
+}
+
+/* Neon glow animation */
+@keyframes neonPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
+}
+
+@keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
+}
+
+body {
+    font-family: 'Rajdhani', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, var(--cyber-black) 0%, var(--cyber-dark) 50%, var(--cyber-dark-light) 100%);
+    background-attachment: fixed;
+    color: var(--text-color);
+    min-height: 100vh;
+}
+
+/* Grid overlay effect */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(5, 217, 232, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(5, 217, 232, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    z-index: 9998;
+}
+
+a {
+    color: var(--cyber-cyan);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+a:hover {
+    color: var(--cyber-pink);
+    text-shadow: 0 0 10px var(--cyber-pink), 0 0 20px var(--cyber-pink);
+}
+
+.navbar {
+    background: linear-gradient(90deg, var(--cyber-dark) 0%, var(--cyber-dark-light) 50%, var(--cyber-dark) 100%) !important;
+    border-bottom: 2px solid var(--cyber-pink);
+    box-shadow: 0 0 20px rgba(255, 42, 109, 0.5), inset 0 -1px 0 var(--cyber-cyan);
+}
+
+.navbar-brand {
+    font-weight: bold;
+    color: var(--cyber-cyan) !important;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-shadow: 0 0 10px var(--cyber-cyan), 0 0 20px var(--cyber-cyan);
+}
+
+.navbar-brand i {
+    margin-right: 8px;
+    color: var(--cyber-pink);
+}
+
+.nav-link {
+    color: var(--text-color) !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+    color: var(--cyber-cyan) !important;
+    text-shadow: 0 0 10px var(--cyber-cyan);
+}
+
+.nav-link.active {
+    color: var(--cyber-pink) !important;
+    text-shadow: 0 0 10px var(--cyber-pink);
+}
+
+.dropdown-menu {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-purple);
+    box-shadow: 0 0 20px rgba(157, 78, 221, 0.4);
+}
+
+.dropdown-item {
+    color: var(--text-color);
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
+    color: white;
+}
+
+.card {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-purple);
+    box-shadow: 0 0 15px rgba(157, 78, 221, 0.3), inset 0 0 30px rgba(0, 0, 0, 0.5);
+    margin-bottom: 1rem;
+    border-radius: 0;
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-cyan), var(--cyber-pink));
+}
+
+.card-header {
+    background: linear-gradient(180deg, var(--cyber-dark-light) 0%, var(--cyber-dark) 100%);
+    border-bottom: 1px solid var(--cyber-purple);
+    font-weight: 600;
+    color: var(--cyber-cyan);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    position: relative;
+}
+
+.card-body {
+    background-color: var(--cyber-dark);
+    color: var(--text-color);
+}
+
+.message-item {
+    border-bottom: 1px solid var(--cyber-purple-dim);
+    padding: 12px 0;
+    transition: all 0.3s ease;
+}
+
+.message-item:hover {
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.1), rgba(5, 217, 232, 0.1));
+    border-left: 3px solid var(--cyber-pink);
+    padding-left: 10px;
+}
+
+.message-item:last-child {
+    border-bottom: none;
+}
+
+.message-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.message-from {
+    font-weight: 600;
+    color: var(--cyber-cyan);
+    text-shadow: 0 0 5px rgba(5, 217, 232, 0.5);
+}
+
+.message-date {
+    font-size: 0.875em;
+    color: var(--text-color-muted);
+}
+
+.message-subject {
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 2px;
+}
+
+.message-origin {
+    font-size: 0.8em;
+    color: var(--text-color-muted);
+    font-style: italic;
+}
+
+.fidonet-address {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: var(--cyber-dark-light);
+    padding: 2px 6px;
+    border-radius: 0;
+    border: 1px solid var(--cyber-cyan-dim);
+    color: var(--cyber-cyan);
+}
+
+/* Table-based message list styles */
+.message-table {
+    border: 1px solid var(--cyber-purple);
+}
+
+.message-table thead th {
+    background: linear-gradient(180deg, var(--cyber-purple) 0%, var(--cyber-purple-dim) 100%);
+    color: white;
+    border: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 1px;
+    padding: 12px 8px;
+    vertical-align: middle;
+}
+
+.message-table tbody td {
+    border-top: 1px solid var(--cyber-purple-dim);
+    padding: 12px 8px;
+    vertical-align: top;
+    color: var(--text-color);
+    background-color: var(--cyber-dark);
+}
+
+.message-row {
+    transition: all 0.3s ease;
+}
+
+.message-row:hover {
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.15), rgba(5, 217, 232, 0.15)) !important;
+}
+
+/* Override Bootstrap table-hover */
+.table-hover > tbody > tr:hover > * {
+    color: var(--cyber-cyan) !important;
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.15), rgba(5, 217, 232, 0.15)) !important;
+}
+
+.table-hover > tbody > tr:hover {
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.15), rgba(5, 217, 232, 0.15)) !important;
+}
+
+.message-table .message-from {
+    font-weight: 600;
+    color: var(--cyber-cyan);
+}
+
+.message-table .message-address {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    background-color: var(--cyber-dark-light);
+    padding: 2px 6px;
+    border-radius: 0;
+    display: inline-block;
+    color: var(--cyber-yellow);
+    border: 1px solid var(--cyber-purple-dim);
+}
+
+.message-table .message-subject {
+    font-weight: 500;
+    color: var(--text-color);
+    line-height: 1.4;
+}
+
+.message-table .message-date {
+    font-size: 0.875rem;
+    color: var(--text-color-muted);
+    white-space: nowrap;
+}
+
+.message-table .echoarea-tag {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
+    color: white;
+    padding: 2px 6px;
+    border-radius: 0;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 768px) {
+    .message-table thead th {
+        font-size: 0.75rem;
+        padding: 8px 4px;
+    }
+
+    .message-table tbody td {
+        padding: 8px 4px;
+        font-size: 0.875rem;
+    }
+
+    .message-table .message-subject {
+        font-size: 0.875rem;
+    }
+}
+
+.echoarea-tag {
+    background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-blue));
+    color: white;
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 0;
+    text-transform: uppercase;
+}
+
+.netmail-indicator {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
+    color: white;
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 0;
+}
+
+.compose-form {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-purple);
+    border-radius: 0;
+    padding: 20px;
+    box-shadow: 0 0 20px rgba(157, 78, 221, 0.3);
+}
+
+.compose-form .form-label {
+    font-weight: 600;
+    color: var(--cyber-cyan);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.compose-form textarea {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+}
+
+.compose-form textarea:focus {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border-color: var(--cyber-cyan);
+    box-shadow: 0 0 15px rgba(5, 217, 232, 0.5);
+}
+
+/* Form controls */
+.form-control {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+}
+
+.form-control:focus {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border-color: var(--cyber-cyan);
+    box-shadow: 0 0 15px rgba(5, 217, 232, 0.5);
+}
+
+.form-control::placeholder {
+    color: var(--text-color-muted);
+}
+
+.form-select {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+}
+
+.form-select:focus {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+    border-color: var(--cyber-cyan);
+    box-shadow: 0 0 15px rgba(5, 217, 232, 0.5);
+}
+
+.btn-fidonet {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
+    border: none;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    border-radius: 0;
+    transition: all 0.3s ease;
+}
+
+.btn-fidonet:hover {
+    background: linear-gradient(90deg, var(--cyber-pink-bright), var(--cyber-purple));
+    color: white;
+    box-shadow: 0 0 20px rgba(255, 42, 109, 0.7);
+    transform: translateY(-2px);
+}
+
+.btn-primary {
+    background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-blue));
+    border: none;
+    color: white;
+    border-radius: 0;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(90deg, var(--cyber-cyan-bright), var(--cyber-cyan));
+    color: white;
+    box-shadow: 0 0 20px rgba(5, 217, 232, 0.7);
+}
+
+.btn-secondary {
+    background-color: var(--cyber-dark-lighter);
+    border: 1px solid var(--cyber-purple);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+.btn-secondary:hover {
+    background-color: var(--cyber-purple-dim);
+    border-color: var(--cyber-purple);
+    color: white;
+}
+
+.btn-outline-secondary {
+    border: 1px solid var(--cyber-purple);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+.btn-outline-secondary:hover {
+    background: linear-gradient(90deg, var(--cyber-purple-dim), var(--cyber-purple));
+    color: white;
+}
+
+.btn-outline-primary {
+    border: 1px solid var(--cyber-cyan);
+    color: var(--cyber-cyan);
+    border-radius: 0;
+}
+
+.btn-outline-primary:hover {
+    background: linear-gradient(90deg, var(--cyber-cyan-dim), var(--cyber-cyan));
+    color: var(--cyber-dark);
+}
+
+.btn-danger {
+    background: linear-gradient(90deg, #dc3545, #a71d2a);
+    border: none;
+    color: white;
+    border-radius: 0;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(90deg, #e35d6a, #dc3545);
+    box-shadow: 0 0 15px rgba(220, 53, 69, 0.7);
+}
+
+.btn-success {
+    background: linear-gradient(90deg, var(--cyber-cyan), #00b894);
+    border: none;
+    color: var(--cyber-dark);
+    border-radius: 0;
+}
+
+.btn-warning {
+    background: linear-gradient(90deg, var(--cyber-yellow), #f39c12);
+    border: none;
+    color: var(--cyber-dark);
+    border-radius: 0;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-online {
+    background-color: var(--cyber-cyan);
+    box-shadow: 0 0 10px var(--cyber-cyan);
+    animation: neonPulse 2s infinite;
+}
+
+.status-offline {
+    background-color: var(--text-color-muted);
+}
+
+.status-error {
+    background-color: var(--cyber-pink);
+    box-shadow: 0 0 10px var(--cyber-pink);
+}
+
+.node-list .card-body {
+    padding: 0;
+}
+
+.node-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--cyber-purple-dim);
+    color: var(--text-color);
+    transition: all 0.3s ease;
+}
+
+.node-item:hover {
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.1), transparent);
+    border-left: 3px solid var(--cyber-pink);
+}
+
+.node-item:last-child {
+    border-bottom: none;
+}
+
+.node-address {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--cyber-yellow);
+    text-shadow: 0 0 5px rgba(249, 240, 2, 0.5);
+}
+
+.node-system {
+    font-weight: 500;
+    margin-bottom: 2px;
+    color: var(--text-color);
+}
+
+.node-sysop {
+    color: var(--text-color-muted);
+    font-size: 0.9em;
+}
+
+.footer {
+    margin-top: auto;
+    padding: 20px 0;
+    background: linear-gradient(180deg, var(--cyber-dark) 0%, var(--cyber-black) 100%);
+    border-top: 2px solid var(--cyber-purple);
+    color: var(--text-color-muted);
+}
+
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    color: var(--cyber-cyan);
+}
+
+.error-message {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-pink);
+    color: var(--cyber-pink);
+    padding: 12px;
+    border-radius: 0;
+    margin: 10px 0;
+    box-shadow: 0 0 10px rgba(255, 42, 109, 0.3);
+}
+
+.success-message {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-cyan);
+    color: var(--cyber-cyan);
+    padding: 12px;
+    border-radius: 0;
+    margin: 10px 0;
+    box-shadow: 0 0 10px rgba(5, 217, 232, 0.3);
+}
+
+/* Kludge lines styling */
+.kludge-lines {
+    font-family: 'Courier New', monospace;
+    border-radius: 0;
+    border: 1px solid var(--cyber-purple-dim);
+    background-color: var(--cyber-dark);
+}
+
+.kludge-lines pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--cyber-cyan);
+    background-color: var(--cyber-dark);
+    line-height: 1.3;
+}
+
+.message-headers {
+    background-color: var(--cyber-dark-light);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+    padding: 15px;
+}
+
+.message-headers h6 {
+    color: var(--cyber-cyan);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+#toggleHeaders {
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    background-color: var(--cyber-dark-lighter);
+    border-color: var(--cyber-purple);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+#toggleHeaders:hover {
+    background: linear-gradient(90deg, var(--cyber-purple-dim), var(--cyber-purple));
+    border-color: var(--cyber-purple);
+    color: white;
+}
+
+/* Animation for kludge line toggle */
+#kludgeContainer {
+    overflow: hidden;
+    transition: height 0.3s ease;
+}
+
+/* Echo area management styles */
+.echoarea-color-selector {
+    border-radius: 0;
+    transition: border-left 0.2s ease;
+}
+
+.color-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+    border: 1px solid var(--cyber-purple);
+}
+
+@media (max-width: 768px) {
+    .message-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .message-date {
+        margin-top: 4px;
+    }
+
+    .compose-form {
+        padding: 15px;
+    }
+
+    .message-headers {
+        padding: 10px;
+    }
+
+    .kludge-lines pre {
+        font-size: 0.8rem;
+    }
+
+    #toggleHeaders {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+}
+
+/* Mobile-friendly message formatting */
+.message-formatted {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    color: var(--text-color);
+}
+
+.message-paragraph {
+    margin-bottom: 0.75rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+.message-line {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    display: inline;
+}
+
+.message-quote {
+    border-left: 3px solid var(--cyber-pink);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    background-color: var(--cyber-dark-light);
+    border-radius: 0;
+}
+
+.quote-line {
+    margin-bottom: 0.25rem;
+    color: var(--text-color-muted);
+    font-style: italic;
+}
+
+.message-signature {
+    color: var(--text-color-muted);
+    font-size: 0.9em;
+    margin-bottom: 0.5rem;
+}
+
+.message-signature-separator {
+    color: var(--text-color-muted);
+    margin: 1rem 0 0.5rem 0;
+    font-family: monospace;
+}
+
+.message-preformatted {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+    padding: 1rem;
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-x: auto;
+    color: var(--text-color);
+}
+
+/* Legacy message text styles */
+.message-text pre {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-purple-dim);
+    border-radius: 0;
+    padding: 1rem;
+    font-family: 'Courier New', Monaco, Consolas, monospace;
+    font-size: 16px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-x: auto;
+    color: var(--text-color);
+}
+
+@media (max-width: 768px) {
+    .message-formatted {
+        font-size: 16px;
+        line-height: 1.5;
+    }
+
+    .message-paragraph {
+        margin-bottom: 1rem;
+    }
+
+    .message-quote {
+        padding-left: 0.75rem;
+        margin: 0.75rem 0;
+    }
+
+    .message-preformatted {
+        font-size: 14px;
+        padding: 0.75rem;
+    }
+
+    .message-text pre {
+        font-size: 14px;
+        padding: 0.75rem;
+    }
+
+    .quote-line {
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 576px) {
+    .message-formatted {
+        font-size: 16px;
+        line-height: 1.4;
+    }
+
+    .message-preformatted {
+        font-size: 13px;
+        padding: 0.5rem;
+    }
+
+    .message-text pre {
+        font-size: 13px;
+        padding: 0.5rem;
+    }
+
+    .message-quote {
+        padding-left: 0.5rem;
+        border-left-width: 2px;
+    }
+}
+
+/* Bootstrap overrides for cyberpunk theme */
+.table {
+    color: var(--text-color);
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: var(--cyber-dark-light);
+    color: var(--text-color);
+}
+
+.modal-content {
+    background-color: var(--cyber-dark);
+    border: 1px solid var(--cyber-purple);
+    color: var(--text-color);
+    border-radius: 0;
+    box-shadow: 0 0 30px rgba(157, 78, 221, 0.5);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--cyber-purple-dim);
+    background: linear-gradient(180deg, var(--cyber-dark-light) 0%, var(--cyber-dark) 100%);
+}
+
+.modal-footer {
+    border-top: 1px solid var(--cyber-purple-dim);
+}
+
+.modal-title {
+    color: var(--cyber-cyan);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-close {
+    filter: invert(1);
+}
+
+.alert-info {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-cyan);
+    color: var(--cyber-cyan);
+    border-radius: 0;
+}
+
+.alert-warning {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-yellow);
+    color: var(--cyber-yellow);
+    border-radius: 0;
+}
+
+.alert-danger {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-pink);
+    color: var(--cyber-pink);
+    border-radius: 0;
+}
+
+.alert-success {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-cyan);
+    color: var(--cyber-cyan);
+    border-radius: 0;
+}
+
+.badge {
+    border-radius: 0;
+}
+
+.badge.bg-primary {
+    background: linear-gradient(90deg, var(--cyber-cyan), var(--cyber-blue)) !important;
+    color: white;
+}
+
+.badge.bg-secondary {
+    background-color: var(--cyber-dark-lighter) !important;
+    color: var(--text-color);
+}
+
+.badge.bg-success {
+    background: linear-gradient(90deg, var(--cyber-cyan), #00b894) !important;
+    color: var(--cyber-dark);
+}
+
+.badge.bg-warning {
+    background: linear-gradient(90deg, var(--cyber-yellow), #f39c12) !important;
+    color: var(--cyber-dark);
+}
+
+.badge.bg-danger {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-pink-dim)) !important;
+    color: white;
+}
+
+.badge.bg-info {
+    background: linear-gradient(90deg, var(--cyber-purple), var(--cyber-purple-dim)) !important;
+    color: white;
+}
+
+.text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+.text-primary {
+    color: var(--cyber-cyan) !important;
+}
+
+.text-danger {
+    color: var(--cyber-pink) !important;
+}
+
+.text-success {
+    color: var(--cyber-cyan) !important;
+}
+
+.text-warning {
+    color: var(--cyber-yellow) !important;
+}
+
+.bg-light {
+    background-color: var(--cyber-dark-light) !important;
+}
+
+.bg-dark {
+    background-color: var(--cyber-dark) !important;
+}
+
+.border {
+    border-color: var(--cyber-purple-dim) !important;
+}
+
+/* Pagination */
+.page-link {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-purple-dim);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+.page-link:hover {
+    background: linear-gradient(90deg, var(--cyber-purple-dim), var(--cyber-purple));
+    border-color: var(--cyber-purple);
+    color: white;
+}
+
+.page-item.active .page-link {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
+    border-color: var(--cyber-pink);
+    color: white;
+}
+
+.page-item.disabled .page-link {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-dark-lighter);
+    color: var(--text-color-muted);
+}
+
+/* List groups */
+.list-group-item {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-purple-dim);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+.list-group-item:hover {
+    background-color: var(--cyber-dark-light);
+}
+
+.list-group-item.active {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
+    border-color: var(--cyber-pink);
+    color: white;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+    background-color: var(--cyber-dark-light);
+    border-radius: 0;
+}
+
+.breadcrumb-item a {
+    color: var(--cyber-cyan);
+}
+
+.breadcrumb-item.active {
+    color: var(--text-color-muted);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--cyber-purple);
+}
+
+/* Cursor styling for inputs */
+input:focus, textarea:focus {
+    caret-color: var(--cyber-cyan);
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--cyber-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--cyber-purple), var(--cyber-pink));
+    border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--cyber-pink), var(--cyber-purple));
+}
+
+/* Selection color */
+::selection {
+    background-color: var(--cyber-pink);
+    color: white;
+}
+
+/* Bootstrap table overrides */
+.table-light {
+    background-color: var(--cyber-dark-lighter) !important;
+    color: var(--text-color) !important;
+}
+
+.table-light > td,
+.table-light > th {
+    background-color: var(--cyber-dark-lighter) !important;
+    color: var(--text-color) !important;
+}
+
+.table > :not(caption) > * > * {
+    background-color: var(--cyber-dark);
+    color: var(--text-color);
+}
+
+.table-responsive {
+    background-color: var(--cyber-dark);
+}
+
+/* Message row styling for cyberpunk theme */
+.message-row.table-light {
+    background-color: var(--cyber-dark-lighter) !important;
+}
+
+.message-row.table-light td {
+    background-color: var(--cyber-dark-lighter) !important;
+    color: var(--text-color) !important;
+}
+
+.message-row.table-light strong {
+    color: var(--cyber-cyan) !important;
+}
+
+.message-row:not(.table-light) {
+    opacity: 0.85;
+}
+
+.message-row:hover td {
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.15), rgba(5, 217, 232, 0.15)) !important;
+}
+
+/* Threading styles for cyberpunk */
+.thread-root {
+    border-left: 3px solid var(--cyber-pink) !important;
+    background-color: rgba(255, 42, 109, 0.1) !important;
+}
+
+.thread-reply {
+    position: relative;
+}
+
+.thread-level-1 {
+    border-left: 2px solid var(--cyber-cyan) !important;
+    background-color: rgba(5, 217, 232, 0.05) !important;
+}
+
+.thread-level-2 {
+    border-left: 2px solid var(--cyber-purple) !important;
+    background-color: rgba(157, 78, 221, 0.05) !important;
+}
+
+.thread-level-3 {
+    border-left: 2px solid var(--cyber-yellow) !important;
+    background-color: rgba(249, 240, 2, 0.05) !important;
+}
+
+.thread-level-4, .thread-level-5, .thread-level-6, .thread-level-7, .thread-level-8, .thread-level-9 {
+    border-left: 2px solid var(--cyber-pink-dim) !important;
+    background-color: rgba(204, 32, 87, 0.05) !important;
+}
+
+.thread-reply::before {
+    background-color: var(--cyber-purple-dim) !important;
+}
+
+.thread-root:hover {
+    background-color: rgba(255, 42, 109, 0.2) !important;
+}
+
+.thread-reply:hover {
+    background-color: rgba(5, 217, 232, 0.1) !important;
+}
+
+/* Search highlight for cyberpunk */
+.search-highlight {
+    background-color: var(--cyber-yellow) !important;
+    color: var(--cyber-dark) !important;
+}
+
+/* Address book entry styling */
+.address-book-entry {
+    background-color: var(--cyber-dark) !important;
+    border-color: var(--cyber-purple-dim) !important;
+    border-radius: 0 !important;
+}
+
+.address-book-entry:hover {
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.1), rgba(5, 217, 232, 0.1)) !important;
+    border-color: var(--cyber-pink) !important;
+}
+
+/* Accordion for cyberpunk */
+.accordion {
+    background-color: var(--cyber-dark);
+}
+
+.accordion-item {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-purple-dim);
+    border-radius: 0;
+}
+
+.accordion-button {
+    background-color: var(--cyber-dark);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+.accordion-button:not(.collapsed) {
+    background: linear-gradient(90deg, var(--cyber-dark-light), var(--cyber-dark));
+    color: var(--cyber-cyan);
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(5, 217, 232, 0.25);
+    border-color: var(--cyber-cyan);
+}
+
+.accordion-button::after {
+    filter: invert(1);
+}
+
+.accordion-body {
+    background-color: var(--cyber-dark);
+    color: var(--text-color);
+}
+
+/* Nav tabs for cyberpunk */
+.nav-tabs {
+    border-bottom-color: var(--cyber-purple-dim);
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-color);
+    border-color: transparent;
+    border-radius: 0;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: var(--cyber-purple-dim) var(--cyber-purple-dim) var(--cyber-purple-dim);
+    color: var(--cyber-cyan);
+}
+
+.nav-tabs .nav-link.active {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-pink) var(--cyber-pink) var(--cyber-dark);
+    color: var(--cyber-pink);
+}
+
+.card-header-tabs {
+    border-bottom-color: var(--cyber-purple-dim);
+}
+
+/* Card footer for cyberpunk */
+.card-footer {
+    background-color: var(--cyber-dark-light);
+    border-top-color: var(--cyber-purple-dim);
+}
+
+/* Spinner for cyberpunk */
+.fa-spinner {
+    color: var(--cyber-cyan);
+}
+
+/* Input group for cyberpunk */
+.input-group-text {
+    background-color: var(--cyber-dark-light);
+    border-color: var(--cyber-purple-dim);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+/* Definition list styling */
+dt {
+    color: var(--cyber-cyan);
+}
+
+dd {
+    color: var(--text-color-muted);
+}
+
+/* Small/muted text overrides */
+small, .small {
+    color: var(--text-color-muted) !important;
+}
+
+.font-monospace {
+    color: var(--cyber-yellow);
+}
+
+/* Ensure all text in tables is properly themed */
+.message-table td,
+.message-table th {
+    color: var(--text-color);
+}
+
+.message-table .text-muted {
+    color: var(--text-color-muted) !important;
+}
+
+.message-table strong {
+    color: var(--cyber-cyan);
+}
+
+/* Ensure proper background on card bodies */
+.card .card-body {
+    background-color: var(--cyber-dark) !important;
+}
+
+/* Override any white backgrounds */
+.bg-white {
+    background-color: var(--cyber-dark) !important;
+}
+
+/* Ensure echoarea list has proper background */
+#echoareasList,
+#mobileEchoareasList {
+    background-color: var(--cyber-dark);
+}
+
+#echoareasList .list-group-item,
+#mobileEchoareasList .list-group-item {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-purple-dim);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+#echoareasList .list-group-item:hover,
+#mobileEchoareasList .list-group-item:hover {
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0.1), transparent);
+}
+
+#echoareasList .list-group-item.active,
+#mobileEchoareasList .list-group-item.active {
+    background: linear-gradient(90deg, var(--cyber-pink), var(--cyber-purple));
+    border-color: var(--cyber-pink);
+    color: white;
+}
+
+/* Override table tbody background */
+.table tbody {
+    background-color: var(--cyber-dark);
+}
+
+tbody, td, tfoot, th, thead, tr {
+    border-color: var(--cyber-purple-dim);
+}
+
+/* Glowing focus effect for interactive elements */
+.btn:focus, .form-control:focus, .form-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--cyber-cyan), 0 0 15px rgba(5, 217, 232, 0.4);
+}
+
+/* Neon text utility classes */
+.neon-pink {
+    color: var(--cyber-pink);
+    text-shadow: 0 0 10px var(--cyber-pink), 0 0 20px var(--cyber-pink);
+}
+
+.neon-cyan {
+    color: var(--cyber-cyan);
+    text-shadow: 0 0 10px var(--cyber-cyan), 0 0 20px var(--cyber-cyan);
+}
+
+.neon-yellow {
+    color: var(--cyber-yellow);
+    text-shadow: 0 0 10px var(--cyber-yellow), 0 0 20px var(--cyber-yellow);
+}
