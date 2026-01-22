@@ -291,9 +291,9 @@ class NodelistManager
     
     private function insertNode($domain,$node)
     {
-        $sql = "INSERT INTO nodelist 
-                (domain,zone, net, node, point, keyword_type, system_name, location, sysop_name, phone, baud_rate, flags) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        $sql = "INSERT INTO nodelist
+                (domain,zone, net, node, point, keyword_type, system_name, location, sysop_name, phone, baud_rate, flags)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (zone, net, node, point) DO UPDATE SET
                     keyword_type = EXCLUDED.keyword_type,
                     system_name = EXCLUDED.system_name,

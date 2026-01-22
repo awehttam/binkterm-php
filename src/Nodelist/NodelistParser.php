@@ -80,11 +80,11 @@ class NodelistParser
     public function parseNodelistLine($line, $lineNumber = 0)
     {
         $fields = explode(',', $line);
-        
+
         if (count($fields) < 6) {
             return null;
         }
-        
+
         $keywordType = trim($fields[0]);
         $nodeNumber = (int)trim($fields[1]);
         $systemName = $this->cleanField(isset($fields[2]) ? $fields[2] : '');
@@ -92,7 +92,10 @@ class NodelistParser
         $sysopName = $this->cleanField(isset($fields[4]) ? $fields[4] : '');
         $phone = trim(isset($fields[5]) ? $fields[5] : '');
         $baudRate = isset($fields[6]) ? (int)trim($fields[6]) : 0;
-        $flags = isset($fields[7]) ? $this->parseFlags($fields[7]) : [];
+
+        // Flags start at field 7 and continue to the end of the line
+        $flagFields = array_slice($fields, 7);
+        $flags = !empty($flagFields) ? $this->parseFlags(implode(',', $flagFields)) : [];
         
         switch (strtolower($keywordType)) {
             case 'zone':
