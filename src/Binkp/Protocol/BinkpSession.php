@@ -22,6 +22,7 @@ class BinkpSession
     private $isOriginator;
     private $localAddress;
     private $remoteAddress;
+    private $remoteAddressWithDomain;
     private $password;
     private $config;
     private $logger;
@@ -30,7 +31,8 @@ class BinkpSession
     private $filesReceived;
     private $filesSent;
     private $uplinkPassword;
-    
+    private $currentUplink;
+
     public function __construct($socket, $isOriginator = false, $config = null)
     {
         $this->socket = $socket;
@@ -41,6 +43,30 @@ class BinkpSession
         $this->filesSent = [];
         $this->currentFile = null;
         $this->fileHandle = null;
+        $this->currentUplink = null;
+    }
+
+    /**
+     * Set the current uplink context for this session.
+     * This is used to filter outbound packets to only send those
+     * destined for networks handled by this uplink.
+     *
+     * @param array $uplink The uplink configuration array
+     */
+    public function setCurrentUplink(array $uplink)
+    {
+        $this->currentUplink = $uplink;
+        $this->log("Current uplink set: " . ($uplink['address'] ?? 'unknown') . " (domain: " . ($uplink['domain'] ?? 'unknown') . ")");
+    }
+
+    /**
+     * Get the current uplink context.
+     *
+     * @return array|null The current uplink configuration
+     */
+    public function getCurrentUplink(): ?array
+    {
+        return $this->currentUplink;
     }
     
     public function setLogger($logger)
@@ -115,7 +141,7 @@ class BinkpSession
         try {
             $this->state = self::STATE_FILE_TRANSFER;
             $this->log("Entering file transfer phase");
-            
+
             if ($this->isOriginator) {
                 $this->log("As originator, checking for outbound files");
                 $this->sendFiles();
@@ -188,37 +214,55 @@ class BinkpSession
             } else {
                 $this->log("As answerer, waiting for files");
             }
-            
-            // Continue processing frames until EOB exchange
-            while ($this->state < self::STATE_EOB_SENT) {
-                $frame = BinkpFrame::parseFromSocket($this->socket);
-                if (!$frame) {
-                    break;
+
+            // As originator with no files sent, proceed directly to waiting for remote files
+            // As answerer, or as originator after sending files, process incoming frames
+            $shouldWaitForFrames = !$this->isOriginator || !empty($this->filesSent);
+
+            if ($shouldWaitForFrames) {
+                $this->log("Processing incoming frames before EOB exchange");
+                // Continue processing frames until EOB exchange, but with a timeout
+                $frameWaitStart = time();
+                $frameWaitTimeout = 5; // 5 second timeout for this phase
+
+                while ($this->state < self::STATE_EOB_SENT && (time() - $frameWaitStart) < $frameWaitTimeout) {
+                    $frame = BinkpFrame::parseFromSocket($this->socket, true); // Use non-blocking mode
+                    if (!$frame) {
+                        usleep(100000); // 100ms delay
+                        continue;
+                    }
+
+                    $this->log("Received: {$frame}");
+                    $this->processTransferFrame($frame);
                 }
-                
-                $this->log("Received: {$frame}");
-                $this->processTransferFrame($frame);
+                $this->log("Frame processing phase complete (waited " . (time() - $frameWaitStart) . "s)");
+            } else {
+                $this->log("Originator with no files sent - skipping frame wait, proceeding to EOB");
             }
-            
+
             // As originator, wait for remote to potentially send us files before sending EOB
             // Give remote system time to start sending files after they receive ours
             // Only do this if we're not already receiving a file
             if (!$this->currentFile) {
-                $this->log("WAIT LOGIC: Starting post-send wait for incoming files");
+                // If we sent files, wait a bit longer for remote to acknowledge and potentially send back
+                // If we sent no files, only wait briefly to detect if remote has files
+                $hasSentFiles = !empty($this->filesSent);
+                $maxWaitTime = $hasSentFiles ? 5 : 2; // 5 seconds if we sent files, 2 seconds if not
+
+                $this->log("WAIT LOGIC: Starting post-send wait for incoming files (max {$maxWaitTime}s, sent files: " . ($hasSentFiles ? 'yes' : 'no') . ")");
                 $waitStartTime = time();
-                $maxWaitTime = 30; // Wait up to 30 seconds for remote to start sending files
             } else {
                 $this->log("WAIT LOGIC: Skipping wait - already receiving file: " . $this->currentFile['name']);
                 $waitStartTime = time();
                 $maxWaitTime = 0; // Skip the wait loop entirely
             }
-            
+
             while ($this->state === self::STATE_FILE_TRANSFER && time() - $waitStartTime < $maxWaitTime) {
-                $frame = BinkpFrame::parseFromSocket($this->socket);
+                $frame = BinkpFrame::parseFromSocket($this->socket, true); // Use non-blocking mode
                 if ($frame) {
                     $this->log("WAIT LOGIC: Received during post-send wait: {$frame}");
                     $this->processTransferFrame($frame);
-                    
+
                     // If remote starts sending a file or sends EOB, exit wait
                     if ($this->currentFile || $this->state !== self::STATE_FILE_TRANSFER) {
                         $this->log("WAIT LOGIC: Exiting wait - currentFile: " . ($this->currentFile ? $this->currentFile['name'] : 'none') . ", state: " . $this->state);
@@ -229,7 +273,7 @@ class BinkpSession
                 }
             }
             $this->log("WAIT LOGIC: Wait completed after " . (time() - $waitStartTime) . " seconds");
-            
+
             // Send EOB if we haven't already and no file is currently being received
             if ($this->state === self::STATE_FILE_TRANSFER && !$this->currentFile) {
                 $this->log("Sending EOB (End of Batch) - no active file transfer after wait");
@@ -238,18 +282,18 @@ class BinkpSession
             } else if ($this->state === self::STATE_FILE_TRANSFER && $this->currentFile) {
                 $this->log("Remote started sending file during wait: " . $this->currentFile['name']);
             }
-            
+
             // Continue until session terminates
             while ($this->state < self::STATE_TERMINATED) {
                 $frame = BinkpFrame::parseFromSocket($this->socket);
                 if (!$frame) {
                     break;
                 }
-                
+
                 $this->log("Received: {$frame}");
                 $this->processTransferFrame($frame);
             }
-            
+
             $this->cleanup();
             $this->log('Session completed successfully');
             return true;
@@ -271,36 +315,43 @@ class BinkpSession
             case BinkpFrame::M_ADR:
                 $addressData = $frame->getData();
                 $this->log("Remote sent address data: {$addressData}");
-                
+
                 // Handle multiple addresses - remote may send "1:153/149 1:153/149.1 1:153/149.2"
                 $addresses = explode(' ', $addressData);
                 $this->log("Parsed addresses: " . implode(', ', $addresses));
-                
+
                 // Try to find a matching address in our uplinks
                 $matchedAddress = null;
+                $matchedAddressWithDomain = null;
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
-                    
-                    // Strip domain suffix like @fidonet
+                    $addrWithDomain = $addr; // Preserve original with domain
+                    $domain = null;
+
+                    // Extract domain suffix like @fidonet but preserve it
                     if (strpos($addr, '@') !== false) {
-                        $addr = substr($addr, 0, strpos($addr, '@'));
-                        $this->log("Stripped domain from address: {$addr}");
+                        list($addrOnly, $domain) = explode('@', $addr, 2);
+                        $this->log("Address has domain: {$addrOnly}@{$domain}");
+                        $addr = $addrOnly;
                     }
-                    
+
                     if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
                         $matchedAddress = $addr;
+                        $matchedAddressWithDomain = $addrWithDomain;
                         $this->log("Found matching uplink address: {$addr}");
                         break;
                     }
                 }
-                
+
                 // Use first address if no match found (fallback)
                 $fallbackAddress = $addresses[0];
+                $fallbackAddressWithDomain = $fallbackAddress;
                 if (strpos($fallbackAddress, '@') !== false) {
                     $fallbackAddress = substr($fallbackAddress, 0, strpos($fallbackAddress, '@'));
                 }
                 $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
-                $this->log("Using remote address: {$this->remoteAddress}");
+                $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
+                $this->log("Using remote address: {$this->remoteAddress} (with domain: {$this->remoteAddressWithDomain})");
                 
                 if ($this->state === self::STATE_INIT) {
                     $this->sendAddress();
@@ -358,6 +409,9 @@ class BinkpSession
                     $this->log("Received M_EOB, current state: " . $this->state);
                     if ($this->state === self::STATE_EOB_SENT) {
                         $this->log("Both sides sent EOB, terminating session");
+                        $this->state = self::STATE_TERMINATED;
+                    } elseif ($this->state === self::STATE_EOB_RECEIVED) {
+                        $this->log("Received M_EOB again while in EOB_RECEIVED state - both sides done, terminating");
                         $this->state = self::STATE_TERMINATED;
                     } else {
                         $this->log("Sending EOB response");
@@ -440,24 +494,119 @@ class BinkpSession
     {
         $outboundPath = $this->config->getOutboundPath();
         $files = glob($outboundPath . '/*.pkt');
-        
+
         $this->log("Found " . count($files) . " outbound files in {$outboundPath}");
-        
+
         if (empty($files)) {
             $this->log("No outbound files to send");
             return;
         }
-        
+
+        $filesToSend = [];
+        $filesSkipped = 0;
+
         foreach ($files as $file) {
-            if (is_file($file) && is_readable($file)) {
-                $this->log("Preparing to send file: " . basename($file));
-                $this->sendFile($file);
-            } else {
+            if (!is_file($file) || !is_readable($file)) {
                 $this->log("Skipping unreadable file: " . basename($file), 'WARNING');
+                continue;
+            }
+
+            // If we have a current uplink context, filter packets by destination
+            if ($this->currentUplink !== null) {
+                $destAddr = $this->getPacketDestination($file);
+                if ($destAddr === null) {
+                    $this->log("Could not determine destination for packet: " . basename($file) . ", skipping", 'WARNING');
+                    $filesSkipped++;
+                    continue;
+                }
+
+                // Check if this packet's destination should be routed through the current uplink
+                if (!$this->config->isDestinationForUplink($destAddr, $this->currentUplink)) {
+                    $this->log("Packet " . basename($file) . " destined for {$destAddr} not routed through this uplink (" .
+                        ($this->currentUplink['domain'] ?? 'unknown') . "), skipping");
+                    $filesSkipped++;
+                    continue;
+                }
+
+                $this->log("Packet " . basename($file) . " destined for {$destAddr} matches uplink " .
+                    ($this->currentUplink['domain'] ?? $this->currentUplink['address']));
+            }
+
+            $filesToSend[] = $file;
+        }
+
+        if ($filesSkipped > 0) {
+            $this->log("Skipped {$filesSkipped} packets not destined for this uplink");
+        }
+
+        if (empty($filesToSend)) {
+            $this->log("No outbound files to send for this uplink");
+            return;
+        }
+
+        foreach ($filesToSend as $file) {
+            $this->log("Preparing to send file: " . basename($file));
+            $this->sendFile($file);
+        }
+
+        $this->log("Finished sending " . count($filesToSend) . " files");
+    }
+
+    /**
+     * Read packet header to determine destination address.
+     *
+     * @param string $filePath Path to the .pkt file
+     * @return string|null Destination address in zone:net/node format, or null on error
+     */
+    private function getPacketDestination(string $filePath): ?string
+    {
+        $handle = fopen($filePath, 'rb');
+        if (!$handle) {
+            $this->log("getPacketDestination: Cannot open file: " . basename($filePath), 'WARNING');
+            return null;
+        }
+
+        // Read packet header (58 bytes minimum)
+        $header = fread($handle, 58);
+        fclose($handle);
+
+        if (strlen($header) < 58) {
+            $this->log("getPacketDestination: Header too short (" . strlen($header) . " bytes): " . basename($filePath), 'WARNING');
+            return null;
+        }
+
+        // Parse FTS-0001 packet header
+        // Bytes 0-1: origNode, 2-3: destNode, 20-21: origNet, 22-23: destNet
+        $data = unpack('vorigNode/vdestNode', substr($header, 0, 4));
+        $netData = unpack('vorigNet/vdestNet', substr($header, 20, 4));
+
+        if (!$data || !$netData) {
+            $this->log("getPacketDestination: Failed to unpack header: " . basename($filePath), 'WARNING');
+            return null;
+        }
+
+        // Get zone information from FSC-39 (Type-2e) format: offset 34-37
+        // origZone at 34-35, destZone at 36-37
+        $destZone = 1; // Default to zone 1
+        $origZone = 1;
+        if (strlen($header) >= 38) {
+            $zoneData = unpack('vorigZone/vdestZone', substr($header, 34, 4));
+            if ($zoneData) {
+                $origZone = $zoneData['origZone'];
+                if ($zoneData['destZone'] > 0) {
+                    $destZone = $zoneData['destZone'];
+                }
             }
         }
-        
-        $this->log("Finished sending " . count($files) . " files");
+
+        $destAddr = $destZone . ':' . $netData['destNet'] . '/' . $data['destNode'];
+        $origAddr = $origZone . ':' . $netData['origNet'] . '/' . $data['origNode'];
+
+        $this->log("getPacketDestination: " . basename($filePath) .
+            " - orig: {$origAddr}, dest: {$destAddr}" .
+            " (raw zones: orig={$origZone}, dest={$destZone})");
+
+        return $destAddr;
     }
     
     private function sendFile($filePath)
@@ -676,7 +825,17 @@ class BinkpSession
     {
         return $this->remoteAddress;
     }
-    
+
+    /**
+     * Get the remote address including domain suffix if provided.
+     *
+     * @return string|null The remote address with domain (e.g., "1:153/149@fidonet")
+     */
+    public function getRemoteAddressWithDomain()
+    {
+        return $this->remoteAddressWithDomain;
+    }
+
     public function close()
     {
         $this->cleanup();

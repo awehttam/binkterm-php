@@ -948,18 +948,31 @@ class BinkdProcessor
 
     private function writePacketHeader($handle, $destAddr)
     {
-        // Parse destination address (format: zone:net/node or zone:net/node.point)  
+        // Parse destination address (format: zone:net/node or zone:net/node.point)
         $destAddr = trim($destAddr);
         list($destZone, $destNetNode) = explode(':', $destAddr);
         list($destNet, $destNodePoint) = explode('/', $destNetNode);
         $destNode = explode('.', $destNodePoint)[0]; // Remove point if present
-        
+
+        // Cast to integers for pack()
+        $destZone = (int)$destZone;
+        $destNet = (int)$destNet;
+        $destNode = (int)$destNode;
+
         // Parse origin address
-        $systemAddress = trim($this->config->getSystemAddress());
-        list($origZone, $origNetNode) = explode(':', $systemAddress);
+        $myAddress = $this->config->getOriginAddressByDestination($destAddr);
+        error_log("writePacketHeader using origin address $myAddress for $destAddr");
+        list($origZone, $origNetNode) = explode(':', $myAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
         $origNode = explode('.', $origNodePoint)[0]; // Remove point if present
-        
+
+        // Cast to integers for pack()
+        $origZone = (int)$origZone;
+        $origNet = (int)$origNet;
+        $origNode = (int)$origNode;
+
+        error_log("writePacketHeader: origZone=$origZone destZone=$destZone origNet=$origNet destNet=$destNet origNode=$origNode destNode=$destNode");
+
         $now = time();
         
         // Standard FTS-0001 58-byte packet header

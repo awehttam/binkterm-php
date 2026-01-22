@@ -35,21 +35,25 @@ class BinkpClient
         if (!$uplink && !$hostname) {
             throw new \Exception("No uplink configuration found for address: {$address}");
         }
-        
+
         $hostname = $hostname ?: $uplink['hostname'];
         $port = $port ?: ($uplink['port'] ?? 24554);
         $password = $password ?: ($uplink['password'] ?? '');
-        
+
         $this->log("Connecting to {$hostname}:{$port} ({$address})");
-        
+        if ($uplink) {
+            $this->log("Uplink domain: " . ($uplink['domain'] ?? 'unknown') .
+                ", networks: " . implode(', ', $uplink['networks'] ?? []));
+        }
+
         $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
         if ($socket === false) {
             throw new \Exception('Failed to create client socket: ' . socket_strerror(socket_last_error()));
         }
-        
+
         socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
         socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => $this->config->getBinkpTimeout(), 'usec' => 0]);
-        
+
         $result = socket_connect($socket, $hostname, $port);
         if ($result === false) {
             $error = socket_strerror(socket_last_error($socket));
@@ -58,41 +62,47 @@ class BinkpClient
             }
             throw new \Exception("Failed to connect to {$hostname}:{$port}: {$error}");
         }
-        
+
         $this->log("Connected to {$hostname}:{$port}");
-        
+
         try {
             $stream = $this->socketToStream($socket);
             $session = new BinkpSession($stream, true, $this->config);
             $session->setLogger($this->logger);
-            
+
             // Set the uplink password for this session
             $session->setUplinkPassword($password);
-            
+
+            // Set the current uplink context for packet filtering
+            // This ensures only packets destined for this uplink's networks are sent
+            if ($uplink) {
+                $session->setCurrentUplink($uplink);
+            }
+
             if (!$session->handshake()) {
                 throw new \Exception('Handshake failed');
             }
-            
+
             $this->log("Handshake completed with {$address}");
-            
+
             if (!$session->processSession()) {
                 throw new \Exception('Session processing failed');
             }
-            
+
             $this->log("Session completed successfully with {$address}");
-            
+
             $result = [
                 'success' => true,
                 'remote_address' => $session->getRemoteAddress(),
                 'files_sent' => $session->getFilesSent(),
                 'files_received' => $session->getFilesReceived()
             ];
-            
+
             $session->close();
             // Don't close socket here - it's already handled by session->close() via the stream
-            
+
             return $result;
-            
+
         } catch (\Exception $e) {
             $this->log("Session failed with {$address}: " . $e->getMessage(), 'ERROR');
             // Don't close socket here either - let the session handle cleanup

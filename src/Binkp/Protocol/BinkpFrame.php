@@ -45,8 +45,20 @@ class BinkpFrame
         return new self($length, false, 0, $data);
     }
     
-    public static function parseFromSocket($socket)
+    public static function parseFromSocket($socket, $nonBlocking = false)
     {
+        if ($nonBlocking) {
+            // Check if data is available before attempting to read
+            $read = [$socket];
+            $write = null;
+            $except = null;
+            $result = stream_select($read, $write, $except, 0, 100000); // 100ms timeout
+            if ($result === 0) {
+                // No data available
+                return null;
+            }
+        }
+
         $header = self::readExactly($socket, 2);
         if (strlen($header) < 2) {
             return null;

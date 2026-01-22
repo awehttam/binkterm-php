@@ -373,4 +373,80 @@ class BinkpConfig
         return false;
     }
 
- }
+    public function getOriginAddressByDestination(string $destAddr)
+    {
+        $ret=[];
+        foreach($this->getUplinks() as $uplink){
+            $rt = new FtnRouter();
+            $networks=$uplink['networks'];
+            foreach($networks as $network)
+                $rt->addRoute($network, $uplink['address']);
+
+            $r = $rt->routeAddress($destAddr,false);
+            if($r)
+                return $uplink['me'];
+
+        }
+        return false;
+    }
+
+    /**
+     * Get the uplink configuration that should handle a given destination address.
+     * Uses the networks patterns defined in each uplink to determine routing.
+     *
+     * @param string $destAddr Destination FTN address (e.g., "1:123/456")
+     * @return array|null The uplink configuration array, or null if no route found
+     */
+    public function getUplinkForDestination(string $destAddr): ?array
+    {
+        foreach ($this->getUplinks() as $uplink) {
+            $rt = new FtnRouter();
+            $networks = $uplink['networks'] ?? [];
+            foreach ($networks as $network) {
+                $rt->addRoute($network, $uplink['address']);
+            }
+
+            $r = $rt->routeAddress($destAddr, false);
+            if ($r) {
+                return $uplink;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a destination address should be routed through a specific uplink.
+     *
+     * @param string $destAddr Destination FTN address
+     * @param array $uplink The uplink configuration to check against
+     * @return bool True if the destination should be routed through this uplink
+     */
+    public function isDestinationForUplink(string $destAddr, array $uplink): bool
+    {
+        $rt = new FtnRouter();
+        $networks = $uplink['networks'] ?? [];
+        foreach ($networks as $network) {
+            $rt->addRoute($network, $uplink['address']);
+        }
+
+        $r = $rt->routeAddress($destAddr, false);
+        return $r !== null;
+    }
+
+    /**
+     * Get uplink by domain name.
+     *
+     * @param string $domain The network domain (e.g., "fidonet", "testnet")
+     * @return array|null The uplink configuration, or null if not found
+     */
+    public function getUplinkByDomain(string $domain): ?array
+    {
+        foreach ($this->getUplinks() as $uplink) {
+            if (strcasecmp($uplink['domain'] ?? '', $domain) === 0) {
+                return $uplink;
+            }
+        }
+        return null;
+    }
+
+}
