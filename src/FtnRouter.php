@@ -105,5 +105,10 @@ class FtnRouter {
 
         return null; // No route found
     }
+
+    public function getRoutes()
+    {
+        return $this->routingTable;
+    }
 }
 

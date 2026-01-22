@@ -1387,3 +1387,9 @@ tbody, td, tfoot, th, thead, tr {
     border: 1px solid var(--cyber-purple-dim);
     border-radius: 0;
 }
+
+.form-text {
+    margin-top: .25rem;
+    font-size: .875em;
+    color: var(--text-color-muted);
+}

@@ -21,7 +21,7 @@
             <form id="composeForm">
                 <input type="hidden" id="messageType" value="{{ type }}">
                 <input type="hidden" id="replyToId" value="{{ reply_to_id }}">
-                <input type="hidden" id="replyToId" value="{{ domain }}">
+                <input type="hidden" id="domain" value="{{ domain }}">
                 
                 {% if type == 'netmail' %}
                     <div class="row mb-3">
@@ -244,10 +244,20 @@ function loadEchoareas() {
                     }
                 });
             }
-            
             // Pre-select if specified in URL or template, or from loaded draft
             const urlParams = new URLSearchParams(window.location.search);
-            const preselect = urlParams.get('echoarea') || '{{ echoarea }}' || window.draftEchoarea;
+            let preselect = '{{ echoarea }}' || window.draftEchoarea;
+
+            // If echoarea is in URL, combine with domain param for proper matching
+            const urlEchoarea = urlParams.get('echoarea');
+            const urlDomain = urlParams.get('domain');
+            if (urlEchoarea) {
+                // Combine echoarea and domain if domain is provided and echoarea doesn't already contain @
+                preselect = (urlDomain && !urlEchoarea.includes('@'))
+                    ? urlEchoarea + '@' + urlDomain
+                    : urlEchoarea;
+            }
+
             if (preselect) {
                 select.val(preselect);
                 // Trigger change event to apply color styling
@@ -293,7 +303,7 @@ function sendMessage() {
             return;
         }
     }
-    debugger;
+
     const formData = {
         type: messageType,
         to_address: $('#toAddress').val(),

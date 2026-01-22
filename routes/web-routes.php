@@ -400,7 +400,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
     // Handle reply and echoarea parameters
     $replyId = $_GET['reply'] ?? null;
     $echoarea = $_GET['echoarea'] ?? null;
-    $domain = $_GET['domain'] ?? null;
+    $domainParam = $_GET['domain'] ?? null;
 
     // Handle new message parameters (from nodelist)
     $toAddress = $_GET['to'] ?? null;
@@ -466,16 +466,20 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 // Remove "Re: " prefix if it exists (case insensitive)
                 $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
                 $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
-                $echoarea = $originalMessage['echoarea']; // Use original echoarea for reply
-
+                // Set echoarea with domain for proper select matching (format: tag@domain)
+                $echoarea = $originalMessage['echoarea'] . '@' . $originalMessage['domain'];
+                $templateVars['domain'] = $originalMessage['domain'];
                 // Filter out kludge lines from the quoted message
                 $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
 
                 // Generate initials from the original poster's name
                 $initials = generateInitials($originalMessage['from_name']);
 
+
+
                 // Quote the message intelligently - only quote original lines, not existing quotes
                 $quotedText = quoteMessageText($cleanMessageText, $initials);
+
 
                 $templateVars['reply_text'] = "\n\n--- Original Message ---\n" .
                     "From: {$originalMessage['from_name']}\n" .
@@ -487,8 +491,11 @@ SimpleRouter::get('/compose/{type}', function($type) {
     }
 
     if ($echoarea) {
+        // Combine echoarea with domain if provided separately and not already in tag@domain format
+        if ($domainParam && strpos($echoarea, '@') === false) {
+            $echoarea = $echoarea . '@' . $domainParam;
+        }
         $templateVars['echoarea'] = $echoarea;
-        $templateVars['domain'] = $domain;
     }
 
     // Handle new message parameters (from nodelist)

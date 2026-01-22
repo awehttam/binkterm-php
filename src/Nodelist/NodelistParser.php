@@ -7,7 +7,7 @@ class NodelistParser
     private $currentZone = 1;
     private $currentNet = 0;
     
-    public function parseNodelist($filepath)
+    public function parseNodelist($filepath,$domain)
     {
         if (!file_exists($filepath)) {
             throw new \Exception("Nodelist file not found: {$filepath}");
@@ -41,7 +41,8 @@ class NodelistParser
         
         return [
             'metadata' => $metadata,
-            'nodes' => $nodes
+            'nodes' => $nodes,
+            'domain'=>$domain
         ];
     }
     

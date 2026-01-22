@@ -96,11 +96,13 @@ class BinkdProcessor
                 error_log("[BINKD] $error");
                 throw new \Exception($error);
             }
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
 
             try {
                 $packetInfo = $this->parsePacketHeader($header);
                 $origAddress = $packetInfo['origZone'] . ':' . $packetInfo['origNet'] . '/' . $packetInfo['origNode'];
                 $destAddress = $packetInfo['destZone'] . ':' . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
+
                 error_log("[BINKD] Processing packet $packetName from $origAddress to $destAddress");
             } catch (\Exception $e) {
                 fclose($handle);
@@ -108,13 +110,14 @@ class BinkdProcessor
                 error_log("[BINKD] $error");
                 throw new \Exception($error);
             }
-            
+
             // Process messages in packet
             $messageCount = 0;
             $failedMessages = 0;
             while (!feof($handle)) {
                 try {
                     $message = $this->readMessage($handle, $packetInfo);
+
                     if ($message) {
                         $this->storeMessage($message, $packetInfo);
                         $messageCount++;
@@ -266,9 +269,14 @@ class BinkdProcessor
             }
         }
 
+        $origAddr = $origZone . ':' . $header['origNet'] . '/' . $header['origNode'];
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $domain =$binkpConfig->getDomainByAddress($origAddr);
+
         
         $ret =  [
-            'origAddr' => $origZone . ':' . $header['origNet'] . '/' . $header['origNode'],
+            'domain'=>$domain,
+            'origAddr' => $origAddr,
             'destAddr' => $destZone . ':' . $header['destNet'] . '/' . $header['destNode'], 
             'fromName' => trim($fromName),
             'toName' => trim($toName),
@@ -427,7 +435,7 @@ class BinkdProcessor
         if ($isNetmail) {
             $this->storeNetmail($message, $packetInfo);
         } else {
-            $this->storeEchomail($message, $packetInfo);
+            $this->storeEchomail($message, $packetInfo, $message['domain']);
         }
     }
 
@@ -617,7 +625,7 @@ class BinkdProcessor
      * @param $packetInfo
      * @return void
      */
-    private function storeEchomail($message, $packetInfo = null)
+    private function storeEchomail($message, $packetInfo = null, $domain)
     {
         // Extract echo area from message text (should be first line)
         // Handle different line ending formats (FTN uses \r\n or \r)
@@ -714,7 +722,7 @@ class BinkdProcessor
         $messageText = implode("\n", $cleanedLines);
         
         // Get or create echoarea
-        $echoarea = $this->getOrCreateEchoarea($echoareaTag);
+        $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
@@ -752,19 +760,22 @@ class BinkdProcessor
         error_log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
     }
 
-    private function getOrCreateEchoarea($tag)
+    private function getOrCreateEchoarea($tag,$domain)
     {
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ?");
-        $stmt->execute([$tag]);
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
+        $stmt->execute([$tag, $domain]);
         $echoarea = $stmt->fetch();
         
         if (!$echoarea) {
-            $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active) VALUES (?, ?, TRUE)");
-            $stmt->execute([$tag, 'Auto-created: ' . $tag]);
+            $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active, domain) VALUES (?, ?, TRUE,?)");
+            $stmt->execute([$tag, 'Auto-created: ' . $tag.'@'.$domain, $domain]);
             
-            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ?");
-            $stmt->execute([$tag]);
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
+            $stmt->execute([$tag,$domain]);
             $echoarea = $stmt->fetch();
+            error_log("getOrCreateEchoarea: Created new echomail area '$tag'@'$domain'");
+        } else {
+            error_log("getOrCreateEchoarea: Found echomail area tag $tag@$domain");
         }
         
         return $echoarea;

@@ -437,6 +437,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
+            $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -453,11 +454,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active) 
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active,domain) 
+                VALUES (?, ?, ?, ?, ?, ?,?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $domain]);
 
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -491,6 +492,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
+            $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -508,11 +510,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas 
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ? 
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?,domain=?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $domain,$id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);

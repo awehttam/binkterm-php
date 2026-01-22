@@ -23,10 +23,10 @@ class NodelistManager
             $this->db->beginTransaction();
             
             if ($archiveOld) {
-                $this->archiveOldNodelist();
+                $this->archiveOldNodelist($domain);
             }
             
-            $result = $this->parser->parseNodelist($filepath);
+            $result = $this->parser->parseNodelist($filepath,$domain);
             $metadata = $result['metadata'];
             $nodes = $result['nodes'];
             
@@ -246,11 +246,11 @@ class NodelistManager
         return $stmt->fetch();
     }
     
-    public function archiveOldNodelist()
+    public function archiveOldNodelist($domain)
     {
-        $sql = "UPDATE nodelist_metadata SET is_active = FALSE WHERE is_active = TRUE";
+        $sql = "UPDATE nodelist_metadata SET is_active = FALSE WHERE is_active = TRUE AND domain=?";
         $stmt = $this->db->prepare($sql);
-        $stmt->execute();
+        $stmt->execute([$domain]);
         
         return $stmt->rowCount();
     }

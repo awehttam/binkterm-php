@@ -211,14 +211,36 @@ class BinkpConfig
 
     function getAddressByDomain($domain)
     {
-        $ret=[];
+
         foreach($this->getUplinks() as $uplink){
-            if($uplink['domain']==$domain){
+            if(!strcasecmp($uplink['domain'], $domain)){
                 return $uplink['address'];
             }
         }
-        return $ret;
+        return false;
     }
+
+    /** Return a domain based on the address.
+     * @param string $address
+     * @return string|false
+     */
+    public function getDomainByAddress(string $address)
+    {
+        $ret=[];
+        foreach($this->getUplinks() as $uplink){
+            $rt = new FtnRouter();
+            $networks=$uplink['networks'];
+            foreach($networks as $network)
+                $rt->addRoute($network, $address);
+
+            $r = $rt->routeAddress($address,false);
+            if($r)
+                return $uplink['domain'];
+
+        }
+        return false;
+    }
+
     public function getUplinks()
     {
         return $this->config['uplinks'] ?? [];
@@ -350,4 +372,5 @@ class BinkpConfig
         }
         return false;
     }
-}
+
+ }

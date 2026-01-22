@@ -135,7 +135,7 @@
                         <div class="col-md-8">
                             <label for="echoareaUplink" class="form-label">Uplink Address</label>
                             <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
-                            <div class="form-text">FidoNet address of uplink node</div>
+                            <div class="form-text">Override Uplink FidoNet address</div>
                         </div>
                         <div class="col-md-4">
                             <label for="echoareaColor" class="form-label">Color</label>
@@ -285,7 +285,7 @@ function displayEchoareas(echoareas) {
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
                     </td>
                     <td>
-                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'None')}@${escapeHtml(area.domain||'')}</small>
+                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'Uplink')}@${escapeHtml(area.domain||'')}</small>
                     </td>
                     <td>
                         <div class="btn-group" role="group">
@@ -316,6 +316,7 @@ function showAddEchoareaModal() {
     $('#echoareaModalTitle').text('Add Echo Area');
     $('#echoareaForm')[0].reset();
     $('#echoareaId').val('');
+    $("#echoareaDomain").val('');
     $('#echoareaColor').val('#28a745');
     $('#echoareaActive').prop('checked', true);
     $('#echoareaModal').modal('show');
@@ -331,6 +332,7 @@ function editEchoarea(id) {
             $('#echoareaId').val(area.id);
             $('#echoareaTag').val(area.tag);
             $('#echoareaDescription').val(area.description);
+            $("#echoareaDomain").val(area.domain);
             $('#echoareaUplink').val(area.uplink_address || '');
             $('#echoareaColor').val(area.color || '#28a745');
             $('#echoareaModerator').val(area.moderator || '');
@@ -355,7 +357,8 @@ function saveEchoarea() {
         uplink_address: $('#echoareaUplink').val() || null,
         color: $('#echoareaColor').val(),
         moderator: $('#echoareaModerator').val() || null,
-        is_active: $('#echoareaActive').is(':checked')
+        is_active: $('#echoareaActive').is(':checked'),
+        domain: $("#echoareaDomain").val() || null
     };
     
     const url = currentEchoareaId ? `/api/echoareas/${currentEchoareaId}` : '/api/echoareas';

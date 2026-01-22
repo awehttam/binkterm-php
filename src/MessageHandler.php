@@ -503,7 +503,7 @@ class MessageHandler
         } else {
             // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
@@ -672,11 +672,14 @@ class MessageHandler
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             //$systemAddress = $binkpConfig->getSystemAddress();
             $myAddress = $binkpConfig->getAddressByDomain($domain);
-            
+            if(!$myAddress){
+                throw new \Exception("Can't determine my local address for domain '$domain'");
+                $myAddress = $binkpConfig->getSystemAddress();
+            }
             // For echomail from points, keep the FULL point address in the from_address
             // The point routing will be handled by FMPT kludge lines
         } catch (\Exception $e) {
-            throw new \Exception('System FidoNet address not configured');
+            throw new \Exception('Can not determine sending address for this network - missing uplink?');
         }
 
         // Generate kludges for this echomail
@@ -892,6 +895,7 @@ class MessageHandler
 
     private function spoolOutboundEchomail($messageId, $echoareaTag,$domain)
     {
+        error_log("spoolOutboundEchomail($messageId, $echoareaTag, $domain");
         $stmt = $this->db->prepare("
             SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain
             FROM echomail em
