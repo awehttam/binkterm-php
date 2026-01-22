@@ -395,7 +395,6 @@ class BinkpSession
     {
         //$address = $this->config->getSystemAddress();
         $address = trim(implode(" ", $this->config->getMyAddresses()));
-        print_r($address);
         $frame = BinkpFrame::createCommand(BinkpFrame::M_ADR, $address);
         $frame->writeToSocket($this->socket);
         $this->log("Sent address: {$address}");

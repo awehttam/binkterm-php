@@ -209,7 +209,16 @@ class BinkpConfig
         return $ret;
     }
 
-    
+    function getAddressByDomain($domain)
+    {
+        $ret=[];
+        foreach($this->getUplinks() as $uplink){
+            if($uplink['domain']==$domain){
+                return $uplink['address'];
+            }
+        }
+        return $ret;
+    }
     public function getUplinks()
     {
         return $this->config['uplinks'] ?? [];
@@ -334,10 +343,9 @@ class BinkpConfig
 
     public function getUplinkAddressForDomain(mixed $domain)
     {
-        // First try to find an uplink marked as default
         foreach ($this->getUplinks() as $uplink) {
             if($uplink['domain'] == $domain){
-                return trim($domain['address']);
+                return trim($uplink['address']);
             }
         }
         return false;

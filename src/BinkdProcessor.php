@@ -612,6 +612,11 @@ class BinkdProcessor
         error_log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
     }
 
+    /** Records an incoming echomail message into the database
+     * @param $message
+     * @param $packetInfo
+     * @return void
+     */
     private function storeEchomail($message, $packetInfo = null)
     {
         // Extract echo area from message text (should be first line)

@@ -666,11 +666,12 @@ class MessageHandler
         if (!$echoarea) {
             throw new \Exception('Echo area not found');
         }
-        
-        // Get system's FidoNet address since users don't have individual addresses
+
+
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
+            //$systemAddress = $binkpConfig->getSystemAddress();
+            $myAddress = $binkpConfig->getAddressByDomain($domain);
             
             // For echomail from points, keep the FULL point address in the from_address
             // The point routing will be handled by FMPT kludge lines
@@ -681,8 +682,8 @@ class MessageHandler
         // Generate kludges for this echomail
         $fromName = $user['real_name'] ?: $user['username'];
         $toName = $toName ?: 'All';
-        $kludgeLines = $this->generateEchomailKludges($systemAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
-        $msgId = $systemAddress . ' ' . $this->generateMessageId($fromName, $toName, $subject, $systemAddress);
+        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
+        $msgId = $myAddress . ' ' . $this->generateMessageId($fromName, $toName, $subject, $myAddress);
         
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
@@ -691,7 +692,7 @@ class MessageHandler
         
         $result = $stmt->execute([
             $echoarea['id'],
-            $systemAddress,
+            $myAddress,
             $fromName,
             $toName,
             $subject,
@@ -941,7 +942,7 @@ class MessageHandler
         }
     }
 
-    /** Returns an active uplink address for a given echoarea tag and domain
+    /** Returns an active uplink address for a given echoarea tag and domain.  First choice is uplink in echoarea table, then to binkp.json configuration.
      * @param $echoareaTag - the tag, eg: LOCALTEST
      * @param $domain - the domain, eg: fidonet
      * @return false|mixed|string
@@ -955,8 +956,6 @@ class MessageHandler
         if ($result && $result['uplink_address']) {
             return $result['uplink_address'];
         }
-
-        // TODO Look through the binkpconfig json to find the uplink based on domain name
 
         if($domain) {
             // Fall back to default uplink from JSON config
