@@ -142,6 +142,15 @@
                             <input type="color" class="form-control form-control-color" id="echoareaColor" name="color" value="#28a745">
                         </div>
                     </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="echoareaDomain" class="form-label">Domain</label>
+                            <input type="text" class="form-control" id="echoareaDomain" name="domain" maxlength="20">
+                            <div class="form-text">Network Domain (eg: fidonet, fsxnet, etc.)</div>
+                        </div>
+
+                    </div>
                     
                     <div class="mb-3">
                         <label for="echoareaModerator" class="form-label">Moderator</label>
@@ -276,7 +285,7 @@ function displayEchoareas(echoareas) {
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
                     </td>
                     <td>
-                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'None')}</small>
+                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'None')}@${escapeHtml(area.domain||'')}</small>
                     </td>
                     <td>
                         <div class="btn-group" role="group">

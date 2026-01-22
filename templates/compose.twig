@@ -21,6 +21,7 @@
             <form id="composeForm">
                 <input type="hidden" id="messageType" value="{{ type }}">
                 <input type="hidden" id="replyToId" value="{{ reply_to_id }}">
+                <input type="hidden" id="replyToId" value="{{ domain }}">
                 
                 {% if type == 'netmail' %}
                     <div class="row mb-3">
@@ -231,7 +232,7 @@ function loadEchoareas() {
             if (data.echoareas) {
                 data.echoareas.forEach(function(area) {
                     const colorDot = `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:${area.color || '#28a745'}; margin-right:8px; vertical-align:middle;"></span>`;
-                    select.append(`<option value="${area.tag}" data-color="${area.color || '#28a745'}">${area.tag} - ${area.description}</option>`);
+                    select.append(`<option value="${area.tag}@${area.domain}" data-color="${area.color || '#28a745'}">${area.tag} - ${area.description}</option>`);
                 });
                 
                 // Add color styling to select options
@@ -292,7 +293,7 @@ function sendMessage() {
             return;
         }
     }
-    
+    debugger;
     const formData = {
         type: messageType,
         to_address: $('#toAddress').val(),

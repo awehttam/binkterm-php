@@ -333,6 +333,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.color, 
                     e.is_active, 
                     e.created_at,
+                    e.domain,
                     COALESCE(total_counts.message_count, 0) as message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count
                 FROM echoareas e";
@@ -834,7 +835,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // URL decode the echoarea parameter to handle dots and special characters
         $echoarea = urldecode($echoarea);
-
+        $foo=explode("@", $echoarea);
+        $echoarea=$foo[0];
+        $domain=$foo[1];
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
@@ -844,9 +847,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                    COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ?
+            WHERE ea.tag = ? AND domain=?
         ");
-        $stmt->execute([$echoarea]);
+        $stmt->execute([$echoarea, $domain]);
         $stats = $stmt->fetch();
 
         // Filter counts for this echoarea and user
@@ -917,7 +920,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'saved' => $savedCount
             ]
         ]);
-    })->where(['echoarea' => '[A-Za-z0-9._-]+']);
+    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     // Route for getting specific echomail message by ID only (when echoarea not known)
     SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
@@ -968,13 +971,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // URL decode the echoarea parameter to handle dots and special characters
         $echoarea = urldecode($echoarea);
 
+        $foo=explode("@", $echoarea);
+        $echoarea=$foo[0];
+        $domain=$foo[1];
+
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getEchomail($echoarea, $page, null, $userId, $filter, $threaded);
+        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded);
         echo json_encode($result);
-    })->where(['echoarea' => '[A-Za-z0-9._-]+']);
+    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) {
         $auth = new Auth();
@@ -983,6 +990,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // URL decode the echoarea parameter to handle dots and special characters
         $echoarea = urldecode($echoarea);
+        $foo=explode("@", $echoarea);
+        $echoarea=$foo[0];
+        $domain=$foo[1];
 
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -1012,7 +1022,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             echo json_encode(['error' => 'Message not found']);
         }
-    })->where(['echoarea' => '[A-Za-z0-9._-]+', 'id' => '[0-9]+']);
+    })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/send', function() {
         $auth = new Auth();
@@ -1037,9 +1047,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['reply_to_id'] ?? null
                 );
             } elseif ($type === 'echomail') {
+                $foo=explode("@", $input['echoarea']);
+                $echoarea = $foo[0];
+                $domain = $foo[1];
+
                 $result = $handler->postEchomail(
                     $user['user_id'],
-                    $input['echoarea'],
+                    $echoarea,
+                    $domain,
                     $input['to_name'],
                     $input['subject'],
                     $input['message_text'],

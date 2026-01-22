@@ -411,6 +411,7 @@
 {% block scripts %}
 <script>
 let currentEchoarea = '{{ echoarea }}' || null;
+let domain = '{{domain}}'||null;
 let currentPage = 1;
 let currentSort = 'date_desc';
 let currentMessageId = null;
@@ -524,7 +525,7 @@ function displayEchoareas(echoareas) {
         echoareas.forEach(function(area) {
             const isActive = currentEchoarea === area.tag;
             html += `
-                <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${area.tag}')">
+                <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${area.tag}@${area.domain}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <div class="node-address">${area.tag}</div>
@@ -1130,6 +1131,9 @@ function composeMessage(type, replyToId = null) {
     }
     if (currentEchoarea) {
         params.append('echoarea', currentEchoarea);
+    }
+    if(domain){
+        params.append('domain', domain);
     }
     
     if (params.toString()) {

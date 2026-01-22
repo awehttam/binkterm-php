@@ -17,7 +17,7 @@ class NodelistManager
         $this->parser = new NodelistParser();
     }
     
-    public function importNodelist($filepath, $archiveOld = true)
+    public function importNodelist($filepath, $domain='',$archiveOld = true)
     {
         try {
             $this->db->beginTransaction();
@@ -30,11 +30,11 @@ class NodelistManager
             $metadata = $result['metadata'];
             $nodes = $result['nodes'];
             
-            $metadataId = $this->insertMetadata($metadata, count($nodes));
+            $metadataId = $this->insertMetadata($domain,$metadata, count($nodes));
             
             $insertedNodes = 0;
             foreach ($nodes as $node) {
-                if ($this->insertNode($node)) {
+                if ($this->insertNode($domain,$node)) {
                     $insertedNodes++;
                 }
             }
@@ -255,13 +255,14 @@ class NodelistManager
         return $stmt->rowCount();
     }
     
-    private function insertMetadata($metadata, $totalNodes)
+    private function insertMetadata($domain,$metadata, $totalNodes)
     {
-        $sql = "INSERT INTO nodelist_metadata (filename, day_of_year, release_date, crc_checksum, total_nodes, is_active) 
-                VALUES (?, ?, ?, ?, ?, TRUE)";
+        $sql = "INSERT INTO nodelist_metadata (domain,filename, day_of_year, release_date, crc_checksum, total_nodes, is_active) 
+                VALUES (?,?, ?, ?, ?, ?, TRUE)";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
+            $domain,
             $this->truncateString($metadata['filename'], 100),
             $metadata['day_of_year'],
             $metadata['release_date'],
@@ -288,10 +289,10 @@ class NodelistManager
         return mb_substr($string, 0, $maxLength);
     }
     
-    private function insertNode($node)
+    private function insertNode($domain,$node)
     {
         $sql = "INSERT INTO nodelist 
-                (zone, net, node, point, keyword_type, system_name, location, sysop_name, phone, baud_rate, flags) 
+                (domain,zone, net, node, point, keyword_type, system_name, location, sysop_name, phone, baud_rate, flags) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (zone, net, node, point) DO UPDATE SET
                     keyword_type = EXCLUDED.keyword_type,
@@ -305,6 +306,7 @@ class NodelistManager
         
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
+            $domain,
             $node['zone'],
             $node['net'],
             $node['node'],

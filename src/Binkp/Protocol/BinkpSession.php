@@ -3,6 +3,7 @@
 namespace BinktermPHP\Binkp\Protocol;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Version;
 
 class BinkpSession
 {
@@ -98,7 +99,7 @@ class BinkpSession
         $this->sendNul("SYS {$systemName}");
         $this->sendNul("ZYZ {$sysopName}");
         $this->sendNul("LOC {$location}");
-        $this->sendNul("VER BinktermPHP/1.0 binkp/1.0");
+        $this->sendNul("VER BinktermPHP/".Version::getVersion()." binkp/1.0");
         $this->sendNul("TIME " . gmdate('D, d M Y H:i:s') . " UTC");
     }
 
@@ -392,7 +393,9 @@ class BinkpSession
     
     private function sendAddress()
     {
-        $address = $this->config->getSystemAddress();
+        //$address = $this->config->getSystemAddress();
+        $address = trim(implode(" ", $this->config->getMyAddresses()));
+        print_r($address);
         $frame = BinkpFrame::createCommand(BinkpFrame::M_ADR, $address);
         $frame->writeToSocket($this->socket);
         $this->log("Sent address: {$address}");

@@ -132,15 +132,15 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
+    public function getEchomail($echoareaTag = null, $domain, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
     {
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
             $subscriptionManager = new EchoareaSubscriptionManager();
             
             // Get echoarea ID from tag
-            $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND is_active = TRUE");
-            $stmt->execute([$echoareaTag]);
+            $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
+            $stmt->execute([$echoareaTag, $domain]);
             $echoarea = $stmt->fetch();
             
             if ($echoarea && !$subscriptionManager->isUserSubscribed($userId, $echoarea['id'])) {
@@ -169,7 +169,7 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedEchomail($echoareaTag, $page, $limit, $userId, $filter);
+            return $this->getThreadedEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter);
         }
 
         $offset = ($page - 1) * $limit;
@@ -204,14 +204,14 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause}
+                WHERE ea.tag = ?{$filterClause} AND domain=? 
                 ORDER BY CASE 
                     WHEN em.date_received > NOW() THEN 0 
                     ELSE 1 
                 END, em.date_received DESC 
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $userId, $echoareaTag, $domain];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -225,9 +225,9 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause}
+                WHERE ea.tag = ?{$filterClause} AND domain=?
             ");
-            $countParams = [$userId, $userId, $echoareaTag];
+            $countParams = [$userId, $userId, $echoareaTag, $domain];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
@@ -282,9 +282,9 @@ class MessageHandler
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE ea.tag = ? AND mrs.read_at IS NULL
+                    WHERE ea.tag = ? AND mrs.read_at IS NULL AND ea.domain=?
                 ");
-                $unreadCountStmt->execute([$userId, $echoareaTag]);
+                $unreadCountStmt->execute([$userId, $echoareaTag, $domain]);
             } else {
                 $unreadCountStmt = $this->db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
@@ -655,14 +655,14 @@ class MessageHandler
         return $result;
     }
 
-    public function postEchomail($fromUserId, $echoareaTag, $toName, $subject, $messageText, $replyToId = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
             throw new \Exception('User not found');
         }
 
-        $echoarea = $this->getEchoareaByTag($echoareaTag);
+        $echoarea = $this->getEchoareaByTag($echoareaTag, $domain);
         if (!$echoarea) {
             throw new \Exception('Echo area not found');
         }
@@ -705,7 +705,7 @@ class MessageHandler
         if ($result) {
             $messageId = $this->db->lastInsertId();
             $this->incrementEchoareaCount($echoarea['id']);
-            $this->spoolOutboundEchomail($messageId, $echoareaTag);
+            $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
         }
 
         return $result;
@@ -777,10 +777,10 @@ class MessageHandler
         return $stmt->fetch();
     }
 
-    private function getEchoareaByTag($tag)
+    private function getEchoareaByTag($tag, $domain)
     {
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = TRUE");
-        $stmt->execute([$tag]);
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+        $stmt->execute([$tag, $domain]);
         return $stmt->fetch();
     }
 
@@ -889,10 +889,10 @@ class MessageHandler
         }
     }
 
-    private function spoolOutboundEchomail($messageId, $echoareaTag)
+    private function spoolOutboundEchomail($messageId, $echoareaTag,$domain)
     {
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea_tag 
+            SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             WHERE em.id = ?
@@ -923,7 +923,7 @@ class MessageHandler
             
             // For echomail, we typically send to our uplink
 
-            $uplinkAddress = $this->getEchoareaUplink($message['echoarea_tag']);
+            $uplinkAddress = $this->getEchoareaUplink($message['echoarea_tag'], $domain);
             
             if ($uplinkAddress) {
                 $message['to_address'] = $uplinkAddress;
@@ -941,16 +941,36 @@ class MessageHandler
         }
     }
 
-    private function getEchoareaUplink($echoareaTag)
+    /** Returns an active uplink address for a given echoarea tag and domain
+     * @param $echoareaTag - the tag, eg: LOCALTEST
+     * @param $domain - the domain, eg: fidonet
+     * @return false|mixed|string
+     */
+    private function getEchoareaUplink($echoareaTag, $domain='')
     {
-        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND is_active = TRUE");
-        $stmt->execute([$echoareaTag]);
+        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
+        $stmt->execute([$echoareaTag, $domain]);
         $result = $stmt->fetch();
         
         if ($result && $result['uplink_address']) {
             return $result['uplink_address'];
         }
-        
+
+        // TODO Look through the binkpconfig json to find the uplink based on domain name
+
+        if($domain) {
+            // Fall back to default uplink from JSON config
+            try {
+                $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $defaultAddress = $config->getUplinkAddressForDomain($domain);
+                if ($defaultAddress) {
+                    return $defaultAddress;
+                }
+            } catch (\Exception $e) {
+                // Log error but continue with hardcoded fallback
+                error_log("Failed to get default uplink for domain " . $e->getMessage());
+            }
+        }
         // Fall back to default uplink from JSON config
         try {
             $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -963,8 +983,8 @@ class MessageHandler
             error_log("Failed to get default uplink from config: " . $e->getMessage());
         }
         
-        // Ultimate fallback if config fails
-        return '1:123/1';
+        // Ultimate fallback if config fails (was '1:123/1';
+        return false;
     }
 
     public function deleteEchomail($messageIds, $userId)
@@ -2364,7 +2384,7 @@ class MessageHandler
     /**
      * Get threaded echomail messages using MSGID/REPLY relationships
      */
-    public function getThreadedEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    public function getThreadedEchomail($echoareaTag = null,$domain, $page = 1, $limit = null, $userId = null, $filter = 'all')
     {
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {
@@ -2405,10 +2425,10 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause}
+                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
                 ORDER BY em.date_received DESC
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $userId, $echoareaTag, $domain];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }

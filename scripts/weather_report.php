@@ -742,7 +742,7 @@ class WeatherReportGenerator
     /**
      * Post weather report to one or more echomail areas
      */
-    public function postWeatherReport(string $username = '', string $echoareas = 'LOCALTEST', string $toName = 'All', bool $demoMode = false): bool 
+    public function postWeatherReport(string $username = '', string $echoareas = 'LOCALTEST', string $domain='fidonet', string $toName = 'All', bool $demoMode = false): bool
     {
         $report = $this->generateReport($demoMode);
         if($report==false)
@@ -795,6 +795,7 @@ class WeatherReportGenerator
                 $result = $handler->postEchomail(
                     $user['id'],
                     $echoarea,
+                    $domain,
                     $toName,
                     $subject,
                     $report,
@@ -840,6 +841,7 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
     $postMode = isset($args['post']);
     $username = $args['user'] ?? '';
     $echoareas = $args['areas'] ?? 'LOCALTEST';
+    $domain = $args['domain'] ?? '';
     $configPath = $args['config'] ?? null;
     
     // Try to create the weather generator
@@ -936,7 +938,7 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
         }
         echo "Areas: {$echoareas}\n\n";
         
-        $success = $generator->postWeatherReport($username, $echoareas, 'All', $demoMode);
+        $success = $generator->postWeatherReport($username, $echoareas, $domain,'All', $demoMode);
         exit($success ? 0 : 1);
     }
     

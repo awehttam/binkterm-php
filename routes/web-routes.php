@@ -400,6 +400,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
     // Handle reply and echoarea parameters
     $replyId = $_GET['reply'] ?? null;
     $echoarea = $_GET['echoarea'] ?? null;
+    $domain = $_GET['domain'] ?? null;
 
     // Handle new message parameters (from nodelist)
     $toAddress = $_GET['to'] ?? null;
@@ -487,6 +488,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
 
     if ($echoarea) {
         $templateVars['echoarea'] = $echoarea;
+        $templateVars['domain'] = $domain;
     }
 
     // Handle new message parameters (from nodelist)

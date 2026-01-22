@@ -200,10 +200,17 @@ function main($argc, $argv) {
         printUsage();
         exit(0);
     }
-    
+
+
     $nodelistFile = $argv[1];
+    $domain=$argv[2];
+
+    if(!$domain) {
+        echo "You must specify the network domain, eg: fidonet, fsxnet, testnet, etc\n";
+        exit(-1);
+    }
     $force = in_array('--force', $argv);
-    
+
     if (!file_exists($nodelistFile)) {
         echo "Error: Nodelist file not found: {$nodelistFile}\n";
         exit(1);
@@ -271,7 +278,7 @@ function main($argc, $argv) {
         writeLog("Starting import...");
         $startTime = microtime(true);
         
-        $result = $nodelistManager->importNodelist($actualNodelistFile, true);
+        $result = $nodelistManager->importNodelist($actualNodelistFile,$domain, true);
         
         $endTime = microtime(true);
         $duration = round($endTime - $startTime, 2);

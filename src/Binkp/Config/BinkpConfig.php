@@ -2,6 +2,8 @@
 
 namespace BinktermPHP\Binkp\Config;
 
+use BinktermPHP\FtnRouter;
+
 class BinkpConfig
 {
     private static $instance;
@@ -183,6 +185,30 @@ class BinkpConfig
         }
         return $processedPath;
     }
+
+    function getRoutingTable()
+    {
+        $rt = new FtnRouter();
+        foreach($this->getUplinks() as $uplink) {
+            $networks=$uplink['networks'];
+            $address=$uplink['address'];
+            foreach($networks as $network)
+                $rt->addRoute($network, $address);
+        }
+        return $rt;
+    }
+
+    function getMyAddresses()
+    {
+        $ret=[];
+        foreach($this->getUplinks() as $uplink){
+            $me =  $uplink['me'];
+            if($me)
+                $ret[] = $me;
+        }
+        return $ret;
+    }
+
     
     public function getUplinks()
     {
@@ -304,5 +330,16 @@ class BinkpConfig
     public function reloadConfig()
     {
         $this->loadConfig();
+    }
+
+    public function getUplinkAddressForDomain(mixed $domain)
+    {
+        // First try to find an uplink marked as default
+        foreach ($this->getUplinks() as $uplink) {
+            if($uplink['domain'] == $domain){
+                return trim($domain['address']);
+            }
+        }
+        return false;
     }
 }

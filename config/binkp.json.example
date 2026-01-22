@@ -19,7 +19,15 @@
     },
     "uplinks": [
         {
+            "me": "1:123/456.57599",
+            "networks": [
+                "1:*/*",
+                "2:*/*",
+                "3:*/*",
+                "4:*/*"
+            ],
             "address": "1:123/456",
+            "domain": "fidonet",
             "hostname": "my.ip.address.or.hostname",
             "port": 24554,
             "password": "xyzzy",
