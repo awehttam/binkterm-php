@@ -182,7 +182,7 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $echoarea = urldecode($echoarea);
     $template = new Template();
     $template->renderResponse('echomail.twig', ['echoarea' => $echoarea]);
-})->where(['echoarea' => '[A-Za-z0-9._-]+']);
+})->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
 SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     // Don't require authentication for shared messages - the API will handle access control

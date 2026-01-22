@@ -523,9 +523,10 @@ function displayEchoareas(echoareas) {
         `;
         
         echoareas.forEach(function(area) {
-            const isActive = currentEchoarea === area.tag;
+            const fullTag = `${area.tag}@${area.domain}`;
+            const isActive = currentEchoarea === fullTag;
             html += `
-                <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${area.tag}@${area.domain}')">
+                <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <div class="node-address">${area.tag}</div>
@@ -562,9 +563,10 @@ function displayMobileEchoareas(echoareas) {
         `;
         
         echoareas.forEach(function(area) {
-            const isActive = currentEchoarea === area.tag;
+            const fullTag = `${area.tag}@${area.domain}`;
+            const isActive = currentEchoarea === fullTag;
             html += `
-                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${area.tag}')">
+                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <div class="fw-bold">${area.tag}</div>
@@ -592,12 +594,13 @@ function selectEchoarea(tag) {
     // Update URL without page reload
     const url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
     history.pushState({echoarea: tag}, '', url);
-    
-    // Update title
-    const title = tag ? `Echomail - ${tag}` : 'Echomail';
+
+    // Update title - strip domain for display
+    const displayTag = tag && tag.includes('@') ? tag.split('@')[0] : tag;
+    const title = displayTag ? `Echomail - ${displayTag}` : 'Echomail';
     $('h2 small').remove();
-    if (tag) {
-        $('h2').append(`<small class="text-muted">/ ${tag}</small>`);
+    if (displayTag) {
+        $('h2').append(`<small class="text-muted">/ ${displayTag}</small>`);
     }
     
     // Update mobile accordion text
@@ -1588,7 +1591,9 @@ function updateMobileAccordionText(selectedArea) {
     const textSpan = $('#mobileAccordionText');
     if (textSpan.length) {
         if (selectedArea) {
-            textSpan.text(`Viewing: ${selectedArea}`);
+            // Strip domain from display (show just the tag)
+            const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
+            textSpan.text(`Viewing: ${displayTag}`);
         } else {
             textSpan.text('Viewing: All Messages');
         }

@@ -340,7 +340,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Add subscription filtering if requested
         if ($subscribedOnly === 'true') {
-            $sql .= " INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?";
+            $sql .= " INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ? AND ues.is_active = TRUE";
             $params = [$userId, $userId];
         } else {
             $params = [$userId];
