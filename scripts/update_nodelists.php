@@ -130,14 +130,14 @@ class NodelistUpdater
                 [
                     'name' => 'FidoNet',
                     'domain' => 'fidonet',
-                    'url' => 'https://www.filegate.net/nodelist/nodelist.zip',
+                    'url' => 'https://darkrealms.ca/NODELIST.Z|DAY|',
                     'enabled' => false,
                     'comment' => 'Enable and verify URL before use'
                 ],
                 [
                     'name' => 'FSXNet',
                     'domain' => 'fsxnet',
-                    'url' => 'https://bbs.nz/fsxnet/FSXNET.ZIP',
+                    'url' => 'https://github.com/fsxnet/nodelist/raw/refs/heads/master/FSXNET.Z|DAY|',
                     'enabled' => false,
                     'comment' => 'Enable and verify URL before use'
                 ]
