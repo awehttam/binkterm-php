@@ -66,6 +66,15 @@ class Mail
             
         } catch (Exception $e) {
             error_log("Mail sending failed: " . $mail->ErrorInfo);
+            try {
+                SysopNotificationService::sendNoticeToSysop(
+                    'Email sending failure',
+                    'An error occurred sending Email to '.$to.' re: '.$subject.': '.$mail->ErrorInfo
+                );
+            }catch (Exception $ex){
+
+            }
+
             return false;
         }
     }
