@@ -7,13 +7,20 @@
  *
  * Configure nodelist sources in config/nodelists.json or via environment variables.
  *
+ * URL Macros:
+ *   |DAY|    - Day of year (1-366)
+ *   |YEAR|   - 4-digit year (2026)
+ *   |YY|     - 2-digit year (26)
+ *   |MONTH|  - 2-digit month (01-12)
+ *   |DATE|   - 2-digit day of month (01-31)
+ *
  * Example config/nodelists.json:
  * {
  *   "sources": [
  *     {
  *       "name": "FidoNet",
  *       "domain": "fidonet",
- *       "url": "https://www.filegate.net/nodelist/nodelist.zip",
+ *       "url": "https://darkrealms.ca/NODELIST.Z|DAY|",
  *       "enabled": true
  *     },
  *     {
@@ -30,8 +37,6 @@ chdir(__DIR__ . '/../');
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use BinktermPHP\Config;
-
 class NodelistUpdater
 {
     private $configFile;
@@ -45,8 +50,8 @@ class NodelistUpdater
         $this->quiet = $quiet;
         $this->force = $force;
         $this->configFile = __DIR__ . '/../config/nodelists.json';
-        $this->downloadDir = Config::getDataPath('nodelists');
-        $this->logFile = Config::getLogPath('nodelist_update.log');
+        $this->downloadDir = __DIR__ . '/../data/nodelists';
+        $this->logFile = __DIR__ . '/../data/logs/nodelist_update.log';
 
         if (!is_dir($this->downloadDir)) {
             mkdir($this->downloadDir, 0755, true);
@@ -69,6 +74,35 @@ class NodelistUpdater
                 echo $message . "\n";
             }
         }
+    }
+
+    /**
+     * Expand URL macros with current date values
+     *
+     * Supported macros:
+     *   |DAY|   - Day of year (1-366)
+     *   |YEAR|  - 4-digit year (2026)
+     *   |YY|    - 2-digit year (26)
+     *   |MONTH| - 2-digit month (01-12)
+     *   |DATE|  - 2-digit day of month (01-31)
+     */
+    public function expandUrlMacros($url)
+    {
+        $macros = [
+            '|DAY|'   => date('z') + 1,  // day of year (0-365) + 1 = (1-366)
+            '|YEAR|'  => date('Y'),       // 4-digit year
+            '|YY|'    => date('y'),       // 2-digit year
+            '|MONTH|' => date('m'),       // 2-digit month
+            '|DATE|'  => date('d'),       // 2-digit day of month
+        ];
+
+        $expandedUrl = str_replace(array_keys($macros), array_values($macros), $url);
+
+        if ($expandedUrl !== $url) {
+            $this->log("URL expanded: {$url} -> {$expandedUrl}", 'DEBUG');
+        }
+
+        return $expandedUrl;
     }
 
     public function loadConfig()
@@ -270,12 +304,15 @@ class NodelistUpdater
             try {
                 $this->log("Processing: {$name} ({$domain})");
 
+                // Expand URL macros (e.g., |DAY| -> 023)
+                $expandedUrl = $this->expandUrlMacros($url);
+
                 // Generate download filename with date
-                $ext = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'zip';
+                $ext = pathinfo(parse_url($expandedUrl, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'zip';
                 $downloadFile = $this->downloadDir . '/' . strtolower($domain) . '_' . date('Y-m-d') . '.' . $ext;
 
                 // Download
-                $this->download($url, $downloadFile, $settings);
+                $this->download($expandedUrl, $downloadFile, $settings);
 
                 // Import
                 $this->importNodelist($downloadFile, $domain);
@@ -310,6 +347,13 @@ if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo "  -q, --quiet   Suppress output except errors\n";
     echo "  -f, --force   Force update even if recently updated\n";
     echo "  -h, --help    Show this help message\n";
+    echo "\nURL Macros:\n";
+    echo "  |DAY|    Day of year (1-366)\n";
+    echo "  |YEAR|   4-digit year (e.g., 2026)\n";
+    echo "  |YY|     2-digit year (e.g., 26)\n";
+    echo "  |MONTH|  2-digit month (01-12)\n";
+    echo "  |DATE|   2-digit day of month (01-31)\n";
+    echo "\n  Example: https://example.com/NODELIST.Z|DAY| -> NODELIST.Z23\n";
     echo "\nConfiguration:\n";
     echo "  Edit config/nodelists.json to configure nodelist sources.\n";
     echo "  Run without config to generate an example configuration.\n";
