@@ -781,9 +781,14 @@ class WeatherReportGenerator
                 
                 echo "Posting to {$echoarea}... ";
                 
-                // Verify echoarea exists
-                $stmt = $db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = TRUE");
-                $stmt->execute([$echoarea]);
+                // Verify echoarea exists (with domain if specified)
+                if (!empty($domain)) {
+                    $stmt = $db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+                    $stmt->execute([$echoarea, $domain]);
+                } else {
+                    $stmt = $db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = TRUE");
+                    $stmt->execute([$echoarea]);
+                }
                 $area = $stmt->fetch();
                 
                 if (!$area) {
@@ -932,11 +937,15 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
     if ($postMode) {
         echo "POST MODE: Posting weather report to echoarea(s)\n";
         echo str_repeat("-", 50) . "\n\n";
-        
+
         if (!empty($username)) {
             echo "User: {$username}\n";
         }
-        echo "Areas: {$echoareas}\n\n";
+        echo "Areas: {$echoareas}\n";
+        if (!empty($domain)) {
+            echo "Domain: {$domain}\n";
+        }
+        echo "\n";
         
         $success = $generator->postWeatherReport($username, $echoareas, $domain,'All', $demoMode);
         exit($success ? 0 : 1);
@@ -978,5 +987,6 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_NAME'] ?? '')) {
     echo "  Post to LOCALTEST:           php scripts/weather_report.php --post\n";
     echo "  Post to multiple areas:      php scripts/weather_report.php --post --areas=LOCALTEST,WEATHER\n";
     echo "  Post as specific user:       php scripts/weather_report.php --post --user=admin\n";
-    echo "  Post with all options:       php scripts/weather_report.php --post --user=admin --areas=LOCALTEST,WEATHER\n";
+    echo "  Post to specific network:    php scripts/weather_report.php --post --areas=FSX_GEN --domain=fsxnet\n";
+    echo "  Post with all options:       php scripts/weather_report.php --post --user=admin --areas=WEATHER --domain=fidonet\n";
 }
