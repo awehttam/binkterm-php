@@ -653,6 +653,64 @@ php scripts/debug_binkp.php 1:153/149
 php scripts/process_packets.php
 ```
 
+### Nodelist Updates
+Automatically download and import nodelists from configured sources.
+
+#### Configuration
+Create `config/nodelists.json` (or run the script once to generate an example):
+
+```json
+{
+    "sources": [
+        {
+            "name": "FidoNet",
+            "domain": "fidonet",
+            "url": "https://example.com/NODELIST.Z|DAY|",
+            "enabled": true
+        },
+        {
+            "name": "FSXNet",
+            "domain": "fsxnet",
+            "url": "https://bbs.nz/fsxnet/FSXNET.ZIP",
+            "enabled": true
+        }
+    ],
+    "settings": {
+        "keep_downloads": 3,
+        "timeout": 300,
+        "user_agent": "BinktermPHP Nodelist Updater"
+    }
+}
+```
+
+#### URL Macros
+URLs support date macros for dynamic nodelist filenames:
+
+| Macro | Description | Example |
+|-------|-------------|---------|
+| `\|DAY\|` | Day of year (1-366) | 23 |
+| `\|YEAR\|` | 4-digit year | 2026 |
+| `\|YY\|` | 2-digit year | 26 |
+| `\|MONTH\|` | 2-digit month | 01 |
+| `\|DATE\|` | 2-digit day of month | 22 |
+
+Example: `https://example.com/NODELIST.Z|DAY|` becomes `NODELIST.Z23` on day 23.
+
+#### Usage
+```bash
+# Run nodelist update (downloads and imports all enabled sources)
+php scripts/update_nodelists.php
+
+# Quiet mode (for cron jobs)
+php scripts/update_nodelists.php --quiet
+
+# Force update even if recently updated
+php scripts/update_nodelists.php --force
+
+# Show help and available macros
+php scripts/update_nodelists.php --help
+```
+
 ## Operation
 
 ### Starting the System
@@ -680,11 +738,16 @@ php scripts/process_packets.php
 Add these entries to your crontab for automated operation:
 
 ```bash
-# Process inbound packets every 5 minutes
+# Process inbound packets every 3 minutes
 */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+
+# Poll uplinks every 5 minutes
 */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php
 
-# Backup database daily
+# Update nodelists daily at 4am
+0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
+
+# Backup database daily at 2am
 0 2 * * * cp /path/to/binktest/data/binktest.db /path/to/backups/binktest-$(date +\%Y\%m\%d).db
 
 # Rotate logs weekly
