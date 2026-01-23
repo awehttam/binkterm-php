@@ -29,6 +29,16 @@ class Mail
             $mail->Username = Config::env('SMTP_USER');
             $mail->Password = Config::env('SMTP_PASS');
             $mail->Port = (int) Config::env('SMTP_PORT', 587);
+
+            if(Config::env('SMTP_NOVERIFYCERT')==true) {
+                $mail->SMTPOptions = [
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                        'allow_self_signed' => true,
+                    ]
+                ];
+            }
             
             // Security settings
             $security = strtolower(Config::env('SMTP_SECURITY', 'tls'));
