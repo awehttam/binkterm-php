@@ -682,7 +682,7 @@ class MessageHandler
             $myAddress = $binkpConfig->getMyAddressByDomain($domain);
             if(!$myAddress){
                 throw new \Exception("Can't determine my local address for domain '$domain'");
-                $myAddress = $binkpConfig->getSystemAddress();
+                //$myAddress = $binkpConfig->getSystemAddress();
             }
             // For echomail from points, keep the FULL point address in the from_address
             // The point routing will be handled by FMPT kludge lines
