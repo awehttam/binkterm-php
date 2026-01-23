@@ -290,6 +290,43 @@ Each uplink in the `uplinks` array supports the following fields:
 }
 ```
 
+#### Security Settings
+The `security` section controls insecure (passwordless) binkp sessions:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `allow_insecure_inbound` | false | Allow incoming connections without password authentication |
+| `allow_insecure_outbound` | false | Allow outgoing connections without password authentication |
+| `insecure_inbound_receive_only` | true | Insecure sessions can only deliver mail, not pick up |
+| `require_allowlist_for_insecure` | false | Only allow insecure sessions from nodes in the allowlist |
+| `max_insecure_sessions_per_hour` | 10 | Rate limit for insecure sessions per remote address |
+| `insecure_session_timeout` | 60 | Timeout in seconds for insecure sessions |
+| `log_all_sessions` | true | Log all binkp sessions for audit trail |
+
+**Security Note**: Insecure sessions should be used with caution. They are typically used for receiving mail from nodes that don't have your password configured. The allowlist (managed via Admin > Insecure Nodes) provides fine-grained control over which nodes can connect without authentication.
+
+#### Crashmail Settings
+The `crashmail` section controls immediate/direct delivery of netmail:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | false | Enable crashmail (direct delivery) functionality |
+| `max_attempts` | 3 | Maximum delivery attempts before marking as failed |
+| `retry_interval_minutes` | 15 | Minutes to wait between retry attempts |
+| `use_nodelist_for_routing` | true | Look up destination in nodelist for hostname/port |
+| `fallback_port` | 24554 | Default port if not found in nodelist |
+| `allow_insecure_crash_delivery` | false | Allow crashmail delivery without password |
+
+**About Crashmail**: Crashmail bypasses normal hub routing and attempts direct delivery to the destination node. This is useful for urgent messages but requires the destination node to be directly reachable. The system uses nodelist IBN/INA flags to determine the destination's hostname and port.
+
+#### Transit Settings
+The `transit` section controls mail routing through your system:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `allow_transit_mail` | false | Allow routing mail not destined for this system |
+| `transit_only_for_known_routes` | true | Only transit mail for addresses in your routing table |
+
 ### Web Terminal Configuration
 
 The web terminal feature provides SSH access through the browser interface. This requires both configuration in the `.env` file and a proxy server to handle WebSocket-to-SSH connections.
