@@ -546,29 +546,37 @@ class MessageHandler
         // Use provided fromName or fall back to user's real name
         $senderName = $fromName ?: ($user['real_name'] ?: $user['username']);
         
-        // Get system's FidoNet address since users don't have individual addresses
+        // Get the appropriate origin address for the destination network
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
+
+            // Use the "me" address from the uplink that will route this message
+            $originAddress = $binkpConfig->getOriginAddressByDestination($toAddress);
+
+            if (!$originAddress) {
+                // No uplink can route to this destination - fall back to default
+                $originAddress = $binkpConfig->getSystemAddress();
+                error_log("[NETMAIL] WARNING: No specific uplink for destination {$toAddress}, using system address");
+            }
         } catch (\Exception $e) {
-            throw new \Exception('System FidoNet address not configured');
+            throw new \Exception('Cannot determine origin address: ' . $e->getMessage());
         }
 
         // Generate MSGID for storage (address + hash format)
-        $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $systemAddress);
-        $msgId = $systemAddress . ' ' . $msgIdHash;
+        $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $originAddress);
+        $msgId = $originAddress . ' ' . $msgIdHash;
 
         // Generate kludges for this netmail
-        $kludgeLines = $this->generateNetmailKludges($systemAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
-        
+        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
+
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
             $fromUserId,
-            $systemAddress,
+            $originAddress,
             $toAddress,
             $senderName,
             $toName,
