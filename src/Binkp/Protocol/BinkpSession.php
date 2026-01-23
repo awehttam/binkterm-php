@@ -321,6 +321,11 @@ class BinkpSession
                         $addr = $addrOnly;
                     }
 
+                    // Strip .0 point suffix - it represents the boss node, not a real point
+                    if (substr($addr, -2) === '.0') {
+                        $addr = substr($addr, 0, -2);
+                    }
+
                     if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
                         $matchedAddress = $addr;
                         $matchedAddressWithDomain = $addrWithDomain;
@@ -333,6 +338,10 @@ class BinkpSession
                 $fallbackAddressWithDomain = $fallbackAddress;
                 if (strpos($fallbackAddress, '@') !== false) {
                     $fallbackAddress = substr($fallbackAddress, 0, strpos($fallbackAddress, '@'));
+                }
+                // Strip .0 point suffix from fallback address too
+                if (substr($fallbackAddress, -2) === '.0') {
+                    $fallbackAddress = substr($fallbackAddress, 0, -2);
                 }
                 $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
                 $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
