@@ -1,0 +1,298 @@
+{% extends "base.twig" %}
+
+{% block title %}Crashmail Queue - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="fas fa-bolt me-2"></i>Crashmail Queue</h1>
+        <div class="btn-toolbar">
+            <button class="btn btn-outline-primary me-2" id="refreshQueue">
+                <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+            <a href="/admin" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Queue Statistics -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
+                            <div class="h5 mb-0 font-weight-bold" id="statPending">-</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Attempting</div>
+                            <div class="h5 mb-0 font-weight-bold" id="statAttempting">-</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-spinner fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Sent (24h)</div>
+                            <div class="h5 mb-0 font-weight-bold" id="statSent">-</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Failed</div>
+                            <div class="h5 mb-0 font-weight-bold" id="statFailed">-</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filter Queue</h6>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="filterStatus">
+                        <option value="">All</option>
+                        <option value="pending">Pending</option>
+                        <option value="attempting">Attempting</option>
+                        <option value="sent">Sent</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Limit</label>
+                    <select class="form-select" id="filterLimit">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-primary" id="applyFilter">
+                        <i class="fas fa-filter me-1"></i>Apply Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Queue Items -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Queue Items</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="queueTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>To</th>
+                            <th>Subject</th>
+                            <th>Destination</th>
+                            <th>Status</th>
+                            <th>Attempts</th>
+                            <th>Next Attempt</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queueTableBody">
+                        <tr>
+                            <td colspan="8" class="text-center">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.border-left-primary { border-left: 0.25rem solid #4e73df !important; }
+.border-left-success { border-left: 0.25rem solid #1cc88a !important; }
+.border-left-info { border-left: 0.25rem solid #36b9cc !important; }
+.border-left-warning { border-left: 0.25rem solid #f6c23e !important; }
+.border-left-danger { border-left: 0.25rem solid #e74a3b !important; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadQueue();
+
+    document.getElementById('refreshQueue').addEventListener('click', function() {
+        loadStats();
+        loadQueue();
+    });
+
+    document.getElementById('applyFilter').addEventListener('click', loadQueue);
+    document.getElementById('filterStatus').addEventListener('change', loadQueue);
+});
+
+function loadStats() {
+    fetch('/admin/api/crashmail/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('statPending').textContent = data.pending || 0;
+            document.getElementById('statAttempting').textContent = data.attempting || 0;
+            document.getElementById('statSent').textContent = data.sent_24h || 0;
+            document.getElementById('statFailed').textContent = data.failed || 0;
+        })
+        .catch(error => {
+            console.error('Error loading stats:', error);
+        });
+}
+
+function loadQueue() {
+    const status = document.getElementById('filterStatus').value;
+    const limit = document.getElementById('filterLimit').value;
+
+    let url = `/admin/api/crashmail/queue?limit=${limit}`;
+    if (status) url += `&status=${status}`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('queueTableBody');
+
+            if (!data.items || data.items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No items in queue</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.items.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td>
+                        <strong>${escapeHtml(item.to_name || '')}</strong><br>
+                        <small class="text-muted">${escapeHtml(item.destination_address)}</small>
+                    </td>
+                    <td>${escapeHtml(item.subject || '(no subject)')}</td>
+                    <td>
+                        ${item.destination_host ? `${escapeHtml(item.destination_host)}:${item.destination_port}` : '<em>Unresolved</em>'}
+                    </td>
+                    <td>${getStatusBadge(item.status)}</td>
+                    <td>${item.attempts} / ${item.max_attempts}</td>
+                    <td>${item.next_attempt_at ? formatDate(item.next_attempt_at) : '-'}</td>
+                    <td>
+                        ${item.status === 'failed' ? `
+                            <button class="btn btn-sm btn-warning" onclick="retryItem(${item.id})">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                        ` : ''}
+                        ${item.status !== 'sent' ? `
+                            <button class="btn btn-sm btn-danger" onclick="cancelItem(${item.id})">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        ` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        })
+        .catch(error => {
+            console.error('Error loading queue:', error);
+            document.getElementById('queueTableBody').innerHTML =
+                '<tr><td colspan="8" class="text-center text-danger">Error loading queue</td></tr>';
+        });
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-warning">Pending</span>',
+        'attempting': '<span class="badge bg-info">Attempting</span>',
+        'sent': '<span class="badge bg-success">Sent</span>',
+        'failed': '<span class="badge bg-danger">Failed</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function retryItem(id) {
+    if (!confirm('Retry this crashmail delivery?')) return;
+
+    fetch(`/admin/api/crashmail/${id}/retry`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadStats();
+                loadQueue();
+            } else {
+                alert('Failed to retry: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+}
+
+function cancelItem(id) {
+    if (!confirm('Cancel this crashmail? The message will remain in your outbox but won\'t be crash-delivered.')) return;
+
+    fetch(`/admin/api/crashmail/${id}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadStats();
+                loadQueue();
+            } else {
+                alert('Failed to cancel: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString();
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

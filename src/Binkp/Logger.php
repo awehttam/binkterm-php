@@ -51,9 +51,13 @@ class Logger
             $logMessage .= " " . json_encode($context);
         }
         
-        if ($this->logToConsole) {
-            // Use STDERR for console output - more reliable when exceptions occur
-            fwrite(STDERR, $logMessage . "\n");
+        if ($this->logToConsole && php_sapi_name() === 'cli') {
+            // Use STDERR for console output in CLI mode
+            if (defined('STDERR')) {
+                fwrite(\STDERR, $logMessage . "\n");
+            } else {
+                error_log($logMessage);
+            }
         }
         
         if ($this->logFile) {

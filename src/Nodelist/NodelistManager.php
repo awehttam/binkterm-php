@@ -411,4 +411,98 @@ class NodelistManager
         }
         return $address;
     }
+
+    /**
+     * Get connection info for crash delivery from nodelist
+     *
+     * Looks up a node in the nodelist and extracts connection information
+     * from flags like IBN (Internet BinkP Node) and INA (Internet Address).
+     *
+     * @param string $address FTN address (e.g., "1:123/456")
+     * @return array|null Connection info or null if not found/not connectable
+     */
+    public function getCrashRouteInfo(string $address): ?array
+    {
+        $node = $this->findNode($address);
+        if (!$node) {
+            return null;
+        }
+
+        $flags = $node['flags'] ?? [];
+        if (is_string($flags)) {
+            $flags = json_decode($flags, true) ?? [];
+        }
+
+        $hostname = null;
+        $port = 24554;
+
+        // Check for IBN (Internet BinkP Node) flag
+        // Format: IBN or IBN:hostname or IBN:hostname:port
+        if (isset($flags['IBN'])) {
+            $ibn = $flags['IBN'];
+            if ($ibn === true || $ibn === '1' || $ibn === 1) {
+                // Just IBN flag present, need to use INA for hostname
+                $hostname = $flags['INA'] ?? null;
+            } elseif (is_string($ibn) && strpos($ibn, ':') !== false) {
+                // IBN contains hostname and possibly port
+                $parts = explode(':', $ibn);
+                $hostname = $parts[0] ?: null;
+                if (isset($parts[1]) && is_numeric($parts[1])) {
+                    $port = (int)$parts[1];
+                }
+            } elseif (is_string($ibn) && !empty($ibn)) {
+                $hostname = $ibn;
+            }
+        }
+
+        // Fall back to INA (Internet Address) flag if no hostname yet
+        if (!$hostname && isset($flags['INA'])) {
+            $hostname = is_string($flags['INA']) ? $flags['INA'] : null;
+        }
+
+        // Check for IP flag (legacy format)
+        if (!$hostname && isset($flags['IP'])) {
+            $hostname = is_string($flags['IP']) ? $flags['IP'] : null;
+        }
+
+        // Check for ITN (Internet Telnet Node) - not ideal for binkp but better than nothing
+        if (!$hostname && isset($flags['ITN'])) {
+            $itn = $flags['ITN'];
+            if (is_string($itn) && !empty($itn)) {
+                if (strpos($itn, ':') !== false) {
+                    $parts = explode(':', $itn);
+                    $hostname = $parts[0] ?: null;
+                } else {
+                    $hostname = $itn;
+                }
+            }
+        }
+
+        // No connectable information found
+        if (!$hostname) {
+            return null;
+        }
+
+        return [
+            'address' => $address,
+            'hostname' => $hostname,
+            'port' => $port,
+            'system_name' => $node['system_name'] ?? '',
+            'sysop_name' => $node['sysop_name'] ?? '',
+            'location' => $node['location'] ?? '',
+            'flags' => $flags,
+            'source' => 'nodelist'
+        ];
+    }
+
+    /**
+     * Get a node by its FTN address
+     *
+     * @param string $address FTN address
+     * @return array|null Node data or null
+     */
+    public function getNodeByAddress(string $address): ?array
+    {
+        return $this->findNode($address);
+    }
 }

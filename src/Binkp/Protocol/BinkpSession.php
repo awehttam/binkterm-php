@@ -33,6 +33,12 @@ class BinkpSession
     private $uplinkPassword;
     private $currentUplink;
 
+    // Insecure session support
+    private $isInsecureSession = false;
+    private $insecureReceiveOnly = true;
+    private $sessionType = 'secure';  // 'secure', 'insecure', 'crash_outbound'
+    private $sessionLogger = null;
+
     public function __construct($socket, $isOriginator = false, $config = null)
     {
         $this->socket = $socket;
@@ -371,7 +377,11 @@ class BinkpSession
 
                 // Only answerer should send M_OK; originator waits for M_OK
                 if (!$this->isOriginator) {
-                    $this->sendOK('Authentication successful');
+                    // Indicate session type in OK message
+                    $okMessage = $this->isInsecureSession
+                        ? 'insecure'
+                        : 'secure';
+                    $this->sendOK($okMessage);
                     $this->state = self::STATE_AUTHENTICATED;
                 }
                 // else: Stay in PWD_SENT state, wait for M_OK
@@ -761,6 +771,11 @@ class BinkpSession
 
     private function validatePassword($password)
     {
+        // Check for empty password (insecure session request)
+        if (empty($password) || $password === '-') {
+            return $this->handleInsecureAuth();
+        }
+
         $expectedPassword = $this->getPasswordForRemote();
         $match = $password === $expectedPassword;
 
@@ -772,7 +787,115 @@ class BinkpSession
 
         $this->log("Password validation: received={$receivedPreview} (len={$receivedLen}), expected={$expectedPreview} (len={$expectedLen})", 'DEBUG');
         $this->log("Password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
+
+        if ($match) {
+            $this->sessionType = 'secure';
+        }
+
         return $match;
+    }
+
+    /**
+     * Handle authentication for insecure session request
+     *
+     * @return bool True if insecure session is allowed
+     */
+    private function handleInsecureAuth(): bool
+    {
+        // Check if insecure sessions are allowed
+        if (!$this->config->getAllowInsecureInbound()) {
+            $this->log("Insecure session rejected - disabled in configuration", 'WARNING');
+            return false;
+        }
+
+        // Check allowlist if required
+        if ($this->config->getRequireAllowlistForInsecure()) {
+            if (!$this->isNodeInInsecureAllowlist($this->remoteAddress)) {
+                $this->log("Insecure session rejected - node not in allowlist: {$this->remoteAddress}", 'WARNING');
+                return false;
+            }
+        }
+
+        // Check rate limits
+        if (!$this->checkInsecureRateLimit()) {
+            $this->log("Insecure session rejected - rate limit exceeded for {$this->remoteAddress}", 'WARNING');
+            return false;
+        }
+
+        $this->isInsecureSession = true;
+        $this->insecureReceiveOnly = $this->config->getInsecureReceiveOnly();
+        $this->sessionType = 'insecure';
+        $this->log("Insecure session accepted for {$this->remoteAddress}", 'INFO');
+        return true;
+    }
+
+    /**
+     * Check if node is in insecure allowlist
+     */
+    private function isNodeInInsecureAllowlist(string $address): bool
+    {
+        try {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT id FROM binkp_insecure_nodes
+                WHERE address = ? AND is_active = TRUE
+            ");
+            $stmt->execute([$address]);
+            return $stmt->fetch() !== false;
+        } catch (\Exception $e) {
+            $this->log("Error checking insecure allowlist: " . $e->getMessage(), 'ERROR');
+            return false;
+        }
+    }
+
+    /**
+     * Check rate limit for insecure sessions
+     */
+    private function checkInsecureRateLimit(): bool
+    {
+        $maxPerHour = $this->config->getMaxInsecureSessionsPerHour();
+        if ($maxPerHour <= 0) {
+            return true; // No limit configured
+        }
+
+        $count = \BinktermPHP\Binkp\SessionLogger::countRecentInsecureSessions(
+            $this->remoteAddress,
+            60 // 60 minutes
+        );
+
+        return $count < $maxPerHour;
+    }
+
+    /**
+     * Check if this is an insecure (unauthenticated) session
+     */
+    public function isInsecureSession(): bool
+    {
+        return $this->isInsecureSession;
+    }
+
+    /**
+     * Get the session type for logging
+     */
+    public function getSessionType(): string
+    {
+        return $this->sessionType;
+    }
+
+    /**
+     * Set session type (for outbound crash sessions)
+     */
+    public function setSessionType(string $type): void
+    {
+        $this->sessionType = $type;
+    }
+
+    /**
+     * Check if this insecure session is receive-only
+     */
+    public function isInsecureReceiveOnly(): bool
+    {
+        return $this->isInsecureSession && $this->insecureReceiveOnly;
     }
 
     private function getPasswordForRemote()

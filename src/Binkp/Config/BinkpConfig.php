@@ -449,4 +449,172 @@ class BinkpConfig
         return null;
     }
 
+    // ========================================
+    // Security Configuration (Insecure Sessions)
+    // ========================================
+
+    /**
+     * Check if insecure inbound sessions are allowed
+     */
+    public function getAllowInsecureInbound(): bool
+    {
+        return $this->config['security']['allow_insecure_inbound'] ?? false;
+    }
+
+    /**
+     * Check if insecure outbound sessions are allowed
+     */
+    public function getAllowInsecureOutbound(): bool
+    {
+        return $this->config['security']['allow_insecure_outbound'] ?? false;
+    }
+
+    /**
+     * Check if insecure sessions are receive-only (cannot pick up mail)
+     */
+    public function getInsecureReceiveOnly(): bool
+    {
+        return $this->config['security']['insecure_inbound_receive_only'] ?? true;
+    }
+
+    /**
+     * Check if insecure sessions require node to be in allowlist
+     */
+    public function getRequireAllowlistForInsecure(): bool
+    {
+        return $this->config['security']['require_allowlist_for_insecure'] ?? false;
+    }
+
+    /**
+     * Get maximum insecure sessions per hour per address (rate limiting)
+     */
+    public function getMaxInsecureSessionsPerHour(): int
+    {
+        return $this->config['security']['max_insecure_sessions_per_hour'] ?? 10;
+    }
+
+    /**
+     * Get timeout for insecure sessions in seconds
+     */
+    public function getInsecureSessionTimeout(): int
+    {
+        return $this->config['security']['insecure_session_timeout'] ?? 60;
+    }
+
+    /**
+     * Check if all sessions should be logged
+     */
+    public function getLogAllSessions(): bool
+    {
+        return $this->config['security']['log_all_sessions'] ?? true;
+    }
+
+    // ========================================
+    // Crashmail Configuration
+    // ========================================
+
+    /**
+     * Check if crashmail processing is enabled
+     */
+    public function getCrashmailEnabled(): bool
+    {
+        return $this->config['crashmail']['enabled'] ?? true;
+    }
+
+    /**
+     * Get maximum delivery attempts for crashmail
+     */
+    public function getCrashmailMaxAttempts(): int
+    {
+        return $this->config['crashmail']['max_attempts'] ?? 3;
+    }
+
+    /**
+     * Get retry interval in minutes for failed crashmail delivery
+     */
+    public function getCrashmailRetryInterval(): int
+    {
+        return $this->config['crashmail']['retry_interval_minutes'] ?? 15;
+    }
+
+    /**
+     * Check if nodelist should be used for crash routing
+     */
+    public function getCrashmailUseNodelist(): bool
+    {
+        return $this->config['crashmail']['use_nodelist_for_routing'] ?? true;
+    }
+
+    /**
+     * Get fallback port for crash delivery
+     */
+    public function getCrashmailFallbackPort(): int
+    {
+        return $this->config['crashmail']['fallback_port'] ?? 24554;
+    }
+
+    /**
+     * Check if insecure connections are allowed for crash delivery
+     */
+    public function getCrashmailAllowInsecure(): bool
+    {
+        return $this->config['crashmail']['allow_insecure_crash_delivery'] ?? true;
+    }
+
+    // ========================================
+    // Transit Mail Configuration
+    // ========================================
+
+    /**
+     * Check if transit (forwarding) mail is allowed
+     */
+    public function getAllowTransitMail(): bool
+    {
+        return $this->config['transit']['allow_transit_mail'] ?? false;
+    }
+
+    /**
+     * Check if transit mail requires known route
+     */
+    public function getTransitOnlyForKnownRoutes(): bool
+    {
+        return $this->config['transit']['transit_only_for_known_routes'] ?? true;
+    }
+
+    /**
+     * Update security configuration
+     */
+    public function setSecurityConfig(array $settings): void
+    {
+        if (!isset($this->config['security'])) {
+            $this->config['security'] = [];
+        }
+        $this->config['security'] = array_merge($this->config['security'], $settings);
+        $this->saveConfig();
+    }
+
+    /**
+     * Update crashmail configuration
+     */
+    public function setCrashmailConfig(array $settings): void
+    {
+        if (!isset($this->config['crashmail'])) {
+            $this->config['crashmail'] = [];
+        }
+        $this->config['crashmail'] = array_merge($this->config['crashmail'], $settings);
+        $this->saveConfig();
+    }
+
+    /**
+     * Update transit mail configuration
+     */
+    public function setTransitConfig(array $settings): void
+    {
+        if (!isset($this->config['transit'])) {
+            $this->config['transit'] = [];
+        }
+        $this->config['transit'] = array_merge($this->config['transit'], $settings);
+        $this->saveConfig();
+    }
+
 }
