@@ -14,6 +14,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - [Features](#features)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [Upgrading to Multinetwork (v1.6.7)](#upgrading-to-multinetwork-v167)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
 - [Operation](#operation)
@@ -146,15 +147,13 @@ php -S localhost:8080
 ## Configuration
 
 ### Basic System Configuration
-Edit `config/binkp.json` to configure your system.
-
- - sysop must match the sysop user's name otherwise netmail destined to 'sysop' will fail.
+Edit `config/binkp.json` to configure your system. See `config/binkp.json.example` for a complete reference.
 
 ```json
 {
     "system": {
-        "name": "Claude's BBS",
-        "address": "1:1/0.123",
+        "name": "My BBS System",
+        "address": "1:123/456.57599",
         "sysop": "Your Name",
         "location": "Your City, State",
         "hostname": "your.domain.com",
@@ -172,15 +171,23 @@ Edit `config/binkp.json` to configure your system.
     },
     "uplinks": [
         {
-            "default": true,
-            "address": "1:1/0.0",
+            "me": "1:123/456.57599",
+            "networks": [
+                "1:*/*",
+                "2:*/*",
+                "3:*/*",
+                "4:*/*"
+            ],
+            "address": "1:123/456",
+            "domain": "fidonet",
             "hostname": "hub.fidonet.org",
             "port": 24554,
             "password": "your_password",
             "poll_schedule": "0 */4 * * *",
             "enabled": true,
             "compression": false,
-            "crypt": false
+            "crypt": false,
+            "default": true
         }
     ]
 }
@@ -189,17 +196,82 @@ Edit `config/binkp.json` to configure your system.
 ### Configuration Options
 
 #### System Settings
-- **name**: The system's name
-- **address**: Your FTN address (zone:net/node.point)
-- **sysop**: System operator name.  Must match the actual real name as the sysops user account.
-- **location**: Geographic location
-- **hostname**: Your internet hostname
-- **website**: Optional website URL (displayed in message origin lines)
-- **timezone**: The system's timezone (https://www.php.net/manual/en/timezones.php)
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Your system's display name |
+| `address` | Yes | Your primary FTN address (zone:net/node.point) |
+| `sysop` | Yes | System operator name. **Must match the real name on your sysop user account** for netmail addressed to "sysop" to be delivered correctly |
+| `location` | No | Geographic location (displayed in system info) |
+| `hostname` | Yes | Your internet hostname or IP address |
+| `website` | No | Website URL (included in message origin lines) |
+| `timezone` | Yes | System timezone ([PHP timezone list](https://www.php.net/manual/en/timezones.php)) |
 
 **Note**: When the `website` field is configured, it will be included in FidoNet message origin lines:
 - Without website: `* Origin: My BBS System (1:234/567)`
 - With website: `* Origin: My BBS System <https://mybbs.com> (1:234/567)`
+
+#### Binkp Settings
+| Field | Default | Description |
+|-------|---------|-------------|
+| `port` | 24554 | TCP port for binkp server |
+| `timeout` | 300 | Connection timeout in seconds |
+| `max_connections` | 10 | Maximum simultaneous connections |
+| `bind_address` | 0.0.0.0 | IP address to bind to (0.0.0.0 for all interfaces) |
+| `inbound_path` | data/inbound | Directory for incoming packets |
+| `outbound_path` | data/outbound | Directory for outgoing packets |
+| `preserve_processed_packets` | false | If true, moves processed packets to a `processed/` subdirectory instead of deleting |
+
+#### Uplink Configuration
+Each uplink in the `uplinks` array supports the following fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `me` | Yes | Your FTN address as presented to this uplink |
+| `address` | Yes | The uplink's FTN address |
+| `hostname` | Yes | Uplink hostname or IP address |
+| `port` | Yes | Uplink port (typically 24554) |
+| `password` | Yes | Authentication password (shared secret) |
+| `domain` | Yes | Network domain (e.g., "fidonet", "fsxnet", "agoranet") |
+| `networks` | Yes | Array of address patterns this uplink routes (e.g., `["1:*/*", "2:*/*"]`) |
+| `poll_schedule` | No | Cron expression for automated polling (e.g., `"0 */4 * * *"` = every 4 hours) |
+| `enabled` | No | Whether uplink is active (default: true) |
+| `default` | No | Whether this is the default uplink for unrouted messages |
+| `compression` | No | Enable compression (not yet implemented) |
+| `crypt` | No | Enable encryption (not yet implemented) |
+
+**Network Patterns**: The `networks` field uses wildcard patterns to define which addresses route through this uplink:
+- `1:*/*` - All Zone 1 addresses
+- `21:*/*` - All Zone 21 addresses (FSXNet)
+- `46:*/*` - All Zone 46 addresses (AgoraNet)
+
+**Multiple Networks Example**:
+```json
+{
+    "uplinks": [
+        {
+            "me": "1:123/456.57599",
+            "address": "1:123/456",
+            "domain": "fidonet",
+            "networks": ["1:*/*", "2:*/*", "3:*/*", "4:*/*"],
+            "hostname": "fidonet-hub.example.com",
+            "port": 24554,
+            "password": "fido_password",
+            "default": true,
+            "enabled": true
+        },
+        {
+            "me": "21:1/999",
+            "address": "21:1/100",
+            "domain": "fsxnet",
+            "networks": ["21:*/*"],
+            "hostname": "fsxnet-hub.example.com",
+            "port": 24554,
+            "password": "fsx_password",
+            "enabled": true
+        }
+    ]
+}
+```
 
 ### Web Terminal Configuration
 
@@ -269,25 +341,87 @@ The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebS
 - Consider network security for both the proxy server and target SSH server
 - The proxy server should be properly secured and regularly updated
 
-#### Binkp Settings
-- **port**: TCP port for binkp server (default: 24554)
-- **timeout**: Connection timeout in seconds
-- **max_connections**: Maximum simultaneous connections
-- **bind_address**: IP address to bind to (0.0.0.0 for all)
-- **inbound_path**: Directory for incoming files
-- **outbound_path**: Directory for outgoing files
-- **preserve_processed_packets**: Move packets to the processed directory after processing
+## Upgrading to Multinetwork (v1.6.7)
 
-#### Uplink Configuration
-- **default**: Whether this is the default uplink or not
-- **address**: Uplink FTN address
-- **hostname**: Uplink hostname or IP
-- **port**: Uplink port (usually 24554)
-- **password**: Authentication password
-- **poll_schedule**: Cron expression for polling (e.g., "0 */4 * * *" = every 4 hours)
-- **enabled**: Whether uplink is active
-- **compression**: Enable compression (not yet implemented)
-- **crypt**: Enable encryption (not yet implemented)
+Version 1.6.7 introduces support for multiple FTN networks (FidoNet, FSXNet, AgoraNet, etc.) running simultaneously. This requires both database schema changes and configuration updates.
+
+### Step 1: Run Database Migration
+
+```bash
+php scripts/upgrade.php
+```
+
+This migration adds `domain` fields to the `echoareas`, `nodelist`, and `nodelist_metadata` tables, and updates the unique constraint on echoareas to allow the same tag across different networks.
+
+### Step 2: Update binkp.json Configuration
+
+Your existing uplink configuration needs new fields. For each uplink, add:
+
+| Field | Description |
+|-------|-------------|
+| `me` | Your FTN address as presented to this specific uplink |
+| `domain` | Network domain identifier (e.g., "fidonet", "fsxnet") |
+| `networks` | Array of address patterns routed through this uplink |
+
+**Before (pre-1.6.7):**
+```json
+{
+    "uplinks": [
+        {
+            "address": "1:123/456",
+            "hostname": "hub.example.com",
+            "port": 24554,
+            "password": "secret",
+            "default": true,
+            "enabled": true
+        }
+    ]
+}
+```
+
+**After (1.6.7+):**
+```json
+{
+    "uplinks": [
+        {
+            "me": "1:123/456.57599",
+            "address": "1:123/456",
+            "domain": "fidonet",
+            "networks": ["1:*/*", "2:*/*", "3:*/*", "4:*/*"],
+            "hostname": "hub.example.com",
+            "port": 24554,
+            "password": "secret",
+            "default": true,
+            "enabled": true
+        }
+    ]
+}
+```
+
+### Step 3: Update Echoarea Domains (Optional)
+
+If you have existing echoareas, they will be automatically assigned to the "fidonet" domain during migration. To assign echoareas to different networks, use the admin interface or update the database directly:
+
+```sql
+UPDATE echoareas SET domain = 'fsxnet' WHERE tag LIKE 'FSX_%';
+UPDATE echoareas SET domain = 'agoranet' WHERE tag LIKE 'AGN_%';
+```
+
+### Step 4: Import Network-Specific Nodelists
+
+When importing nodelists for different networks, specify the domain:
+
+```bash
+php scripts/import_nodelist.php --file=FSXNET.023 --domain=fsxnet
+php scripts/import_nodelist.php --file=NODELIST.365 --domain=fidonet
+```
+
+### Benefits of Multinetwork Support
+
+- **Simultaneous Networks**: Connect to FidoNet, FSXNet, AgoraNet, and other FTN networks at the same time
+- **Proper Routing**: Messages are routed to the correct uplink based on destination address
+- **Network Isolation**: Echoareas are scoped to their network domain, preventing tag collisions
+- **Per-Network Nodelists**: Each network maintains its own nodelist for proper addressing
 
 ## Database Management
 
