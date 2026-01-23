@@ -186,7 +186,7 @@ class BinkpConfig
         return $processedPath;
     }
 
-    function getRoutingTable()
+    public function getRoutingTable()
     {
         $rt = new FtnRouter();
         foreach($this->getUplinks() as $uplink) {
@@ -198,7 +198,7 @@ class BinkpConfig
         return $rt;
     }
 
-    function getMyAddresses()
+    public function getMyAddresses()
     {
         $ret=[];
         foreach($this->getUplinks() as $uplink){
@@ -209,7 +209,7 @@ class BinkpConfig
         return $ret;
     }
 
-    function getMyAddressByDomain($domain)
+    public function getMyAddressByDomain($domain)
     {
 
         foreach($this->getUplinks() as $uplink){
