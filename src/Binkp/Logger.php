@@ -23,13 +23,14 @@ class Logger
             // Use absolute path from Config
             $this->logFile = \BinktermPHP\Config::getLogPath('binkp.log');
         }
-        $this->logLevel = $logLevel;
+        // Convert string log level to numeric (e.g., 'DEBUG' -> 0)
+        $this->logLevel = is_string($logLevel) ? $this->getLevelValue($logLevel) : $logLevel;
         $this->logToConsole = $logToConsole;
         $this->dateFormat = 'Y-m-d H:i:s';
-        
+
         $logDir = dirname($this->logFile);
         if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
+            @mkdir($logDir, 0755, true);
         }
     }
     
@@ -51,7 +52,8 @@ class Logger
         }
         
         if ($this->logToConsole) {
-            echo $logMessage . "\n";
+            // Use STDERR for console output - more reliable when exceptions occur
+            fwrite(STDERR, $logMessage . "\n");
         }
         
         if ($this->logFile) {

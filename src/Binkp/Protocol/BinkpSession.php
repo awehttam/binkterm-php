@@ -77,9 +77,7 @@ class BinkpSession
     public function setUplinkPassword($password)
     {
         $this->uplinkPassword = $password;
-        $debugMsg = "setUplinkPassword: length=" . strlen($password) . ", hex=" . bin2hex($password);
-        $this->log($debugMsg);
-        fwrite(STDERR, "[DEBUG] {$debugMsg}\n");
+        $this->log("setUplinkPassword: length=" . strlen($password), 'DEBUG');
     }
     
     public function log($message, $level = 'INFO')
@@ -480,10 +478,9 @@ class BinkpSession
         } else {
             $address = trim(implode(" ", $this->config->getMyAddresses()));
         }
-        fwrite(STDERR, "[DEBUG] sendAddress: {$address}\n");
         $frame = BinkpFrame::createCommand(BinkpFrame::M_ADR, $address);
         $frame->writeToSocket($this->socket);
-        $this->log("Sent address: {$address}");
+        $this->log("Sent address: {$address}", 'DEBUG');
     }
     
     private function sendPassword()
@@ -491,22 +488,19 @@ class BinkpSession
         if ($this->isOriginator) {
             // As originator, send the uplink password
             $password = $this->uplinkPassword ?? '';
-            $this->log("sendPassword: originator mode, using uplinkPassword");
+            $this->log("sendPassword: originator mode, using uplinkPassword", 'DEBUG');
         } else {
             // As answerer, send our password for the remote to verify us
             // This is called after we've received their address via M_ADR
             $password = $this->getPasswordForRemote();
-            $this->log("sendPassword: answerer mode, using getPasswordForRemote()");
+            $this->log("sendPassword: answerer mode, using getPasswordForRemote()", 'DEBUG');
         }
 
-        // Debug: show exactly what we're sending (also to stderr for visibility)
-        $debugMsg = "sendPassword: length=" . strlen($password) . ", hex=" . bin2hex($password);
-        $this->log($debugMsg);
-        fwrite(STDERR, "[DEBUG] {$debugMsg}\n");
+        $this->log("sendPassword: length=" . strlen($password), 'DEBUG');
 
         $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
         $frame->writeToSocket($this->socket);
-        $this->log("Sent password frame");
+        $this->log("Sent password frame", 'DEBUG');
     }
     
     private function sendOK($message = '')
