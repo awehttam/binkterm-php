@@ -56,7 +56,7 @@ class BinkpSession
     public function setCurrentUplink(array $uplink)
     {
         $this->currentUplink = $uplink;
-        $this->log("Current uplink set: " . ($uplink['address'] ?? 'unknown') . " (domain: " . ($uplink['domain'] ?? 'unknown') . ")");
+        $this->log("Current uplink set: " . ($uplink['address'] ?? 'unknown') . " (domain: " . ($uplink['domain'] ?? 'unknown') . ")", 'DEBUG');
     }
 
     /**
@@ -106,7 +106,7 @@ class BinkpSession
                     throw new \Exception("Failed to read frame during handshake (state={$this->state}, timed_out={$timedOut}, eof={$eof}, blocked={$blocked})");
                 }
 
-                $this->log("Received: {$frame}");
+                $this->log("Received: {$frame}", 'DEBUG');
                 $this->processHandshakeFrame($frame);
             }
 
@@ -139,26 +139,26 @@ class BinkpSession
     {
         $frame = BinkpFrame::createCommand(BinkpFrame::M_NUL, $data);
         $frame->writeToSocket($this->socket);
-        $this->log("Sent NUL: {$data}");
+        $this->log("Sent NUL: {$data}", 'DEBUG');
     }
-    
+
     public function processSession()
     {
         try {
             $this->state = self::STATE_FILE_TRANSFER;
-            $this->log("Entering file transfer phase");
+            $this->log("Entering file transfer phase", 'DEBUG');
 
             if ($this->isOriginator) {
-                $this->log("As originator, checking for outbound files");
+                $this->log("As originator, checking for outbound files", 'DEBUG');
                 $this->sendFiles();
                 
                 // Wait for M_GOT responses before sending EOB
                 if (!empty($this->filesSent)) {
-                    $this->log("Waiting for M_GOT responses for " . count($this->filesSent) . " sent files: " . implode(', ', $this->filesSent));
+                    $this->log("Waiting for M_GOT responses for " . count($this->filesSent) . " sent files", 'DEBUG');
                     $pendingFiles = array_flip($this->filesSent); // Use filenames as keys for easier lookup
                     $timeout = time() + 120; // Increased timeout to 120 seconds
                     $lastActivity = time();
-                    
+
                     while (!empty($pendingFiles) && time() < $timeout && $this->state < self::STATE_TERMINATED) {
                         $frame = BinkpFrame::parseFromSocket($this->socket);
                         if (!$frame) {
@@ -170,25 +170,24 @@ class BinkpSession
                             usleep(100000); // 100ms delay to prevent busy waiting
                             continue;
                         }
-                        
+
                         $lastActivity = time();
-                        $this->log("Received while waiting for M_GOT: {$frame}");
+                        $this->log("Received while waiting for M_GOT: {$frame}", 'DEBUG');
                         $this->processTransferFrame($frame);
-                        
+
                         // Remove confirmed files from pending list
                         if ($frame->isCommand() && $frame->getCommand() === BinkpFrame::M_GOT) {
                             $gotData = $frame->getData();
-                            $this->log("Processing M_GOT: '{$gotData}'");
-                            $this->log("Current pending files before M_GOT: " . implode(', ', array_keys($pendingFiles)));
-                            
+                            $this->log("Processing M_GOT: '{$gotData}'", 'DEBUG');
+
                             // Extract filename from M_GOT data (format: "filename size timestamp")
                             $parts = explode(' ', $gotData);
                             $confirmedFile = $parts[0];
-                            
+
                             // Try exact match first
                             if (isset($pendingFiles[$confirmedFile])) {
                                 unset($pendingFiles[$confirmedFile]);
-                                $this->log("File confirmed (exact match): {$confirmedFile}");
+                                $this->log("File confirmed: {$confirmedFile}", 'DEBUG');
                             } else {
                                 // Try basename match for path issues
                                 $baseName = basename($confirmedFile);
@@ -196,29 +195,26 @@ class BinkpSession
                                 foreach (array_keys($pendingFiles) as $pendingFile) {
                                     if (basename($pendingFile) === $baseName) {
                                         unset($pendingFiles[$pendingFile]);
-                                        $this->log("File confirmed (basename match): {$pendingFile} -> {$confirmedFile}");
+                                        $this->log("File confirmed (basename match): {$confirmedFile}", 'DEBUG');
                                         $foundMatch = true;
                                         break;
                                     }
                                 }
                                 if (!$foundMatch) {
-                                    $this->log("M_GOT for unknown file: {$confirmedFile}, pending: " . implode(', ', array_keys($pendingFiles)), 'WARNING');
+                                    $this->log("M_GOT for unknown file: {$confirmedFile}", 'WARNING');
                                 }
                             }
-                            
-                            $this->log("Remaining pending files: " . count($pendingFiles) . " (" . implode(', ', array_keys($pendingFiles)) . ")");
                         }
                     }
-                    
+
                     if (!empty($pendingFiles)) {
-                        $this->log("Warning: " . count($pendingFiles) . " files not confirmed after timeout: " . implode(', ', array_keys($pendingFiles)), 'WARNING');
-                        $this->log("Proceeding with M_EOB anyway to prevent protocol deadlock", 'WARNING');
+                        $this->log(count($pendingFiles) . " files not confirmed after timeout", 'WARNING');
                     } else {
-                        $this->log("All sent files confirmed by remote");
+                        $this->log("All sent files confirmed by remote", 'DEBUG');
                     }
                 }
             } else {
-                $this->log("As answerer, waiting for files");
+                $this->log("As answerer, waiting for files", 'DEBUG');
             }
 
             // As originator with no files sent, proceed directly to waiting for remote files
@@ -226,7 +222,7 @@ class BinkpSession
             $shouldWaitForFrames = !$this->isOriginator || !empty($this->filesSent);
 
             if ($shouldWaitForFrames) {
-                $this->log("Processing incoming frames before EOB exchange");
+                $this->log("Processing incoming frames before EOB exchange", 'DEBUG');
                 // Continue processing frames until EOB exchange, but with a timeout
                 $frameWaitStart = time();
                 $frameWaitTimeout = 5; // 5 second timeout for this phase
@@ -238,55 +234,43 @@ class BinkpSession
                         continue;
                     }
 
-                    $this->log("Received: {$frame}");
+                    $this->log("Received: {$frame}", 'DEBUG');
                     $this->processTransferFrame($frame);
                 }
-                $this->log("Frame processing phase complete (waited " . (time() - $frameWaitStart) . "s)");
+                $this->log("Frame processing phase complete", 'DEBUG');
             } else {
-                $this->log("Originator with no files sent - skipping frame wait, proceeding to EOB");
+                $this->log("Originator with no files - proceeding to EOB", 'DEBUG');
             }
 
             // As originator, wait for remote to potentially send us files before sending EOB
-            // Give remote system time to start sending files after they receive ours
-            // Only do this if we're not already receiving a file
             if (!$this->currentFile) {
-                // If we sent files, wait a bit longer for remote to acknowledge and potentially send back
-                // If we sent no files, only wait briefly to detect if remote has files
                 $hasSentFiles = !empty($this->filesSent);
-                $maxWaitTime = $hasSentFiles ? 5 : 2; // 5 seconds if we sent files, 2 seconds if not
-
-                $this->log("WAIT LOGIC: Starting post-send wait for incoming files (max {$maxWaitTime}s, sent files: " . ($hasSentFiles ? 'yes' : 'no') . ")");
+                $maxWaitTime = $hasSentFiles ? 5 : 2;
                 $waitStartTime = time();
             } else {
-                $this->log("WAIT LOGIC: Skipping wait - already receiving file: " . $this->currentFile['name']);
+                $this->log("Already receiving file: " . $this->currentFile['name'], 'DEBUG');
                 $waitStartTime = time();
-                $maxWaitTime = 0; // Skip the wait loop entirely
+                $maxWaitTime = 0;
             }
 
             while ($this->state === self::STATE_FILE_TRANSFER && time() - $waitStartTime < $maxWaitTime) {
-                $frame = BinkpFrame::parseFromSocket($this->socket, true); // Use non-blocking mode
+                $frame = BinkpFrame::parseFromSocket($this->socket, true);
                 if ($frame) {
-                    $this->log("WAIT LOGIC: Received during post-send wait: {$frame}");
+                    $this->log("Received during wait: {$frame}", 'DEBUG');
                     $this->processTransferFrame($frame);
-
-                    // If remote starts sending a file or sends EOB, exit wait
                     if ($this->currentFile || $this->state !== self::STATE_FILE_TRANSFER) {
-                        $this->log("WAIT LOGIC: Exiting wait - currentFile: " . ($this->currentFile ? $this->currentFile['name'] : 'none') . ", state: " . $this->state);
                         break;
                     }
                 } else {
-                    usleep(100000); // 100ms delay
+                    usleep(100000);
                 }
             }
-            $this->log("WAIT LOGIC: Wait completed after " . (time() - $waitStartTime) . " seconds");
 
             // Send EOB if we haven't already and no file is currently being received
             if ($this->state === self::STATE_FILE_TRANSFER && !$this->currentFile) {
-                $this->log("Sending EOB (End of Batch) - no active file transfer after wait");
+                $this->log("Sending EOB", 'DEBUG');
                 $this->sendEOB();
                 $this->state = self::STATE_EOB_SENT;
-            } else if ($this->state === self::STATE_FILE_TRANSFER && $this->currentFile) {
-                $this->log("Remote started sending file during wait: " . $this->currentFile['name']);
             }
 
             // Continue until session terminates
@@ -295,8 +279,7 @@ class BinkpSession
                 if (!$frame) {
                     break;
                 }
-
-                $this->log("Received: {$frame}");
+                $this->log("Received: {$frame}", 'DEBUG');
                 $this->processTransferFrame($frame);
             }
 
@@ -320,31 +303,27 @@ class BinkpSession
         switch ($frame->getCommand()) {
             case BinkpFrame::M_ADR:
                 $addressData = $frame->getData();
-                $this->log("Remote sent address data: {$addressData}");
+                $this->log("Remote address: {$addressData}", 'DEBUG');
 
                 // Handle multiple addresses - remote may send "1:153/149 1:153/149.1 1:153/149.2"
                 $addresses = explode(' ', $addressData);
-                $this->log("Parsed addresses: " . implode(', ', $addresses));
 
                 // Try to find a matching address in our uplinks
                 $matchedAddress = null;
                 $matchedAddressWithDomain = null;
                 foreach ($addresses as $addr) {
                     $addr = trim($addr);
-                    $addrWithDomain = $addr; // Preserve original with domain
+                    $addrWithDomain = $addr;
                     $domain = null;
 
-                    // Extract domain suffix like @fidonet but preserve it
                     if (strpos($addr, '@') !== false) {
                         list($addrOnly, $domain) = explode('@', $addr, 2);
-                        $this->log("Address has domain: {$addrOnly}@{$domain}");
                         $addr = $addrOnly;
                     }
 
                     if (!empty($addr) && $this->config->getUplinkByAddress($addr)) {
                         $matchedAddress = $addr;
                         $matchedAddressWithDomain = $addrWithDomain;
-                        $this->log("Found matching uplink address: {$addr}");
                         break;
                     }
                 }
@@ -357,47 +336,40 @@ class BinkpSession
                 }
                 $this->remoteAddress = $matchedAddress ?: $fallbackAddress;
                 $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
-                $this->log("Using remote address: {$this->remoteAddress} (with domain: {$this->remoteAddressWithDomain})");
-                
+                $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
+
                 if ($this->state === self::STATE_INIT) {
-                    $this->log("M_ADR: state=INIT, sending address and password");
                     $this->sendAddress();
                     $this->sendPassword();
                     $this->state = self::STATE_PWD_SENT;
                 } elseif ($this->state === self::STATE_ADDR_SENT) {
-                    $this->log("M_ADR: state=ADDR_SENT, sending password (isOriginator={$this->isOriginator})");
                     $this->sendPassword();
                     $this->state = self::STATE_PWD_SENT;
                 } else {
-                    $this->log("M_ADR: state={$this->state}, setting to ADDR_RECEIVED");
                     $this->state = self::STATE_ADDR_RECEIVED;
                 }
                 break;
-                
+
             case BinkpFrame::M_PWD:
-                $this->log("M_PWD: received password, state={$this->state}, isOriginator={$this->isOriginator}");
+                $this->log("M_PWD received", 'DEBUG');
                 if (!$this->validatePassword($frame->getData())) {
                     throw new \Exception('Authentication failed');
                 }
 
                 if ($this->state === self::STATE_ADDR_RECEIVED) {
-                    $this->log("M_PWD: state=ADDR_RECEIVED, sending our password");
                     $this->sendPassword();
                 }
 
                 // Only answerer should send M_OK; originator waits for M_OK
                 if (!$this->isOriginator) {
-                    $this->log("M_PWD: as answerer, sending M_OK");
                     $this->sendOK('Authentication successful');
                     $this->state = self::STATE_AUTHENTICATED;
-                } else {
-                    $this->log("M_PWD: as originator, waiting for M_OK from remote");
-                    // Stay in PWD_SENT state, wait for M_OK
                 }
+                // else: Stay in PWD_SENT state, wait for M_OK
                 break;
-                
+
             case BinkpFrame::M_OK:
-                $this->log("M_OK: received, state={$this->state}");
+                $this->log("M_OK received", 'DEBUG');
                 if ($this->state === self::STATE_PWD_SENT) {
                     $this->state = self::STATE_AUTHENTICATED;
                 }
@@ -405,70 +377,67 @@ class BinkpSession
 
             case BinkpFrame::M_NUL:
                 // System info frames - just log them
-                $this->log("M_NUL: " . $frame->getData());
+                $this->log("M_NUL: " . $frame->getData(), 'DEBUG');
                 break;
 
             case BinkpFrame::M_ERR:
                 throw new \Exception('Remote error: ' . $frame->getData());
-                
+
             case BinkpFrame::M_BSY:
                 throw new \Exception('Remote busy: ' . $frame->getData());
-                
+
             default:
                 $this->log("Unexpected command during handshake: " . $frame->getCommand(), 'WARNING');
         }
     }
-    
+
     private function processTransferFrame(BinkpFrame $frame)
     {
         if ($frame->isCommand()) {
-            $this->log("Processing command frame: " . $frame->getCommand() . " with data: " . $frame->getData());
-            
+            $this->log("Transfer command: " . $frame->getCommand(), 'DEBUG');
+
             switch ($frame->getCommand()) {
                 case BinkpFrame::M_FILE:
                     $this->handleFileCommand($frame->getData());
                     break;
-                    
+
                 case BinkpFrame::M_EOB:
-                    $this->log("Received M_EOB, current state: " . $this->state);
+                    $this->log("Received M_EOB", 'DEBUG');
                     if ($this->state === self::STATE_EOB_SENT) {
-                        $this->log("Both sides sent EOB, terminating session");
                         $this->state = self::STATE_TERMINATED;
                     } elseif ($this->state === self::STATE_EOB_RECEIVED) {
-                        $this->log("Received M_EOB again while in EOB_RECEIVED state - both sides done, terminating");
                         $this->state = self::STATE_TERMINATED;
                     } else {
-                        $this->log("Sending EOB response");
                         $this->sendEOB();
                         $this->state = self::STATE_EOB_RECEIVED;
                     }
                     break;
                     
                 case BinkpFrame::M_GOT:
-                    $this->log("Received M_GOT for file: " . $frame->getData());
+                    $this->log("Received M_GOT: " . $frame->getData(), 'DEBUG');
                     $this->handleGotCommand($frame->getData());
                     break;
-                    
+
                 case BinkpFrame::M_GET:
                     $this->handleGetCommand($frame->getData());
                     break;
-                    
+
                 case BinkpFrame::M_SKIP:
                     $this->handleSkipCommand($frame->getData());
                     break;
-                    
+
                 case BinkpFrame::M_ERR:
                     throw new \Exception('Remote error: ' . $frame->getData());
-                    
+
                 default:
-                    $this->log("Unexpected command during transfer: " . $frame->getCommand(), 'WARNING');
+                    $this->log("Unexpected transfer command: " . $frame->getCommand(), 'WARNING');
             }
         } else {
-            $this->log("RECEIVING DATA: Processing data frame of " . strlen($frame->getData()) . " bytes");
+            $this->log("Receiving data: " . strlen($frame->getData()) . " bytes", 'DEBUG');
             $this->handleFileData($frame->getData());
         }
     }
-    
+
     private function sendAddress()
     {
         // If we have a current uplink context, only send that uplink's address
@@ -482,57 +451,49 @@ class BinkpSession
         $frame->writeToSocket($this->socket);
         $this->log("Sent address: {$address}", 'DEBUG');
     }
-    
+
     private function sendPassword()
     {
         if ($this->isOriginator) {
-            // As originator, send the uplink password
             $password = $this->uplinkPassword ?? '';
-            $this->log("sendPassword: originator mode, using uplinkPassword", 'DEBUG');
         } else {
-            // As answerer, send our password for the remote to verify us
-            // This is called after we've received their address via M_ADR
             $password = $this->getPasswordForRemote();
-            $this->log("sendPassword: answerer mode, using getPasswordForRemote()", 'DEBUG');
         }
-
-        $this->log("sendPassword: length=" . strlen($password), 'DEBUG');
-
+        $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
         $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
         $frame->writeToSocket($this->socket);
-        $this->log("Sent password frame", 'DEBUG');
     }
-    
+
     private function sendOK($message = '')
     {
         $frame = BinkpFrame::createCommand(BinkpFrame::M_OK, $message);
         $frame->writeToSocket($this->socket);
-        $this->log("Sent OK: {$message}");
+        $this->log("Sent OK", 'DEBUG');
     }
-    
+
     private function sendError($message)
     {
         $frame = BinkpFrame::createCommand(BinkpFrame::M_ERR, $message);
         $frame->writeToSocket($this->socket);
-        $this->log("Sent error: {$message}");
+        $this->log("Sent error: {$message}", 'DEBUG');
     }
-    
+
     private function sendEOB()
     {
         $frame = BinkpFrame::createCommand(BinkpFrame::M_EOB, '');
         $frame->writeToSocket($this->socket);
-        $this->log("Sent EOB");
+        $this->log("Sent EOB", 'DEBUG');
     }
-    
+
     private function sendFiles()
     {
         $outboundPath = $this->config->getOutboundPath();
         $files = glob($outboundPath . '/*.pkt');
 
-        $this->log("Found " . count($files) . " outbound files in {$outboundPath}");
+        $this->log("Found " . count($files) . " outbound files", 'DEBUG');
 
         if (empty($files)) {
-            $this->log("No outbound files to send");
+            $this->log("No outbound files to send", 'DEBUG');
             return;
         }
 
@@ -570,11 +531,11 @@ class BinkpSession
         }
 
         if ($filesSkipped > 0) {
-            $this->log("Skipped {$filesSkipped} packets not destined for this uplink");
+            $this->log("Skipped {$filesSkipped} packets not for this uplink", 'DEBUG');
         }
 
         if (empty($filesToSend)) {
-            $this->log("No outbound files to send for this uplink");
+            $this->log("No outbound files for this uplink", 'DEBUG');
             return;
         }
 
@@ -655,37 +616,34 @@ class BinkpSession
         $frame = BinkpFrame::createCommand(BinkpFrame::M_FILE, $fileInfo);
         $frame->writeToSocket($this->socket);
         
-        $this->log("Sending M_FILE: {$fileInfo}");
-        
+        $this->log("Sending file: {$filename} ({$fileSize} bytes)", 'DEBUG');
+
         $handle = fopen($filePath, 'rb');
         if (!$handle) {
-            $this->log("Failed to open file for reading: {$filePath}", 'ERROR');
+            $this->log("Failed to open file: {$filePath}", 'ERROR');
             return;
         }
-        
+
         $bytesSent = 0;
         while (!feof($handle)) {
-            $data = fread($handle, 8192); // Use larger chunks for efficiency
+            $data = fread($handle, 8192);
             if ($data === false || strlen($data) === 0) {
                 break;
             }
-            
             $dataFrame = BinkpFrame::createData($data);
             $dataFrame->writeToSocket($this->socket);
             $bytesSent += strlen($data);
-            
-            $this->log("Sent {$bytesSent}/{$fileSize} bytes of {$filename}");
         }
         fclose($handle);
-        
+
         if ($bytesSent === $fileSize) {
             $this->filesSent[] = $filename;
-            $this->log("File sent successfully: {$filename} ({$bytesSent} bytes) - waiting for M_GOT");
+            $this->log("Sent file: {$filename} ({$bytesSent} bytes)", 'INFO');
         } else {
             $this->log("File send incomplete: {$filename} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
         }
     }
-    
+
     private function handleFileCommand($data)
     {
         $parts = explode(' ', $data, 4);
@@ -693,16 +651,14 @@ class BinkpSession
         $size = isset($parts[1]) ? intval($parts[1]) : 0;
         $timestamp = isset($parts[2]) ? intval($parts[2]) : time();
         $offset = isset($parts[3]) ? intval($parts[3]) : 0;
-        
-        $this->log("Received M_FILE: {$data}");
-        
+
         // Validate filename to prevent directory traversal
         $filename = basename($filename);
         if (empty($filename) || $filename === '.' || $filename === '..') {
             $this->log("Invalid filename in M_FILE: {$data}", 'ERROR');
             return;
         }
-        
+
         $this->currentFile = [
             'name' => $filename,
             'size' => $size,
@@ -710,137 +666,119 @@ class BinkpSession
             'offset' => $offset,
             'received' => 0
         ];
-        
+
         $inboundPath = $this->config->getInboundPath();
         $filepath = $inboundPath . '/' . $filename;
-        
+
         // Handle resume if offset > 0
         if ($offset > 0) {
             $this->fileHandle = fopen($filepath, 'r+b');
             if ($this->fileHandle) {
                 fseek($this->fileHandle, $offset);
                 $this->currentFile['received'] = $offset;
-                $this->log("Resuming file: {$filename} from offset {$offset}");
             }
         } else {
             $this->fileHandle = fopen($filepath, 'wb');
         }
-        
+
         if (!$this->fileHandle) {
             $this->log("Failed to open file for writing: {$filepath}", 'ERROR');
             return;
         }
-        
-        $this->log("Receiving file: {$filename} ({$size} bytes, offset: {$offset})");
+
+        $this->log("Receiving file: {$filename} ({$size} bytes)", 'INFO');
     }
-    
+
     private function handleFileData($data)
     {
         if ($this->currentFile && $this->fileHandle) {
             $bytesWritten = fwrite($this->fileHandle, $data);
             if ($bytesWritten === false) {
-                $this->log("Failed to write file data for: " . $this->currentFile['name'], 'ERROR');
+                $this->log("Failed to write file data: " . $this->currentFile['name'], 'ERROR');
                 return;
             }
-            
+
             $this->currentFile['received'] += $bytesWritten;
-            
-            $this->log("Received {$this->currentFile['received']}/{$this->currentFile['size']} bytes of {$this->currentFile['name']}");
             
             if ($this->currentFile['received'] >= $this->currentFile['size']) {
                 fclose($this->fileHandle);
                 $this->fileHandle = null;
                 
                 $this->filesReceived[] = $this->currentFile['name'];
-                $this->log("File received completely: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)");
-                
-                // Send M_GOT with filename, size, and timestamp for better compatibility
+                $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
+
+                // Send M_GOT
                 $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . time();
-                $this->log("SENDING M_GOT: Preparing to send M_GOT for: " . $gotData);
                 $frame = BinkpFrame::createCommand(BinkpFrame::M_GOT, $gotData);
-                $this->log("SENDING M_GOT: Frame created, writing to socket");
                 $frame->writeToSocket($this->socket);
-                $this->log("SENDING M_GOT: Successfully sent M_GOT for: " . $gotData);
-                
+                $this->log("Sent M_GOT: " . $this->currentFile['name'], 'DEBUG');
+
                 $this->currentFile = null;
             }
         } else {
             $this->log("Received file data but no active file transfer", 'WARNING');
         }
     }
-    
+
     private function handleGotCommand($data)
     {
-        $this->log("Remote confirmed receipt of: {$data}");
-        
-        // M_GOT format can be "filename" or "filename size timestamp"
-        // Extract just the filename part
+        $this->log("Remote confirmed: {$data}", 'DEBUG');
+
         $parts = explode(' ', $data);
         $filename = $parts[0];
-        
+
         $outboundPath = $this->config->getOutboundPath();
         $filepath = $outboundPath . '/' . $filename;
         if (file_exists($filepath)) {
             if (unlink($filepath)) {
-                $this->log("Successfully deleted sent file: {$filename}");
+                $this->log("Deleted sent file: {$filename}", 'DEBUG');
             } else {
                 $this->log("Failed to delete sent file: {$filename}", 'ERROR');
             }
         } else {
-            $this->log("Sent file not found for deletion: {$filepath}", 'WARNING');
+            $this->log("Sent file not found: {$filepath}", 'WARNING');
         }
     }
-    
+
     private function handleGetCommand($data)
     {
-        $this->log("Remote requested file: {$data}");
+        $this->log("Remote requested file: {$data}", 'DEBUG');
     }
-    
+
     private function handleSkipCommand($data)
     {
-        $this->log("Remote skipped file: {$data}");
+        $this->log("Remote skipped file: {$data}", 'DEBUG');
     }
-    
+
     private function validatePassword($password)
     {
         $expectedPassword = $this->getPasswordForRemote();
-        
-        if ($this->isOriginator) {
-            $this->log("Validating remote password (originator mode)");
-        } else {
-            $this->log("Validating remote password (answerer mode)");
-        }
-        
-        $this->log("Received password: '" . $password . "'");
-        $this->log("Expected password: '" . $expectedPassword . "'");
-        $this->log("Passwords match: " . ($password === $expectedPassword ? 'YES' : 'NO'));
-        
-        return $password === $expectedPassword;
+        $match = $password === $expectedPassword;
+        $this->log("Password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
+        return $match;
     }
-    
+
     private function getPasswordForRemote()
     {
         if ($this->remoteAddress) {
-            $password = $this->config->getPasswordForAddress($this->remoteAddress);
-            $this->log("Retrieved password for {$this->remoteAddress}: " . (empty($password) ? 'none' : 'configured'));
-            return $password;
+            return $this->config->getPasswordForAddress($this->remoteAddress);
         }
         return '';
     }
-    
+
     private function cleanup()
     {
         if ($this->fileHandle) {
             fclose($this->fileHandle);
             $this->fileHandle = null;
         }
-        
+
         if ($this->currentFile) {
             $inboundPath = $this->config->getInboundPath();
             $filepath = $inboundPath . '/' . $this->currentFile['name'];
             if (file_exists($filepath) && $this->currentFile['received'] < $this->currentFile['size']) {
                 unlink($filepath);
-                $this->log("Deleted incomplete file: " . $this->currentFile['name']);
+                $this->log("Deleted incomplete file: " . $this->currentFile['name'], 'DEBUG');
             }
         }
     }
