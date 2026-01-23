@@ -29,6 +29,8 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 
 ## Screen shots
 
+Here are some screen shots showing various aspects of the interface.
+
 ![Echomail list](docs/screenshots/echomail.png)
 ![Echomail](docs/screenshots/read_echomail.png)
 ![Netmail](docs/screenshots/read_netmail.png)
@@ -38,6 +40,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 ![BinkP management](docs/screenshots/binkp_management.png)
 ![Mobile Echolist](docs/screenshots/moble_echolist.png)
 ![Mobile Echoread](docs/screenshots/mobile_echoread.png) 
+![Node List Browser](docs/screenshots/nodelist.png)
 
 ## Features
 
