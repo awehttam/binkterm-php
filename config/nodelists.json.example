@@ -9,7 +9,7 @@
     {
       "name": "FSXNet",
       "domain": "fsxnet",
-      "url": "https://github.com/fsxnet/nodelist/raw/refs/heads/master/FSXNET.Z|DAY|",
+      "url": "https://fsxnet.nz/fsxnode.zip",
       "enabled": true
     }
   ]
