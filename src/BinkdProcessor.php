@@ -248,6 +248,8 @@ class BinkdProcessor
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
         $destZone = $packetInfo['destZone'] ?? 1;
+        $origPoint = 0;
+        $destPoint = 0;
 
 
         // Parse INTL kludge line for correct zone information in netmail
@@ -257,12 +259,14 @@ class BinkdProcessor
             foreach ($lines as $line) {
                 //if (strpos($line, "\x01INTL") === 0) {
                 if (strpos($line, "\x01INTL")) {
-                    // INTL format: \x01INTL dest_zone:net/node orig_zone:net/node
+                    // INTL format: \x01INTL dest_zone:net/node.point orig_zone:net/node.point
                     $res=preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches);
                     if ($res) {
                         $destZone = (int)$matches[1];
+                        $destPoint = isset($matches[4]) && $matches[4] !== '' ? (int)$matches[4] : 0;
                         $origZone = (int)$matches[5];
-                        error_log("[BINKD] Found INTL kludge: dest zone $destZone, orig zone $origZone");
+                        $origPoint = isset($matches[8]) && $matches[8] !== '' ? (int)$matches[8] : 0;
+                        error_log("[BINKD] Found INTL kludge: dest zone $destZone, orig zone $origZone, orig point $origPoint, dest point $destPoint");
                         break;
                     }
                 }
@@ -270,14 +274,21 @@ class BinkdProcessor
         }
 
         $origAddr = $origZone . ':' . $header['origNet'] . '/' . $header['origNode'];
+        if ($origPoint > 0) {
+            $origAddr .= '.' . $origPoint;
+        }
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $domain =$binkpConfig->getDomainByAddress($origAddr);
 
-        
+        $destAddr = $destZone . ':' . $header['destNet'] . '/' . $header['destNode'];
+        if ($destPoint > 0) {
+            $destAddr .= '.' . $destPoint;
+        }
+
         $ret =  [
             'domain'=>$domain,
             'origAddr' => $origAddr,
-            'destAddr' => $destZone . ':' . $header['destNet'] . '/' . $header['destNode'], 
+            'destAddr' => $destAddr, 
             'fromName' => trim($fromName),
             'toName' => trim($toName),
             'subject' => trim($subject),
@@ -627,6 +638,8 @@ class BinkdProcessor
      */
     private function storeEchomail($message, $packetInfo = null, $domain)
     {
+        error_log("[BINKD] storeEchomail called - packet sender address: " . $message['origAddr']);
+
         // Extract echo area from message text (should be first line)
         // Handle different line ending formats (FTN uses \r\n or \r)
         $messageText = $message['text'];
@@ -667,12 +680,14 @@ class BinkdProcessor
                     $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
                     
                     // Extract original author address from MSGID
-                    // MSGID formats: 
+                    // MSGID formats:
                     // 1. Standard: "1:123/456 12345678"
                     // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
                     if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        //error_log("DEBUG: Extracted original author address from MSGID: " . $originalAuthorAddress);
+                        error_log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
+                    } else {
+                        error_log("[BINKD] WARNING: Could not extract address from echomail MSGID: " . $messageId);
                     }
                 }
                 
@@ -709,7 +724,9 @@ class BinkdProcessor
                 // Origin format: " * Origin: System Name (1:123/456)"
                 if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
                     $originalAuthorAddress = $matches[1];
-                    //error_log("DEBUG: Extracted original author address from Origin: " . $originalAuthorAddress);
+                    error_log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
+                } else {
+                    error_log("[BINKD] WARNING: Could not extract address from Origin line: " . $line);
                 }
                 
                 $cleanedLines[] = $line; // Keep origin line in message body

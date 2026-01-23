@@ -671,7 +671,7 @@ class MessageHandler
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             //$systemAddress = $binkpConfig->getSystemAddress();
-            $myAddress = $binkpConfig->getAddressByDomain($domain);
+            $myAddress = $binkpConfig->getMyAddressByDomain($domain);
             if(!$myAddress){
                 throw new \Exception("Can't determine my local address for domain '$domain'");
                 $myAddress = $binkpConfig->getSystemAddress();

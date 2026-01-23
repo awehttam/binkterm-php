@@ -209,12 +209,12 @@ class BinkpConfig
         return $ret;
     }
 
-    function getAddressByDomain($domain)
+    function getMyAddressByDomain($domain)
     {
 
         foreach($this->getUplinks() as $uplink){
             if(!strcasecmp($uplink['domain'], $domain)){
-                return $uplink['address'];
+                return $uplink['me'];
             }
         }
         return false;
