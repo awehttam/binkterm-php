@@ -47,7 +47,7 @@ class FtnRouter {
         $this->routingTable[$pattern] = $uplinkName;
     }
 
-    function getCrashAddress($address)
+    public function getCrashAddress($address)
     {
         $db = \BinktermPHP\Database::getInstance()->getPdo();
         // 1:153/123
