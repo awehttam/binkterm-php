@@ -763,6 +763,14 @@ class BinkpSession
     {
         $expectedPassword = $this->getPasswordForRemote();
         $match = $password === $expectedPassword;
+
+        // Log details for debugging authentication issues
+        $receivedLen = strlen($password);
+        $expectedLen = strlen($expectedPassword);
+        $receivedPreview = $receivedLen > 0 ? substr($password, 0, 3) . '...' : '(empty)';
+        $expectedPreview = $expectedLen > 0 ? substr($expectedPassword, 0, 3) . '...' : '(empty)';
+
+        $this->log("Password validation: received={$receivedPreview} (len={$receivedLen}), expected={$expectedPreview} (len={$expectedLen})", 'DEBUG');
         $this->log("Password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
         return $match;
     }
@@ -770,7 +778,14 @@ class BinkpSession
     private function getPasswordForRemote()
     {
         if ($this->remoteAddress) {
-            return $this->config->getPasswordForAddress($this->remoteAddress);
+            $uplink = $this->config->getUplinkByAddress($this->remoteAddress);
+            if ($uplink) {
+                $this->log("Found uplink config for {$this->remoteAddress}", 'DEBUG');
+                return $uplink['password'] ?? '';
+            } else {
+                $this->log("No uplink config found for {$this->remoteAddress}", 'WARNING');
+                return '';
+            }
         }
         return '';
     }
