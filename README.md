@@ -169,12 +169,11 @@ Edit `config/binkp.json` to configure your system. See `config/binkp.json.exampl
 ```json
 {
     "system": {
-        "name": "My BBS System",
+        "name": "My new BinktermPHP system",
         "address": "1:123/456.57599",
-        "sysop": "Your Name",
-        "location": "Your City, State",
-        "hostname": "your.domain.com",
-        "website": "https://yourbbs.com",
+        "sysop": "Claude the Coder",
+        "location": "Over Yonder",
+        "hostname": "localhost",
         "timezone": "UTC"
     },
     "binkp": {
@@ -197,16 +196,37 @@ Edit `config/binkp.json` to configure your system. See `config/binkp.json.exampl
             ],
             "address": "1:123/456",
             "domain": "fidonet",
-            "hostname": "hub.fidonet.org",
+            "hostname": "my.ip.address.or.hostname",
             "port": 24554,
-            "password": "your_password",
+            "password": "xyzzy",
             "poll_schedule": "0 */4 * * *",
             "enabled": true,
             "compression": false,
             "crypt": false,
             "default": true
         }
-    ]
+    ],
+    "security": {
+        "allow_insecure_inbound": false,
+        "allow_insecure_outbound": false,
+        "insecure_inbound_receive_only": true,
+        "require_allowlist_for_insecure": false,
+        "max_insecure_sessions_per_hour": 10,
+        "insecure_session_timeout": 60,
+        "log_all_sessions": true
+    },
+    "crashmail": {
+        "enabled": true,
+        "max_attempts": 3,
+        "retry_interval_minutes": 15,
+        "use_nodelist_for_routing": true,
+        "fallback_port": 24554,
+        "allow_insecure_crash_delivery": true
+    },
+    "transit": {
+        "allow_transit_mail": false,
+        "transit_only_for_known_routes": true
+    }
 }
 ```
 
