@@ -47,7 +47,7 @@ function showUsage()
     echo "\n";
     echo "  # Post to echomail\n";
     echo "  php post_message.php --type=echomail --from=1:153/149.57599 \\\n";
-    echo "    --from-name=\"John Doe\" --echoarea=GENERAL \\\n";
+    echo "    --from-name=\"John Doe\" --echoarea=GENERAL --domain=fidonet \\\n";
     echo "    --subject=\"General Discussion\" --file=message.txt\n";
     echo "\n";
     echo "  # Read from stdin\n";
