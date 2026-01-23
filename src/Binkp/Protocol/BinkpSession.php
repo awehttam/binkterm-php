@@ -77,7 +77,9 @@ class BinkpSession
     public function setUplinkPassword($password)
     {
         $this->uplinkPassword = $password;
-        $this->log("Uplink password set: " . (empty($password) ? 'empty' : 'configured'));
+        $debugMsg = "setUplinkPassword: length=" . strlen($password) . ", hex=" . bin2hex($password);
+        $this->log($debugMsg);
+        fwrite(STDERR, "[DEBUG] {$debugMsg}\n");
     }
     
     public function log($message, $level = 'INFO')
@@ -483,15 +485,22 @@ class BinkpSession
         if ($this->isOriginator) {
             // As originator, send the uplink password
             $password = $this->uplinkPassword ?? '';
+            $this->log("sendPassword: originator mode, using uplinkPassword");
         } else {
             // As answerer, send our password for the remote to verify us
             // This is called after we've received their address via M_ADR
             $password = $this->getPasswordForRemote();
+            $this->log("sendPassword: answerer mode, using getPasswordForRemote()");
         }
-        
+
+        // Debug: show exactly what we're sending (also to stderr for visibility)
+        $debugMsg = "sendPassword: length=" . strlen($password) . ", hex=" . bin2hex($password);
+        $this->log($debugMsg);
+        fwrite(STDERR, "[DEBUG] {$debugMsg}\n");
+
         $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
         $frame->writeToSocket($this->socket);
-        $this->log("Sent password: " . (empty($password) ? 'empty' : 'configured'));
+        $this->log("Sent password frame");
     }
     
     private function sendOK($message = '')
