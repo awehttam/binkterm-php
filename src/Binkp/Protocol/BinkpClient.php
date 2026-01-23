@@ -79,9 +79,7 @@ class BinkpClient
                 $session->setCurrentUplink($uplink);
             }
 
-            if (!$session->handshake()) {
-                throw new \Exception('Handshake failed');
-            }
+            $session->handshake();
 
             $this->log("Handshake completed with {$address}");
 

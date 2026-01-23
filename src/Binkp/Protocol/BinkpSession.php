@@ -116,7 +116,8 @@ class BinkpSession
         } catch (\Exception $e) {
             $this->log("Handshake failed: " . $e->getMessage(), 'ERROR');
             $this->sendError($e->getMessage());
-            return false;
+            // Re-throw with the actual error message so caller can see it
+            throw new \Exception('Handshake failed: ' . $e->getMessage(), 0, $e);
         }
     }
 
