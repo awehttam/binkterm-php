@@ -360,36 +360,54 @@ class BinkpSession
                 $this->log("Using remote address: {$this->remoteAddress} (with domain: {$this->remoteAddressWithDomain})");
                 
                 if ($this->state === self::STATE_INIT) {
+                    $this->log("M_ADR: state=INIT, sending address and password");
                     $this->sendAddress();
                     $this->sendPassword();
                     $this->state = self::STATE_PWD_SENT;
                 } elseif ($this->state === self::STATE_ADDR_SENT) {
+                    $this->log("M_ADR: state=ADDR_SENT, sending password (isOriginator={$this->isOriginator})");
                     $this->sendPassword();
                     $this->state = self::STATE_PWD_SENT;
                 } else {
+                    $this->log("M_ADR: state={$this->state}, setting to ADDR_RECEIVED");
                     $this->state = self::STATE_ADDR_RECEIVED;
                 }
                 break;
                 
             case BinkpFrame::M_PWD:
+                $this->log("M_PWD: received password, state={$this->state}, isOriginator={$this->isOriginator}");
                 if (!$this->validatePassword($frame->getData())) {
                     throw new \Exception('Authentication failed');
                 }
-                
+
                 if ($this->state === self::STATE_ADDR_RECEIVED) {
+                    $this->log("M_PWD: state=ADDR_RECEIVED, sending our password");
                     $this->sendPassword();
                 }
-                
-                $this->sendOK('Authentication successful');
-                $this->state = self::STATE_AUTHENTICATED;
+
+                // Only answerer should send M_OK; originator waits for M_OK
+                if (!$this->isOriginator) {
+                    $this->log("M_PWD: as answerer, sending M_OK");
+                    $this->sendOK('Authentication successful');
+                    $this->state = self::STATE_AUTHENTICATED;
+                } else {
+                    $this->log("M_PWD: as originator, waiting for M_OK from remote");
+                    // Stay in PWD_SENT state, wait for M_OK
+                }
                 break;
                 
             case BinkpFrame::M_OK:
+                $this->log("M_OK: received, state={$this->state}");
                 if ($this->state === self::STATE_PWD_SENT) {
                     $this->state = self::STATE_AUTHENTICATED;
                 }
                 break;
-                
+
+            case BinkpFrame::M_NUL:
+                // System info frames - just log them
+                $this->log("M_NUL: " . $frame->getData());
+                break;
+
             case BinkpFrame::M_ERR:
                 throw new \Exception('Remote error: ' . $frame->getData());
                 
