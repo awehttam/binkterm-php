@@ -16,11 +16,17 @@ class SysopNotificationService
      */
     private static function sanitizeUtf8(string $str): string
     {
-        // Remove invalid UTF-8 sequences
+        if (empty($str)) {
+            return '';
+        }
+
+        // Remove invalid UTF-8 sequences by encoding to UTF-8
         $str = mb_convert_encoding($str, 'UTF-8', 'UTF-8');
-        // Remove any remaining non-printable characters except newlines/tabs
-        $str = preg_replace('/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/u', '', $str);
-        return $str ?: '';
+
+        // Remove NULL bytes and other control characters except tab, newline, carriage return
+        $str = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $str);
+
+        return $str;
     }
 
     /**
