@@ -210,6 +210,27 @@ class BinkpConfig
     }
 
     /**
+     * Get all addresses with their network domains
+     *
+     * @return array Array of ['address' => string, 'domain' => string] entries
+     */
+    public function getMyAddressesWithDomains(): array
+    {
+        $ret = [];
+        foreach ($this->getUplinks() as $uplink) {
+            $me = $uplink['me'] ?? null;
+            $domain = $uplink['domain'] ?? 'unknown';
+            if ($me) {
+                $ret[] = [
+                    'address' => $me,
+                    'domain' => $domain
+                ];
+            }
+        }
+        return $ret;
+    }
+
+    /**
      * Check if an address belongs to this system
      *
      * @param string $address FTN address to check
