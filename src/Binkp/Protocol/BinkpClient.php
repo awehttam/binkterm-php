@@ -199,6 +199,14 @@ class BinkpClient
         if ($socketResource === false) {
             throw new \Exception('Failed to convert socket to stream');
         }
+
+        // Set stream timeout explicitly - socket options may not carry over on Linux
+        $timeout = $this->config->getBinkpTimeout();
+        stream_set_timeout($socketResource, $timeout);
+
+        // Ensure blocking mode is set consistently across platforms
+        stream_set_blocking($socketResource, true);
+
         return $socketResource;
     }
     

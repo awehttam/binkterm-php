@@ -98,7 +98,12 @@ class BinkpSession
             while ($this->state < self::STATE_AUTHENTICATED) {
                 $frame = BinkpFrame::parseFromSocket($this->socket);
                 if (!$frame) {
-                    throw new \Exception('Failed to read frame during handshake');
+                    // Get stream metadata for diagnostic info
+                    $meta = stream_get_meta_data($this->socket);
+                    $timedOut = $meta['timed_out'] ? 'yes' : 'no';
+                    $eof = $meta['eof'] ? 'yes' : 'no';
+                    $blocked = $meta['blocked'] ? 'yes' : 'no';
+                    throw new \Exception("Failed to read frame during handshake (state={$this->state}, timed_out={$timedOut}, eof={$eof}, blocked={$blocked})");
                 }
 
                 $this->log("Received: {$frame}");
@@ -460,8 +465,9 @@ class BinkpSession
             // As originator, send the uplink password
             $password = $this->uplinkPassword ?? '';
         } else {
-            // As answerer, send our own password (not implemented for server mode)
-            $password = '';
+            // As answerer, send our password for the remote to verify us
+            // This is called after we've received their address via M_ADR
+            $password = $this->getPasswordForRemote();
         }
         
         $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
