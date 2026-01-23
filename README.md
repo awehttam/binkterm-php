@@ -32,6 +32,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 ![Echomail list](docs/screenshots/echomail.png)
 ![Echomail](docs/screenshots/read_echomail.png)
 ![Netmail](docs/screenshots/read_netmail.png)
+![Custom Themes](docs/screenshots/cyberpunk.png)
 ![User Management](docs/screenshots/usermanagement.png)
 ![Echoarea management](docs/screenshots/echomanagement.png)
 ![BinkP management](docs/screenshots/binkp_management.png)
