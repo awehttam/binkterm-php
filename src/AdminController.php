@@ -116,9 +116,15 @@ class AdminController
         ]);
 
         if ($result) {
-            return $this->db->lastInsertId();
+            $newUserId = $this->db->lastInsertId();
+
+            // Create default echoarea subscriptions
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            $subscriptionManager->createDefaultSubscriptions($newUserId);
+
+            return $newUserId;
         }
-        
+
         throw new \Exception('Failed to create user');
     }
 

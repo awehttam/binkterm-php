@@ -1328,15 +1328,19 @@ class MessageHandler
             
             // Create default user settings
             $settingsStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page) 
+                INSERT INTO user_settings (user_id, messages_per_page)
                 VALUES (?, 25)
             ");
             $settingsStmt->execute([$newUserId]);
-            
+
+            // Create default echoarea subscriptions
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            $subscriptionManager->createDefaultSubscriptions($newUserId);
+
             // Remove the pending user record since they're now a real user
             $deleteStmt = $this->db->prepare("DELETE FROM pending_users WHERE id = ?");
             $deleteStmt->execute([$pendingUserId]);
-            
+
             $this->db->commit();
             
             // Send welcome netmail to new user
