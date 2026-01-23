@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "name": "FidoNet",
+      "domain": "fidonet",
+      "url": "https://www.filegate.net/nodelist/nodelist.zip",
+      "enabled": true
+    },
+    {
+      "name": "FSXNet",
+      "domain": "fsxnet",
+      "url": "https://bbs.nz/fsxnet/FSXNET.ZIP",
+      "enabled": true
+    }
+  ]
+}
