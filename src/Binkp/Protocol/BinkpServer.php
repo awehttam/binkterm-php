@@ -11,13 +11,18 @@ class BinkpServer
     private $serverSocket;
     private $isRunning;
     private $connections;
-    
+    private $childPids;
+    private $useFork;
+
     public function __construct($config = null, $logger = null)
     {
         $this->config = $config ?: BinkpConfig::getInstance();
         $this->logger = $logger;
         $this->connections = [];
+        $this->childPids = [];
         $this->isRunning = false;
+        // Use forking if pcntl is available (Linux/Unix)
+        $this->useFork = function_exists('pcntl_fork');
     }
     
     public function setLogger($logger)
@@ -62,40 +67,42 @@ class BinkpServer
     
     private function run()
     {
-        $timeout = $this->config->getBinkpTimeout();
-        
+        // Install signal handler for child processes if using fork
+        if ($this->useFork && function_exists('pcntl_signal')) {
+            pcntl_signal(SIGCHLD, SIG_IGN); // Auto-reap children
+        }
+
         while ($this->isRunning) {
             $readSockets = [$this->serverSocket];
             $writeSockets = [];
             $exceptSockets = [];
-            
-            foreach ($this->connections as $connection) {
-                if ($connection['socket']) {
-                    $readSockets[] = $connection['socket'];
-                }
-            }
-            
+
             $result = socket_select($readSockets, $writeSockets, $exceptSockets, 1);
-            
+
             if ($result === false) {
-                $this->log('Socket select failed: ' . socket_strerror(socket_last_error()), 'ERROR');
-                break;
-            }
-            
-            if ($result === 0) {
-                $this->cleanupExpiredConnections();
+                $error = socket_last_error();
+                // EINTR (4) is expected when signals interrupt select
+                if ($error !== 4) {
+                    $this->log('Socket select failed: ' . socket_strerror($error), 'ERROR');
+                    break;
+                }
                 continue;
             }
-            
+
+            // Reap finished child processes
+            $this->reapChildren();
+
+            if ($result === 0) {
+                continue;
+            }
+
             foreach ($readSockets as $socket) {
                 if ($socket === $this->serverSocket) {
                     $this->acceptConnection();
-                } else {
-                    $this->handleConnection($socket);
                 }
             }
         }
-        
+
         $this->cleanup();
     }
     
@@ -106,91 +113,103 @@ class BinkpServer
             $this->log('Failed to accept connection: ' . socket_strerror(socket_last_error($this->serverSocket)), 'ERROR');
             return;
         }
-        
-        if (count($this->connections) >= $this->config->getMaxConnections()) {
+
+        // Check max connections (count active child processes)
+        $this->reapChildren();
+        if (count($this->childPids) >= $this->config->getMaxConnections()) {
             $this->log('Maximum connections reached, rejecting new connection', 'WARNING');
             $this->sendBusy($clientSocket, 'Maximum connections reached');
             socket_close($clientSocket);
             return;
         }
-        
+
         socket_getpeername($clientSocket, $clientIP);
         $connectionId = uniqid();
-        
+
         $this->log("New connection from {$clientIP} (ID: {$connectionId})");
-        
-        $this->connections[$connectionId] = [
-            'socket' => $clientSocket,
-            'ip' => $clientIP,
-            'connected_at' => time(),
-            'session' => null,
-            'state' => 'handshake'
-        ];
-        
-        $this->initializeSession($connectionId);
-    }
-    
-    private function initializeSession($connectionId)
-    {
-        $connection = &$this->connections[$connectionId];
-        
-        try {
-            $socket = $this->socketToStream($connection['socket']);
-            $session = new BinkpSession($socket, false, $this->config);
-            $session->setLogger($this->logger);
-            
-            $connection['session'] = $session;
-            $connection['state'] = 'handshaking';
-            
-            if ($session->handshake()) {
-                $connection['state'] = 'authenticated';
-                $this->log("Handshake completed for connection {$connectionId}");
+
+        if ($this->useFork) {
+            // Fork a child process to handle this connection
+            $pid = pcntl_fork();
+
+            if ($pid === -1) {
+                // Fork failed, handle synchronously
+                $this->log("Fork failed, handling connection synchronously", 'WARNING');
+                $this->handleConnectionSync($clientSocket, $connectionId, $clientIP);
+            } elseif ($pid === 0) {
+                // Child process
+                // Close the server socket in child - we don't need it
+                socket_close($this->serverSocket);
+
+                // Handle the connection
+                $this->handleConnectionSync($clientSocket, $connectionId, $clientIP);
+
+                // Exit child process
+                exit(0);
             } else {
-                $this->log("Handshake failed for connection {$connectionId}", 'ERROR');
-                $this->closeConnection($connectionId);
+                // Parent process
+                // Close the client socket in parent - child owns it now
+                socket_close($clientSocket);
+                $this->childPids[$pid] = $connectionId;
+                $this->log("Forked child PID {$pid} for connection {$connectionId}", 'DEBUG');
             }
-            
-        } catch (\Exception $e) {
-            $this->log("Session initialization failed for connection {$connectionId}: " . $e->getMessage(), 'ERROR');
-            $this->closeConnection($connectionId);
+        } else {
+            // No fork available (Windows), handle synchronously
+            $this->handleConnectionSync($clientSocket, $connectionId, $clientIP);
         }
     }
-    
-    private function handleConnection($socket)
+
+    /**
+     * Handle a connection synchronously (used by child process or when fork unavailable)
+     */
+    private function handleConnectionSync($clientSocket, $connectionId, $clientIP)
     {
-        $connectionId = $this->findConnectionBySocket($socket);
-        if (!$connectionId) {
-            return;
-        }
-        
-        $connection = &$this->connections[$connectionId];
-        
-        if (!$connection['session']) {
-            $this->closeConnection($connectionId);
-            return;
-        }
-        
         try {
-            switch ($connection['state']) {
-                case 'authenticated':
-                    if ($connection['session']->processSession()) {
-                        $connection['state'] = 'completed';
-                        $this->log("Session completed for connection {$connectionId}");
-                    } else {
-                        $this->log("Session failed for connection {$connectionId}", 'ERROR');
-                    }
-                    $this->closeConnection($connectionId);
-                    break;
-                    
-                default:
-                    $this->log("Unexpected state for connection {$connectionId}: " . $connection['state'], 'WARNING');
-                    $this->closeConnection($connectionId);
-                    break;
+            $stream = $this->socketToStream($clientSocket);
+            $session = new BinkpSession($stream, false, $this->config);
+            $session->setLogger($this->logger);
+
+            if ($session->handshake()) {
+                $this->log("Handshake completed for {$clientIP} ({$connectionId})");
+
+                if ($session->processSession()) {
+                    $this->log("Session completed for {$clientIP} ({$connectionId})");
+                } else {
+                    $this->log("Session failed for {$clientIP} ({$connectionId})", 'ERROR');
+                }
+            } else {
+                $this->log("Handshake failed for {$clientIP} ({$connectionId})", 'ERROR');
             }
-            
+
+            $session->close();
         } catch (\Exception $e) {
-            $this->log("Error handling connection {$connectionId}: " . $e->getMessage(), 'ERROR');
-            $this->closeConnection($connectionId);
+            $this->log("Connection error for {$clientIP} ({$connectionId}): " . $e->getMessage(), 'ERROR');
+        }
+
+        if (is_resource($clientSocket)) {
+            socket_close($clientSocket);
+        }
+    }
+
+    /**
+     * Reap any finished child processes
+     */
+    private function reapChildren()
+    {
+        if (!$this->useFork) {
+            return;
+        }
+
+        foreach ($this->childPids as $pid => $connectionId) {
+            $result = pcntl_waitpid($pid, $status, WNOHANG);
+            if ($result === $pid) {
+                // Child has exited
+                unset($this->childPids[$pid]);
+                $this->log("Child PID {$pid} ({$connectionId}) exited", 'DEBUG');
+            } elseif ($result === -1) {
+                // Error or child doesn't exist
+                unset($this->childPids[$pid]);
+            }
         }
     }
     
@@ -202,49 +221,6 @@ class BinkpServer
             $frame->writeToSocket($stream);
         } catch (\Exception $e) {
             $this->log("Failed to send busy message: " . $e->getMessage(), 'ERROR');
-        }
-    }
-    
-    private function findConnectionBySocket($socket)
-    {
-        foreach ($this->connections as $id => $connection) {
-            if ($connection['socket'] === $socket) {
-                return $id;
-            }
-        }
-        return null;
-    }
-    
-    private function closeConnection($connectionId)
-    {
-        if (!isset($this->connections[$connectionId])) {
-            return;
-        }
-        
-        $connection = $this->connections[$connectionId];
-        
-        if ($connection['session']) {
-            $connection['session']->close();
-        }
-        
-        if (is_resource($connection['socket'])) {
-            socket_close($connection['socket']);
-        }
-        
-        unset($this->connections[$connectionId]);
-        $this->log("Closed connection {$connectionId}");
-    }
-    
-    private function cleanupExpiredConnections()
-    {
-        $timeout = $this->config->getBinkpTimeout();
-        $now = time();
-        
-        foreach ($this->connections as $id => $connection) {
-            if ($now - $connection['connected_at'] > $timeout) {
-                $this->log("Connection {$id} timed out", 'WARNING');
-                $this->closeConnection($id);
-            }
         }
     }
     
@@ -273,25 +249,32 @@ class BinkpServer
     
     private function cleanup()
     {
-        foreach ($this->connections as $id => $connection) {
-            $this->closeConnection($id);
+        // Terminate any remaining child processes
+        if ($this->useFork) {
+            foreach ($this->childPids as $pid => $connectionId) {
+                $this->log("Terminating child PID {$pid}", 'DEBUG');
+                posix_kill($pid, SIGTERM);
+            }
+            // Give children time to exit gracefully
+            usleep(100000);
+            // Force kill any remaining
+            foreach ($this->childPids as $pid => $connectionId) {
+                posix_kill($pid, SIGKILL);
+            }
+            $this->childPids = [];
         }
-        
+
         if ($this->serverSocket) {
             socket_close($this->serverSocket);
             $this->serverSocket = null;
         }
-        
+
         $this->log('Server stopped');
     }
-    
-    public function getConnections()
-    {
-        return $this->connections;
-    }
-    
+
     public function getConnectionCount()
     {
-        return count($this->connections);
+        $this->reapChildren();
+        return count($this->childPids);
     }
 }
