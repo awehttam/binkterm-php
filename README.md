@@ -196,7 +196,7 @@ Edit `config/binkp.json` to configure your system. See `config/binkp.json.exampl
             ],
             "address": "1:123/456",
             "domain": "fidonet",
-            "hostname": "my.ip.address.or.hostname",
+            "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
             "password": "xyzzy",
             "poll_schedule": "0 */4 * * *",
