@@ -6,8 +6,6 @@
  * Processes the crashmail queue, attempting delivery of messages marked for
  * immediate/direct delivery (crash attribute).
  *
- * Run via cron every 5 minutes:
- * */5 * * * * php /path/to/binkterm/scripts/crashmail_poll.php
  *
  * Options:
  *   --limit=N    Maximum items to process (default: 10)
