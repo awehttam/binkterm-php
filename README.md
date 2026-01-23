@@ -31,16 +31,29 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 
 Here are some screen shots showing various aspects of the interface.
 
-![Echomail list](docs/screenshots/echomail.png)
-![Echomail](docs/screenshots/read_echomail.png)
-![Netmail](docs/screenshots/read_netmail.png)
-![Custom Themes](docs/screenshots/cyberpunk.png)
-![User Management](docs/screenshots/usermanagement.png)
-![Echoarea management](docs/screenshots/echomanagement.png)
-![BinkP management](docs/screenshots/binkp_management.png)
-![Mobile Echolist](docs/screenshots/moble_echolist.png)
-![Mobile Echoread](docs/screenshots/mobile_echoread.png) 
-![Node List Browser](docs/screenshots/nodelist.png)
+<table>
+  <tr>
+    <td align="center"><b>Echomail list</b><br><img src="docs/screenshots/echomail.png" width="400"></td>
+    <td align="center"><b>Echomail</b><br><img src="docs/screenshots/read_echomail.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Netmail</b><br><img src="docs/screenshots/read_netmail.png" width="400"></td>
+    <td align="center"><b>Custom Themes</b><br><img src="docs/screenshots/cyberpunk.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>User Management</b><br><img src="docs/screenshots/usermanagement.png" width="400"></td>
+    <td align="center"><b>Echoarea management</b><br><img src="docs/screenshots/echomanagement.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Mobile Echoread</b><br><img src="docs/screenshots/mobile_echoread.png" width="400"></td>
+    <td align="center"><b>Mobile Echolist</b><br><img src="docs/screenshots/moble_echolist.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>BinkP management</b><br><img src="docs/screenshots/binkp_management.png" width="400"></td>
+    <td align="center"><b>Node List Browser</b><br><img src="docs/screenshots/nodelist.png" width="400"></td>
+  </tr>
+</table>
+
 
 ## Features
 
