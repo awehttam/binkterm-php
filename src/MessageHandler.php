@@ -531,16 +531,24 @@ class MessageHandler
         return $message;
     }
 
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
             throw new \Exception('User not found');
         }
 
-        // Special case: if sending to "sysop", route to local sysop user
+        // Special case: if sending to "sysop" at our local system, route to local sysop user
         if (!empty($toName) && strtolower($toName) === 'sysop') {
-            return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId);
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                // Only route locally if destination is one of our addresses (or no address specified)
+                if (empty($toAddress) || $binkpConfig->isMyAddress($toAddress)) {
+                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId);
+                }
+            } catch (\Exception $e) {
+                // If we can't get config, fall through to normal send
+            }
         }
 
         // Use provided fromName or fall back to user's real name
@@ -589,7 +597,21 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
-            $this->spoolOutboundNetmail($messageId);
+
+            if ($crashmail) {
+                // Crashmail: queue for direct delivery only, skip normal hub routing
+                try {
+                    $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
+                    $crashmailService->queueCrashmail($messageId);
+                } catch (\Exception $e) {
+                    // If crashmail queue fails, fall back to normal spooling
+                    error_log("[NETMAIL] Crashmail queue failed, falling back to normal delivery: " . $e->getMessage());
+                    $this->spoolOutboundNetmail($messageId);
+                }
+            } else {
+                // Normal delivery via hub routing
+                $this->spoolOutboundNetmail($messageId);
+            }
         }
 
         return $result;

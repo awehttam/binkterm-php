@@ -101,35 +101,14 @@ class CrashmailService
     /**
      * Resolve destination address to connection info
      *
+     * Crashmail ONLY uses nodelist for direct delivery - no hub routing fallback.
+     *
      * @param string $address FTN address
      * @return array Connection info with hostname, port, password, source
      */
     public function resolveDestination(string $address): array
     {
-        // First check if we have an uplink configured for this address
-        $uplink = $this->config->getUplinkByAddress($address);
-        if ($uplink && !empty($uplink['hostname'])) {
-            return [
-                'hostname' => $uplink['hostname'],
-                'port' => $uplink['port'] ?? 24554,
-                'password' => $uplink['password'] ?? '',
-                'source' => 'uplink'
-            ];
-        }
-
-        // Check for destination in uplink routing
-        $routeUplink = $this->config->getUplinkForDestination($address);
-        if ($routeUplink && !empty($routeUplink['hostname'])) {
-            // Route through uplink, not direct
-            return [
-                'hostname' => $routeUplink['hostname'],
-                'port' => $routeUplink['port'] ?? 24554,
-                'password' => $routeUplink['password'] ?? '',
-                'source' => 'route'
-            ];
-        }
-
-        // Check nodelist if enabled
+        // Crashmail only uses nodelist for direct delivery
         if ($this->config->getCrashmailUseNodelist()) {
             $nodeInfo = $this->nodelistManager->getCrashRouteInfo($address);
             if ($nodeInfo && !empty($nodeInfo['hostname'])) {
@@ -144,6 +123,7 @@ class CrashmailService
             }
         }
 
+        // No direct route available - crashmail cannot be delivered
         return [
             'hostname' => null,
             'port' => $this->config->getCrashmailFallbackPort(),
@@ -272,7 +252,14 @@ class CrashmailService
         $sessionLogger = new SessionLogger();
         $sessionLogger->startSession($destAddress, null, 'crash_outbound', false);
 
+        // Create temporary packet file
+        $tempPacket = null;
+
         try {
+            // Create the packet in a temp location
+            $tempPacket = $this->createTempPacket($queueItem);
+            error_log("[CRASHMAIL] Created temp packet: {$tempPacket}");
+
             // Create TCP connection
             $socket = @stream_socket_client(
                 "tcp://{$host}:{$port}",
@@ -287,9 +274,6 @@ class CrashmailService
 
             stream_set_timeout($socket, 60);
 
-            // Use BinkpClient for the session
-            $client = new \BinktermPHP\Binkp\Protocol\BinkpClient();
-
             // Get password for destination if we have one
             $routeInfo = $this->resolveDestination($destAddress);
             $password = $routeInfo['password'] ?? '';
@@ -300,14 +284,10 @@ class CrashmailService
                 throw new \Exception("No password for destination and insecure delivery disabled");
             }
 
-            // Perform the delivery
-            // Note: This is a simplified version. Full implementation would use
-            // the BinkpSession class to handle the protocol properly.
-            $success = $this->performCrashDelivery($socket, $queueItem, $password);
+            // Perform the delivery using BinkpSession
+            $success = $this->performCrashDelivery($socket, $tempPacket, $destAddress, $password);
 
-            fclose($socket);
-
-            $sessionLogger->incrementStat('messages_sent', 1);
+            $sessionLogger->incrementStat('messages_sent', $success ? 1 : 0);
             $sessionLogger->endSession($success ? 'success' : 'failed');
 
             return $success;
@@ -316,38 +296,196 @@ class CrashmailService
             error_log("[CRASHMAIL] Delivery error: " . $e->getMessage());
             $sessionLogger->endSession('failed', $e->getMessage());
             throw $e;
+        } finally {
+            // Clean up temp packet
+            if ($tempPacket && file_exists($tempPacket)) {
+                unlink($tempPacket);
+                error_log("[CRASHMAIL] Cleaned up temp packet: {$tempPacket}");
+            }
         }
+    }
+
+    /**
+     * Create a temporary packet file containing just this netmail
+     *
+     * Uses BinkdProcessor to create the packet with proper FTN format.
+     *
+     * @param array $queueItem Queue item with netmail data
+     * @return string Path to temp packet file
+     */
+    private function createTempPacket(array $queueItem): string
+    {
+        $tempDir = sys_get_temp_dir();
+        $filename = $tempDir . '/crashmail_' . time() . '_' . $queueItem['id'] . '.pkt';
+
+        // Prepare message data for BinkdProcessor
+        // Set CRASH and PRIVATE attributes
+        $message = [
+            'from_address' => $queueItem['from_address'],
+            'to_address' => $queueItem['to_address'],
+            'from_name' => $queueItem['from_name'],
+            'to_name' => $queueItem['to_name'],
+            'subject' => $queueItem['subject'],
+            'message_text' => $queueItem['message_text'],
+            'date_written' => $queueItem['date_written'] ?? date('Y-m-d H:i:s'),
+            'attributes' => ($queueItem['attributes'] ?? 0) | self::ATTR_CRASH | self::ATTR_PRIVATE,
+            'message_id' => $queueItem['message_id'] ?? null,
+            'kludge_lines' => $queueItem['kludge_lines'] ?? null,
+        ];
+
+        // Use BinkdProcessor to create the packet
+        $binkdProcessor = new \BinktermPHP\BinkdProcessor();
+        $binkdProcessor->createOutboundPacket([$message], $queueItem['destination_address'], $filename);
+
+        return $filename;
     }
 
     /**
      * Perform the actual crash delivery over an established socket
      *
      * @param resource $socket Connected socket
-     * @param array $queueItem Queue item with netmail data
+     * @param string $packetPath Path to the packet file to send
+     * @param string $destAddress Destination FTN address
      * @param string $password Session password (empty for insecure)
      * @return bool Success
      */
-    private function performCrashDelivery($socket, array $queueItem, string $password): bool
+    private function performCrashDelivery($socket, string $packetPath, string $destAddress, string $password): bool
     {
-        // This is a placeholder for the full binkp protocol implementation
-        // In a complete implementation, this would:
-        // 1. Create a BinkpSession in originator mode
-        // 2. Perform handshake with password (or insecure)
-        // 3. Create a packet containing just this netmail
-        // 4. Send the packet
-        // 5. Wait for confirmation
-        // 6. End session cleanly
+        error_log("[CRASHMAIL] Starting binkp session for crash delivery to {$destAddress}");
 
-        // For now, we'll use the existing BinkpClient infrastructure
-        // This requires the BinkpClient to have a method for single-message delivery
+        try {
+            // Create BinkpSession in originator mode
+            $session = new \BinktermPHP\Binkp\Protocol\BinkpSession($socket, true, $this->config);
+            $session->setSessionType('crash_outbound');
+            $session->setUplinkPassword($password);
 
-        error_log("[CRASHMAIL] TODO: Implement full binkp crash delivery");
-        error_log("[CRASHMAIL] Would deliver to: {$queueItem['destination_address']}");
-        error_log("[CRASHMAIL] Subject: {$queueItem['subject']}");
+            // Perform handshake
+            $session->handshake();
+            error_log("[CRASHMAIL] Handshake completed with {$destAddress}");
 
-        // Return false to indicate not yet implemented
-        // When implemented, return true on successful delivery
-        return false;
+            // Send the packet file directly
+            $this->sendPacketFile($socket, $packetPath);
+
+            // Send EOB to indicate we're done sending
+            $this->sendEOB($socket);
+
+            // Wait for M_GOT confirmation and EOB from remote
+            $confirmed = $this->waitForConfirmation($socket, basename($packetPath));
+
+            if ($confirmed) {
+                error_log("[CRASHMAIL] Delivery confirmed by remote");
+            } else {
+                error_log("[CRASHMAIL] No confirmation received from remote");
+            }
+
+            $session->close();
+            return $confirmed;
+
+        } catch (\Exception $e) {
+            error_log("[CRASHMAIL] Session error: " . $e->getMessage());
+            if (is_resource($socket)) {
+                fclose($socket);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Send a packet file over binkp
+     */
+    private function sendPacketFile($socket, string $filePath): void
+    {
+        $filename = basename($filePath);
+        $fileSize = filesize($filePath);
+        $timestamp = filemtime($filePath);
+
+        // Send M_FILE command
+        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createCommand(
+            \BinktermPHP\Binkp\Protocol\BinkpFrame::M_FILE,
+            $fileInfo
+        );
+        $frame->writeToSocket($socket);
+        error_log("[CRASHMAIL] Sent M_FILE: {$fileInfo}");
+
+        // Send file data
+        $handle = fopen($filePath, 'rb');
+        if (!$handle) {
+            throw new \Exception("Cannot open packet file: {$filePath}");
+        }
+
+        $bytesSent = 0;
+        while (!feof($handle)) {
+            $data = fread($handle, 8192);
+            if ($data === false || strlen($data) === 0) {
+                break;
+            }
+            $dataFrame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createData($data);
+            $dataFrame->writeToSocket($socket);
+            $bytesSent += strlen($data);
+        }
+        fclose($handle);
+
+        error_log("[CRASHMAIL] Sent {$bytesSent} bytes of packet data");
+    }
+
+    /**
+     * Send EOB (End of Batch) command
+     */
+    private function sendEOB($socket): void
+    {
+        $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createCommand(
+            \BinktermPHP\Binkp\Protocol\BinkpFrame::M_EOB,
+            ''
+        );
+        $frame->writeToSocket($socket);
+        error_log("[CRASHMAIL] Sent M_EOB");
+    }
+
+    /**
+     * Wait for M_GOT confirmation from remote
+     */
+    private function waitForConfirmation($socket, string $expectedFile): bool
+    {
+        $timeout = time() + 30; // 30 second timeout
+        $gotConfirmed = false;
+        $eobReceived = false;
+
+        while (time() < $timeout && !($gotConfirmed && $eobReceived)) {
+            $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::parseFromSocket($socket, true);
+            if (!$frame) {
+                usleep(100000); // 100ms
+                continue;
+            }
+
+            if ($frame->isCommand()) {
+                switch ($frame->getCommand()) {
+                    case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_GOT:
+                        $gotData = $frame->getData();
+                        error_log("[CRASHMAIL] Received M_GOT: {$gotData}");
+                        // Check if it matches our file
+                        if (strpos($gotData, basename($expectedFile, '.pkt')) !== false ||
+                            strpos($gotData, $expectedFile) !== false) {
+                            $gotConfirmed = true;
+                        }
+                        break;
+
+                    case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_EOB:
+                        error_log("[CRASHMAIL] Received M_EOB");
+                        $eobReceived = true;
+                        break;
+
+                    case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_ERR:
+                        error_log("[CRASHMAIL] Received M_ERR: " . $frame->getData());
+                        return false;
+
+                    default:
+                        error_log("[CRASHMAIL] Received command: " . $frame->getCommand());
+                }
+            }
+        }
+
+        return $gotConfirmed;
     }
 
     /**

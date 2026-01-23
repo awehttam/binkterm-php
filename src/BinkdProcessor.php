@@ -938,27 +938,35 @@ class BinkdProcessor
         }
     }
 
-    public function createOutboundPacket($messages, $destAddr)
+    /**
+     * Create an outbound packet containing the given messages
+     *
+     * @param array $messages Array of message data
+     * @param string $destAddr Destination FTN address
+     * @param string|null $outputPath Optional custom output path (default: outbound directory)
+     * @return string Path to the created packet file
+     */
+    public function createOutboundPacket($messages, $destAddr, $outputPath = null)
     {
-        $filename = $this->outboundPath . '/' . time() . '.pkt';
+        $filename = $outputPath ?? ($this->outboundPath . '/' . time() . '.pkt');
         $handle = fopen($filename, 'wb');
-        
+
         if (!$handle) {
-            throw new \Exception('Cannot create outbound packet');
+            throw new \Exception('Cannot create outbound packet: ' . $filename);
         }
 
         // Write packet header
         $this->writePacketHeader($handle, $destAddr);
-        
+
         // Write messages
         foreach ($messages as $message) {
             $this->writeMessage($handle, $message);
         }
-        
+
         // Write packet terminator
         fwrite($handle, pack('v', 0));
         fclose($handle);
-        
+
         $this->logPacket($filename, 'OUT', 'created');
         return $filename;
     }

@@ -59,8 +59,20 @@
                         </div>
                         <div class="col-md-6">
                             <label for="toName" class="form-label">To Name *</label>
-                            <input type="text" class="form-control" id="toName" name="to_name" 
+                            <input type="text" class="form-control" id="toName" name="to_name"
                                    value="{{ to_name_value }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail">
+                            <label class="form-check-label" for="crashmail">
+                                <i class="fas fa-bolt text-warning me-1"></i>Crashmail (Direct Delivery)
+                            </label>
+                            <div class="form-text">
+                                Attempt immediate direct delivery to the destination node, bypassing hub routing.
+                                Requires the destination to be directly reachable.
+                            </div>
                         </div>
                     </div>
                 {% else %}
@@ -311,7 +323,8 @@ function sendMessage() {
         echoarea: $('#echoarea').val(),
         subject: $('#subject').val(),
         message_text: $('#messageText').val(),
-        reply_to_id: $('#replyToId').val() || null
+        reply_to_id: $('#replyToId').val() || null,
+        crashmail: $('#crashmail').is(':checked')
     };
     
     // Show sending status

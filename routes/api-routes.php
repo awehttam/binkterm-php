@@ -1039,6 +1039,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             if ($type === 'netmail') {
+                $crashmailFlag = !empty($input['crashmail']);
                 $result = $handler->sendNetmail(
                     $user['user_id'],
                     $input['to_address'],
@@ -1046,7 +1047,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['subject'],
                     $input['message_text'],
                     null, // fromName
-                    $input['reply_to_id'] ?? null
+                    $input['reply_to_id'] ?? null,
+                    $crashmailFlag
                 );
             } elseif ($type === 'echomail') {
                 $foo=explode("@", $input['echoarea']);

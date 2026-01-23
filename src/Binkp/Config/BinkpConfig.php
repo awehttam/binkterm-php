@@ -209,6 +209,27 @@ class BinkpConfig
         return $ret;
     }
 
+    /**
+     * Check if an address belongs to this system
+     *
+     * @param string $address FTN address to check
+     * @return bool True if this is one of our addresses
+     */
+    public function isMyAddress(string $address): bool
+    {
+        if (empty($address)) {
+            return false;
+        }
+
+        // Check system address
+        if ($address === $this->getSystemAddress()) {
+            return true;
+        }
+
+        // Check all "me" addresses from uplinks
+        return in_array($address, $this->getMyAddresses());
+    }
+
     public function getMyAddressByDomain($domain)
     {
 

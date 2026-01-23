@@ -43,10 +43,12 @@ class SessionLogger
         $stmt = $this->db->prepare("
             INSERT INTO binkp_session_log
             (remote_address, remote_ip, session_type, is_inbound, status)
-            VALUES (?, ?::inet, ?, ?, 'active')
+            VALUES (?, ?::inet, ?, ?::boolean, 'active')
             RETURNING id
         ");
-        $stmt->execute([$remoteAddress, $remoteIp, $sessionType, $isInbound]);
+        // Cast boolean to PostgreSQL-compatible string
+        $isInboundStr = $isInbound ? 'true' : 'false';
+        $stmt->execute([$remoteAddress, $remoteIp, $sessionType, $isInboundStr]);
         $this->sessionId = (int)$stmt->fetchColumn();
         return $this->sessionId;
     }
