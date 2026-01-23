@@ -473,8 +473,13 @@ class BinkpSession
     
     private function sendAddress()
     {
-        //$address = $this->config->getSystemAddress();
-        $address = trim(implode(" ", $this->config->getMyAddresses()));
+        // If we have a current uplink context, only send that uplink's address
+        // Otherwise fall back to sending all addresses
+        if ($this->currentUplink && !empty($this->currentUplink['me'])) {
+            $address = $this->currentUplink['me'];
+        } else {
+            $address = trim(implode(" ", $this->config->getMyAddresses()));
+        }
         fwrite(STDERR, "[DEBUG] sendAddress: {$address}\n");
         $frame = BinkpFrame::createCommand(BinkpFrame::M_ADR, $address);
         $frame->writeToSocket($this->socket);
