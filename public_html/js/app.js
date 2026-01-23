@@ -117,6 +117,7 @@ function formatMessageText(messageText, searchTerms = []) {
         if (trimmedLine === '---' || trimmedLine === '___' || trimmedLine.match(/^-{2,}$/)) {
             inSignature = true;
             let highlightedLine = escapeHtml(trimmedLine);
+            highlightedLine = linkifyUrls(highlightedLine);
             if (searchTerms && searchTerms.length > 0) {
                 highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
             }
@@ -135,6 +136,7 @@ function formatMessageText(messageText, searchTerms = []) {
                 inQuoteBlock = true;
             }
             let highlightedLine = escapeHtml(line);
+            highlightedLine = linkifyUrls(highlightedLine);
             if (searchTerms && searchTerms.length > 0) {
                 highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
             }
@@ -167,6 +169,7 @@ function formatMessageText(messageText, searchTerms = []) {
             } else {
                 const cssClass = inSignature ? 'message-signature' : 'message-line';
                 let highlightedLine = escapeHtml(line);
+                highlightedLine = linkifyUrls(highlightedLine);
                 if (searchTerms && searchTerms.length > 0) {
                     highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
                 }
@@ -221,6 +224,41 @@ function highlightSearchTerms(htmlText, searchTerms) {
 // Helper function to escape special regex characters
 function escapeRegex(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Convert URLs in text to clickable links (XSS-safe)
+// Must be called AFTER escapeHtml since we're inserting HTML anchor tags
+function linkifyUrls(text) {
+    if (!text) return text;
+
+    // Only match http://, https://, ftp:// URLs - never javascript: or data:
+    const urlPattern = /\b((?:https?|ftp):\/\/[^\s<>&"']+)/gi;
+
+    return text.replace(urlPattern, function(match, url) {
+        // Double-check: only allow safe protocols
+        if (!/^(https?|ftp):\/\//i.test(url)) {
+            return match;
+        }
+
+        // Clean up trailing punctuation that's likely not part of the URL
+        let cleanUrl = url;
+        let trailing = '';
+        const trailingMatch = cleanUrl.match(/([.,;:!?]+)$/);
+        if (trailingMatch) {
+            trailing = trailingMatch[1];
+            cleanUrl = cleanUrl.slice(0, -trailing.length);
+        }
+
+        // Encode the URL for safe use in href attribute
+        // escapeHtml was already called, so &amp; needs to be restored for valid URLs
+        const safeUrl = cleanUrl
+            .replace(/&amp;/g, '&')   // Restore & for valid URL params
+            .replace(/"/g, '%22')     // Encode double quotes
+            .replace(/'/g, '%27');    // Encode single quotes
+
+        // Display URL keeps the escaped version for safe display
+        return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="message-link">${cleanUrl}</a>${trailing}`;
+    });
 }
 
 function formatKludgeLines(kludgeLines) {
