@@ -349,15 +349,18 @@ BANNER;
         }
 
         // Check required extensions
-        $requiredExtensions = ['pdo', 'pdo_pgsql', 'json', 'curl', 'mbstring'];
+        $requiredExtensions = ['pdo', 'pdo_pgsql', 'json', 'curl', 'mbstring', 'zip'];
+        $errors=0;
         foreach ($requiredExtensions as $ext) {
             if (extension_loaded($ext)) {
                 $this->success("Extension: $ext");
             } else {
                 $this->error("Missing extension: $ext");
-                return 1;
+                $errors++;
             }
         }
+        if($errors)
+            return 1;
 
         $this->section('Installation Options');
 
@@ -405,6 +408,7 @@ BANNER;
             return 1;
         }
 
+
         $this->section('Configuration');
 
         // Database configuration
@@ -420,8 +424,19 @@ BANNER;
         $sysopName = $this->prompt('Sysop name');
         $ftnAddress = $this->prompt('FTN address (e.g., 1:234/567)');
 
-        // TODO: Write configuration files
+        // Prompt whether to proceed with installation. If no, exit, otherwise proceed
 
+        // Check for existence of install directory - make sure it's empty, exit if it isn't
+
+        // Unzip the archive
+
+        // Create a .env file using .env.example as the template
+
+        // Create a config/binkp.json using config/binkp.json.example as the template
+
+        // Provide user with example crontab for manual installation (TODO: create a crontab.example file)
+
+        // Install done!
         $this->section('Complete');
         $this->success("BinktermPHP has been installed!");
         $this->line();
