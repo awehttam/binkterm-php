@@ -119,6 +119,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $password = $_POST['password'] ?? '';
         $email = $_POST['email'] ?? '';
         $realName = $_POST['real_name'] ?? '';
+        $location = $_POST['location'] ?? '';
         $reason = $_POST['reason'] ?? '';
 
         // Validate required fields
@@ -168,8 +169,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Insert pending user
             $insertStmt = $db->prepare("
-                INSERT INTO pending_users (username, password_hash, email, real_name, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $insertStmt->execute([
@@ -177,6 +178,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $passwordHash,
                 $email ?: null,
                 $realName,
+                $location ?: null,
                 $reason ?: null,
                 $ipAddress,
                 $userAgent
@@ -1400,16 +1402,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // Validate input
             $realName = trim($input['real_name'] ?? '');
             $email = trim($input['email'] ?? '');
+            $location = trim($input['location'] ?? '');
             $currentPassword = $input['current_password'] ?? '';
             $newPassword = $input['new_password'] ?? '';
 
-            // Update basic profile information
-            //$stmt = $db->prepare("UPDATE users SET real_name = ?, email = ? WHERE id = ?");
-            //$stmt->execute([$realName, $email, $user['user_id']]);
-
-            // Users can not change their name
-            $stmt = $db->prepare("UPDATE users SET  email = ? WHERE id = ?");
-            $stmt->execute([ $email, $user['user_id']]);
+            // Update profile information (users cannot change their name)
+            $stmt = $db->prepare("UPDATE users SET email = ?, location = ? WHERE id = ?");
+            $stmt->execute([$email, $location ?: null, $user['user_id']]);
 
             // Handle password change if provided
             if (!empty($currentPassword) && !empty($newPassword)) {

@@ -1404,15 +1404,16 @@ class MessageHandler
             
             // Create actual user account
             $userStmt = $this->db->prepare("
-                INSERT INTO users (username, password_hash, email, real_name, created_at, is_active)
-                VALUES (?, ?, ?, ?, NOW(), TRUE)
+                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active)
+                VALUES (?, ?, ?, ?, ?, NOW(), TRUE)
             ");
-            
+
             $userStmt->execute([
                 $pendingUser['username'],
                 $pendingUser['password_hash'],
                 $pendingUser['email'],
-                $pendingUser['real_name']
+                $pendingUser['real_name'],
+                $pendingUser['location'] ?? null
             ]);
             
             $newUserId = $this->db->lastInsertId();

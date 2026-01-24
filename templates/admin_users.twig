@@ -521,6 +521,7 @@ function viewUser(userId) {
                                 <tr><th>Username:</th><td>${escapeHtml(user.username)}</td></tr>
                                 <tr><th>Real Name:</th><td>${escapeHtml(user.real_name || 'Not provided')}</td></tr>
                                 <tr><th>Email:</th><td>${escapeHtml(user.email || 'Not provided')}</td></tr>
+                                <tr><th>Location:</th><td>${escapeHtml(user.location || 'Not provided')}</td></tr>
                                 <tr><th>Requested:</th><td>${requestedDate}</td></tr>
                                 <tr><th>IP Address:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
                             </table>

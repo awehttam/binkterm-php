@@ -277,6 +277,7 @@ SimpleRouter::get('/profile', function() {
         'user_username' => $user['username'],
         'user_real_name' => $user['real_name'] ?? '',
         'user_email' => $user['email'] ?? '',
+        'user_location' => $user['location'] ?? '',
         'user_created_at' => $user['created_at'],
         'user_last_login' => $user['last_login'],
         'user_is_admin' => (bool)$user['is_admin'],
