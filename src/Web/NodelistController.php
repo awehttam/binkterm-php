@@ -44,12 +44,13 @@ class NodelistController
         $zones = $this->nodelistManager->getZones();
         $stats = $this->nodelistManager->getNodelistStats();
         $activeNodelist = $this->nodelistManager->getActiveNodelist();
-        
+        $activeNodelists = $this->nodelistManager->getActiveNodelists();
+
         $nets = [];
         if ($zone) {
             $nets = $this->nodelistManager->getNetsByZone($zone);
         }
-        
+
         return $this->template->render('nodelist/index.twig', [
             'user' => $user,
             'title' => 'Node List Browser',
@@ -58,6 +59,7 @@ class NodelistController
             'nets' => $nets,
             'stats' => $stats,
             'activeNodelist' => $activeNodelist,
+            'activeNodelists' => $activeNodelists,
             'search' => $search,
             'selectedZone' => $zone,
             'selectedNet' => $net,

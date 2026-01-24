@@ -15,15 +15,29 @@
                 {% endif %}
             </div>
 
-            {% if activeNodelist %}
+            {% if activeNodelists|length > 0 %}
                 <div class="alert alert-info mb-4 text-center">
-                    <strong>{{ stats.total_nodes|number_format }}</strong> nodes, 
-                    <strong>{{ stats.total_zones }}</strong> zones, 
-                    <strong>{{ stats.total_nets|number_format }}</strong> nets, 
-                    <strong>{{ stats.point_nodes|number_format }}</strong> points, 
+                    <strong>{{ stats.total_nodes|number_format }}</strong> nodes,
+                    <strong>{{ stats.total_zones }}</strong> zones,
+                    <strong>{{ stats.total_nets|number_format }}</strong> nets,
+                    <strong>{{ stats.point_nodes|number_format }}</strong> points,
                     <strong>{{ stats.special_nodes|number_format }}</strong> special
                     <br>
-                    <small class="text-muted">Last imported: {{ activeNodelist.imported_at|date('M d, Y') }}</small>
+                    <small class="text-muted">Last imported:<br>
+                    {% for nodelist in activeNodelists %}
+                        {{ nodelist.domain|default('unknown') }}: {{ nodelist.imported_at|date('F d, Y') }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                    </small>
+                </div>
+            {% elseif activeNodelist %}
+                <div class="alert alert-info mb-4 text-center">
+                    <strong>{{ stats.total_nodes|number_format }}</strong> nodes,
+                    <strong>{{ stats.total_zones }}</strong> zones,
+                    <strong>{{ stats.total_nets|number_format }}</strong> nets,
+                    <strong>{{ stats.point_nodes|number_format }}</strong> points,
+                    <strong>{{ stats.special_nodes|number_format }}</strong> special
+                    <br>
+                    <small class="text-muted">Last imported: {{ activeNodelist.imported_at|date('F d, Y') }}</small>
                 </div>
             {% endif %}
 

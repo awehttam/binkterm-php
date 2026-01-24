@@ -199,8 +199,22 @@ class NodelistManager
         $sql = "SELECT * FROM nodelist_metadata WHERE is_active = TRUE ORDER BY release_date DESC LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        
+
         return $stmt->fetch();
+    }
+
+    /**
+     * Get all active nodelists grouped by domain
+     *
+     * @return array Array of active nodelist metadata records
+     */
+    public function getActiveNodelists()
+    {
+        $sql = "SELECT * FROM nodelist_metadata WHERE is_active = TRUE ORDER BY domain ASC, imported_at DESC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
     }
     
     public function getZones()
