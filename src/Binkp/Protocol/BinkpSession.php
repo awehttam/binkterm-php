@@ -445,6 +445,11 @@ class BinkpSession
                     $this->handleSkipCommand($frame->getData());
                     break;
 
+                case BinkpFrame::M_OK:
+                    // M_OK can be sent during transfer by some implementations
+                    $this->log("Received M_OK: " . $frame->getData(), 'DEBUG');
+                    break;
+
                 case BinkpFrame::M_ERR:
                     throw new \Exception('Remote error: ' . $frame->getData());
 
