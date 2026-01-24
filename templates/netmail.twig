@@ -135,6 +135,9 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="messageSubject">Message</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
+                    <i class="fas fa-expand"></i>
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -251,7 +254,17 @@ $(document).ready(function() {
             $('#messageModal').modal('hide');
         }
     });
-    
+
+    // Add keyboard navigation for message modal
+    $(document).on('keydown', function(e) {
+        if ($('#messageModal').hasClass('show')) {
+            if (e.key === 'f' || e.key === 'F') {
+                e.preventDefault();
+                toggleModalFullscreen();
+            }
+        }
+    });
+
     // Handle modal close events
     $('#messageModal').on('hidden.bs.modal', function() {
         // If modal wasn't closed by back button and we're in a modal state, go back in history
@@ -498,6 +511,24 @@ function updatePagination(pagination) {
 function changePage(page) {
     currentPage = page;
     loadMessages();
+}
+
+function toggleModalFullscreen() {
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (dialog.classList.contains('modal-fullscreen')) {
+        dialog.classList.remove('modal-fullscreen');
+        dialog.classList.add('modal-lg');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+    } else {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    }
 }
 
 function viewMessage(messageId) {

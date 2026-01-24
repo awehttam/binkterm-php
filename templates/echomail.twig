@@ -259,6 +259,9 @@
                     </button>
                 </div>
                 <h5 class="modal-title" id="messageSubject">Message</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
+                    <i class="fas fa-expand"></i>
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -467,6 +470,11 @@ $(document).ready(function() {
                     break;
                 case 'Escape':
                     // Let the default modal behavior handle this
+                    break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    toggleModalFullscreen();
                     break;
             }
         }
@@ -945,6 +953,24 @@ function markEchomailAsRead(messageId) {
         .fail(function() {
             console.log('Failed to mark echomail as read');
         });
+}
+
+function toggleModalFullscreen() {
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (dialog.classList.contains('modal-fullscreen')) {
+        dialog.classList.remove('modal-fullscreen');
+        dialog.classList.add('modal-lg');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+    } else {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    }
 }
 
 function viewMessage(messageId) {
