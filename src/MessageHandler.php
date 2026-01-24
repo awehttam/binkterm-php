@@ -638,7 +638,7 @@ class MessageHandler
         if ($result) {
             $messageId = $this->db->lastInsertId();
 
-            if($toAddress!="") {
+            if($toAddress!=$originAddress) {
                 if ($crashmail) {
                     // Crashmail: queue for direct delivery only, skip normal hub routing
                     try {

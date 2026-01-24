@@ -948,7 +948,7 @@ class BinkdProcessor
      */
     public function createOutboundPacket($messages, $destAddr, $outputPath = null)
     {
-        $filename = $outputPath ?? ($this->outboundPath . '/' . time() . '.pkt');
+        $filename = $outputPath ?? ($this->outboundPath . '/' . substr(uniqid(), -8).'.pkt');
         $handle = fopen($filename, 'wb');
 
         if (!$handle) {
