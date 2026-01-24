@@ -670,7 +670,7 @@ body {
 
 /* Expanded message modal on desktop */
 @media (min-width: 992px) {
-    #messageModal .modal-dialog.modal-lg {
+    .modal-dialog.modal-message-reader {
         max-width: 1000px;
     }
 }
