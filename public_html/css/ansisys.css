@@ -1,0 +1,93 @@
+/**
+ * ANSI Terminal CSS Styles
+ * For rendering ANSI escape sequences in web display
+ */
+
+/* Container for ANSI art */
+.ansi-art-container {
+    overflow-x: auto;
+    background-color: #000;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.ansi-art {
+    font-family: 'Perfect DOS VGA 437', 'Fixedsys Excelsior', 'Courier New', monospace;
+    font-size: 16px;
+    line-height: 1;
+    letter-spacing: 0;
+    margin: 0;
+    padding: 0;
+    white-space: pre;
+    color: #aaa;
+    background-color: #000;
+}
+
+/* Standard ANSI foreground colors (0-7) */
+.ansi-black { color: #000; }
+.ansi-red { color: #aa0000; }
+.ansi-green { color: #00aa00; }
+.ansi-yellow { color: #aa5500; }
+.ansi-blue { color: #0000aa; }
+.ansi-magenta { color: #aa00aa; }
+.ansi-cyan { color: #00aaaa; }
+.ansi-white { color: #aaaaaa; }
+
+/* Bright ANSI foreground colors (8-15) */
+.ansi-bright-black { color: #555555; }
+.ansi-bright-red { color: #ff5555; }
+.ansi-bright-green { color: #55ff55; }
+.ansi-bright-yellow { color: #ffff55; }
+.ansi-bright-blue { color: #5555ff; }
+.ansi-bright-magenta { color: #ff55ff; }
+.ansi-bright-cyan { color: #55ffff; }
+.ansi-bright-white { color: #ffffff; }
+
+/* Standard ANSI background colors (0-7) */
+.ansi-bg-black { background-color: #000; }
+.ansi-bg-red { background-color: #aa0000; }
+.ansi-bg-green { background-color: #00aa00; }
+.ansi-bg-yellow { background-color: #aa5500; }
+.ansi-bg-blue { background-color: #0000aa; }
+.ansi-bg-magenta { background-color: #aa00aa; }
+.ansi-bg-cyan { background-color: #00aaaa; }
+.ansi-bg-white { background-color: #aaaaaa; }
+
+/* Bright ANSI background colors (8-15) */
+.ansi-bg-bright-black { background-color: #555555; }
+.ansi-bg-bright-red { background-color: #ff5555; }
+.ansi-bg-bright-green { background-color: #55ff55; }
+.ansi-bg-bright-yellow { background-color: #ffff55; }
+.ansi-bg-bright-blue { background-color: #5555ff; }
+.ansi-bg-bright-magenta { background-color: #ff55ff; }
+.ansi-bg-bright-cyan { background-color: #55ffff; }
+.ansi-bg-bright-white { background-color: #ffffff; }
+
+/* Text attributes */
+.ansi-bold { font-weight: bold; }
+.ansi-dim { opacity: 0.7; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+.ansi-blink { animation: ansi-blink 1s step-end infinite; }
+.ansi-reverse { filter: invert(1); }
+.ansi-hidden { visibility: hidden; }
+.ansi-strike { text-decoration: line-through; }
+
+@keyframes ansi-blink {
+    0%, 50% { opacity: 1; }
+    50.01%, 100% { opacity: 0; }
+}
+
+/* Bold + color combinations for bright colors */
+.ansi-bold.ansi-black { color: #555555; }
+.ansi-bold.ansi-red { color: #ff5555; }
+.ansi-bold.ansi-green { color: #55ff55; }
+.ansi-bold.ansi-yellow { color: #ffff55; }
+.ansi-bold.ansi-blue { color: #5555ff; }
+.ansi-bold.ansi-magenta { color: #ff55ff; }
+.ansi-bold.ansi-cyan { color: #55ffff; }
+.ansi-bold.ansi-white { color: #ffffff; }
+
+/* For inline ANSI in regular messages (not full art) */
+.message-body .ansi-black { color: #555; }
+.message-body .ansi-white { color: #ddd; }
