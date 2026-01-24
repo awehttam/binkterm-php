@@ -965,7 +965,23 @@ function toggleModalFullscreen() {
         dialog.classList.add('modal-lg');
         icon.classList.remove('fa-compress');
         icon.classList.add('fa-expand');
+        localStorage.setItem('modalFullscreen', 'false');
     } else {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        localStorage.setItem('modalFullscreen', 'true');
+    }
+}
+
+function applyModalFullscreenPreference() {
+    const isFullscreen = localStorage.getItem('modalFullscreen') === 'true';
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (isFullscreen) {
         dialog.classList.remove('modal-lg');
         dialog.classList.add('modal-fullscreen');
         icon.classList.remove('fa-expand');
@@ -996,7 +1012,8 @@ function viewMessage(messageId) {
             Loading message...
         </div>
     `);
-    
+
+    applyModalFullscreenPreference();
     $('#messageModal').modal('show');
     
     // Choose the appropriate API endpoint based on whether we have a specific echoarea

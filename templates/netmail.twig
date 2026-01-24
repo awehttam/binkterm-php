@@ -523,7 +523,23 @@ function toggleModalFullscreen() {
         dialog.classList.add('modal-lg');
         icon.classList.remove('fa-compress');
         icon.classList.add('fa-expand');
+        localStorage.setItem('modalFullscreen', 'false');
     } else {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        localStorage.setItem('modalFullscreen', 'true');
+    }
+}
+
+function applyModalFullscreenPreference() {
+    const isFullscreen = localStorage.getItem('modalFullscreen') === 'true';
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (isFullscreen) {
         dialog.classList.remove('modal-lg');
         dialog.classList.add('modal-fullscreen');
         icon.classList.remove('fa-expand');
@@ -533,19 +549,20 @@ function toggleModalFullscreen() {
 
 function viewMessage(messageId) {
     currentMessageId = messageId;
-    
+
     // Add history entry for mobile back button support
     if (!history.state || history.state.modal !== 'message') {
         history.pushState({modal: 'message', messageId: messageId}, '', '');
     }
-    
+
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
             Loading message...
         </div>
     `);
-    
+
+    applyModalFullscreenPreference();
     $('#messageModal').modal('show');
     
     $.get(`/api/messages/netmail/${messageId}`)
@@ -796,17 +813,18 @@ function markMessageAsRead(messageId) {
 // Override viewMessage function to mark as read
 function viewMessage(messageId) {
     currentMessageId = messageId;
-    
+
     // Mark as read immediately
     markMessageAsRead(messageId);
-    
+
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
             Loading message...
         </div>
     `);
-    
+
+    applyModalFullscreenPreference();
     $('#messageModal').modal('show');
     
     $.get(`/api/messages/netmail/${messageId}`)
