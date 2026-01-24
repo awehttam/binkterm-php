@@ -1424,3 +1424,10 @@ tbody, td, tfoot, th, thead, tr {
 .form-check-label {
     color: var(--text-color);
 }
+
+/* Expanded message modal on desktop */
+@media (min-width: 992px) {
+    .modal-dialog.modal-message-reader {
+        --bs-modal-width: 80%;
+    }
+}

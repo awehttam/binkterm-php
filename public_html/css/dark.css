@@ -902,3 +902,10 @@ a:hover {
 .alert-primary .alert-heading {
     color: var(--fidonet-blue) !important;
 }
+
+/* Expanded message modal on desktop */
+@media (min-width: 992px) {
+    .modal-dialog.modal-message-reader {
+        --bs-modal-width: 80%;
+    }
+}

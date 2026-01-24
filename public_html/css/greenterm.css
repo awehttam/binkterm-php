@@ -1329,3 +1329,10 @@ tbody, td, tfoot, th, thead, tr {
 .alert-primary .alert-heading {
     color: var(--term-green-bright) !important;
 }
+
+/* Expanded message modal on desktop */
+@media (min-width: 992px) {
+    .modal-dialog.modal-message-reader {
+        --bs-modal-width: 80%;
+    }
+}
