@@ -865,3 +865,40 @@ a:hover {
 ::-webkit-scrollbar-thumb:hover {
     background: #666;
 }
+
+/* Form check styling */
+.form-check {
+    background-color: transparent !important;
+}
+
+.form-check-input {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+.form-check-input:checked {
+    background-color: var(--fidonet-blue);
+    border-color: var(--fidonet-blue);
+}
+
+.form-check-label {
+    color: var(--text-color);
+}
+
+/* Message header full (expanded view) */
+.message-header-full {
+    background-color: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* Alert primary styling */
+.alert-primary {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--fidonet-blue) !important;
+    color: var(--text-color) !important;
+}
+
+.alert-primary .alert-heading {
+    color: var(--fidonet-blue) !important;
+}

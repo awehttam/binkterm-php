@@ -1292,3 +1292,40 @@ small, .small {
 tbody, td, tfoot, th, thead, tr {
     border-color: var(--term-green-dark);
 }
+
+/* Form check styling */
+.form-check {
+    background-color: transparent !important;
+}
+
+.form-check-input {
+    background-color: var(--term-black);
+    border-color: var(--term-green-dim);
+}
+
+.form-check-input:checked {
+    background-color: var(--term-green);
+    border-color: var(--term-green);
+}
+
+.form-check-label {
+    color: var(--term-green);
+}
+
+/* Message header full (expanded view) */
+.message-header-full {
+    background-color: var(--term-black-light) !important;
+    border: 1px solid var(--term-green-dark) !important;
+    color: var(--term-green) !important;
+}
+
+/* Alert primary styling */
+.alert-primary {
+    background-color: var(--term-black) !important;
+    border-color: var(--term-green) !important;
+    color: var(--term-green) !important;
+}
+
+.alert-primary .alert-heading {
+    color: var(--term-green-bright) !important;
+}
