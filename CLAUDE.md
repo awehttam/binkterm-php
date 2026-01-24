@@ -33,6 +33,7 @@ provides users with a delighftful, modern web experience that allows them to sen
  - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.1.0_description.sql
  - When adding features to netmail and echomail, keep in mind feature parity.  Ask for clarification about whether a feature is appropriate to both.
  - Leave the vendor directory alone. It's managed by composer only.
+ - When updating style.css, also update the theme stylesheets: dark.css, greenterm.css, and cyberpunk.css
 
 ## URL Construction
 When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** follow this pattern:
