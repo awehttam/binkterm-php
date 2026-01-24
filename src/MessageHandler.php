@@ -593,7 +593,7 @@ class MessageHandler
 
         // Use provided fromName or fall back to user's real name
         $senderName = $fromName ?: ($user['real_name'] ?: $user['username']);
-        
+
         // Get the appropriate origin address for the destination network
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -608,6 +608,16 @@ class MessageHandler
             }
         } catch (\Exception $e) {
             throw new \Exception('Cannot determine origin address: ' . $e->getMessage());
+        }
+
+        // Verify outbound directory is writable before accepting the message
+        // (only needed if message will be spooled, i.e., not local delivery)
+        if ($toAddress !== $originAddress) {
+            $outboundPath = $binkpConfig->getOutboundPath();
+            if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
+                error_log("[NETMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
+                throw new \Exception('Message delivery system unavailable. Please try again later.');
+            }
         }
 
         // Generate MSGID for storage (address + hash format)
@@ -739,19 +749,23 @@ class MessageHandler
             throw new \Exception('Echo area not found');
         }
 
-
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            //$systemAddress = $binkpConfig->getSystemAddress();
             $myAddress = $binkpConfig->getMyAddressByDomain($domain);
-            if(!$myAddress){
+            if (!$myAddress) {
                 throw new \Exception("Can't determine my local address for domain '$domain'");
-                //$myAddress = $binkpConfig->getSystemAddress();
             }
             // For echomail from points, keep the FULL point address in the from_address
             // The point routing will be handled by FMPT kludge lines
         } catch (\Exception $e) {
             throw new \Exception('Can not determine sending address for this network - missing uplink?');
+        }
+
+        // Verify outbound directory is writable before accepting the message
+        $outboundPath = $binkpConfig->getOutboundPath();
+        if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
+            error_log("[ECHOMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
+            throw new \Exception('Message delivery system unavailable. Please try again later.');
         }
 
         // Generate kludges for this echomail
