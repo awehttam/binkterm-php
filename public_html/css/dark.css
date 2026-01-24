@@ -171,6 +171,56 @@ body {
     background-color: var(--bg-secondary) !important;
 }
 
+/* Bootstrap table CSS variable overrides */
+.table {
+    --bs-table-bg: var(--bg-card);
+    --bs-table-color: var(--text-color);
+    --bs-table-hover-bg: var(--bg-secondary);
+    --bs-table-hover-color: var(--text-color);
+    --bs-table-striped-bg: #333333;
+    --bs-table-striped-color: var(--text-color);
+}
+
+/* Bootstrap table-light override for unread messages */
+.table-light {
+    --bs-table-bg: #3a3a3a;
+    --bs-table-color: var(--text-color);
+    --bs-table-hover-bg: #444444;
+    --bs-table-hover-color: var(--text-color);
+    background-color: #3a3a3a !important;
+    color: var(--text-color) !important;
+}
+
+.table-light > td,
+.table-light > th {
+    background-color: #3a3a3a !important;
+    color: var(--text-color) !important;
+}
+
+.message-row.table-light {
+    background-color: #3a3a3a !important;
+}
+
+.message-row.table-light td {
+    background-color: #3a3a3a !important;
+    color: var(--text-color) !important;
+}
+
+.message-row.table-light strong {
+    color: var(--fidonet-blue) !important;
+}
+
+.message-row:not(.table-light) {
+    opacity: 0.85;
+}
+
+.table-hover > tbody > tr:hover > * {
+    --bs-table-bg-state: var(--bg-secondary) !important;
+    --bs-table-color-state: var(--text-color) !important;
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-color) !important;
+}
+
 .table {
     color: var(--text-color);
 }
