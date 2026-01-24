@@ -27,12 +27,11 @@ if (empty($users)) {
     exit(0);
 }
 
-echo sprintf("%-20s %-25s %-20s %-15s %s\n", "Username", "FTN Address", "Location", "IP Address", "Last Activity");
-echo str_repeat("-", 100) . "\n";
+echo sprintf("%-20s %-20s %-15s %s\n", "Username", "Location", "IP Address", "Last Activity");
+echo str_repeat("-", 75) . "\n";
 
 foreach ($users as $user) {
     $username = $user['username'] ?? 'unknown';
-    $address = $user['fidonet_address'] ?? '-';
     $location = $user['location'] ?? '-';
     $ipAddress = $user['ip_address'] ?? '-';
     $lastActivity = $user['last_activity'] ?? '-';
@@ -42,7 +41,7 @@ foreach ($users as $user) {
         $lastActivity = $dt->format('Y-m-d H:i:s');
     }
 
-    echo sprintf("%-20s %-25s %-20s %-15s %s\n", $username, $address, $location, $ipAddress, $lastActivity);
+    echo sprintf("%-20s %-20s %-15s %s\n", $username, $location, $ipAddress, $lastActivity);
 }
 
 echo "\n" . count($users) . " user(s) online.\n";
