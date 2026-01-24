@@ -49,6 +49,9 @@
                                                 {% else %}
                                                     <span class="text-muted">Unpublished</span>
                                                 {% endif %}
+                                                {% if node.flags['INA'] is defined %}
+                                                    <br>{{ node.flags['INA'] }}
+                                                {% endif %}
                                             </td>
                                         </tr>
                                         <tr>

@@ -82,7 +82,7 @@
                                         <th>System Name</th>
                                         <th>Sysop</th>
                                         <th>Location</th>
-                                        <th>Phone</th>
+                                        <th>Phone/Host</th>
                                         <th>Speed</th>
                                         <th>Actions</th>
                                     </tr>
@@ -108,6 +108,9 @@
                                                     <small>{{ node.phone }}</small>
                                                 {% else %}
                                                     <span class="text-muted">-</span>
+                                                {% endif %}
+                                                {% if node.flags['INA'] is defined %}
+                                                    <br>{{ node.flags['INA'] }}
                                                 {% endif %}
                                             </td>
                                             <td>
