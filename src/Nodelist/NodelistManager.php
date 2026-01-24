@@ -220,11 +220,11 @@ class NodelistManager
     
     public function getZones()
     {
-        $sql = "SELECT DISTINCT zone FROM nodelist ORDER BY zone";
+        $sql = "SELECT DISTINCT zone, domain FROM nodelist ORDER BY zone, domain";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        
-        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     public function getNetsByZone($zone)

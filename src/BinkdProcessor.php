@@ -949,6 +949,7 @@ class BinkdProcessor
     public function createOutboundPacket($messages, $destAddr, $outputPath = null)
     {
         $filename = $outputPath ?? ($this->outboundPath . '/' . substr(uniqid(), -8).'.pkt');
+        $packetName = basename($filename);
         $handle = fopen($filename, 'wb');
 
         if (!$handle) {
@@ -958,15 +959,31 @@ class BinkdProcessor
         // Write packet header
         $this->writePacketHeader($handle, $destAddr);
 
-        // Write messages
+        // Write messages and log details
         foreach ($messages as $message) {
             $this->writeMessage($handle, $message);
+
+            // Log message details for tracing
+            $msgType = !empty($message['is_echomail']) ? 'echomail' : 'netmail';
+            $fromName = $message['from_name'] ?? 'unknown';
+            $fromAddr = $message['from_address'] ?? 'unknown';
+            $toName = $message['to_name'] ?? 'unknown';
+            $toAddr = $message['to_address'] ?? $destAddr;
+            $subject = $message['subject'] ?? '(no subject)';
+            $areaTag = $message['echoarea_tag'] ?? '';
+
+            if ($msgType === 'echomail') {
+                error_log("[BINKD] Packet {$packetName}: Writing {$msgType} - area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
+            } else {
+                error_log("[BINKD] Packet {$packetName}: Writing {$msgType} - from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
+            }
         }
 
         // Write packet terminator
         fwrite($handle, pack('v', 0));
         fclose($handle);
 
+        error_log("[BINKD] Created outbound packet {$packetName} with " . count($messages) . " message(s) destined for {$destAddr}");
         $this->logPacket($filename, 'OUT', 'created');
         return $filename;
     }

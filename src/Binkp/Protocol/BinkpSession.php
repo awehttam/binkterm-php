@@ -633,14 +633,18 @@ class BinkpSession
         $filename = basename($filePath);
         $fileSize = filesize($filePath);
         $timestamp = filemtime($filePath);
-        
+
+        // Get packet destination for logging
+        $destAddr = $this->getPacketDestination($filePath);
+        $uplinkAddr = $this->currentUplink['address'] ?? 'unknown';
+
         // Format: filename size timestamp [offset]
         // According to binkp spec, format should be: filename size time [offset]
         $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
         $frame = BinkpFrame::createCommand(BinkpFrame::M_FILE, $fileInfo);
         $frame->writeToSocket($this->socket);
-        
-        $this->log("Sending file: {$filename} ({$fileSize} bytes)", 'DEBUG');
+
+        $this->log("Sending packet {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
 
         $handle = fopen($filePath, 'rb');
         if (!$handle) {
@@ -662,9 +666,9 @@ class BinkpSession
 
         if ($bytesSent === $fileSize) {
             $this->filesSent[] = $filename;
-            $this->log("Sent file: {$filename} ({$bytesSent} bytes)", 'INFO');
+            $this->log("Delivered packet {$filename} ({$bytesSent} bytes) to {$uplinkAddr}", 'INFO');
         } else {
-            $this->log("File send incomplete: {$filename} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
+            $this->log("Packet send incomplete: {$filename} ({$bytesSent}/{$fileSize} bytes)", 'ERROR');
         }
     }
 

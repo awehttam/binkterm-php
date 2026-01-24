@@ -939,35 +939,45 @@ class MessageHandler
         $stmt = $this->db->prepare("SELECT * FROM netmail WHERE id = ?");
         $stmt->execute([$messageId]);
         $message = $stmt->fetch();
-        
+
         if (!$message) {
             return false;
         }
 
+        // Extract message details for logging
+        $fromName = $message['from_name'] ?? 'unknown';
+        $fromAddr = $message['from_address'] ?? 'unknown';
+        $toName = $message['to_name'] ?? 'unknown';
+        $toAddr = $message['to_address'] ?? 'unknown';
+        $subject = $message['subject'] ?? '(no subject)';
+
+        error_log("[SPOOL] Spooling netmail #{$messageId}: from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
+
         try {
             $binkdProcessor = new BinkdProcessor();
-            
+
             // Set netmail attributes (private flag)
             $message['attributes'] = 0x0001;
-            
+
             // Create outbound packet for this message
-            $binkdProcessor->createOutboundPacket([$message], $message['to_address']);
-            
+            $packetFile = $binkdProcessor->createOutboundPacket([$message], $message['to_address']);
+            $packetName = basename($packetFile);
+
             // Mark message as sent
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
-            
+
+            error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName}");
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
-            error_log("Failed to spool netmail $messageId: " . $e->getMessage());
+            error_log("[SPOOL] Failed to spool netmail #{$messageId} (from=\"{$fromName}\" subject=\"{$subject}\"): " . $e->getMessage());
             return false;
         }
     }
 
-    private function spoolOutboundEchomail($messageId, $echoareaTag,$domain)
+    private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
     {
-        error_log("spoolOutboundEchomail($messageId, $echoareaTag, $domain");
         $stmt = $this->db->prepare("
             SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain
             FROM echomail em
@@ -976,44 +986,47 @@ class MessageHandler
         ");
         $stmt->execute([$messageId]);
         $message = $stmt->fetch();
-        
+
         if (!$message) {
             return false;
         }
 
+        // Extract message details for logging
+        $fromName = $message['from_name'] ?? 'unknown';
+        $fromAddr = $message['from_address'] ?? 'unknown';
+        $subject = $message['subject'] ?? '(no subject)';
+        $areaTag = $message['echoarea_tag'] ?? $echoareaTag;
+
+        error_log("[SPOOL] Spooling echomail #{$messageId}: area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
+
         try {
             $binkdProcessor = new BinkdProcessor();
-            
-            // Don't add plain text AREA: line - echomail is identified by ^AAREA: kludge line only
-            
-            // Debug logging
-            error_log("DEBUG: Spooling echomail with AREA tag: " . $message['echoarea_tag']);
-            error_log("DEBUG: Message text starts with: " . substr($message['message_text'], 0, 50));
-            
+
             // Set echomail attributes (no private flag)
             $message['attributes'] = 0x0000;
-            
+
             // Mark as echomail for proper packet formatting
             $message['is_echomail'] = true;
             // Keep echoarea_tag available for kludge line generation
             $message['echoarea_tag'] = $message['echoarea_tag'];
-            
-            // For echomail, we typically send to our uplink
 
+            // For echomail, we typically send to our uplink
             $uplinkAddress = $this->getEchoareaUplink($message['echoarea_tag'], $domain);
-            
+
             if ($uplinkAddress) {
                 $message['to_address'] = $uplinkAddress;
-                error_log("DEBUG: Creating echomail packet to uplink: " . $uplinkAddress);
-                $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
+                $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
+                $packetName = basename($packetFile);
+                error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
-                error_log("WARNING: No uplink address configured for echoarea: " . $message['echoarea_tag']);
+                error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
+                return false;
             }
-            
+
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
-            error_log("Failed to spool echomail $messageId: " . $e->getMessage());
+            error_log("[SPOOL] Failed to spool echomail #{$messageId} (area={$areaTag}, from=\"{$fromName}\", subject=\"{$subject}\"): " . $e->getMessage());
             return false;
         }
     }

@@ -55,7 +55,7 @@
                             <select class="form-select" id="zone" name="zone">
                                 <option value="">All Zones</option>
                                 {% for z in zones %}
-                                    <option value="{{ z }}" {% if selectedZone == z %}selected{% endif %}>Zone {{ z }}</option>
+                                    <option value="{{ z.zone }}" {% if selectedZone == z.zone %}selected{% endif %}>Zone {{ z.zone }}{% if z.domain %} ({{ z.domain }}){% endif %}</option>
                                 {% endfor %}
                             </select>
                         </div>
