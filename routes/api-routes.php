@@ -1040,7 +1040,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if(trim($input['to_address'])==""){
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-
             $input['to_address'] = $binkpConfig->getSystemAddress();
         }
 

@@ -559,6 +559,18 @@ class MessageHandler
         return $message;
     }
 
+    /** Records a netmail message to the database and queues it for delivery if toAddress is not blank.
+     * @param $fromUserId
+     * @param $toAddress
+     * @param $toName
+     * @param $subject
+     * @param $messageText
+     * @param $fromName
+     * @param $replyToId
+     * @param $crashmail
+     * @return bool
+     * @throws \Exception
+     */
     public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false)
     {
         $user = $this->getUserById($fromUserId);
@@ -626,19 +638,21 @@ class MessageHandler
         if ($result) {
             $messageId = $this->db->lastInsertId();
 
-            if ($crashmail) {
-                // Crashmail: queue for direct delivery only, skip normal hub routing
-                try {
-                    $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
-                    $crashmailService->queueCrashmail($messageId);
-                } catch (\Exception $e) {
-                    // If crashmail queue fails, fall back to normal spooling
-                    error_log("[NETMAIL] Crashmail queue failed, falling back to normal delivery: " . $e->getMessage());
+            if($toAddress!="") {
+                if ($crashmail) {
+                    // Crashmail: queue for direct delivery only, skip normal hub routing
+                    try {
+                        $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
+                        $crashmailService->queueCrashmail($messageId);
+                    } catch (\Exception $e) {
+                        // If crashmail queue fails, fall back to normal spooling
+                        error_log("[NETMAIL] Crashmail queue failed, falling back to normal delivery: " . $e->getMessage());
+                        $this->spoolOutboundNetmail($messageId);
+                    }
+                } else {
+                    // Normal delivery via hub routing
                     $this->spoolOutboundNetmail($messageId);
                 }
-            } else {
-                // Normal delivery via hub routing
-                $this->spoolOutboundNetmail($messageId);
             }
         }
 
