@@ -529,7 +529,7 @@ function displayEchoareas(echoareas) {
                 <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="node-address">${area.tag}</div>
+                            <div class="node-address">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="node-system">${escapeHtml(area.description)}</div>
                         </div>
                         <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${area.message_count || 0}</span>
@@ -569,7 +569,7 @@ function displayMobileEchoareas(echoareas) {
                 <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="fw-bold">${area.tag}</div>
+                            <div class="fw-bold">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="text-muted small">${escapeHtml(area.description)}</div>
                         </div>
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
@@ -793,6 +793,7 @@ function displayMessages(messages, isThreaded = false) {
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
                             <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
+                            ${msg.echoarea_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${msg.echoarea_domain}</span>` : ''}
                         </div>` : ''}
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
@@ -1059,6 +1060,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                 <div class="col-md-6">
                     <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>
                     <span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>
+                    ${message.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.domain}</span>` : ''}
                 </div>
             </div>
             <div class="row mt-2">

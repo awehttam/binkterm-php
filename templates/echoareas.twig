@@ -276,6 +276,7 @@ function displayEchoareas(echoareas) {
                         <span class="badge" style="background-color: ${area.color || '#28a745'}; color: white;">
                             ${escapeHtml(area.tag)}
                         </span>
+                        ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
                     </td>
                     <td>
                         <strong>${escapeHtml(area.description)}</strong>

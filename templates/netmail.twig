@@ -443,6 +443,7 @@ function displayMessages(messages, isThreaded = false) {
                     </td>
                     <td>
                         <small class="text-muted font-monospace">${formatFidonetAddress(isSent ? msg.to_address : msg.from_address)}</small>
+                        ${(isSent ? msg.to_domain : msg.from_domain) ? `<br><span class="badge bg-secondary" style="font-size: 0.7em;">${isSent ? msg.to_domain : msg.from_domain}</span>` : ''}
                     </td>
                     <td title="${formatFullDate(msg.date_written)}">
                         <small>${formatDate(msg.date_received)}</small>
@@ -590,10 +591,12 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                     ${addressBookButton}
                     <br>
                     <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
+                    ${message.from_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.from_domain}</span>` : ''}
                 </div>
                 <div class="col-md-6">
                     <strong>To:</strong> ${escapeHtml(message.to_name)}<br>
                     <small class="text-muted">${formatFidonetAddress(message.to_address)}</small>
+                    ${message.to_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.to_domain}</span>` : ''}
                 </div>
             </div>
             <div class="row mt-2">

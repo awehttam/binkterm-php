@@ -149,9 +149,12 @@ function loadEchoareas() {
                     
                     html += `
                         <div class="d-flex justify-content-between align-items-center py-1">
-                            <a href="/echomail/${area.tag}" class="text-decoration-none">
-                                ${area.tag}
-                            </a>
+                            <div>
+                                <a href="/echomail/${area.tag}" class="text-decoration-none">
+                                    ${area.tag}
+                                </a>
+                                ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.65em; vertical-align: middle;">${area.domain}</span>` : ''}
+                            </div>
                             <div class="d-flex gap-1 align-items-center">
                                 <span class="badge ${unreadCount > 0 ? 'bg-warning text-dark' : 'bg-secondary'} text-center" style="min-width: 35px;">${unreadCount}</span>
                                 <span class="badge bg-secondary text-center" style="min-width: 35px;">${totalCount}</span>

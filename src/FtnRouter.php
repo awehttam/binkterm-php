@@ -74,28 +74,37 @@ class FtnRouter {
     }
     /**
      * Resolves an address to an uplink.
-     * Logic: Specificity wins (Address > Net > Zone).
+     * Logic: Specificity wins (Point > Node > Net > Zone).
+     * Supports addresses with optional point: Zone:Net/Node or Zone:Net/Node.Point
      */
-    public function routeAddress(string $address, $crash): ?string {
+    public function routeAddress(string $address, $crash = false): ?string {
         // Normalize address: Strip 'foo@' if present
         if (strpos($address, '@') !== false) {
             $address = explode('@', $address)[1];
         }
 
-        // Parse target: Zone:Net/Node
-        if (!preg_match('/^(\d+):(\d+)\/(\d+)$/', $address, $matches)) {
+        // Parse target: Zone:Net/Node or Zone:Net/Node.Point
+        if (!preg_match('/^(\d+):(\d+)\/(\d+)(?:\.(\d+))?$/', $address, $matches)) {
             return null; // Invalid address format
         }
 
-        [$full, $z, $n, $f] = $matches;
+        $z = $matches[1]; // Zone
+        $n = $matches[2]; // Net
+        $f = $matches[3]; // Node
+        $p = $matches[4] ?? '0'; // Point (default to 0 if not specified)
 
         // Define search patterns in order of specificity
-        $searchPatterns = [
-            "$z:$n/$f", // Specific Node (e.g. 21:1/100)
-            "$z:$n/*",   // Any Node in this Net (e.g. 21:1/*)
-            "$z:*/*",    // Any Net in this Zone (e.g. 21:*/*)
-            "*:*/*"      // Default route
-        ];
+        $searchPatterns = [];
+
+        // Point-specific patterns (even for .0)
+        $searchPatterns[] = "$z:$n/$f.$p";  // Specific Point (e.g. 1:123/456.78 or 1:123/456.0)
+        $searchPatterns[] = "$z:$n/$f.*";   // Any Point on this Node (e.g. 1:123/456.*)
+
+        // Node and broader patterns
+        $searchPatterns[] = "$z:$n/$f";   // Specific Node (e.g. 21:1/100)
+        $searchPatterns[] = "$z:$n/*";    // Any Node in this Net (e.g. 21:1/*)
+        $searchPatterns[] = "$z:*/*";     // Any Net in this Zone (e.g. 21:*/*)
+        $searchPatterns[] = "*:*/*";      // Default route
 
         foreach ($searchPatterns as $pattern) {
             if (isset($this->routingTable[$pattern])) {

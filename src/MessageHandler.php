@@ -99,25 +99,38 @@ class MessageHandler
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
-            
+
             // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
             $replyToData = null;
-            
+
             // For echomail, check kludge_lines first
             if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
                 $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
             }
-            
+
             // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
             if (!$replyToData) {
                 $replyToData = $this->parseReplyToKludge($message);
             }
-            
+
             if ($replyToData && isset($replyToData['address'])) {
                 $cleanMessage['replyto_address'] = $replyToData['address'];
                 $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
-            
+
+            // Add domain information for netmail from/to addresses
+            try {
+                $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                if (!empty($cleanMessage['from_address'])) {
+                    $cleanMessage['from_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['from_address']) ?: null;
+                }
+                if (!empty($cleanMessage['to_address'])) {
+                    $cleanMessage['to_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['to_address']) ?: null;
+                }
+            } catch (\Exception $e) {
+                // Ignore errors, domains are optional
+            }
+
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -195,7 +208,7 @@ class MessageHandler
         
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -204,11 +217,11 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND domain=? 
-                ORDER BY CASE 
-                    WHEN em.date_received > NOW() THEN 0 
-                    ELSE 1 
-                END, em.date_received DESC 
+                WHERE ea.tag = ?{$filterClause} AND domain=?
+                ORDER BY CASE
+                    WHEN em.date_received > NOW() THEN 0
+                    ELSE 1
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag, $domain];
@@ -234,7 +247,7 @@ class MessageHandler
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -244,10 +257,10 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
-                ORDER BY CASE 
-                    WHEN em.date_received > NOW() THEN 0 
-                    ELSE 1 
-                END, em.date_received DESC 
+                ORDER BY CASE
+                    WHEN em.date_received > NOW() THEN 0
+                    ELSE 1
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -391,7 +404,7 @@ class MessageHandler
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
         
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -401,7 +414,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY em.date_received DESC 
+            ORDER BY em.date_received DESC
             LIMIT ? OFFSET ?
         ");
         
@@ -523,9 +536,24 @@ class MessageHandler
             } elseif ($type === 'echomail') {
                 $this->markEchomailAsRead($messageId, $userId);
             }
-            
+
             // Clean message for JSON encoding
             $message = $this->cleanMessageForJson($message);
+
+            // Add domain information for netmail messages
+            if ($type === 'netmail') {
+                try {
+                    $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                    if (!empty($message['from_address'])) {
+                        $message['from_domain'] = $binkpCfg->getDomainByAddress($message['from_address']) ?: null;
+                    }
+                    if (!empty($message['to_address'])) {
+                        $message['to_domain'] = $binkpCfg->getDomainByAddress($message['to_address']) ?: null;
+                    }
+                } catch (\Exception $e) {
+                    // Ignore errors, domains are optional
+                }
+            }
         }
 
         return $message;
@@ -779,7 +807,7 @@ class MessageHandler
             $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
         } else {
             $sql = "
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
@@ -1711,7 +1739,7 @@ class MessageHandler
         $message = null;
         if ($share['message_type'] === 'echomail') {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 WHERE em.id = ?
@@ -2105,7 +2133,7 @@ class MessageHandler
         if (!empty($currentMsgIds)) {
             foreach ($currentMsgIds as $currentMsgId) {
                 $stmt = $this->db->prepare("
-                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                            CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                            CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                            CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2140,7 +2168,7 @@ class MessageHandler
         if (!empty($missingMsgIds)) {
             $placeholders = implode(',', array_fill(0, count($missingMsgIds), '?'));
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2299,7 +2327,7 @@ class MessageHandler
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2453,7 +2481,7 @@ class MessageHandler
         // Get all messages for threading (need to load more data to ensure thread completeness)
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2475,7 +2503,7 @@ class MessageHandler
             // First get the base messages with a larger limit to include thread context
             $threadLimit = $limit * 3; // Load more to capture thread relationships
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2838,12 +2866,25 @@ class MessageHandler
             if (!$replyToData) {
                 $replyToData = $this->parseReplyToKludge($message);
             }
-            
+
             if ($replyToData && isset($replyToData['address'])) {
                 $cleanMessage['replyto_address'] = $replyToData['address'];
                 $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
-            
+
+            // Add domain information for netmail from/to addresses
+            try {
+                $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                if (!empty($cleanMessage['from_address'])) {
+                    $cleanMessage['from_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['from_address']) ?: null;
+                }
+                if (!empty($cleanMessage['to_address'])) {
+                    $cleanMessage['to_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['to_address']) ?: null;
+                }
+            } catch (\Exception $e) {
+                // Ignore errors, domains are optional
+            }
+
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -2913,7 +2954,7 @@ class MessageHandler
                 
                 // Get related thread messages
                 $threadStmt = $this->db->prepare("
-                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                            CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                            CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                            CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
