@@ -667,10 +667,3 @@ body {
     white-space: pre;
     line-height: 1.2;
 }
-
-/* Expanded message modal on desktop */
-@media (min-width: 992px) {
-    .modal-dialog.modal-message-reader {
-        max-width: 1000px;
-    }
-}
