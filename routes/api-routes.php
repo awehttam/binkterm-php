@@ -3,6 +3,7 @@
 use BinktermPHP\AddressBookController;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -1036,6 +1037,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $type = $input['type'] ?? '';
 
         $handler = new MessageHandler();
+
+        if(trim($input['to_address'])==""){
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
+            $input['to_address'] = $binkpConfig->getSystemAddress();
+        }
 
         try {
             if ($type === 'netmail') {

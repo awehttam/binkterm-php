@@ -29,7 +29,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 
 ## Screen shots
 
-Here are some screen shots showing various aspects of the interface.
+Here are some screen shots showing various aspects of the interface with different themes.
 
 <table>
   <tr>
@@ -49,9 +49,12 @@ Here are some screen shots showing various aspects of the interface.
     <td align="center"><b>Mobile Echolist</b><br><img src="docs/screenshots/moble_echolist.png" width="400"></td>
   </tr>
   <tr>
-    <td align="center"><b>BinkP management</b><br><img src="docs/screenshots/binkp_management.png" width="400"></td>
+    <td align="center"><B>ANSI Decoder</B><br><img src="docs/screenshots/ansisys.png" width="400"></td>
     <td align="center"><b>Node List Browser</b><br><img src="docs/screenshots/nodelist.png" width="400"></td>
   </tr>
+<tr>
+</tr>
+
 </table>
 
 

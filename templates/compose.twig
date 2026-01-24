@@ -26,10 +26,10 @@
                 {% if type == 'netmail' %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="toAddress" class="form-label">To Address *</label>
+                            <label for="toAddress" class="form-label">To Address (leave blank for local)</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="toAddress" name="to_address" 
-                                       placeholder="1:123/456" value="{{ reply_to_address }}" required>
+                                       placeholder="" value="{{ reply_to_address }}" >
                                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
                                         id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
                                         title="Select from address book">
