@@ -110,7 +110,7 @@
                                                     <span class="text-muted">-</span>
                                                 {% endif %}
                                                 {% if node.flags['INA'] is defined %}
-                                                    <br>{{ node.flags['INA'] }}
+                                                    <br><a href="telnet://{{ node.flags['INA'] }}">{{ node.flags['INA'] }}</a>
                                                 {% endif %}
                                             </td>
                                             <td>
