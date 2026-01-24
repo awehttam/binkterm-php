@@ -109,11 +109,16 @@ try {
         $logger->info("  - {$uplink['address']} ({$uplink['hostname']}) [{$status}]");
     }
     
+    // Enable async signal handling so handlers run immediately when signals arrive
+    if (function_exists('pcntl_async_signals')) {
+        pcntl_async_signals(true);
+    }
+
     pcntl_signal(SIGTERM, function() use ($server, $logger) {
         $logger->info("Received SIGTERM, shutting down...");
         $server->stop();
     });
-    
+
     pcntl_signal(SIGINT, function() use ($server, $logger) {
         $logger->info("Received SIGINT, shutting down...");
         $server->stop();
