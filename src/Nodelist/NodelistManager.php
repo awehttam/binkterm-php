@@ -48,7 +48,8 @@ class NodelistManager
                 'metadata_id' => $metadataId,
                 'total_nodes' => count($nodes),
                 'inserted_nodes' => $insertedNodes,
-                'filename' => $metadata['filename']
+                'filename' => $metadata['filename'],
+                'day_of_year' => $metadata['day_of_year']
             ];
             
         } catch (\Exception $e) {

@@ -114,28 +114,42 @@ class NodelistController
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
+                // Get and validate domain
+                $domain = trim($_POST['domain'] ?? '');
+                if (empty($domain)) {
+                    throw new \Exception('Please specify a network domain');
+                }
+                if (!preg_match('/^[a-zA-Z0-9_-]+$/', $domain)) {
+                    throw new \Exception('Domain should contain only letters, numbers, underscores, and hyphens');
+                }
+                $domain = strtolower($domain);
+
                 if (!isset($_FILES['nodelist']) || $_FILES['nodelist']['error'] !== UPLOAD_ERR_OK) {
                     throw new \Exception('Please select a valid nodelist file');
                 }
-                
+
                 $uploadedFile = $_FILES['nodelist'];
                 $tempPath = $uploadedFile['tmp_name'];
                 $originalName = $uploadedFile['name'];
-                
+
                 // Handle compressed files
                 $actualNodelistFile = $this->handleCompressedFile($tempPath, $originalName);
-                
+
                 if (!$this->validateNodelistFile($actualNodelistFile)) {
                     throw new \Exception('Invalid nodelist format');
                 }
-                
-                $result = $this->nodelistManager->importNodelist($actualNodelistFile);
+
+                // Check if archive_old checkbox is checked
+                $archiveOld = isset($_POST['archive_old']);
+
+                $result = $this->nodelistManager->importNodelist($actualNodelistFile, $domain, $archiveOld);
                 
                 $message = sprintf(
-                    'Successfully imported %d nodes from %s (Day %d)',
+                    'Successfully imported %d nodes from %s (Day %d) for domain @%s',
                     $result['inserted_nodes'],
                     $result['filename'],
-                    $result['total_nodes']
+                    $result['day_of_year'],
+                    $domain
                 );
                 
             } catch (\Exception $e) {
