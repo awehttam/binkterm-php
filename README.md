@@ -94,7 +94,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **PHP 8.0+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
-- **Operating System** - Windows, Linux, or macOS
+- **Operating System** - Linux, macOS, Windows (no binkp_server)
 
 ### Step 1: Clone Repository
 ```bash
