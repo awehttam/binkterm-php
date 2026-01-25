@@ -146,17 +146,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $db = Database::getInstance()->getPdo();
 
-            // Check if username already exists in users or pending_users
+            // Check if username or real_name already exists in users or pending_users (case-insensitive)
             $checkStmt = $db->prepare("
-                SELECT 1 FROM users WHERE username = ? 
-                UNION 
-                SELECT 1 FROM pending_users WHERE username = ? AND status = 'pending'
+                SELECT 1 FROM users WHERE username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)
+                UNION
+                SELECT 1 FROM pending_users WHERE (username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND status = 'pending'
             ");
-            $checkStmt->execute([$username, $username]);
+            $checkStmt->execute([$username, $username, $realName, $username, $username, $realName]);
 
             if ($checkStmt->fetch()) {
                 http_response_code(409);
-                echo json_encode(['error' => 'Username already exists or registration is pending']);
+                echo json_encode(['error' => 'A user with this username or name already exists. Please try logging in or contact the sysop for assistance.']);
                 return;
             }
 
