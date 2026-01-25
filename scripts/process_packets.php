@@ -25,7 +25,8 @@ try {
     
     // Clean up old packet records (older than 6 months)
     $cleaned = $processor->cleanupOldPackets();
-    echo "Cleaned up {$cleaned} old packet records\n";
+    if($cleaned)
+        echo "Cleaned up {$cleaned} old packet records\n";
     
     // TODO: Process outbound queue (send pending messages)
     
