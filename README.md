@@ -91,7 +91,7 @@ Here are some screen shots showing various aspects of the interface with differe
 ## Installation
 
 ### Requirements
-- **PHP 8.0+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM
+- **PHP 8.0+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
 - **Operating System** - Windows, Linux, or macOS
@@ -184,6 +184,15 @@ Add cron jobs for automated mail polling and nodelist updates:
 ```
 
 See the [Operation](#operation) section for additional cron job examples.
+
+### Step 7: Set Directory Permissions
+The `data/outbound` directory must be writable by both the web server and the user running binkp scripts:
+
+```bash
+chmod a+rwxt data/outbound
+```
+
+The sticky bit (`t`) ensures files can only be deleted by their owner, preventing conflicts between the web server and shell user.
 
 ## Configuration
 
