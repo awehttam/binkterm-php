@@ -14,7 +14,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - [Features](#features)
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Upgrading to Multinetwork (v1.6.7)](#upgrading-to-multinetwork-v167)
+- [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
 - [Operation](#operation)
@@ -418,87 +418,18 @@ The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebS
 - Consider network security for both the proxy server and target SSH server
 - The proxy server should be properly secured and regularly updated
 
-## Upgrading to Multinetwork (v1.6.7)
+## Upgrading
 
-Version 1.6.7 introduces support for multiple FTN networks (FidoNet, FSXNet, AgoraNet, etc.) running simultaneously. This requires both database schema changes and configuration updates.
+Follow these general steps when upgrading BinktermPHP:
 
-### Step 1: Run Database Migration
+1. **Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path
+2. **Pull the latest code** - `git pull`
+3. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
+4. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
 
-```bash
-php scripts/upgrade.php
-```
+### Version-Specific Upgrade Guides
 
-This migration adds `domain` fields to the `echoareas`, `nodelist`, and `nodelist_metadata` tables, and updates the unique constraint on echoareas to allow the same tag across different networks.
-
-### Step 2: Update binkp.json Configuration
-
-Your existing uplink configuration needs new fields. For each uplink, add:
-
-| Field | Description |
-|-------|-------------|
-| `me` | Your FTN address as presented to this specific uplink |
-| `domain` | Network domain identifier (e.g., "fidonet", "fsxnet") |
-| `networks` | Array of address patterns routed through this uplink |
-
-**Before (pre-1.6.7):**
-```json
-{
-    "uplinks": [
-        {
-            "address": "1:123/456",
-            "hostname": "hub.example.com",
-            "port": 24554,
-            "password": "secret",
-            "default": true,
-            "enabled": true
-        }
-    ]
-}
-```
-
-**After (1.6.7+):**
-```json
-{
-    "uplinks": [
-        {
-            "me": "1:123/456.57599",
-            "address": "1:123/456",
-            "domain": "fidonet",
-            "networks": ["1:*/*", "2:*/*", "3:*/*", "4:*/*"],
-            "hostname": "hub.example.com",
-            "port": 24554,
-            "password": "secret",
-            "default": true,
-            "enabled": true
-        }
-    ]
-}
-```
-
-### Step 3: Update Echoarea Domains (Optional)
-
-If you have existing echoareas, they will be automatically assigned to the "fidonet" domain during migration. To assign echoareas to different networks, use the admin interface or update the database directly:
-
-```sql
-UPDATE echoareas SET domain = 'fsxnet' WHERE tag LIKE 'FSX_%';
-UPDATE echoareas SET domain = 'agoranet' WHERE tag LIKE 'AGN_%';
-```
-
-### Step 4: Import Network-Specific Nodelists
-
-When importing nodelists for different networks, specify the domain:
-
-```bash
-php scripts/import_nodelist.php --file=FSXNET.023 --domain=fsxnet
-php scripts/import_nodelist.php --file=NODELIST.365 --domain=fidonet
-```
-
-### Benefits of Multinetwork Support
-
-- **Simultaneous Networks**: Connect to FidoNet, FSXNet, AgoraNet, and other FTN networks at the same time
-- **Proper Routing**: Messages are routed to the correct uplink based on destination address
-- **Network Isolation**: Echoareas are scoped to their network domain, preventing tag collisions
-- **Per-Network Nodelists**: Each network maintains its own nodelist for proper addressing
+- [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
 
 ## Database Management
 
