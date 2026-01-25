@@ -509,54 +509,24 @@ The general steps are:
 
 ## Database Management
 
-### Installation and Upgrades
-BinktermPHP includes scripts for database installation and schema migrations:
-
-### Composer packaging
+### Database Scripts
 
 ```bash
-composer install
-```
-### Configuration
-#### System configuration
-
-Postgres, SMTP, web terminal, and other miscellaneous settings are controlled through ".env" in the main directory.  See .env.example for reference.
-
-#### Node configuration
-
-Create config/binkp.json (see binkp.json.example for reference) with appropriate parameters.  
-
-### Schema installation
-
-```bash
-# Install fresh database with admin user
+# Fresh installation with admin user
 php scripts/install.php                    # Interactive mode
-php scripts/install.php --non-interactive  # Uses defaults
+php scripts/install.php --non-interactive  # Uses defaults (admin/admin123)
 
-# Auto-detect and run install or upgrade
+# Auto-detect install vs upgrade
 php scripts/setup.php                      # Smart setup
 php scripts/setup.php status               # Show system status
 
-# Database migrations
-php scripts/upgrade.php                    # Apply pending migrations
+# Apply pending migrations
+php scripts/upgrade.php                    # Run migrations
 php scripts/upgrade.php status             # Show migration status
-php scripts/upgrade.php create 1.3.0 "add feature"  # Create new migration
+
+# Create a new migration (for developers)
+php scripts/upgrade.php create 1.3.0 "add feature"
 ```
-
-### File system permissions
-
-The directories:
-
-data/outbound
-data/logs
-
-must be writable by the web server and the user that runs the binkp_ scripts.  Quick but not optimal permissions would be:
-
-chmod 777 data/outbound
-chmod g+s data/outbound
-chmod 777 data/logs
-
-but a better model would be to collaborate with the group id your web server or php runner runs as.
 
 ### Migration System
 Database changes are managed through versioned SQL migration files stored in `database/migrations/`:
