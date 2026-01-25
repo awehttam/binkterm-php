@@ -144,8 +144,16 @@ See `configs/binkp.json.example` for the full configuration options and format.
 php scripts/upgrade.php
 ```
 
-This migration adds `domain` fields to the `echoareas`, `nodelist`, and `nodelist_metadata` tables, and updates the unique constraint on echoareas to allow the same tag across different networks.  It may also contain other schema upgrades for this release.
+This migration adds `domain` fields to the `echoareas`, `nodelist`, and `nodelist_metadata` tables, and updates the unique constraint on echoareas to allow the same tag across different networks.  Unique real name enforcement is also implemented.  
 
+If you receive the error:
+
+```text
+✗ Upgrade failed: Migration 1.7.3 failed: SQLSTATE[23505]: Unique violation: 7 ERROR:  could not create unique index "users_real_name_lower_idx"
+DETAIL:  Key (lower(real_name::text))=(foo bar) is duplicated.
+```
+
+you will need to update your users table and ensure all real_name entries are unique. This requirement is in place because of the way FTN handles addressing using persons real names.
 ## Step 3: Update Echoarea Domains (Optional)
 
 If you have existing echoareas, they will be automatically assigned to the "fidonet" domain during migration. To assign echoareas to different networks, use the admin interface or update the database directly:
