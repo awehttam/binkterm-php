@@ -977,15 +977,30 @@ class MessageHandler
             // Set netmail attributes (private flag)
             $message['attributes'] = 0x0001;
 
-            // Create outbound packet for this message
-            $packetFile = $binkdProcessor->createOutboundPacket([$message], $message['to_address']);
+            // Get the uplink that handles routing for this destination
+            // The packet must be addressed to the hub/uplink, not the final destination
+            // The final destination is preserved in the message headers and INTL kludge
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $uplink = $binkpConfig->getUplinkForDestination($toAddr);
+
+            if ($uplink) {
+                $routeAddress = $uplink['address'];
+                error_log("[SPOOL] Routing netmail through uplink {$routeAddress} for destination {$toAddr}");
+            } else {
+                // No uplink found - try direct delivery (for local or crash mail)
+                $routeAddress = $toAddr;
+                error_log("[SPOOL] No uplink found for {$toAddr}, attempting direct delivery");
+            }
+
+            // Create outbound packet routed through the uplink (or direct if no uplink)
+            $packetFile = $binkdProcessor->createOutboundPacket([$message], $routeAddress);
             $packetName = basename($packetFile);
 
             // Mark message as sent
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
 
-            error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName}");
+            error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
