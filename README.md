@@ -640,7 +640,11 @@ Options:
 
 ### Binkp Server Management
 
-Polling is supported on all platforms, except for Windows where binkp_server will not operate.
+The binkp server (`binkp_server.php`) listens for incoming connections from other FTN nodes. When another system wants to send you mail or pick up outbound packets, they connect to your binkp server. This is essential for receiving crashmail (direct delivery) and for other nodes to poll your system.
+
+Polling (`binkp_poll.php`) makes outbound connections to your uplinks to send and receive mail. You can run polling manually or via cron. Polling works on all platforms.
+
+**Note:** The binkp server requires `pcntl_fork()` which is not available on Windows.
 
 #### Start Binkp Server
 ```bash
@@ -652,6 +656,42 @@ php scripts/binkp_server.php --daemon
 
 # Custom port and logging
 php scripts/binkp_server.php --port=24554 --log-level=DEBUG
+```
+
+#### Running as a System Service
+
+To run the binkp server automatically on system startup, create a systemd service file:
+
+```bash
+sudo nano /etc/systemd/system/binkp.service
+```
+
+```ini
+[Unit]
+Description=BinktermPHP Binkp Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=yourusername
+Group=yourusername
+WorkingDirectory=/path/to/binkterm
+ExecStart=/usr/bin/php /path/to/binkterm/scripts/binkp_server.php
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Replace `yourusername` with the user account that runs CLI scripts (the same user that owns the `data/outbound` directory).
+
+Enable and start the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable binkp
+sudo systemctl start binkp
+sudo systemctl status binkp
 ```
 
 #### Manual Polling
