@@ -412,9 +412,11 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemName = $binkpConfig->getSystemName();
         $systemAddress = $binkpConfig->getSystemAddress();
+        $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
     } catch (\Exception $e) {
         $systemName = 'BinktermPHP System';
         $systemAddress = 'Not configured';
+        $crashmailEnabled = false;
     }
 
     $templateVars = [
@@ -422,7 +424,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'current_user' => $user,
         'user_name' => $user['real_name'] ?: $user['username'],
         'system_name_display' => $systemName,
-        'system_address_display' => $systemAddress
+        'system_address_display' => $systemAddress,
+        'crashmail_enabled' => $crashmailEnabled
     ];
 
     if ($replyId) {

@@ -63,6 +63,7 @@
                                    value="{{ to_name_value }}" required>
                         </div>
                     </div>
+                    {% if crashmail_enabled %}
                     <div class="mb-3">
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail">
@@ -75,6 +76,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
                 {% else %}
                     <div class="row mb-3">
                         <div class="col-md-6">
