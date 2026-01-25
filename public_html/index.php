@@ -27,11 +27,11 @@ if (rand(1, 100) <= 5) { // 5% chance
     $auth->cleanExpiredSessions();
 }
 
-require __DIR__."/../src/functions.php";
-require __DIR__."/../routes/web-routes.php";
-require __DIR__."/../routes/api-routes.php";
-require __DIR__."/../routes/admin-routes.php";
-require __DIR__."/../routes/nodelist-routes.php";
+require_once __DIR__."/../src/functions.php";
+require_once __DIR__."/../routes/web-routes.php";
+require_once __DIR__."/../routes/api-routes.php";
+require_once __DIR__."/../routes/admin-routes.php";
+require_once __DIR__."/../routes/nodelist-routes.php";
 
 
 try {

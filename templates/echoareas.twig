@@ -135,12 +135,21 @@
                         <div class="col-md-8">
                             <label for="echoareaUplink" class="form-label">Uplink Address</label>
                             <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
-                            <div class="form-text">FidoNet address of uplink node</div>
+                            <div class="form-text">Override Uplink FidoNet address</div>
                         </div>
                         <div class="col-md-4">
                             <label for="echoareaColor" class="form-label">Color</label>
                             <input type="color" class="form-control form-control-color" id="echoareaColor" name="color" value="#28a745">
                         </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="echoareaDomain" class="form-label">Domain</label>
+                            <input type="text" class="form-control" id="echoareaDomain" name="domain" maxlength="20">
+                            <div class="form-text">Network Domain (eg: fidonet, fsxnet, etc.)</div>
+                        </div>
+
                     </div>
                     
                     <div class="mb-3">
@@ -154,6 +163,14 @@
                         <label class="form-check-label" for="echoareaActive">
                             Active
                         </label>
+                    </div>
+
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="echoareaLocal" name="is_local">
+                        <label class="form-check-label" for="echoareaLocal">
+                            Local Only
+                        </label>
+                        <div class="form-text">Messages in local areas are not transmitted to uplinks</div>
                     </div>
                 </form>
             </div>
@@ -267,6 +284,8 @@ function displayEchoareas(echoareas) {
                         <span class="badge" style="background-color: ${area.color || '#28a745'}; color: white;">
                             ${escapeHtml(area.tag)}
                         </span>
+                        ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
+                        ${area.is_local ? `<span class="badge bg-info ms-1" style="font-size: 0.7em;" title="Local only - not transmitted to uplinks">Local</span>` : ''}
                     </td>
                     <td>
                         <strong>${escapeHtml(area.description)}</strong>
@@ -276,7 +295,7 @@ function displayEchoareas(echoareas) {
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
                     </td>
                     <td>
-                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'None')}</small>
+                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'Uplink')}@${escapeHtml(area.domain||'')}</small>
                     </td>
                     <td>
                         <div class="btn-group" role="group">
@@ -307,25 +326,29 @@ function showAddEchoareaModal() {
     $('#echoareaModalTitle').text('Add Echo Area');
     $('#echoareaForm')[0].reset();
     $('#echoareaId').val('');
+    $("#echoareaDomain").val('');
     $('#echoareaColor').val('#28a745');
     $('#echoareaActive').prop('checked', true);
+    $('#echoareaLocal').prop('checked', false);
     $('#echoareaModal').modal('show');
 }
 
 function editEchoarea(id) {
     currentEchoareaId = id;
     $('#echoareaModalTitle').text('Edit Echo Area');
-    
+
     $.get(`/api/echoareas/${id}`)
         .done(function(data) {
             const area = data.echoarea;
             $('#echoareaId').val(area.id);
             $('#echoareaTag').val(area.tag);
             $('#echoareaDescription').val(area.description);
+            $("#echoareaDomain").val(area.domain);
             $('#echoareaUplink').val(area.uplink_address || '');
             $('#echoareaColor').val(area.color || '#28a745');
             $('#echoareaModerator').val(area.moderator || '');
             $('#echoareaActive').prop('checked', area.is_active);
+            $('#echoareaLocal').prop('checked', area.is_local);
             $('#echoareaModal').modal('show');
         })
         .fail(function() {
@@ -346,7 +369,9 @@ function saveEchoarea() {
         uplink_address: $('#echoareaUplink').val() || null,
         color: $('#echoareaColor').val(),
         moderator: $('#echoareaModerator').val() || null,
-        is_active: $('#echoareaActive').is(':checked')
+        is_active: $('#echoareaActive').is(':checked'),
+        is_local: $('#echoareaLocal').is(':checked'),
+        domain: $("#echoareaDomain").val() || null
     };
     
     const url = currentEchoareaId ? `/api/echoareas/${currentEchoareaId}` : '/api/echoareas';

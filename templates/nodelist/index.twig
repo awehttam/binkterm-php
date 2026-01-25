@@ -15,15 +15,29 @@
                 {% endif %}
             </div>
 
-            {% if activeNodelist %}
+            {% if activeNodelists|length > 0 %}
                 <div class="alert alert-info mb-4 text-center">
-                    <strong>{{ stats.total_nodes|number_format }}</strong> nodes, 
-                    <strong>{{ stats.total_zones }}</strong> zones, 
-                    <strong>{{ stats.total_nets|number_format }}</strong> nets, 
-                    <strong>{{ stats.point_nodes|number_format }}</strong> points, 
+                    <strong>{{ stats.total_nodes|number_format }}</strong> nodes,
+                    <strong>{{ stats.total_zones }}</strong> zones,
+                    <strong>{{ stats.total_nets|number_format }}</strong> nets,
+                    <strong>{{ stats.point_nodes|number_format }}</strong> points,
                     <strong>{{ stats.special_nodes|number_format }}</strong> special
                     <br>
-                    <small class="text-muted">Last imported: {{ activeNodelist.imported_at|date('M d, Y') }}</small>
+                    <small class="text-muted">Last imported:<br>
+                    {% for nodelist in activeNodelists %}
+                        {{ nodelist.domain|default('unknown') }}: {{ nodelist.imported_at|date('F d, Y') }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                    </small>
+                </div>
+            {% elseif activeNodelist %}
+                <div class="alert alert-info mb-4 text-center">
+                    <strong>{{ stats.total_nodes|number_format }}</strong> nodes,
+                    <strong>{{ stats.total_zones }}</strong> zones,
+                    <strong>{{ stats.total_nets|number_format }}</strong> nets,
+                    <strong>{{ stats.point_nodes|number_format }}</strong> points,
+                    <strong>{{ stats.special_nodes|number_format }}</strong> special
+                    <br>
+                    <small class="text-muted">Last imported: {{ activeNodelist.imported_at|date('F d, Y') }}</small>
                 </div>
             {% endif %}
 
@@ -41,7 +55,7 @@
                             <select class="form-select" id="zone" name="zone">
                                 <option value="">All Zones</option>
                                 {% for z in zones %}
-                                    <option value="{{ z }}" {% if selectedZone == z %}selected{% endif %}>Zone {{ z }}</option>
+                                    <option value="{{ z.zone }}" {% if selectedZone == z.zone %}selected{% endif %}>Zone {{ z.zone }}{% if z.domain %} ({{ z.domain }}){% endif %}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -82,7 +96,7 @@
                                         <th>System Name</th>
                                         <th>Sysop</th>
                                         <th>Location</th>
-                                        <th>Phone</th>
+                                        <th>Phone/Host</th>
                                         <th>Speed</th>
                                         <th>Actions</th>
                                     </tr>
@@ -108,6 +122,9 @@
                                                     <small>{{ node.phone }}</small>
                                                 {% else %}
                                                     <span class="text-muted">-</span>
+                                                {% endif %}
+                                                {% if node.flags['INA'] is defined %}
+                                                    <br><a href="telnet://{{ node.flags['INA'] }}">{{ node.flags['INA'] }}</a>
                                                 {% endif %}
                                             </td>
                                             <td>

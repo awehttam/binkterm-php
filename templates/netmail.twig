@@ -131,10 +131,13 @@
 
 <!-- Message View Modal -->
 <div class="modal fade" id="messageModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-message-reader">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="messageSubject">Message</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
+                    <i class="fas fa-expand"></i>
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -251,7 +254,17 @@ $(document).ready(function() {
             $('#messageModal').modal('hide');
         }
     });
-    
+
+    // Add keyboard navigation for message modal
+    $(document).on('keydown', function(e) {
+        if ($('#messageModal').hasClass('show')) {
+            if (e.key === 'f' || e.key === 'F') {
+                e.preventDefault();
+                toggleModalFullscreen();
+            }
+        }
+    });
+
     // Handle modal close events
     $('#messageModal').on('hidden.bs.modal', function() {
         // If modal wasn't closed by back button and we're in a modal state, go back in history
@@ -443,6 +456,7 @@ function displayMessages(messages, isThreaded = false) {
                     </td>
                     <td>
                         <small class="text-muted font-monospace">${formatFidonetAddress(isSent ? msg.to_address : msg.from_address)}</small>
+                        ${(isSent ? msg.to_domain : msg.from_domain) ? `<br><span class="badge bg-secondary" style="font-size: 0.7em;">${isSent ? msg.to_domain : msg.from_domain}</span>` : ''}
                     </td>
                     <td title="${formatFullDate(msg.date_written)}">
                         <small>${formatDate(msg.date_received)}</small>
@@ -499,21 +513,56 @@ function changePage(page) {
     loadMessages();
 }
 
+function toggleModalFullscreen() {
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (dialog.classList.contains('modal-fullscreen')) {
+        dialog.classList.remove('modal-fullscreen');
+        dialog.classList.add('modal-lg');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+        localStorage.setItem('modalFullscreen', 'false');
+    } else {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        localStorage.setItem('modalFullscreen', 'true');
+    }
+}
+
+function applyModalFullscreenPreference() {
+    const isFullscreen = localStorage.getItem('modalFullscreen') === 'true';
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (isFullscreen) {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    }
+}
+
 function viewMessage(messageId) {
     currentMessageId = messageId;
-    
+
     // Add history entry for mobile back button support
     if (!history.state || history.state.modal !== 'message') {
         history.pushState({modal: 'message', messageId: messageId}, '', '');
     }
-    
+
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
             Loading message...
         </div>
     `);
-    
+
+    applyModalFullscreenPreference();
     $('#messageModal').modal('show');
     
     $.get(`/api/messages/netmail/${messageId}`)
@@ -590,10 +639,12 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                     ${addressBookButton}
                     <br>
                     <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
+                    ${message.from_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.from_domain}</span>` : ''}
                 </div>
                 <div class="col-md-6">
                     <strong>To:</strong> ${escapeHtml(message.to_name)}<br>
                     <small class="text-muted">${formatFidonetAddress(message.to_address)}</small>
+                    ${message.to_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.to_domain}</span>` : ''}
                 </div>
             </div>
             <div class="row mt-2">
@@ -762,17 +813,18 @@ function markMessageAsRead(messageId) {
 // Override viewMessage function to mark as read
 function viewMessage(messageId) {
     currentMessageId = messageId;
-    
+
     // Mark as read immediately
     markMessageAsRead(messageId);
-    
+
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
             Loading message...
         </div>
     `);
-    
+
+    applyModalFullscreenPreference();
     $('#messageModal').modal('show');
     
     $.get(`/api/messages/netmail/${messageId}`)
@@ -1150,22 +1202,9 @@ function deleteDraft(draftId) {
 </script>
 
 <style>
-/* Read/Unread message styling */
-.message-row.table-light {
-    background-color: #f8f9fa;
-}
-
+/* Read/Unread message styling - colors handled by theme stylesheets */
 .message-row.table-light strong {
     font-weight: 600;
-}
-
-.message-row:not(.table-light) {
-    opacity: 0.85;
-}
-
-.message-row:hover {
-    background-color: #e9ecef;
-    opacity: 1 !important;
 }
 
 /* Threading styles */

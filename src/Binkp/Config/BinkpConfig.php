@@ -2,6 +2,8 @@
 
 namespace BinktermPHP\Binkp\Config;
 
+use BinktermPHP\FtnRouter;
+
 class BinkpConfig
 {
     private static $instance;
@@ -183,7 +185,104 @@ class BinkpConfig
         }
         return $processedPath;
     }
-    
+
+    public function getRoutingTable()
+    {
+        $rt = new FtnRouter();
+        foreach($this->getUplinks() as $uplink) {
+            $networks=$uplink['networks'];
+            $address=$uplink['address'];
+            foreach($networks as $network)
+                $rt->addRoute($network, $address);
+        }
+        return $rt;
+    }
+
+    public function getMyAddresses()
+    {
+        $ret=[];
+        foreach($this->getUplinks() as $uplink){
+            $me =  $uplink['me'];
+            if($me)
+                $ret[] = $me;
+        }
+        return $ret;
+    }
+
+    /**
+     * Get all addresses with their network domains
+     *
+     * @return array Array of ['address' => string, 'domain' => string] entries
+     */
+    public function getMyAddressesWithDomains(): array
+    {
+        $ret = [];
+        foreach ($this->getUplinks() as $uplink) {
+            $me = $uplink['me'] ?? null;
+            $domain = $uplink['domain'] ?? 'unknown';
+            if ($me) {
+                $ret[] = [
+                    'address' => $me,
+                    'domain' => $domain
+                ];
+            }
+        }
+        return $ret;
+    }
+
+    /**
+     * Check if an address belongs to this system
+     *
+     * @param string $address FTN address to check
+     * @return bool True if this is one of our addresses
+     */
+    public function isMyAddress(string $address): bool
+    {
+        if (empty($address)) {
+            return false;
+        }
+
+        // Check system address
+        if ($address === $this->getSystemAddress()) {
+            return true;
+        }
+
+        // Check all "me" addresses from uplinks
+        return in_array($address, $this->getMyAddresses());
+    }
+
+    public function getMyAddressByDomain($domain)
+    {
+
+        foreach($this->getUplinks() as $uplink){
+            if(!strcasecmp($uplink['domain'], $domain)){
+                return $uplink['me'];
+            }
+        }
+        return false;
+    }
+
+    /** Return a domain based on the address.
+     * @param string $address
+     * @return string|false
+     */
+    public function getDomainByAddress(string $address)
+    {
+        $ret=[];
+        foreach($this->getUplinks() as $uplink){
+            $rt = new FtnRouter();
+            $networks=$uplink['networks'];
+            foreach($networks as $network)
+                $rt->addRoute($network, $address);
+
+            $r = $rt->routeAddress($address,false);
+            if($r)
+                return $uplink['domain'];
+
+        }
+        return false;
+    }
+
     public function getUplinks()
     {
         return $this->config['uplinks'] ?? [];
@@ -305,4 +404,259 @@ class BinkpConfig
     {
         $this->loadConfig();
     }
+
+    public function getUplinkAddressForDomain(mixed $domain)
+    {
+        foreach ($this->getUplinks() as $uplink) {
+            if($uplink['domain'] == $domain){
+                return trim($uplink['address']);
+            }
+        }
+        return false;
+    }
+
+    public function getOriginAddressByDestination(string $destAddr)
+    {
+        $ret=[];
+        foreach($this->getUplinks() as $uplink){
+            $rt = new FtnRouter();
+            $networks=$uplink['networks'];
+            foreach($networks as $network)
+                $rt->addRoute($network, $uplink['address']);
+
+            $r = $rt->routeAddress($destAddr,false);
+            if($r)
+                return $uplink['me'];
+
+        }
+        return false;
+    }
+
+    /**
+     * Get the uplink configuration that should handle a given destination address.
+     * Uses the networks patterns defined in each uplink to determine routing.
+     *
+     * @param string $destAddr Destination FTN address (e.g., "1:123/456")
+     * @return array|null The uplink configuration array, or null if no route found
+     */
+    public function getUplinkForDestination(string $destAddr): ?array
+    {
+        foreach ($this->getUplinks() as $uplink) {
+            $rt = new FtnRouter();
+            $networks = $uplink['networks'] ?? [];
+            foreach ($networks as $network) {
+                $rt->addRoute($network, $uplink['address']);
+            }
+
+            $r = $rt->routeAddress($destAddr, false);
+            if ($r) {
+                return $uplink;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a destination address should be routed through a specific uplink.
+     *
+     * @param string $destAddr Destination FTN address
+     * @param array $uplink The uplink configuration to check against
+     * @return bool True if the destination should be routed through this uplink
+     */
+    public function isDestinationForUplink(string $destAddr, array $uplink): bool
+    {
+        $rt = new FtnRouter();
+        $networks = $uplink['networks'] ?? [];
+        foreach ($networks as $network) {
+            $rt->addRoute($network, $uplink['address']);
+        }
+
+        $r = $rt->routeAddress($destAddr, false);
+        return $r !== null;
+    }
+
+    /**
+     * Get uplink by domain name.
+     *
+     * @param string $domain The network domain (e.g., "fidonet", "testnet")
+     * @return array|null The uplink configuration, or null if not found
+     */
+    public function getUplinkByDomain(string $domain): ?array
+    {
+        foreach ($this->getUplinks() as $uplink) {
+            if (strcasecmp($uplink['domain'] ?? '', $domain) === 0) {
+                return $uplink;
+            }
+        }
+        return null;
+    }
+
+    // ========================================
+    // Security Configuration (Insecure Sessions)
+    // ========================================
+
+    /**
+     * Check if insecure inbound sessions are allowed
+     */
+    public function getAllowInsecureInbound(): bool
+    {
+        return $this->config['security']['allow_insecure_inbound'] ?? false;
+    }
+
+    /**
+     * Check if insecure outbound sessions are allowed
+     */
+    public function getAllowInsecureOutbound(): bool
+    {
+        return $this->config['security']['allow_insecure_outbound'] ?? false;
+    }
+
+    /**
+     * Check if insecure sessions are receive-only (cannot pick up mail)
+     */
+    public function getInsecureReceiveOnly(): bool
+    {
+        return $this->config['security']['insecure_inbound_receive_only'] ?? true;
+    }
+
+    /**
+     * Check if insecure sessions require node to be in allowlist
+     */
+    public function getRequireAllowlistForInsecure(): bool
+    {
+        return $this->config['security']['require_allowlist_for_insecure'] ?? false;
+    }
+
+    /**
+     * Get maximum insecure sessions per hour per address (rate limiting)
+     */
+    public function getMaxInsecureSessionsPerHour(): int
+    {
+        return $this->config['security']['max_insecure_sessions_per_hour'] ?? 10;
+    }
+
+    /**
+     * Get timeout for insecure sessions in seconds
+     */
+    public function getInsecureSessionTimeout(): int
+    {
+        return $this->config['security']['insecure_session_timeout'] ?? 60;
+    }
+
+    /**
+     * Check if all sessions should be logged
+     */
+    public function getLogAllSessions(): bool
+    {
+        return $this->config['security']['log_all_sessions'] ?? true;
+    }
+
+    // ========================================
+    // Crashmail Configuration
+    // ========================================
+
+    /**
+     * Check if crashmail processing is enabled
+     */
+    public function getCrashmailEnabled(): bool
+    {
+        return $this->config['crashmail']['enabled'] ?? true;
+    }
+
+    /**
+     * Get maximum delivery attempts for crashmail
+     */
+    public function getCrashmailMaxAttempts(): int
+    {
+        return $this->config['crashmail']['max_attempts'] ?? 3;
+    }
+
+    /**
+     * Get retry interval in minutes for failed crashmail delivery
+     */
+    public function getCrashmailRetryInterval(): int
+    {
+        return $this->config['crashmail']['retry_interval_minutes'] ?? 15;
+    }
+
+    /**
+     * Check if nodelist should be used for crash routing
+     */
+    public function getCrashmailUseNodelist(): bool
+    {
+        return $this->config['crashmail']['use_nodelist_for_routing'] ?? true;
+    }
+
+    /**
+     * Get fallback port for crash delivery
+     */
+    public function getCrashmailFallbackPort(): int
+    {
+        return $this->config['crashmail']['fallback_port'] ?? 24554;
+    }
+
+    /**
+     * Check if insecure connections are allowed for crash delivery
+     */
+    public function getCrashmailAllowInsecure(): bool
+    {
+        return $this->config['crashmail']['allow_insecure_crash_delivery'] ?? true;
+    }
+
+    // ========================================
+    // Transit Mail Configuration
+    // ========================================
+
+    /**
+     * Check if transit (forwarding) mail is allowed
+     */
+    public function getAllowTransitMail(): bool
+    {
+        return $this->config['transit']['allow_transit_mail'] ?? false;
+    }
+
+    /**
+     * Check if transit mail requires known route
+     */
+    public function getTransitOnlyForKnownRoutes(): bool
+    {
+        return $this->config['transit']['transit_only_for_known_routes'] ?? true;
+    }
+
+    /**
+     * Update security configuration
+     */
+    public function setSecurityConfig(array $settings): void
+    {
+        if (!isset($this->config['security'])) {
+            $this->config['security'] = [];
+        }
+        $this->config['security'] = array_merge($this->config['security'], $settings);
+        $this->saveConfig();
+    }
+
+    /**
+     * Update crashmail configuration
+     */
+    public function setCrashmailConfig(array $settings): void
+    {
+        if (!isset($this->config['crashmail'])) {
+            $this->config['crashmail'] = [];
+        }
+        $this->config['crashmail'] = array_merge($this->config['crashmail'], $settings);
+        $this->saveConfig();
+    }
+
+    /**
+     * Update transit mail configuration
+     */
+    public function setTransitConfig(array $settings): void
+    {
+        if (!isset($this->config['transit'])) {
+            $this->config['transit'] = [];
+        }
+        $this->config['transit'] = array_merge($this->config['transit'], $settings);
+        $this->saveConfig();
+    }
+
 }

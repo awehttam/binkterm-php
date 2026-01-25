@@ -45,8 +45,20 @@ class BinkpFrame
         return new self($length, false, 0, $data);
     }
     
-    public static function parseFromSocket($socket)
+    public static function parseFromSocket($socket, $nonBlocking = false)
     {
+        if ($nonBlocking) {
+            // Check if data is available before attempting to read
+            $read = [$socket];
+            $write = null;
+            $except = null;
+            $result = stream_select($read, $write, $except, 0, 100000); // 100ms timeout
+            if ($result === 0) {
+                // No data available
+                return null;
+            }
+        }
+
         $header = self::readExactly($socket, 2);
         if (strlen($header) < 2) {
             return null;
@@ -102,16 +114,46 @@ class BinkpFrame
     {
         $data = '';
         $remaining = $length;
-        
+        $retries = 0;
+        $maxRetries = 3; // Allow a few retries for temporary empty reads
+
         while ($remaining > 0) {
             $chunk = fread($socket, $remaining);
-            if ($chunk === false || strlen($chunk) === 0) {
+
+            // Check for stream errors or EOF
+            if ($chunk === false) {
+                // Actual error occurred
                 break;
             }
+
+            if (strlen($chunk) === 0) {
+                // Empty read - could be temporary or EOF
+                // Check stream metadata for timeout/EOF
+                $meta = stream_get_meta_data($socket);
+                if ($meta['timed_out']) {
+                    // Stream timed out - this is a real timeout
+                    break;
+                }
+                if ($meta['eof']) {
+                    // Connection closed
+                    break;
+                }
+
+                // Temporary empty read - retry a few times
+                $retries++;
+                if ($retries >= $maxRetries) {
+                    break;
+                }
+                usleep(10000); // 10ms delay before retry
+                continue;
+            }
+
+            // Got data, reset retry counter
+            $retries = 0;
             $data .= $chunk;
             $remaining -= strlen($chunk);
         }
-        
+
         return $data;
     }
     

@@ -89,7 +89,7 @@ if (isset($args['help'])) {
 
 try {
     $config = BinkpConfig::getInstance();
-    
+
     $logLevel = isset($args['log-level']) ? $args['log-level'] : 'INFO';
     $logFile = isset($args['log-file']) ? $args['log-file'] : \BinktermPHP\Config::getLogPath('binkp_poll.log');
     $logToConsole = !isset($args['no-console']);
@@ -130,7 +130,7 @@ try {
         
         if (isset($args['test'])) {
             if (!$quiet) echo "Testing connection to {$address}...\n";
-            
+
             $uplink = $config->getUplinkByAddress($address);
             $hostname = isset($args['hostname']) ? $args['hostname'] : ($uplink['hostname'] ?? null);
             $port = isset($args['port']) ? (int) $args['port'] : ($uplink['port'] ?? 24554);

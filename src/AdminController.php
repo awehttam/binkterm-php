@@ -116,9 +116,15 @@ class AdminController
         ]);
 
         if ($result) {
-            return $this->db->lastInsertId();
+            $newUserId = $this->db->lastInsertId();
+
+            // Create default echoarea subscriptions
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            $subscriptionManager->createDefaultSubscriptions($newUserId);
+
+            return $newUserId;
         }
-        
+
         throw new \Exception('Failed to create user');
     }
 
@@ -279,9 +285,158 @@ class AdminController
         $reminderDate = new \DateTime($lastReminded);
         $currentDate = new \DateTime();
         $interval = $currentDate->diff($reminderDate);
-        
+
         error_log("[ADMIN] calculateDaysSinceReminder: lastReminded='$lastReminded', days={$interval->days}");
-        
+
         return $interval->days;
+    }
+
+    // ========================================
+    // Insecure Nodes Management
+    // ========================================
+
+    /**
+     * Get all insecure node allowlist entries
+     */
+    public function getInsecureNodes(): array
+    {
+        $stmt = $this->db->query("
+            SELECT * FROM binkp_insecure_nodes
+            ORDER BY created_at DESC
+        ");
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Add a node to the insecure allowlist
+     */
+    public function addInsecureNode(array $data): int
+    {
+        if (empty($data['address'])) {
+            throw new \Exception('FTN address is required');
+        }
+
+        // Check if address already exists
+        $stmt = $this->db->prepare("SELECT id FROM binkp_insecure_nodes WHERE address = ?");
+        $stmt->execute([$data['address']]);
+        if ($stmt->fetch()) {
+            throw new \Exception('Address already in allowlist');
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO binkp_insecure_nodes
+            (address, description, allow_receive, allow_send, max_messages_per_session, is_active)
+            VALUES (?, ?, ?, ?, ?, ?)
+            RETURNING id
+        ");
+        $stmt->execute([
+            $data['address'],
+            $data['description'] ?? null,
+            $data['allow_receive'] ?? true,
+            $data['allow_send'] ?? false,
+            $data['max_messages_per_session'] ?? 100,
+            $data['is_active'] ?? true
+        ]);
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Update an insecure node entry
+     */
+    public function updateInsecureNode(int $id, array $data): bool
+    {
+        $updates = [];
+        $params = [];
+
+        $allowedFields = [
+            'address', 'description', 'allow_receive', 'allow_send',
+            'max_messages_per_session', 'is_active'
+        ];
+
+        foreach ($allowedFields as $field) {
+            if (array_key_exists($field, $data)) {
+                $updates[] = "{$field} = ?";
+                $params[] = $data[$field];
+            }
+        }
+
+        if (empty($updates)) {
+            return false;
+        }
+
+        $params[] = $id;
+        $sql = "UPDATE binkp_insecure_nodes SET " . implode(', ', $updates) . " WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
+
+    /**
+     * Delete an insecure node entry
+     */
+    public function deleteInsecureNode(int $id): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM binkp_insecure_nodes WHERE id = ?");
+        return $stmt->execute([$id]) && $stmt->rowCount() > 0;
+    }
+
+    // ========================================
+    // Crashmail Queue Management
+    // ========================================
+
+    /**
+     * Get crashmail queue statistics
+     */
+    public function getCrashmailStats(): array
+    {
+        $service = new \BinktermPHP\Crashmail\CrashmailService();
+        return $service->getQueueStats();
+    }
+
+    /**
+     * Get crashmail queue items
+     */
+    public function getCrashmailQueue(?string $status = null, int $limit = 50): array
+    {
+        $service = new \BinktermPHP\Crashmail\CrashmailService();
+        return $service->getQueueItems($status, $limit);
+    }
+
+    /**
+     * Retry a failed crashmail
+     */
+    public function retryCrashmail(int $id): bool
+    {
+        $service = new \BinktermPHP\Crashmail\CrashmailService();
+        return $service->retryCrashmail($id);
+    }
+
+    /**
+     * Cancel a queued crashmail
+     */
+    public function cancelCrashmail(int $id): bool
+    {
+        $service = new \BinktermPHP\Crashmail\CrashmailService();
+        return $service->cancelCrashmail($id);
+    }
+
+    // ========================================
+    // Binkp Session Log
+    // ========================================
+
+    /**
+     * Get binkp session log entries
+     */
+    public function getBinkpSessions(array $filters = [], int $limit = 50): array
+    {
+        return \BinktermPHP\Binkp\SessionLogger::getRecentSessions($limit, $filters);
+    }
+
+    /**
+     * Get binkp session statistics
+     */
+    public function getBinkpSessionStats(string $period = 'day'): array
+    {
+        return \BinktermPHP\Binkp\SessionLogger::getSessionStats($period);
     }
 }

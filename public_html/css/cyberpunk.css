@@ -939,6 +939,17 @@ a:hover {
     border-radius: 0;
 }
 
+.alert-primary {
+    background-color: var(--cyber-dark);
+    border-color: var(--cyber-purple);
+    color: var(--text-color);
+    border-radius: 0;
+}
+
+.alert-primary .alert-heading {
+    color: var(--cyber-cyan);
+}
+
 .badge {
     border-radius: 0;
 }
@@ -1383,7 +1394,40 @@ tbody, td, tfoot, th, thead, tr {
 
 /* Message header full (expanded view) */
 .message-header-full {
+    background-color: var(--cyber-dark-light) !important;
+    border: 1px solid var(--cyber-purple-dim) !important;
+    border-radius: 0 !important;
+    color: var(--text-color) !important;
+}
+
+.form-text {
+    margin-top: .25rem;
+    font-size: .875em;
+    color: var(--text-color-muted);
+}
+
+/* Form check styling */
+.form-check {
+    background-color: transparent !important;
+}
+
+.form-check-input {
     background-color: var(--cyber-dark-light);
-    border: 1px solid var(--cyber-purple-dim);
-    border-radius: 0;
+    border-color: var(--cyber-purple-dim);
+}
+
+.form-check-input:checked {
+    background-color: var(--cyber-cyan);
+    border-color: var(--cyber-cyan);
+}
+
+.form-check-label {
+    color: var(--text-color);
+}
+
+/* Expanded message modal on desktop */
+@media (min-width: 992px) {
+    .modal-dialog.modal-message-reader {
+        --bs-modal-width: 1200px;
+    }
 }

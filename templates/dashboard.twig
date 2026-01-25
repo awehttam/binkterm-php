@@ -65,19 +65,26 @@
                 <h6 class="mb-0">System Information</h6>
             </div>
             <div class="card-body">
-                <dl class="row">
-
-                    <dt class="col-sm-5">Node Address:</dt>
-                    <dd class="col-sm-7">{{ fidonet_origin }}</dd>
-                    
+                <dl class="row mb-0">
                     <dt class="col-sm-5">Sysop:</dt>
                     <dd class="col-sm-7">{{ sysop_name }}</dd>
-                    
+
                     <dt class="col-sm-5">User:</dt>
-                    <dd class="col-sm-7">{{  current_user.username }}</dd>
-                    
-                    <dt class="col-sm-5">Address:</dt>
-                    <dd class="col-sm-7">{{ fidonet_origin}} </dd>
+                    <dd class="col-sm-7">{{ current_user.username }}</dd>
+
+                    <dt class="col-sm-5">Addresses:</dt>
+                    <dd class="col-sm-7">
+                        {% if network_addresses|length > 0 %}
+                            {% for addr in network_addresses %}
+                                <div class="mb-1">
+                                    <span class="badge bg-secondary me-1">{{ addr.domain }}</span>
+                                    <code>{{ addr.address }}</code>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <code>{{ fidonet_origin }}</code>
+                        {% endif %}
+                    </dd>
                 </dl>
             </div>
         </div>
@@ -85,7 +92,7 @@
         <div class="card mt-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">Echo Areas</h6>
-                    <i class="fa-solid fa-wrench"></i>
+                <a href="/subscriptions"><i class="fa-solid fa-wrench"></i></a>
                 </a>
             </div>
             <div class="card-body">
@@ -142,9 +149,12 @@ function loadEchoareas() {
                     
                     html += `
                         <div class="d-flex justify-content-between align-items-center py-1">
-                            <a href="/echomail/${area.tag}" class="text-decoration-none">
-                                ${area.tag}
-                            </a>
+                            <div>
+                                <a href="/echomail/${area.tag}" class="text-decoration-none">
+                                    ${area.tag}
+                                </a>
+                                ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.65em; vertical-align: middle;">${area.domain}</span>` : ''}
+                            </div>
                             <div class="d-flex gap-1 align-items-center">
                                 <span class="badge ${unreadCount > 0 ? 'bg-warning text-dark' : 'bg-secondary'} text-center" style="min-width: 35px;">${unreadCount}</span>
                                 <span class="badge bg-secondary text-center" style="min-width: 35px;">${totalCount}</span>

@@ -45,53 +45,86 @@ function hexDump($data, $offset = 0, $length = null)
 
 function analyzePacketHeader($header)
 {
+    global $packetOrigZone, $packetDestZone;
+
     $headerLen = strlen($header);
     echo "=== PACKET HEADER ANALYSIS ===\n";
     echo "Header length: $headerLen bytes\n";
-    
+
     if ($headerLen < 22) {
         echo "ERROR: Header too short ($headerLen bytes, need at least 22)\n";
         echo "\n=== RAW HEADER HEX DUMP ===\n";
         hexDump($header, 0, $headerLen);
         return false;
     }
-    
+
     // Parse basic FTS-0001 header (first 24 bytes)
     $data = unpack('vorigNode/vdestNode/vyear/vmonth/vday/vhour/vminute/vsecond/vbaud/vpacketVersion/vorigNet/vdestNet', substr($header, 0, 24));
-    
+
     if ($data === false) {
         echo "ERROR: Failed to parse basic header\n";
         echo "\n=== RAW HEADER HEX DUMP ===\n";
         hexDump($header, 0, min($headerLen, 58));
         return false;
     }
-    
-    printf("Origin: %d:%d/%d\n", 1, $data['origNet'], $data['origNode']);
-    printf("Destination: %d:%d/%d\n", 1, $data['destNet'], $data['destNode']);
-    printf("Date: %04d-%02d-%02d %02d:%02d:%02d\n", 
+
+    // Parse zone information from FSC-39 (Type-2e) format at offset 34-37
+    $origZone = 1; // Default
+    $destZone = 1; // Default
+    if ($headerLen >= 38) {
+        $zoneData = unpack('vorigZone/vdestZone', substr($header, 34, 4));
+        if ($zoneData) {
+            if ($zoneData['origZone'] > 0) {
+                $origZone = $zoneData['origZone'];
+            }
+            if ($zoneData['destZone'] > 0) {
+                $destZone = $zoneData['destZone'];
+            }
+        }
+    }
+
+    // Store zones globally for message analysis
+    $packetOrigZone = $origZone;
+    $packetDestZone = $destZone;
+
+    printf("Origin: %d:%d/%d\n", $origZone, $data['origNet'], $data['origNode']);
+    printf("Destination: %d:%d/%d\n", $destZone, $data['destNet'], $data['destNode']);
+    printf("Zones (FSC-39 at offset 34-37): origZone=%d, destZone=%d\n", $origZone, $destZone);
+    printf("Date: %04d-%02d-%02d %02d:%02d:%02d\n",
         $data['year'], $data['month'] + 1, $data['day'],
         $data['hour'], $data['minute'], $data['second']);
     printf("Baud rate: %d\n", $data['baud']);
     printf("Packet version: %d\n", $data['packetVersion']);
-    
-    // Try to parse password if we have enough data
-    if ($headerLen >= 42) {
-        $password = substr($header, 34, 8);
-        echo "Password: ";
+
+    // Try to parse password - it's at offset 38-45 in FSC-39
+    if ($headerLen >= 46) {
+        $password = substr($header, 38, 8);
+        echo "Password (offset 38-45): ";
+        $hasPassword = false;
         for ($i = 0; $i < 8; $i++) {
             $char = ord($password[$i]);
             if ($char === 0) break;
+            $hasPassword = true;
             if ($char >= 32 && $char <= 126) {
                 echo chr($char);
             } else {
                 echo "\\x" . sprintf("%02X", $char);
             }
         }
-        echo "\n";
+        echo $hasPassword ? "\n" : "(empty)\n";
     } else {
         echo "Password: Not enough data\n";
     }
-    
+
+    // Check FSC-48 zone info at offset 52-55
+    if ($headerLen >= 56) {
+        $zone48Data = unpack('vorigZone48/vdestZone48', substr($header, 52, 4));
+        if ($zone48Data) {
+            printf("Zones (FSC-48 at offset 52-55): origZone=%d, destZone=%d\n",
+                $zone48Data['origZone48'], $zone48Data['destZone48']);
+        }
+    }
+
     echo "\n=== RAW HEADER HEX DUMP ===\n";
     hexDump($header, 0, min($headerLen, 58));
     
@@ -126,48 +159,54 @@ function analyzePacketHeader($header)
 
 function analyzeMessages($handle, $startOffset = 58)
 {
+    global $packetOrigZone, $packetDestZone;
+
+    // Use packet zones, default to 1 if not set
+    $origZone = $packetOrigZone ?? 1;
+    $destZone = $packetDestZone ?? 1;
+
     echo "\n=== MESSAGE ANALYSIS ===\n";
-    
+
     fseek($handle, $startOffset);
     $messageCount = 0;
     $position = $startOffset;
-    
+
     while (!feof($handle)) {
         $pos = ftell($handle);
         $msgType = fread($handle, 2);
-        
+
         if (strlen($msgType) < 2) {
             echo "End of file reached\n";
             break;
         }
-        
+
         $typeData = unpack('v', $msgType);
         if ($typeData === false) {
             echo "ERROR: Cannot unpack message type at position $pos\n";
             break;
         }
-        
+
         $type = $typeData[1];
         printf("\nMessage at offset 0x%08X: Type = %d (0x%04X)\n", $pos, $type, $type);
-        
+
         if ($type === 0) {
             echo "  -> End of packet marker\n";
             break;
         } elseif ($type === 2) {
             echo "  -> FTS-0001 stored message\n";
             $messageCount++;
-            
+
             // Read message header
             $msgHeader = fread($handle, 14);
             if (strlen($msgHeader) < 14) {
                 echo "ERROR: Message header too short\n";
                 break;
             }
-            
+
             $header = unpack('vorigNode/vdestNode/vorigNet/vdestNet/vattr/vcost', $msgHeader);
             if ($header !== false) {
-                printf("    From: %d:%d/%d\n", 1, $header['origNet'], $header['origNode']);
-                printf("    To: %d:%d/%d\n", 1, $header['destNet'], $header['destNode']);
+                printf("    From: %d:%d/%d\n", $origZone, $header['origNet'], $header['origNode']);
+                printf("    To: %d:%d/%d\n", $destZone, $header['destNet'], $header['destNode']);
                 printf("    Attributes: 0x%04X\n", $header['attr']);
                 printf("    Cost: %d\n", $header['cost']);
             }

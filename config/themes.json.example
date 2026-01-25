@@ -1,6 +1,6 @@
 {
-    "Regular": "/css/style.css",
+    "Cyberpunk": "/css/cyberpunk.css",
     "Dark": "/css/dark.css",
     "Green Term": "/css/greenterm.css",
-    "Cyberpunk": "/css/cyberpunk.css"
+    "Regular": "/css/style.css"
 }

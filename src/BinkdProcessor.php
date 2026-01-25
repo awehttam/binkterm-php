@@ -11,6 +11,7 @@ class BinkdProcessor
     private $inboundPath;
     private $outboundPath;
     private $config;
+    private $logFile;
 
     public function __construct()
     {
@@ -18,8 +19,26 @@ class BinkdProcessor
         $this->config = BinkpConfig::getInstance();
         $this->inboundPath = $this->config->getInboundPath();
         $this->outboundPath = $this->config->getOutboundPath();
-        
+
+        // Set up log file path
+        $baseDir = dirname(__DIR__);
+        $logDir = $baseDir . '/data/logs';
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        $this->logFile = $logDir . '/packets.log';
+
         // The BinkpConfig methods already handle directory creation
+    }
+
+    /**
+     * Log a message to the packets log file
+     */
+    private function log(string $message): void
+    {
+        $timestamp = date('Y-m-d H:i:s');
+        $logLine = "[$timestamp] $message\n";
+        @file_put_contents($this->logFile, $logLine, FILE_APPEND | LOCK_EX);
     }
 
     public function processInboundPackets()
@@ -84,7 +103,7 @@ class BinkdProcessor
             $handle = fopen($filename, 'rb');
             if (!$handle) {
                 $error = "Cannot open packet file: $packetName";
-                error_log("[BINKD] $error");
+                $this->log("[BINKD] $error");
                 throw new \Exception($error);
             }
 
@@ -93,42 +112,45 @@ class BinkdProcessor
             if (strlen($header) < 58) {
                 fclose($handle);
                 $error = "Invalid packet header in $packetName: only " . strlen($header) . " bytes read, expected 58";
-                error_log("[BINKD] $error");
+                $this->log("[BINKD] $error");
                 throw new \Exception($error);
             }
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
 
             try {
                 $packetInfo = $this->parsePacketHeader($header);
                 $origAddress = $packetInfo['origZone'] . ':' . $packetInfo['origNet'] . '/' . $packetInfo['origNode'];
                 $destAddress = $packetInfo['destZone'] . ':' . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
-                error_log("[BINKD] Processing packet $packetName from $origAddress to $destAddress");
+
+                $this->log("[BINKD] Processing packet $packetName from $origAddress to $destAddress");
             } catch (\Exception $e) {
                 fclose($handle);
                 $error = "Failed to parse packet header for $packetName: " . $e->getMessage();
-                error_log("[BINKD] $error");
+                $this->log("[BINKD] $error");
                 throw new \Exception($error);
             }
-            
+
             // Process messages in packet
             $messageCount = 0;
             $failedMessages = 0;
             while (!feof($handle)) {
                 try {
                     $message = $this->readMessage($handle, $packetInfo);
+
                     if ($message) {
                         $this->storeMessage($message, $packetInfo);
                         $messageCount++;
                     }
                 } catch (\Exception $e) {
                     $failedMessages++;
-                    error_log("[BINKD] Failed to process message #" . ($messageCount + $failedMessages) . " in $packetName: " . $e->getMessage());
+                    $this->log("[BINKD] Failed to process message #" . ($messageCount + $failedMessages) . " in $packetName: " . $e->getMessage());
                     // Continue processing other messages
                 }
             }
             
             fclose($handle);
             
-            error_log("[BINKD] Packet $packetName processed: $messageCount messages stored, $failedMessages failed");
+            $this->log("[BINKD] Packet $packetName processed: $messageCount messages stored, $failedMessages failed");
             $this->logPacket($filename, 'IN', 'processed');
             
             // Return true even if some messages failed, as long as the packet was readable
@@ -136,7 +158,7 @@ class BinkdProcessor
             
         } catch (\Exception $e) {
             $error = "Packet processing failed for $packetName: " . $e->getMessage();
-            error_log("[BINKD] $error");
+            $this->log("[BINKD] $error");
             $this->logPacket($filename, 'IN', 'error');
             throw $e;
         }
@@ -245,6 +267,8 @@ class BinkdProcessor
         // Use packet zone information as fallback if not available in message header
         $origZone = $packetInfo['origZone'] ?? 1;
         $destZone = $packetInfo['destZone'] ?? 1;
+        $origPoint = 0;
+        $destPoint = 0;
 
 
         // Parse INTL kludge line for correct zone information in netmail
@@ -254,22 +278,36 @@ class BinkdProcessor
             foreach ($lines as $line) {
                 //if (strpos($line, "\x01INTL") === 0) {
                 if (strpos($line, "\x01INTL")) {
-                    // INTL format: \x01INTL dest_zone:net/node orig_zone:net/node
+                    // INTL format: \x01INTL dest_zone:net/node.point orig_zone:net/node.point
                     $res=preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches);
                     if ($res) {
                         $destZone = (int)$matches[1];
+                        $destPoint = isset($matches[4]) && $matches[4] !== '' ? (int)$matches[4] : 0;
                         $origZone = (int)$matches[5];
-                        error_log("[BINKD] Found INTL kludge: dest zone $destZone, orig zone $origZone");
+                        $origPoint = isset($matches[8]) && $matches[8] !== '' ? (int)$matches[8] : 0;
+                        $this->log("[BINKD] Found INTL kludge: dest zone $destZone, orig zone $origZone, orig point $origPoint, dest point $destPoint");
                         break;
                     }
                 }
             }
         }
 
-        
+        $origAddr = $origZone . ':' . $header['origNet'] . '/' . $header['origNode'];
+        if ($origPoint > 0) {
+            $origAddr .= '.' . $origPoint;
+        }
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $domain =$binkpConfig->getDomainByAddress($origAddr);
+
+        $destAddr = $destZone . ':' . $header['destNet'] . '/' . $header['destNode'];
+        if ($destPoint > 0) {
+            $destAddr .= '.' . $destPoint;
+        }
+
         $ret =  [
-            'origAddr' => $origZone . ':' . $header['origNet'] . '/' . $header['origNode'],
-            'destAddr' => $destZone . ':' . $header['destNet'] . '/' . $header['destNode'], 
+            'domain'=>$domain,
+            'origAddr' => $origAddr,
+            'destAddr' => $destAddr, 
             'fromName' => trim($fromName),
             'toName' => trim($toName),
             'subject' => trim($subject),
@@ -344,7 +382,7 @@ class BinkdProcessor
                     }
                 } catch (Exception $e) {
                     // Skip this encoding and try the next one
-                    error_log("iconv encoding $encoding failed: " . $e->getMessage());
+                    $this->log("iconv encoding $encoding failed: " . $e->getMessage());
                     continue;
                 }
             }
@@ -360,7 +398,7 @@ class BinkdProcessor
                         return $converted;
                     }
                 } catch (ValueError $e) {
-                    error_log("mb_convert_encoding $encoding failed: " . $e->getMessage());
+                    $this->log("mb_convert_encoding $encoding failed: " . $e->getMessage());
                     continue;
                 }
             }
@@ -410,7 +448,7 @@ class BinkdProcessor
                 ];
                 
                 $encoding = $encodingMap[$charset] ?? $charset;
-                error_log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
+                $this->log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
                 return $encoding;
             }
         }
@@ -427,7 +465,7 @@ class BinkdProcessor
         if ($isNetmail) {
             $this->storeNetmail($message, $packetInfo);
         } else {
-            $this->storeEchomail($message, $packetInfo);
+            $this->storeEchomail($message, $packetInfo, $message['domain']);
         }
     }
 
@@ -571,7 +609,7 @@ class BinkdProcessor
                     // REPLYADDR format: "1:123/456" or "1:123/456.0"
                     if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)/', $replyAddrLine, $matches)) {
                         $replyAddress = $matches[1];
-                        error_log("DEBUG: Found REPLYADDR kludge in netmail: " . $replyAddress);
+                        $this->log("DEBUG: Found REPLYADDR kludge in netmail: " . $replyAddress);
                     }
                 }
                 
@@ -609,11 +647,18 @@ class BinkdProcessor
             $kludgeText // Store kludges separately
         ]);
 
-        error_log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
+        $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
     }
 
-    private function storeEchomail($message, $packetInfo = null)
+    /** Records an incoming echomail message into the database
+     * @param $message
+     * @param $packetInfo
+     * @return void
+     */
+    private function storeEchomail($message, $packetInfo = null, $domain)
     {
+        $this->log("[BINKD] storeEchomail called - packet sender address: " . $message['origAddr']);
+
         // Extract echo area from message text (should be first line)
         // Handle different line ending formats (FTN uses \r\n or \r)
         $messageText = $message['text'];
@@ -654,12 +699,14 @@ class BinkdProcessor
                     $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
                     
                     // Extract original author address from MSGID
-                    // MSGID formats: 
+                    // MSGID formats:
                     // 1. Standard: "1:123/456 12345678"
                     // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
                     if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        //error_log("DEBUG: Extracted original author address from MSGID: " . $originalAuthorAddress);
+                        $this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
+                    } else {
+                        $this->log("[BINKD] WARNING: Could not extract address from echomail MSGID: " . $messageId);
                     }
                 }
                 
@@ -696,7 +743,9 @@ class BinkdProcessor
                 // Origin format: " * Origin: System Name (1:123/456)"
                 if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
                     $originalAuthorAddress = $matches[1];
-                    //error_log("DEBUG: Extracted original author address from Origin: " . $originalAuthorAddress);
+                    $this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
+                } else {
+                    $this->log("[BINKD] WARNING: Could not extract address from Origin line: " . $line);
                 }
                 
                 $cleanedLines[] = $line; // Keep origin line in message body
@@ -709,7 +758,7 @@ class BinkdProcessor
         $messageText = implode("\n", $cleanedLines);
         
         // Get or create echoarea
-        $echoarea = $this->getOrCreateEchoarea($echoareaTag);
+        $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
@@ -723,7 +772,7 @@ class BinkdProcessor
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
         
-        error_log("[BINKD]: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') .
+        $this->log("[BINKD]: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') .
                   ", Packet sender: " . $message['origAddr'] . 
                   ", Using: " . $fromAddress);
         
@@ -744,22 +793,25 @@ class BinkdProcessor
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")
                  ->execute([$echoarea['id']]);
 
-        error_log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
+        $this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
     }
 
-    private function getOrCreateEchoarea($tag)
+    private function getOrCreateEchoarea($tag,$domain)
     {
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ?");
-        $stmt->execute([$tag]);
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
+        $stmt->execute([$tag, $domain]);
         $echoarea = $stmt->fetch();
         
         if (!$echoarea) {
-            $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active) VALUES (?, ?, TRUE)");
-            $stmt->execute([$tag, 'Auto-created: ' . $tag]);
+            $stmt = $this->db->prepare("INSERT INTO echoareas (tag, description, is_active, domain) VALUES (?, ?, TRUE,?)");
+            $stmt->execute([$tag, 'Auto-created: ' . $tag.'@'.$domain, $domain]);
             
-            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ?");
-            $stmt->execute([$tag]);
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
+            $stmt->execute([$tag,$domain]);
             $echoarea = $stmt->fetch();
+            $this->log("getOrCreateEchoarea: Created new echomail area '$tag'@'$domain'");
+        } else {
+            $this->log("getOrCreateEchoarea: Found echomail area tag $tag@$domain");
         }
         
         return $echoarea;
@@ -905,45 +957,83 @@ class BinkdProcessor
         }
     }
 
-    public function createOutboundPacket($messages, $destAddr)
+    /**
+     * Create an outbound packet containing the given messages
+     *
+     * @param array $messages Array of message data
+     * @param string $destAddr Destination FTN address
+     * @param string|null $outputPath Optional custom output path (default: outbound directory)
+     * @return string Path to the created packet file
+     */
+    public function createOutboundPacket($messages, $destAddr, $outputPath = null)
     {
-        $filename = $this->outboundPath . '/' . time() . '.pkt';
+        $filename = $outputPath ?? ($this->outboundPath . '/' . substr(uniqid(), -8).'.pkt');
+        $packetName = basename($filename);
         $handle = fopen($filename, 'wb');
-        
+
         if (!$handle) {
-            throw new \Exception('Cannot create outbound packet');
+            throw new \Exception('Cannot create outbound packet: ' . $filename);
         }
 
         // Write packet header
         $this->writePacketHeader($handle, $destAddr);
-        
-        // Write messages
+
+        // Write messages and log details
         foreach ($messages as $message) {
             $this->writeMessage($handle, $message);
+
+            // Log message details for tracing
+            $msgType = !empty($message['is_echomail']) ? 'echomail' : 'netmail';
+            $fromName = $message['from_name'] ?? 'unknown';
+            $fromAddr = $message['from_address'] ?? 'unknown';
+            $toName = $message['to_name'] ?? 'unknown';
+            $toAddr = $message['to_address'] ?? $destAddr;
+            $subject = $message['subject'] ?? '(no subject)';
+            $areaTag = $message['echoarea_tag'] ?? '';
+
+            if ($msgType === 'echomail') {
+                $this->log("[BINKD] Packet {$packetName}: Writing {$msgType} - area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
+            } else {
+                $this->log("[BINKD] Packet {$packetName}: Writing {$msgType} - from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
+            }
         }
-        
+
         // Write packet terminator
         fwrite($handle, pack('v', 0));
         fclose($handle);
-        
+
+        $this->log("[BINKD] Created outbound packet {$packetName} with " . count($messages) . " message(s) destined for {$destAddr}");
         $this->logPacket($filename, 'OUT', 'created');
         return $filename;
     }
 
     private function writePacketHeader($handle, $destAddr)
     {
-        // Parse destination address (format: zone:net/node or zone:net/node.point)  
+        // Parse destination address (format: zone:net/node or zone:net/node.point)
         $destAddr = trim($destAddr);
         list($destZone, $destNetNode) = explode(':', $destAddr);
         list($destNet, $destNodePoint) = explode('/', $destNetNode);
         $destNode = explode('.', $destNodePoint)[0]; // Remove point if present
-        
+
+        // Cast to integers for pack()
+        $destZone = (int)$destZone;
+        $destNet = (int)$destNet;
+        $destNode = (int)$destNode;
+
         // Parse origin address
-        $systemAddress = trim($this->config->getSystemAddress());
-        list($origZone, $origNetNode) = explode(':', $systemAddress);
+        $myAddress = $this->config->getOriginAddressByDestination($destAddr);
+        $this->log("writePacketHeader using origin address $myAddress for $destAddr");
+        list($origZone, $origNetNode) = explode(':', $myAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
         $origNode = explode('.', $origNodePoint)[0]; // Remove point if present
-        
+
+        // Cast to integers for pack()
+        $origZone = (int)$origZone;
+        $origNet = (int)$origNet;
+        $origNode = (int)$origNode;
+
+        $this->log("writePacketHeader: origZone=$origZone destZone=$destZone origNet=$origNet destNet=$destNet origNode=$origNode destNode=$destNode");
+
         $now = time();
         
         // Standard FTS-0001 58-byte packet header
@@ -991,7 +1081,7 @@ class BinkdProcessor
         $toAddress = trim($message['to_address']);
         
         // Debug logging
-        error_log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
+        $this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
         
         list($origZone, $origNetNode) = explode(':', $fromAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
@@ -1016,10 +1106,10 @@ class BinkdProcessor
         $isEchomail = !$isNetmail && isset($message['is_echomail']) && $message['is_echomail'];
         
         // Debug logging
-        error_log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
-        error_log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
-        error_log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
-        error_log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
+        $this->log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
+        $this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
+        $this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
+        $this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
         
         // For echomail, keep the actual destination address in message header
         
@@ -1336,7 +1426,7 @@ class BinkdProcessor
                     }
                     unlink($pktFile); // Remove processed packet
                 } catch (\Exception $e) {
-                    error_log("Error processing extracted packet $pktFile: " . $e->getMessage());
+                    $this->log("Error processing extracted packet $pktFile: " . $e->getMessage());
                     // Move failed packet to error directory
                     $this->moveToErrorDir($pktFile);
                 }
@@ -1412,7 +1502,7 @@ class BinkdProcessor
             }
             
             rename($file, $destFile);
-            error_log("[BINKD] Moved processed packet to: " . basename($destFile));
+            $this->log("[BINKD] Moved processed packet to: " . basename($destFile));
         } else {
             // Delete the packet (default behavior)
             unlink($file);
@@ -1470,7 +1560,7 @@ class BinkdProcessor
         $stmt->execute();
         $deletedCount = $stmt->rowCount();
         
-        error_log("[BINKD] Cleaned up {$deletedCount} old packet records");
+        $this->log("[BINKD] Cleaned up {$deletedCount} old packet records");
         
         return $deletedCount;
     }

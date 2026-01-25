@@ -247,7 +247,7 @@
 
 <!-- Message View Modal -->
 <div class="modal fade" id="messageModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-message-reader">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
@@ -259,6 +259,9 @@
                     </button>
                 </div>
                 <h5 class="modal-title" id="messageSubject">Message</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
+                    <i class="fas fa-expand"></i>
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -411,6 +414,7 @@
 {% block scripts %}
 <script>
 let currentEchoarea = '{{ echoarea }}' || null;
+let domain = '{{domain}}'||null;
 let currentPage = 1;
 let currentSort = 'date_desc';
 let currentMessageId = null;
@@ -467,6 +471,11 @@ $(document).ready(function() {
                 case 'Escape':
                     // Let the default modal behavior handle this
                     break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    toggleModalFullscreen();
+                    break;
             }
         }
     });
@@ -522,12 +531,13 @@ function displayEchoareas(echoareas) {
         `;
         
         echoareas.forEach(function(area) {
-            const isActive = currentEchoarea === area.tag;
+            const fullTag = `${area.tag}@${area.domain}`;
+            const isActive = currentEchoarea === fullTag;
             html += `
-                <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${area.tag}')">
+                <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="node-address">${area.tag}</div>
+                            <div class="node-address">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="node-system">${escapeHtml(area.description)}</div>
                         </div>
                         <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${area.message_count || 0}</span>
@@ -561,12 +571,13 @@ function displayMobileEchoareas(echoareas) {
         `;
         
         echoareas.forEach(function(area) {
-            const isActive = currentEchoarea === area.tag;
+            const fullTag = `${area.tag}@${area.domain}`;
+            const isActive = currentEchoarea === fullTag;
             html += `
-                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${area.tag}')">
+                <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="fw-bold">${area.tag}</div>
+                            <div class="fw-bold">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="text-muted small">${escapeHtml(area.description)}</div>
                         </div>
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
@@ -591,12 +602,13 @@ function selectEchoarea(tag) {
     // Update URL without page reload
     const url = tag ? `/echomail/${encodeURIComponent(tag)}` : '/echomail';
     history.pushState({echoarea: tag}, '', url);
-    
-    // Update title
-    const title = tag ? `Echomail - ${tag}` : 'Echomail';
+
+    // Update title - strip domain for display
+    const displayTag = tag && tag.includes('@') ? tag.split('@')[0] : tag;
+    const title = displayTag ? `Echomail - ${displayTag}` : 'Echomail';
     $('h2 small').remove();
-    if (tag) {
-        $('h2').append(`<small class="text-muted">/ ${tag}</small>`);
+    if (displayTag) {
+        $('h2').append(`<small class="text-muted">/ ${displayTag}</small>`);
     }
     
     // Update mobile accordion text
@@ -789,6 +801,7 @@ function displayMessages(messages, isThreaded = false) {
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
                             <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
+                            ${msg.echoarea_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${msg.echoarea_domain}</span>` : ''}
                         </div>` : ''}
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
@@ -942,6 +955,40 @@ function markEchomailAsRead(messageId) {
         });
 }
 
+function toggleModalFullscreen() {
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (dialog.classList.contains('modal-fullscreen')) {
+        dialog.classList.remove('modal-fullscreen');
+        dialog.classList.add('modal-lg');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+        localStorage.setItem('modalFullscreen', 'false');
+    } else {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        localStorage.setItem('modalFullscreen', 'true');
+    }
+}
+
+function applyModalFullscreenPreference() {
+    const isFullscreen = localStorage.getItem('modalFullscreen') === 'true';
+    const modal = document.getElementById('messageModal');
+    const dialog = modal.querySelector('.modal-dialog');
+    const icon = document.querySelector('#fullscreenToggle i');
+
+    if (isFullscreen) {
+        dialog.classList.remove('modal-lg');
+        dialog.classList.add('modal-fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    }
+}
+
 function viewMessage(messageId) {
     currentMessageId = messageId;
     
@@ -965,7 +1012,8 @@ function viewMessage(messageId) {
             Loading message...
         </div>
     `);
-    
+
+    applyModalFullscreenPreference();
     $('#messageModal').modal('show');
     
     // Choose the appropriate API endpoint based on whether we have a specific echoarea
@@ -1055,6 +1103,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                 <div class="col-md-6">
                     <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>
                     <span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>
+                    ${message.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.domain}</span>` : ''}
                 </div>
             </div>
             <div class="row mt-2">
@@ -1130,6 +1179,9 @@ function composeMessage(type, replyToId = null) {
     }
     if (currentEchoarea) {
         params.append('echoarea', currentEchoarea);
+    }
+    if(domain){
+        params.append('domain', domain);
     }
     
     if (params.toString()) {
@@ -1584,7 +1636,9 @@ function updateMobileAccordionText(selectedArea) {
     const textSpan = $('#mobileAccordionText');
     if (textSpan.length) {
         if (selectedArea) {
-            textSpan.text(`Viewing: ${selectedArea}`);
+            // Strip domain from display (show just the tag)
+            const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
+            textSpan.text(`Viewing: ${displayTag}`);
         } else {
             textSpan.text('Viewing: All Messages');
         }

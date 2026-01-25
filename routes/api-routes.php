@@ -3,6 +3,7 @@
 use BinktermPHP\AddressBookController;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -45,6 +46,73 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         echo json_encode(['success' => true]);
+    });
+
+    // Gateway token verification endpoint for external services (bbslinkgateway, etc.)
+    SimpleRouter::post('/auth/verify-gateway-token', function() {
+        header('Content-Type: application/json');
+
+        // Verify API key
+        $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
+        $expectedKey = Config::env('BBSLINK_API_KEY');
+
+        if (empty($expectedKey) || $apiKey !== $expectedKey) {
+            //error_log($expectedKey." != ".$apiKey);
+            http_response_code(401);
+            echo json_encode(['valid' => false, 'error' => 'Invalid API key']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $userId = $input['userid'] ?? $input['user_id'] ?? null;
+        $token = $input['token'] ?? '';
+
+        if (empty($userId) || empty($token)) {
+            http_response_code(400);
+            echo json_encode(['valid' => false, 'error' => 'userid and token are required']);
+            return;
+        }
+
+        $auth = new Auth();
+        $userInfo = $auth->verifyGatewayToken((int)$userId, $token);
+
+        if ($userInfo) {
+            //error_log("Verified gateway token succesfully");
+            echo json_encode([
+                'valid' => true,
+                'userInfo' => $userInfo
+            ]);
+        } else {
+            //error_log("Invalid or expired token userId=$userId, token=$token" );
+            echo json_encode([
+                'valid' => false,
+                'error' => 'Invalid or expired token'
+            ]);
+        }
+    });
+
+    // Generate gateway token for authenticated user
+    SimpleRouter::post('/auth/gateway-token', function() {
+        header('Content-Type: application/json');
+
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $door = $input['door'] ?? null;
+        $ttl = $input['ttl'] ?? 300; // Default 5 minutes
+
+        // Cap TTL at 10 minutes for security
+        $ttl = min((int)$ttl, 600);
+
+        $token = $auth->generateGatewayToken($user['user_id'], $door, $ttl);
+
+        echo json_encode([
+            'success' => true,
+            'userid' => $user['user_id'],
+            'token' => $token,
+            'expires_in' => $ttl
+        ]);
     });
 
     SimpleRouter::post('/auth/forgot-password', function() {
@@ -118,6 +186,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $password = $_POST['password'] ?? '';
         $email = $_POST['email'] ?? '';
         $realName = $_POST['real_name'] ?? '';
+        $location = $_POST['location'] ?? '';
         $reason = $_POST['reason'] ?? '';
 
         // Validate required fields
@@ -144,17 +213,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $db = Database::getInstance()->getPdo();
 
-            // Check if username already exists in users or pending_users
+            // Check if username or real_name already exists in users or pending_users (case-insensitive)
             $checkStmt = $db->prepare("
-                SELECT 1 FROM users WHERE username = ? 
-                UNION 
-                SELECT 1 FROM pending_users WHERE username = ? AND status = 'pending'
+                SELECT 1 FROM users WHERE username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)
+                UNION
+                SELECT 1 FROM pending_users WHERE (username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND status = 'pending'
             ");
-            $checkStmt->execute([$username, $username]);
+            $checkStmt->execute([$username, $username, $realName, $username, $username, $realName]);
 
             if ($checkStmt->fetch()) {
                 http_response_code(409);
-                echo json_encode(['error' => 'Username already exists or registration is pending']);
+                echo json_encode(['error' => 'A user with this username or name already exists. Please try logging in or contact the sysop for assistance.']);
                 return;
             }
 
@@ -167,8 +236,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Insert pending user
             $insertStmt = $db->prepare("
-                INSERT INTO pending_users (username, password_hash, email, real_name, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $insertStmt->execute([
@@ -176,6 +245,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $passwordHash,
                 $email ?: null,
                 $realName,
+                $location ?: null,
                 $reason ?: null,
                 $ipAddress,
                 $userAgent
@@ -324,22 +394,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         // Query with separate subqueries for total and unread counts
-        $sql = "SELECT 
-                    e.id, 
-                    e.tag, 
-                    e.description, 
-                    e.moderator, 
-                    e.uplink_address, 
-                    e.color, 
-                    e.is_active, 
+        $sql = "SELECT
+                    e.id,
+                    e.tag,
+                    e.description,
+                    e.moderator,
+                    e.uplink_address,
+                    e.color,
+                    e.is_active,
                     e.created_at,
+                    e.domain,
+                    e.is_local,
                     COALESCE(total_counts.message_count, 0) as message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count
                 FROM echoareas e";
 
         // Add subscription filtering if requested
         if ($subscribedOnly === 'true') {
-            $sql .= " INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?";
+            $sql .= " INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ? AND ues.is_active = TRUE";
             $params = [$userId, $userId];
         } else {
             $params = [$userId];
@@ -436,6 +508,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
+            $isLocal = !empty($input['is_local']);
+            $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -452,11 +526,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active) 
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, domain)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $domain]);
 
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -490,6 +564,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
+            $isLocal = !empty($input['is_local']);
+            $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -506,12 +582,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                UPDATE echoareas 
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ? 
+                UPDATE echoareas
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, domain = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $domain, $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);
@@ -834,7 +910,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // URL decode the echoarea parameter to handle dots and special characters
         $echoarea = urldecode($echoarea);
-
+        $foo=explode("@", $echoarea);
+        $echoarea=$foo[0];
+        $domain=$foo[1];
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
@@ -844,9 +922,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                    COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ?
+            WHERE ea.tag = ? AND domain=?
         ");
-        $stmt->execute([$echoarea]);
+        $stmt->execute([$echoarea, $domain]);
         $stats = $stmt->fetch();
 
         // Filter counts for this echoarea and user
@@ -917,7 +995,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'saved' => $savedCount
             ]
         ]);
-    })->where(['echoarea' => '[A-Za-z0-9._-]+']);
+    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     // Route for getting specific echomail message by ID only (when echoarea not known)
     SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
@@ -968,13 +1046,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // URL decode the echoarea parameter to handle dots and special characters
         $echoarea = urldecode($echoarea);
 
+        $foo=explode("@", $echoarea);
+        $echoarea=$foo[0];
+        $domain=$foo[1];
+
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getEchomail($echoarea, $page, null, $userId, $filter, $threaded);
+        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded);
         echo json_encode($result);
-    })->where(['echoarea' => '[A-Za-z0-9._-]+']);
+    })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) {
         $auth = new Auth();
@@ -983,6 +1065,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // URL decode the echoarea parameter to handle dots and special characters
         $echoarea = urldecode($echoarea);
+        $foo=explode("@", $echoarea);
+        $echoarea=$foo[0];
+        $domain=$foo[1];
 
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -1012,7 +1097,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             echo json_encode(['error' => 'Message not found']);
         }
-    })->where(['echoarea' => '[A-Za-z0-9._-]+', 'id' => '[0-9]+']);
+    })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/send', function() {
         $auth = new Auth();
@@ -1025,8 +1110,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $handler = new MessageHandler();
 
+        if(trim($input['to_address'])==""){
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $input['to_address'] = $binkpConfig->getSystemAddress();
+        }
+
         try {
             if ($type === 'netmail') {
+                $crashmailFlag = !empty($input['crashmail']);
                 $result = $handler->sendNetmail(
                     $user['user_id'],
                     $input['to_address'],
@@ -1034,12 +1125,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['subject'],
                     $input['message_text'],
                     null, // fromName
-                    $input['reply_to_id'] ?? null
+                    $input['reply_to_id'] ?? null,
+                    $crashmailFlag
                 );
             } elseif ($type === 'echomail') {
+                $foo=explode("@", $input['echoarea']);
+                $echoarea = $foo[0];
+                $domain = $foo[1];
+
                 $result = $handler->postEchomail(
                     $user['user_id'],
-                    $input['echoarea'],
+                    $echoarea,
+                    $domain,
                     $input['to_name'],
                     $input['subject'],
                     $input['message_text'],
@@ -1375,12 +1472,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // Validate input
             $realName = trim($input['real_name'] ?? '');
             $email = trim($input['email'] ?? '');
+            $location = trim($input['location'] ?? '');
             $currentPassword = $input['current_password'] ?? '';
             $newPassword = $input['new_password'] ?? '';
 
-            // Update basic profile information
-            $stmt = $db->prepare("UPDATE users SET real_name = ?, email = ? WHERE id = ?");
-            $stmt->execute([$realName, $email, $user['user_id']]);
+            // Update profile information (users cannot change their name)
+            $stmt = $db->prepare("UPDATE users SET email = ?, location = ? WHERE id = ?");
+            $stmt->execute([$email, $location ?: null, $user['user_id']]);
 
             // Handle password change if provided
             if (!empty($currentPassword) && !empty($newPassword)) {

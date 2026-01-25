@@ -1,9 +1,11 @@
 composer.lock
 config/*.json
+!config/*.example
+config/*.json.*
 config/welcome.txt
 config/terminal_welcome.txt
 config/systemnews.twig
-templates/custom/header.insert.twig
+templates/custom/*
 data/*
 !data/.gitkeep
 !data/logs/

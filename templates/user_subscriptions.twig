@@ -43,6 +43,9 @@
                                                     <span class="badge me-2" style="background-color: {{ echoarea.color }};">
                                                         {{ echoarea.tag }}
                                                     </span>
+                                                    {% if echoarea.domain %}
+                                                        <span class="badge bg-secondary me-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
+                                                    {% endif %}
                                                     {% if echoarea.is_default_subscription %}
                                                         <i class="bi bi-star-fill text-warning" title="Default subscription"></i>
                                                     {% endif %}
@@ -64,7 +67,7 @@
                                             </div>
                                             <div class="col-md-3 text-end">
                                                 {% if echoarea.subscribed %}
-                                                    <a href="/echomail/{{ echoarea.tag }}" 
+                                                    <a href="/echomail/{{ echoarea.tag }}@{{ echoarea.domain }}"
                                                        class="btn btn-sm btn-outline-primary">
                                                         <i class="bi bi-eye me-1"></i>
                                                         View Messages

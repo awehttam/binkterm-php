@@ -40,7 +40,7 @@ function writeLog($message, $logFile = null) {
 }
 
 function printUsage() {
-    echo "Usage: php import_nodelist.php <nodelist_file> [--force]\n";
+    echo "Usage: php import_nodelist.php <nodelist_file> <domain> [--force]\n";
     echo "\nSupported formats:\n";
     echo "  - Plain text: NODELIST.xxx\n";
     echo "  - ZIP: NODELIST.Zxx (requires zip extension)\n";
@@ -52,9 +52,9 @@ function printUsage() {
     echo "  --force     Skip confirmation prompts\n";
     echo "  --help      Show this help message\n";
     echo "\nExamples:\n";
-    echo "  php import_nodelist.php NODELIST.001\n";
-    echo "  php import_nodelist.php NODELIST.Z150 --force\n";
-    echo "  php import_nodelist.php NODELIST.A365\n";
+    echo "  php import_nodelist.php NODELIST.001 fidonet \n";
+    echo "  php import_nodelist.php NODELIST.Z150 fidonet --force\n";
+    echo "  php import_nodelist.php NODELIST.A365 fidonet\n";
 }
 
 function detectArchiveType($filename) {
@@ -200,10 +200,17 @@ function main($argc, $argv) {
         printUsage();
         exit(0);
     }
-    
+
+
     $nodelistFile = $argv[1];
+    $domain=$argv[2];
+
+    if(!$domain) {
+        echo "You must specify the network domain, eg: fidonet, fsxnet, testnet, etc\n";
+        exit(-1);
+    }
     $force = in_array('--force', $argv);
-    
+
     if (!file_exists($nodelistFile)) {
         echo "Error: Nodelist file not found: {$nodelistFile}\n";
         exit(1);
@@ -271,7 +278,7 @@ function main($argc, $argv) {
         writeLog("Starting import...");
         $startTime = microtime(true);
         
-        $result = $nodelistManager->importNodelist($actualNodelistFile, true);
+        $result = $nodelistManager->importNodelist($actualNodelistFile,$domain, true);
         
         $endTime = microtime(true);
         $duration = round($endTime - $startTime, 2);

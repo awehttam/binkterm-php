@@ -17,24 +17,24 @@ class NodelistManager
         $this->parser = new NodelistParser();
     }
     
-    public function importNodelist($filepath, $archiveOld = true)
+    public function importNodelist($filepath, $domain='',$archiveOld = true)
     {
         try {
             $this->db->beginTransaction();
             
             if ($archiveOld) {
-                $this->archiveOldNodelist();
+                $this->archiveOldNodelist($domain);
             }
             
-            $result = $this->parser->parseNodelist($filepath);
+            $result = $this->parser->parseNodelist($filepath,$domain);
             $metadata = $result['metadata'];
             $nodes = $result['nodes'];
             
-            $metadataId = $this->insertMetadata($metadata, count($nodes));
+            $metadataId = $this->insertMetadata($domain,$metadata, count($nodes));
             
             $insertedNodes = 0;
             foreach ($nodes as $node) {
-                if ($this->insertNode($node)) {
+                if ($this->insertNode($domain,$node)) {
                     $insertedNodes++;
                 }
             }
@@ -48,7 +48,8 @@ class NodelistManager
                 'metadata_id' => $metadataId,
                 'total_nodes' => count($nodes),
                 'inserted_nodes' => $insertedNodes,
-                'filename' => $metadata['filename']
+                'filename' => $metadata['filename'],
+                'day_of_year' => $metadata['day_of_year']
             ];
             
         } catch (\Exception $e) {
@@ -199,17 +200,31 @@ class NodelistManager
         $sql = "SELECT * FROM nodelist_metadata WHERE is_active = TRUE ORDER BY release_date DESC LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        
+
         return $stmt->fetch();
+    }
+
+    /**
+     * Get all active nodelists grouped by domain
+     *
+     * @return array Array of active nodelist metadata records
+     */
+    public function getActiveNodelists()
+    {
+        $sql = "SELECT * FROM nodelist_metadata WHERE is_active = TRUE ORDER BY domain ASC, imported_at DESC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
     }
     
     public function getZones()
     {
-        $sql = "SELECT DISTINCT zone FROM nodelist ORDER BY zone";
+        $sql = "SELECT DISTINCT zone, domain FROM nodelist ORDER BY zone, domain";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        
-        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     public function getNetsByZone($zone)
@@ -246,22 +261,23 @@ class NodelistManager
         return $stmt->fetch();
     }
     
-    public function archiveOldNodelist()
+    public function archiveOldNodelist($domain)
     {
-        $sql = "UPDATE nodelist_metadata SET is_active = FALSE WHERE is_active = TRUE";
+        $sql = "UPDATE nodelist_metadata SET is_active = FALSE WHERE is_active = TRUE AND domain=?";
         $stmt = $this->db->prepare($sql);
-        $stmt->execute();
+        $stmt->execute([$domain]);
         
         return $stmt->rowCount();
     }
     
-    private function insertMetadata($metadata, $totalNodes)
+    private function insertMetadata($domain,$metadata, $totalNodes)
     {
-        $sql = "INSERT INTO nodelist_metadata (filename, day_of_year, release_date, crc_checksum, total_nodes, is_active) 
-                VALUES (?, ?, ?, ?, ?, TRUE)";
+        $sql = "INSERT INTO nodelist_metadata (domain,filename, day_of_year, release_date, crc_checksum, total_nodes, is_active) 
+                VALUES (?,?, ?, ?, ?, ?, TRUE)";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
+            $domain,
             $this->truncateString($metadata['filename'], 100),
             $metadata['day_of_year'],
             $metadata['release_date'],
@@ -288,11 +304,11 @@ class NodelistManager
         return mb_substr($string, 0, $maxLength);
     }
     
-    private function insertNode($node)
+    private function insertNode($domain,$node)
     {
-        $sql = "INSERT INTO nodelist 
-                (zone, net, node, point, keyword_type, system_name, location, sysop_name, phone, baud_rate, flags) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        $sql = "INSERT INTO nodelist
+                (domain,zone, net, node, point, keyword_type, system_name, location, sysop_name, phone, baud_rate, flags)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (zone, net, node, point) DO UPDATE SET
                     keyword_type = EXCLUDED.keyword_type,
                     system_name = EXCLUDED.system_name,
@@ -305,6 +321,7 @@ class NodelistManager
         
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
+            $domain,
             $node['zone'],
             $node['net'],
             $node['node'],
@@ -408,5 +425,99 @@ class NodelistManager
             $address .= '.' . $node['point'];
         }
         return $address;
+    }
+
+    /**
+     * Get connection info for crash delivery from nodelist
+     *
+     * Looks up a node in the nodelist and extracts connection information
+     * from flags like IBN (Internet BinkP Node) and INA (Internet Address).
+     *
+     * @param string $address FTN address (e.g., "1:123/456")
+     * @return array|null Connection info or null if not found/not connectable
+     */
+    public function getCrashRouteInfo(string $address): ?array
+    {
+        $node = $this->findNode($address);
+        if (!$node) {
+            return null;
+        }
+
+        $flags = $node['flags'] ?? [];
+        if (is_string($flags)) {
+            $flags = json_decode($flags, true) ?? [];
+        }
+
+        $hostname = null;
+        $port = 24554;
+
+        // Check for IBN (Internet BinkP Node) flag
+        // Format: IBN or IBN:hostname or IBN:hostname:port
+        if (isset($flags['IBN'])) {
+            $ibn = $flags['IBN'];
+            if ($ibn === true || $ibn === '1' || $ibn === 1) {
+                // Just IBN flag present, need to use INA for hostname
+                $hostname = $flags['INA'] ?? null;
+            } elseif (is_string($ibn) && strpos($ibn, ':') !== false) {
+                // IBN contains hostname and possibly port
+                $parts = explode(':', $ibn);
+                $hostname = $parts[0] ?: null;
+                if (isset($parts[1]) && is_numeric($parts[1])) {
+                    $port = (int)$parts[1];
+                }
+            } elseif (is_string($ibn) && !empty($ibn)) {
+                $hostname = $ibn;
+            }
+        }
+
+        // Fall back to INA (Internet Address) flag if no hostname yet
+        if (!$hostname && isset($flags['INA'])) {
+            $hostname = is_string($flags['INA']) ? $flags['INA'] : null;
+        }
+
+        // Check for IP flag (legacy format)
+        if (!$hostname && isset($flags['IP'])) {
+            $hostname = is_string($flags['IP']) ? $flags['IP'] : null;
+        }
+
+        // Check for ITN (Internet Telnet Node) - not ideal for binkp but better than nothing
+        if (!$hostname && isset($flags['ITN'])) {
+            $itn = $flags['ITN'];
+            if (is_string($itn) && !empty($itn)) {
+                if (strpos($itn, ':') !== false) {
+                    $parts = explode(':', $itn);
+                    $hostname = $parts[0] ?: null;
+                } else {
+                    $hostname = $itn;
+                }
+            }
+        }
+
+        // No connectable information found
+        if (!$hostname) {
+            return null;
+        }
+
+        return [
+            'address' => $address,
+            'hostname' => $hostname,
+            'port' => $port,
+            'system_name' => $node['system_name'] ?? '',
+            'sysop_name' => $node['sysop_name'] ?? '',
+            'location' => $node['location'] ?? '',
+            'flags' => $flags,
+            'source' => 'nodelist'
+        ];
+    }
+
+    /**
+     * Get a node by its FTN address
+     *
+     * @param string $address FTN address
+     * @return array|null Node data or null
+     */
+    public function getNodeByAddress(string $address): ?array
+    {
+        return $this->findNode($address);
     }
 }

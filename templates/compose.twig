@@ -21,14 +21,15 @@
             <form id="composeForm">
                 <input type="hidden" id="messageType" value="{{ type }}">
                 <input type="hidden" id="replyToId" value="{{ reply_to_id }}">
+                <input type="hidden" id="domain" value="{{ domain }}">
                 
                 {% if type == 'netmail' %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="toAddress" class="form-label">To Address *</label>
+                            <label for="toAddress" class="form-label">To Address (leave blank for local)</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="toAddress" name="to_address" 
-                                       placeholder="1:123/456" value="{{ reply_to_address }}" required>
+                                       placeholder="" value="{{ reply_to_address }}" >
                                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
                                         id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
                                         title="Select from address book">
@@ -58,10 +59,24 @@
                         </div>
                         <div class="col-md-6">
                             <label for="toName" class="form-label">To Name *</label>
-                            <input type="text" class="form-control" id="toName" name="to_name" 
+                            <input type="text" class="form-control" id="toName" name="to_name"
                                    value="{{ to_name_value }}" required>
                         </div>
                     </div>
+                    {% if crashmail_enabled %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail">
+                            <label class="form-check-label" for="crashmail">
+                                <i class="fas fa-bolt text-warning me-1"></i>Crashmail (Direct Delivery)
+                            </label>
+                            <div class="form-text">
+                                Attempt immediate direct delivery to the destination node, bypassing hub routing.
+                                Requires the destination to be directly reachable.
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 {% else %}
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -231,7 +246,7 @@ function loadEchoareas() {
             if (data.echoareas) {
                 data.echoareas.forEach(function(area) {
                     const colorDot = `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:${area.color || '#28a745'}; margin-right:8px; vertical-align:middle;"></span>`;
-                    select.append(`<option value="${area.tag}" data-color="${area.color || '#28a745'}">${area.tag} - ${area.description}</option>`);
+                    select.append(`<option value="${area.tag}@${area.domain}" data-color="${area.color || '#28a745'}">${area.tag} - ${area.description}</option>`);
                 });
                 
                 // Add color styling to select options
@@ -243,10 +258,20 @@ function loadEchoareas() {
                     }
                 });
             }
-            
             // Pre-select if specified in URL or template, or from loaded draft
             const urlParams = new URLSearchParams(window.location.search);
-            const preselect = urlParams.get('echoarea') || '{{ echoarea }}' || window.draftEchoarea;
+            let preselect = '{{ echoarea }}' || window.draftEchoarea;
+
+            // If echoarea is in URL, combine with domain param for proper matching
+            const urlEchoarea = urlParams.get('echoarea');
+            const urlDomain = urlParams.get('domain');
+            if (urlEchoarea) {
+                // Combine echoarea and domain if domain is provided and echoarea doesn't already contain @
+                preselect = (urlDomain && !urlEchoarea.includes('@'))
+                    ? urlEchoarea + '@' + urlDomain
+                    : urlEchoarea;
+            }
+
             if (preselect) {
                 select.val(preselect);
                 // Trigger change event to apply color styling
@@ -292,7 +317,7 @@ function sendMessage() {
             return;
         }
     }
-    
+
     const formData = {
         type: messageType,
         to_address: $('#toAddress').val(),
@@ -300,7 +325,8 @@ function sendMessage() {
         echoarea: $('#echoarea').val(),
         subject: $('#subject').val(),
         message_text: $('#messageText').val(),
-        reply_to_id: $('#replyToId').val() || null
+        reply_to_id: $('#replyToId').val() || null,
+        crashmail: $('#crashmail').is(':checked')
     };
     
     // Show sending status

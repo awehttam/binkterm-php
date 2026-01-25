@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin BOOLEAN DEFAULT FALSE
 );
 
+-- Case-insensitive unique constraint on real_name
+CREATE UNIQUE INDEX IF NOT EXISTS users_real_name_lower_idx ON users (LOWER(real_name));
+
 -- Sessions table
 CREATE TABLE IF NOT EXISTS sessions (
     id VARCHAR(128) PRIMARY KEY,
@@ -156,6 +159,9 @@ CREATE TABLE IF NOT EXISTS pending_users (
     reviewed_at TIMESTAMP,
     admin_notes TEXT
 );
+
+-- Case-insensitive unique constraint on real_name for pending users
+CREATE UNIQUE INDEX IF NOT EXISTS pending_users_real_name_lower_idx ON pending_users (LOWER(real_name));
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_users_fidonet_address ON users(fidonet_address);

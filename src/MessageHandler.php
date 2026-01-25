@@ -99,25 +99,38 @@ class MessageHandler
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
-            
+
             // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
             $replyToData = null;
-            
+
             // For echomail, check kludge_lines first
             if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
                 $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
             }
-            
+
             // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
             if (!$replyToData) {
                 $replyToData = $this->parseReplyToKludge($message);
             }
-            
+
             if ($replyToData && isset($replyToData['address'])) {
                 $cleanMessage['replyto_address'] = $replyToData['address'];
                 $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
-            
+
+            // Add domain information for netmail from/to addresses
+            try {
+                $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                if (!empty($cleanMessage['from_address'])) {
+                    $cleanMessage['from_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['from_address']) ?: null;
+                }
+                if (!empty($cleanMessage['to_address'])) {
+                    $cleanMessage['to_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['to_address']) ?: null;
+                }
+            } catch (\Exception $e) {
+                // Ignore errors, domains are optional
+            }
+
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -132,15 +145,15 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
+    public function getEchomail($echoareaTag = null, $domain, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
     {
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
             $subscriptionManager = new EchoareaSubscriptionManager();
             
             // Get echoarea ID from tag
-            $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND is_active = TRUE");
-            $stmt->execute([$echoareaTag]);
+            $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
+            $stmt->execute([$echoareaTag, $domain]);
             $echoarea = $stmt->fetch();
             
             if ($echoarea && !$subscriptionManager->isUserSubscribed($userId, $echoarea['id'])) {
@@ -169,7 +182,7 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedEchomail($echoareaTag, $page, $limit, $userId, $filter);
+            return $this->getThreadedEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter);
         }
 
         $offset = ($page - 1) * $limit;
@@ -195,7 +208,7 @@ class MessageHandler
         
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -204,14 +217,14 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause}
-                ORDER BY CASE 
-                    WHEN em.date_received > NOW() THEN 0 
-                    ELSE 1 
-                END, em.date_received DESC 
+                WHERE ea.tag = ?{$filterClause} AND domain=?
+                ORDER BY CASE
+                    WHEN em.date_received > NOW() THEN 0
+                    ELSE 1
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $userId, $echoareaTag, $domain];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -225,16 +238,16 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause}
+                WHERE ea.tag = ?{$filterClause} AND domain=?
             ");
-            $countParams = [$userId, $userId, $echoareaTag];
+            $countParams = [$userId, $userId, $echoareaTag, $domain];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -244,10 +257,10 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
-                ORDER BY CASE 
-                    WHEN em.date_received > NOW() THEN 0 
-                    ELSE 1 
-                END, em.date_received DESC 
+                ORDER BY CASE
+                    WHEN em.date_received > NOW() THEN 0
+                    ELSE 1
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -282,9 +295,9 @@ class MessageHandler
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE ea.tag = ? AND mrs.read_at IS NULL
+                    WHERE ea.tag = ? AND mrs.read_at IS NULL AND ea.domain=?
                 ");
-                $unreadCountStmt->execute([$userId, $echoareaTag]);
+                $unreadCountStmt->execute([$userId, $echoareaTag, $domain]);
             } else {
                 $unreadCountStmt = $this->db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
@@ -391,7 +404,7 @@ class MessageHandler
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
         
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -401,7 +414,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY em.date_received DESC 
+            ORDER BY em.date_received DESC
             LIMIT ? OFFSET ?
         ");
         
@@ -503,7 +516,7 @@ class MessageHandler
         } else {
             // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
@@ -523,52 +536,105 @@ class MessageHandler
             } elseif ($type === 'echomail') {
                 $this->markEchomailAsRead($messageId, $userId);
             }
-            
+
             // Clean message for JSON encoding
             $message = $this->cleanMessageForJson($message);
+
+            // Add domain information for netmail messages
+            if ($type === 'netmail') {
+                try {
+                    $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                    if (!empty($message['from_address'])) {
+                        $message['from_domain'] = $binkpCfg->getDomainByAddress($message['from_address']) ?: null;
+                    }
+                    if (!empty($message['to_address'])) {
+                        $message['to_domain'] = $binkpCfg->getDomainByAddress($message['to_address']) ?: null;
+                    }
+                } catch (\Exception $e) {
+                    // Ignore errors, domains are optional
+                }
+            }
         }
 
         return $message;
     }
 
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null)
+    /** Records a netmail message to the database and queues it for delivery if toAddress is not blank.
+     * @param $fromUserId
+     * @param $toAddress
+     * @param $toName
+     * @param $subject
+     * @param $messageText
+     * @param $fromName
+     * @param $replyToId
+     * @param $crashmail
+     * @return bool
+     * @throws \Exception
+     */
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
             throw new \Exception('User not found');
         }
 
-        // Special case: if sending to "sysop", route to local sysop user
+        // Special case: if sending to "sysop" at our local system, route to local sysop user
         if (!empty($toName) && strtolower($toName) === 'sysop') {
-            return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId);
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                // Only route locally if destination is one of our addresses (or no address specified)
+                if (empty($toAddress) || $binkpConfig->isMyAddress($toAddress)) {
+                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId);
+                }
+            } catch (\Exception $e) {
+                // If we can't get config, fall through to normal send
+            }
         }
 
         // Use provided fromName or fall back to user's real name
         $senderName = $fromName ?: ($user['real_name'] ?: $user['username']);
-        
-        // Get system's FidoNet address since users don't have individual addresses
+
+        // Get the appropriate origin address for the destination network
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
+
+            // Use the "me" address from the uplink that will route this message
+            $originAddress = $binkpConfig->getOriginAddressByDestination($toAddress);
+
+            if (!$originAddress) {
+                // No uplink can route to this destination - fall back to default
+                $originAddress = $binkpConfig->getSystemAddress();
+                error_log("[NETMAIL] WARNING: No specific uplink for destination {$toAddress}, using system address");
+            }
         } catch (\Exception $e) {
-            throw new \Exception('System FidoNet address not configured');
+            throw new \Exception('Cannot determine origin address: ' . $e->getMessage());
+        }
+
+        // Verify outbound directory is writable before accepting the message
+        // (only needed if message will be spooled, i.e., not local delivery)
+        if ($toAddress !== $originAddress) {
+            $outboundPath = $binkpConfig->getOutboundPath();
+            if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
+                error_log("[NETMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
+                throw new \Exception('Message delivery system unavailable. Please try again later.');
+            }
         }
 
         // Generate MSGID for storage (address + hash format)
-        $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $systemAddress);
-        $msgId = $systemAddress . ' ' . $msgIdHash;
+        $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $originAddress);
+        $msgId = $originAddress . ' ' . $msgIdHash;
 
         // Generate kludges for this netmail
-        $kludgeLines = $this->generateNetmailKludges($systemAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
-        
+        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
+
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
             $fromUserId,
-            $systemAddress,
+            $originAddress,
             $toAddress,
             $senderName,
             $toName,
@@ -581,7 +647,23 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
-            $this->spoolOutboundNetmail($messageId);
+
+            if($toAddress!=$originAddress) {
+                if ($crashmail) {
+                    // Crashmail: queue for direct delivery only, skip normal hub routing
+                    try {
+                        $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
+                        $crashmailService->queueCrashmail($messageId);
+                    } catch (\Exception $e) {
+                        // If crashmail queue fails, fall back to normal spooling
+                        error_log("[NETMAIL] Crashmail queue failed, falling back to normal delivery: " . $e->getMessage());
+                        $this->spoolOutboundNetmail($messageId);
+                    }
+                } else {
+                    // Normal delivery via hub routing
+                    $this->spoolOutboundNetmail($messageId);
+                }
+            }
         }
 
         return $result;
@@ -655,34 +737,46 @@ class MessageHandler
         return $result;
     }
 
-    public function postEchomail($fromUserId, $echoareaTag, $toName, $subject, $messageText, $replyToId = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
             throw new \Exception('User not found');
         }
 
-        $echoarea = $this->getEchoareaByTag($echoareaTag);
+        $echoarea = $this->getEchoareaByTag($echoareaTag, $domain);
         if (!$echoarea) {
             throw new \Exception('Echo area not found');
         }
-        
-        // Get system's FidoNet address since users don't have individual addresses
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $systemAddress = $binkpConfig->getSystemAddress();
-            
-            // For echomail from points, keep the FULL point address in the from_address
-            // The point routing will be handled by FMPT kludge lines
-        } catch (\Exception $e) {
-            throw new \Exception('System FidoNet address not configured');
+
+        $isLocalArea = !empty($echoarea['is_local']);
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
+        // Determine the from address
+        $myAddress = $binkpConfig->getMyAddressByDomain($domain);
+        if (!$myAddress) {
+            if ($isLocalArea) {
+                // For local echoareas, use system address as fallback
+                $myAddress = $binkpConfig->getSystemAddress();
+            } else {
+                throw new \Exception('Can not determine sending address for this network - missing uplink?');
+            }
+        }
+
+        // Verify outbound directory is writable (only needed for non-local areas)
+        if (!$isLocalArea) {
+            $outboundPath = $binkpConfig->getOutboundPath();
+            if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
+                error_log("[ECHOMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
+                throw new \Exception('Message delivery system unavailable. Please try again later.');
+            }
         }
 
         // Generate kludges for this echomail
         $fromName = $user['real_name'] ?: $user['username'];
         $toName = $toName ?: 'All';
-        $kludgeLines = $this->generateEchomailKludges($systemAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
-        $msgId = $systemAddress . ' ' . $this->generateMessageId($fromName, $toName, $subject, $systemAddress);
+        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
+        $msgId = $myAddress . ' ' . $this->generateMessageId($fromName, $toName, $subject, $myAddress);
         
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
@@ -691,7 +785,7 @@ class MessageHandler
         
         $result = $stmt->execute([
             $echoarea['id'],
-            $systemAddress,
+            $myAddress,
             $fromName,
             $toName,
             $subject,
@@ -705,7 +799,7 @@ class MessageHandler
         if ($result) {
             $messageId = $this->db->lastInsertId();
             $this->incrementEchoareaCount($echoarea['id']);
-            $this->spoolOutboundEchomail($messageId, $echoareaTag);
+            $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
         }
 
         return $result;
@@ -745,7 +839,7 @@ class MessageHandler
             $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
         } else {
             $sql = "
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
@@ -777,10 +871,10 @@ class MessageHandler
         return $stmt->fetch();
     }
 
-    private function getEchoareaByTag($tag)
+    private function getEchoareaByTag($tag, $domain)
     {
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = TRUE");
-        $stmt->execute([$tag]);
+        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+        $stmt->execute([$tag, $domain]);
         return $stmt->fetch();
     }
 
@@ -863,94 +957,132 @@ class MessageHandler
         $stmt = $this->db->prepare("SELECT * FROM netmail WHERE id = ?");
         $stmt->execute([$messageId]);
         $message = $stmt->fetch();
-        
+
         if (!$message) {
             return false;
         }
 
+        // Extract message details for logging
+        $fromName = $message['from_name'] ?? 'unknown';
+        $fromAddr = $message['from_address'] ?? 'unknown';
+        $toName = $message['to_name'] ?? 'unknown';
+        $toAddr = $message['to_address'] ?? 'unknown';
+        $subject = $message['subject'] ?? '(no subject)';
+
+        error_log("[SPOOL] Spooling netmail #{$messageId}: from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
+
         try {
             $binkdProcessor = new BinkdProcessor();
-            
+
             // Set netmail attributes (private flag)
             $message['attributes'] = 0x0001;
-            
+
             // Create outbound packet for this message
-            $binkdProcessor->createOutboundPacket([$message], $message['to_address']);
-            
+            $packetFile = $binkdProcessor->createOutboundPacket([$message], $message['to_address']);
+            $packetName = basename($packetFile);
+
             // Mark message as sent
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
-            
+
+            error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName}");
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
-            error_log("Failed to spool netmail $messageId: " . $e->getMessage());
+            error_log("[SPOOL] Failed to spool netmail #{$messageId} (from=\"{$fromName}\" subject=\"{$subject}\"): " . $e->getMessage());
             return false;
         }
     }
 
-    private function spoolOutboundEchomail($messageId, $echoareaTag)
+    private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
     {
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea_tag 
+            SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain, ea.is_local
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             WHERE em.id = ?
         ");
         $stmt->execute([$messageId]);
         $message = $stmt->fetch();
-        
+
         if (!$message) {
             return false;
         }
 
+        // Check if this is a local-only echoarea
+        if (!empty($message['is_local'])) {
+            error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
+            return true; // Success - message stored locally, no upstream transmission needed
+        }
+
+        // Extract message details for logging
+        $fromName = $message['from_name'] ?? 'unknown';
+        $fromAddr = $message['from_address'] ?? 'unknown';
+        $subject = $message['subject'] ?? '(no subject)';
+        $areaTag = $message['echoarea_tag'] ?? $echoareaTag;
+
+        error_log("[SPOOL] Spooling echomail #{$messageId}: area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
+
         try {
             $binkdProcessor = new BinkdProcessor();
-            
-            // Don't add plain text AREA: line - echomail is identified by ^AAREA: kludge line only
-            
-            // Debug logging
-            error_log("DEBUG: Spooling echomail with AREA tag: " . $message['echoarea_tag']);
-            error_log("DEBUG: Message text starts with: " . substr($message['message_text'], 0, 50));
-            
+
             // Set echomail attributes (no private flag)
             $message['attributes'] = 0x0000;
-            
+
             // Mark as echomail for proper packet formatting
             $message['is_echomail'] = true;
             // Keep echoarea_tag available for kludge line generation
             $message['echoarea_tag'] = $message['echoarea_tag'];
-            
-            // For echomail, we typically send to our uplink
 
-            $uplinkAddress = $this->getEchoareaUplink($message['echoarea_tag']);
-            
+            // For echomail, we typically send to our uplink
+            $uplinkAddress = $this->getEchoareaUplink($message['echoarea_tag'], $domain);
+
             if ($uplinkAddress) {
                 $message['to_address'] = $uplinkAddress;
-                error_log("DEBUG: Creating echomail packet to uplink: " . $uplinkAddress);
-                $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
+                $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
+                $packetName = basename($packetFile);
+                error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
-                error_log("WARNING: No uplink address configured for echoarea: " . $message['echoarea_tag']);
+                error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
+                return false;
             }
-            
+
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
-            error_log("Failed to spool echomail $messageId: " . $e->getMessage());
+            error_log("[SPOOL] Failed to spool echomail #{$messageId} (area={$areaTag}, from=\"{$fromName}\", subject=\"{$subject}\"): " . $e->getMessage());
             return false;
         }
     }
 
-    private function getEchoareaUplink($echoareaTag)
+    /** Returns an active uplink address for a given echoarea tag and domain.  First choice is uplink in echoarea table, then to binkp.json configuration.
+     * @param $echoareaTag - the tag, eg: LOCALTEST
+     * @param $domain - the domain, eg: fidonet
+     * @return false|mixed|string
+     */
+    private function getEchoareaUplink($echoareaTag, $domain='')
     {
-        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND is_active = TRUE");
-        $stmt->execute([$echoareaTag]);
+        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
+        $stmt->execute([$echoareaTag, $domain]);
         $result = $stmt->fetch();
         
         if ($result && $result['uplink_address']) {
             return $result['uplink_address'];
         }
-        
+
+        if($domain) {
+            // Fall back to default uplink from JSON config
+            try {
+                $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $defaultAddress = $config->getUplinkAddressForDomain($domain);
+                if ($defaultAddress) {
+                    return $defaultAddress;
+                }
+            } catch (\Exception $e) {
+                // Log error but continue with hardcoded fallback
+                error_log("Failed to get default uplink for domain " . $e->getMessage());
+            }
+        }
         // Fall back to default uplink from JSON config
         try {
             $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -963,8 +1095,8 @@ class MessageHandler
             error_log("Failed to get default uplink from config: " . $e->getMessage());
         }
         
-        // Ultimate fallback if config fails
-        return '1:123/1';
+        // Ultimate fallback if config fails (was '1:123/1';
+        return false;
     }
 
     public function deleteEchomail($messageIds, $userId)
@@ -1282,30 +1414,35 @@ class MessageHandler
             
             // Create actual user account
             $userStmt = $this->db->prepare("
-                INSERT INTO users (username, password_hash, email, real_name, created_at, is_active)
-                VALUES (?, ?, ?, ?, NOW(), TRUE)
+                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active)
+                VALUES (?, ?, ?, ?, ?, NOW(), TRUE)
             ");
-            
+
             $userStmt->execute([
                 $pendingUser['username'],
                 $pendingUser['password_hash'],
                 $pendingUser['email'],
-                $pendingUser['real_name']
+                $pendingUser['real_name'],
+                $pendingUser['location'] ?? null
             ]);
             
             $newUserId = $this->db->lastInsertId();
             
             // Create default user settings
             $settingsStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page) 
+                INSERT INTO user_settings (user_id, messages_per_page)
                 VALUES (?, 25)
             ");
             $settingsStmt->execute([$newUserId]);
-            
+
+            // Create default echoarea subscriptions
+            $subscriptionManager = new EchoareaSubscriptionManager();
+            $subscriptionManager->createDefaultSubscriptions($newUserId);
+
             // Remove the pending user record since they're now a real user
             $deleteStmt = $this->db->prepare("DELETE FROM pending_users WHERE id = ?");
             $deleteStmt->execute([$pendingUserId]);
-            
+
             $this->db->commit();
             
             // Send welcome netmail to new user
@@ -1654,7 +1791,7 @@ class MessageHandler
         $message = null;
         if ($share['message_type'] === 'echomail') {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color 
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 WHERE em.id = ?
@@ -2048,7 +2185,7 @@ class MessageHandler
         if (!empty($currentMsgIds)) {
             foreach ($currentMsgIds as $currentMsgId) {
                 $stmt = $this->db->prepare("
-                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                            CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                            CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                            CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2083,7 +2220,7 @@ class MessageHandler
         if (!empty($missingMsgIds)) {
             $placeholders = implode(',', array_fill(0, count($missingMsgIds), '?'));
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2242,7 +2379,7 @@ class MessageHandler
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2364,7 +2501,7 @@ class MessageHandler
     /**
      * Get threaded echomail messages using MSGID/REPLY relationships
      */
-    public function getThreadedEchomail($echoareaTag = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    public function getThreadedEchomail($echoareaTag = null,$domain, $page = 1, $limit = null, $userId = null, $filter = 'all')
     {
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {
@@ -2396,7 +2533,7 @@ class MessageHandler
         // Get all messages for threading (need to load more data to ensure thread completeness)
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2405,10 +2542,10 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause}
+                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
                 ORDER BY em.date_received DESC
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag];
+            $params = [$userId, $userId, $userId, $echoareaTag, $domain];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
@@ -2418,7 +2555,7 @@ class MessageHandler
             // First get the base messages with a larger limit to include thread context
             $threadLimit = $limit * 3; // Load more to capture thread relationships
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2781,12 +2918,25 @@ class MessageHandler
             if (!$replyToData) {
                 $replyToData = $this->parseReplyToKludge($message);
             }
-            
+
             if ($replyToData && isset($replyToData['address'])) {
                 $cleanMessage['replyto_address'] = $replyToData['address'];
                 $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
             }
-            
+
+            // Add domain information for netmail from/to addresses
+            try {
+                $binkpCfg = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                if (!empty($cleanMessage['from_address'])) {
+                    $cleanMessage['from_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['from_address']) ?: null;
+                }
+                if (!empty($cleanMessage['to_address'])) {
+                    $cleanMessage['to_domain'] = $binkpCfg->getDomainByAddress($cleanMessage['to_address']) ?: null;
+                }
+            } catch (\Exception $e) {
+                // Ignore errors, domains are optional
+            }
+
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -2856,7 +3006,7 @@ class MessageHandler
                 
                 // Get related thread messages
                 $threadStmt = $this->db->prepare("
-                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color,
+                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                            CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                            CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                            CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved

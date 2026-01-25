@@ -199,12 +199,51 @@ class EchoareaSubscriptionManager
     public function getEchoareaSubscriberCount($echoareaId)
     {
         $sql = "
-            SELECT COUNT(*) as count 
-            FROM user_echoarea_subscriptions 
+            SELECT COUNT(*) as count
+            FROM user_echoarea_subscriptions
             WHERE echoarea_id = ? AND is_active = TRUE
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$echoareaId]);
         return $stmt->fetch()['count'];
+    }
+
+    /**
+     * Create default subscriptions for a new user
+     * Subscribes user to all echoareas marked as is_default_subscription = TRUE
+     *
+     * @param int $userId The user ID to create subscriptions for
+     * @return int Number of subscriptions created
+     */
+    public function createDefaultSubscriptions($userId)
+    {
+        // Get all default echoareas
+        $sql = "
+            SELECT id FROM echoareas
+            WHERE is_active = TRUE AND is_default_subscription = TRUE
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+        $defaultEchoareas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $count = 0;
+        foreach ($defaultEchoareas as $echoarea) {
+            // Check if subscription already exists
+            $existing = $this->getUserSubscriptionStatus($userId, $echoarea['id']);
+
+            if (!$existing) {
+                // Create new subscription with 'auto' type
+                $insertSql = "
+                    INSERT INTO user_echoarea_subscriptions (user_id, echoarea_id, subscription_type)
+                    VALUES (?, ?, 'auto')
+                ";
+                $insertStmt = $this->db->prepare($insertSql);
+                if ($insertStmt->execute([$userId, $echoarea['id']])) {
+                    $count++;
+                }
+            }
+        }
+
+        return $count;
     }
 }

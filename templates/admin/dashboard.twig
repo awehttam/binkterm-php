@@ -75,27 +75,8 @@
         </div>
     </div>
 
-    <!-- Recent Updates -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-bullhorn me-2"></i>
-                        Recent Updates
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div id="adminRecentUpdates">
-                        {% include 'recent_updates.twig' %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Quick Actions -->
-    <div class="row">
+    <div class="row mb-4">
         <div class="col-lg-6 mb-4">
             <div class="card shadow">
                 <div class="card-header py-3">
@@ -111,6 +92,15 @@
                         </a>
                         <a href="/echoareas" class="btn btn-info">
                             <i class="fas fa-comments me-2"></i>Manage Echo Areas
+                        </a>
+                        <a href="/admin/crashmail" class="btn btn-warning">
+                            <i class="fas fa-bolt me-2"></i>Crashmail Queue
+                        </a>
+                        <a href="/admin/insecure-nodes" class="btn btn-outline-secondary">
+                            <i class="fas fa-shield-alt me-2"></i>Insecure Nodes
+                        </a>
+                        <a href="/admin/binkp-sessions" class="btn btn-outline-info">
+                            <i class="fas fa-history me-2"></i>Session Log
                         </a>
                     </div>
                 </div>
@@ -148,6 +138,25 @@
                         <div class="col-sm-6">
                             {{ fidonetOrigin }}
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Updates -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-bullhorn me-2"></i>
+                        Recent Updates
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="adminRecentUpdates">
+                        {% include 'recent_updates.twig' %}
                     </div>
                 </div>
             </div>

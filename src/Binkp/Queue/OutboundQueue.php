@@ -60,7 +60,7 @@ class OutboundQueue
             throw $e;
         }
     }
-    
+    /* XXX: Not used
     public function queueEchomail($fromAddress, $echoareaTag, $fromName, $toName, $subject, $messageText)
     {
         try {
@@ -118,7 +118,8 @@ class OutboundQueue
         
         return $uplinks[0]['address'];
     }
-    
+    */
+
     public function processOutbound()
     {
         $outboundPath = $this->config->getOutboundPath();

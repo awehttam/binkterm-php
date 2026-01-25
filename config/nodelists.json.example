@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "name": "FidoNet",
+      "domain": "fidonet",
+      "url": "https://darkrealms.ca/NODELIST.Z|DAY|",
+      "enabled": true
+    },
+    {
+      "name": "FSXNet",
+      "domain": "fsxnet",
+      "url": "https://fsxnet.nz/fsxnode.zip",
+      "enabled": true
+    }
+  ]
+}

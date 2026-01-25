@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\MessageHandler;
 use BinktermPHP\Database;
@@ -23,6 +24,7 @@ function showUsage()
     echo "\n";
     echo "Echomail options:\n";
     echo "  --echoarea=TAG        Echo area tag (e.g., GENERAL)\n";
+    echo "  --domain=DOMAIN       The network domain (e.g., fidonet)\n";
     echo "  --to-name=NAME        To name (optional, defaults to 'All')\n";
     echo "  --reply-to=ID         Reply to message ID (optional)\n";
     echo "\n";
@@ -45,7 +47,7 @@ function showUsage()
     echo "\n";
     echo "  # Post to echomail\n";
     echo "  php post_message.php --type=echomail --from=1:153/149.57599 \\\n";
-    echo "    --from-name=\"John Doe\" --echoarea=GENERAL \\\n";
+    echo "    --from-name=\"John Doe\" --echoarea=GENERAL --domain=fidonet \\\n";
     echo "    --subject=\"General Discussion\" --file=message.txt\n";
     echo "\n";
     echo "  # Read from stdin\n";
@@ -118,11 +120,12 @@ function listEchoAreas()
     $areas = $stmt->fetchAll();
     
     echo "Available echo areas:\n";
-    echo str_pad("Tag", 20) . str_pad("Description", 40) . "Messages\n";
+    echo str_pad("Tag", 20) . str_pad("Domain", 10).str_pad("Description", 40) . "Messages\n";
     echo str_repeat("-", 70) . "\n";
     
     foreach ($areas as $area) {
-        echo str_pad($area['tag'], 20) . 
+        echo str_pad($area['tag'], 20) .
+             str_pad($area['domain'], 10).
              str_pad(substr($area['description'] ?: 'N/A', 0, 39), 40) . 
              $area['message_count'] . "\n";
     }
@@ -174,8 +177,8 @@ function validateEchomailArgs($args)
     
     // Check if echoarea exists
     $db = Database::getInstance()->getPdo();
-    $stmt = $db->prepare("SELECT * FROM echoareas WHERE tag = ? AND is_active = TRUE");
-    $stmt->execute([$args['echoarea']]);
+    $stmt = $db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
+    $stmt->execute([$args['echoarea'], $args['domain']]);
     $area = $stmt->fetch();
     
     if (!$area) {
@@ -230,6 +233,7 @@ function postEchomail($args, $user, $messageText)
     $result = $handler->postEchomail(
         $user['id'],
         $args['echoarea'],
+        $args['domain'],
         $toName,
         $args['subject'],
         $messageText,

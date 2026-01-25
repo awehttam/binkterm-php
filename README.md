@@ -14,6 +14,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - [Features](#features)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
 - [Operation](#operation)
@@ -28,14 +29,34 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 
 ## Screen shots
 
-![Echomail list](docs/screenshots/echomail.png)
-![Echomail](docs/screenshots/read_echomail.png)
-![Netmail](docs/screenshots/read_netmail.png)
-![User Management](docs/screenshots/usermanagement.png)
-![Echoarea management](docs/screenshots/echomanagement.png)
-![BinkP management](docs/screenshots/binkp_management.png)
-![Mobile Echolist](docs/screenshots/moble_echolist.png)
-![Mobile Echoread](docs/screenshots/mobile_echoread.png) 
+Here are some screen shots showing various aspects of the interface with different themes.
+
+<table>
+  <tr>
+    <td align="center"><b>Echomail list</b><br><img src="docs/screenshots/echomail.png" width="400"></td>
+    <td align="center"><b>Echomail</b><br><img src="docs/screenshots/read_echomail.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Netmail</b><br><img src="docs/screenshots/read_netmail.png" width="400"></td>
+    <td align="center"><b>Custom Themes</b><br><img src="docs/screenshots/cyberpunk.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>User Management</b><br><img src="docs/screenshots/usermanagement.png" width="400"></td>
+    <td align="center"><b>Echoarea management</b><br><img src="docs/screenshots/echomanagement.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Mobile Echoread</b><br><img src="docs/screenshots/mobile_echoread.png" width="400"></td>
+    <td align="center"><b>Mobile Echolist</b><br><img src="docs/screenshots/moble_echolist.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><B>ANSI Decoder</B><br><img src="docs/screenshots/ansisys.png" width="400"></td>
+    <td align="center"><b>Node List Browser</b><br><img src="docs/screenshots/nodelist.png" width="400"></td>
+  </tr>
+<tr>
+</tr>
+
+</table>
+
 
 ## Features
 
@@ -49,6 +70,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - **Search Capabilities** - Full-text search across messages and echo areas
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
+- **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 
 ### Native Binkp Protocol Support
 - **FTS-1026 Compliant** - Full (really?)  binkp/1.0 protocol implementation
@@ -70,10 +92,10 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 ## Installation
 
 ### Requirements
-- **PHP 8.0+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM
+- **PHP 8.0+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
-- **Operating System** - Windows, Linux, or macOS
+- **Operating System** - Linux, macOS, Windows (no binkp_server)
 
 ### Step 1: Clone Repository
 ```bash
@@ -86,7 +108,15 @@ cd binkterm-php
 composer install
 ```
 
-### Step 3: Set Up Database and Admin User
+### Step 3: Configure Environment
+Copy the example environment file and configure your settings:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
+
+### Step 4: Install the database schema and configure the initial Admin user
 Use the installation script for automated setup:
 ```bash
 # Interactive installation (prompts for admin credentials)
@@ -143,22 +173,41 @@ cd public_html
 php -S localhost:8080
 ```
 
+### Step 6: Set Up Cron Jobs (Recommended)
+Add cron jobs for automated mail polling and nodelist updates:
+
+```cron
+# Poll uplinks every 15 minutes
+*/15 * * * * /usr/bin/php /path/to/binkterm/scripts/binkp_poll.php --quiet
+
+# Update nodelists daily at 3am
+0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
+```
+
+See the [Operation](#operation) section for additional cron job examples.
+
+### Step 7: Set Directory Permissions
+The `data/outbound` directory must be writable by both the web server and the user running binkp scripts:
+
+```bash
+chmod a+rwxt data/outbound
+```
+
+The sticky bit (`t`) ensures files can only be deleted by their owner, preventing conflicts between the web server and shell user.
+
 ## Configuration
 
 ### Basic System Configuration
-Edit `config/binkp.json` to configure your system.
-
- - sysop must match the sysop user's name otherwise netmail destined to 'sysop' will fail.
+Edit `config/binkp.json` to configure your system. See `config/binkp.json.example` for a complete reference.
 
 ```json
 {
     "system": {
-        "name": "Claude's BBS",
-        "address": "1:1/0.123",
-        "sysop": "Your Name",
-        "location": "Your City, State",
-        "hostname": "your.domain.com",
-        "website": "https://yourbbs.com",
+        "name": "My new BinktermPHP system",
+        "address": "1:123/456.57599",
+        "sysop": "Claude the Coder",
+        "location": "Over Yonder",
+        "hostname": "localhost",
         "timezone": "UTC"
     },
     "binkp": {
@@ -172,34 +221,207 @@ Edit `config/binkp.json` to configure your system.
     },
     "uplinks": [
         {
-            "default": true,
-            "address": "1:1/0.0",
-            "hostname": "hub.fidonet.org",
+            "me": "1:123/456.57599",
+            "networks": [
+                "1:*/*",
+                "2:*/*",
+                "3:*/*",
+                "4:*/*"
+            ],
+            "address": "1:123/456",
+            "domain": "fidonet",
+            "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
-            "password": "your_password",
+            "password": "xyzzy",
             "poll_schedule": "0 */4 * * *",
             "enabled": true,
             "compression": false,
-            "crypt": false
+            "crypt": false,
+            "default": true
         }
-    ]
+    ],
+    "security": {
+        "allow_insecure_inbound": false,
+        "allow_insecure_outbound": false,
+        "insecure_inbound_receive_only": true,
+        "require_allowlist_for_insecure": false,
+        "max_insecure_sessions_per_hour": 10,
+        "insecure_session_timeout": 60,
+        "log_all_sessions": true
+    },
+    "crashmail": {
+        "enabled": true,
+        "max_attempts": 3,
+        "retry_interval_minutes": 15,
+        "use_nodelist_for_routing": true,
+        "fallback_port": 24554,
+        "allow_insecure_crash_delivery": true
+    },
+    "transit": {
+        "allow_transit_mail": false,
+        "transit_only_for_known_routes": true
+    }
 }
 ```
 
 ### Configuration Options
 
 #### System Settings
-- **name**: The system's name
-- **address**: Your FTN address (zone:net/node.point)
-- **sysop**: System operator name.  Must match the actual real name as the sysops user account.
-- **location**: Geographic location
-- **hostname**: Your internet hostname
-- **website**: Optional website URL (displayed in message origin lines)
-- **timezone**: The system's timezone (https://www.php.net/manual/en/timezones.php)
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Your system's display name |
+| `address` | Yes | Your primary FTN address (zone:net/node.point) |
+| `sysop` | Yes | System operator name. **Must match the real name on your sysop user account** for netmail addressed to "sysop" to be delivered correctly |
+| `location` | No | Geographic location (displayed in system info) |
+| `hostname` | Yes | Your internet hostname or IP address |
+| `website` | No | Website URL (included in message origin lines) |
+| `timezone` | Yes | System timezone ([PHP timezone list](https://www.php.net/manual/en/timezones.php)) |
 
 **Note**: When the `website` field is configured, it will be included in FidoNet message origin lines:
 - Without website: `* Origin: My BBS System (1:234/567)`
 - With website: `* Origin: My BBS System <https://mybbs.com> (1:234/567)`
+
+#### Binkp Settings
+| Field | Default | Description |
+|-------|---------|-------------|
+| `port` | 24554 | TCP port for binkp server |
+| `timeout` | 300 | Connection timeout in seconds |
+| `max_connections` | 10 | Maximum simultaneous connections |
+| `bind_address` | 0.0.0.0 | IP address to bind to (0.0.0.0 for all interfaces) |
+| `inbound_path` | data/inbound | Directory for incoming packets |
+| `outbound_path` | data/outbound | Directory for outgoing packets |
+| `preserve_processed_packets` | false | If true, moves processed packets to a `processed/` subdirectory instead of deleting |
+
+#### Uplink Configuration
+Each uplink in the `uplinks` array supports the following fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `me` | Yes | Your FTN address as presented to this uplink |
+| `address` | Yes | The uplink's FTN address |
+| `hostname` | Yes | Uplink hostname or IP address |
+| `port` | Yes | Uplink port (typically 24554) |
+| `password` | Yes | Authentication password (shared secret) |
+| `domain` | Yes | Network domain (e.g., "fidonet", "fsxnet", "agoranet") |
+| `networks` | Yes | Array of address patterns this uplink routes (e.g., `["1:*/*", "2:*/*"]`) |
+| `poll_schedule` | No | Cron expression for automated polling (e.g., `"0 */4 * * *"` = every 4 hours) |
+| `enabled` | No | Whether uplink is active (default: true) |
+| `default` | No | Whether this is the default uplink for unrouted messages |
+| `compression` | No | Enable compression (not yet implemented) |
+| `crypt` | No | Enable encryption (not yet implemented) |
+
+**Network Patterns**: The `networks` field uses wildcard patterns to define which addresses route through this uplink:
+- `1:*/*` - All Zone 1 addresses
+- `21:*/*` - All Zone 21 addresses (FSXNet)
+- `46:*/*` - All Zone 46 addresses (AgoraNet)
+
+**Multiple Networks Example**:
+```json
+{
+    "uplinks": [
+        {
+            "me": "1:123/456.57599",
+            "address": "1:123/456",
+            "domain": "fidonet",
+            "networks": ["1:*/*", "2:*/*", "3:*/*", "4:*/*"],
+            "hostname": "fidonet-hub.example.com",
+            "port": 24554,
+            "password": "fido_password",
+            "default": true,
+            "enabled": true
+        },
+        {
+            "me": "21:1/999",
+            "address": "21:1/100",
+            "domain": "fsxnet",
+            "networks": ["21:*/*"],
+            "hostname": "fsxnet-hub.example.com",
+            "port": 24554,
+            "password": "fsx_password",
+            "enabled": true
+        }
+    ]
+}
+```
+
+#### Security Settings
+The `security` section controls insecure (passwordless) binkp sessions:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `allow_insecure_inbound` | false | Allow incoming connections without password authentication |
+| `allow_insecure_outbound` | false | Allow outgoing connections without password authentication |
+| `insecure_inbound_receive_only` | true | Insecure sessions can only deliver mail, not pick up |
+| `require_allowlist_for_insecure` | false | Only allow insecure sessions from nodes in the allowlist |
+| `max_insecure_sessions_per_hour` | 10 | Rate limit for insecure sessions per remote address |
+| `insecure_session_timeout` | 60 | Timeout in seconds for insecure sessions |
+| `log_all_sessions` | true | Log all binkp sessions for audit trail |
+
+**Security Note**: Insecure sessions should be used with caution. They are typically used for receiving mail from nodes that don't have your password configured. The allowlist (managed via Admin > Insecure Nodes) provides fine-grained control over which nodes can connect without authentication.
+
+#### Crashmail Settings
+The `crashmail` section controls immediate/direct delivery of netmail:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | false | Enable crashmail (direct delivery) functionality |
+| `max_attempts` | 3 | Maximum delivery attempts before marking as failed |
+| `retry_interval_minutes` | 15 | Minutes to wait between retry attempts |
+| `use_nodelist_for_routing` | true | Look up destination in nodelist for hostname/port |
+| `fallback_port` | 24554 | Default port if not found in nodelist |
+| `allow_insecure_crash_delivery` | false | Allow crashmail delivery without password |
+
+**About Crashmail**: Crashmail bypasses normal hub routing and attempts direct delivery to the destination node. This is useful for urgent messages but requires the destination node to be directly reachable. The system uses nodelist IBN/INA flags to determine the destination's hostname and port.
+
+#### Transit Settings
+The `transit` section controls mail routing through your system:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `allow_transit_mail` | false | Allow routing mail not destined for this system |
+| `transit_only_for_known_routes` | true | Only transit mail for addresses in your routing table |
+
+### Nodelist Configuration
+
+Create `config/nodelists.json` to configure automatic nodelist downloads. See `config/nodelists.json.example` for a complete reference.
+
+```json
+{
+    "sources": [
+        {
+            "name": "FidoNet",
+            "domain": "fidonet",
+            "url": "https://example.com/NODELIST.Z|DAY|",
+            "enabled": true
+        },
+        {
+            "name": "FSXNet",
+            "domain": "fsxnet",
+            "url": "https://bbs.nz/fsxnet/FSXNET.ZIP",
+            "enabled": true
+        }
+    ]
+}
+```
+
+#### Source Configuration
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name for the nodelist source |
+| `domain` | Yes | Network domain identifier (e.g., "fidonet", "fsxnet") |
+| `url` | Yes | Download URL, supports date macros (see below) |
+| `enabled` | No | Whether this source is active (default: true) |
+
+#### URL Macros
+URLs support date macros for dynamic nodelist filenames:
+
+| Macro | Description | Example |
+|-------|-------------|---------|
+| `\|DAY\|` | Day of year (1-366) | 23 |
+| `\|YEAR\|` | 4-digit year | 2026 |
+| `\|YY\|` | 2-digit year | 26 |
+| `\|MONTH\|` | 2-digit month | 01 |
+| `\|DATE\|` | 2-digit day of month | 22 |
 
 ### Web Terminal Configuration
 
@@ -269,76 +491,43 @@ The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebS
 - Consider network security for both the proxy server and target SSH server
 - The proxy server should be properly secured and regularly updated
 
-#### Binkp Settings
-- **port**: TCP port for binkp server (default: 24554)
-- **timeout**: Connection timeout in seconds
-- **max_connections**: Maximum simultaneous connections
-- **bind_address**: IP address to bind to (0.0.0.0 for all)
-- **inbound_path**: Directory for incoming files
-- **outbound_path**: Directory for outgoing files
-- **preserve_processed_packets**: Move packets to the processed directory after processing
+## Upgrading
 
-#### Uplink Configuration
-- **default**: Whether this is the default uplink or not
-- **address**: Uplink FTN address
-- **hostname**: Uplink hostname or IP
-- **port**: Uplink port (usually 24554)
-- **password**: Authentication password
-- **poll_schedule**: Cron expression for polling (e.g., "0 */4 * * *" = every 4 hours)
-- **enabled**: Whether uplink is active
-- **compression**: Enable compression (not yet implemented)
-- **crypt**: Enable encryption (not yet implemented)
+In general, you can follow these general steps when upgrading BinktermPHP however individual versions may have their own requirements.
+
+**Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path **BEFORE** upgrading.
+
+The general steps are:
+
+1. **Pull the latest code** - `git pull`
+2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
+3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
+
+
+### Version-Specific Upgrade Guides
+
+- January 24 2026 - [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
 
 ## Database Management
 
-### Installation and Upgrades
-BinktermPHP includes scripts for database installation and schema migrations:
-
-### Composer packaging
+### Database Scripts
 
 ```bash
-composer install
-```
-### Configuration
-#### System configuration
-
-Postgres, SMTP, web terminal, and other miscellaneous settings are controlled through ".env" in the main directory.  See .env.example for reference.
-
-#### Node configuration
-
-Create config/binkp.json (see binkp.json.example for reference) with appropriate parameters.  
-
-### Schema installation
-
-```bash
-# Install fresh database with admin user
+# Fresh installation with admin user
 php scripts/install.php                    # Interactive mode
-php scripts/install.php --non-interactive  # Uses defaults
+php scripts/install.php --non-interactive  # Uses defaults (admin/admin123)
 
-# Auto-detect and run install or upgrade
+# Auto-detect install vs upgrade
 php scripts/setup.php                      # Smart setup
 php scripts/setup.php status               # Show system status
 
-# Database migrations
-php scripts/upgrade.php                    # Apply pending migrations
+# Apply pending migrations
+php scripts/upgrade.php                    # Run migrations
 php scripts/upgrade.php status             # Show migration status
-php scripts/upgrade.php create 1.3.0 "add feature"  # Create new migration
+
+# Create a new migration (for developers)
+php scripts/upgrade.php create 1.3.0 "add feature"
 ```
-
-### File system permissions
-
-The directories:
-
-data/outbound
-data/logs
-
-must be writable by the web server and the user that runs the binkp_ scripts.  Quick but not optimal permissions would be:
-
-chmod 777 data/outbound
-chmod g+s data/outbound
-chmod 777 data/logs
-
-but a better model would be to collaborate with the group id your web server or php runner runs as.
 
 ### Migration System
 Database changes are managed through versioned SQL migration files stored in `database/migrations/`:
@@ -452,7 +641,11 @@ Options:
 
 ### Binkp Server Management
 
-Polling is supported on all platforms, except for Windows where binkp_server will not operate.
+The binkp server (`binkp_server.php`) listens for incoming connections from other FTN nodes. When another system wants to send you mail or pick up outbound packets, they connect to your binkp server. This is essential for receiving crashmail (direct delivery) and for other nodes to poll your system.
+
+Polling (`binkp_poll.php`) makes outbound connections to your uplinks to send and receive mail. You can run polling manually or via cron. Polling works on all platforms.
+
+**Note:** The binkp server requires `pcntl_fork()` which is not available on Windows.
 
 #### Start Binkp Server
 ```bash
@@ -464,6 +657,42 @@ php scripts/binkp_server.php --daemon
 
 # Custom port and logging
 php scripts/binkp_server.php --port=24554 --log-level=DEBUG
+```
+
+#### Running as a System Service
+
+To run the binkp server automatically on system startup, create a systemd service file:
+
+```bash
+sudo nano /etc/systemd/system/binkp.service
+```
+
+```ini
+[Unit]
+Description=BinktermPHP Binkp Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=yourusername
+Group=yourusername
+WorkingDirectory=/path/to/binkterm
+ExecStart=/usr/bin/php /path/to/binkterm/scripts/binkp_server.php
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Replace `yourusername` with the user account that runs CLI scripts (the same user that owns the `data/outbound` directory).
+
+Enable and start the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable binkp
+sudo systemctl start binkp
+sudo systemctl status binkp
 ```
 
 #### Manual Polling
@@ -519,6 +748,64 @@ php scripts/debug_binkp.php 1:153/149
 php scripts/process_packets.php
 ```
 
+### Nodelist Updates
+Automatically download and import nodelists from configured sources.
+
+#### Configuration
+Create `config/nodelists.json` (or run the script once to generate an example):
+
+```json
+{
+    "sources": [
+        {
+            "name": "FidoNet",
+            "domain": "fidonet",
+            "url": "https://example.com/NODELIST.Z|DAY|",
+            "enabled": true
+        },
+        {
+            "name": "FSXNet",
+            "domain": "fsxnet",
+            "url": "https://bbs.nz/fsxnet/FSXNET.ZIP",
+            "enabled": true
+        }
+    ],
+    "settings": {
+        "keep_downloads": 3,
+        "timeout": 300,
+        "user_agent": "BinktermPHP Nodelist Updater"
+    }
+}
+```
+
+#### URL Macros
+URLs support date macros for dynamic nodelist filenames:
+
+| Macro | Description | Example |
+|-------|-------------|---------|
+| `\|DAY\|` | Day of year (1-366) | 23 |
+| `\|YEAR\|` | 4-digit year | 2026 |
+| `\|YY\|` | 2-digit year | 26 |
+| `\|MONTH\|` | 2-digit month | 01 |
+| `\|DATE\|` | 2-digit day of month | 22 |
+
+Example: `https://example.com/NODELIST.Z|DAY|` becomes `NODELIST.Z23` on day 23.
+
+#### Usage
+```bash
+# Run nodelist update (downloads and imports all enabled sources)
+php scripts/update_nodelists.php
+
+# Quiet mode (for cron jobs)
+php scripts/update_nodelists.php --quiet
+
+# Force update even if recently updated
+php scripts/update_nodelists.php --force
+
+# Show help and available macros
+php scripts/update_nodelists.php --help
+```
+
 ## Operation
 
 ### Starting the System
@@ -546,11 +833,16 @@ php scripts/process_packets.php
 Add these entries to your crontab for automated operation:
 
 ```bash
-# Process inbound packets every 5 minutes
+# Process inbound packets every 3 minutes
 */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+
+# Poll uplinks every 5 minutes
 */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php
 
-# Backup database daily
+# Update nodelists daily at 4am
+0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
+
+# Backup database daily at 2am
 0 2 * * * cp /path/to/binktest/data/binktest.db /path/to/backups/binktest-$(date +\%Y\%m\%d).db
 
 # Rotate logs weekly
@@ -687,45 +979,121 @@ If you encounter issues not covered here:
 - Regular security updates of dependencies
 - Consider rate limiting for API endpoints
 
-## File Structure
+# Gateway Token Authentication
 
+The **Gateway Token** system allows remote components (such as Door servers, external modules, or automatic 
+login scripts) to securely verify a user’s identity without requiring the user to share their primary BBS 
+credentials with the remote system.
+
+## Authentication Flow
+
+1.  **Handshake Initiation**: A user visits the BBS and hits (for example) a link like `/bbslink/`.
+2.  **Redirect**: The BBS generates a temporary, single-use token and redirects the user to the remote gateway URL (e.g., `https://remote-door.com/login?userid=123&token=abc...`).
+3.  **Back-Channel Validation**: The remote gateway receives the user. Before granting access, it makes a server-to-server POST request back to the BBS with its **API Key**, the **UserID**, and the **Token**.
+4.  **Verification**: The BBS validates the request. If successful, the gateway receives the user's profile information and initiates a local session.
+
+---
+
+## API Specification
+
+**Endpoint:** `POST /auth/verify-gateway-token`
+
+### Headers
+| Header | Value | Description |
+| :--- | :--- | :--- |
+| `Content-Type` | `application/json` | Required |
+| `X-API-Key` | `YOUR_BBS_API_KEY` | Must match the `BBSLINK_API_KEY` in the BBS `.env` |
+
+### Request Body
+The server accepts either `userid` or `user_id` as the key.
+
+```json
+{
+    "userid": 1,
+    "token": "78988029a8385f9..."
+}
 ```
-binktest/
-├── config/
-│   └── binkp.json              # Binkp configuration
-├── src/
-│   ├── Auth.php                # Authentication
-│   ├── Database.php            # Database connection
-│   ├── MessageHandler.php      # Message processing
-│   ├── BinkdProcessor.php      # Packet processing
-│   ├── Template.php            # Twig rendering
-│   └── Binkp/                  # Binkp implementation
-│       ├── Protocol/           # Protocol classes
-│       ├── Connection/         # Connection management
-│       ├── Config/            # Configuration
-│       ├── Queue/             # Queue processing
-│       └── Web/               # Web interface
-├── scripts/
-│   ├── binkp_server.php       # Binkp server daemon
-│   ├── binkp_poll.php         # Manual polling
-│   ├── binkp_status.php       # System status
-│   ├── binkp_scheduler.php    # Automated scheduler
-│   ├── debug_binkp.php        # Debug connections
-│   ├── post_message.php       # Message posting tool
-│   └── process_packets.php    # Packet processor
-├── templates/                  # Twig templates
-│   └── custom/                # Custom template insertions
-├── public_html/               # Web root
-│   ├── css/                   # Stylesheets
-│   ├── js/                    # JavaScript
-│   └── index.php             # Main application
-├── data/
-│   ├── inbound/              # Incoming packets
-│   ├── outbound/             # Outgoing packets (shared permissions between web server and shell account)
-│   ├── logs/                 # Log files  (shared permissions between web server and shell account)
-└── database/
-    └── migrations/                # Database migration files
+
+### Response Formats
+```json
+{
+   "valid": true,
+   "userInfo": {
+   "id": 1,
+   "username": "Sysop",
+   "email": "admin@example.com"
+}
 ```
+
+### Failure (401/400 bad request)
+
+```json
+{
+    "valid": false,
+    "error": "Invalid or expired token"
+}
+```
+
+### Remote verification example
+
+
+```json
+<?php
+
+/**
+ * Example function to verify a token against the BBS
+ */
+function verifyWithBBS($userId, $token) {
+    $bbsUrl = '[https://your-bbs-domain.com/auth/verify-gateway-token](https://your-bbs-domain.com/auth/verify-gateway-token)';
+    $apiKey = 'your_configured_api_key';
+
+    $payload = json_encode([
+        'userid' => $userId,
+        'token'  => $token
+    ]);
+
+    $ch = curl_init($bbsUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'X-API-Key: ' . $apiKey
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        if ($data['valid']) {
+            return $data['userInfo']; // Token is valid!
+        }
+    }
+
+    return false; // Invalid token or API key
+}
+
+// --- Usage in a landing page ---
+$userIdFromUrl = $_GET['userid'] ?? null;
+$tokenFromUrl  = $_GET['token'] ?? null;
+
+if ($userIdFromUrl && $tokenFromUrl) {
+    $user = verifyWithBBS($userIdFromUrl, $tokenFromUrl);
+    
+    if ($user) {
+        echo "Welcome, " . htmlspecialchars($user['username']);
+        // Proceed to log the user into the local system...
+    } else {
+        die("Authentication failed.");
+    }
+}
+```
+
+## Frequently Asked Questions
+
+See [FAQ.md](FAQ.md) for Frequently (or infrequently) Asked Questions
 
 ## Contributing
 

@@ -26,7 +26,7 @@
                     
                     <div class="mb-3">
                         <label for="realName" class="form-label">Real Name</label>
-                        <input type="text" class="form-control" id="realName" name="real_name" value="{{ user_real_name }}" maxlength="100">
+                        <input type="text" class="form-control" id="realName" name="real_name" value="{{ user_real_name }}" readonly maxlength="100">
                         <div class="form-text">Your real name as displayed in messages</div>
                     </div>
                     
@@ -35,7 +35,13 @@
                         <input type="email" class="form-control" id="email" name="email" value="{{ user_email }}" maxlength="100">
                         <div class="form-text">Email address (optional, not shown publicly)</div>
                     </div>
-                    
+
+                    <div class="mb-3">
+                        <label for="location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="location" name="location" value="{{ user_location }}" maxlength="100" placeholder="City, State/Country">
+                        <div class="form-text">Your location (shown in who's online)</div>
+                    </div>
+
                     <div class="mb-4">
                         <h6>Change Password</h6>
                         <div class="row">

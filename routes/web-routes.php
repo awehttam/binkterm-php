@@ -182,7 +182,7 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $echoarea = urldecode($echoarea);
     $template = new Template();
     $template->renderResponse('echomail.twig', ['echoarea' => $echoarea]);
-})->where(['echoarea' => '[A-Za-z0-9._-]+']);
+})->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
 SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     // Don't require authentication for shared messages - the API will handle access control
@@ -277,6 +277,7 @@ SimpleRouter::get('/profile', function() {
         'user_username' => $user['username'],
         'user_real_name' => $user['real_name'] ?? '',
         'user_email' => $user['email'] ?? '',
+        'user_location' => $user['location'] ?? '',
         'user_created_at' => $user['created_at'],
         'user_last_login' => $user['last_login'],
         'user_is_admin' => (bool)$user['is_admin'],
@@ -344,6 +345,45 @@ SimpleRouter::get('/settings', function() {
     $template->renderResponse('settings.twig', $templateVars);
 });
 
+// BBSLink Gateway redirect - generates token and redirects to external gateway
+SimpleRouter::get('/bbslink', function() {
+    /*
+Uses settings in .ennv:
+
+#  BBSLink Gateway Configuration
+# BBSLINK_GATEWAY_URL=https://gateway.example.com/
+# BBSLINK_API_KEY=your-secret-api-key
+*/
+
+    // This method is disabled because the bbslinkgateway doesn't work correctly.  Keep this function until someone
+    // sorts out the gateway (if it's possible) and this can be used as an example for redirecting to a third party
+    // service that does a call back verification to verify a gateway token
+    throw new Exception("Disabled");
+
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    $gatewayUrl = \BinktermPHP\Config::env('BBSLINK_GATEWAY_URL');
+    if (empty($gatewayUrl)) {
+        http_response_code(503);
+        echo "BBSLink gateway not configured";
+        return;
+    }
+
+    // Generate gateway token
+    $token = $auth->generateGatewayToken($user['user_id'], 'menu', 300);
+
+    // Build redirect URL with userid and token
+    $separator = (strpos($gatewayUrl, '?') !== false) ? '&' : '?';
+    $redirectUrl = $gatewayUrl . $separator . 'userid=' . $user['user_id'] . '&token=' . $token;
+
+    return SimpleRouter::response()->redirect($redirectUrl);
+});
+
 SimpleRouter::get('/admin/users', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -400,6 +440,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
     // Handle reply and echoarea parameters
     $replyId = $_GET['reply'] ?? null;
     $echoarea = $_GET['echoarea'] ?? null;
+    $domainParam = $_GET['domain'] ?? null;
 
     // Handle new message parameters (from nodelist)
     $toAddress = $_GET['to'] ?? null;
@@ -410,9 +451,11 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemName = $binkpConfig->getSystemName();
         $systemAddress = $binkpConfig->getSystemAddress();
+        $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
     } catch (\Exception $e) {
         $systemName = 'BinktermPHP System';
         $systemAddress = 'Not configured';
+        $crashmailEnabled = false;
     }
 
     $templateVars = [
@@ -420,7 +463,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'current_user' => $user,
         'user_name' => $user['real_name'] ?: $user['username'],
         'system_name_display' => $systemName,
-        'system_address_display' => $systemAddress
+        'system_address_display' => $systemAddress,
+        'crashmail_enabled' => $crashmailEnabled
     ];
 
     if ($replyId) {
@@ -465,16 +509,20 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 // Remove "Re: " prefix if it exists (case insensitive)
                 $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
                 $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
-                $echoarea = $originalMessage['echoarea']; // Use original echoarea for reply
-
+                // Set echoarea with domain for proper select matching (format: tag@domain)
+                $echoarea = $originalMessage['echoarea'] . '@' . $originalMessage['domain'];
+                $templateVars['domain'] = $originalMessage['domain'];
                 // Filter out kludge lines from the quoted message
                 $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
 
                 // Generate initials from the original poster's name
                 $initials = generateInitials($originalMessage['from_name']);
 
+
+
                 // Quote the message intelligently - only quote original lines, not existing quotes
                 $quotedText = quoteMessageText($cleanMessageText, $initials);
+
 
                 $templateVars['reply_text'] = "\n\n--- Original Message ---\n" .
                     "From: {$originalMessage['from_name']}\n" .
@@ -486,6 +534,10 @@ SimpleRouter::get('/compose/{type}', function($type) {
     }
 
     if ($echoarea) {
+        // Combine echoarea with domain if provided separately and not already in tag@domain format
+        if ($domainParam && strpos($echoarea, '@') === false) {
+            $echoarea = $echoarea . '@' . $domainParam;
+        }
         $templateVars['echoarea'] = $echoarea;
     }
 

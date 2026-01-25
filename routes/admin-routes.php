@@ -143,9 +143,229 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $stats = $adminController->getSystemStats();
             echo json_encode($stats);
         });
+
+        // ========================================
+        // Insecure Nodes Management
+        // ========================================
+
+        // List insecure nodes
+        SimpleRouter::get('/insecure-nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $nodes = $adminController->getInsecureNodes();
+            echo json_encode(['nodes' => $nodes]);
+        });
+
+        // Add insecure node
+        SimpleRouter::post('/insecure-nodes', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $nodeId = $adminController->addInsecureNode($input);
+                echo json_encode(['success' => true, 'id' => $nodeId]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // Update insecure node
+        SimpleRouter::put('/insecure-nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $result = $adminController->updateInsecureNode($id, $input);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // Delete insecure node
+        SimpleRouter::delete('/insecure-nodes/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $result = $adminController->deleteInsecureNode($id);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // ========================================
+        // Crashmail Queue Management
+        // ========================================
+
+        // Get crashmail queue stats
+        SimpleRouter::get('/crashmail/stats', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $stats = $adminController->getCrashmailStats();
+            echo json_encode($stats);
+        });
+
+        // Get crashmail queue items
+        SimpleRouter::get('/crashmail/queue', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $status = $_GET['status'] ?? null;
+            $limit = intval($_GET['limit'] ?? 50);
+            $items = $adminController->getCrashmailQueue($status, $limit);
+            echo json_encode(['items' => $items]);
+        });
+
+        // Retry failed crashmail
+        SimpleRouter::post('/crashmail/{id}/retry', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $result = $adminController->retryCrashmail($id);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // Cancel queued crashmail
+        SimpleRouter::delete('/crashmail/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $result = $adminController->cancelCrashmail($id);
+                echo json_encode(['success' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // ========================================
+        // Binkp Session Log
+        // ========================================
+
+        // Get session log
+        SimpleRouter::get('/binkp-sessions', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $filters = [
+                'session_type' => $_GET['session_type'] ?? null,
+                'status' => $_GET['status'] ?? null,
+                'remote_address' => $_GET['remote_address'] ?? null,
+                'is_inbound' => $_GET['is_inbound'] ?? null,
+            ];
+            $limit = intval($_GET['limit'] ?? 50);
+            $sessions = $adminController->getBinkpSessions($filters, $limit);
+            echo json_encode(['sessions' => $sessions]);
+        });
+
+        // Get session stats
+        SimpleRouter::get('/binkp-sessions/stats', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $period = $_GET['period'] ?? 'day';
+            $stats = $adminController->getBinkpSessionStats($period);
+            echo json_encode($stats);
+        });
     });
 });
 
+
+// Crashmail Queue page
+SimpleRouter::get('/admin/crashmail', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    $template = new Template();
+    $template->renderResponse('admin/crashmail_queue.twig');
+});
+
+// Insecure Nodes page
+SimpleRouter::get('/admin/insecure-nodes', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    $template = new Template();
+    $template->renderResponse('admin/insecure_nodes.twig');
+});
+
+// Binkp Sessions page
+SimpleRouter::get('/admin/binkp-sessions', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $adminController = new AdminController();
+    $adminController->requireAdmin($user);
+
+    $template = new Template();
+    $template->renderResponse('admin/binkp_sessions.twig');
+});
 
 // Admin subscription management page
 SimpleRouter::get('/admin/subscriptions', function() {
