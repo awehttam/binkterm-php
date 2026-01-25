@@ -979,45 +979,118 @@ If you encounter issues not covered here:
 - Regular security updates of dependencies
 - Consider rate limiting for API endpoints
 
-## File Structure
+# Gateway Token Authentication
 
+The **Gateway Token** system allows remote components (such as Door servers, external modules, or automatic 
+login scripts) to securely verify a user’s identity without requiring the user to share their primary BBS 
+credentials with the remote system.
+
+## Authentication Flow
+
+1.  **Handshake Initiation**: A user visits the BBS and hits (for example) a link like `/bbslink/`.
+2.  **Redirect**: The BBS generates a temporary, single-use token and redirects the user to the remote gateway URL (e.g., `https://remote-door.com/login?userid=123&token=abc...`).
+3.  **Back-Channel Validation**: The remote gateway receives the user. Before granting access, it makes a server-to-server POST request back to the BBS with its **API Key**, the **UserID**, and the **Token**.
+4.  **Verification**: The BBS validates the request. If successful, the gateway receives the user's profile information and initiates a local session.
+
+---
+
+## API Specification
+
+**Endpoint:** `POST /auth/verify-gateway-token`
+
+### Headers
+| Header | Value | Description |
+| :--- | :--- | :--- |
+| `Content-Type` | `application/json` | Required |
+| `X-API-Key` | `YOUR_BBS_API_KEY` | Must match the `BBSLINK_API_KEY` in the BBS `.env` |
+
+### Request Body
+The server accepts either `userid` or `user_id` as the key.
+
+```json
+{
+    "userid": 1,
+    "token": "78988029a8385f9..."
+}
 ```
-binktest/
-├── config/
-│   └── binkp.json              # Binkp configuration
-├── src/
-│   ├── Auth.php                # Authentication
-│   ├── Database.php            # Database connection
-│   ├── MessageHandler.php      # Message processing
-│   ├── BinkdProcessor.php      # Packet processing
-│   ├── Template.php            # Twig rendering
-│   └── Binkp/                  # Binkp implementation
-│       ├── Protocol/           # Protocol classes
-│       ├── Connection/         # Connection management
-│       ├── Config/            # Configuration
-│       ├── Queue/             # Queue processing
-│       └── Web/               # Web interface
-├── scripts/
-│   ├── binkp_server.php       # Binkp server daemon
-│   ├── binkp_poll.php         # Manual polling
-│   ├── binkp_status.php       # System status
-│   ├── binkp_scheduler.php    # Automated scheduler
-│   ├── debug_binkp.php        # Debug connections
-│   ├── post_message.php       # Message posting tool
-│   └── process_packets.php    # Packet processor
-├── templates/                  # Twig templates
-│   └── custom/                # Custom template insertions
-├── public_html/               # Web root
-│   ├── css/                   # Stylesheets
-│   ├── js/                    # JavaScript
-│   └── index.php             # Main application
-├── data/
-│   ├── inbound/              # Incoming packets
-│   ├── outbound/             # Outgoing packets (shared permissions between web server and shell account)
-│   ├── logs/                 # Log files  (shared permissions between web server and shell account)
-└── database/
-    └── migrations/                # Database migration files
+
+### Response Formats
+```json
+{
+   "valid": true,
+   "userInfo": {
+   "id": 1,
+   "username": "Sysop",
+   "email": "admin@example.com"
+}
 ```
+
+### Failure (401/400 bad request)
+
+```json
+{
+    "valid": false,
+    "error": "Invalid or expired token"
+}
+```
+
+### Remote verification example
+
+
+```json
+<?php
+
+/**
+ * Example function to verify a token against the BBS
+ */
+function verifyWithBBS($userId, $token) {
+    $bbsUrl = '[https://your-bbs-domain.com/auth/verify-gateway-token](https://your-bbs-domain.com/auth/verify-gateway-token)';
+    $apiKey = 'your_configured_api_key';
+
+    $payload = json_encode([
+        'userid' => $userId,
+        'token'  => $token
+    ]);
+
+    $ch = curl_init($bbsUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'X-API-Key: ' . $apiKey
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $data = json_decode($response, true);
+        if ($data['valid']) {
+            return $data['userInfo']; // Token is valid!
+        }
+    }
+
+    return false; // Invalid token or API key
+}
+
+// --- Usage in a landing page ---
+$userIdFromUrl = $_GET['userid'] ?? null;
+$tokenFromUrl  = $_GET['token'] ?? null;
+
+if ($userIdFromUrl && $tokenFromUrl) {
+    $user = verifyWithBBS($userIdFromUrl, $tokenFromUrl);
+    
+    if ($user) {
+        echo "Welcome, " . htmlspecialchars($user['username']);
+        // Proceed to log the user into the local system...
+    } else {
+        die("Authentication failed.");
+    }
+}
+```
+
 
 ## Contributing
 

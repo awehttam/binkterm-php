@@ -248,9 +248,9 @@ class Auth
         return [
             'user_id' => $result['user_id'],
             'username' => $result['username'],
-            'real_name' => $result['real_name'],
-            'email' => $result['email'],
-            'location' => $result['location'],
+            //'real_name' => $result['real_name'],
+            //'email' => $result['email'],
+            //'location' => $result['location'],
             'door' => $result['door']
         ];
     }
