@@ -1559,8 +1559,9 @@ class BinkdProcessor
         
         $stmt->execute();
         $deletedCount = $stmt->rowCount();
-        
-        $this->log("[BINKD] Cleaned up {$deletedCount} old packet records");
+
+        if($deletedCount)
+            $this->log("[BINKD] Cleaned up {$deletedCount} old packet records");
         
         return $deletedCount;
     }
