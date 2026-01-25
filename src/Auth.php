@@ -224,7 +224,7 @@ class Auth
             // Check database NOW() vs expires_at
             $nowStmt = $this->db->query("SELECT NOW() as db_now");
             $dbNow = $nowStmt->fetch(\PDO::FETCH_ASSOC)['db_now'];
-            error_log("[GATEWAY] Token found - user_id in token: {$debugResult['user_id']}, requested user_id: $userId, expires_at: {$debugResult['expires_at']}, db_now: $dbNow, used_at: " . ($debugResult['used_at'] ?? 'NULL') . ", user_active: " . ($debugResult['user_active'] ? 'true' : 'false'));
+            //error_log("[GATEWAY] Token found - user_id in token: {$debugResult['user_id']}, requested user_id: $userId, expires_at: {$debugResult['expires_at']}, db_now: $dbNow, used_at: " . ($debugResult['used_at'] ?? 'NULL') . ", user_active: " . ($debugResult['user_active'] ? 'true' : 'false'));
         }
 
         // Find the token

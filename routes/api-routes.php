@@ -57,7 +57,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $expectedKey = Config::env('BBSLINK_API_KEY');
 
         if (empty($expectedKey) || $apiKey !== $expectedKey) {
-            error_log($expectedKey." != ".$apiKey);
+            //error_log($expectedKey." != ".$apiKey);
             http_response_code(401);
             echo json_encode(['valid' => false, 'error' => 'Invalid API key']);
             return;
@@ -77,13 +77,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userInfo = $auth->verifyGatewayToken((int)$userId, $token);
 
         if ($userInfo) {
-            error_log("Verified gateway token succesfully");
+            //error_log("Verified gateway token succesfully");
             echo json_encode([
                 'valid' => true,
                 'userInfo' => $userInfo
             ]);
         } else {
-            error_log("Invalid or expired token userId=$userId, token=$token" );
+            //error_log("Invalid or expired token userId=$userId, token=$token" );
             echo json_encode([
                 'valid' => false,
                 'error' => 'Invalid or expired token'
