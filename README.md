@@ -107,7 +107,15 @@ cd binkterm-php
 composer install
 ```
 
-### Step 3: Set Up Database and Admin User
+### Step 3: Configure Environment
+Copy the example environment file and configure your settings:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
+
+### Step 4: Install the database schema and configure the initial Admin user
 Use the installation script for automated setup:
 ```bash
 # Interactive installation (prompts for admin credentials)
@@ -163,6 +171,19 @@ server {
 cd public_html
 php -S localhost:8080
 ```
+
+### Step 6: Set Up Cron Jobs (Recommended)
+Add cron jobs for automated mail polling and nodelist updates:
+
+```cron
+# Poll uplinks every 15 minutes
+*/15 * * * * /usr/bin/php /path/to/binkterm/scripts/binkp_poll.php --quiet
+
+# Update nodelists daily at 3am
+0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
+```
+
+See the [Operation](#operation) section for additional cron job examples.
 
 ## Configuration
 
@@ -350,6 +371,48 @@ The `transit` section controls mail routing through your system:
 | `allow_transit_mail` | false | Allow routing mail not destined for this system |
 | `transit_only_for_known_routes` | true | Only transit mail for addresses in your routing table |
 
+### Nodelist Configuration
+
+Create `config/nodelists.json` to configure automatic nodelist downloads. See `config/nodelists.json.example` for a complete reference.
+
+```json
+{
+    "sources": [
+        {
+            "name": "FidoNet",
+            "domain": "fidonet",
+            "url": "https://example.com/NODELIST.Z|DAY|",
+            "enabled": true
+        },
+        {
+            "name": "FSXNet",
+            "domain": "fsxnet",
+            "url": "https://bbs.nz/fsxnet/FSXNET.ZIP",
+            "enabled": true
+        }
+    ]
+}
+```
+
+#### Source Configuration
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name for the nodelist source |
+| `domain` | Yes | Network domain identifier (e.g., "fidonet", "fsxnet") |
+| `url` | Yes | Download URL, supports date macros (see below) |
+| `enabled` | No | Whether this source is active (default: true) |
+
+#### URL Macros
+URLs support date macros for dynamic nodelist filenames:
+
+| Macro | Description | Example |
+|-------|-------------|---------|
+| `\|DAY\|` | Day of year (1-366) | 23 |
+| `\|YEAR\|` | 4-digit year | 2026 |
+| `\|YY\|` | 2-digit year | 26 |
+| `\|MONTH\|` | 2-digit month | 01 |
+| `\|DATE\|` | 2-digit day of month | 22 |
+
 ### Web Terminal Configuration
 
 The web terminal feature provides SSH access through the browser interface. This requires both configuration in the `.env` file and a proxy server to handle WebSocket-to-SSH connections.
@@ -420,16 +483,20 @@ The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebS
 
 ## Upgrading
 
-Follow these general steps when upgrading BinktermPHP:
+In general, you can follow these general steps when upgrading BinktermPHP however individual versions may have their own requirements.
 
-1. **Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path
-2. **Pull the latest code** - `git pull`
-3. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
-4. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
+**Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path **BEFORE** upgrading.
+
+The general steps are:
+
+1. **Pull the latest code** - `git pull`
+2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
+3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
+
 
 ### Version-Specific Upgrade Guides
 
-- [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
+- January 24 2026 - [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
 
 ## Database Management
 
