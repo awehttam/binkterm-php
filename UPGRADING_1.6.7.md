@@ -241,6 +241,20 @@ Add cron jobs for automated nodelist updates and mail polling:
 */15 * * * * /usr/bin/php /path/to/binkterm/scripts/binkp_poll.php --quiet
 ```
 
+## Step 7a: Update CLI Script Calls
+
+Several CLI scripts now require a `--domain` parameter for multi-network support:
+
+```bash
+# weather_report.php now requires --domain
+php scripts/weather_report.php --domain=fidonet
+
+# echomail_maintenance.php now requires --domain
+php scripts/echomail_maintenance.php --domain=fidonet --max-age=365
+```
+
+Update any cron jobs or scripts that call these utilities.
+
 ## Step 8: Update Custom Themes (If Applicable)
 
 If you have custom CSS themes, add the following Bootstrap table variable overrides to support the new unread message styling:
