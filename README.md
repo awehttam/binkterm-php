@@ -70,6 +70,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Search Capabilities** - Full-text search across messages and echo areas
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
+- **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 
 ### Native Binkp Protocol Support
 - **FTS-1026 Compliant** - Full (really?)  binkp/1.0 protocol implementation
