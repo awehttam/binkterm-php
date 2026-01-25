@@ -11,12 +11,12 @@
  * - Works on per-echo basis
  *
  * Usage:
- *   php echomail_maintenance.php --echo=TAGNAME --max-age=90 [--dry-run] [--quiet]
- *   php echomail_maintenance.php --echo=all --max-count=1000 [--dry-run] [--quiet]
- *   php echomail_maintenance.php --echo=TAGNAME --max-age=90 --max-count=1000
+ *   php echomail_maintenance.php --echo=TAGNAME --domain=DOMAIN --max-age=90 [--dry-run] [--quiet]
+ *   php echomail_maintenance.php --echo=all --domain=DOMAIN --max-count=1000 [--dry-run] [--quiet]
  *
  * Options:
- *   --echo=TAG          Echo area tag (use 'all' for all areas)
+ *   --echo=TAG          Echo area tag (use 'all' for all areas in domain)
+ *   --domain=DOMAIN     Network domain (e.g., fidonet, fsxnet) - required
  *   --max-age=DAYS      Delete messages older than this many days
  *   --max-count=NUM     Keep only the newest NUM messages per echo
  *   --dry-run           Show what would be deleted without actually deleting
@@ -25,13 +25,13 @@
  *
  * Examples:
  *   # Delete messages older than 90 days in FIDO_SYSOP echo
- *   php echomail_maintenance.php --echo=FIDO_SYSOP --max-age=90
+ *   php echomail_maintenance.php --echo=FIDO_SYSOP --domain=fidonet --max-age=90
  *
- *   # Keep only newest 500 messages in all echoes
- *   php echomail_maintenance.php --echo=all --max-count=500
+ *   # Keep only newest 500 messages in all fidonet echoes
+ *   php echomail_maintenance.php --echo=all --domain=fidonet --max-count=500
  *
  *   # Preview what would be deleted (dry run)
- *   php echomail_maintenance.php --echo=all --max-age=180 --dry-run
+ *   php echomail_maintenance.php --echo=all --domain=fsxnet --max-age=180 --dry-run
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -61,6 +61,14 @@ if (!isset($options['max-age']) && !isset($options['max-count'])) {
 }
 
 $echoTag = $options['echo'];
+
+// Domain is always required
+if (!isset($options['domain'])) {
+    echo "Error: --domain is required\n";
+    showHelp();
+    exit(1);
+}
+$domain = $options['domain'];
 $maxAge = isset($options['max-age']) ? (int)$options['max-age'] : null;
 $maxCount = isset($options['max-count']) ? (int)$options['max-count'] : null;
 $dryRun = isset($options['dry-run']);
@@ -92,7 +100,7 @@ try {
     }
 
     // Get list of echo areas to process
-    $echoareas = getEchoareas($pdo, $echoTag);
+    $echoareas = getEchoareas($pdo, $echoTag, $domain);
 
     if (empty($echoareas)) {
         if ($echoTag === 'all') {
@@ -223,10 +231,11 @@ function showHelp() {
     echo "  - message_read_status, saved_messages, shared_messages, message_links\n";
     echo "Then runs VACUUM ANALYZE on all affected tables.\n\n";
     echo "Usage:\n";
-    echo "  php $script --echo=TAGNAME --max-age=DAYS [options]\n";
-    echo "  php $script --echo=all --max-count=NUM [options]\n\n";
+    echo "  php $script --echo=TAGNAME --domain=DOMAIN --max-age=DAYS [options]\n";
+    echo "  php $script --echo=all --domain=DOMAIN --max-count=NUM [options]\n\n";
     echo "Required:\n";
-    echo "  --echo=TAG          Echo area tag (use 'all' for all areas)\n\n";
+    echo "  --echo=TAG          Echo area tag (use 'all' for all areas in domain)\n";
+    echo "  --domain=DOMAIN     Network domain (e.g., fidonet, fsxnet)\n\n";
     echo "At least one of:\n";
     echo "  --max-age=DAYS      Delete messages older than this many days\n";
     echo "  --max-count=NUM     Keep only the newest NUM messages per echo\n\n";
@@ -236,32 +245,33 @@ function showHelp() {
     echo "  --help              Show this help message\n\n";
     echo "Examples:\n";
     echo "  # Delete messages older than 90 days in FIDO_SYSOP\n";
-    echo "  php $script --echo=FIDO_SYSOP --max-age=90\n\n";
-    echo "  # Keep only 500 newest messages in all echoes\n";
-    echo "  php $script --echo=all --max-count=500\n\n";
-    echo "  # Preview deletions (dry run)\n";
-    echo "  php $script --echo=all --max-age=180 --dry-run\n\n";
+    echo "  php $script --echo=FIDO_SYSOP --domain=fidonet --max-age=90\n\n";
+    echo "  # Keep only 500 newest messages in all fidonet echoes\n";
+    echo "  php $script --echo=all --domain=fidonet --max-count=500\n\n";
+    echo "  # Preview deletions in fsxnet (dry run)\n";
+    echo "  php $script --echo=all --domain=fsxnet --max-age=180 --dry-run\n\n";
 }
 
 /**
  * Get echo areas to process
  */
-function getEchoareas($pdo, $echoTag) {
+function getEchoareas($pdo, $echoTag, $domain) {
     if ($echoTag === 'all') {
-        $stmt = $pdo->query("
-            SELECT id, tag, description, message_count
+        $stmt = $pdo->prepare("
+            SELECT id, tag, domain, description, message_count
             FROM echoareas
-            WHERE is_active = TRUE
+            WHERE is_active = TRUE AND domain = :domain
             ORDER BY tag
         ");
+        $stmt->execute(['domain' => $domain]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
         $stmt = $pdo->prepare("
-            SELECT id, tag, description, message_count
+            SELECT id, tag, domain, description, message_count
             FROM echoareas
-            WHERE tag = :tag AND is_active = TRUE
+            WHERE tag = :tag AND domain = :domain AND is_active = TRUE
         ");
-        $stmt->execute(['tag' => $echoTag]);
+        $stmt->execute(['tag' => $echoTag, 'domain' => $domain]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
@@ -272,10 +282,11 @@ function getEchoareas($pdo, $echoTag) {
 function processEchoarea($pdo, $echoarea, $maxAge, $maxCount, $dryRun, $quiet) {
     $echoId = $echoarea['id'];
     $echoTag = $echoarea['tag'];
+    $echoDomain = $echoarea['domain'] ?? 'fidonet';
     $currentCount = $echoarea['message_count'];
 
     if (!$quiet) {
-        echo "Processing: $echoTag\n";
+        echo "Processing: $echoTag [$echoDomain]\n";
         echo "  Current messages: $currentCount\n";
     }
 
