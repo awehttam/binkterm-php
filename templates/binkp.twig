@@ -87,9 +87,10 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5>Uplink Status</h5>
+                            {#
                             <button class="btn btn-sm btn-success" onclick="pollAllUplinks()">
-                                <i class="fas fa-sync"></i> Poll All
-                            </button>
+                                 <i class="fas fa-sync"></i> Poll All
+                            </button>#}
                         </div>
                         <div class="card-body" id="uplink-status">
                             Loading uplink status...
@@ -116,7 +117,7 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5>Configured Uplinks</h5>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUplinkModal">
-                    <i class="fas fa-plus"></i> Add Uplink
+                    {# <i class="fas fa-plus"></i> Add Uplink #}
                 </button>
             </div>
             <div class="table-responsive">
@@ -145,9 +146,10 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5>Inbound Queue</h5>
-                            <button class="btn btn-sm btn-success" onclick="processInbound()">
+                            {# <button class="btn btn-sm btn-success" onclick="processInbound()">
                                 <i class="fas fa-play"></i> Process
                             </button>
+                            #}
                         </div>
                         <div class="card-body">
                             <div id="inbound-files">Loading...</div>
@@ -158,9 +160,11 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5>Outbound Queue</h5>
+                            {#
                             <button class="btn btn-sm btn-success" onclick="processOutbound()">
                                 <i class="fas fa-paper-plane"></i> Send
                             </button>
+                            #}
                         </div>
                         <div class="card-body">
                             <div id="outbound-files">Loading...</div>
@@ -188,7 +192,7 @@
             </div>
             <div class="card">
                 <div class="card-body">
-                    <pre id="log-content" style="height: 400px; overflow-y: auto; background: #f8f9fa; padding: 10px;">Loading logs...</pre>
+                    <pre id="log-content" style="height: 400px; overflow-y: auto; padding: 10px;">Loading logs...</pre>
                 </div>
             </div>
         </div>
@@ -219,7 +223,10 @@
                                     <label class="form-label">Hostname</label>
                                     <input type="text" class="form-control" name="hostname" id="system-hostname">
                                 </div>
+                                To edit the configuration, edit config/binkp.json
+                                {#
                                 <button type="submit" class="btn btn-primary">Save Changes</button>
+                                #}
                             </form>
                         </div>
                     </div>
@@ -247,7 +254,9 @@
                                     <label class="form-label">Bind Address</label>
                                     <input type="text" class="form-control" name="bind_address" id="binkp-bind-address">
                                 </div>
-                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                                To edit the configuration, edit config/binkp.json
+
+                                {# <button type="submit" class="btn btn-primary">Save Changes</button> #}
                             </form>
                         </div>
                     </div>
@@ -439,10 +448,10 @@ function updateUplinksTable(uplinks) {
             <td>${uplink.port}</td>
             <td>${status}</td>
             <td><code>${uplink.poll_schedule}</code></td>
-            <td>
+            <!--<td>
                 <button class="btn btn-sm btn-primary" onclick="pollUplink('${uplink.address}')">Poll</button>
                 <button class="btn btn-sm btn-danger" onclick="removeUplink('${uplink.address}')">Remove</button>
-            </td>
+            </td>-->
         `;
     });
 }
