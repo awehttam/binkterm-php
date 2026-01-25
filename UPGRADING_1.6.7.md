@@ -1,3 +1,56 @@
+# What's New in v1.6.7
+January 24 2026 
+
+## Multi-Network Support
+- Full multi-network routing for echomail and netmail (FidoNet, FSXNet, etc.)
+- Domain-based packet filtering and address resolution
+- Network domain badges in UI
+- Point address support in routing and INTL kludge parsing
+
+## Binkp Protocol Improvements
+- Multi-connection support using fork for binkp_server
+- Crashmail direct delivery via binkp
+- Insecure binkp session handling for nodes without passwords
+- Fixed handshake failures on Linux (stream timeout handling)
+- Improved password validation and debug logging
+- Clean signal handling for shutdown
+
+## Nodelist Enhancements
+- Automated nodelist download/import script with URL macro support
+- Multi-domain nodelist support
+- Display INA hostname with telnet links
+- Last import date display per domain
+- Zone dropdown ordering fix
+
+## User Experience
+- ANSI terminal renderer for BBS art
+- Fullscreen toggle for message modals (with localStorage preference)
+- Clickable hyperlinks in messages (XSS-safe)
+- Theme fixes for dark, cyberpunk, and greenterm themes
+- Wider message reading modal (80% on desktop)
+
+## User Management
+- User sessions tracking with `last_activity` for "who's online" feature
+- Location field in user profiles and registration
+- `scripts/who.php` CLI tool to show online users
+- Automatic default echoarea subscriptions for new users
+
+## System Notifications
+- SysopNotificationService for netmail notices to sysop
+- Email failure notifications
+
+## Message Handling
+- Enhanced logging for message sending (sender, subject, packet filenames)
+- Outbound directory writability check before accepting messages
+- Local system message delivery (no spooling needed)
+
+## Installation & Maintenance
+- Fresh install fixes (migrations after base schema)
+- PostgreSQL boolean type fixes
+- Standalone binkp test client and packet generator utilities
+
+--
+
 # Upgrading to BinktermPHP v1.6.7
 
 Version 1.6.7 introduces support for multiple FTN networks (FidoNet, FSXNet, AgoraNet, etc.) running simultaneously. This requires both database schema changes and configuration updates.
@@ -80,7 +133,7 @@ The following new sections should be added to `binkp.json`:
 }
 ```
 
-See `configs/binkp.json.example` for the full configuration format.
+See `configs/binkp.json.example` for the full configuration options and format.
 
 ## Step 2: Run Database Migration
 
@@ -88,7 +141,7 @@ See `configs/binkp.json.example` for the full configuration format.
 php scripts/upgrade.php
 ```
 
-This migration adds `domain` fields to the `echoareas`, `nodelist`, and `nodelist_metadata` tables, and updates the unique constraint on echoareas to allow the same tag across different networks.
+This migration adds `domain` fields to the `echoareas`, `nodelist`, and `nodelist_metadata` tables, and updates the unique constraint on echoareas to allow the same tag across different networks.  It may also contain other schema upgrades for this release.
 
 ## Step 3: Update Echoarea Domains (Optional)
 
@@ -221,54 +274,5 @@ Custom templates in `templates/custom/` are not overwritten during upgrades, but
 - **Network Isolation**: Echoareas are scoped to their network domain, preventing tag collisions
 - **Per-Network Nodelists**: Each network maintains its own nodelist for proper addressing
 
----
 
-# What's New in v1.6.7
 
-## Multi-Network Support
-- Full multi-network routing for echomail and netmail (FidoNet, FSXNet, etc.)
-- Domain-based packet filtering and address resolution
-- Network domain badges in UI
-- Point address support in routing and INTL kludge parsing
-
-## Binkp Protocol Improvements
-- Multi-connection support using fork for binkp_server
-- Crashmail direct delivery via binkp
-- Insecure binkp session handling for nodes without passwords
-- Fixed handshake failures on Linux (stream timeout handling)
-- Improved password validation and debug logging
-- Clean signal handling for shutdown
-
-## Nodelist Enhancements
-- Automated nodelist download/import script with URL macro support
-- Multi-domain nodelist support
-- Display INA hostname with telnet links
-- Last import date display per domain
-- Zone dropdown ordering fix
-
-## User Experience
-- ANSI terminal renderer for BBS art
-- Fullscreen toggle for message modals (with localStorage preference)
-- Clickable hyperlinks in messages (XSS-safe)
-- Theme fixes for dark, cyberpunk, and greenterm themes
-- Wider message reading modal (80% on desktop)
-
-## User Management
-- User sessions tracking with `last_activity` for "who's online" feature
-- Location field in user profiles and registration
-- `scripts/who.php` CLI tool to show online users
-- Automatic default echoarea subscriptions for new users
-
-## System Notifications
-- SysopNotificationService for netmail notices to sysop
-- Email failure notifications
-
-## Message Handling
-- Enhanced logging for message sending (sender, subject, packet filenames)
-- Outbound directory writability check before accepting messages
-- Local system message delivery (no spooling needed)
-
-## Installation & Maintenance
-- Fresh install fixes (migrations after base schema)
-- PostgreSQL boolean type fixes
-- Standalone binkp test client and packet generator utilities

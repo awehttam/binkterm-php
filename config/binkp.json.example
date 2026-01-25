@@ -48,7 +48,7 @@
               "log_all_sessions": true
           },
           "crashmail": {
-              "enabled": true,
+              "enabled": false,
               "max_attempts": 3,
               "retry_interval_minutes": 15,
               "use_nodelist_for_routing": true,
