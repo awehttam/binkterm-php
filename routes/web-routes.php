@@ -345,6 +345,45 @@ SimpleRouter::get('/settings', function() {
     $template->renderResponse('settings.twig', $templateVars);
 });
 
+// BBSLink Gateway redirect - generates token and redirects to external gateway
+SimpleRouter::get('/bbslink', function() {
+    /*
+Uses settings in .ennv:
+
+#  BBSLink Gateway Configuration
+# BBSLINK_GATEWAY_URL=https://gateway.example.com/
+# BBSLINK_API_KEY=your-secret-api-key
+*/
+
+    // This method is disabled because the bbslinkgateway doesn't work correctly.  Keep this function until someone
+    // sorts out the gateway (if it's possible) and this can be used as an example for redirecting to a third party
+    // service that does a call back verification to verify a gateway token
+    throw new Exception("Disabled");
+
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    $gatewayUrl = \BinktermPHP\Config::env('BBSLINK_GATEWAY_URL');
+    if (empty($gatewayUrl)) {
+        http_response_code(503);
+        echo "BBSLink gateway not configured";
+        return;
+    }
+
+    // Generate gateway token
+    $token = $auth->generateGatewayToken($user['user_id'], 'menu', 300);
+
+    // Build redirect URL with userid and token
+    $separator = (strpos($gatewayUrl, '?') !== false) ? '&' : '?';
+    $redirectUrl = $gatewayUrl . $separator . 'userid=' . $user['user_id'] . '&token=' . $token;
+
+    return SimpleRouter::response()->redirect($redirectUrl);
+});
+
 SimpleRouter::get('/admin/users', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();

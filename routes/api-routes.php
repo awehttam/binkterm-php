@@ -48,6 +48,73 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true]);
     });
 
+    // Gateway token verification endpoint for external services (bbslinkgateway, etc.)
+    SimpleRouter::post('/auth/verify-gateway-token', function() {
+        header('Content-Type: application/json');
+
+        // Verify API key
+        $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
+        $expectedKey = Config::env('BBSLINK_API_KEY');
+
+        if (empty($expectedKey) || $apiKey !== $expectedKey) {
+            error_log($expectedKey." != ".$apiKey);
+            http_response_code(401);
+            echo json_encode(['valid' => false, 'error' => 'Invalid API key']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $userId = $input['userid'] ?? $input['user_id'] ?? null;
+        $token = $input['token'] ?? '';
+
+        if (empty($userId) || empty($token)) {
+            http_response_code(400);
+            echo json_encode(['valid' => false, 'error' => 'userid and token are required']);
+            return;
+        }
+
+        $auth = new Auth();
+        $userInfo = $auth->verifyGatewayToken((int)$userId, $token);
+
+        if ($userInfo) {
+            error_log("Verified gateway token succesfully");
+            echo json_encode([
+                'valid' => true,
+                'userInfo' => $userInfo
+            ]);
+        } else {
+            error_log("Invalid or expired token userId=$userId, token=$token" );
+            echo json_encode([
+                'valid' => false,
+                'error' => 'Invalid or expired token'
+            ]);
+        }
+    });
+
+    // Generate gateway token for authenticated user
+    SimpleRouter::post('/auth/gateway-token', function() {
+        header('Content-Type: application/json');
+
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $door = $input['door'] ?? null;
+        $ttl = $input['ttl'] ?? 300; // Default 5 minutes
+
+        // Cap TTL at 10 minutes for security
+        $ttl = min((int)$ttl, 600);
+
+        $token = $auth->generateGatewayToken($user['user_id'], $door, $ttl);
+
+        echo json_encode([
+            'success' => true,
+            'userid' => $user['user_id'],
+            'token' => $token,
+            'expires_in' => $ttl
+        ]);
+    });
+
     SimpleRouter::post('/auth/forgot-password', function() {
         header('Content-Type: application/json');
 
