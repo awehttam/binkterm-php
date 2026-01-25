@@ -64,11 +64,7 @@
                         </li>
                         {% endif %}
                         {% if current_user.is_admin %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/binkp">
-                                <i class="fas fa-network-wired"></i> Binkp
-                            </a>
-                        </li>
+
                         {% endif %}
 
                         {% if current_user.is_admin %}
@@ -82,6 +78,8 @@
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
                                 <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark-plus"></i> Subscriptions</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> Binkp</a></li>
                             </ul>
                         </li>
                         {% endif %}
