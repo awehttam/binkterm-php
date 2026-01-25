@@ -749,23 +749,27 @@ class MessageHandler
             throw new \Exception('Echo area not found');
         }
 
-        try {
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $myAddress = $binkpConfig->getMyAddressByDomain($domain);
-            if (!$myAddress) {
-                throw new \Exception("Can't determine my local address for domain '$domain'");
+        $isLocalArea = !empty($echoarea['is_local']);
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
+        // Determine the from address
+        $myAddress = $binkpConfig->getMyAddressByDomain($domain);
+        if (!$myAddress) {
+            if ($isLocalArea) {
+                // For local echoareas, use system address as fallback
+                $myAddress = $binkpConfig->getSystemAddress();
+            } else {
+                throw new \Exception('Can not determine sending address for this network - missing uplink?');
             }
-            // For echomail from points, keep the FULL point address in the from_address
-            // The point routing will be handled by FMPT kludge lines
-        } catch (\Exception $e) {
-            throw new \Exception('Can not determine sending address for this network - missing uplink?');
         }
 
-        // Verify outbound directory is writable before accepting the message
-        $outboundPath = $binkpConfig->getOutboundPath();
-        if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
-            error_log("[ECHOMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
-            throw new \Exception('Message delivery system unavailable. Please try again later.');
+        // Verify outbound directory is writable (only needed for non-local areas)
+        if (!$isLocalArea) {
+            $outboundPath = $binkpConfig->getOutboundPath();
+            if (!is_dir($outboundPath) || !is_writable($outboundPath)) {
+                error_log("[ECHOMAIL] ERROR: Outbound directory not writable: {$outboundPath}");
+                throw new \Exception('Message delivery system unavailable. Please try again later.');
+            }
         }
 
         // Generate kludges for this echomail
@@ -993,7 +997,7 @@ class MessageHandler
     private function spoolOutboundEchomail($messageId, $echoareaTag, $domain)
     {
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain
+            SELECT em.*, ea.tag as echoarea_tag, ea.domain as echoarea_domain, ea.is_local
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
             WHERE em.id = ?
@@ -1003,6 +1007,12 @@ class MessageHandler
 
         if (!$message) {
             return false;
+        }
+
+        // Check if this is a local-only echoarea
+        if (!empty($message['is_local'])) {
+            error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
+            return true; // Success - message stored locally, no upstream transmission needed
         }
 
         // Extract message details for logging

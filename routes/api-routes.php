@@ -394,16 +394,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         // Query with separate subqueries for total and unread counts
-        $sql = "SELECT 
-                    e.id, 
-                    e.tag, 
-                    e.description, 
-                    e.moderator, 
-                    e.uplink_address, 
-                    e.color, 
-                    e.is_active, 
+        $sql = "SELECT
+                    e.id,
+                    e.tag,
+                    e.description,
+                    e.moderator,
+                    e.uplink_address,
+                    e.color,
+                    e.is_active,
                     e.created_at,
                     e.domain,
+                    e.is_local,
                     COALESCE(total_counts.message_count, 0) as message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count
                 FROM echoareas e";
@@ -507,6 +508,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
+            $isLocal = !empty($input['is_local']);
             $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
@@ -524,11 +526,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active,domain) 
-                VALUES (?, ?, ?, ?, ?, ?,?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, domain)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $domain]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $domain]);
 
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -562,6 +564,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $uplinkAddress = trim($input['uplink_address'] ?? '') ?: null;
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
+            $isLocal = !empty($input['is_local']);
             $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
@@ -579,12 +582,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                UPDATE echoareas 
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?,domain=?
+                UPDATE echoareas
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, domain = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $domain,$id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $domain, $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);

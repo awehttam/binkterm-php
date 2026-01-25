@@ -164,6 +164,14 @@
                             Active
                         </label>
                     </div>
+
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="echoareaLocal" name="is_local">
+                        <label class="form-check-label" for="echoareaLocal">
+                            Local Only
+                        </label>
+                        <div class="form-text">Messages in local areas are not transmitted to uplinks</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -277,6 +285,7 @@ function displayEchoareas(echoareas) {
                             ${escapeHtml(area.tag)}
                         </span>
                         ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
+                        ${area.is_local ? `<span class="badge bg-info ms-1" style="font-size: 0.7em;" title="Local only - not transmitted to uplinks">Local</span>` : ''}
                     </td>
                     <td>
                         <strong>${escapeHtml(area.description)}</strong>
@@ -320,13 +329,14 @@ function showAddEchoareaModal() {
     $("#echoareaDomain").val('');
     $('#echoareaColor').val('#28a745');
     $('#echoareaActive').prop('checked', true);
+    $('#echoareaLocal').prop('checked', false);
     $('#echoareaModal').modal('show');
 }
 
 function editEchoarea(id) {
     currentEchoareaId = id;
     $('#echoareaModalTitle').text('Edit Echo Area');
-    
+
     $.get(`/api/echoareas/${id}`)
         .done(function(data) {
             const area = data.echoarea;
@@ -338,6 +348,7 @@ function editEchoarea(id) {
             $('#echoareaColor').val(area.color || '#28a745');
             $('#echoareaModerator').val(area.moderator || '');
             $('#echoareaActive').prop('checked', area.is_active);
+            $('#echoareaLocal').prop('checked', area.is_local);
             $('#echoareaModal').modal('show');
         })
         .fail(function() {
@@ -359,6 +370,7 @@ function saveEchoarea() {
         color: $('#echoareaColor').val(),
         moderator: $('#echoareaModerator').val() || null,
         is_active: $('#echoareaActive').is(':checked'),
+        is_local: $('#echoareaLocal').is(':checked'),
         domain: $("#echoareaDomain").val() || null
     };
     

@@ -10,10 +10,13 @@ January 24 2026
 ## Binkp Protocol Improvements
 - Multi-connection support using fork for binkp_server
 - Crashmail direct delivery via binkp
-- Insecure binkp session handling for nodes without passwords
+- Insecure binkp session handling for nodes without passwords (experimental)
 - Fixed handshake failures on Linux (stream timeout handling)
 - Improved password validation and debug logging
 - Clean signal handling for shutdown
+- Disabled web based editing of binkp configuration
+- Disabled polling and uplink modification of uplinks in favour of command line management
+
 
 ## Nodelist Enhancements
 - Automated nodelist download/import script with URL macro support

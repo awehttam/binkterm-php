@@ -2,8 +2,7 @@
 
 ## Project Description
 
-A modern web interface and mailer tool that receives and sends Fidonet message packets using its own binkp Fidonet mailer.  The project
-provides users with a delighftful, modern web experience that allows them to send and receive netmail (private messages) and echomail (forums) with the help of binkp.
+A modern web interface and mailer tool that receives and sends Fidonet message packets using its own binkp Fidonet mailer. The project provides users with a delightful, modern web experience that allows them to send and receive netmail (private messages) and echomail (forums) with the help of binkp.
 
 ## Tech Stack
 
@@ -21,19 +20,25 @@ provides users with a delighftful, modern web experience that allows them to sen
 ## Project Structure
 
  - src/ - main source code
+ - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.)
  - templates/ - html templates
  - public_html/ - the web site files, static assets
- - tests/ - test scripts used in debugging and trouble shooting
- - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude.
- - 
+ - tests/ - test scripts used in debugging and troubleshooting
+ - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude
+ - data/ - runtime data (binkp.json, nodelists.json, logs, inbound/outbound packets)
+
 ## Important Notes
  - User authentication is simple username and password with long lived cookie
+ - Both usernames and Real Names are considered unique. Two users cannot have the same username or real name
  - The web interface should use ajax requests by api for queries
- - This is for FTN style networks and forums.
- - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.1.0_description.sql
- - When adding features to netmail and echomail, keep in mind feature parity.  Ask for clarification about whether a feature is appropriate to both.
- - Leave the vendor directory alone. It's managed by composer only.
+ - This is for FTN style networks and forums
+ - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.7.5_description.sql
+ - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
+ - Leave the vendor directory alone. It's managed by composer only
  - When updating style.css, also update the theme stylesheets: dark.css, greenterm.css, and cyberpunk.css
+ - Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
+ - See FAQ.md for common questions and troubleshooting
+
 
 ## URL Construction
 When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** follow this pattern:
@@ -87,85 +92,59 @@ if ($siteUrl) {
  - Limit to 10-15 most recent entries (remove older ones)
  - This file is automatically displayed on the admin dashboard's "Recent Updates" section
 
-   
- - 
 ## Recent Features Added
 
-### Webshare Feature (v1.4.1)
+### Multi-Network Support
+- **Multiple Networks**: The system supports multiple FTN networks through individual uplinks with domain-based routing
+- **Local Echo Areas**: `is_local` flag identifies echoareas for local use only (messages not transmitted to uplinks)
+- **ANSI Decoder**: Javascript renderer for ANSI art in echomail messages
+- **Hyperlink Detection**: Automatic URL detection and linking in message display
+
+### Gateway Tokens
+- **External Authentication**: Gateway tokens provide temporary SSO-like authentication for external services
+- **One-Time Use**: Tokens are single-use with configurable expiration (default 5 minutes)
+- **API Verification**: External services can verify tokens via API with X-API-Key authentication
+
+### User Management Improvements
+- **Unique Real Names**: Case-insensitive unique constraint on real names prevents impersonation
+- **Registration Validation**: Duplicate checking for both username and real name during registration
+
+### Packet Logging
+- **Dedicated Log File**: Packet processing now logs to `data/logs/packets.log` instead of PHP error log
+
+### Webshare Feature
 - **Message Sharing**: Users can share echomail messages via secure web links
 - **Privacy Controls**: Public (anonymous access) vs private (login required) sharing options
 - **Expiration Settings**: Links can expire after 1 hour, 24 hours, 1 week, 30 days, or never
 - **Access Management**: Share revocation, access statistics, and usage tracking
-- **Mobile Responsive**: Clean shared message view works on all devices
-- **Security**: Unique 32-character share keys, user permission validation, rate limiting
 
 ### Character Encoding Improvements
 - **Enhanced CP437 Support**: Added iconv fallback for better DOS codepage handling
-- **Graceful Degradation**: Multiple encoding conversion strategies with error handling
 - **FidoNet Compatibility**: Improved handling of legacy character encodings in message packets
 
 ### Date Parsing Fixes
 - **Regex Pattern Improvements**: Fixed date parsing for FidoNet timestamps
-- **Format Handling**: Better support for "DD MMM YY HH:MM:SS" format messages
 - **Timezone Processing**: Enhanced TZUTC offset calculations
 
 ## Known Issues
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
- - We strip the domain (ie: @fidonet) from the remote host presented during a bink poll.  At some point we should add @domain support.
- - Postgres is picky about boolean values.  Ensure they are properly cast
- 
+ - PostgreSQL is picky about boolean values - ensure they are properly cast
+
 ## Future Plans
- - Using the binkp library in other applications
- - Less bugs
- - Multiple network support (see Multiple Network Support Plan below)
-  
-## Multiple Network Support Plan
-
-### Current Limitations
-- System strips @domain suffixes from FTN addresses (e.g., `1:234/567@fidonet` becomes `1:234/567`)
-- Each echoarea has only a single `uplink_address` field
-- No way to distinguish between different networks (FidoNet, DoveNet, etc.)
-- All echomail treated as belonging to one network
-
-### Proposed Implementation
-
-#### 1. Database Schema Changes
-- **networks table**: `id`, `domain`, `name`, `description`, `is_active`, `created_at`
-- **echoareas table**: Add `network_id` field referencing networks table
-- **uplinks table**: Network-specific uplink configuration
-
-#### 2. Code Changes Required
-- **BinkpSession.php**: Stop stripping domains, preserve for routing
-- **BinkdProcessor.php**: Route messages based on network domains
-- **MessageHandler.php**: Network-aware message handling
-- **AdminController.php**: Network management interface
-
-#### 3. Configuration Updates
-- **binkp.json**: Network-specific uplink configuration
-- Support multiple uplinks per network
-- Domain-based routing rules
-
-#### 4. Migration Strategy
-- Create networks table with default "fidonet" network
-- Migrate existing echoareas to default network
-- Update existing uplinks to use network domains
-- Preserve backward compatibility
-
-### Benefits
-- Support multiple FTN networks simultaneously
-- Proper message routing based on @domain
-- Network isolation and management
-- Scalable architecture for adding new networks
+ - More BBS-like features such as multi-user interaction, messaging, games, etc.
+ - Continued bug fixes and stability improvements
 
 ## Version Management
 
 ### Overview
-BinktermPHP uses a centralized version management system that ensures consistent version numbers across:
+BinktermPHP uses a centralized application version management system that ensures consistent version numbers across:
 - Message tearlines in FidoNet packets
 - Web interface footer display
 - Package metadata (composer.json)
 - API responses and system information
+
+Database version is seperate from application version.  Database versions are reflected in the database schema migration files.
 
 ### How to Update the Version
 
@@ -248,7 +227,5 @@ Version::compareVersion('1.4.1')  // Version comparison
 - Only edit the version in `src/Version.php` - all other locations will update automatically
 - The tearline format follows FidoNet standards (starts with "---" and under 79 characters)
 - Version is displayed to users, so keep it professional and consistent
-- Database migrations have their own versioning system separate from application version
-
-  
-- Perform a version bump to Version.php, composer.json et al when changing the version of the database through a migration
+- Database migrations have their own versioning system (v1.7.x_description.sql) separate from application version
+- Application version and database migration version are independent and do not need to match

@@ -1091,6 +1091,9 @@ if ($userIdFromUrl && $tokenFromUrl) {
 }
 ```
 
+## Frequently Asked Questions
+
+See [FAQ.md](FAQ.md) for Frequently (or infrequently) Asked Questions
 
 ## Contributing
 
