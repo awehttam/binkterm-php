@@ -49,6 +49,9 @@ January 24 2026
 - PostgreSQL boolean type fixes
 - Standalone binkp test client and packet generator utilities
 
+## Miscellaneous
+ - Check the commit history for a full list of changes 
+
 --
 
 # Upgrading to BinktermPHP v1.6.7
