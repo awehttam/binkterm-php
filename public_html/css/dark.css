@@ -157,9 +157,7 @@ body {
     transition: background-color 0.2s ease;
 }
 
-.message-row:hover {
-    background-color: var(--bg-secondary);
-}
+
 
 /* Override Bootstrap table-hover for dark theme */
 .table-hover > tbody > tr:hover > * {
