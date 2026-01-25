@@ -1212,11 +1212,12 @@ class BinkdProcessor
                 }
             }
         }
-        
+
+        $kludgeLines.="\x01MAILER:  BinktermPHP ".Version::getVersion()." ".PHP_OS_FAMILY."\r\n";
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {
-            $areaLine = "AREA:{$message['echoarea_tag']}\r\n";
+            $areaLine = "AREA: {$message['echoarea_tag']}\r\n";
         }
         
         $messageText = $areaLine . $kludgeLines . $messageText;

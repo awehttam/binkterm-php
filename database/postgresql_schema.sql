@@ -179,11 +179,9 @@ CREATE INDEX IF NOT EXISTS idx_message_read_status_user ON message_read_status(u
 CREATE INDEX IF NOT EXISTS idx_message_read_status_message ON message_read_status(message_id, message_type);
 
 -- Insert default echo areas
-INSERT INTO echoareas (tag, description, uplink_address, color) VALUES 
-    ('GENERAL', 'General Discussion', '1:123/1', '#28a745'),
-    ('LOCALTEST', 'Local Testing Area', '1:123/1', '#17a2b8'),
-    ('FIDONET.NA', 'Fidonet North America', '1:123/1', '#dc3545'),
-    ('SYSOP', 'Sysop Discussion', '1:123/1', '#ffc107')
+INSERT INTO echoareas (tag, description, uplink_address, color, is_local, domain) VALUES
+    ('GENERAL', 'General Discussion', '', '#28a745', TRUE, 'local'),
+    ('LOCALTEST', 'Local Testing Area', '', '#17a2b8',TRUE, 'local')
 ON CONFLICT (tag) DO NOTHING;
 
 -- Insert default admin user (password: admin123)
