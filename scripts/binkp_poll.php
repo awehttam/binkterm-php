@@ -22,6 +22,7 @@ function showUsage()
     echo "  --log-file=FILE   Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_poll.log') . ")\n";
     echo "  --no-console      Disable console logging\n";
     echo "  --quiet           Minimal output\n";
+    echo "  --queued-only     Only connect to uplink if queued packets are available\n";
     echo "  --help            Show this help message\n";
     echo "\n";
     echo "Examples:\n";
@@ -92,9 +93,12 @@ if (isset($args['help'])) {
 
 try {
     $config = BinkpConfig::getInstance();
-
+    $queued_only=false;
     $logLevel = isset($args['log-level']) ? $args['log-level'] : 'INFO';
     $logFile = isset($args['log-file']) ? $args['log-file'] : \BinktermPHP\Config::getLogPath('binkp_poll.log');
+    if(isset($args['queued-only'])){
+        $queued_only=true;
+    }
     $logToConsole = !isset($args['no-console']);
     $quiet = isset($args['quiet']);
     
@@ -107,8 +111,8 @@ try {
     
     if (isset($args['all'])) {
         if (!$quiet) echo "Polling all configured uplinks...\n";
-        
-        $results = $client->pollAllUplinks();
+
+        $results = $client->pollAllUplinks($queued_only);
         
         foreach ($results as $address => $result) {
             if ($quiet) {

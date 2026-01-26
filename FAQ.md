@@ -170,6 +170,13 @@ Set up a cron job:
 */30 * * * * php /path/to/binktest/cli/binkp_poll.php --domain=fidonet
 ```
 
+### Q: How do I only connnect to my uplink if traffic available?
+**A:**
+
+Use the --queued-only switch to binkp_poll.php.  In this mode binkp_poll will only poll the uplink if there are packets
+in the queue.
+
+
 ### Q: What's the difference between polling and the binkp server?
 **A:**
 - **Polling** (`binkp_poll.php`): Your system initiates a connection to your uplink to send/receive mail

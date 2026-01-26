@@ -81,7 +81,7 @@ class BinkpClient
 
             $session->handshake();
 
-            $this->log("Handshake completed with {$address}");
+            //$this->log("Handshake completed with {$address}");
 
             if (!$session->processSession()) {
                 throw new \Exception('Session processing failed');
@@ -128,14 +128,19 @@ class BinkpClient
         );
     }
     
-    public function pollAllUplinks()
+    public function pollAllUplinks($queued_only=false)
     {
         $uplinks = $this->config->getEnabledUplinks();
         $results = [];
         
         foreach ($uplinks as $uplink) {
             $address = $uplink['address'];
-            
+            $outboundPath = $this->config->getOutboundPath();
+            $files = glob($outboundPath . '/*.pkt');
+            if($queued_only && empty($files)){
+                $this->log("No spooled packets founnd, skipping polling for $address", 'DEBUG');
+                continue;
+            }
             try {
                 $this->log("Polling uplink: {$address}");
                 $result = $this->pollUplink($address);
