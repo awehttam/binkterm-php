@@ -11,12 +11,26 @@ class WebDoor {
     }
 
     /**
+     * Build URL with game_id query parameter
+     */
+    _buildUrl(path, extraParams = {}) {
+        const url = new URL(this.apiBase + path, window.location.origin);
+        if (this.gameId) {
+            url.searchParams.set('game_id', this.gameId);
+        }
+        for (const [key, value] of Object.entries(extraParams)) {
+            url.searchParams.set(key, value);
+        }
+        return url.toString();
+    }
+
+    /**
      * Initialize the WebDoor session
      * @returns {Promise<Object>} Session data including user info
      */
     async init() {
         try {
-            const response = await fetch(`${this.apiBase}/session`, {
+            const response = await fetch(this._buildUrl('/session'), {
                 credentials: 'include',
                 headers: {
                     'Accept': 'application/json'
@@ -58,7 +72,7 @@ class WebDoor {
      */
     async listSaves() {
         try {
-            const response = await fetch(`${this.apiBase}/storage`, {
+            const response = await fetch(this._buildUrl('/storage'), {
                 credentials: 'include',
                 headers: {
                     'Accept': 'application/json'
@@ -84,7 +98,7 @@ class WebDoor {
      */
     async load(slot = 0) {
         try {
-            const response = await fetch(`${this.apiBase}/storage/${slot}`, {
+            const response = await fetch(this._buildUrl(`/storage/${slot}`), {
                 credentials: 'include',
                 headers: {
                     'Accept': 'application/json'
@@ -116,7 +130,7 @@ class WebDoor {
      */
     async save(slot, data, metadata = {}) {
         try {
-            const response = await fetch(`${this.apiBase}/storage/${slot}`, {
+            const response = await fetch(this._buildUrl(`/storage/${slot}`), {
                 method: 'PUT',
                 credentials: 'include',
                 headers: {
@@ -145,7 +159,7 @@ class WebDoor {
      */
     async deleteSave(slot) {
         try {
-            const response = await fetch(`${this.apiBase}/storage/${slot}`, {
+            const response = await fetch(this._buildUrl(`/storage/${slot}`), {
                 method: 'DELETE',
                 credentials: 'include'
             });
@@ -166,12 +180,11 @@ class WebDoor {
      */
     async getLeaderboard(board, options = {}) {
         try {
-            const params = new URLSearchParams();
-            if (options.limit) params.set('limit', options.limit);
-            if (options.scope) params.set('scope', options.scope);
+            const extraParams = {};
+            if (options.limit) extraParams.limit = options.limit;
+            if (options.scope) extraParams.scope = options.scope;
 
-            const url = `${this.apiBase}/leaderboard/${board}?${params}`;
-            const response = await fetch(url, {
+            const response = await fetch(this._buildUrl(`/leaderboard/${board}`, extraParams), {
                 credentials: 'include',
                 headers: {
                     'Accept': 'application/json'
@@ -204,7 +217,7 @@ class WebDoor {
      */
     async submitScore(board, score, metadata = {}) {
         try {
-            const response = await fetch(`${this.apiBase}/leaderboard/${board}`, {
+            const response = await fetch(this._buildUrl(`/leaderboard/${board}`), {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -235,7 +248,7 @@ class WebDoor {
      */
     async endSession(playtimeSeconds = 0) {
         try {
-            const response = await fetch(`${this.apiBase}/session/end`, {
+            const response = await fetch(this._buildUrl('/session/end'), {
                 method: 'POST',
                 credentials: 'include',
                 headers: {

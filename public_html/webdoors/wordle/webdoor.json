@@ -7,7 +7,7 @@
     "author": "BinktermPHP",
     "description": "Guess the five-letter word in six tries",
     "entry_point": "index.html",
-    "icon": "icon.png",
+    "icon": "icon.svg",
     "screenshots": []
   },
   "requirements": {
