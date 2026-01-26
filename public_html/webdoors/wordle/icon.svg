@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="8" fill="#121213"/>
+  <g transform="translate(6, 18)">
+    <!-- Row of tiles spelling WORD -->
+    <rect x="0" y="0" width="12" height="12" rx="2" fill="#538d4e"/>
+    <rect x="14" y="0" width="12" height="12" rx="2" fill="#b59f3b"/>
+    <rect x="28" y="0" width="12" height="12" rx="2" fill="#3a3a3c"/>
+    <rect x="42" y="0" width="12" height="12" rx="2" fill="#538d4e"/>
+    <!-- Second row -->
+    <rect x="0" y="16" width="12" height="12" rx="2" fill="#3a3a3c"/>
+    <rect x="14" y="16" width="12" height="12" rx="2" fill="#538d4e"/>
+    <rect x="28" y="16" width="12" height="12" rx="2" fill="#b59f3b"/>
+    <rect x="42" y="16" width="12" height="12" rx="2" fill="#3a3a3c"/>
+  </g>
+  <text x="32" y="10" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#fff">WORDLE</text>
+</svg>
