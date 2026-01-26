@@ -101,6 +101,10 @@ The `domain` field identifies which network this uplink belongs to.
 - The uplink in `binkp.json` defines the actual connection details (hostname, password) for polling and sending mail
 - If an echo area has no `uplink_address`, messages go to the default uplink for that domain
 
+### Q: Why does ANSI art render incorrectly?
+**A:**
+- Make sure you're using a monospace font such as Courier new.  Non mono-space fonts will not render ANSI correctly.
+- 
 ---
 
 ## Netmail

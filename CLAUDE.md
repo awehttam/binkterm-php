@@ -39,7 +39,6 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
  - See FAQ.md for common questions and troubleshooting
 
-
 ## URL Construction
 When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** follow this pattern:
 
@@ -192,6 +191,10 @@ git commit -m "Bump version to 1.4.3"
 git tag -a v1.4.3 -m "Release version 1.4.3"
 git push origin main --tags
 ```
+
+#### 5. Update UPGRADING_x.x.x.md documentation
+
+For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) with a summary of changes and important upgrade instructions
 
 ### What Updates Automatically
 

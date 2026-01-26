@@ -1129,16 +1129,19 @@ class BinkdProcessor
         fwrite($handle, $msgHeader);
         
         // Null-terminated strings (after message header)
-        // Create Fidonet date format - database stores UTC, convert to local time
+        // Create Fidonet date format - database stores UTC, convert to configured system timezone
+        // IMPORTANT: Must use the same timezone as generateTzutc() for TZUTC kludge consistency
         $dateWritten = $message['date_written'];
+        $systemTimezone = $this->config->getSystemTimezone();
         if ($dateWritten) {
-            // Parse as UTC date and convert to local time for Fidonet packet
+            // Parse as UTC date and convert to configured system timezone for Fidonet packet
             $dt = new \DateTime($dateWritten, new \DateTimeZone('UTC'));
-            $dt->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+            $dt->setTimezone(new \DateTimeZone($systemTimezone));
             $fidonetDate = $dt->format('d M y  H:i:s');
         } else {
-            // Fallback to current time in local timezone
-            $fidonetDate = date('d M y  H:i:s');
+            // Fallback to current time in configured system timezone
+            $dt = new \DateTime('now', new \DateTimeZone($systemTimezone));
+            $fidonetDate = $dt->format('d M y  H:i:s');
         }
         fwrite($handle, $fidonetDate . "\0");
         fwrite($handle, substr($message['to_name'], 0, 35) . "\0");
@@ -1209,11 +1212,12 @@ class BinkdProcessor
                 }
             }
         }
-        
+
+        $kludgeLines.="\x01MAILER:  BinktermPHP ".Version::getVersion()." ".PHP_OS_FAMILY."\r\n";
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {
-            $areaLine = "AREA:{$message['echoarea_tag']}\r\n";
+            $areaLine = "AREA: {$message['echoarea_tag']}\r\n";
         }
         
         $messageText = $areaLine . $kludgeLines . $messageText;
@@ -1559,8 +1563,9 @@ class BinkdProcessor
         
         $stmt->execute();
         $deletedCount = $stmt->rowCount();
-        
-        $this->log("[BINKD] Cleaned up {$deletedCount} old packet records");
+
+        if($deletedCount)
+            $this->log("[BINKD] Cleaned up {$deletedCount} old packet records");
         
         return $deletedCount;
     }
