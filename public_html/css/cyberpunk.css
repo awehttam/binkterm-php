@@ -40,6 +40,12 @@
     100% { transform: translate(0); }
 }
 
+/* Prevent horizontal overflow on mobile */
+html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
 body {
     font-family: 'Rajdhani', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, var(--cyber-black) 0%, var(--cyber-dark) 50%, var(--cyber-dark-light) 100%);
