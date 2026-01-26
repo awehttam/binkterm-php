@@ -11,22 +11,52 @@ class SetupManager
     {
         echo "BinktermPHP Setup Manager\n";
         echo "========================\n\n";
-        
+
         try {
             // Check if database exists and is initialized
             if ($this->isDatabaseInitialized()) {
                 echo "Database is already initialized.\n";
                 echo "Running upgrade check...\n\n";
-                return $this->runUpgrade();
+                $result = $this->runUpgrade();
             } else {
                 echo "Database not found or not initialized.\n";
                 echo "Running installation...\n\n";
-                return $this->runInstall();
+                $result = $this->runInstall();
             }
-            
+
+            // Fix directory permissions
+            $this->fixDirectoryPermissions();
+
+            return $result;
+
         } catch (Exception $e) {
             echo "✗ Setup failed: " . $e->getMessage() . "\n";
             return false;
+        }
+    }
+
+    private function fixDirectoryPermissions()
+    {
+        // Only run on Unix-like systems
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            return;
+        }
+
+        echo "\nSetting directory permissions...\n";
+
+        $outboundDir = __DIR__ . '/../data/outbound';
+
+        if (is_dir($outboundDir)) {
+            // chmod a+rwxt (1777) - world writable with sticky bit
+            $result = chmod($outboundDir, 01777);
+            if ($result) {
+                echo "✓ Set permissions on data/outbound (a+rwxt)\n";
+            } else {
+                echo "⚠ Could not set permissions on data/outbound\n";
+                echo "  Run manually: chmod a+rwxt data/outbound\n";
+            }
+        } else {
+            echo "⚠ data/outbound directory not found\n";
         }
     }
     

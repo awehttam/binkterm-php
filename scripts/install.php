@@ -35,7 +35,8 @@ class Installer
             $this->createTables();
             $this->insertDefaultData();
             $this->createAdminUser();
-            
+            $this->fixDirectoryPermissions();
+
             echo "\n✓ Installation completed successfully!\n\n";
             $this->showPostInstallationInfo();
             
@@ -219,6 +220,31 @@ class Installer
         echo "• scripts/binkp_poll.php    - Poll uplinks for new mail\n";
         echo "• scripts/binkp_status.php  - Check BinkP system status\n";
         echo "• scripts/process_packets.php - Manually process mail packets\n\n";
+    }
+
+    private function fixDirectoryPermissions()
+    {
+        // Only run on Unix-like systems
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            return;
+        }
+
+        echo "4. Setting directory permissions...\n";
+
+        $outboundDir = __DIR__ . '/../data/outbound';
+
+        if (is_dir($outboundDir)) {
+            // chmod a+rwxt (1777) - world writable with sticky bit
+            $result = chmod($outboundDir, 01777);
+            if ($result) {
+                echo "   ✓ Set permissions on data/outbound (a+rwxt)\n";
+            } else {
+                echo "   ⚠ Could not set permissions on data/outbound\n";
+                echo "     Run manually: chmod a+rwxt data/outbound\n";
+            }
+        } else {
+            echo "   ⚠ data/outbound directory not found\n";
+        }
     }
 }
 
