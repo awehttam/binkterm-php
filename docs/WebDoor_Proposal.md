@@ -1,4 +1,8 @@
-# WebDoor Specification Proposal
+~~# WebDoor Specification Proposal
+
+Draft 1
+
+
 
 ## Overview
 
@@ -742,4 +746,4 @@ function gameLoop() {
 - **DoorFrame** - The "frame" that hosts door games
 - **PortalDoor** - Web portal + door game
 - **OpenDoor** - Emphasizes open specification
-- **DoorJS** - Emphasizes JavaScript nature
+- **DoorJS** - Emphasizes JavaScript nature~~
