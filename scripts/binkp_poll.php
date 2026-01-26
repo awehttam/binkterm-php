@@ -22,7 +22,7 @@ function showUsage()
     echo "  --log-file=FILE   Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_poll.log') . ")\n";
     echo "  --no-console      Disable console logging\n";
     echo "  --quiet           Minimal output\n";
-    echo "  --queued-only     Only connect to uplinnk if queued packets are available\n";
+    echo "  --queued-only     Only connect to uplink if queued packets are available\n";
     echo "  --help            Show this help message\n";
     echo "\n";
     echo "Examples:\n";
