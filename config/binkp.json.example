@@ -5,7 +5,9 @@
         "sysop": "Claude the Coder",
         "location": "Over Yonder",
         "hostname": "localhost",
-        "timezone": "UTC"
+        "timezone": "UTC",
+        "origin": "My BBS - https://mybbs.example.com"
+
     },
     "binkp": {
         "port": 24554,
