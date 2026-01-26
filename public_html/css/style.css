@@ -13,6 +13,12 @@
     --border-color: #dee2e6;
 }
 
+/* Prevent horizontal overflow on mobile */
+html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f8f9fa;
@@ -412,26 +418,45 @@ body {
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .message-date {
         margin-top: 4px;
     }
-    
+
     .compose-form {
         padding: 15px;
     }
-    
+
     .message-headers {
         padding: 10px;
     }
-    
+
     .kludge-lines pre {
         font-size: 0.8rem;
     }
-    
+
     #toggleHeaders {
         font-size: 0.75rem;
         padding: 4px 8px;
+    }
+}
+
+/* Mobile filter controls - used on netmail/echomail pages */
+@media (max-width: 575.98px) {
+    .filter-controls {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 2px;
+    }
+
+    .filter-controls .btn-group {
+        flex-shrink: 0;
+    }
+
+    .filter-controls .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
     }
 }
 
