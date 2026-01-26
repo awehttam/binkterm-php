@@ -21,7 +21,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
-- [File Structure](#file-structure)
+- [WebDoors](#webdoors---web-based-door-games)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -71,6 +71,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
+- **WebDoors** - HTML5/JavaScript game integration with storage, leaderboards, and multiplayer support
 
 ### Native Binkp Protocol Support
 - **FTS-1026 Compliant** - Full (really?)  binkp/1.0 protocol implementation
@@ -1093,6 +1094,65 @@ if ($userIdFromUrl && $tokenFromUrl) {
     }
 }
 ```
+
+## WebDoors - Web-Based Door Games
+
+BinktermPHP implements the **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
+
+### Features
+
+- **Game Library** - Browse and launch available games from the web interface
+- **Save/Load Support** - Games can persist user progress via the BBS API
+- **Leaderboards** - Global and time-scoped high score tracking
+- **Multiplayer** - Real-time multiplayer support via WebSocket connections
+- **Lobby System** - Create and join game rooms for multiplayer sessions
+
+### Hosting Models
+
+WebDoors supports two hosting approaches:
+
+| Model | Location | Authentication | Use Case |
+|-------|----------|----------------|----------|
+| **Local** | Same server (`/webdoor/games/`) | Session cookie | Self-hosted games |
+| **Third-Party** | External server | Token + CORS | Community games |
+
+### Game Manifest
+
+Each game includes a `webdoor.json` manifest describing its capabilities:
+
+```json
+{
+  "webdoor_version": "1.0",
+  "game": {
+    "id": "space-trader",
+    "name": "Space Trader",
+    "version": "1.0.0",
+    "entry_point": "index.html"
+  },
+  "requirements": {
+    "features": ["storage", "leaderboard"]
+  },
+  "storage": {
+    "max_size_kb": 100,
+    "save_slots": 3
+  }
+}
+```
+
+### API Endpoints
+
+Games interact with the BBS through REST endpoints:
+
+| Endpoint | Purpose                                     |
+|----------|---------------------------------------------|
+| `GET /api/webdoor/session` | Get authenticated session                   |
+| `GET/PUT/DELETE /api/webdoor/storage/{slot}` | Save game management                        |
+| `GET/POST /api/webdoor/leaderboard/{board}` | Leaderboard access                          |
+| `WS /api/webdoor/multiplayer` | Real-time multiplayer (not yet implemented) |
+
+### Documentation
+
+For the complete WebDoor specification including SDK examples, multiplayer protocol, and implementation details, see [docs/WebDoors_Proposal.md](docs/WebDoors_Proposal.md).
 
 ## Frequently Asked Questions
 
