@@ -201,6 +201,24 @@ class SessionLogger
         $stmt->execute([$sessionType, $this->sessionId]);
     }
 
+    /**
+     * Set the authentication method used for this session
+     *
+     * @param string $method 'plaintext' or 'cram-md5'
+     */
+    public function setAuthMethod(string $method): void
+    {
+        if (!$this->sessionId) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE binkp_session_log SET auth_method = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$method, $this->sessionId]);
+    }
+
     // ========================================
     // Static Query Methods
     // ========================================
@@ -284,6 +302,8 @@ class SessionLogger
                 COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
                 COUNT(*) FILTER (WHERE is_inbound = TRUE) as inbound,
                 COUNT(*) FILTER (WHERE is_inbound = FALSE) as outbound,
+                COUNT(*) FILTER (WHERE auth_method = 'cram-md5') as cram_md5_sessions,
+                COUNT(*) FILTER (WHERE auth_method = 'plaintext') as plaintext_sessions,
                 COALESCE(SUM(messages_received), 0) as total_messages_received,
                 COALESCE(SUM(messages_sent), 0) as total_messages_sent,
                 COALESCE(SUM(files_received), 0) as total_files_received,
