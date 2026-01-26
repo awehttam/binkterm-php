@@ -551,6 +551,15 @@ class BinkpConfig
         return $this->config['security']['log_all_sessions'] ?? true;
     }
 
+    /**
+     * Check if plain text password fallback is allowed when CRAM-MD5 is available.
+     * When false, remotes must use CRAM-MD5 if we sent a challenge.
+     */
+    public function getAllowPlaintextFallback(): bool
+    {
+        return $this->config['security']['allow_plaintext_fallback'] ?? true;
+    }
+
     // ========================================
     // Crashmail Configuration
     // ========================================

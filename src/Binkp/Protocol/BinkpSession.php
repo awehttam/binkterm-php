@@ -39,6 +39,12 @@ class BinkpSession
     private $sessionType = 'secure';  // 'secure', 'insecure', 'crash_outbound'
     private $sessionLogger = null;
 
+    // CRAM-MD5 authentication
+    private $cramChallenge = null;        // Challenge sent/received
+    private $remoteCramSupported = false; // Remote supports CRAM?
+    private $useCramAuth = false;         // Using CRAM for this session?
+    private $authMethod = 'plaintext';    // Authentication method used
+
     public function __construct($socket, $isOriginator = false, $config = null)
     {
         $this->socket = $socket;
@@ -139,6 +145,13 @@ class BinkpSession
         $this->sendNul("LOC {$location}");
         $this->sendNul("VER BinktermPHP/".Version::getVersion()." binkp/1.0");
         $this->sendNul("TIME " . gmdate('D, d M Y H:i:s') . " UTC");
+
+        // As answerer, send CRAM-MD5 challenge if any uplink has crypt enabled
+        if (!$this->isOriginator && $this->hasAnyCramEnabledUplink()) {
+            $this->cramChallenge = $this->generateCramChallenge();
+            $this->sendNul("OPT CRAM-MD5-{$this->cramChallenge}");
+            $this->log("Sent CRAM-MD5 challenge", 'DEBUG');
+        }
     }
 
     private function sendNul($data)
@@ -395,8 +408,22 @@ class BinkpSession
                 break;
 
             case BinkpFrame::M_NUL:
-                // System info frames - just log them
-                $this->log("M_NUL: " . $frame->getData(), 'DEBUG');
+                $nulData = $frame->getData();
+                $this->log("M_NUL: " . $nulData, 'DEBUG');
+
+                // Check for CRAM-MD5 challenge in OPT frame
+                $challenge = $this->parseCramChallenge($nulData);
+                if ($challenge !== null) {
+                    $this->cramChallenge = $challenge;
+                    $this->remoteCramSupported = true;
+                    $this->log("Received CRAM-MD5 challenge from remote", 'DEBUG');
+
+                    // As originator, decide whether to use CRAM based on uplink config
+                    if ($this->isOriginator && $this->isCramEnabledForUplink()) {
+                        $this->useCramAuth = true;
+                        $this->log("Will use CRAM-MD5 authentication", 'DEBUG');
+                    }
+                }
                 break;
 
             case BinkpFrame::M_ERR:
@@ -483,8 +510,21 @@ class BinkpSession
         } else {
             $password = $this->getPasswordForRemote();
         }
-        $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
-        $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
+
+        // Use CRAM-MD5 authentication if enabled and we have a challenge
+        if ($this->useCramAuth && $this->cramChallenge !== null) {
+            $digest = $this->computeCramDigest($this->cramChallenge, $password);
+            $cramPassword = "CRAM-MD5-{$digest}";
+            $this->authMethod = 'cram-md5';
+            $this->log("Sending CRAM-MD5 digest", 'DEBUG');
+            $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $cramPassword);
+        } else {
+            // Plain text password
+            $this->authMethod = 'plaintext';
+            $this->log("Sent password (length=" . strlen($password) . ")", 'DEBUG');
+            $frame = BinkpFrame::createCommand(BinkpFrame::M_PWD, $password);
+        }
+
         $frame->writeToSocket($this->socket);
     }
 
@@ -786,6 +826,43 @@ class BinkpSession
         }
 
         $expectedPassword = $this->getPasswordForRemote();
+
+        // Check if this is a CRAM-MD5 response
+        if (preg_match('/^CRAM-MD5-([0-9a-fA-F]{32})$/i', $password, $matches)) {
+            $receivedDigest = strtolower($matches[1]);
+
+            // We must have sent a challenge to accept CRAM auth
+            if ($this->cramChallenge === null) {
+                $this->log("Received CRAM-MD5 response but no challenge was sent", 'WARNING');
+                return false;
+            }
+
+            // Compute expected digest
+            $expectedDigest = $this->computeCramDigest($this->cramChallenge, $expectedPassword);
+
+            // Use timing-safe comparison
+            $match = hash_equals($expectedDigest, $receivedDigest);
+
+            $this->log("CRAM-MD5 validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
+
+            if ($match) {
+                $this->authMethod = 'cram-md5';
+                $this->sessionType = 'secure';
+            }
+
+            return $match;
+        }
+
+        // Plain text password validation
+        // If we sent a challenge and got a plain password, check if fallback is allowed
+        if ($this->cramChallenge !== null) {
+            if (!$this->config->getAllowPlaintextFallback()) {
+                $this->log("Plain text password rejected - CRAM-MD5 required", 'WARNING');
+                return false;
+            }
+            $this->log("Accepting plain text password fallback", 'DEBUG');
+        }
+
         $match = $password === $expectedPassword;
 
         // Log details for debugging authentication issues
@@ -798,6 +875,7 @@ class BinkpSession
         $this->log("Password validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
 
         if ($match) {
+            $this->authMethod = 'plaintext';
             $this->sessionType = 'secure';
         }
 
@@ -938,7 +1016,100 @@ class BinkpSession
             }
         }
     }
-    
+
+    // ========================================
+    // CRAM-MD5 Authentication Methods
+    // ========================================
+
+    /**
+     * Generate a CRAM-MD5 challenge (16 random bytes as 32 hex chars).
+     *
+     * @return string 32-character hex string
+     */
+    private function generateCramChallenge(): string
+    {
+        return bin2hex(random_bytes(16));
+    }
+
+    /**
+     * Compute CRAM-MD5 digest per FTS-1026 specification.
+     * Uses HMAC-MD5 as defined in RFC 2104:
+     *   HMAC(K, M) = H((K XOR opad) || H((K XOR ipad) || M))
+     * Where K=password (the key) and M=challenge (the message)
+     *
+     * @param string $challenge Hex challenge (variable length)
+     * @param string $password Plain text password (the HMAC key)
+     * @return string 32-character hex MD5 digest
+     */
+    private function computeCramDigest(string $challenge, string $password): string
+    {
+        $binaryChallenge = hex2bin($challenge);
+
+        // Use HMAC-MD5: key=password, message=challenge
+        $digest = hash_hmac('md5', $binaryChallenge, $password);
+
+        $this->log("CRAM-MD5 HMAC digest: challenge_len=" . strlen($challenge) .
+            ", password_len=" . strlen($password) . ", digest=" . $digest, 'DEBUG');
+        return $digest;
+    }
+
+    /**
+     * Parse CRAM-MD5 challenge from M_NUL OPT data.
+     * Format: "OPT CRAM-MD5-<hex chars>" (variable length)
+     *
+     * @param string $nulData The M_NUL frame data
+     * @return string|null The challenge hex string, or null if not found
+     */
+    private function parseCramChallenge(string $nulData): ?string
+    {
+        // Match variable-length hex challenge (at least 16 chars, typically 32+)
+        if (preg_match('/CRAM-MD5-([0-9a-fA-F]{16,})/', $nulData, $matches)) {
+            $challenge = $matches[1];
+            $this->log("Parsed CRAM-MD5 challenge: " . $challenge . " (len=" . strlen($challenge) . ")", 'DEBUG');
+            return $challenge;
+        }
+        return null;
+    }
+
+    /**
+     * Check if the current uplink has CRAM enabled (crypt: true).
+     *
+     * @return bool
+     */
+    private function isCramEnabledForUplink(): bool
+    {
+        if ($this->currentUplink === null) {
+            return false;
+        }
+        return !empty($this->currentUplink['crypt']);
+    }
+
+    /**
+     * Check if any configured uplink has CRAM enabled.
+     * Used by answerer to decide whether to send challenge.
+     *
+     * @return bool
+     */
+    private function hasAnyCramEnabledUplink(): bool
+    {
+        foreach ($this->config->getUplinks() as $uplink) {
+            if (!empty($uplink['crypt'])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get the authentication method used for this session.
+     *
+     * @return string 'plaintext' or 'cram-md5'
+     */
+    public function getAuthMethod(): string
+    {
+        return $this->authMethod;
+    }
+
     public function getFilesReceived()
     {
         return $this->filesReceived;

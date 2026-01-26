@@ -93,7 +93,8 @@ class BinkpClient
                 'success' => true,
                 'remote_address' => $session->getRemoteAddress(),
                 'files_sent' => $session->getFilesSent(),
-                'files_received' => $session->getFilesReceived()
+                'files_received' => $session->getFilesReceived(),
+                'auth_method' => $session->getAuthMethod()
             ];
 
             $session->close();

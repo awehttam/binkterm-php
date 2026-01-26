@@ -59,11 +59,14 @@ function formatResult($result, $quiet = false)
     if ($quiet) {
         return $result['success'] ? 'OK' : 'FAIL';
     }
-    
+
     if ($result['success']) {
         $output = "SUCCESS\n";
         if (isset($result['remote_address'])) {
             $output .= "  Remote: {$result['remote_address']}\n";
+        }
+        if (isset($result['auth_method'])) {
+            $output .= "  Auth: {$result['auth_method']}\n";
         }
         if (isset($result['files_sent']) && !empty($result['files_sent'])) {
             $output .= "  Files sent: " . implode(', ', $result['files_sent']) . "\n";

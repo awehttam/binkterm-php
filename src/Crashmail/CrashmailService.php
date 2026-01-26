@@ -285,9 +285,13 @@ class CrashmailService
             }
 
             // Perform the delivery using BinkpSession
-            $success = $this->performCrashDelivery($socket, $tempPacket, $destAddress, $password);
+            $deliveryResult = $this->performCrashDelivery($socket, $tempPacket, $destAddress, $password);
+            $success = $deliveryResult['success'];
 
             $sessionLogger->incrementStat('messages_sent', $success ? 1 : 0);
+            if (isset($deliveryResult['auth_method'])) {
+                $sessionLogger->setAuthMethod($deliveryResult['auth_method']);
+            }
             $sessionLogger->endSession($success ? 'success' : 'failed');
 
             return $success;
@@ -348,9 +352,9 @@ class CrashmailService
      * @param string $packetPath Path to the packet file to send
      * @param string $destAddress Destination FTN address
      * @param string $password Session password (empty for insecure)
-     * @return bool Success
+     * @return array ['success' => bool, 'auth_method' => string]
      */
-    private function performCrashDelivery($socket, string $packetPath, string $destAddress, string $password): bool
+    private function performCrashDelivery($socket, string $packetPath, string $destAddress, string $password): array
     {
         error_log("[CRASHMAIL] Starting binkp session for crash delivery to {$destAddress}");
 
@@ -363,6 +367,9 @@ class CrashmailService
             // Perform handshake
             $session->handshake();
             error_log("[CRASHMAIL] Handshake completed with {$destAddress}");
+
+            // Get the auth method used
+            $authMethod = $session->getAuthMethod();
 
             // Send the packet file directly
             $this->sendPacketFile($socket, $packetPath);
@@ -380,7 +387,7 @@ class CrashmailService
             }
 
             $session->close();
-            return $confirmed;
+            return ['success' => $confirmed, 'auth_method' => $authMethod];
 
         } catch (\Exception $e) {
             error_log("[CRASHMAIL] Session error: " . $e->getMessage());
