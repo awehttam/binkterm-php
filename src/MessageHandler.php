@@ -620,6 +620,17 @@ class MessageHandler
             }
         }
 
+        // For crashmail, verify destination can be resolved via nodelist before accepting
+        if ($crashmail && $toAddress !== $originAddress) {
+            $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
+            $routeInfo = $crashmailService->resolveDestination($toAddress);
+
+            if (empty($routeInfo['hostname'])) {
+                error_log("[NETMAIL] Crashmail destination not resolvable: {$toAddress}");
+                throw new \Exception("Cannot send crashmail to {$toAddress}: destination not found in nodelist. The node may not have an internet address listed, or may not exist. Try sending without crashmail to route via your hub.");
+            }
+        }
+
         // Generate MSGID for storage (address + hash format)
         $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $originAddress);
         $msgId = $originAddress . ' ' . $msgIdHash;

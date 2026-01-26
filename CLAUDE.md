@@ -93,6 +93,9 @@ if ($siteUrl) {
 
 ## Recent Features Added
 
+### Webdoors
+- **Webdoors**: An API documented in docs/WebDoors_Proposal.md allows drop in games to interface with the BBS
+
 ### Multi-Network Support
 - **Multiple Networks**: The system supports multiple FTN networks through individual uplinks with domain-based routing
 - **Local Echo Areas**: `is_local` flag identifies echoareas for local use only (messages not transmitted to uplinks)
