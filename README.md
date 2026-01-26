@@ -703,6 +703,9 @@ php scripts/binkp_poll.php 1:153/149
 # Poll all configured uplinks
 php scripts/binkp_poll.php --all
 
+# Poll all configured uplinks only if there are packets in the outbound queue
+php scripts/binkp_poll.php --all --queued-only
+
 # Test connection without polling
 php scripts/binkp_poll.php --test 1:153/149
 ```
