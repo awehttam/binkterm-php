@@ -81,7 +81,7 @@ class BinkpClient
 
             $session->handshake();
 
-            $this->log("Handshake completed with {$address}");
+            //$this->log("Handshake completed with {$address}");
 
             if (!$session->processSession()) {
                 throw new \Exception('Session processing failed');

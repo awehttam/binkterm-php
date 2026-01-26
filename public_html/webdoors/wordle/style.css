@@ -1,0 +1,456 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --color-correct: #6aaa64;
+    --color-present: #c9b458;
+    --color-absent: #787c7e;
+    --color-border: #d3d6da;
+    --color-key-bg: #d3d6da;
+    --color-bg: #ffffff;
+    --color-text: #1a1a1b;
+    --tile-size: 62px;
+    --tile-font-size: 2rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-correct: #538d4e;
+        --color-present: #b59f3b;
+        --color-absent: #3a3a3c;
+        --color-border: #3a3a3c;
+        --color-key-bg: #818384;
+        --color-bg: #121213;
+        --color-text: #ffffff;
+    }
+}
+
+body {
+    font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+}
+
+#game-container {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+}
+
+header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 10px;
+}
+
+header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.2rem;
+    text-transform: uppercase;
+}
+
+#user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#player-name {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+#stats-btn {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 4px;
+    background-color: var(--color-key-bg);
+    color: var(--color-text);
+}
+
+#stats-btn:hover {
+    opacity: 0.8;
+}
+
+#message-bar {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+#message-bar.error {
+    color: #ff4444;
+}
+
+#message-bar.success {
+    color: var(--color-correct);
+}
+
+/* Board */
+#board {
+    display: grid;
+    grid-template-rows: repeat(6, 1fr);
+    gap: 5px;
+    padding: 10px 0;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+}
+
+.tile {
+    width: var(--tile-size);
+    height: var(--tile-size);
+    border: 2px solid var(--color-border);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: var(--tile-font-size);
+    font-weight: 700;
+    text-transform: uppercase;
+    user-select: none;
+    transition: transform 0.1s;
+}
+
+.tile.filled {
+    border-color: #878a8c;
+    animation: pop 0.1s ease-in-out;
+}
+
+.tile.correct {
+    background-color: var(--color-correct);
+    border-color: var(--color-correct);
+    color: white;
+}
+
+.tile.present {
+    background-color: var(--color-present);
+    border-color: var(--color-present);
+    color: white;
+}
+
+.tile.absent {
+    background-color: var(--color-absent);
+    border-color: var(--color-absent);
+    color: white;
+}
+
+.tile.reveal {
+    animation: flip 0.5s ease forwards;
+}
+
+@keyframes pop {
+    50% { transform: scale(1.1); }
+}
+
+@keyframes flip {
+    0% { transform: rotateX(0deg); }
+    50% { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-5px); }
+    40%, 80% { transform: translateX(5px); }
+}
+
+.row.shake {
+    animation: shake 0.5s ease;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-20px); }
+    60% { transform: translateY(-10px); }
+}
+
+.tile.bounce {
+    animation: bounce 0.5s ease;
+}
+
+/* Keyboard */
+#keyboard {
+    width: 100%;
+    padding: 10px 0;
+}
+
+.keyboard-row {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.key {
+    height: 58px;
+    min-width: 43px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 4px;
+    background-color: var(--color-key-bg);
+    color: var(--color-text);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.1s;
+}
+
+.key:hover {
+    opacity: 0.9;
+}
+
+.key.wide {
+    min-width: 65px;
+    font-size: 0.75rem;
+}
+
+.key.correct {
+    background-color: var(--color-correct);
+    color: white;
+}
+
+.key.present {
+    background-color: var(--color-present);
+    color: white;
+}
+
+.key.absent {
+    background-color: var(--color-absent);
+    color: white;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background-color: var(--color-bg);
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 400px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text);
+}
+
+.modal-content h2 {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.modal-content h3 {
+    margin: 15px 0 10px;
+    font-size: 1rem;
+}
+
+/* Stats */
+#stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    text-align: center;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+/* Guess Distribution */
+#guess-distribution {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.distribution-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.distribution-row span:first-child {
+    width: 15px;
+    text-align: right;
+}
+
+.distribution-bar {
+    height: 20px;
+    min-width: 20px;
+    background-color: var(--color-absent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 5px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.distribution-bar.highlight {
+    background-color: var(--color-correct);
+}
+
+/* Leaderboard */
+#leaderboard-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.leaderboard-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.leaderboard-entry .rank {
+    width: 30px;
+    font-weight: 700;
+}
+
+.leaderboard-entry .name {
+    flex: 1;
+}
+
+.leaderboard-entry .score {
+    font-weight: 700;
+}
+
+.leaderboard-entry.current-user {
+    background-color: rgba(106, 170, 100, 0.2);
+    margin: 0 -10px;
+    padding: 8px 10px;
+}
+
+/* Help Modal */
+.example {
+    margin: 15px 0;
+}
+
+.example-row {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+.example-row .tile {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+}
+
+.modal-content ul {
+    margin-left: 20px;
+    margin-bottom: 10px;
+}
+
+.modal-content p {
+    margin: 5px 0;
+}
+
+/* Action buttons */
+#game-over-actions {
+    margin-top: 20px;
+    text-align: center;
+}
+
+#game-over-actions.hidden {
+    display: none;
+}
+
+.action-btn {
+    background-color: var(--color-correct);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.action-btn:hover {
+    opacity: 0.9;
+}
+
+/* Responsive */
+@media (max-width: 400px) {
+    :root {
+        --tile-size: 52px;
+        --tile-font-size: 1.5rem;
+    }
+
+    .key {
+        height: 50px;
+        min-width: 30px;
+        padding: 0 8px;
+        font-size: 0.8rem;
+    }
+
+    .key.wide {
+        min-width: 50px;
+    }
+}

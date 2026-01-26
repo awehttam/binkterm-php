@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wordle - WebDoor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <header>
+            <h1>Wordle</h1>
+            <div id="user-info">
+                <span id="player-name">Loading...</span>
+                <button id="stats-btn" title="Statistics">Stats</button>
+            </div>
+        </header>
+
+        <div id="message-bar"></div>
+
+        <div id="board">
+            <!-- 6 rows of 5 tiles each -->
+        </div>
+
+        <div id="keyboard">
+            <!-- Virtual keyboard -->
+        </div>
+    </div>
+
+    <!-- Stats Modal -->
+    <div id="stats-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="close-btn">&times;</button>
+            <h2>Statistics</h2>
+            <div id="stats-grid">
+                <div class="stat">
+                    <span class="stat-value" id="stat-played">0</span>
+                    <span class="stat-label">Played</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-win-pct">0</span>
+                    <span class="stat-label">Win %</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-streak">0</span>
+                    <span class="stat-label">Current Streak</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-max-streak">0</span>
+                    <span class="stat-label">Max Streak</span>
+                </div>
+            </div>
+            <h3>Guess Distribution</h3>
+            <div id="guess-distribution">
+                <!-- Filled by JS -->
+            </div>
+            <div id="leaderboard-section">
+                <h3>Leaderboard</h3>
+                <div id="leaderboard-list">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div id="game-over-actions" class="hidden">
+                <button id="new-game-btn" class="action-btn">New Game (Practice)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="close-btn">&times;</button>
+            <h2>How to Play</h2>
+            <p>Guess the <strong>WORDLE</strong> in 6 tries.</p>
+            <ul>
+                <li>Each guess must be a valid 5-letter word.</li>
+                <li>The color of the tiles will change to show how close your guess was.</li>
+            </ul>
+            <div class="example">
+                <div class="example-row">
+                    <span class="tile correct">W</span>
+                    <span class="tile">E</span>
+                    <span class="tile">A</span>
+                    <span class="tile">R</span>
+                    <span class="tile">Y</span>
+                </div>
+                <p><strong>W</strong> is in the word and in the correct spot.</p>
+            </div>
+            <div class="example">
+                <div class="example-row">
+                    <span class="tile">P</span>
+                    <span class="tile present">I</span>
+                    <span class="tile">L</span>
+                    <span class="tile">L</span>
+                    <span class="tile">S</span>
+                </div>
+                <p><strong>I</strong> is in the word but in the wrong spot.</p>
+            </div>
+            <div class="example">
+                <div class="example-row">
+                    <span class="tile">V</span>
+                    <span class="tile">A</span>
+                    <span class="tile">G</span>
+                    <span class="tile absent">U</span>
+                    <span class="tile">E</span>
+                </div>
+                <p><strong>U</strong> is not in the word in any spot.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="words.js"></script>
+    <script src="webdoor-sdk.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
