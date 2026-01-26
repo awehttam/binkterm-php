@@ -78,7 +78,7 @@ class WebDoorController
         return [
             'session_id' => $session['session_id'],
             'user' => [
-                'display_name' => $this->user['real_name'] ?: $this->user['username'],
+                'display_name' => $this->user['username'] ?: $this->user['real_name'],
                 'user_id_hash' => hash('sha256', $this->user['user_id'] . Config::env('APP_SECRET', 'webdoor'))
             ],
             'host' => [
@@ -328,7 +328,7 @@ class WebDoorController
 
         foreach ($allScores as $index => $score) {
             $rank = $index + 1;
-            $displayName = $score['real_name'] ?: $score['username'];
+            $displayName = $score['username'] ?: $score['real_name'];
 
             $entry = [
                 'rank' => $rank,
