@@ -1,0 +1,55 @@
+{% extends "base.twig" %}
+
+{% block title %}Web Doors - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-gamepad"></i> Web Doors</h1>
+    </div>
+
+    <p class="text-muted mb-4">Play HTML5 games directly in your browser. Your progress and high scores are saved automatically.</p>
+
+    {% if games|length > 0 %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for game in games %}
+        <div class="col">
+            <div class="card h-100 game-card">
+                <div class="card-body d-flex">
+                    <div class="game-icon me-3">
+                        <img src="{{ game.icon_url }}" alt="{{ game.name }}" class="rounded"
+                             style="width: 64px; height: 64px; object-fit: cover;"
+                             onerror="this.src='/favicon.svg'">
+                    </div>
+                    <div class="flex-grow-1">
+                        <h5 class="card-title mb-1">{{ game.name }}</h5>
+                        <p class="card-text text-muted small mb-2">{{ game.description }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">v{{ game.version }}</small>
+                            <a href="/games/{{ game.path }}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-play"></i> Play
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> No games available yet. Check back later!
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.game-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.game-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+</style>
+{% endblock %}
