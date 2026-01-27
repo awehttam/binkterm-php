@@ -1,15 +1,22 @@
 {
+
+    "klondike-solitaire": {
+        "enabled": true
+    },
+    "hangman": {
+        "enabled": true
+    },
     "wordle":{
         "enabled": true
     },
     "revpol": {
-        "enabled": true,
+        "enabled": false,
         "host": "revpol.lovelybits.org",
         "port": 22
     },
     "terminal": {
        "enabled": false,
-      "comment": "Telnet isn't supported right now so this is disabled by default",
+       "comment": "Requires a terminal proxy server (e.g., terminalgateway) with telnet support enabled",
        "hosts": [
             {
                 "hostname": "nethack.alt.org",
@@ -46,11 +53,7 @@
                 "port": 23,
                 "proto": "telnet"
             },
-            {
-                "hostname": "maggie.bold-mansion.com",
-                "port": 23,
-                "proto": "telnet"
-            },
+
             {
                 "hostname": "blackflag.acid.org",
                 "port": 23,

@@ -4,7 +4,7 @@
     "id": "wordle",
     "name": "Wordle",
     "version": "1.0.0",
-    "author": "BinktermPHP",
+    "author": "Claude",
     "description": "Guess the five-letter word in six tries",
     "entry_point": "index.html",
     "icon": "icon.svg",

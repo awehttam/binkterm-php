@@ -6,7 +6,7 @@
     "name": "Klondike Solitaire",
     "description": "Classic single-player Klondike Solitaire implemented as a WebDoor game.",
     "version": "1.0.0",
-    "author": "WebDoor Reference Implementation",
+    "author": "Claude",
     "license": "MIT",
     "homepage": "https://example.invalid/webdoor/solitaire",
     "icon": "icon.svg"

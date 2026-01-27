@@ -1254,8 +1254,36 @@ function setupModalSwipeNavigation() {
     let touchEndX = 0;
     let touchEndY = 0;
     let isDragging = false;
+    let startElement = null;
 
     const modal = document.getElementById('messageModal');
+
+    // Helper function to check if an element or its parents have horizontal scroll
+    function hasHorizontalScroll(element) {
+        let current = element;
+        while (current && current !== modal) {
+            const hasOverflow = current.scrollWidth > current.clientWidth;
+            const overflowX = window.getComputedStyle(current).overflowX;
+
+            if (hasOverflow && (overflowX === 'auto' || overflowX === 'scroll')) {
+                return true;
+            }
+            current = current.parentElement;
+        }
+        return false;
+    }
+
+    // Helper function to check if element is at scroll boundary
+    function isAtScrollBoundary(element, direction) {
+        // direction: -1 for left boundary, 1 for right boundary
+        if (direction < 0) {
+            // Swiping right, check if at left edge
+            return element.scrollLeft <= 0;
+        } else {
+            // Swiping left, check if at right edge
+            return element.scrollLeft + element.clientWidth >= element.scrollWidth - 1;
+        }
+    }
 
     // Touch start
     modal.addEventListener('touchstart', function(e) {
@@ -1264,6 +1292,7 @@ function setupModalSwipeNavigation() {
 
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
+        startElement = e.target;
         isDragging = false;
     }, { passive: true });
 
@@ -1299,12 +1328,36 @@ function setupModalSwipeNavigation() {
         const absDeltaX = Math.abs(deltaX);
         const absDeltaY = Math.abs(deltaY);
 
-        // Minimum swipe distance (in pixels)
-        const minSwipeDistance = 50;
+        // Minimum swipe distance (in pixels) - increased for better distinction
+        const minSwipeDistance = 80;
 
-        // Must be more horizontal than vertical movement
+        // Require significantly more horizontal than vertical movement
+        const horizontalRatio = 2.5;
+
+        // Check if touch started on horizontally scrollable content
+        const hasHScroll = hasHorizontalScroll(startElement);
+
+        // Must be significantly more horizontal than vertical movement
         // And must exceed minimum distance
-        if (absDeltaX > absDeltaY && absDeltaX > minSwipeDistance) {
+        if (absDeltaX > (absDeltaY * horizontalRatio) && absDeltaX > minSwipeDistance) {
+            // If the element has horizontal scroll, only trigger swipe at boundaries
+            if (hasHScroll) {
+                let scrollableElement = startElement;
+                while (scrollableElement && scrollableElement !== modal) {
+                    if (scrollableElement.scrollWidth > scrollableElement.clientWidth) {
+                        const swipeDirection = deltaX > 0 ? -1 : 1;
+                        if (!isAtScrollBoundary(scrollableElement, swipeDirection)) {
+                            // User is scrolling content, don't trigger swipe
+                            resetValues();
+                            return;
+                        }
+                        break;
+                    }
+                    scrollableElement = scrollableElement.parentElement;
+                }
+            }
+
+            // Trigger navigation
             if (deltaX > 0) {
                 // Swipe right - go to previous message
                 navigateMessage(-1);
@@ -1314,12 +1367,16 @@ function setupModalSwipeNavigation() {
             }
         }
 
-        // Reset values
+        resetValues();
+    }
+
+    function resetValues() {
         touchStartX = 0;
         touchStartY = 0;
         touchEndX = 0;
         touchEndY = 0;
         isDragging = false;
+        startElement = null;
     }
 }
 

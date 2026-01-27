@@ -24,7 +24,7 @@
                         <h5 class="card-title mb-1">{{ game.name }}</h5>
                         <p class="card-text text-muted small mb-2">{{ game.description }}</p>
                         <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">v{{ game.version }}</small>
+                            <small class="text-muted">v{{ game.version }} by {{ game.author }}</small>
                             <a href="/games/{{ game.path }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-play"></i> Launch
                             </a>

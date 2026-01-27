@@ -5,7 +5,7 @@
     "name": "Hangman",
     "description": "Classic Hangman. Guess the word before the stick figure is complete.",
     "version": "1.0.0",
-    "author": "WebDoor Reference",
+    "author": "ChatGPT",
     "license": "MIT",
     "icon": "icon.svg"
   },
