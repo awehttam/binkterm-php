@@ -1233,7 +1233,7 @@ class BinkdProcessor
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {
-            $areaLine = "AREA: {$message['echoarea_tag']}\r\n";
+            $areaLine = "AREA:{$message['echoarea_tag']}\r\n";
         }
         
         $messageText = $areaLine . $kludgeLines . $messageText;
