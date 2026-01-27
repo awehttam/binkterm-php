@@ -41,24 +41,17 @@ $auth = new Auth();
 $user = $auth->getCurrentUser();
 $username='';
 // Load terminal configuration
-
+$bbsAuthToken = $auth->generateGatewayToken($user['user_id'], 'menu', 300);
+$gameConfig = \BinktermPHP\GameConfig::getGameConfig("bbslink");
 
 // Load terminal configuration
 $terminalEnabled = Config::env('TERMINAL_ENABLED', 'false') === 'true';
-$terminalHost = Config::env('TERMINAL_HOST', 'revpol.lovelybits.org');
-$terminalPort = Config::env('TERMINAL_PORT', '22');
-$terminalProxyHost = Config::env('TERMINAL_PROXY_HOST', 'terminal.lovelybits.org');
-$terminalProxyPort = Config::env('TERMINAL_PROXY_PORT', '443');
-$terminalTitle =  'Terminal Gateway';
-// TODO: Read webdoors.json for list of hosts we're allowed to connect to
-$terminalHost = Config::env('TERMINAL_HOST', 'revpol.lovelybits.org');
-$terminalPort = Config::env('TERMINAL_PORT', '22');
-
-// Always include the primary system host at top.
-$terminalHosts[] = ["hostname" => $terminalHost, "port" => $terminalPort, "proto" => "ssh"];
-$gameConfig = \BinktermPHP\GameConfig::getGameConfig("terminal");
-
-$terminalHosts =array_merge($terminalHosts, $gameConfig['hosts']);
+$terminalHost = 'games.bbslink.net';
+$terminalPort = 23;
+$terminalProxyHost = $gameConfig['proxy'];
+$terminalProxyPort = $gameConfig['proxy_port'];
+$terminalProxyScheme = $gameConfig['proxy_scheme'] ?? 'https';
+$terminalTitle =  'BBSLink';
 
 // Check if terminal is enabled.
 if (!$terminalEnabled) {
@@ -93,7 +86,7 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="<?php echo htmlspecialchars(Config::getStylesheet()); ?>?v=<?php echo time(); ?>" rel="stylesheet">
-    <link rel="stylesheet" href="/webdoors/terminal/assets/xterm.css" />
+    <link rel="stylesheet" href="/webdoors/bbslink/assets/xterm.css" />
     
     <style>
         body {
@@ -213,10 +206,10 @@ try {
     </style>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="/webdoors/terminal/assets/xterm.js"></script>
-    <script src="//webdoors/terminal/assets/xterm-addon-fit.js"></script>
-    <script src="/webdoors/terminal/assets/xterm-addon-web-links.js"></script>
-    <script src="/webdoors/terminal/assets/socket.io.min.js"></script>
+    <script src="/webdoors/bbslink/assets/xterm.js"></script>
+    <script src="/webdoors/bbslink/assets/xterm-addon-fit.js"></script>
+    <script src="/webdoors/bbslink/assets/xterm-addon-web-links.js"></script>
+    <script src="/webdoors/bbslink/assets/socket.io.min.js"></script>
 </head>
 <body>
 
@@ -226,26 +219,19 @@ try {
             <div class="text-center mb-4">
                 <h1 class="text-white">
                     <i class="fas fa-terminal me-2"></i>
-                    <?php echo htmlspecialchars($terminalTitle); ?>
+                    BBSLink Doors
                 </h1>
             </div>
             
             <div id="login-form" class="login-form">
-                <h3>Terminal Connection</h3>
-                <label for="sshhost" style="display: block; margin-bottom: 8px; color: rgba(255, 255, 255, 0.9); font-weight: 500;">Connect to:</label>
-                <select name="sshhost" id="sshhost" onchange="updateAuthFields()">
-                    <?php
-                    foreach($terminalHosts as $host){
-                        $proto = isset($host['proto']) ? $host['proto'] : 'ssh';
-                        $displayName = $host['hostname'] . ' (' . strtoupper($proto) . ')';
-                        echo '<option value='.$host['hostname'].':'.$host['port'].':'.$proto.'>'.$displayName.'</option>';
-                    }
-                    ?>
-                </select>
-                <div id="auth-fields">
-                    <input type="text" id="username" placeholder="Username" value="<?php echo $username;?>">
-                    <input type="password" id="password" placeholder="Password" >
-                </div>
+
+                <P>
+                    BBSLink is a free InterBBS game server offering a variety of door games to BBS's world wide.  By connecting to BBSLink you'll have access to games such as LORD, LORD2, TEOS, TW2002, Doormud and much more.
+                </P>
+                <label for="sshhost" style="display: block; margin-bottom: 8px; color: rgba(255, 255, 255, 0.9); font-weight: 500;">Connect to BBSLink</label>
+                <input type="hidden" id="sshhost" name="sshhost" value="<?php echo $terminalHost.':'.$terminalPort.':telnet';?>">
+
+
                 <button onclick="startConnection()">Connect</button>
             </div>
             <div id="terminal" class="hidden"></div>
@@ -258,11 +244,12 @@ try {
         // Pre-configured proxy server settings
         const PROXY_HOST = '<?php echo addslashes($terminalProxyHost); ?>';
         const PROXY_PORT = <?php echo intval($terminalProxyPort); ?>;
+        const PROXY_SCHEME = '<?php echo $terminalProxyScheme;?>';
         
         // Remote host settings
-        let REMOTE_HOST = '';//<?php echo addslashes($terminalHost); ?>';
-        let REMOTE_PORT = '';//<?php echo intval($terminalPort); ?>';
-        let REMOTE_PROTO = 'ssh';
+        let REMOTE_HOST = '<?php echo addslashes($terminalHost); ?>';
+        let REMOTE_PORT = '<?php echo intval($terminalPort); ?>';
+        let REMOTE_PROTO = 'telnet';
 
 
         // Initialize xterm.js
@@ -308,7 +295,6 @@ try {
             REMOTE_HOST = parts[0];
             REMOTE_PORT = parts[1];
             REMOTE_PROTO = parts[2] || 'ssh';
-
             // For SSH, require username and password
             let username = '';
             let password = '';
@@ -338,7 +324,7 @@ try {
         }
         
         function connect(username, password) {
-            const serverUrl = `https://${PROXY_HOST}:${PROXY_PORT}`;
+            const serverUrl = `${PROXY_SCHEME}://${PROXY_HOST}:${PROXY_PORT}`;
             console.log('Connecting to:', serverUrl);
             socket = io(serverUrl);
             
@@ -347,14 +333,15 @@ try {
                 terminal.write('\r\n\x1b[32mConnected to terminal server\x1b[0m\r\n');
 
                 // Initiate connection (SSH or Telnet based on protocol)
-                const connectionType = REMOTE_PROTO === 'telnet' ? 'connect-telnet' : 'connect-ssh';
+                const connectionType = 'connect-bbslink-auth';// REMOTE_PROTO === 'telnet' ? 'connect-telnet' : 'connect-ssh';
                 console.log(`Sending ${connectionType} request:`, { host: REMOTE_HOST, port: REMOTE_PORT, username, proto: REMOTE_PROTO });
 
                 socket.emit(connectionType, {
                     host: REMOTE_HOST,
                     port: REMOTE_PORT,
-                    username: username,
-                    password: password,
+                    userid: 1,
+                    doorCode: 'menu',
+                    token: '<?php echo $bbsAuthToken;?>',
                     proto: REMOTE_PROTO
                 });
             });
@@ -416,7 +403,6 @@ try {
 
         // Initialize auth fields visibility on page load
         document.addEventListener('DOMContentLoaded', function() {
-            updateAuthFields();
         });
     </script>
 </body>

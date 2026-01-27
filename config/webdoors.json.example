@@ -1,5 +1,11 @@
 {
-
+    "bbslink":
+    {
+        "comment": "BBSLink isn't fully functional and should be left disabled",
+        "enabled": false,
+        "proxy": "localhost",
+        "proxy_port": 3000
+    },
     "klondike-solitaire": {
         "enabled": true
     },
