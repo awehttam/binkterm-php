@@ -66,7 +66,7 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="<?php echo htmlspecialchars(Config::getStylesheet()); ?>?v=<?php echo time(); ?>" rel="stylesheet">
-    <link rel="stylesheet" href="/terminal/assets/xterm.css" />
+    <link rel="stylesheet" href="/webdoors/revpol/assets/xterm.css" />
     
     <style>
         body {
@@ -156,7 +156,7 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="/webdoors/revpol/assets/xterm.js"></script>
-    <script src="//webdoors/revpol/assets/xterm-addon-fit.js"></script>
+    <script src="/webdoors/revpol/assets/xterm-addon-fit.js"></script>
     <script src="/webdoors/revpol/assets/xterm-addon-web-links.js"></script>
     <script src="/webdoors/revpol/assets/socket.io.min.js"></script>
 </head>
@@ -217,8 +217,9 @@ try {
 
         // Socket.IO connection
         let socket;
-        
-        
+        terminal.write('\x1bc'); // Full terminal reset
+
+
         function startConnection() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;

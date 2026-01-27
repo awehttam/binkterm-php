@@ -8,7 +8,8 @@
         "port": 22
     },
     "terminal": {
-       "enabled": true,
+       "enabled": false,
+      "comment": "Telnet isn't supported right now so this is disabled by default",
        "hosts": [
             {
                 "hostname": "nethack.alt.org",
