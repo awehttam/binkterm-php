@@ -1110,8 +1110,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $handler = new MessageHandler();
 
-
-
         try {
             if ($type === 'netmail') {
 
