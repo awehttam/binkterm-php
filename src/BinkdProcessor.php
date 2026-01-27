@@ -633,17 +633,22 @@ class BinkdProcessor
         // Create clean message text without kludges
         $cleanMessageText = implode("\n", $cleanedLines);
         $kludgeText = implode("\n", $kludgeLines);
+
+        // Use addresses from kludges if available (more reliable than INTL kludge)
+        // Priority: REPLYADDR > MSGID original author > message envelope
+        $fromAddr = $replyAddress ?: ($originalAuthorAddress ?: $message['origAddr']);
+
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        
+
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
-        
+
         $stmt->execute([
             $userId,
-            $message['origAddr'],
+            $fromAddr,
             $message['destAddr'],
             $message['fromName'],
             $message['toName'],
@@ -657,7 +662,7 @@ class BinkdProcessor
             $kludgeText // Store kludges separately
         ]);
 
-        $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
+        $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$fromAddr." to ".$message['toName'].'@'.$message['destAddr']);
     }
 
     /** Records an incoming echomail message into the database
