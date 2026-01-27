@@ -3,7 +3,7 @@
   "game": {
     "id": "terminal",
     "name": "Terminal",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "author": "BinktermPHP",
     "description": "Connect to hosts on the Internet",
     "entry_point": "index.php",

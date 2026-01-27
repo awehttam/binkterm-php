@@ -9,7 +9,7 @@
     },
     "terminal": {
        "enabled": false,
-      "comment": "Telnet isn't supported right now so this is disabled by default",
+       "comment": "Requires a terminal proxy server (e.g., terminalgateway) with telnet support enabled",
        "hosts": [
             {
                 "hostname": "nethack.alt.org",

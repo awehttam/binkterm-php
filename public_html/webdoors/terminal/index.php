@@ -1,4 +1,25 @@
 <?php
+/**
+ * Terminal WebDoor - SSH and Telnet Gateway
+ *
+ * This webdoor provides web-based terminal access to remote SSH and Telnet hosts.
+ * It connects to an external proxy server (e.g., terminalgateway) that handles
+ * the actual SSH/Telnet connections.
+ *
+ * Protocol Support:
+ * - SSH: Requires proxy server with SSH client support
+ * - Telnet: Requires proxy server with Telnet client support
+ *
+ * The frontend sends connection requests with protocol type ('ssh' or 'telnet')
+ * to the proxy server via Socket.IO events:
+ * - 'connect-ssh' for SSH connections
+ * - 'connect-telnet' for Telnet connections
+ *
+ * Configuration:
+ * - Hosts are defined in config/webdoors.json under the 'terminal' key
+ * - Each host must specify: hostname, port, and proto ('ssh' or 'telnet')
+ * - The proxy server address is configured via TERMINAL_PROXY_HOST and TERMINAL_PROXY_PORT
+ */
 
 require_once __DIR__ . '../../../../vendor/autoload.php';
 
@@ -148,6 +169,37 @@ try {
             transform: translateY(-2px);
             box-shadow: 0 6px 25px rgba(59, 130, 246, 0.4);
         }
+        .login-form select {
+            width: 100%;
+            padding: 15px;
+            margin: 12px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 8px;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .login-form select:focus {
+            outline: none;
+            border-color: #60a5fa;
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+        }
+        .login-form select option {
+            background: #2d3748;
+            color: #fff;
+        }
+        #auth-fields {
+            transition: opacity 0.3s ease, max-height 0.3s ease;
+            overflow: hidden;
+        }
+        #auth-fields[style*="display: none"] {
+            opacity: 0;
+            max-height: 0;
+        }
         .hidden {
             display: none;
         }
@@ -179,16 +231,21 @@ try {
             </div>
             
             <div id="login-form" class="login-form">
-
-                Connect to: <select name="sshhost" id="sshhost">
+                <h3>Terminal Connection</h3>
+                <label for="sshhost" style="display: block; margin-bottom: 8px; color: rgba(255, 255, 255, 0.9); font-weight: 500;">Connect to:</label>
+                <select name="sshhost" id="sshhost" onchange="updateAuthFields()">
                     <?php
                     foreach($terminalHosts as $host){
-                        echo '<option value='.$host['hostname'].':'.$host['port'].'>'.$host['hostname'].'</option>';
+                        $proto = isset($host['proto']) ? $host['proto'] : 'ssh';
+                        $displayName = $host['hostname'] . ' (' . strtoupper($proto) . ')';
+                        echo '<option value='.$host['hostname'].':'.$host['port'].':'.$proto.'>'.$displayName.'</option>';
                     }
                     ?>
                 </select>
-                <input type="text" id="username" placeholder="Username" value="<?php echo $username;?>">
-                <input type="password" id="password" placeholder="Password" >
+                <div id="auth-fields">
+                    <input type="text" id="username" placeholder="Username" value="<?php echo $username;?>">
+                    <input type="password" id="password" placeholder="Password" >
+                </div>
                 <button onclick="startConnection()">Connect</button>
             </div>
             <div id="terminal" class="hidden"></div>
@@ -202,11 +259,12 @@ try {
         const PROXY_HOST = '<?php echo addslashes($terminalProxyHost); ?>';
         const PROXY_PORT = <?php echo intval($terminalProxyPort); ?>;
         
-        // Remote SSH host settings
-        REMOTE_HOST = '';//<?php echo addslashes($terminalHost); ?>';
-        REMOTE_PORT = '';//<?php echo intval($terminalPort); ?>;
-        
-        
+        // Remote host settings
+        let REMOTE_HOST = '';//<?php echo addslashes($terminalHost); ?>';
+        let REMOTE_PORT = '';//<?php echo intval($terminalPort); ?>';
+        let REMOTE_PROTO = 'ssh';
+
+
         // Initialize xterm.js
         const terminal = new Terminal({
             cursorBlink: true,
@@ -229,31 +287,53 @@ try {
 
         // Socket.IO connection
         let socket;
-        
-        
-        function startConnection() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            REMOTE_HOST = document.getElementById('sshhost').value.split(':')[0];
-            REMOTE_PORT = document.getElementById('sshhost').value.split(':')[1];
 
-            
-            if (!username || !password) {
-                alert('Please enter both username and password');
-                return;
+        // Update auth fields visibility based on protocol
+        function updateAuthFields() {
+            const hostValue = document.getElementById('sshhost').value;
+            const parts = hostValue.split(':');
+            const proto = parts[2] || 'ssh';
+            const authFields = document.getElementById('auth-fields');
+
+            if (proto === 'telnet') {
+                authFields.style.display = 'none';
+            } else {
+                authFields.style.display = 'block';
             }
-            
+        }
+
+        function startConnection() {
+            const hostValue = document.getElementById('sshhost').value;
+            const parts = hostValue.split(':');
+            REMOTE_HOST = parts[0];
+            REMOTE_PORT = parts[1];
+            REMOTE_PROTO = parts[2] || 'ssh';
+
+            // For SSH, require username and password
+            let username = '';
+            let password = '';
+
+            if (REMOTE_PROTO === 'ssh') {
+                username = document.getElementById('username').value;
+                password = document.getElementById('password').value;
+
+                if (!username || !password) {
+                    alert('Please enter both username and password');
+                    return;
+                }
+            }
+
             // Hide login form and show terminal
             document.getElementById('login-form').classList.add('hidden');
             document.getElementById('terminal').classList.remove('hidden');
-            
+
             // Initialize terminal if not already done
             if (!terminalInitialized) {
                 terminal.open(document.getElementById('terminal'));
                 //fitAddon.fit();
                 terminalInitialized = true;
             }
-            
+
             connect(username, password);
         }
         
@@ -265,14 +345,17 @@ try {
             socket.on('connect', function() {
                 console.log('Socket.IO connected successfully');
                 terminal.write('\r\n\x1b[32mConnected to terminal server\x1b[0m\r\n');
-                
-                // Initiate SSH connection
-                console.log('Sending connect-ssh request:', { host: REMOTE_HOST, port: REMOTE_PORT, username });
-                socket.emit('connect-ssh', {
+
+                // Initiate connection (SSH or Telnet based on protocol)
+                const connectionType = REMOTE_PROTO === 'telnet' ? 'connect-telnet' : 'connect-ssh';
+                console.log(`Sending ${connectionType} request:`, { host: REMOTE_HOST, port: REMOTE_PORT, username, proto: REMOTE_PROTO });
+
+                socket.emit(connectionType, {
                     host: REMOTE_HOST,
                     port: REMOTE_PORT,
                     username: username,
-                    password: password
+                    password: password,
+                    proto: REMOTE_PROTO
                 });
             });
             
@@ -281,10 +364,11 @@ try {
             });
             
             socket.on('connection-status', function(status) {
+                const protoName = REMOTE_PROTO.toUpperCase();
                 if (status.status === 'connected') {
-                    terminal.write('\r\n\x1b[32mSSH connection established\x1b[0m\r\n');
+                    terminal.write(`\r\n\x1b[32m${protoName} connection established\x1b[0m\r\n`);
                 } else if (status.status === 'disconnected') {
-                    terminal.write('\r\n\x1b[31mSSH connection closed\x1b[0m\r\n');
+                    terminal.write(`\r\n\x1b[31m${protoName} connection closed\x1b[0m\r\n`);
                 }
             });
             
@@ -328,6 +412,11 @@ try {
             if (e.key === 'Enter' && !document.getElementById('login-form').classList.contains('hidden')) {
                 startConnection();
             }
+        });
+
+        // Initialize auth fields visibility on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAuthFields();
         });
     </script>
 </body>
