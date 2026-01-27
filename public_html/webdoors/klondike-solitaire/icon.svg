@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Klondike Solitaire icon">
+    <defs>
+        <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ffffff"/>
+            <stop offset="1" stop-color="#e6e6e6"/>
+        </linearGradient>
+
+        <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#6EE7FF"/>
+            <stop offset="0.5" stop-color="#8B5CFF"/>
+            <stop offset="1" stop-color="#FF6EC7"/>
+        </linearGradient>
+
+        <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="blur"/>
+            <feOffset dy="3"/>
+            <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+
+        <style>
+            .card { fill: url(#cardGrad); stroke: url(#accentGrad); stroke-width: 6; rx: 18; }
+            .pipRed { fill: #d62828; }
+            .pipBlack { fill: #111111; }
+            .outline { stroke: url(#accentGrad); stroke-width: 6; fill: none; rx: 18; }
+        </style>
+    </defs>
+
+    <!-- Stacked cards -->
+    <g filter="url(#softShadow)">
+        <!-- Back card -->
+        <rect x="46" y="60" width="140" height="180" rx="20" class="outline" opacity="0.45"/>
+
+        <!-- Middle card -->
+        <rect x="66" y="40" width="140" height="180" rx="20" class="outline" opacity="0.7"/>
+
+        <!-- Front card -->
+        <rect x="86" y="20" width="140" height="180" rx="20" class="card"/>
+    </g>
+
+    <!-- Corner indices (A♥) -->
+    <text x="102" y="52" font-family="ui-sans-serif, system-ui" font-weight="800" font-size="28" class="pipRed">A</text>
+    <text x="200" y="196" font-family="ui-sans-serif, system-ui" font-weight="800" font-size="28" class="pipRed" transform="rotate(180 200 196)">A</text>
+
+    <!-- Large center heart -->
+    <path class="pipRed" d="M156 108
+      c 0 -16 -22 -22 -30 -6
+      c -8 -16 -30 -10 -30 6
+      c 0 18 30 38 30 38
+      c 0 0 30 -20 30 -38z"/>
+</svg>

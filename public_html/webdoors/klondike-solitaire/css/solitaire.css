@@ -1,0 +1,126 @@
+body {
+    background: #0a5c2d;
+    color: white;
+    font-family: sans-serif;
+    margin: 0;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.15);
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.toggle {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.2);
+}
+
+#instructions {
+    background: rgba(0,0,0,0.25);
+    margin: 10px 12px;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+#statusbar {
+    margin: 0 12px 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+
+#status {
+    min-height: 20px;
+    opacity: 0.95;
+}
+
+#win {
+    font-weight: bold;
+}
+
+.hidden {
+    display: none;
+}
+
+.row {
+    display: flex;
+    gap: 14px;
+    padding: 10px 12px;
+}
+
+.pile, .tableau {
+    width: 80px;
+    height: 120px;
+    position: relative;
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+.pile.clickable, .tableau.clickable {
+    cursor: pointer;
+}
+
+.card {
+    width: 78px;
+    height: 118px;
+    position: absolute;
+    background: white;
+    color: black;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+    box-sizing: border-box;
+    border: 1px solid rgba(0,0,0,0.15);
+}
+
+/* ✅ NEW: make hearts/diamonds visibly red */
+.card.red {
+    color: #b00020;
+}
+
+.card.back {
+    background: #223;
+    cursor: default;
+    border: 1px solid rgba(255,255,255,0.15);
+}
+
+.card.selected {
+    outline: 3px solid yellow;
+}
+
+.card.hint {
+    outline: 3px solid rgba(255,255,255,0.7);
+}
+
+.shake {
+    animation: shake 180ms linear 0s 2;
+}
+
+@keyframes shake {
+    0% { transform: translateX(0px); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-3px); }
+    100% { transform: translateX(0px); }
+}

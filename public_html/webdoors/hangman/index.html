@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>WebDoor Hangman</title>
+    <link rel="stylesheet" href="css/hangman.css" />
+    <link rel="preload" href="words.json" as="fetch" crossorigin="anonymous">
+
+</head>
+<body>
+<header>
+    <h1>Hangman</h1>
+    <div class="controls">
+        <select id="difficulty" title="Difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+        </select>
+
+        <button id="new">New Game</button>
+        <button id="hint">Hint</button>
+        <button id="forfeit">Forfeit</button>
+        <button id="save">Save</button>
+    </div>
+</header>
+
+<section id="instructions">
+    <h2>How to Play</h2>
+    <ul>
+        <li>Guess letters to reveal the hidden word.</li>
+        <li>You can click letters below or type on your keyboard.</li>
+        <li>Wrong guesses add parts to the hangman. Too many wrong guesses = game over.</li>
+        <li>Hint reveals a random unrevealed letter (costs 1 wrong guess).</li>
+    </ul>
+</section>
+
+<section id="statusbar">
+    <div id="status"></div>
+    <div id="result" class="hidden"></div>
+</section>
+
+<main class="layout">
+    <div class="panel">
+        <canvas id="gallows" width="320" height="320" aria-label="Hangman drawing"></canvas>
+
+        <div class="meta">
+            <div><strong>Wrong:</strong> <span id="wrongCount">0</span>/<span id="maxWrong">6</span></div>
+            <div><strong>Category:</strong> <span id="category">General</span></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div id="word" class="word" aria-label="Hidden word"></div>
+        <div id="letters" class="letters" aria-label="Letter buttons"></div>
+
+        <div class="guessed">
+            <div><strong>Guessed:</strong></div>
+            <div id="guessedList" class="guessedList"></div>
+        </div>
+    </div>
+</main>
+
+<script src="js/webdoor.js"></script>
+<script src="js/hangman.js"></script>
+</body>
+</html>

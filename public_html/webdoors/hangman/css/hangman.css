@@ -1,0 +1,129 @@
+body {
+    margin: 0;
+    font-family: sans-serif;
+    background: #0b1220;
+    color: #e7eefc;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.06);
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+select, button {
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.08);
+    color: #e7eefc;
+    padding: 8px 10px;
+}
+
+button:hover, select:hover {
+    background: rgba(255,255,255,0.12);
+}
+
+#instructions {
+    margin: 10px 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+}
+
+#statusbar {
+    margin: 0 12px 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+#status { min-height: 22px; opacity: 0.95; }
+
+#result {
+    font-weight: 800;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+}
+
+.hidden { display: none; }
+
+.layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 14px;
+    padding: 10px 12px 20px 12px;
+}
+
+@media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+}
+
+.panel {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.meta {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    opacity: 0.95;
+}
+
+.word {
+    font-size: 34px;
+    letter-spacing: 6px;
+    padding: 8px 0 14px 0;
+    word-break: break-word;
+}
+
+.letters {
+    display: grid;
+    grid-template-columns: repeat(13, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.letters button {
+    padding: 10px 0;
+    font-weight: 800;
+}
+
+.letters button.used {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.guessed {
+    margin-top: 14px;
+    opacity: 0.95;
+}
+
+.guessedList {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.10);
+}
+
