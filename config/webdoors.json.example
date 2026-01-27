@@ -46,11 +46,7 @@
                 "port": 23,
                 "proto": "telnet"
             },
-            {
-                "hostname": "maggie.bold-mansion.com",
-                "port": 23,
-                "proto": "telnet"
-            },
+ 
             {
                 "hostname": "blackflag.acid.org",
                 "port": 23,
