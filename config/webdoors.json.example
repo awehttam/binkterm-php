@@ -1,9 +1,16 @@
 {
+
+    "klondike-solitaire": {
+        "enabled": true
+    },
+    "hangman": {
+        "enabled": true
+    },
     "wordle":{
         "enabled": true
     },
     "revpol": {
-        "enabled": true,
+        "enabled": false,
         "host": "revpol.lovelybits.org",
         "port": 22
     },
@@ -46,7 +53,7 @@
                 "port": 23,
                 "proto": "telnet"
             },
- 
+
             {
                 "hostname": "blackflag.acid.org",
                 "port": 23,
