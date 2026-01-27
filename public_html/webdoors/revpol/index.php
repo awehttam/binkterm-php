@@ -174,9 +174,9 @@ try {
             
             <div id="login-form" class="login-form">
 
-                    <h3>SSH Connection to <?php echo htmlspecialchars($terminalHost . ':' . $terminalPort); ?></h3>
-                <input type="text" id="username" placeholder="Username" autocomplete="username" value="<?php echo $username;?>">
-                <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+                <h3>SSH Connection to <?php echo htmlspecialchars($terminalHost . ':' . $terminalPort); ?></h3>
+                <input type="text" id="username" placeholder="Username" value="<?php echo $username;?>">
+                <input type="password" id="password" placeholder="Password">
                 <button onclick="startConnection()">Connect</button>
             </div>
             <div id="terminal" class="hidden"></div>
