@@ -1,6 +1,6 @@
-# binkterm-php - Modern Fidonet Mailer & Web Interface
+# BinktermPHP - “Your Public Home Point on the Network.”
 
-BinkTermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
+BinktermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
 
