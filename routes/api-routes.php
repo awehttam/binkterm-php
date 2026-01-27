@@ -1110,13 +1110,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $handler = new MessageHandler();
 
-        if(trim($input['to_address'])==""){
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $input['to_address'] = $binkpConfig->getSystemAddress();
-        }
+
 
         try {
             if ($type === 'netmail') {
+
+                if(trim($input['to_address'])==""){
+                    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                    $input['to_address'] = $binkpConfig->getSystemAddress();
+                }
+
                 $crashmailFlag = !empty($input['crashmail']);
                 $result = $handler->sendNetmail(
                     $user['user_id'],
