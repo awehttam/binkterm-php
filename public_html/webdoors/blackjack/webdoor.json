@@ -4,7 +4,7 @@
     "id": "blackjack",
     "name": "Blackjack",
     "version": "1.0.1",
-    "author": "WebDoor Reference",
+    "author": "ChatGPT",
     "description": "Single-player Blackjack with bankroll + WebDoor storage + leaderboard",
     "entry_point": "index.html",
     "icon": "icon.svg"
