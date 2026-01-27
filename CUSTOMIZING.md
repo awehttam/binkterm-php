@@ -70,7 +70,7 @@ Supports plain text or HTML content.
 
 ### Login page banner
 
-Customize the area above the welcome and login bareas.
+Customize the area above the welcome and login areas.
 
 Create a file called `custom/login.banner.twig`, it may contain HTML and standard macros.
 
