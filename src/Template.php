@@ -161,7 +161,7 @@ class Template
 If you need a hand, reach out to '.$sysopName.'
 </P>
 <P>
-                        Sysop: To customize this section, copy <code>templates/custom/systemnews.twig.example</code> to <code>templates/custom/systemnews.twig</code> and edit it.
+                        <!-- Sysop: To customize this section, copy <code>templates/custom/systemnews.twig.example</code> to <code>templates/custom/systemnews.twig</code> and edit it. -->
                         </P>
                     </p>
                 </div>
