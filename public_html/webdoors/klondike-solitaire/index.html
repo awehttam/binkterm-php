@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebDoor Solitaire</title>
+    <link rel="stylesheet" href="css/solitaire.css">
+</head>
+<body>
+
+<header>
+    <h1>Solitaire</h1>
+    <div class="controls">
+        <button id="new">New Game</button>
+        <button id="undo">Undo</button>
+        <button id="save">Save</button>
+
+        <label class="toggle">
+            <input type="checkbox" id="draw3">
+            Draw 3
+        </label>
+
+        <label class="toggle">
+            <input type="checkbox" id="autoFoundation" checked>
+            Auto to Foundation
+        </label>
+
+        <button id="autoMove">Auto Move</button>
+    </div>
+</header>
+
+<section id="instructions">
+    <h2>How to Play</h2>
+    <ul>
+        <li>Click the deck to draw cards (toggle Draw 3 for faster play).</li>
+        <li>Click a face-up card (or a stack in tableau) to select it.</li>
+        <li>Click a tableau column or foundation to move the selection (if legal).</li>
+        <li>Tableau builds down in rank, alternating colors.</li>
+        <li>Foundations build up by suit from Ace to King.</li>
+        <li>Use Undo if you misclick.</li>
+    </ul>
+</section>
+
+<div id="statusbar">
+    <div id="status"></div>
+    <div id="win" class="hidden">🎉 You win! All cards are in the foundations.</div>
+</div>
+
+<main id="board"></main>
+
+<script src="js/webdoor.js"></script>
+<script src="js/solitaire.js"></script>
+</body>
+</html>

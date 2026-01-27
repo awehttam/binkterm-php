@@ -1,0 +1,65 @@
+{
+  "webdoor_version": "1.0",
+  "game": {
+    "id": "hangman",
+    "name": "Hangman",
+    "description": "Classic Hangman. Guess the word before the stick figure is complete.",
+    "version": "1.0.0",
+    "author": "WebDoor Reference",
+    "license": "MIT",
+    "icon": "icon.svg"
+  },
+  "entrypoint": {
+    "type": "html",
+    "file": "index.html"
+  },
+  "runtime": {
+    "language": "javascript",
+    "framework": "vanilla",
+    "requires": {
+      "websocket": false,
+      "cookies": true,
+      "local_storage": false
+    }
+  },
+  "session": {
+    "mode": "host",
+    "persistence": "server",
+    "max_duration_seconds": 86400
+  },
+  "capabilities": {
+    "singleplayer": true,
+    "multiplayer": false,
+    "leaderboards": false,
+    "achievements": false
+  },
+  "storage": {
+    "save_state": {
+      "enabled": true,
+      "scope": "per-user",
+      "format": "json",
+      "max_slots": 1,
+      "auto_save": true
+    }
+  },
+  "api": {
+    "base_path": "/api/webdoor",
+    "endpoints": {
+      "session": "/session",
+      "save": "/save",
+      "load": "/load",
+      "delete": "/delete"
+    }
+  },
+  "ui": {
+    "preferred_width": 900,
+    "preferred_height": 650,
+    "responsive": true,
+    "orientation": "landscape"
+  },
+  "security": {
+    "same_origin_only": true,
+    "csrf_protection": "host",
+    "content_sandbox": true
+  }
+}
