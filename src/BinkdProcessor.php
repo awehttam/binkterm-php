@@ -681,7 +681,7 @@ class BinkdProcessor
                 $areaLine = trim(substr($line, 5));
                 // Split on any whitespace or control characters and take first part
                 $parts = preg_split('/[\s\x01-\x1F]+/', $areaLine);
-                $echoareaTag = trim($parts[0]);
+                $echoareaTag = strtoupper($parts[0]);
                 // Ensure we have a valid echoarea tag
                 if (empty($echoareaTag) || strlen($echoareaTag) > 50) {
                     $echoareaTag = 'MALFORMED';
@@ -798,6 +798,7 @@ class BinkdProcessor
 
     private function getOrCreateEchoarea($tag,$domain)
     {
+        $tag = strtoupper($tag);
         $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
         $stmt->execute([$tag, $domain]);
         $echoarea = $stmt->fetch();

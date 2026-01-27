@@ -260,6 +260,7 @@ function displayEchoareas(echoareas) {
                     <thead>
                         <tr>
                             <th width="5%"></th>
+                            <th>ID</th>
                             <th width="20%">Tag</th>
                             <th width="35%">Description</th>
                             <th width="15%">Messages</th>
@@ -280,6 +281,7 @@ function displayEchoareas(echoareas) {
             html += `
                 <tr class="${rowClass}">
                     <td class="text-center">${statusIcon}</td>
+                    <td>${area.id}</td>
                     <td>
                         <span class="badge" style="background-color: ${area.color || '#28a745'}; color: white;">
                             ${escapeHtml(area.tag)}
@@ -340,7 +342,7 @@ function editEchoarea(id) {
     $.get(`/api/echoareas/${id}`)
         .done(function(data) {
             const area = data.echoarea;
-            $('#echoareaId').val(area.id);
+
             $('#echoareaTag').val(area.tag);
             $('#echoareaDescription').val(area.description);
             $("#echoareaDomain").val(area.domain);

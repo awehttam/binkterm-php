@@ -93,6 +93,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Scheduling Control** - Manage automated polling schedules
 - **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](scripts/README_weather.md))
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
+- **Move Messages** - Move messages between echo areas for reorganization and consolidation
 
 ## Installation
 
@@ -608,6 +609,25 @@ php scripts/echomail_maintenance.php --echo=SYNCDATA --max-age=90 --max-count=20
 ```
 
 The maintenance script provides flexible echomail cleanup with age-based deletion, count-based limits, dry-run preview mode, and per-echo or bulk processing. See [scripts/README_echomail_maintenance.md](scripts/README_echomail_maintenance.md) for detailed documentation, cron job examples, and best practices.
+
+### Move Messages Between Echo Areas
+Move all messages from one echo area to another for reorganization or consolidation:
+
+```bash
+# Move messages by echo area ID
+php scripts/move_messages.php --from=15 --to=23
+
+# Move messages by echo tag and domain
+php scripts/move_messages.php --from-tag=OLD_ECHO --to-tag=NEW_ECHO --domain=fidonet
+
+# Preview what would be moved (dry run)
+php scripts/move_messages.php --from=15 --to=23 --dry-run
+
+# Move messages quietly (suppress output)
+php scripts/move_messages.php --from-tag=TEST --to-tag=GENERAL --domain=fsxnet --quiet
+```
+
+The move_messages script transfers all messages from a source echo area to a destination area, automatically updating message counts for both areas. This is useful for consolidating duplicate echoes, reorganizing areas, or fixing misrouted messages. The script supports both echo area IDs and tag-based lookups, includes confirmation prompts, and provides dry-run mode for safe previewing.
 
 ### User Management Tool
 Manage user accounts from the command line:
