@@ -68,6 +68,12 @@ cp config/welcome.txt.example config/welcome.txt
 
 Supports plain text or HTML content.
 
+### Login page banner
+
+Customize the area above the welcome and login bareas.
+
+Create a file called `custom/login.banner.twig`, it may contain HTML and standard macros.
+
 ### Terminal Welcome
 
 Customize the terminal feature welcome message:
