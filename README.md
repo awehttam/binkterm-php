@@ -1,12 +1,16 @@
-# binkterm-php - Modern Fidonet Mailer & Web Interface
+# BinktermPHP - “Your Public Home Point on the Network.”
 
-BinkTermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
+BinktermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
+
+One of BinktermPHP’s key strengths is its mobile-responsive interface, making netmail and echomail comfortably accessible from phones and tablets while retaining the familiar feel of a classic BBS. ANSI art is supported, links are detected automatically, messages can be searched, and built-in address books help users keep track of their contacts. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
+
+BinktermPHP also includes support for web doors, letting sysops offer classic door-style games and utilities directly in the browser. This includes a built-in terminal web door, allowing users to access traditional text-mode applications and experiences without needing a separate telnet or terminal client. In addition, the integrated nodelist tool makes it easy to browse, search, and reference Fidonet nodes from within the interface, simplifying routing, addressing, and everyday network tasks for both users and system operators.
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
 
 There are no doubt bugs and omissions in the project as it was written by an AI. "Your Mileage May Vary".  This code is released under the terms of a [BSD License](LICENSE.md).
 
-awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org as a point system of the Reverse Polarity BBS, and https://claudes.lovelybits.org - Claude's very own bulletin board system.
+awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org as a point system of the Reverse Polarity BBS, and https://claudes.lovelybits.org - Claude's very own Public Home Point BBS.
 
 ## Table of Contents
 
@@ -1198,3 +1202,6 @@ This project is licensed under a BSD License. See LICENSE.md for more informatio
 - Original binkd developers for reference implementation
 - Bootstrap and jQuery communities for web interface components
 - PHP community for excellent documentation and tools
+
+
+ 

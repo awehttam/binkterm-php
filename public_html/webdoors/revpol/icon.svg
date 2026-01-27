@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Reverse Polarity BBS (1990s Synchronet vibe) - Games Menu Icon (Square)
+Notes:
+- This is a retro-styled SVG "menu tile" that *lists games*.
+- The game names below are COMMON door-game examples (editable). Replace with your actual list.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Reverse Polarity BBS - Games Menu">
+    <defs>
+        <!-- Background -->
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#070914"/>
+            <stop offset="1" stop-color="#0b0f2a"/>
+        </linearGradient>
+
+        <!-- Subtle scanlines -->
+        <pattern id="scan" width="6" height="6" patternUnits="userSpaceOnUse">
+            <rect width="6" height="3" fill="#000" opacity="0.08"/>
+            <rect y="3" width="6" height="3" fill="#fff" opacity="0.02"/>
+        </pattern>
+
+        <!-- Neon glow filter -->
+        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.8" result="b"/>
+            <feColorMatrix in="b" type="matrix"
+                           values="0 0 0 0 0
+                0 0 0 0 1
+                0 0 0 0 0.55
+                0 0 0 0.9 0" result="g"/>
+            <feMerge>
+                <feMergeNode in="g"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+
+        <!-- Soft shadow -->
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.55"/>
+        </filter>
+
+        <!-- Tiny noise -->
+        <filter id="noise" x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch" result="n"/>
+            <feColorMatrix in="n" type="matrix"
+                           values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0.08 0" />
+        </filter>
+
+        <!-- Monospace-ish fallback stack -->
+        <style>
+            .mono { font-family: "IBM Plex Mono","Cascadia Mono","Consolas","Menlo","Monaco",monospace; }
+            .title { font-weight: 800; letter-spacing: 0.5px; }
+            .sub { font-weight: 600; letter-spacing: 1.2px; }
+            .item { font-weight: 600; letter-spacing: 0.2px; }
+        </style>
+    </defs>
+
+    <!-- Outer card -->
+    <rect x="28" y="28" width="456" height="456" rx="26" fill="url(#bg)" filter="url(#shadow)"/>
+    <rect x="28" y="28" width="456" height="456" rx="26" fill="url(#scan)"/>
+    <rect x="28" y="28" width="456" height="456" rx="26" filter="url(#noise)" opacity="1"/>
+
+    <!-- Border -->
+    <rect x="40" y="40" width="432" height="432" rx="20" fill="none" stroke="#19ffb3" stroke-opacity="0.45" stroke-width="2"/>
+    <rect x="44" y="44" width="424" height="424" rx="18" fill="none" stroke="#00ff7a" stroke-opacity="0.18" stroke-width="6"/>
+
+    <!-- Header bar -->
+    <rect x="56" y="56" width="400" height="86" rx="16" fill="#0b1336" stroke="#19ffb3" stroke-opacity="0.35"/>
+    <path d="M56 112 H456" stroke="#19ffb3" stroke-opacity="0.25"/>
+
+    <!-- Small icon glyph (joystick-ish) -->
+    <g transform="translate(76,78)" filter="url(#glow)">
+        <rect x="0" y="18" width="54" height="24" rx="8" fill="#051c19" stroke="#19ffb3" stroke-width="2" opacity="0.95"/>
+        <circle cx="14" cy="30" r="4.5" fill="#19ffb3"/>
+        <circle cx="26" cy="30" r="4.5" fill="#19ffb3" opacity="0.75"/>
+        <rect x="36" y="8" width="10" height="22" rx="5" fill="#19ffb3" opacity="0.9"/>
+        <circle cx="41" cy="8" r="6.5" fill="#19ffb3" opacity="0.35"/>
+    </g>
+
+    <!-- Title -->
+    <text x="146" y="92" class="mono title" font-size="22" fill="#b9ffe9" filter="url(#glow)">REVERSE POLARITY BBS</text>
+    <text x="146" y="122" class="mono sub" font-size="14" fill="#19ffb3" opacity="0.92">GAMES MENU</text>
+
+    <!-- Content panel -->
+    <rect x="56" y="156" width="400" height="300" rx="18" fill="#070b1f" stroke="#19ffb3" stroke-opacity="0.28"/>
+    <path d="M72 196 H440" stroke="#19ffb3" stroke-opacity="0.18"/>
+
+    <!-- Column headers -->
+    <text x="76" y="188" class="mono sub" font-size="12" fill="#19ffb3" opacity="0.9">[ DOORS ]</text>
+    <text x="360" y="188" class="mono sub" font-size="12" fill="#19ffb3" opacity="0.6">TYPE</text>
+
+    <!-- Game list (EDIT THESE NAMES) -->
+    <!-- Tip: Keep each line under ~26 chars for best fit -->
+    <g class="mono item" font-size="16" fill="#d7fff3">
+        <g transform="translate(0,0)">
+            <text x="76" y="224">1) Legend of the Red Dragon</text>
+            <text x="392" y="224" fill="#19ffb3" opacity="0.75">RPG</text>
+
+            <text x="76" y="254">2) TradeWars 2002</text>
+            <text x="392" y="254" fill="#19ffb3" opacity="0.75">SIM</text>
+
+            <text x="76" y="284">3) Barren Realms Elite</text>
+            <text x="392" y="284" fill="#19ffb3" opacity="0.75">STR</text>
+
+            <text x="76" y="314">4) Usurper</text>
+            <text x="392" y="314" fill="#19ffb3" opacity="0.75">RPG</text>
+
+            <text x="76" y="344">5) Global War</text>
+            <text x="392" y="344" fill="#19ffb3" opacity="0.75">STR</text>
+
+            <text x="76" y="374">6) The Pit</text>
+            <text x="392" y="374" fill="#19ffb3" opacity="0.75">ARE</text>
+
+            <text x="76" y="404">7) Exit to Main Menu</text>
+            <text x="392" y="404" fill="#19ffb3" opacity="0.75">SYS</text>
+        </g>
+    </g>
+
+    <!-- Footer menu hints -->
+    <g class="mono" font-size="12" fill="#b9ffe9" opacity="0.8">
+        <text x="72" y="446">ENTER CHOICE:</text>
+        <text x="192" y="446" fill="#19ffb3" opacity="0.95">_</text>
+        <text x="340" y="446" opacity="0.65">[ANSI OK]</text>
+    </g>
+
+    <!-- Tiny “CRT” corner marks -->
+    <g stroke="#19ffb3" stroke-opacity="0.22" stroke-width="2" fill="none">
+        <path d="M56 56 h22"/>
+        <path d="M56 56 v22"/>
+        <path d="M456 56 h-22"/>
+        <path d="M456 56 v22"/>
+        <path d="M56 456 h22"/>
+        <path d="M56 456 v-22"/>
+        <path d="M456 456 h-22"/>
+        <path d="M456 456 v-22"/>
+    </g>
+</svg>
