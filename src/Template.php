@@ -76,6 +76,9 @@ class Template
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
 
+        // Is the game system enabled
+        $this->twig->addGlobal('games_enabled', GameConfig::isGameSystemEnabled());
+
         // Add available themes
         $availableThemes = Config::getThemes();
         $this->twig->addGlobal('available_themes', $availableThemes);

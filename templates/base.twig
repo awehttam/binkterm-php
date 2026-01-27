@@ -58,18 +58,15 @@
                                 <i class="fas fa-sitemap"></i> Nodelist
                             </a>
                         </li>
-                        {% if terminal_enabled %}
+
+                        {% if games_enabled %}
                         <li class="nav-item">
-                            <a class="nav-link" href="/terminal">
-                                <i class="fas fa-terminal"></i> Terminal
+                            <a class="nav-link" href="/games">
+                                <i class="fas fa-gamepad"></i> Doors &amp; Games
                             </a>
                         </li>
                         {% endif %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/games">
-                                <i class="fas fa-gamepad"></i> Games
-                            </a>
-                        </li>
+
                         {% if current_user.is_admin %}
 
                         {% endif %}
@@ -96,13 +93,7 @@
                                 <i class="fas fa-sitemap"></i> Nodelist
                             </a>
                         </li>
-                        {% if terminal_enabled %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/terminal">
-                                <i class="fas fa-terminal"></i> Terminal
-                            </a>
-                        </li>
-                        {% endif %}
+
                     {% endif %}
                 </ul>
                 

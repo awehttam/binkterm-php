@@ -1,0 +1,25 @@
+{
+  "webdoor_version": "1.0",
+  "game": {
+    "id": "revpol",
+    "name": "Reverse Polarity",
+    "version": "1.0.0",
+    "author": "BinktermPHP",
+    "description": "Connects to the Reverse Polarity BBS",
+    "entry_point": "index.php",
+    "icon": "icon.svg",
+    "screenshots": []
+  },
+  "requirements": {
+    "min_host_version": "1.0",
+    "z-features": ["storage", "leaderboard"],
+    "permissions": ["user_display_name"]
+  },
+  "storage": {
+    "max_size_kb": 10,
+    "save_slots": 1
+  },
+  "multiplayer": {
+    "enabled": false
+  }
+}

@@ -12,7 +12,36 @@
     border-radius: 4px;
     padding: 8px;
     line-height: 1em;
+}
 
+/* Ensure pre elements inside container don't wrap */
+.ansi-art-container pre {
+    font-family: 'Perfect DOS VGA 437', 'Fixedsys Excelsior', 'Courier New', monospace;
+    font-size: 16px;
+    line-height: 16px;
+    white-space: pre;
+    margin: 0;
+    padding: 0;
+    color: #aaa;
+    background-color: #000;
+    display: inline-block;
+    text-align: left;
+    min-width: max-content;
+}
+
+/* Mobile: scale down ANSI art to fit screen */
+@media (max-width: 768px) {
+    .ansi-art-container pre {
+        font-size: 8px;
+        line-height: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ansi-art-container pre {
+        font-size: 6px;
+        line-height: 6px;
+    }
 }
 
 .ansi-art {

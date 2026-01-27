@@ -426,7 +426,12 @@ URLs support date macros for dynamic nodelist filenames:
 
 ### Web Terminal Configuration
 
-The web terminal feature provides SSH access through the browser interface. This requires both configuration in the `.env` file and a proxy server to handle WebSocket-to-SSH connections.
+The web terminal web door provides SSH (and eventually telnet) to various servers  through the browser interface.  To enable terminal access requires:
+
+- Enabling terminal access globally through .env (see below)
+- Enabling and configuring the webdoor 'terminal' through config/webdoors.json
+
+This requires both configuration in the `.env` file and a proxy server to handle WebSocket-to-SSH connections.
 
 #### .env Configuration
 Add these settings to your `.env` file:
@@ -438,16 +443,16 @@ TERMINAL_HOST=your.ssh.server.com
 TERMINAL_PORT=22
 TERMINAL_PROXY_HOST=your.proxy.server.com
 TERMINAL_PROXY_PORT=443
-TERMINAL_TITLE=Terminal Gateway
 ```
 
 #### Configuration Options
 - **TERMINAL_ENABLED**: Set to `true` to enable terminal access, `false` to disable
-- **TERMINAL_HOST**: The SSH server hostname/IP that users will connect to
-- **TERMINAL_PORT**: SSH server port (typically 22)
+- **TERMINAL_HOST**: The Priority SSH server hostname/IP that will be displayed by the 'Terminal' webdoor.
+- **TERMINAL_PORT**: The Priority SSH server port (typically 22)  the port 
+
 - **TERMINAL_PROXY_HOST**: WebSocket proxy server hostname/IP
 - **TERMINAL_PROXY_PORT**: WebSocket proxy server port (typically 443 for HTTPS)
-- **TERMINAL_TITLE**: Custom title displayed on the terminal page
+
 
 #### Custom Welcome Messages
 
@@ -1106,6 +1111,13 @@ BinktermPHP implements the **WebDoor** specification, enabling HTML5/JavaScript 
 - **Leaderboards** - Global and time-scoped high score tracking
 - **Multiplayer** - Real-time multiplayer support via WebSocket connections
 - **Lobby System** - Create and join game rooms for multiplayer sessions
+
+### Configuration
+
+By default the webdoor system is disabled.  To enable it, copy config/webdoors.json.example to config/webdoors.json.
+
+The example configuration enables a number of webdoors by default.
+
 
 ### Hosting Models
 

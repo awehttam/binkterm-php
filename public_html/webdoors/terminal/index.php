@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '../../../../vendor/autoload.php';
 
 use BinktermPHP\Auth;
 use BinktermPHP\Template;
@@ -18,6 +18,9 @@ if (!headers_sent()) {
 // Check authentication (optional for terminal)
 $auth = new Auth();
 $user = $auth->getCurrentUser();
+$username='';
+// Load terminal configuration
+
 
 // Load terminal configuration
 $terminalEnabled = Config::env('TERMINAL_ENABLED', 'false') === 'true';
@@ -25,9 +28,18 @@ $terminalHost = Config::env('TERMINAL_HOST', 'revpol.lovelybits.org');
 $terminalPort = Config::env('TERMINAL_PORT', '22');
 $terminalProxyHost = Config::env('TERMINAL_PROXY_HOST', 'terminal.lovelybits.org');
 $terminalProxyPort = Config::env('TERMINAL_PROXY_PORT', '443');
-$terminalTitle = Config::env('TERMINAL_TITLE', 'Terminal Gateway');
+$terminalTitle =  'Terminal Gateway';
+// TODO: Read webdoors.json for list of hosts we're allowed to connect to
+$terminalHost = Config::env('TERMINAL_HOST', 'revpol.lovelybits.org');
+$terminalPort = Config::env('TERMINAL_PORT', '22');
 
-// Check if terminal is enabled
+// Always include the primary system host at top.
+$terminalHosts[] = ["hostname" => $terminalHost, "port" => $terminalPort, "proto" => "ssh"];
+$gameConfig = \BinktermPHP\GameConfig::getGameConfig("terminal");
+
+$terminalHosts =array_merge($terminalHosts, $gameConfig['hosts']);
+
+// Check if terminal is enabled.
 if (!$terminalEnabled) {
     $template = new Template();
     $template->renderResponse('error.twig', [
@@ -35,7 +47,6 @@ if (!$terminalEnabled) {
     ]);
     exit();
 }
-
 // Get system name from BinkP config
 try {
     $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -44,13 +55,6 @@ try {
     $systemName = \BinktermPHP\Config::SYSTEM_NAME;
 }
 
-// Check for custom terminal welcome message
-$customWelcome = null;
-$welcomeFile = __DIR__ . '/../../config/terminal_welcome.txt';
-if (file_exists($welcomeFile)) {
-    $customWelcome = file_get_contents($welcomeFile);
-    $customWelcome = trim($customWelcome);
-}
 
 ?><!DOCTYPE html>
 <html lang="en">
@@ -155,66 +159,15 @@ if (file_exists($welcomeFile)) {
             backdrop-filter: blur(10px);
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="/webdoors/revpol/assets/xterm.js"></script>
+    <script src="//webdoors/revpol/assets/xterm-addon-fit.js"></script>
+    <script src="/webdoors/revpol/assets/xterm-addon-web-links.js"></script>
+    <script src="/webdoors/revpol/assets/socket.io.min.js"></script>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-network-wired"></i>
-                <?php echo htmlspecialchars($systemName); ?>
-            </a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/netmail">
-                            <i class="fas fa-envelope"></i> Netmail
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/echomail">
-                            <i class="fas fa-comments"></i> Echomail
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/nodelist">
-                            <i class="fas fa-sitemap"></i> Nodelist
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/terminal">
-                            <i class="fas fa-terminal"></i> Terminal
-                        </a>
-                    </li>
-                </ul>
-                
-                <ul class="navbar-nav">
-                    <?php if ($user): ?>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user"></i> <?php echo htmlspecialchars($user['username']); ?>
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/profile">Profile</a></li>
-                                <li><a class="dropdown-item" href="/settings">Settings</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="#" onclick="logout()">Logout</a></li>
-                            </ul>
-                        </li>
-                    <?php else: ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/login">Login</a>
-                        </li>
-                    <?php endif; ?>
-                </ul>
-            </div>
-        </div>
-    </nav>
+
 
     <main class="container">
         <div class="terminal-container">
@@ -226,14 +179,15 @@ if (file_exists($welcomeFile)) {
             </div>
             
             <div id="login-form" class="login-form">
-                <?php if ($customWelcome): ?>
-                    <div style="white-space: pre-line; line-height: 1.5; margin-bottom: 20px;">
-                        <?php echo htmlspecialchars($customWelcome); ?>
-                    </div>
-                <?php else: ?>
-                    <h3>SSH Connection to <?php echo htmlspecialchars($terminalHost . ':' . $terminalPort); ?></h3>
-                <?php endif; ?>
-                <input type="text" id="username" placeholder="Username" autocomplete="username">
+
+                Connect to: <select name="sshhost" id="sshhost">
+                    <?php
+                    foreach($terminalHosts as $host){
+                        echo '<option value='.$host['hostname'].':'.$host['port'].'>'.$host['hostname'].'</option>';
+                    }
+                    ?>
+                </select>
+                <input type="text" id="username" placeholder="Username" autocomplete="username" value="<?php echo $username;?>">
                 <input type="password" id="password" placeholder="Password" autocomplete="current-password">
                 <button onclick="startConnection()">Connect</button>
             </div>
@@ -241,13 +195,7 @@ if (file_exists($welcomeFile)) {
         </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="/js/app.js"></script>
-    <script src="/terminal/assets/xterm.js"></script>
-    <script src="/terminal/assets/xterm-addon-fit.js"></script>
-    <script src="/terminal/assets/xterm-addon-web-links.js"></script>
-    <script src="/terminal/assets/socket.io.min.js"></script>
+
 
     <script>
         // Pre-configured proxy server settings
@@ -255,8 +203,8 @@ if (file_exists($welcomeFile)) {
         const PROXY_PORT = <?php echo intval($terminalProxyPort); ?>;
         
         // Remote SSH host settings
-        const REMOTE_HOST = '<?php echo addslashes($terminalHost); ?>';
-        const REMOTE_PORT = <?php echo intval($terminalPort); ?>;
+        REMOTE_HOST = '';//<?php echo addslashes($terminalHost); ?>';
+        REMOTE_PORT = '';//<?php echo intval($terminalPort); ?>;
         
         
         // Initialize xterm.js
@@ -269,8 +217,8 @@ if (file_exists($welcomeFile)) {
         });
 
         // Add fit addon
-        const fitAddon = new FitAddon.FitAddon();
-        terminal.loadAddon(fitAddon);
+        //const fitAddon = new FitAddon.FitAddon();
+        //terminal.loadAddon(fitAddon);
 
         // Add web links addon
         const webLinksAddon = new WebLinksAddon.WebLinksAddon();
@@ -286,6 +234,9 @@ if (file_exists($welcomeFile)) {
         function startConnection() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+            REMOTE_HOST = document.getElementById('sshhost').value.split(':')[0];
+            REMOTE_PORT = document.getElementById('sshhost').value.split(':')[1];
+
             
             if (!username || !password) {
                 alert('Please enter both username and password');
@@ -299,7 +250,7 @@ if (file_exists($welcomeFile)) {
             // Initialize terminal if not already done
             if (!terminalInitialized) {
                 terminal.open(document.getElementById('terminal'));
-                fitAddon.fit();
+                //fitAddon.fit();
                 terminalInitialized = true;
             }
             
@@ -369,7 +320,7 @@ if (file_exists($welcomeFile)) {
 
         // Handle window resize
         window.addEventListener('resize', function() {
-            fitAddon.fit();
+            //fitAddon.fit();
         });
 
         // Allow Enter key to submit form
