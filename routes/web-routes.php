@@ -2,6 +2,7 @@
 
 // Web routes
 use BinktermPHP\Auth;
+use BinktermPHP\Config;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\Template;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -29,6 +30,8 @@ SimpleRouter::get('/appmanifestjson', function() {
     $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
     //$systemName = $binkpConfig->getSystemSysop() . "'s System";
     $systemName = $binkpConfig->getSystemName();
+    $favicon = Config::env("FAVICONSVG")??"/favicon.svg";
+
     $ret=<<<_EOT_
 {
   "name": "{$systemName}",
@@ -40,12 +43,12 @@ SimpleRouter::get('/appmanifestjson', function() {
   "theme_color": "#0000ff",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "{$favicon}",
       "sizes": "192x192",
       "type": "image/svg+xml"
     },
     {
-      "src": "/favicon.svg",
+      "src": "{$favicon}",
       "sizes": "512x512",
       "type": "image/svg+xml"
     }

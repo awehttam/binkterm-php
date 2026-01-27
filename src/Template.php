@@ -52,6 +52,14 @@ class Template
             $networkAddresses = [];
         }
 
+        $favicon_svg = Config::env('FAVICONSVG') ?? "/favicon.svg";
+        $favicon_ico = Config::env('FAVICONICO') ?? "/favicon.ico";
+        $favicon_png = Config::env('FAVICONPNG') ?? "/favicon.png";
+
+        $this->twig->addGlobal("favicon_svg", $favicon_svg);
+        $this->twig->addGlobal("favicon_ico", $favicon_ico);
+        $this->twig->addGlobal("favicon_png", $favicon_png);
+
         $this->twig->addGlobal('current_user', $currentUser);
         $this->twig->addGlobal('system_name', $systemName);
         $this->twig->addGlobal('sysop_name', $sysopName);
