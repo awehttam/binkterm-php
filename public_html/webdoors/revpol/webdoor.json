@@ -4,7 +4,7 @@
     "id": "revpol",
     "name": "Reverse Polarity",
     "version": "1.0.0",
-    "author": "BinktermPHP",
+    "author": "awehttam",
     "description": "Connects to the Reverse Polarity BBS",
     "entry_point": "index.php",
     "icon": "icon.svg",

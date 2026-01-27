@@ -4,7 +4,7 @@
     "id": "terminal",
     "name": "Terminal",
     "version": "1.0.1",
-    "author": "BinktermPHP",
+    "author": "awehttam",
     "description": "Connect to hosts on the Internet",
     "entry_point": "index.php",
     "icon": "icon.svg",
