@@ -138,7 +138,7 @@ function writeMessage($handle, $origAddr, $destAddr, $fromName, $toName, $subjec
 
     // Add AREA: line for echomail
     if ($echoarea) {
-        $fullText .= "AREA:{$echoarea}\r";
+        $fullText .= "AREA:{$echoarea}\r";      // No space after AREA:
     }
 
     // Add standard kludges

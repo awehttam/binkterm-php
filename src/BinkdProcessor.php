@@ -701,7 +701,7 @@ class BinkdProcessor
                 if (empty($echoareaTag) || strlen($echoareaTag) > 50) {
                     $echoareaTag = 'MALFORMED';
                 }
-                $kludgeLines[] = "AREA:" . $areaLine;
+                $kludgeLines[] = "AREA:" . $areaLine;   // No space after AREA:
                 continue; // Don't include AREA: line in message body
             }
             
@@ -1233,7 +1233,7 @@ class BinkdProcessor
         // For echomail, add AREA control field first (plain text, no ^A prefix)
         $areaLine = '';
         if ($isEchomail && isset($message['echoarea_tag'])) {
-            $areaLine = "AREA:{$message['echoarea_tag']}\r\n";
+            $areaLine = "AREA:{$message['echoarea_tag']}\r\n";  // No Space after AREA
         }
         
         $messageText = $areaLine . $kludgeLines . $messageText;
