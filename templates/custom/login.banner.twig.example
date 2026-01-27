@@ -1,0 +1,25 @@
+<script src="/js/ansisys.js"></script>
+<div class="row justify-content-center">
+     <div id="login-banner" style="text-align: center" class="ansi-art-container col-md-6 col-lg-6">
+    </div>
+</div>
+<script>
+    let messageText=`
+
+\x1b[1;34m╔═════════════════════════════════════════════════════════════════════╗\x1b[0m
+\x1b[1;34m║\x1b[0m                                                                     \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m   \x1b[1;36m██████╗ ██╗███╗   ██╗██╗  ██╗████████╗███████╗██████╗ ███╗   ███╗\x1b[0m \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m   \x1b[1;36m██╔══██╗██║████╗  ██║██║ ██╔╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║\x1b[0m \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m   \x1b[1;36m██████╔╝██║██╔██╗ ██║█████╔╝    ██║   █████╗  ██████╔╝██╔████╔██║\x1b[0m \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m   \x1b[1;36m██╔══██╗██║██║╚██╗██║██╔═██╗    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║\x1b[0m \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m   \x1b[1;36m██████╔╝██║██║ ╚████║██║  ██╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║\x1b[0m \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m   \x1b[1;36m╚═════╝ ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝\x1b[0m \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m                                                                     \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m                     \x1b[1;37mFTN Mailer and BBS Platform\x1b[0m                     \x1b[1;34m║\x1b[0m
+\x1b[1;34m║\x1b[0m              \x1b[32mhttps://github.com/awehttam/binkterm-php\x1b[0m               \x1b[1;34m║\x1b[0m
+\x1b[1;34m╚═════════════════════════════════════════════════════════════════════╝\x1b[0m
+
+    `;
+let rendered = renderAnsiTerminal(messageText);
+    $("#login-banner").html('<pre>'+rendered+'</pre>');
+</script>
