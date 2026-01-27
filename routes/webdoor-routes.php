@@ -49,7 +49,10 @@ SimpleRouter::get('/games', function() {
                     $game = $manifest['game'];
                     $game['path'] = $dir;
                     $game['icon_url'] = "/webdoors/{$dir}/" . ($game['icon'] ?? 'icon.png');
-                    $games[] = $game;
+
+                    if(GameConfig::isEnabled($game['id'])){
+                        $games[] = $game;
+                    }
                 }
             }
         }

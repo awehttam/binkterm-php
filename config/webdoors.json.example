@@ -2,7 +2,7 @@
     "wordle":{
         "enabled": true
     },
-    "reversepolarity": {
+    "revpol": {
         "enabled": true,
         "host": "revpol.lovelybits.org",
         "port": 22
