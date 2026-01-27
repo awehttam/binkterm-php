@@ -2,6 +2,7 @@
 
 namespace BinktermPHP;
 
+use BinktermPHP\Binkp\Config\BinkpConfig;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
@@ -134,8 +135,10 @@ class Template
      */
     private function getDefaultSystemNews($variables = [])
     {
-        $sysopName = $variables['sysop_name'] ?? 'Sysop';
-        $appVersion = $variables['app_version'] ?? '1.0.0';
+        $binkcfg =  BinkpConfig::getInstance();
+        $sysopName = $binkcfg->getSystemSysop();
+        //$sysopName = $variables['sysop_name'] ?? 'Sysop';
+        $appVersion = Version::getVersion();//$variables['app_version'] ?? '1.0.0';
         
         return '
             <div class="alert alert-info">
@@ -148,9 +151,18 @@ class Template
                     System News
                 </div>
                 <div class="card-body">
-                    <p class="mb-2"><i class="fas fa-cog me-2 text-primary"></i>Running BinktermPHP v' . htmlspecialchars($appVersion) . '</p>
+                    <p class="mb-2"><i class="fas fa-cog me-2 text-primary"></i>     We are building a new bulletin board powered by BinktermPHP v' . htmlspecialchars($appVersion) . '</p>
                     <p class="mb-0 small text-muted">
-                        To customize this section, copy <code>templates/custom/systemnews.twig.example</code> to <code>templates/custom/systemnews.twig</code> and edit it.
+                     
+<P>
+                        As a first step you may want to review <a href="/subscriptions">your echomail subscriptions</a>.
+</P>
+<P>
+If you need a hand, reach out to '.$sysopName.'
+</P>
+<P>
+                        Sysop: To customize this section, copy <code>templates/custom/systemnews.twig.example</code> to <code>templates/custom/systemnews.twig</code> and edit it.
+                        </P>
                     </p>
                 </div>
             </div>

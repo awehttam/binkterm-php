@@ -128,6 +128,31 @@ class Installer
         fclose($dest);
     }
 
+    function setupCron($installPath)
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->ansi->error("Windows does not support a cron facility, configure tasks manually.");
+            return;
+        }
+        $check = trim(`crontab -l |grep binkp_poll`);
+
+        $contents=trim(file_get_contents(__DIR__."/../cron.example"));
+        if(!$contents){
+            echo "Could not find a cron sample to work with\n";
+        }
+
+        if(strrpos($installPath,-1)!='/'){
+            $installPath.='/';
+        }
+        $contents = str_replace("/home/binkweb/binkterm-php/", $installPath, $contents);
+
+        $temppath = tempnam(sys_get_temp_dir(), "binkweb");
+        file_put_contents($temppath, $contents);
+
+        system("crontab ".escapeshellarg($temppath));
+        $this->ansi->success("Cron configured");
+        return;
+    }
     /**
      * Run the installer
      */
