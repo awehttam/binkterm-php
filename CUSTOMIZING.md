@@ -19,6 +19,17 @@ This document describes the current customization options available in BinktermP
 
 BinktermPHP provides several customization extension points:
 
+### Favourite Icon (favicon)
+
+Binkterm uses three formats for favicon.  SVG, PNG and ICO.  This is for platform support across browser technologies  and Progressive Web Apps.
+
+Example, add to .env:
+```text
+FAVICONSVG=/robot_favicon.svg
+FAVICONPNG=/robot_favicon.png
+FAVICONICO=/robot_favicon.ico
+```
+
 ### System News (Dashboard Content)
 
 Create a custom dashboard message by copying the example file:
@@ -56,6 +67,12 @@ cp config/welcome.txt.example config/welcome.txt
 ```
 
 Supports plain text or HTML content.
+
+### Login page banner
+
+Customize the area above the welcome and login areas.
+
+Create a file called `custom/login.banner.twig`, it may contain HTML and standard macros.
 
 ### Terminal Welcome
 

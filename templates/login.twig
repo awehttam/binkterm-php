@@ -3,14 +3,19 @@
 {% block title %}Login - {{ parent() }}{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6 col-lg-4">
+
+    {% include 'custom/login.banner.twig' ignore missing %}
+
+    <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-6">
         {% if welcome_message %}
         <div class="card mb-3">
             <div class="card-body text-center">
                 {{ welcome_message|raw|nl2br }}
             </div>
         </div>
+        {% else %}
+
         {% endif %}
         <div class="card">
             <div class="card-header">

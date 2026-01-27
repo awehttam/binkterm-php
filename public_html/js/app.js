@@ -683,13 +683,16 @@ function stopAutoRefresh() {
     }
 }
 
-// Initialize tooltips and popovers
-$(function () {
-    $('[data-bs-toggle="tooltip"]').tooltip();
-    $('[data-bs-toggle="popover"]').popover();
-});
+$(document).ready(function(){
 
-// Handle page unload
-$(window).on('beforeunload', function() {
-    stopAutoRefresh();
-});
+    // Initialize tooltips and popovers
+    $(function () {
+        $('[data-bs-toggle="tooltip"]').tooltip();
+        $('[data-bs-toggle="popover"]').popover();
+    });
+
+    // Handle page unload
+    $(window).on('beforeunload', function() {
+        stopAutoRefresh();
+    });
+})

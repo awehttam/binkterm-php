@@ -7,6 +7,7 @@
  */
 
 use BinktermPHP\Auth;
+use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\WebDoorController;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -23,6 +24,14 @@ SimpleRouter::get('/games', function() {
     if (!$user) {
         return SimpleRouter::response()->redirect('/login');
     }
+
+     if(GameConfig::isGameSystemEnabled()==false){
+         $template = new Template();
+         $template->renderResponse('error.twig', [
+             'error' => 'Sorry, the game system is not enabled.'
+         ]);
+         exit;
+     }
 
     // Scan webdoors directory for games
     $gamesDir = __DIR__ . '/../public_html/webdoors';
@@ -60,6 +69,13 @@ SimpleRouter::get('/games/{game}', function($game) {
     if (!$user) {
         return SimpleRouter::response()->redirect('/login');
     }
+    if(GameConfig::isGameSystemEnabled()==false){
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error' => 'Sorry, the game system is not enabled.'
+        ]);
+        exit;
+    }
 
     // Validate game exists
     $gameDir = __DIR__ . '/../public_html/webdoors/' . basename($game);
@@ -93,6 +109,10 @@ SimpleRouter::get('/games/{game}', function($game) {
 // GET /api/webdoor/session - Get or create session
 SimpleRouter::get('/api/webdoor/session', function() {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->getSession();
@@ -103,6 +123,10 @@ SimpleRouter::get('/api/webdoor/session', function() {
 // POST /api/webdoor/session/end - End session
 SimpleRouter::post('/api/webdoor/session/end', function() {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->endSession();
@@ -113,6 +137,10 @@ SimpleRouter::post('/api/webdoor/session/end', function() {
 // GET /api/webdoor/storage - List all saves
 SimpleRouter::get('/api/webdoor/storage', function() {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->listSaves();
@@ -123,6 +151,10 @@ SimpleRouter::get('/api/webdoor/storage', function() {
 // GET /api/webdoor/storage/{slot} - Load specific save
 SimpleRouter::get('/api/webdoor/storage/{slot}', function($slot) {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->loadSave((int)$slot);
@@ -139,6 +171,10 @@ SimpleRouter::get('/api/webdoor/storage/{slot}', function($slot) {
 // PUT /api/webdoor/storage/{slot} - Save game data
 SimpleRouter::put('/api/webdoor/storage/{slot}', function($slot) {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->saveGame((int)$slot);
@@ -149,6 +185,10 @@ SimpleRouter::put('/api/webdoor/storage/{slot}', function($slot) {
 // DELETE /api/webdoor/storage/{slot} - Delete save
 SimpleRouter::delete('/api/webdoor/storage/{slot}', function($slot) {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->deleteSave((int)$slot);
@@ -159,6 +199,10 @@ SimpleRouter::delete('/api/webdoor/storage/{slot}', function($slot) {
 // GET /api/webdoor/leaderboard/{board} - Get leaderboard
 SimpleRouter::get('/api/webdoor/leaderboard/{board}', function($board) {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->getLeaderboard($board);
@@ -169,6 +213,10 @@ SimpleRouter::get('/api/webdoor/leaderboard/{board}', function($board) {
 // POST /api/webdoor/leaderboard/{board} - Submit score
 SimpleRouter::post('/api/webdoor/leaderboard/{board}', function($board) {
     header('Content-Type: application/json');
+    if(GameConfig::isGameSystemEnabled()==false){
+        http_response_code(500);
+        exit;
+    }
 
     $controller = new WebDoorController();
     $result = $controller->submitScore($board);
