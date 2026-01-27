@@ -6,6 +6,9 @@
         "proxy": "localhost",
         "proxy_port": 3000
     },
+    "blackjack": {
+        "enabled": true
+    },
     "klondike-solitaire": {
         "enabled": true
     },

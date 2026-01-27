@@ -273,6 +273,11 @@ class BinkdProcessor
 
         // Parse INTL kludge line for correct zone information in netmail
         //if (($header['attr'] & 0x0001) && strpos($messageText, "\x01INTL") !== false) {
+        $destNet = $header['destNet'];
+        $destNode = $header['destNode'];
+        $origNet = $header['origNet'];
+        $origNode = $header['origNode'];
+
         if (strpos($messageText, "\x01INTL") !== false) {
             $lines = explode("\n", $messageText);
             foreach ($lines as $line) {
@@ -281,25 +286,30 @@ class BinkdProcessor
                     // INTL format: \x01INTL dest_zone:net/node.point orig_zone:net/node.point
                     $res=preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches);
                     if ($res) {
+                        // Extract ALL address components from INTL kludge (not just zone and point)
                         $destZone = (int)$matches[1];
+                        $destNet = (int)$matches[2];
+                        $destNode = (int)$matches[3];
                         $destPoint = isset($matches[4]) && $matches[4] !== '' ? (int)$matches[4] : 0;
                         $origZone = (int)$matches[5];
+                        $origNet = (int)$matches[6];
+                        $origNode = (int)$matches[7];
                         $origPoint = isset($matches[8]) && $matches[8] !== '' ? (int)$matches[8] : 0;
-                        $this->log("[BINKD] Found INTL kludge: dest zone $destZone, orig zone $origZone, orig point $origPoint, dest point $destPoint");
+                        $this->log("[BINKD] Found INTL kludge: dest $destZone:$destNet/$destNode" . ($destPoint ? ".$destPoint" : "") . ", orig $origZone:$origNet/$origNode" . ($origPoint ? ".$origPoint" : ""));
                         break;
                     }
                 }
             }
         }
 
-        $origAddr = $origZone . ':' . $header['origNet'] . '/' . $header['origNode'];
+        $origAddr = $origZone . ':' . $origNet . '/' . $origNode;
         if ($origPoint > 0) {
             $origAddr .= '.' . $origPoint;
         }
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $domain =$binkpConfig->getDomainByAddress($origAddr);
 
-        $destAddr = $destZone . ':' . $header['destNet'] . '/' . $header['destNode'];
+        $destAddr = $destZone . ':' . $destNet . '/' . $destNode;
         if ($destPoint > 0) {
             $destAddr .= '.' . $destPoint;
         }
@@ -623,17 +633,22 @@ class BinkdProcessor
         // Create clean message text without kludges
         $cleanMessageText = implode("\n", $cleanedLines);
         $kludgeText = implode("\n", $kludgeLines);
+
+        // Use addresses from kludges if available (more reliable than INTL kludge)
+        // Priority: REPLYADDR > MSGID original author > message envelope
+        $fromAddr = $replyAddress ?: ($originalAuthorAddress ?: $message['origAddr']);
+
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        
+
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
-        
+
         $stmt->execute([
             $userId,
-            $message['origAddr'],
+            $fromAddr,
             $message['destAddr'],
             $message['fromName'],
             $message['toName'],
@@ -647,7 +662,7 @@ class BinkdProcessor
             $kludgeText // Store kludges separately
         ]);
 
-        $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$message['origAddr']." to ".$message['toName'].'@'.$message['destAddr']);
+        $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$fromAddr." to ".$message['toName'].'@'.$message['destAddr']);
     }
 
     /** Records an incoming echomail message into the database

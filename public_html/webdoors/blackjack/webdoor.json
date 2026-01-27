@@ -1,0 +1,26 @@
+{
+  "webdoor_version": "1.0",
+  "game": {
+    "id": "blackjack",
+    "name": "Blackjack",
+    "version": "1.0.1",
+    "author": "ChatGPT",
+    "description": "Single-player Blackjack with bankroll + WebDoor storage + leaderboard",
+    "entry_point": "index.html",
+    "icon": "icon.svg"
+  },
+  "requirements": {
+    "min_host_version": "1.0",
+    "features": [
+      "storage",
+      "leaderboard"
+    ],
+    "permissions": [
+      "user_display_name"
+    ]
+  },
+  "storage": {
+    "max_size_kb": 256,
+    "save_slots": 1
+  }
+}
