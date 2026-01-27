@@ -1,0 +1,67 @@
+{
+    "wordle":{
+        "enabled": true
+    },
+    "reversepolarity": {
+        "enabled": true,
+        "host": "revpol.lovelybits.org",
+        "port": 22
+    },
+    "terminal": {
+       "enabled": true,
+       "hosts": [
+            {
+                "hostname": "nethack.alt.org",
+                "port": 23,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "alt.org",
+                "port": 22,
+                "proto": "ssh"
+            },
+            {
+                "hostname": "telehack.com",
+                "port": 23,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "bbs.dura-europos.org",
+                "port": 23,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "cavebbs.com",
+                "port": 23,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "aardmud.org",
+                "port": 4000,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "batmud.bat.org",
+                "port": 23,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "maggie.bold-mansion.com",
+                "port": 23,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "blackflag.acid.org",
+                "port": 23,
+                "proto": "telnet"
+            },
+            {
+                "hostname": "serionbbs.com",
+                "port": 23,
+                "proto": "telnet"
+            }
+       ]
+
+    }
+
+}
