@@ -1475,6 +1475,7 @@ class BinkdProcessor
         foreach ($commands as $commandTemplate) {
             $result = $this->runExtractorCommand($commandTemplate, $bundleFile, $tempDir);
             if ($result['exit_code'] === 0) {
+                $this->log("[BINKD] Bundle extracted $bundleFile -> $tempDir using $commandTemplate");
                 return $this->processExtractedPackets($tempDir);
             }
 

@@ -235,19 +235,28 @@ class Scheduler
             $this->db->query('SELECT 1');
         } catch (\Throwable $e) {
             $this->log("Database keepalive failed: " . $e->getMessage(), 'ERROR');
-            $this->refreshDatabaseConnection();
+            if ($this->refreshDatabaseConnection()) {
+                try {
+                    $this->db->query('SELECT 1');
+                    $this->log("Database keepalive recovered after reconnect", 'DEBUG');
+                } catch (\Throwable $retryError) {
+                    $this->log("Database keepalive retry failed: " . $retryError->getMessage(), 'ERROR');
+                }
+            }
         }
     }
 
-    private function refreshDatabaseConnection(): void
+    private function refreshDatabaseConnection(): bool
     {
         try {
             $this->db = Database::reconnect()->getPdo();
             $this->crashmailService = new CrashmailService();
             $this->log("Database connection refreshed", 'DEBUG');
+            return true;
         } catch (\Throwable $e) {
             $this->log("Database reconnect failed: " . $e->getMessage(), 'ERROR');
         }
+        return false;
     }
     
     public function runDaemon($interval = 60)
@@ -356,7 +365,7 @@ class Scheduler
                 'month' => (int) date('n', $checkTime),
                 'weekday' => (int) date('w', $checkTime)
             ];
-            
+
             if ($this->matchesCronField($minute, $timeData['minute']) &&
                 $this->matchesCronField($hour, $timeData['hour']) &&
                 $this->matchesCronField($day, $timeData['day']) &&
