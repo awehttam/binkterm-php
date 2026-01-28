@@ -3,6 +3,7 @@
 namespace BinktermPHP\Binkp\Protocol;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Admin\AdminDaemonClient;
 
 class BinkpServer
 {
@@ -174,6 +175,12 @@ class BinkpServer
 
                 if ($session->processSession()) {
                     $this->log("Session completed for {$clientIP} ({$connectionId})");
+                    try {
+                        $client = new AdminDaemonClient();
+                        $client->processPackets();
+                    } catch (\Exception $e) {
+                        $this->log("Failed to trigger packet processing: " . $e->getMessage(), 'ERROR');
+                    }
                 } else {
                     $this->log("Session failed for {$clientIP} ({$connectionId})", 'ERROR');
                 }
