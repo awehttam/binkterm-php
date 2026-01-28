@@ -22,6 +22,11 @@ class AdminDaemonClient
         return $this->sendCommand('process_packets');
     }
 
+    public function crashmailPoll(): array
+    {
+        return $this->sendCommand('crashmail_poll');
+    }
+
     public function binkPoll(string $upstream): array
     {
         return $this->sendCommand('binkp_poll', ['upstream' => $upstream]);

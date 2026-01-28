@@ -18,6 +18,7 @@ function showUsage()
     echo "  --log-file=FILE      Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_scheduler.log') . ")\n";
     echo "  --no-console         Disable console logging\n";
     echo "  --daemon             Run as daemon (detach from terminal)\n";
+    echo "  --pid-file=FILE      Write PID file\n";
     echo "  --once               Run once and exit\n";
     echo "  --status             Show schedule status and exit\n";
     echo "  --help               Show this help message\n";
@@ -66,6 +67,7 @@ function daemonize()
 }
 
 $args = parseArgs($argv);
+$pidFile = $args['pid-file'] ?? (__DIR__ . '/../data/run/binkp_scheduler.pid');
 
 if (isset($args['help'])) {
     showUsage();
@@ -103,6 +105,14 @@ try {
     if (isset($args['daemon']) && function_exists('pcntl_fork')) {
         $logger->setLogToConsole(false);
         daemonize();
+    }
+
+    if ($pidFile) {
+        $pidDir = dirname($pidFile);
+        if (!is_dir($pidDir)) {
+            @mkdir($pidDir, 0755, true);
+        }
+        @file_put_contents($pidFile, (string)getmypid());
     }
     
     $logger->info("Starting Binkp scheduler daemon...");

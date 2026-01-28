@@ -4,6 +4,7 @@ namespace BinktermPHP\Binkp\Connection;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
+use BinktermPHP\Crashmail\CrashmailService;
 
 class Scheduler
 {
@@ -11,6 +12,7 @@ class Scheduler
     private $logger;
     private $client;
     private $lastPollTimes;
+    private $crashmailService;
     
     public function __construct($config = null, $logger = null)
     {
@@ -18,6 +20,7 @@ class Scheduler
         $this->logger = $logger;
         $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
+        $this->crashmailService = new CrashmailService();
     }
     
     public function setLogger($logger)
@@ -237,6 +240,28 @@ class Scheduler
                 $outboundResults = $this->pollIfOutbound();
                 if (!empty($outboundResults)) {
                     $this->log("Processed outbound poll for " . count($outboundResults) . " uplinks");
+                }
+
+                if (!$this->config->getCrashmailEnabled()) {
+                    $this->log("Crashmail disabled, skipping crashmail poll", 'DEBUG');
+                } else {
+                    $stats = $this->crashmailService->getQueueStats();
+                    $pending = (int)($stats['pending'] ?? 0);
+                    $attempting = (int)($stats['attempting'] ?? 0);
+                    $totalPending = $pending + $attempting;
+
+                    if ($totalPending === 0) {
+                        $this->log("No crashmail queued, skipping crashmail poll", 'DEBUG');
+                    } else {
+                        $this->log("Crashmail poll starting", 'DEBUG');
+                        $crashmailResult = $this->client->crashmailPoll();
+                        $crashmailSuccess = ($crashmailResult['exit_code'] ?? 1) === 0;
+                        if ($crashmailSuccess) {
+                            $this->log("Crashmail poll completed");
+                        } else {
+                            $this->log("Crashmail poll failed", 'ERROR');
+                        }
+                    }
                 }
                 
             } catch (\Exception $e) {

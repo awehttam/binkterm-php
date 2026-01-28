@@ -775,7 +775,7 @@ php scripts/binkp_scheduler.php --once
 # Show schedule status
 php scripts/binkp_scheduler.php --status
 
-# Custom interval (seconds)
+# Custom interval to check outgoing queues (seconds)
 php scripts/binkp_scheduler.php --interval=120
 ```
 
@@ -908,13 +908,13 @@ php scripts/update_nodelists.php --help
 The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
-# Start admin daemon on boot
+# Start admin daemon on boot (pid defaults to data/run/admin_daemon.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/admin_daemon.php
 
-# Start scheduler on boot
+# Start scheduler on boot (pid defaults to data/run/binkp_scheduler.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/binkp_scheduler.php --daemon
 
-# Start binkp server on boot (Linux/macOS)
+# Start binkp server on boot (Linux/macOS; pid defaults to data/run/binkp_server.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/binkp_server.php --daemon
 
 # Update nodelists daily at 4am

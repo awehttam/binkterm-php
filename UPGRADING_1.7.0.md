@@ -30,9 +30,9 @@ The scheduler reads `poll_schedule` for each uplink in `config/binkp.json` and u
 ## Migration Steps
 1. **Disable old cron jobs** that directly invoke `binkp_poll.php` and `process_packets.php`.
 2. **Enable services at boot**:
-   - `php scripts/admin_daemon.php`
-   - `php scripts/binkp_scheduler.php --daemon`
-   - `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
+   - `php scripts/admin_daemon.php` (pid defaults to `data/run/admin_daemon.pid`)
+   - `php scripts/binkp_scheduler.php --daemon` (pid defaults to `data/run/binkp_scheduler.pid`)
+   - `php scripts/binkp_server.php --daemon` (pid defaults to `data/run/binkp_server.pid`, Linux/macOS; Windows should run in foreground)
 3. **Verify `poll_schedule`** in `config/binkp.json` for each uplink.
 4. **Confirm admin daemon access**:
    - Set `ADMIN_DAEMON_SECRET` in `.env`

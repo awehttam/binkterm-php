@@ -74,6 +74,9 @@ if (isset($args['help'])) {
 }
 
 try {
+    $defaultPidFile = __DIR__ . '/../data/run/admin_daemon.pid';
+    $pidFile = $args['pid-file'] ?? $defaultPidFile;
+
     $logLevel = $args['log-level'] ?? 'INFO';
     $logFile = $args['log-file'] ?? Config::getLogPath('admin_daemon.log');
     $logToConsole = !isset($args['no-console']);
@@ -85,11 +88,16 @@ try {
         daemonize();
     }
 
+    $pidDir = dirname($pidFile);
+    if (!is_dir($pidDir)) {
+        @mkdir($pidDir, 0755, true);
+    }
+
     $server = new AdminDaemonServer(
         $args['socket'] ?? null,
         $args['secret'] ?? null,
         $logger,
-        $args['pid-file'] ?? null,
+        $pidFile,
         $args['socket-perms'] ?? null
     );
 

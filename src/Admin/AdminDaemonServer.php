@@ -146,6 +146,11 @@ class AdminDaemonServer
                     $this->logCommandResult($cmd, $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
+                case 'crashmail_poll':
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/crashmail_poll.php']);
+                    $this->logCommandResult($cmd, $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
                 case 'binkp_poll':
                     $upstream = $data['upstream'] ?? null;
                     if (!$upstream) {
