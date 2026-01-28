@@ -124,15 +124,17 @@ try {
         pcntl_async_signals(true);
     }
 
-    pcntl_signal(SIGTERM, function() use ($server, $logger) {
-        $logger->info("Received SIGTERM, shutting down...");
-        $server->stop();
-    });
+    if (function_exists('pcntl_signal')) {
+        pcntl_signal(SIGTERM, function() use ($server, $logger) {
+            $logger->info("Received SIGTERM, shutting down...");
+            $server->stop();
+        });
 
-    pcntl_signal(SIGINT, function() use ($server, $logger) {
-        $logger->info("Received SIGINT, shutting down...");
-        $server->stop();
-    });
+        pcntl_signal(SIGINT, function() use ($server, $logger) {
+            $logger->info("Received SIGINT, shutting down...");
+            $server->stop();
+        });
+    }
     
     $server->start();
     

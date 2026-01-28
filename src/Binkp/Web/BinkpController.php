@@ -305,7 +305,13 @@ class BinkpController
     public function getLogs($lines = 100)
     {
         try {
-            $logs = $this->logger->getRecentLogs($lines);
+            $logFiles = [
+                'binkp_poll.log' => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
+                'binkp_server.log' => \BinktermPHP\Config::getLogPath('binkp_server.log'),
+                'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
+                'admin_daemon.log' => \BinktermPHP\Config::getLogPath('admin_daemon.log')
+            ];
+            $logs = $this->logger->getRecentLogs($lines, $logFiles);
             
             return [
                 'success' => true,
