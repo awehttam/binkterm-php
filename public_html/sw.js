@@ -14,18 +14,20 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// The fetch handler serves responses for same-origin resources from a cache.
+// The fetch handler serves responses for precached resources only.
 self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Return the cached response if it's available.
-                if (response) {
-                    return response;
-                }
+    const request = event.request;
+    const url = new URL(request.url);
 
-                // Otherwise, go to the network.
-                return fetch(event.request);
-            })
+    if (url.origin !== self.location.origin) {
+        return;
+    }
+
+    if (!urlsToCache.includes(url.pathname)) {
+        return;
+    }
+
+    event.respondWith(
+        caches.match(request).then((response) => response || fetch(request))
     );
 });
