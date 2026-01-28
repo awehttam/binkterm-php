@@ -75,7 +75,7 @@ if (isset($args['help'])) {
 
 try {
     $defaultPidFile = __DIR__ . '/../data/run/admin_daemon.pid';
-    $pidFile = $args['pid-file'] ?? $defaultPidFile;
+    $pidFile = $args['pid-file'] ?? (Config::env('ADMIN_DAEMON_PID_FILE') ?: $defaultPidFile);
 
     $logLevel = $args['log-level'] ?? 'INFO';
     $logFile = $args['log-file'] ?? Config::getLogPath('admin_daemon.log');

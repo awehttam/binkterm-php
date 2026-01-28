@@ -66,7 +66,8 @@ function daemonize()
 }
 
 $args = parseArgs($argv);
-$pidFile = $args['pid-file'] ?? (__DIR__ . '/../data/run/binkp_server.pid');
+$defaultPidFile = __DIR__ . '/../data/run/binkp_server.pid';
+$pidFile = $args['pid-file'] ?? (\BinktermPHP\Config::env('BINKP_SERVER_PID_FILE') ?: $defaultPidFile);
 
 if (isset($args['help'])) {
     showUsage();
