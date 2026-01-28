@@ -58,7 +58,7 @@ Here are some screen shots showing various aspects of the interface with differe
   </tr>
    <Tr>
    <td align="center"><B>Web Doors</B><BR><img src="docs/screenshots/webdoors.png" width="400">"</td>
-   <td align="center"><B>Userr Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
+   <td align="center"><B>User Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
    </Tr>
 <tr>
 </tr>
@@ -184,17 +184,23 @@ php -S localhost:8080
 ```
 
 ### Step 6: Set Up Cron Jobs (Recommended)
-Add cron jobs for automated mail polling and nodelist updates:
+Start the long-running services at boot and keep cron for periodic maintenance tasks:
 
 ```cron
-# Poll uplinks every 15 minutes
-*/15 * * * * /usr/bin/php /path/to/binkterm/scripts/binkp_poll.php --quiet
+# Start admin daemon on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php
+
+# Start scheduler on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_scheduler.php --daemon
+
+# Start binkp server on boot (Linux/macOS)
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
 
 # Update nodelists daily at 3am
 0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
 ```
 
-See the [Operation](#operation) section for additional cron job examples.
+Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for additional cron examples.
 
 ### Step 7: Set Directory Permissions
 The `data/outbound` directory must be writable by both the web server and the user running binkp scripts:
@@ -243,7 +249,7 @@ Edit `config/binkp.json` to configure your system. See `config/binkp.json.exampl
             "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
             "password": "xyzzy",
-            "poll_schedule": "0 */4 * * *",
+            "poll_schedule": "*/15 * * * *",
             "enabled": true,
             "compression": false,
             "crypt": false,
@@ -520,6 +526,7 @@ The general steps are:
 
 ### Version-Specific Upgrade Guides
 
+- January 28 2026 - [UPGRADING_1.7.0.md](UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
 - January 24 2026 - [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
 
 ## Database Management
@@ -784,6 +791,38 @@ php scripts/debug_binkp.php 1:153/149
 php scripts/process_packets.php
 ```
 
+### Admin Daemon
+The admin daemon is a lightweight control socket that accepts authenticated commands to run backend tasks from inside the app. It listens on a Unix socket by default (Linux/macOS) and TCP on Windows.
+
+```bash
+# Start in foreground (default)
+php scripts/admin_daemon.php
+
+# Specify socket and secret
+php scripts/admin_daemon.php --socket=unix:///tmp/binkterm_admin.sock --secret=change_me
+
+# Windows example (TCP loopback)
+php scripts/admin_daemon.php --socket=tcp://127.0.0.1:9065 --secret=change_me
+```
+
+Example usage from PHP:
+```php
+$client = new \BinktermPHP\Admin\AdminDaemonClient();
+$client->processPackets();
+$client->binkPoll('1:153/149');
+```
+
+Command line client:
+```bash
+php scripts/admin_client.php process-packets
+php scripts/admin_client.php binkp-poll 1:153/149
+```
+
+Environment options:
+- `ADMIN_DAEMON_SOCKET`: `unix:///path.sock` or `tcp://127.0.0.1:PORT`
+- `ADMIN_DAEMON_SOCKET_PERMS`: Unix socket permissions (octal, e.g. `0660`)
+- `ADMIN_DAEMON_SECRET`: Shared secret required on connect
+- `ADMIN_DAEMON_PID_FILE`: Optional PID file location
 ### Nodelist Updates
 Automatically download and import nodelists from configured sources.
 
@@ -847,10 +886,10 @@ php scripts/update_nodelists.php --help
 ### Starting the System
 
 1. **Start Web Server**: Ensure Apache/Nginx is running, or use PHP built-in server
-2. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` - not fully tested, see alternative polling
-3. **Polling** Configure cron to run `scripts/binkp_poll.php --all` periodically
-4. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
-5. **Process Packets**: Set up cron job for `php scripts/process_packets.php`
+2. **Start Admin Daemon**: `php scripts/admin_daemon.php`
+3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
+4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
+5. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
 
 ### Daily Operations
 
@@ -866,14 +905,17 @@ php scripts/update_nodelists.php --help
 - Post messages: `php scripts/post_message.php [options]`
 
 ### Cron Job Setup
-Add these entries to your crontab for automated operation:
+The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
-# Process inbound packets every 3 minutes
-*/3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+# Start admin daemon on boot
+@reboot /usr/bin/php /path/to/binktest/scripts/admin_daemon.php
 
-# Poll uplinks every 5 minutes
-*/5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php
+# Start scheduler on boot
+@reboot /usr/bin/php /path/to/binktest/scripts/binkp_scheduler.php --daemon
+
+# Start binkp server on boot (Linux/macOS)
+@reboot /usr/bin/php /path/to/binktest/scripts/binkp_server.php --daemon
 
 # Update nodelists daily at 4am
 0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
@@ -883,6 +925,10 @@ Add these entries to your crontab for automated operation:
 
 # Rotate logs weekly
 0 0 * * 0 find /path/to/binktest/data/logs -name "*.log" -mtime +7 -delete
+
+# Deprecated (still supported): direct cron usage
+# */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+# */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php --all
 ```
 
 ## Troubleshooting

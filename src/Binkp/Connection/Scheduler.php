@@ -3,7 +3,7 @@
 namespace BinktermPHP\Binkp\Connection;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
-use BinktermPHP\Binkp\Protocol\BinkpClient;
+use BinktermPHP\Admin\AdminDaemonClient;
 
 class Scheduler
 {
@@ -16,14 +16,13 @@ class Scheduler
     {
         $this->config = $config ?: BinkpConfig::getInstance();
         $this->logger = $logger;
-        $this->client = new BinkpClient($this->config, $this->logger);
+        $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
     }
     
     public function setLogger($logger)
     {
         $this->logger = $logger;
-        $this->client->setLogger($logger);
     }
     
     public function log($message, $level = 'INFO')
@@ -39,12 +38,17 @@ class Scheduler
     {
         $uplinks = $this->config->getEnabledUplinks();
         $pollsDue = [];
+
+        $this->log("Checking schedules for " . count($uplinks) . " uplinks", 'DEBUG');
         
         foreach ($uplinks as $uplink) {
             $address = $uplink['address'];
             $schedule = $uplink['poll_schedule'] ?? '0 */4 * * *';
             
-            if ($this->isScheduleDue($schedule, $address)) {
+            $isDue = $this->isScheduleDue($schedule, $address);
+            $this->log("Schedule check: {$address} ({$schedule}) due=" . ($isDue ? 'yes' : 'no'), 'DEBUG');
+
+            if ($isDue) {
                 $pollsDue[] = $uplink;
             }
         }
@@ -56,15 +60,32 @@ class Scheduler
     {
         $pollsDue = $this->checkScheduledPolls();
         $results = [];
+
+        if (empty($pollsDue)) {
+            $this->log("No scheduled polls due at this time", 'DEBUG');
+        }
         
         foreach ($pollsDue as $uplink) {
             $address = $uplink['address'];
             
             try {
                 $this->log("Scheduled poll starting for: {$address}");
-                $result = $this->client->pollUplink($address);
+                $pollResult = $this->client->binkPoll($address);
+                $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $processResult = null;
+
+                if ($pollSuccess) {
+                    $this->log("Scheduled packet processing starting for: {$address}");
+                    $processResult = $this->client->processPackets();
+                    $pollSuccess = ($processResult['exit_code'] ?? 1) === 0;
+                }
+
                 $this->lastPollTimes[$address] = time();
-                $results[$address] = $result;
+                $results[$address] = [
+                    'success' => $pollSuccess,
+                    'poll_result' => $pollResult,
+                    'process_packets' => $processResult
+                ];
                 $this->log("Scheduled poll completed for: {$address}");
                 
             } catch (\Exception $e) {
@@ -85,6 +106,7 @@ class Scheduler
         $files = glob($outboundPath . '/*.pkt');
         
         if (empty($files)) {
+            $this->log("No outbound packets found, skipping outbound poll", 'DEBUG');
             return [];
         }
         
@@ -97,9 +119,22 @@ class Scheduler
             $address = $uplink['address'];
             
             try {
-                $result = $this->client->pollUplink($address);
+                $pollResult = $this->client->binkPoll($address);
+                $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $processResult = null;
+
+                if ($pollSuccess) {
+                    $this->log("Outbound packet processing starting for: {$address}");
+                    $processResult = $this->client->processPackets();
+                    $pollSuccess = ($processResult['exit_code'] ?? 1) === 0;
+                }
+
                 $this->lastPollTimes[$address] = time();
-                $results[$address] = $result;
+                $results[$address] = [
+                    'success' => $pollSuccess,
+                    'poll_result' => $pollResult,
+                    'process_packets' => $processResult
+                ];
                 $this->log("Outbound poll completed for: {$address}");
                 
             } catch (\Exception $e) {
@@ -123,10 +158,10 @@ class Scheduler
             return false;
         }
         
-        return $this->parseCronExpression($cronExpression, $now, $lastPoll);
+        return $this->parseCronExpression($cronExpression, $now);
     }
     
-    private function parseCronExpression($cronExpression, $now, $lastCheck)
+    private function parseCronExpression($cronExpression, $now)
     {
         $parts = explode(' ', $cronExpression);
         if (count($parts) !== 5) {
@@ -143,25 +178,12 @@ class Scheduler
             'month' => (int) date('n', $now),
             'weekday' => (int) date('w', $now)
         ];
-        
-        $lastTime = [
-            'minute' => (int) date('i', $lastCheck),
-            'hour' => (int) date('G', $lastCheck),
-            'day' => (int) date('j', $lastCheck),
-            'month' => (int) date('n', $lastCheck),
-            'weekday' => (int) date('w', $lastCheck)
-        ];
-        
+
         return $this->matchesCronField($minute, $currentTime['minute']) &&
                $this->matchesCronField($hour, $currentTime['hour']) &&
                $this->matchesCronField($day, $currentTime['day']) &&
                $this->matchesCronField($month, $currentTime['month']) &&
-               $this->matchesCronField($weekday, $currentTime['weekday']) &&
-               !($this->matchesCronField($minute, $lastTime['minute']) &&
-                 $this->matchesCronField($hour, $lastTime['hour']) &&
-                 $this->matchesCronField($day, $lastTime['day']) &&
-                 $this->matchesCronField($month, $lastTime['month']) &&
-                 $this->matchesCronField($weekday, $lastTime['weekday']));
+               $this->matchesCronField($weekday, $currentTime['weekday']);
     }
     
     private function matchesCronField($cronField, $currentValue)
@@ -257,7 +279,7 @@ class Scheduler
                 'month' => (int) date('n', $checkTime),
                 'weekday' => (int) date('w', $checkTime)
             ];
-            
+            print_r($timeData);
             if ($this->matchesCronField($minute, $timeData['minute']) &&
                 $this->matchesCronField($hour, $timeData['hour']) &&
                 $this->matchesCronField($day, $timeData['day']) &&

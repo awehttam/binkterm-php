@@ -117,15 +117,17 @@ try {
         $logger->info("  - {$uplink['address']} [{$status}] ({$schedule})");
     }
     
-    pcntl_signal(SIGTERM, function() use ($logger) {
-        $logger->info("Received SIGTERM, shutting down...");
-        exit(0);
-    });
-    
-    pcntl_signal(SIGINT, function() use ($logger) {
-        $logger->info("Received SIGINT, shutting down...");
-        exit(0);
-    });
+    if (function_exists('pcntl_signal')) {
+        pcntl_signal(SIGTERM, function() use ($logger) {
+            $logger->info("Received SIGTERM, shutting down...");
+            exit(0);
+        });
+        
+        pcntl_signal(SIGINT, function() use ($logger) {
+            $logger->info("Received SIGINT, shutting down...");
+            exit(0);
+        });
+    }
     
     if (isset($args['once'])) {
         $logger->info("Running scheduled polls once...");

@@ -2180,32 +2180,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
-    SimpleRouter::post('/binkp/poll', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        // Check if user is admin
-        if (!$user['is_admin']) {
-            http_response_code(403);
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Admin access required']);
-            return;
-        }
-
-        header('Content-Type: application/json');
-
-        try {
-            // Trigger a poll of all uplinks
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->pollAllUplinks();
-
-            echo json_encode(['success' => true, 'message' => 'Poll initiated']);
-        } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
-        }
-    });
-
     // Binkp API routes
     SimpleRouter::get('/binkp/status', function() {
         // Clean output buffer to prevent any warnings/output from corrupting JSON
@@ -2249,16 +2223,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $input = json_decode(file_get_contents('php://input'), true);
             $address = $input['address'] ?? '';
 
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
             if (empty($address)) {
-                throw new \Exception('Address is required');
+                $result = $client->binkPoll('all');
+            } else {
+                $result = $client->binkPoll($address);
             }
-
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->pollUplink($address);
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -2273,12 +2247,32 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = requireBinkpAdmin();
 
         try {
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->pollAllUplinks();
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->binkPoll('all');
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
+        } catch (\Exception $e) {
+            ob_clean();
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::post('/binkp/process-packets', function() {
+        ob_start();
+
+        $user = requireBinkpAdmin();
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->processPackets();
+
+            ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);

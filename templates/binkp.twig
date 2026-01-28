@@ -87,10 +87,9 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5>Uplink Status</h5>
-                            {#
                             <button class="btn btn-sm btn-success" onclick="pollAllUplinks()">
                                  <i class="fas fa-sync"></i> Poll All
-                            </button>#}
+                            </button>
                         </div>
                         <div class="card-body" id="uplink-status">
                             Loading uplink status...
@@ -448,10 +447,10 @@ function updateUplinksTable(uplinks) {
             <td>${uplink.port}</td>
             <td>${status}</td>
             <td><code>${uplink.poll_schedule}</code></td>
-            <!--<td>
+            <td>
                 <button class="btn btn-sm btn-primary" onclick="pollUplink('${uplink.address}')">Poll</button>
-                <button class="btn btn-sm btn-danger" onclick="removeUplink('${uplink.address}')">Remove</button>
-            </td>-->
+                <!-- <button class="btn btn-sm btn-danger" onclick="removeUplink('${uplink.address}')">Remove</button> -->
+            </td>
         `;
     });
 }
@@ -573,15 +572,21 @@ function pollUplink(address) {
         .then(data => {
             console.log('Poll response data:', data);
             if (data.success) {
-                showAlert('Poll completed successfully', 'success');
+                const result = data.result || {};
+                const exitCode = result.exit_code ?? 'unknown';
+                const details = formatPollDetails(result);
+                showAlert(`Poll completed (exit ${exitCode})${details}`, 'success', { persistent: true });
+                if (exitCode === 0 || exitCode === '0') {
+                    triggerPacketProcessing();
+                }
             } else {
-                showAlert('Poll failed: ' + data.error, 'danger');
+                showAlert('Poll failed: ' + data.error, 'danger', { persistent: true });
             }
             refreshStatus();
         })
         .catch(error => {
             console.error('Poll error:', error);
-            showAlert('Error polling uplink: ' + error.message, 'danger');
+            showAlert('Error polling uplink: ' + error.message, 'danger', { persistent: true });
         });
 }
 
@@ -590,14 +595,20 @@ function pollAllUplinks() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('All uplinks polled', 'success');
+                const result = data.result || {};
+                const exitCode = result.exit_code ?? 'unknown';
+                const details = formatPollDetails(result);
+                showAlert(`All uplinks polled (exit ${exitCode})${details}`, 'success', { persistent: true });
+                if (exitCode === 0 || exitCode === '0') {
+                    triggerPacketProcessing();
+                }
             } else {
-                showAlert('Polling failed: ' + data.error, 'danger');
+                showAlert('Polling failed: ' + data.error, 'danger', { persistent: true });
             }
             refreshStatus();
         })
         .catch(error => {
-            showAlert('Error polling uplinks: ' + error.message, 'danger');
+            showAlert('Error polling uplinks: ' + error.message, 'danger', { persistent: true });
         });
 }
 
@@ -729,7 +740,7 @@ document.getElementById('binkpConfigForm').addEventListener('submit', function(e
     });
 });
 
-function showAlert(message, type) {
+function showAlert(message, type, options = {}) {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
@@ -740,9 +751,11 @@ function showAlert(message, type) {
     const container = document.querySelector('.container-fluid');
     container.insertBefore(alertDiv, container.firstChild);
     
-    setTimeout(() => {
-        alertDiv.remove();
-    }, 5000);
+    if (!options.persistent) {
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
 }
 
 function formatBytes(bytes) {
@@ -751,6 +764,52 @@ function formatBytes(bytes) {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatPollDetails(result) {
+    if (!result || (!result.stdout && !result.stderr)) {
+        return '';
+    }
+
+    const stdout = (result.stdout || '').trim();
+    const stderr = (result.stderr || '').trim();
+    let details = '';
+
+    if (stdout) {
+        details += `<br><div class="mt-1"><small class="text-muted">STDOUT:</small><pre class="mt-1 mb-0">${escapeHtml(stdout)}</pre></div>`;
+    }
+    if (stderr) {
+        details += `<br><div class="mt-1"><small class="text-warning">STDERR:</small><pre class="mt-1 mb-0">${escapeHtml(stderr)}</pre></div>`;
+    }
+
+    return details;
+}
+
+function triggerPacketProcessing() {
+    fetch('/api/binkp/process-packets', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                showAlert('Packet processing failed: ' + (data.error || 'Unknown error'), 'danger', { persistent: true });
+                return;
+            }
+            const result = data.result || {};
+            const exitCode = result.exit_code ?? 'unknown';
+            const details = formatPollDetails(result);
+            showAlert(`Packet processing completed (exit ${exitCode})${details}`, 'success', { persistent: true });
+        })
+        .catch(error => {
+            showAlert('Error processing packets: ' + error.message, 'danger', { persistent: true });
+        });
+}
+
+function escapeHtml(value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
 }
 </script>
 {% endblock %}
