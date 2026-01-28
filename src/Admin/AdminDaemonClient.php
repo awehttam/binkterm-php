@@ -127,6 +127,6 @@ class AdminDaemonClient
             return 'tcp://127.0.0.1:9065';
         }
 
-        return 'unix:///tmp/binkterm_admin.sock';
+        return 'unix://' . __DIR__ . '/../../data/run/admin_daemon.sock';
     }
 }
