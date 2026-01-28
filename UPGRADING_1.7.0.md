@@ -33,6 +33,18 @@ The scheduler reads `poll_schedule` for each uplink in `config/binkp.json` and u
    - `php scripts/admin_daemon.php --daemon` (pid defaults to `data/run/admin_daemon.pid`)
    - `php scripts/binkp_scheduler.php --daemon` (pid defaults to `data/run/binkp_scheduler.pid`)
    - `php scripts/binkp_server.php --daemon` (pid defaults to `data/run/binkp_server.pid`, Linux/macOS; Windows should run in foreground)
+
+Example crontab:
+```cron
+# Start admin daemon on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php --daemon
+
+# Start scheduler on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_scheduler.php --daemon
+
+# Start binkp server on boot (Linux/macOS)
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
+```
 3. **Stop/restart daemons** after upgrade changes:
    - `bash scripts/restart_daemons.sh`
 4. **Verify `poll_schedule`** in `config/binkp.json` for each uplink.
