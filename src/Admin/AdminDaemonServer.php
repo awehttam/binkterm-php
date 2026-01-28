@@ -146,6 +146,20 @@ class AdminDaemonServer
                     $this->logCommandResult($cmd, $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
+                case 'get_logs':
+                    $lines = (int)($data['lines'] ?? 25);
+                    if ($lines <= 0) {
+                        $lines = 25;
+                    }
+                    $logFiles = [
+                        'binkp_poll.log' => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
+                        'binkp_server.log' => \BinktermPHP\Config::getLogPath('binkp_server.log'),
+                        'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
+                        'admin_daemon.log' => \BinktermPHP\Config::getLogPath('admin_daemon.log')
+                    ];
+                    $logs = $this->logger->getRecentLogs($lines, $logFiles);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $logs]);
+                    break;
                 case 'crashmail_poll':
                     $result = $this->runCommand([PHP_BINARY, 'scripts/crashmail_poll.php']);
                     $this->logCommandResult($cmd, $result);
