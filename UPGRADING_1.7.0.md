@@ -1,7 +1,14 @@
 # UPGRADING_1.7.0
 
 ## Summary
-BinktermPHP 1.7.0 introduces a new cron/system startup model that uses a long-running admin daemon and scheduler. The scripts `binkp_poll.php` and `process_packets.php` are **still supported and still used**, but running them directly from cron is now **deprecated**.
+ /!\  BinktermPHP 1.7.0 introduces a new cron/system startup model that uses a long-running admin daemon and scheduler. The scripts `binkp_poll.php` and `process_packets.php` are **still supported and still used**, but running them directly from cron is now **deprecated**.
+
+Changes in 1.7.0:
+- Admin daemon for privileged background tasks (polling, packet processing, log retrieval).
+- Scheduler now runs polling and packet processing through the admin daemon.
+- Crashmail polling integrated into the scheduler.
+- ARCmail bundle support for day bundles like `.we1` (via external extractors).
+- New daemon status reporting on the admin dashboard and in `binkp_status.php`.
 
 ## Pre-requisite Packages
 Ubuntu/Debian:
@@ -12,7 +19,7 @@ sudo apt-get install -y unzip p7zip-full
 
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
-## Why This Change
+## Introducing admin_daemon.php - Why This Change
 The new approach centralizes polling and packet processing through a single service:
 - **Consistent execution**: one daemon is responsible for running tasks.
 - **Better coordination**: the scheduler can poll and then immediately process packets.
