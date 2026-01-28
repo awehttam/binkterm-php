@@ -493,6 +493,22 @@ function logout() {
     });
 }
 
+function updateSessionActivity() {
+    if (!window.currentUserId) {
+        return;
+    }
+    const activity = document.title || '';
+    fetch('/api/user/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity })
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateSessionActivity();
+});
+
 // Utility functions
 function formatDate(dateString) {
     // Database stores dates in UTC, so parse as UTC and convert to local time

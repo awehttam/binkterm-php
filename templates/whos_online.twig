@@ -22,6 +22,9 @@
                         <tr>
                             <th>Username</th>
                             <th>Location</th>
+                            {% if current_user and current_user.is_admin %}
+                            <th>Last Activity</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -29,6 +32,9 @@
                         <tr>
                             <td>{{ user.username }}</td>
                             <td>{{ user.location ?: 'Unknown' }}</td>
+                            {% if current_user and current_user.is_admin %}
+                            <td>{{ user.activity ?: '-' }}</td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>

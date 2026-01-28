@@ -2009,6 +2009,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::post('/user/activity', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $activity = $input['activity'] ?? '';
+        $sessionId = $_COOKIE['binktermphp_session'] ?? null;
+
+        if (!$sessionId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Session not found']);
+            return;
+        }
+
+        $auth->updateSessionActivity($sessionId, (string)$activity);
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/system/status', function() {
         $auth = new Auth();
         $auth->requireAuth();

@@ -60,6 +60,16 @@ class Auth
         $stmt->execute([$sessionId]);
     }
 
+    public function updateSessionActivity(string $sessionId, string $activity): void
+    {
+        $activity = trim($activity);
+        if ($activity === '') {
+            return;
+        }
+        $stmt = $this->db->prepare('UPDATE user_sessions SET last_activity = NOW(), activity = ? WHERE session_id = ?');
+        $stmt->execute([mb_substr($activity, 0, 255), $sessionId]);
+    }
+
     public function createSession($userId)
     {
         $sessionId = bin2hex(random_bytes(32));
@@ -127,6 +137,7 @@ class Auth
                 u.location,
                 u.fidonet_address,
                 s.last_activity,
+                s.activity,
                 s.ip_address
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
