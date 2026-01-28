@@ -927,6 +927,7 @@ php scripts/update_nodelists.php --help
 - Monitor status: `php scripts/binkp_status.php`
 - Manual poll: `php scripts/binkp_poll.php --all`
 - Post messages: `php scripts/post_message.php [options]`
+- Chat cleanup: `php scripts/chat_cleanup.php --limit=500 --max-age-days=30`
 
 ### Cron Job Setup
 The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
