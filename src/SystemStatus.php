@@ -23,10 +23,16 @@ class SystemStatus
                 $pid = trim(file_get_contents($pidFile));
                 if ($pid !== '' && is_numeric($pid)) {
                     $pidInt = (int)$pid;
-                    if (function_exists('posix_kill')) {
-                        $running = @posix_kill($pidInt, 0);
-                    } else {
+                    if (PHP_OS_FAMILY === 'Windows') {
                         $running = self::isProcessRunningWindows($pidInt);
+                    } else {
+                        if (is_dir('/proc/' . $pidInt)) {
+                            $running = true;
+                        } elseif (function_exists('posix_kill')) {
+                            $running = @posix_kill($pidInt, 0);
+                        } else {
+                            $running = false;
+                        }
                     }
                 }
             }
