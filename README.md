@@ -106,6 +106,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
 - **Operating System** - Linux, macOS, Windows (no binkp_server)
+- **Utilities** - p7zip-full (7z)
 
 ### Step 1: Clone Repository
 ```bash
@@ -794,6 +795,16 @@ php scripts/debug_binkp.php 1:153/149
 php scripts/process_packets.php
 ```
 
+#### Fidonet Bundle Extraction
+Fidonet day bundles (e.g., `.su0`, `.mo1`, `.we1`) and legacy archives like `.arc`, `.arj`, `.lzh`, `.rar` may contain `.pkt` files. BinktermPHP will try ZIP first, then fall back to external extractors.
+
+Configure extractors via `.env`:
+```
+ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
+```
+
+Install a compatible extractor (7-Zip recommended) so non-ZIP bundles can be unpacked.
+
 ### Admin Daemon
 The admin daemon is a lightweight control socket that accepts authenticated commands to run backend tasks from inside the app. It listens on a Unix socket by default (Linux/macOS) and TCP on Windows.
 
@@ -922,9 +933,6 @@ The recommended approach is to start these services at boot (systemd or `@reboot
 
 # Update nodelists daily at 4am
 0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
-
-# Backup database daily at 2am
-0 2 * * * cp /path/to/binktest/data/binktest.db /path/to/backups/binktest-$(date +\%Y\%m\%d).db
 
 # Rotate logs weekly
 0 0 * * 0 find /path/to/binktest/data/logs -name "*.log" -mtime +7 -delete
