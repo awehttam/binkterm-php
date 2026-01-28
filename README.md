@@ -989,6 +989,19 @@ For detailed instructions including Bootstrap 5 components, Twig template variab
 4. Monitor system resources during peak times
 5. Optimize PHP opcache settings
 
+#### Backend Profiling (Slow Request Logging)
+For deployed systems where you need lightweight backend profiling, you can enable slow request logging. This logs slow
+requests to the PHP error log via `error_log()` so you can identify bottlenecks without external tooling.
+
+Add to `.env`:
+```bash
+PERF_LOG_ENABLED=true
+PERF_LOG_SLOW_MS=500
+```
+
+- `PERF_LOG_ENABLED`: Set to `true` to enable logging.
+- `PERF_LOG_SLOW_MS`: Minimum duration in milliseconds before a request is logged.
+
 #### Memory Issues
 1. Monitor PHP memory usage
 2. Process packets more frequently to avoid large queues
