@@ -452,6 +452,26 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        // Attempt crashmail delivery (runs crashmail_poll)
+        SimpleRouter::post('/crashmail/poll', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->crashmailPoll();
+                echo json_encode(['success' => true, 'result' => $result]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
         // ========================================
         // Binkp Session Log
         // ========================================

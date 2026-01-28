@@ -105,7 +105,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
-- **Operating System** - Linux, macOS, Windows (no binkp_server)
+- **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
 
 ### Step 1: Pre-requisite Packages
 Ubuntu/Debian:
@@ -224,6 +224,8 @@ The sticky bit (`t`) ensures files can only be deleted by their owner, preventin
 
 ### Basic System Configuration
 Edit `config/binkp.json` to configure your system. See `config/binkp.json.example` for a complete reference.
+
+Note:  Be sure to restart BBS services after editing binkp.json.  You can use the `scripts/restart_daemons.sh` script for this on Linux.
 
 ```json
 {
