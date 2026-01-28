@@ -1512,6 +1512,7 @@ class BinkdProcessor
             2 => ['pipe', 'w']
         ];
 
+        $this->log("runExtractorCommand($commandTemplate, $bundleFile, $tempDir", 'DEBUG');
         $process = proc_open($command, $descriptorSpec, $pipes, $this->inboundPath);
         if (!is_resource($process)) {
             return [
