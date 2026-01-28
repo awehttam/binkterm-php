@@ -343,6 +343,7 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fidonet-hub.example.com",
             "port": 24554,
             "password": "fido_password",
+            "poll_schedule": "*/15 * * * *",
             "default": true,
             "enabled": true
         },
@@ -354,6 +355,7 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fsxnet-hub.example.com",
             "port": 24554,
             "password": "fsx_password",
+            "poll_schedule": "*/15 * * * *",
             "enabled": true
         }
     ]
@@ -522,6 +524,7 @@ The general steps are:
 1. **Pull the latest code** - `git pull`
 2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
 3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
+4. **Restart daemons** - `bash scripts/restart_daemons.sh`
 
 
 ### Version-Specific Upgrade Guides
@@ -909,7 +912,7 @@ The recommended approach is to start these services at boot (systemd or `@reboot
 
 ```bash
 # Start admin daemon on boot (pid defaults to data/run/admin_daemon.pid)
-@reboot /usr/bin/php /path/to/binktest/scripts/admin_daemon.php
+@reboot /usr/bin/php /path/to/binktest/scripts/admin_daemon.php --daemon
 
 # Start scheduler on boot (pid defaults to data/run/binkp_scheduler.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/binkp_scheduler.php --daemon
