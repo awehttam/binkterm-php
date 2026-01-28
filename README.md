@@ -462,19 +462,6 @@ TERMINAL_PROXY_PORT=443
 - **TERMINAL_PROXY_HOST**: WebSocket proxy server hostname/IP
 - **TERMINAL_PROXY_PORT**: WebSocket proxy server port (typically 443 for HTTPS)
 
-#### Server-Sent Events (SSE) Configuration
-
-Chat and activity notifications use an SSE endpoint. Some proxy servers buffer SSE responses and delay events. If that happens, you can force the SSE endpoint to behave like short-polling (flush current events and exit), and the client will reconnect automatically.
-
-Add this to your `.env` file to force polling behavior:
-
-```bash
-EVENTS_STREAM_MODE=polling
-```
-
-Default is `sse`.
-
-
 #### Custom Welcome Messages
 
 You can customize the welcome messages displayed to users in various parts of the system by creating optional text files in the `config/` directory:
