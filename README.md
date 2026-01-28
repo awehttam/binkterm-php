@@ -106,7 +106,17 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
 - **Operating System** - Linux, macOS, Windows (no binkp_server)
-- **Utilities** - p7zip-full (7z)
+
+### Pre-requisite Packages
+Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install -y unzip p7zip-full
+```
+
+The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
+
+### Step 1: Clone Repository
 
 ### Step 1: Clone Repository
 ```bash

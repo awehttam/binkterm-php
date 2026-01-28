@@ -3,6 +3,15 @@
 ## Summary
 BinktermPHP 1.7.0 introduces a new cron/system startup model that uses a long-running admin daemon and scheduler. The scripts `binkp_poll.php` and `process_packets.php` are **still supported and still used**, but running them directly from cron is now **deprecated**.
 
+## Pre-requisite Packages
+Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install -y unzip p7zip-full
+```
+
+The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
+
 ## Why This Change
 The new approach centralizes polling and packet processing through a single service:
 - **Consistent execution**: one daemon is responsible for running tasks.
