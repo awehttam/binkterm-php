@@ -531,13 +531,124 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $body = 'https://github.com/awehttam/binkterm-php';
         }
         if ($body === '/help') {
-            $helpBody = 'Commands: /source - transmit the github page to chat';
+            $helpBody = 'Commands: /source - transmit the github page to chat; /kick <user> - remove user from room; /ban <user> - ban user from room';
             echo json_encode([
                 'success' => true,
                 'local_message' => [
                     'from_user_id' => null,
                     'from_username' => 'System',
                     'body' => $helpBody,
+                    'created_at' => gmdate('Y-m-d H:i:s'),
+                    'type' => 'local'
+                ]
+            ]);
+            return;
+        }
+
+        if (preg_match('/^\\/(kick|ban)\\s+(\\S+)/i', $body, $matches)) {
+            if (empty($user['is_admin'])) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'Admin access required for moderation commands.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+            if (!$roomId) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'Moderation commands can only be used in rooms.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            $action = strtolower($matches[1]);
+            $targetName = ltrim($matches[2], '@');
+
+            $db = Database::getInstance()->getPdo();
+            $roomStmt = $db->prepare("SELECT id FROM chat_rooms WHERE id = ? AND is_active = TRUE");
+            $roomStmt->execute([$roomId]);
+            if (!$roomStmt->fetch()) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'Chat room not found.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            $userStmt = $db->prepare("SELECT id, username FROM users WHERE LOWER(username) = LOWER(?) AND is_active = TRUE");
+            $userStmt->execute([$targetName]);
+            $targetUser = $userStmt->fetch();
+            if (!$targetUser) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => "User '{$targetName}' not found.",
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            if ((int)$targetUser['id'] === (int)$userId) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'You cannot moderate yourself.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            $expiresAt = null;
+            if ($action === 'kick') {
+                $utcNow = new DateTime('now', new DateTimeZone('UTC'));
+                $utcNow->modify('+10 minutes');
+                $expiresAt = $utcNow->format('Y-m-d H:i:s');
+            }
+
+            $stmt = $db->prepare("
+                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (room_id, user_id)
+                DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                              reason = EXCLUDED.reason,
+                              expires_at = EXCLUDED.expires_at,
+                              created_at = NOW()
+            ");
+            $stmt->execute([$roomId, (int)$targetUser['id'], $user['user_id'] ?? $user['id'], null, $expiresAt]);
+
+            $actionLabel = $action === 'ban' ? 'banned' : 'kicked';
+            echo json_encode([
+                'success' => true,
+                'local_message' => [
+                    'from_user_id' => null,
+                    'from_username' => 'System',
+                    'body' => "{$targetUser['username']} has been {$actionLabel} from this room.",
                     'created_at' => gmdate('Y-m-d H:i:s'),
                     'type' => 'local'
                 ]

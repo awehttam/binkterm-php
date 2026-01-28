@@ -510,10 +510,13 @@
         }
 
         function openMenu(event) {
-            const author = event.target.closest('.chat-message-author');
+            const target = event.target instanceof Element ? event.target : event.target.parentElement;
+            if (!target) return;
+            const author = target.closest('.chat-message-author');
             if (!author) return;
 
             event.preventDefault();
+            event.stopPropagation();
             const userId = author.dataset.userId;
             const roomId = state.active.type === 'room' ? state.active.id : null;
 
