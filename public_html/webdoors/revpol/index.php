@@ -1,5 +1,7 @@
 <?php
-
+    /*
+     * Reverse Polarity Web Terminal
+     */
 require_once __DIR__ . '../..//../../vendor/autoload.php';
 
 use BinktermPHP\Auth;
@@ -205,8 +207,8 @@ try {
         });
 
         // Add fit addon
-        //const fitAddon = new FitAddon.FitAddon();
-        //terminal.loadAddon(fitAddon);
+        const fitAddon = new FitAddon.FitAddon();
+        terminal.loadAddon(fitAddon);
 
         // Add web links addon
         const webLinksAddon = new WebLinksAddon.WebLinksAddon();
@@ -236,7 +238,7 @@ try {
             // Initialize terminal if not already done
             if (!terminalInitialized) {
                 terminal.open(document.getElementById('terminal'));
-                //fitAddon.fit();
+                fitAddon.fit();
                 terminalInitialized = true;
             }
             
@@ -306,7 +308,7 @@ try {
 
         // Handle window resize
         window.addEventListener('resize', function() {
-            //fitAddon.fit();
+            fitAddon.fit();
         });
 
         // Allow Enter key to submit form

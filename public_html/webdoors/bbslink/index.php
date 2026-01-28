@@ -1,25 +1,5 @@
 <?php
-/**
- * Terminal WebDoor - SSH and Telnet Gateway
- *
- * This webdoor provides web-based terminal access to remote SSH and Telnet hosts.
- * It connects to an external proxy server (e.g., terminalgateway) that handles
- * the actual SSH/Telnet connections.
- *
- * Protocol Support:
- * - SSH: Requires proxy server with SSH client support
- * - Telnet: Requires proxy server with Telnet client support
- *
- * The frontend sends connection requests with protocol type ('ssh' or 'telnet')
- * to the proxy server via Socket.IO events:
- * - 'connect-ssh' for SSH connections
- * - 'connect-telnet' for Telnet connections
- *
- * Configuration:
- * - Hosts are defined in config/webdoors.json under the 'terminal' key
- * - Each host must specify: hostname, port, and proto ('ssh' or 'telnet')
- * - The proxy server address is configured via TERMINAL_PROXY_HOST and TERMINAL_PROXY_PORT
- */
+/** BBSLink Web Terminal */
 
 require_once __DIR__ . '../../../../vendor/autoload.php';
 
@@ -262,8 +242,8 @@ try {
         });
 
         // Add fit addon
-        //const fitAddon = new FitAddon.FitAddon();
-        //terminal.loadAddon(fitAddon);
+        const fitAddon = new FitAddon.FitAddon();
+        terminal.loadAddon(fitAddon);
 
         // Add web links addon
         const webLinksAddon = new WebLinksAddon.WebLinksAddon();
@@ -316,7 +296,7 @@ try {
             // Initialize terminal if not already done
             if (!terminalInitialized) {
                 terminal.open(document.getElementById('terminal'));
-                //fitAddon.fit();
+                fitAddon.fit();
                 terminalInitialized = true;
             }
 
@@ -391,7 +371,7 @@ try {
 
         // Handle window resize
         window.addEventListener('resize', function() {
-            //fitAddon.fit();
+            fitAddon.fit();
         });
 
         // Allow Enter key to submit form

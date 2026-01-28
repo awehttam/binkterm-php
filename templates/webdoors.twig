@@ -9,6 +9,46 @@
     </div>
 
     <p class="text-muted mb-4">Access new door ways to games, apps, and more directly in your browser. Your progress and high scores are saved automatically.</p>
+    {% if leaderboard|length > 0 %}
+    <div class="card mb-4 leaderboard-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-trophy text-warning me-2"></i>Top Scores (All Games)</span>
+            <small class="text-muted">Best overall scores</small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 60px;">Rank</th>
+                        <th>Player</th>
+                        <th>Game</th>
+                        <th>Board</th>
+                        <th class="text-end" style="width: 100px;">Score</th>
+                        <th style="width: 110px;">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in leaderboard %}
+                    <tr>
+                        <td class="text-muted">#{{ entry.rank }}</td>
+                        <td>{{ entry.display_name }}</td>
+                        <td>
+                            {% if entry.game_path %}
+                                <a href="/games/{{ entry.game_path }}" class="leaderboard-link">{{ entry.game_name }}</a>
+                            {% else %}
+                                {{ entry.game_name }}
+                            {% endif %}
+                        </td>
+                        <td><span class="badge bg-secondary-subtle text-dark">{{ entry.board }}</span></td>
+                        <td class="text-end">{{ entry.score }}</td>
+                        <td class="text-muted">{{ entry.date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
     {% if games|length > 0 %}
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for game in games %}
@@ -49,6 +89,16 @@
 .game-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.leaderboard-card {
+    border: 1px solid rgba(0,0,0,0.06);
+}
+.leaderboard-link {
+    color: inherit;
+    text-decoration: none;
+}
+.leaderboard-link:hover {
+    text-decoration: underline;
 }
 </style>
 {% endblock %}
