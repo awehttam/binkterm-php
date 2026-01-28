@@ -1,4 +1,4 @@
-const CACHE_NAME = 'my-pwa-cache-v1';
+const CACHE_NAME = 'binkcache-v1';
 const urlsToCache = [
     '/favicon.svg',
 ];
@@ -11,6 +11,22 @@ self.addEventListener('install', (event) => {
             .then((cache) => {
                 return cache.addAll(urlsToCache);
             })
+    );
+});
+
+// Purge any old caches on activate so clients drop stale assets.
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName === CACHE_NAME) {
+                        return null;
+                    }
+                    return caches.delete(cacheName);
+                })
+            );
+        })
     );
 });
 
