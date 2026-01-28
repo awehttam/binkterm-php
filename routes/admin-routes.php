@@ -17,9 +17,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $stats = $adminController->getSystemStats();
+        $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $systemAddresses = [$config->getSystemAddress()];
+        foreach ($config->getUplinks() as $uplink) {
+            if (!empty($uplink['me'])) {
+                $systemAddresses[] = $uplink['me'];
+            }
+        }
+        $systemAddresses = array_values(array_unique(array_filter($systemAddresses)));
         $template->renderResponse('admin/dashboard.twig', [
             'stats' => $stats,
-            'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus()
+            'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus(),
+            'git_commit' => \BinktermPHP\SystemStatus::getGitCommitHash(),
+            'system_addresses' => $systemAddresses
         ]);
     });
 

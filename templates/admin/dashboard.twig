@@ -136,7 +136,33 @@
                             <strong>System Address:</strong>
                         </div>
                         <div class="col-sm-6">
-                            {{ fidonetOrigin }}
+                            {% if system_addresses is defined and system_addresses|length > 0 %}
+                                {{ system_addresses|join(', ') }}
+                            {% else %}
+                                {{ fidonetOrigin }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>Version:</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {{ app_version }}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>Git Commit:</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {% if git_commit %}
+                                <span class="text-muted">{{ git_commit|slice(0, 8) }}</span>
+                            {% else %}
+                                <span class="text-muted">n/a</span>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

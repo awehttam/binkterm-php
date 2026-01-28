@@ -67,4 +67,53 @@ class SystemStatus
 
         return false;
     }
+
+    public static function getGitCommitHash(): ?string
+    {
+        $gitDir = __DIR__ . '/../.git';
+        if (!is_dir($gitDir)) {
+            return null;
+        }
+
+        $headFile = $gitDir . '/HEAD';
+        if (!is_file($headFile)) {
+            return null;
+        }
+
+        $head = trim((string)@file_get_contents($headFile));
+        if ($head === '') {
+            return null;
+        }
+
+        if (strpos($head, 'ref:') === 0) {
+            $ref = trim(substr($head, 4));
+            $refPath = $gitDir . '/' . $ref;
+            if (is_file($refPath)) {
+                $hash = trim((string)@file_get_contents($refPath));
+                return $hash !== '' ? $hash : null;
+            }
+            $packed = $gitDir . '/packed-refs';
+            if (is_file($packed)) {
+                $packedContent = @file_get_contents($packed);
+                if ($packedContent !== false) {
+                    foreach (explode("\n", $packedContent) as $line) {
+                        $line = trim($line);
+                        if ($line === '' || $line[0] === '#') {
+                            continue;
+                        }
+                        if (strpos($line, ' ') !== false) {
+                            [$hash, $packedRef] = explode(' ', $line, 2);
+                            if ($packedRef === $ref) {
+                                return $hash;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        return $head;
+    }
 }
