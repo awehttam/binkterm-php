@@ -321,7 +321,7 @@ class CrashmailService
     {
         $tempDir = sys_get_temp_dir();
         //$filename = $tempDir . '/crashmail_' . time() . '_' . $queueItem['id'] . '.pkt';
-        $filename = $tempDir . substr(uniqid(), -8).'.pkt';
+        $filename = $tempDir .'/'. substr(uniqid(), -8).'.pkt';
 
         // Prepare message data for BinkdProcessor
         // Set CRASH and PRIVATE attributes
