@@ -908,7 +908,7 @@ php scripts/update_nodelists.php --help
 ### Starting the System
 
 1. **Start Web Server**: Ensure Apache/Nginx is running, or use PHP built-in server
-2. **Start Admin Daemon**: `php scripts/admin_daemon.php`
+2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
 3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
 4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
 5. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
