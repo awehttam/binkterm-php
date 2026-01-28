@@ -107,7 +107,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Composer** - For dependency management
 - **Operating System** - Linux, macOS, Windows (no binkp_server)
 
-### Pre-requisite Packages
+### Step 1: Pre-requisite Packages
 Ubuntu/Debian:
 ```bash
 sudo apt-get update
@@ -116,20 +116,18 @@ sudo apt-get install -y unzip p7zip-full
 
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
-### Step 1: Clone Repository
-
-### Step 1: Clone Repository
+### Step 2: Clone Repository
 ```bash
 git clone https://github.com/awehttam/binkterm-php
 cd binkterm-php
 ```
 
-### Step 2: Install Dependencies
+### Step 3: Install Dependencies
 ```bash
 composer install
 ```
 
-### Step 3: Configure Environment
+### Step 4: Configure Environment
 Copy the example environment file and configure your settings:
 ```bash
 cp .env.example .env
@@ -137,7 +135,7 @@ cp .env.example .env
 
 Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
 
-### Step 4: Install the database schema and configure the initial Admin user
+### Step 5: Install the database schema and configure the initial Admin user
 Use the installation script for automated setup:
 ```bash
 # Interactive installation (prompts for admin credentials)
@@ -152,7 +150,7 @@ Alternatively, use the setup script which auto-detects whether to install or upg
 php scripts/setup.php
 ```
 
-### Step 5: Configure Web Server
+### Step 6: Configure Web Server
 
 #### Apache
 ```apache
@@ -194,7 +192,7 @@ cd public_html
 php -S localhost:8080
 ```
 
-### Step 6: Set Up Cron Jobs (Recommended)
+### Step 7: Set Up Cron Jobs (Recommended)
 Start the long-running services at boot and keep cron for periodic maintenance tasks:
 
 ```cron

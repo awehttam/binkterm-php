@@ -17,7 +17,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $stats = $adminController->getSystemStats();
-        $template->renderResponse('admin/dashboard.twig', ['stats' => $stats]);
+        $template->renderResponse('admin/dashboard.twig', [
+            'stats' => $stats,
+            'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus()
+        ]);
     });
 
     // Users management page

@@ -243,7 +243,9 @@ class AdminDaemonServer
             return;
         }
 
-        @file_put_contents($this->pidFile, (string)getmypid());
+        if (@file_put_contents($this->pidFile, (string)getmypid()) !== false) {
+            @chmod($this->pidFile, 0644);
+        }
     }
 
     private function isUnixSocket(string $socketTarget): bool
