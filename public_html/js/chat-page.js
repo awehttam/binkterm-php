@@ -11,6 +11,8 @@
         users: [],
         active: { type: 'room', id: null },
         unreadCounts: {},
+        oldestIds: {},
+        hasMore: {},
         lastEventId: 0,
         loadingHistory: false
     };
@@ -118,6 +120,7 @@
         renderUsers();
         loadMessages();
         renderThreadHeader();
+        updateLoadOlderVisibility();
     }
 
     function renderRooms() {
@@ -193,13 +196,39 @@
 
     function renderThread(messages) {
         const container = document.getElementById('chatThread');
+        const loadOlderWrap = document.getElementById('chatLoadOlderWrap');
         container.innerHTML = '';
+        if (loadOlderWrap) {
+            container.appendChild(loadOlderWrap);
+        }
         messages.forEach(msg => appendMessage(msg, true));
         scrollThreadToBottom();
     }
 
+    function prependMessages(messages) {
+        const container = document.getElementById('chatThread');
+        const loadOlderWrap = document.getElementById('chatLoadOlderWrap');
+        if (!container || messages.length === 0) return;
+        const insertBefore = loadOlderWrap ? loadOlderWrap.nextSibling : container.firstChild;
+        const frag = document.createDocumentFragment();
+        messages.forEach(msg => frag.appendChild(buildMessageElement(msg)));
+        container.insertBefore(frag, insertBefore);
+        trimMessages(container);
+    }
+
     function appendMessage(msg, skipScroll) {
         const container = document.getElementById('chatThread');
+        const wrapper = buildMessageElement(msg);
+        container.appendChild(wrapper);
+
+        trimMessages(container);
+
+        if (!skipScroll) {
+            scrollThreadToBottom();
+        }
+    }
+
+    function buildMessageElement(msg) {
         const wrapper = document.createElement('div');
         wrapper.className = 'chat-message';
         wrapper.dataset.userId = msg.from_user_id || '';
@@ -218,13 +247,7 @@
 
         wrapper.appendChild(header);
         wrapper.appendChild(body);
-        container.appendChild(wrapper);
-
-        trimMessages(container);
-
-        if (!skipScroll) {
-            scrollThreadToBottom();
-        }
+        return wrapper;
     }
 
     function trimMessages(container) {
@@ -250,11 +273,19 @@
         } else {
             params.set('dm_user_id', state.active.id);
         }
-        params.set('limit', 200);
+        const limit = 200;
+        params.set('limit', limit);
         fetch(`/api/chat/messages?${params.toString()}`)
             .then(res => res.json())
             .then(data => {
-                renderThread(data.messages || []);
+                const messages = data.messages || [];
+                renderThread(messages);
+                const key = threadKey(state.active);
+                if (messages.length > 0) {
+                    state.oldestIds[key] = messages[0].id;
+                }
+                state.hasMore[key] = (data.has_more !== undefined) ? data.has_more : messages.length === limit;
+                updateLoadOlderVisibility();
             })
             .catch(() => {
                 // Ignore for now
@@ -262,6 +293,51 @@
             .finally(() => {
                 state.loadingHistory = false;
             });
+    }
+
+    function loadOlderMessages() {
+        if (state.loadingHistory) return;
+        const key = threadKey(state.active);
+        const beforeId = state.oldestIds[key];
+        if (!beforeId) return;
+        state.loadingHistory = true;
+        const params = new URLSearchParams();
+        if (state.active.type === 'room') {
+            params.set('room_id', state.active.id);
+        } else {
+            params.set('dm_user_id', state.active.id);
+        }
+        params.set('before_id', beforeId);
+        const limit = 200;
+        params.set('limit', limit);
+        fetch(`/api/chat/messages?${params.toString()}`)
+            .then(res => res.json())
+            .then(data => {
+                const messages = data.messages || [];
+                if (messages.length > 0) {
+                    prependMessages(messages);
+                    state.oldestIds[key] = messages[0].id;
+                }
+                state.hasMore[key] = (data.has_more !== undefined) ? data.has_more : messages.length === limit;
+                updateLoadOlderVisibility();
+            })
+            .catch(() => {
+                // Ignore for now
+            })
+            .finally(() => {
+                state.loadingHistory = false;
+            });
+    }
+
+    function updateLoadOlderVisibility() {
+        const wrap = document.getElementById('chatLoadOlderWrap');
+        if (!wrap) return;
+        const key = threadKey(state.active);
+        if (state.hasMore[key]) {
+            wrap.classList.remove('d-none');
+        } else {
+            wrap.classList.add('d-none');
+        }
     }
 
     function sendMessage(body) {
@@ -434,10 +510,13 @@
         }
 
         function openMenu(event) {
-            const author = event.target.closest('.chat-message-author');
+            const target = event.target instanceof Element ? event.target : event.target.parentElement;
+            if (!target) return;
+            const author = target.closest('.chat-message-author');
             if (!author) return;
 
             event.preventDefault();
+            event.stopPropagation();
             const userId = author.dataset.userId;
             const roomId = state.active.type === 'room' ? state.active.id : null;
 
@@ -500,6 +579,10 @@
         await loadState();
         initInput();
         initModerationMenu();
+        const loadOlderBtn = document.getElementById('chatLoadOlderBtn');
+        if (loadOlderBtn) {
+            loadOlderBtn.addEventListener('click', loadOlderMessages);
+        }
         refreshRooms();
         refreshUsers();
         renderUnreadBadge();

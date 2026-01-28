@@ -324,14 +324,39 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        // Unread netmail using message_read_status table
-        $unreadStmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM netmail n
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-            WHERE n.user_id = ? AND mrs.read_at IS NULL
-        ");
-        $unreadStmt->execute([$userId, $userId]);
+        // Unread netmail using message_read_status table (sent + received)
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = $binkpConfig->getMyAddresses();
+            $myAddresses[] = $binkpConfig->getSystemAddress();
+        } catch (\Exception $e) {
+            $myAddresses = [];
+        }
+
+        if (!empty($myAddresses)) {
+            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE mrs.read_at IS NULL
+                  AND (
+                    n.user_id = ?
+                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                  )
+            ");
+            $params = [$userId, $userId, $user['username'], $user['real_name']];
+            $params = array_merge($params, $myAddresses);
+            $unreadStmt->execute($params);
+        } else {
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count 
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE n.user_id = ? AND mrs.read_at IS NULL
+            ");
+            $unreadStmt->execute([$userId, $userId]);
+        }
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
         // Unread echomail using message_read_status table (only from subscribed echoareas)
@@ -433,7 +458,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $roomId = isset($_GET['room_id']) ? (int)$_GET['room_id'] : null;
         $dmUserId = isset($_GET['dm_user_id']) ? (int)$_GET['dm_user_id'] : null;
+        $beforeId = isset($_GET['before_id']) ? (int)$_GET['before_id'] : null;
         $limit = min((int)($_GET['limit'] ?? 50), 200);
+        $queryLimit = $limit + 1;
 
         if (!$userId || ($roomId && $dmUserId) || (!$roomId && !$dmUserId)) {
             http_response_code(400);
@@ -444,22 +471,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         if ($roomId) {
-            $stmt = $db->prepare("
+            $sql = "
                 SELECT m.id, m.room_id, r.name as room_name, m.from_user_id, u.username as from_username,
                        m.body, m.created_at
                 FROM chat_messages m
                 JOIN chat_rooms r ON m.room_id = r.id
                 JOIN users u ON m.from_user_id = u.id
                 WHERE m.room_id = ? AND r.is_active = TRUE
-                ORDER BY m.id DESC
-                LIMIT ?
-            ");
-            $stmt->bindValue(1, $roomId, \PDO::PARAM_INT);
-            $stmt->bindValue(2, $limit, \PDO::PARAM_INT);
+            ";
+            $params = [$roomId];
+            if ($beforeId) {
+                $sql .= " AND m.id < ?";
+                $params[] = $beforeId;
+            }
+            $sql .= " ORDER BY m.id DESC LIMIT ?";
+            $params[] = $queryLimit;
+            $stmt = $db->prepare($sql);
+            foreach ($params as $index => $value) {
+                $stmt->bindValue($index + 1, $value, \PDO::PARAM_INT);
+            }
             $stmt->execute();
             $rows = $stmt->fetchAll();
         } else {
-            $stmt = $db->prepare("
+            $sql = "
                 SELECT m.id, m.from_user_id, u.username as from_username,
                        m.to_user_id, m.body, m.created_at
                 FROM chat_messages m
@@ -469,21 +503,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     (m.from_user_id = ? AND m.to_user_id = ?)
                     OR (m.from_user_id = ? AND m.to_user_id = ?)
                   )
-                ORDER BY m.id DESC
-                LIMIT ?
-            ");
-            $stmt->bindValue(1, $userId, \PDO::PARAM_INT);
-            $stmt->bindValue(2, $dmUserId, \PDO::PARAM_INT);
-            $stmt->bindValue(3, $dmUserId, \PDO::PARAM_INT);
-            $stmt->bindValue(4, $userId, \PDO::PARAM_INT);
-            $stmt->bindValue(5, $limit, \PDO::PARAM_INT);
+            ";
+            $params = [$userId, $dmUserId, $dmUserId, $userId];
+            if ($beforeId) {
+                $sql .= " AND m.id < ?";
+                $params[] = $beforeId;
+            }
+            $sql .= " ORDER BY m.id DESC LIMIT ?";
+            $params[] = $queryLimit;
+            $stmt = $db->prepare($sql);
+            foreach ($params as $index => $value) {
+                $stmt->bindValue($index + 1, $value, \PDO::PARAM_INT);
+            }
             $stmt->execute();
             $rows = $stmt->fetchAll();
         }
 
+        $hasMore = count($rows) > $limit;
+        if ($hasMore) {
+            $rows = array_slice($rows, 0, $limit);
+        }
         $rows = array_reverse($rows);
 
-        echo json_encode(['messages' => $rows]);
+        echo json_encode(['messages' => $rows, 'has_more' => $hasMore]);
     });
 
     SimpleRouter::post('/chat/send', function() {
@@ -514,13 +556,124 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $body = 'https://github.com/awehttam/binkterm-php';
         }
         if ($body === '/help') {
-            $helpBody = 'Commands: /source - transmit the github page to chat';
+            $helpBody = 'Commands: /source - transmit the github page to chat; /kick <user> - remove user from room; /ban <user> - ban user from room';
             echo json_encode([
                 'success' => true,
                 'local_message' => [
                     'from_user_id' => null,
                     'from_username' => 'System',
                     'body' => $helpBody,
+                    'created_at' => gmdate('Y-m-d H:i:s'),
+                    'type' => 'local'
+                ]
+            ]);
+            return;
+        }
+
+        if (preg_match('/^\\/(kick|ban)\\s+(\\S+)/i', $body, $matches)) {
+            if (empty($user['is_admin'])) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'Admin access required for moderation commands.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+            if (!$roomId) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'Moderation commands can only be used in rooms.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            $action = strtolower($matches[1]);
+            $targetName = ltrim($matches[2], '@');
+
+            $db = Database::getInstance()->getPdo();
+            $roomStmt = $db->prepare("SELECT id FROM chat_rooms WHERE id = ? AND is_active = TRUE");
+            $roomStmt->execute([$roomId]);
+            if (!$roomStmt->fetch()) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'Chat room not found.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            $userStmt = $db->prepare("SELECT id, username FROM users WHERE LOWER(username) = LOWER(?) AND is_active = TRUE");
+            $userStmt->execute([$targetName]);
+            $targetUser = $userStmt->fetch();
+            if (!$targetUser) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => "User '{$targetName}' not found.",
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            if ((int)$targetUser['id'] === (int)$userId) {
+                echo json_encode([
+                    'success' => true,
+                    'local_message' => [
+                        'from_user_id' => null,
+                        'from_username' => 'System',
+                        'body' => 'You cannot moderate yourself.',
+                        'created_at' => gmdate('Y-m-d H:i:s'),
+                        'type' => 'local'
+                    ]
+                ]);
+                return;
+            }
+
+            $expiresAt = null;
+            if ($action === 'kick') {
+                $utcNow = new DateTime('now', new DateTimeZone('UTC'));
+                $utcNow->modify('+10 minutes');
+                $expiresAt = $utcNow->format('Y-m-d H:i:s');
+            }
+
+            $stmt = $db->prepare("
+                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (room_id, user_id)
+                DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                              reason = EXCLUDED.reason,
+                              expires_at = EXCLUDED.expires_at,
+                              created_at = NOW()
+            ");
+            $stmt->execute([$roomId, (int)$targetUser['id'], $user['user_id'] ?? $user['id'], null, $expiresAt]);
+
+            $actionLabel = $action === 'ban' ? 'banned' : 'kicked';
+            echo json_encode([
+                'success' => true,
+                'local_message' => [
+                    'from_user_id' => null,
+                    'from_username' => 'System',
+                    'body' => "{$targetUser['username']} has been {$actionLabel} from this room.",
                     'created_at' => gmdate('Y-m-d H:i:s'),
                     'type' => 'local'
                 ]
@@ -1110,13 +1263,38 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $total = $totalStmt->fetch()['count'];
 
         // Unread messages (using message_read_status table)
-        $unreadStmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM netmail n
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-            WHERE n.user_id = ? AND mrs.read_at IS NULL
-        ");
-        $unreadStmt->execute([$userId, $userId]);
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = $binkpConfig->getMyAddresses();
+            $myAddresses[] = $binkpConfig->getSystemAddress();
+        } catch (\Exception $e) {
+            $myAddresses = [];
+        }
+
+        if (!empty($myAddresses)) {
+            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count 
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE mrs.read_at IS NULL
+                  AND (
+                    n.user_id = ?
+                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                  )
+            ");
+            $params = [$userId, $userId, $user['username'], $user['real_name']];
+            $params = array_merge($params, $myAddresses);
+            $unreadStmt->execute($params);
+        } else {
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count 
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE n.user_id = ? AND mrs.read_at IS NULL
+            ");
+            $unreadStmt->execute([$userId, $userId]);
+        }
         $unread = $unreadStmt->fetch()['count'];
 
         // Sent messages
@@ -2007,6 +2185,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(500);
             echo json_encode(['error' => 'Failed to logout all sessions']);
         }
+    });
+
+    SimpleRouter::get('/whosonline', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $onlineUsers = $auth->getOnlineUsers(15);
+        $isAdmin = !empty($user['is_admin']);
+
+        $responseUsers = array_map(function($onlineUser) use ($isAdmin) {
+            $entry = [
+                'user_id' => (int)$onlineUser['user_id'],
+                'username' => $onlineUser['username'],
+                'location' => $onlineUser['location'] ?? ''
+            ];
+            if ($isAdmin) {
+                $entry['activity'] = $onlineUser['activity'] ?? '';
+            }
+            return $entry;
+        }, $onlineUsers);
+
+        echo json_encode([
+            'users' => $responseUsers,
+            'online_minutes' => 15
+        ]);
     });
 
     SimpleRouter::post('/user/activity', function() {

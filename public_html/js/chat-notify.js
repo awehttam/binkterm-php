@@ -5,6 +5,10 @@
     const CHAT_RECONNECT_MS = 2000;
 
     let lastEventId = 0;
+    let chatUnreadTotal = 0;
+    let mailUnreadTotal = 0;
+    let mailLastCounts = { netmail: 0, echomail: 0 };
+    let mailUnread = { netmail: false, echomail: false };
 
     function openDb() {
         return new Promise((resolve, reject) => {
@@ -58,21 +62,70 @@
         return `${thread.type}:${thread.id}`;
     }
 
-    function updateMenuIcon(unreadCounts) {
-        const total = Object.values(unreadCounts).reduce((sum, val) => sum + val, 0);
-        const menuIcons = document.querySelectorAll('.chat-menu-icon');
+    function updateMessagingIcon() {
         const messagingIcon = document.getElementById('messagingMenuIcon');
-        if (total > 0) {
+        if (!messagingIcon) return;
+        if (chatUnreadTotal + mailUnreadTotal > 0) {
+            messagingIcon.classList.add('unread');
+        } else {
+            messagingIcon.classList.remove('unread');
+        }
+    }
+
+    function updateChatIcons(unreadCounts) {
+        chatUnreadTotal = Object.values(unreadCounts).reduce((sum, val) => sum + val, 0);
+        const menuIcons = document.querySelectorAll('.chat-menu-icon');
+        if (chatUnreadTotal > 0) {
             menuIcons.forEach((icon) => icon.classList.add('unread'));
-            if (messagingIcon) {
-                messagingIcon.classList.add('unread');
-            }
         } else {
             menuIcons.forEach((icon) => icon.classList.remove('unread'));
-            if (messagingIcon) {
-                messagingIcon.classList.remove('unread');
+        }
+        updateMessagingIcon();
+    }
+
+    function updateMailIcons(stats, clearTarget = null) {
+        const netmailIcon = document.getElementById('netmailMenuIcon');
+        const echomailIcon = document.getElementById('echomailMenuIcon');
+        const netmailUnread = parseInt(stats?.unread_netmail || 0, 10) || 0;
+        const echomailUnread = parseInt(stats?.new_echomail || 0, 10) || 0;
+        if (netmailUnread > mailLastCounts.netmail) {
+            mailUnread.netmail = true;
+        }
+        if (echomailUnread > mailLastCounts.echomail) {
+            mailUnread.echomail = true;
+        }
+
+        if (clearTarget === 'netmail') {
+            mailUnread.netmail = false;
+        }
+        if (clearTarget === 'echomail') {
+            mailUnread.echomail = false;
+        }
+
+        mailLastCounts = {
+            netmail: netmailUnread,
+            echomail: echomailUnread
+        };
+
+        mailUnreadTotal = (mailUnread.netmail ? 1 : 0) + (mailUnread.echomail ? 1 : 0);
+
+        if (netmailIcon) {
+            if (mailUnread.netmail) {
+                netmailIcon.classList.add('unread');
+            } else {
+                netmailIcon.classList.remove('unread');
             }
         }
+
+        if (echomailIcon) {
+            if (mailUnread.echomail) {
+                echomailIcon.classList.add('unread');
+            } else {
+                echomailIcon.classList.remove('unread');
+            }
+        }
+
+        updateMessagingIcon();
     }
 
     async function refreshUnreadState() {
@@ -81,7 +134,17 @@
         if (stored && stored.lastEventId) {
             lastEventId = stored.lastEventId;
         }
-        updateMenuIcon(unreadCounts);
+        if (stored && stored.mailLastCounts) {
+            mailLastCounts = stored.mailLastCounts;
+        }
+        if (stored && stored.mailUnread) {
+            mailUnread = stored.mailUnread;
+        }
+        updateChatIcons(unreadCounts);
+        updateMailIcons({
+            unread_netmail: mailLastCounts.netmail,
+            new_echomail: mailLastCounts.echomail
+        });
     }
 
     async function handleEvent(payload) {
@@ -110,10 +173,12 @@
         await idbSet(CHAT_NOTIFY_KEY, {
             active: active,
             unreadCounts: unreadCounts,
-            lastEventId: lastEventId
+            lastEventId: lastEventId,
+            mailLastCounts: mailLastCounts,
+            mailUnread: mailUnread
         });
 
-        updateMenuIcon(unreadCounts);
+        updateChatIcons(unreadCounts);
     }
 
     function connectEventStream() {
@@ -132,6 +197,23 @@
         });
     }
 
+    async function refreshMailState(clearTarget = null) {
+        fetch('/api/dashboard/stats')
+            .then(res => res.json())
+            .then(async data => {
+                updateMailIcons(data, clearTarget);
+                const stored = await idbGet(CHAT_NOTIFY_KEY);
+                await idbSet(CHAT_NOTIFY_KEY, {
+                    active: stored && stored.active ? stored.active : null,
+                    unreadCounts: stored && stored.unreadCounts ? stored.unreadCounts : {},
+                    lastEventId: lastEventId,
+                    mailLastCounts: mailLastCounts,
+                    mailUnread: mailUnread
+                });
+            })
+            .catch(() => {});
+    }
+
     async function init() {
         await refreshUnreadState();
         if (window.location.pathname === '/chat') {
@@ -139,15 +221,26 @@
             const cleared = {
                 active: stored && stored.active ? stored.active : null,
                 unreadCounts: {},
-                lastEventId: lastEventId
+                lastEventId: lastEventId,
+                mailLastCounts: stored && stored.mailLastCounts ? stored.mailLastCounts : mailLastCounts,
+                mailUnread: stored && stored.mailUnread ? stored.mailUnread : mailUnread
             };
             await idbSet(CHAT_NOTIFY_KEY, cleared);
-            updateMenuIcon({});
+            updateChatIcons({});
+        }
+        if (window.location.pathname === '/netmail') {
+            await refreshMailState('netmail');
+        } else if (window.location.pathname === '/echomail') {
+            await refreshMailState('echomail');
         }
         if (window.EventSource !== undefined) {
             connectEventStream();
         }
         setInterval(refreshUnreadState, 10000);
+        if (window.location.pathname !== '/netmail' && window.location.pathname !== '/echomail') {
+            refreshMailState();
+        }
+        setInterval(refreshMailState, 30000);
     }
 
     document.addEventListener('DOMContentLoaded', init);

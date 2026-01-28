@@ -39,7 +39,13 @@
                     </div>
                     <span class="badge bg-secondary" id="chatUnreadBadge" style="display:none;">0</span>
                 </div>
-                <div class="card-body chat-thread" id="chatThread"></div>
+                <div class="card-body chat-thread" id="chatThread">
+                    <div class="chat-load-older d-none" id="chatLoadOlderWrap">
+                        <button type="button" class="btn btn-outline-light btn-sm" id="chatLoadOlderBtn">
+                            Load older messages
+                        </button>
+                    </div>
+                </div>
                 <div class="card-footer">
                     <div class="input-group">
                         <input type="text" class="form-control" id="chatInput" placeholder="Type a message...">

@@ -46,6 +46,18 @@
     color: #e2e8f0;
 }
 
+.chat-load-older {
+    display: flex;
+    justify-content: center;
+    padding: 0.5rem 0 0.25rem;
+}
+
+.chat-load-older .btn {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
 .chat-thread .chat-message {
     background: rgba(148, 163, 184, 0.1);
     border-radius: 12px;

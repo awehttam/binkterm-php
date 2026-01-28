@@ -11,7 +11,33 @@ use BinktermPHP\SubscriptionController;
 use BinktermPHP\Auth;
 use BinktermPHP\Template;
 use BinktermPHP\Database;
+use BinktermPHP\Config;
 use Pecee\SimpleRouter\SimpleRouter;
+
+// Optional request profiling (logs slow requests)
+$requestStart = microtime(true);
+$profilingEnabled = Config::env('PERF_LOG_ENABLED', 'false') === 'true';
+$slowThresholdMs = (int) Config::env('PERF_LOG_SLOW_MS', '500');
+if ($profilingEnabled) {
+    register_shutdown_function(function () use ($requestStart, $slowThresholdMs) {
+        $durationMs = (microtime(true) - $requestStart) * 1000;
+        if ($durationMs < $slowThresholdMs) {
+            return;
+        }
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        $uri = $_SERVER['REQUEST_URI'] ?? '';
+        $status = http_response_code();
+        $memoryMb = memory_get_peak_usage(true) / 1024 / 1024;
+        error_log(sprintf(
+            '[PERF] %s %s -> %d in %.1fms (%.1fMB peak)',
+            $method,
+            $uri,
+            $status,
+            $durationMs,
+            $memoryMb
+        ));
+    });
+}
 
 // Initialize database
 Database::getInstance();
