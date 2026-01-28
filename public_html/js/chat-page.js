@@ -274,6 +274,9 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         }).then(res => res.json()).then(data => {
+            if (data.local_message) {
+                appendMessage(data.local_message);
+            }
             if (!data.success) {
                 alert(data.error || 'Failed to send message');
             }
@@ -398,8 +401,11 @@
         if (!input || !sendBtn) return;
 
         function sendCurrentMessage() {
-            const bodyText = input.value.trim();
+            let bodyText = input.value.trim();
             if (!bodyText) return;
+            if (bodyText === '/source') {
+                bodyText = 'https://github.com/awehttam/binkterm-php';
+            }
             sendMessage(bodyText);
             input.value = '';
         }

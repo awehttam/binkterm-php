@@ -510,6 +510,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if ($body === '/source') {
+            $body = 'https://github.com/awehttam/binkterm-php';
+        }
+        if ($body === '/help') {
+            $helpBody = 'Commands: /source - transmit the github page to chat';
+            echo json_encode([
+                'success' => true,
+                'local_message' => [
+                    'from_user_id' => null,
+                    'from_username' => 'System',
+                    'body' => $helpBody,
+                    'created_at' => gmdate('Y-m-d H:i:s'),
+                    'type' => 'local'
+                ]
+            ]);
+            return;
+        }
+
         $db = Database::getInstance()->getPdo();
 
         if ($roomId) {

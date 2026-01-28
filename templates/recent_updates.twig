@@ -1,3 +1,53 @@
+<div class="update-item mb-3" data-version="1.6.8" data-date="2026-01-28">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Multi-User Chat & Messaging</h6>
+            <p class="mb-1 text-muted">Added real-time chat with rooms, direct messages, moderation tools (kick/ban), and unread indicators across the Messaging menu.</p>
+        </div>
+        <small class="text-muted">v1.6.8</small>
+    </div>
+</div>
+
+<div class="update-item mb-3" data-version="1.6.8" data-date="2026-01-28">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Webdoors Platform</h6>
+            <p class="mb-1 text-muted">Introduced the Webdoors platform for drop-in games and services, including terminal and game integrations.</p>
+        </div>
+        <small class="text-muted">v1.6.8</small>
+    </div>
+</div>
+
+<div class="update-item mb-3" data-version="1.6.8" data-date="2026-01-28">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>ANSI Color Decoding & Linkification</h6>
+            <p class="mb-1 text-muted">Message views now decode ANSI color sequences and automatically linkify URLs for easier reading.</p>
+        </div>
+        <small class="text-muted">v1.6.8</small>
+    </div>
+</div>
+
+<div class="update-item mb-3" data-version="1.6.8" data-date="2026-01-28">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-warning me-2">Fix</span>Echomail UX & Parsing Fixes</h6>
+            <p class="mb-1 text-muted">Resolved multiple echomail issues including swipe behavior in wide messages and improved address parsing edge cases.</p>
+        </div>
+        <small class="text-muted">v1.6.8</small>
+    </div>
+</div>
+
+<div class="update-item mb-3" data-version="1.6.8" data-date="2026-01-28">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h6 class="mb-1"><span class="badge bg-info me-2">Update</span>BBS Platform Identity</h6>
+            <p class="mb-1 text-muted">BinktermPHP is now positioned as a full BBS platform (PHP = Public Home Point ;)).</p>
+        </div>
+        <small class="text-muted">v1.6.8</small>
+    </div>
+</div>
+
 <div class="update-item mb-3" data-version="1.6.7" data-date="2026-01-22">
     <div class="d-flex justify-content-between align-items-start">
         <div>
@@ -67,154 +117,3 @@
         <small class="text-muted">v1.6.5</small>
     </div>
 </div>
-
-<div class="update-item mb-3" data-version="1.6.4" data-date="2025-10-12">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Password Reset System</h6>
-            <p class="mb-1 text-muted">Added comprehensive password reset functionality allowing users to securely reset forgotten passwords via email. Features include secure token-based reset links with 24-hour expiration, email notifications with HTML and plain text formats, and automatic session invalidation after password changes. The system prevents enumeration attacks by always returning success messages regardless of account existence.</p>
-        </div>
-        <small class="text-muted">v1.6.4</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.6.1" data-date="2025-09-13">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Search Term Highlighting</h6>
-            <p class="mb-1 text-muted">Added search term highlighting in message views. When opening messages from search results, the searched words are now highlighted in yellow throughout the message content, making it easier to locate relevant information. Works in both echomail and netmail message views.</p>
-        </div>
-        <small class="text-muted">v1.6.1</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.6.0" data-date="2025-09-11">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Echoarea Subscription System</h6>
-            <p class="mb-1 text-muted">Implemented admin-controlled default subscription system allowing users to selectively view echoareas. Admins can set default echoareas that new users automatically subscribe to, while users can manage their own subscriptions. Includes comprehensive subscription management interface, automatic triggers, and subscription-aware message filtering.</p>
-        </div>
-        <small class="text-muted">v1.6.0</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.3" data-date="2025-09-11">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>CHRS Kludge Character Encoding Detection</h6>
-            <p class="mb-1 text-muted">Added support for CHRS kludge line detection to automatically determine the correct character encoding for FidoNet messages. The system now prioritizes CHRS-specified encodings (like CP866, CP850, KOI8-R) before falling back to default encoding detection, significantly improving international character support for message text, subject lines, and sender/recipient names.</p>
-        </div>
-        <small class="text-muted">v1.5.3</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.2" data-date="2025-09-10">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>Enhanced REPLYTO Support in Echomail</h6>
-            <p class="mb-1 text-muted">Extended REPLYTO kludge parsing to echomail messages. Address book save functionality now intelligently uses REPLYTO addresses when present in echomail, following the same priority system as netmail for improved contact management.</p>
-        </div>
-        <small class="text-muted">v1.5.2</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.2" data-date="2025-09-10">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-warning me-2">Fix</span>Address Book Template Compatibility</h6>
-            <p class="mb-1 text-muted">Fixed JavaScript errors and template compatibility issues with the restructured address book. Addressed undefined field references and added null checks to prevent rendering errors.</p>
-        </div>
-        <small class="text-muted">v1.5.2</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.2" data-date="2025-09-10">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Restructured Address Book with User ID Fields</h6>
-            <p class="mb-1 text-muted">Major address book enhancement separating descriptive names from messaging user IDs. Now supports both friendly display names and specific user IDs for messaging, improving REPLYTO handling and contact organization.</p>
-        </div>
-        <small class="text-muted">v1.5.2</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.0" data-date="2025-09-10">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>Enhanced Address Book Descriptions</h6>
-            <p class="mb-1 text-muted">Address book entries now include detailed reference information in descriptions, showing original sender details and distinguishing between direct saves and REPLYTO-based saves for better contact management.</p>
-        </div>
-        <small class="text-muted">v1.5.0</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.0" data-date="2025-09-10">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-warning me-2">Fix</span>REPLYTO Address Book Save Correction</h6>
-            <p class="mb-1 text-muted">Fixed address book save to properly use both REPLYTO address and name from kludge lines. Now correctly saves the reply-to contact information instead of the original sender when REPLYTO kludges are present.</p>
-        </div>
-        <small class="text-muted">v1.5.0</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.0" data-date="2025-09-10">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>Smart REPLYTO Address Book Integration</h6>
-            <p class="mb-1 text-muted">Address book save functionality now intelligently uses REPLYTO addresses when available, ensuring saved contacts use the most appropriate address for future replies. Follows FidoNet priority: REPLYADDR kludge → MSGID original author → message sender.</p>
-        </div>
-        <small class="text-muted">v1.5.0</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.0" data-date="2025-09-09">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Comprehensive Address Book System</h6>
-            <p class="mb-1 text-muted">Added full address book functionality for netmail contacts with CRUD operations, sidebar management, compose page picker, and one-click save from message views. Includes smart visual indicators showing address book status and clickable sender names in echomail for easy netmail composition.</p>
-        </div>
-        <small class="text-muted">v1.5.0</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.0" data-date="2025-09-09">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>Enhanced Sysop Message Routing</h6>
-            <p class="mb-1 text-muted">Messages addressed to 'sysop' now route to the actual system operator defined in binkd.config for both incoming packets and local netmail composition. Improves system administration workflow and message delivery accuracy.</p>
-        </div>
-        <small class="text-muted">v1.5.0</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.5.0" data-date="2025-09-09">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-success me-2">Improvement</span>User Management Enhancements</h6>
-            <p class="mb-1 text-muted">Added user reminder tracking with pagination support for large user datasets. Admin interface now shows days since last reminder and handles thousands of users efficiently with search functionality.</p>
-        </div>
-        <small class="text-muted">v1.5.0</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.4.5" data-date="2025-09-01">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Netmail Threading Support</h6>
-            <p class="mb-1 text-muted">Extended message threading to netmail with independent threading preferences. Both echomail and netmail now support threaded conversations with separate user settings for each message type.</p>
-        </div>
-        <small class="text-muted">v1.4.5</small>
-    </div>
-</div>
-
-<div class="update-item mb-3" data-version="1.4.4" data-date="2025-09-01">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Message Threading & User Preferences</h6>
-            <p class="mb-1 text-muted">Added message threading support for echomail using MSGID and REPLY relationships. Messages are displayed in threaded conversations with visual indentation and reply counts. User preferences for threading view and sort order are now persisted across sessions.</p>
-        </div>
-        <small class="text-muted">v1.4.4</small>
-    </div>
-</div>
-
