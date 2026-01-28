@@ -5,6 +5,7 @@ namespace BinktermPHP\Binkp\Connection;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Admin\AdminDaemonClient;
 use BinktermPHP\Crashmail\CrashmailService;
+use BinktermPHP\Database;
 
 class Scheduler
 {
@@ -13,6 +14,7 @@ class Scheduler
     private $client;
     private $lastPollTimes;
     private $crashmailService;
+    private $db;
     
     public function __construct($config = null, $logger = null)
     {
@@ -21,6 +23,7 @@ class Scheduler
         $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
         $this->crashmailService = new CrashmailService();
+        $this->db = Database::getInstance()->getPdo();
     }
     
     public function setLogger($logger)
@@ -225,6 +228,15 @@ class Scheduler
         
         return (int) $cronField === $currentValue;
     }
+
+    private function keepDbAlive(): void
+    {
+        try {
+            $this->db->query('SELECT 1');
+        } catch (\Throwable $e) {
+            $this->log("Database keepalive failed: " . $e->getMessage(), 'ERROR');
+        }
+    }
     
     public function runDaemon($interval = 60)
     {
@@ -232,6 +244,8 @@ class Scheduler
         
         while (true) {
             try {
+                $this->keepDbAlive();
+
                 $results = $this->processScheduledPolls();
                 if (!empty($results)) {
                     $this->log("Processed " . count($results) . " scheduled polls");
@@ -241,6 +255,8 @@ class Scheduler
                 if (!empty($outboundResults)) {
                     $this->log("Processed outbound poll for " . count($outboundResults) . " uplinks");
                 }
+
+                $this->processInboundIfNeeded();
 
                 if (!$this->config->getCrashmailEnabled()) {
                     $this->log("Crashmail disabled, skipping crashmail poll", 'DEBUG');
@@ -273,6 +289,26 @@ class Scheduler
             }
             
             sleep($interval);
+        }
+    }
+
+    private function processInboundIfNeeded(): void
+    {
+        $inboundPath = $this->config->getInboundPath();
+        $files = glob($inboundPath . '/*.pkt');
+
+        if (empty($files)) {
+            $this->log("No inbound packets found, skipping packet processing", 'DEBUG');
+            return;
+        }
+
+        $this->log("Found " . count($files) . " inbound packets, processing", 'DEBUG');
+        $processResult = $this->client->processPackets();
+        $success = ($processResult['exit_code'] ?? 1) === 0;
+        if ($success) {
+            $this->log("Inbound packet processing completed");
+        } else {
+            $this->log("Inbound packet processing failed", 'ERROR');
         }
     }
     
