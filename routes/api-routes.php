@@ -433,7 +433,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $roomId = isset($_GET['room_id']) ? (int)$_GET['room_id'] : null;
         $dmUserId = isset($_GET['dm_user_id']) ? (int)$_GET['dm_user_id'] : null;
+        $beforeId = isset($_GET['before_id']) ? (int)$_GET['before_id'] : null;
         $limit = min((int)($_GET['limit'] ?? 50), 200);
+        $queryLimit = $limit + 1;
 
         if (!$userId || ($roomId && $dmUserId) || (!$roomId && !$dmUserId)) {
             http_response_code(400);
@@ -444,22 +446,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
 
         if ($roomId) {
-            $stmt = $db->prepare("
+            $sql = "
                 SELECT m.id, m.room_id, r.name as room_name, m.from_user_id, u.username as from_username,
                        m.body, m.created_at
                 FROM chat_messages m
                 JOIN chat_rooms r ON m.room_id = r.id
                 JOIN users u ON m.from_user_id = u.id
                 WHERE m.room_id = ? AND r.is_active = TRUE
-                ORDER BY m.id DESC
-                LIMIT ?
-            ");
-            $stmt->bindValue(1, $roomId, \PDO::PARAM_INT);
-            $stmt->bindValue(2, $limit, \PDO::PARAM_INT);
+            ";
+            $params = [$roomId];
+            if ($beforeId) {
+                $sql .= " AND m.id < ?";
+                $params[] = $beforeId;
+            }
+            $sql .= " ORDER BY m.id DESC LIMIT ?";
+            $params[] = $queryLimit;
+            $stmt = $db->prepare($sql);
+            foreach ($params as $index => $value) {
+                $stmt->bindValue($index + 1, $value, \PDO::PARAM_INT);
+            }
             $stmt->execute();
             $rows = $stmt->fetchAll();
         } else {
-            $stmt = $db->prepare("
+            $sql = "
                 SELECT m.id, m.from_user_id, u.username as from_username,
                        m.to_user_id, m.body, m.created_at
                 FROM chat_messages m
@@ -469,21 +478,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     (m.from_user_id = ? AND m.to_user_id = ?)
                     OR (m.from_user_id = ? AND m.to_user_id = ?)
                   )
-                ORDER BY m.id DESC
-                LIMIT ?
-            ");
-            $stmt->bindValue(1, $userId, \PDO::PARAM_INT);
-            $stmt->bindValue(2, $dmUserId, \PDO::PARAM_INT);
-            $stmt->bindValue(3, $dmUserId, \PDO::PARAM_INT);
-            $stmt->bindValue(4, $userId, \PDO::PARAM_INT);
-            $stmt->bindValue(5, $limit, \PDO::PARAM_INT);
+            ";
+            $params = [$userId, $dmUserId, $dmUserId, $userId];
+            if ($beforeId) {
+                $sql .= " AND m.id < ?";
+                $params[] = $beforeId;
+            }
+            $sql .= " ORDER BY m.id DESC LIMIT ?";
+            $params[] = $queryLimit;
+            $stmt = $db->prepare($sql);
+            foreach ($params as $index => $value) {
+                $stmt->bindValue($index + 1, $value, \PDO::PARAM_INT);
+            }
             $stmt->execute();
             $rows = $stmt->fetchAll();
         }
 
+        $hasMore = count($rows) > $limit;
+        if ($hasMore) {
+            $rows = array_slice($rows, 0, $limit);
+        }
         $rows = array_reverse($rows);
 
-        echo json_encode(['messages' => $rows]);
+        echo json_encode(['messages' => $rows, 'has_more' => $hasMore]);
     });
 
     SimpleRouter::post('/chat/send', function() {
