@@ -21,9 +21,20 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link id="theme-stylesheet" href="{{ stylesheet }}?v={{ "now"|date("U") }}" rel="stylesheet">
     <link href="/css/ansisys.css?v={{ "now"|date("U") }}" rel="stylesheet">
+    <style>
+        .chat-menu-icon.unread {
+            color: #ffc107 !important;
+        }
+        .messaging-menu-icon.unread {
+            color: #ffc107 !important;
+        }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="/js/app.js?v={{ app_version }}"></script>
+    {% if current_user %}
+    <script src="/js/chat-notify.js?v={{ app_version }}"></script>
+    {% endif %}
     {# Include custom header insertions if available #}
     {% include 'custom/header.insert.twig' ignore missing %}
 </head>
@@ -43,15 +54,28 @@
                 <ul class="navbar-nav me-auto">
 
                     {% if current_user %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/netmail">
-                                <i class="fas fa-envelope"></i> Netmail
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-envelope-open-text messaging-menu-icon" id="messagingMenuIcon"></i> Messaging
                             </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/echomail">
-                                <i class="fas fa-comments"></i> Echomail
-                            </a>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item" href="/netmail">
+                                        <i class="fas fa-envelope"></i> Netmail
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="/echomail">
+                                        <i class="fas fa-comments"></i> Echomail
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="/chat">
+                                        <i class="fas fa-comments chat-menu-icon" id="chatMenuIcon"></i> Chat
+                                    </a>
+                                </li>
+                            </ul>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="/nodelist">
@@ -77,10 +101,13 @@
                                 <i class="fas fa-cog"></i> Admin
                             </a>
                             <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/whosonline"><i class="fas fa-user-friends"></i> Who's Online</a></li>
+                                <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/admin/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                                 <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> Manage Users</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
+                                <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
                                 <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark-plus"></i> Subscriptions</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> Binkp</a></li>
@@ -145,6 +172,10 @@
         window.userSettings = {
             timezone: 'America/Los_Angeles' // Default, will be loaded via AJAX
         };
+        {% if current_user %}
+        window.currentUserId = {{ current_user.user_id ?? current_user.id }};
+        window.currentUserIsAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
+        {% endif %}
     </script>
     <script>
         if ('serviceWorker' in navigator) {

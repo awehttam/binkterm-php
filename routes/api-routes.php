@@ -380,6 +380,394 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['messages' => $messages]);
     });
 
+    // Chat API endpoints
+    SimpleRouter::get('/chat/rooms', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT id, name, description
+            FROM chat_rooms
+            WHERE is_active = TRUE
+            ORDER BY name
+        ");
+        $stmt->execute();
+        $rooms = $stmt->fetchAll();
+
+        echo json_encode(['rooms' => $rooms]);
+    });
+
+    SimpleRouter::get('/chat/online', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $onlineUsers = $auth->getOnlineUsers(15);
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $filtered = [];
+        foreach ($onlineUsers as $onlineUser) {
+            if ($userId !== null && (int)$onlineUser['user_id'] === (int)$userId) {
+                continue;
+            }
+            $filtered[] = [
+                'user_id' => (int)$onlineUser['user_id'],
+                'username' => $onlineUser['username'],
+                'location' => $onlineUser['location'] ?? ''
+            ];
+        }
+
+        echo json_encode(['users' => $filtered]);
+    });
+
+    SimpleRouter::get('/chat/messages', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $roomId = isset($_GET['room_id']) ? (int)$_GET['room_id'] : null;
+        $dmUserId = isset($_GET['dm_user_id']) ? (int)$_GET['dm_user_id'] : null;
+        $limit = min((int)($_GET['limit'] ?? 50), 200);
+
+        if (!$userId || ($roomId && $dmUserId) || (!$roomId && !$dmUserId)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid chat target']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+
+        if ($roomId) {
+            $stmt = $db->prepare("
+                SELECT m.id, m.room_id, r.name as room_name, m.from_user_id, u.username as from_username,
+                       m.body, m.created_at
+                FROM chat_messages m
+                JOIN chat_rooms r ON m.room_id = r.id
+                JOIN users u ON m.from_user_id = u.id
+                WHERE m.room_id = ? AND r.is_active = TRUE
+                ORDER BY m.id DESC
+                LIMIT ?
+            ");
+            $stmt->bindValue(1, $roomId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll();
+        } else {
+            $stmt = $db->prepare("
+                SELECT m.id, m.from_user_id, u.username as from_username,
+                       m.to_user_id, m.body, m.created_at
+                FROM chat_messages m
+                JOIN users u ON m.from_user_id = u.id
+                WHERE m.room_id IS NULL
+                  AND (
+                    (m.from_user_id = ? AND m.to_user_id = ?)
+                    OR (m.from_user_id = ? AND m.to_user_id = ?)
+                  )
+                ORDER BY m.id DESC
+                LIMIT ?
+            ");
+            $stmt->bindValue(1, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $dmUserId, \PDO::PARAM_INT);
+            $stmt->bindValue(3, $dmUserId, \PDO::PARAM_INT);
+            $stmt->bindValue(4, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(5, $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll();
+        }
+
+        $rows = array_reverse($rows);
+
+        echo json_encode(['messages' => $rows]);
+    });
+
+    SimpleRouter::post('/chat/send', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $input = json_decode(file_get_contents('php://input'), true);
+        $roomId = isset($input['room_id']) ? (int)$input['room_id'] : null;
+        $toUserId = isset($input['to_user_id']) ? (int)$input['to_user_id'] : null;
+        $body = trim($input['body'] ?? '');
+
+        if (!$userId || ($roomId && $toUserId) || (!$roomId && !$toUserId)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid chat target']);
+            return;
+        }
+
+        if ($body === '' || strlen($body) > 1000) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Message must be between 1 and 1000 characters']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+
+        if ($roomId) {
+            error_log('[CHAT SEND] user_id=' . $userId . ' room_id=' . $roomId);
+            $roomStmt = $db->prepare("SELECT id FROM chat_rooms WHERE id = ? AND is_active = TRUE");
+            $roomStmt->execute([$roomId]);
+            if (!$roomStmt->fetch()) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Chat room not found']);
+                return;
+            }
+
+            $banStmt = $db->prepare("
+                SELECT 1
+                FROM chat_room_bans
+                WHERE room_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > NOW())
+            ");
+            $banStmt->execute([$roomId, $userId]);
+            $banHit = $banStmt->fetchColumn();
+            error_log('[CHAT SEND] ban_hit=' . ($banHit ? '1' : '0'));
+            if ($banHit) {
+                http_response_code(403);
+                echo json_encode(['error' => 'You are banned from this room']);
+                return;
+            }
+        } else {
+            $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+            $userStmt->execute([$toUserId]);
+            if (!$userStmt->fetch()) {
+                http_response_code(404);
+                echo json_encode(['error' => 'User not found']);
+                return;
+            }
+        }
+
+        if ($roomId) {
+            $stmt = $db->prepare("
+                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
+                SELECT ?, ?, ?, ?
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM chat_room_bans
+                    WHERE room_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > NOW())
+                )
+                RETURNING id, created_at
+            ");
+            $stmt->execute([$roomId, $userId, $toUserId, $body, $roomId, $userId]);
+        } else {
+            $stmt = $db->prepare("
+                INSERT INTO chat_messages (room_id, from_user_id, to_user_id, body)
+                VALUES (?, ?, ?, ?)
+                RETURNING id, created_at
+            ");
+            $stmt->execute([$roomId, $userId, $toUserId, $body]);
+        }
+        $result = $stmt->fetch();
+        if (!$result) {
+            error_log('[CHAT SEND] insert blocked by ban');
+            http_response_code(403);
+            echo json_encode(['error' => 'You are banned from this room']);
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_id' => (int)$result['id'],
+            'created_at' => $result['created_at']
+        ]);
+    });
+
+    SimpleRouter::post('/chat/moderate', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $roomId = isset($input['room_id']) ? (int)$input['room_id'] : null;
+        $targetUserId = isset($input['user_id']) ? (int)$input['user_id'] : null;
+        $action = $input['action'] ?? '';
+
+        if (!$roomId || !$targetUserId || !in_array($action, ['kick', 'ban'], true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid moderation request']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $roomStmt = $db->prepare("SELECT id FROM chat_rooms WHERE id = ?");
+        $roomStmt->execute([$roomId]);
+        if (!$roomStmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Chat room not found']);
+            return;
+        }
+
+        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt->execute([$targetUserId]);
+        if (!$userStmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        $expiresAt = null;
+        if ($action === 'kick') {
+            $utcNow = new DateTime('now', new DateTimeZone('UTC'));
+            $utcNow->modify('+10 minutes');
+            $expiresAt = $utcNow->format('Y-m-d H:i:s');
+        }
+
+        $stmt = $db->prepare("
+            INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (room_id, user_id)
+            DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                          reason = EXCLUDED.reason,
+                          expires_at = EXCLUDED.expires_at,
+                          created_at = NOW()
+        ");
+        $stmt->execute([$roomId, $targetUserId, $user['user_id'] ?? $user['id'], null, $expiresAt]);
+
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::get('/chat/poll', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $lastId = (int)($_GET['since_id'] ?? 0);
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT m.id, m.room_id, r.name as room_name, m.from_user_id, u.username as from_username,
+                   m.to_user_id, m.body, m.created_at
+            FROM chat_messages m
+            LEFT JOIN chat_rooms r ON m.room_id = r.id
+            JOIN users u ON m.from_user_id = u.id
+            WHERE m.id > ?
+              AND (
+                (m.room_id IS NOT NULL AND r.is_active = TRUE)
+                OR m.to_user_id = ?
+                OR m.from_user_id = ?
+              )
+            ORDER BY m.id ASC
+            LIMIT 200
+        ");
+        $stmt->execute([$lastId, $userId, $userId]);
+        $rows = $stmt->fetchAll();
+
+        $messages = [];
+        foreach ($rows as $row) {
+            $messages[] = [
+                'id' => (int)$row['id'],
+                'type' => $row['room_id'] ? 'room' : 'dm',
+                'room_id' => $row['room_id'] ? (int)$row['room_id'] : null,
+                'room_name' => $row['room_name'],
+                'from_user_id' => (int)$row['from_user_id'],
+                'from_username' => $row['from_username'],
+                'to_user_id' => $row['to_user_id'] ? (int)$row['to_user_id'] : null,
+                'body' => $row['body'],
+                'created_at' => $row['created_at']
+            ];
+        }
+
+        echo json_encode(['messages' => $messages]);
+    });
+
+    SimpleRouter::get('/events/stream', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        @set_time_limit(0);
+        @ignore_user_abort(true);
+        @ini_set('output_buffering', 'off');
+        @ini_set('zlib.output_compression', 0);
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $lastId = isset($_SERVER['HTTP_LAST_EVENT_ID']) ? (int)$_SERVER['HTTP_LAST_EVENT_ID'] : (int)($_GET['since_id'] ?? 0);
+        $cliServer = php_sapi_name() === 'cli-server';
+
+        $db = Database::getInstance()->getPdo();
+        $start = time();
+        $maxSeconds = $cliServer ? 1 : 25;
+
+        echo "retry: 2000\n\n";
+        @ob_flush();
+        flush();
+
+        while (time() - $start < $maxSeconds) {
+            $stmt = $db->prepare("
+                SELECT m.id, m.room_id, r.name as room_name, m.from_user_id, u.username as from_username,
+                       m.to_user_id, m.body, m.created_at
+                FROM chat_messages m
+                LEFT JOIN chat_rooms r ON m.room_id = r.id
+                JOIN users u ON m.from_user_id = u.id
+                WHERE m.id > ?
+                  AND (
+                    (m.room_id IS NOT NULL AND r.is_active = TRUE)
+                    OR m.to_user_id = ?
+                    OR m.from_user_id = ?
+                  )
+                ORDER BY m.id ASC
+                LIMIT 200
+            ");
+            $stmt->execute([$lastId, $userId, $userId]);
+            $rows = $stmt->fetchAll();
+
+            foreach ($rows as $row) {
+                $lastId = (int)$row['id'];
+                $payload = [
+                    'id' => $lastId,
+                    'type' => 'chat',
+                    'payload' => [
+                        'id' => $lastId,
+                        'type' => $row['room_id'] ? 'room' : 'dm',
+                        'room_id' => $row['room_id'] ? (int)$row['room_id'] : null,
+                        'room_name' => $row['room_name'],
+                        'from_user_id' => (int)$row['from_user_id'],
+                        'from_username' => $row['from_username'],
+                        'to_user_id' => $row['to_user_id'] ? (int)$row['to_user_id'] : null,
+                        'body' => $row['body'],
+                        'created_at' => $row['created_at']
+                    ]
+                ];
+
+                echo "id: {$lastId}\n";
+                echo "event: message\n";
+                echo 'data: ' . json_encode($payload) . "\n\n";
+            }
+
+            @ob_flush();
+            flush();
+
+            if ($cliServer) {
+                break;
+            }
+
+            usleep(500000);
+        }
+
+        exit;
+    });
+
     SimpleRouter::get('/echoareas', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();

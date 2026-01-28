@@ -348,6 +348,35 @@ SimpleRouter::get('/settings', function() {
     $template->renderResponse('settings.twig', $templateVars);
 });
 
+SimpleRouter::get('/chat', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    $template = new Template();
+    $template->renderResponse('chat.twig');
+});
+
+SimpleRouter::get('/whosonline', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    $onlineUsers = $auth->getOnlineUsers(15);
+
+    $template = new Template();
+    $template->renderResponse('whos_online.twig', [
+        'online_users' => $onlineUsers,
+        'online_minutes' => 15
+    ]);
+});
+
 // BBSLink Gateway redirect - generates token and redirects to external gateway
 SimpleRouter::get('/bbslink', function() {
     /*

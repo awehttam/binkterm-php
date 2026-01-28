@@ -1,0 +1,48 @@
+{% extends "base.twig" %}
+
+{% block title %}Who's Online - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1><i class="fas fa-user-friends"></i> Who's Online</h1>
+        <small class="text-muted">Active in last {{ online_minutes }} minutes</small>
+    </div>
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Online Users</h6>
+            <span class="badge bg-secondary">{{ online_users|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            {% if online_users|length > 0 %}
+            <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in online_users %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.location ?: 'Unknown' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-3">
+                <div class="alert alert-secondary mb-0">
+                    <i class="fas fa-user-slash me-2"></i>
+                    No users are online right now.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

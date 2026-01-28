@@ -32,6 +32,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/users.twig');
     });
 
+    // Chat rooms management page
+    SimpleRouter::get('/chat-rooms', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/chat_rooms.twig');
+    });
+
     // API routes for admin
     SimpleRouter::group(['prefix' => '/api'], function() {
 
@@ -142,6 +154,143 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
             $stats = $adminController->getSystemStats();
             echo json_encode($stats);
+        });
+
+        // Chat rooms
+        SimpleRouter::get('/chat-rooms', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT id, name, description, is_active, created_at
+                FROM chat_rooms
+                ORDER BY name
+            ");
+            $stmt->execute();
+            $rooms = $stmt->fetchAll();
+
+            echo json_encode(['rooms' => $rooms]);
+        });
+
+        SimpleRouter::post('/chat-rooms', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $name = trim($input['name'] ?? '');
+                $description = trim($input['description'] ?? '');
+                $isActive = !empty($input['is_active']);
+
+                if ($name === '' || strlen($name) > 64) {
+                    throw new Exception('Room name must be 1-64 characters');
+                }
+
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $stmt = $db->prepare("
+                    INSERT INTO chat_rooms (name, description, is_active)
+                    VALUES (?, ?, ?)
+                    RETURNING id
+                ");
+                $stmt->execute([$name, $description ?: null, $isActive ? 1 : 0]);
+                $roomId = $stmt->fetchColumn();
+
+                echo json_encode(['success' => true, 'id' => (int)$roomId]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::put('/chat-rooms/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $name = trim($input['name'] ?? '');
+                $description = trim($input['description'] ?? '');
+                $isActive = !empty($input['is_active']);
+
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $existingStmt = $db->prepare("SELECT name FROM chat_rooms WHERE id = ?");
+                $existingStmt->execute([$id]);
+                $existingName = $existingStmt->fetchColumn();
+
+                if (!$existingName) {
+                    throw new Exception('Chat room not found');
+                }
+
+                if ($existingName === 'Lobby' && $name !== '' && $name !== 'Lobby') {
+                    throw new Exception('Lobby name cannot be changed');
+                }
+
+                $finalName = $name !== '' ? $name : $existingName;
+                if (strlen($finalName) > 64) {
+                    throw new Exception('Room name must be 1-64 characters');
+                }
+
+                $stmt = $db->prepare("
+                    UPDATE chat_rooms
+                    SET name = ?, description = ?, is_active = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$finalName, $description ?: null, $isActive ? 1 : 0, $id]);
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::delete('/chat-rooms/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $existingStmt = $db->prepare("SELECT name FROM chat_rooms WHERE id = ?");
+                $existingStmt->execute([$id]);
+                $existingName = $existingStmt->fetchColumn();
+
+                if (!$existingName) {
+                    throw new Exception('Chat room not found');
+                }
+
+                if ($existingName === 'Lobby') {
+                    throw new Exception('Lobby cannot be deleted');
+                }
+
+                $stmt = $db->prepare("DELETE FROM chat_rooms WHERE id = ?");
+                $stmt->execute([$id]);
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
         });
 
         // ========================================
