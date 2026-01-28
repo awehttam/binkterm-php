@@ -273,19 +273,22 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary btn-compact-label" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                    <span class="btn-text">Close</span>
+                </button>
                 <div class="btn-group">
-                    <button type="button" class="btn btn-outline-warning" id="modalSaveButton">
+                    <button type="button" class="btn btn-outline-warning btn-compact-label" id="modalSaveButton">
                         <i class="fas fa-bookmark"></i>
-                        <span id="modalSaveText">Save</span>
+                        <span class="btn-text" id="modalSaveText">Save</span>
                     </button>
-                    <button type="button" class="btn btn-outline-info" id="shareButton">
+                    <button type="button" class="btn btn-outline-info btn-compact-label" id="shareButton">
                         <i class="fas fa-share-alt"></i>
-                        Share
+                        <span class="btn-text">Share</span>
                     </button>
-                    <button type="button" class="btn btn-fidonet" id="replyButton">
+                    <button type="button" class="btn btn-fidonet btn-compact-label" id="replyButton">
                         <i class="fas fa-reply"></i>
-                        Reply
+                        <span class="btn-text">Reply</span>
                     </button>
                 </div>
             </div>
@@ -622,17 +625,28 @@ window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
     }
     
     .modal-footer {
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: wrap;
         gap: 0.5rem;
+        justify-content: center;
     }
     
     .modal-footer .btn-group {
-        width: 100%;
-        flex-direction: column;
+        width: auto;
+        flex-direction: row;
     }
     
     .modal-footer .btn {
-        width: 100%;
+        width: auto;
+    }
+
+    .btn-compact-label {
+        padding: 0.4rem 0.55rem;
+        font-size: 0.85rem;
+    }
+
+    .btn-compact-label .btn-text {
+        display: none;
     }
 }
 
