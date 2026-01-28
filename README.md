@@ -188,7 +188,7 @@ Start the long-running services at boot and keep cron for periodic maintenance t
 
 ```cron
 # Start admin daemon on boot
-@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php
+@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php --daemon
 
 # Start scheduler on boot
 @reboot /usr/bin/php /path/to/binkterm/scripts/binkp_scheduler.php --daemon
