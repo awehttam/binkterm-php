@@ -8,12 +8,13 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use BinktermPHP\Binkp\Connection\Scheduler;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Version;
 
 function showUsage()
 {
     echo "Usage: php binkp_scheduler.php [options]\n";
     echo "Options:\n";
-    echo "  --interval=SECONDS   Polling interval in seconds (default: 60)\n";
+    echo "  --interval=SECONDS   Processing interval in seconds (default: 60)\n";
     echo "  --log-level=LEVEL    Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
     echo "  --log-file=FILE      Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_scheduler.log') . ")\n";
     echo "  --no-console         Disable console logging\n";
@@ -118,8 +119,8 @@ try {
     
     $scheduler = new Scheduler($config, $logger);
 
-    $logger->info("Starting Binkp scheduler daemon...");
-    $logger->info("Polling interval: {$interval} seconds");
+    $logger->info("Starting BinktermPHP scheduler daemon ".Version::getVersion()."...");
+    $logger->info("Processing interval: {$interval} seconds");
     
     $uplinks = $config->getUplinks();
     $logger->info("Configured uplinks: " . count($uplinks));

@@ -2380,20 +2380,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         try {
-            // Capture any PHP warnings/errors that might corrupt JSON output
-            set_error_handler(function($severity, $message, $file, $line) {
-                throw new \ErrorException($message, 0, $severity, $file, $line);
-            });
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->processPackets();
 
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->processInbound();
-
-            restore_error_handler();
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
-            restore_error_handler();
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
@@ -2409,12 +2402,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         try {
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->processOutbound();
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->binkPoll('all');
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);

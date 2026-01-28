@@ -8,6 +8,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use BinktermPHP\Binkp\Protocol\BinkpServer;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Version;
 
 function showUsage()
 {
@@ -106,7 +107,7 @@ try {
     
     $server = new BinkpServer($config, $logger);
     
-    $logger->info("Starting Binkp server...");
+    $logger->info("Starting BinktermPHP binkd server ".Version::getVersion()."...");
     $logger->info("System address: " . $config->getSystemAddress());
     $logger->info("Listening on: " . $config->getBindAddress() . ":" . $config->getBinkpPort());
     $logger->info("Max connections: " . $config->getMaxConnections());
