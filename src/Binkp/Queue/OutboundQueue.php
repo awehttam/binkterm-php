@@ -64,7 +64,7 @@ class OutboundQueue
     public function queueEchomail($fromAddress, $echoareaTag, $fromName, $toName, $subject, $messageText)
     {
         try {
-            $messageTextWithArea = "AREA:{$echoareaTag}\n{$messageText}";
+            $messageTextWithArea = "AREA:{$echoareaTag}\n{$messageText}";   // No space after AREA:
             
             $message = [
                 'from_address' => $fromAddress,

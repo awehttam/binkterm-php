@@ -56,6 +56,10 @@ Here are some screen shots showing various aspects of the interface with differe
     <td align="center"><B>ANSI Decoder</B><br><img src="docs/screenshots/ansisys.png" width="400"></td>
     <td align="center"><b>Node List Browser</b><br><img src="docs/screenshots/nodelist.png" width="400"></td>
   </tr>
+   <Tr>
+   <td align="center"><B>Web Doors</B><BR><img src="docs/screenshots/webdoors.png" width="400">"</td>
+   <td align="center"><B>Userr Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
+   </Tr>
 <tr>
 </tr>
 
@@ -457,6 +461,18 @@ TERMINAL_PROXY_PORT=443
 
 - **TERMINAL_PROXY_HOST**: WebSocket proxy server hostname/IP
 - **TERMINAL_PROXY_PORT**: WebSocket proxy server port (typically 443 for HTTPS)
+
+#### Server-Sent Events (SSE) Configuration
+
+Chat and activity notifications use an SSE endpoint. Some proxy servers buffer SSE responses and delay events. If that happens, you can force the SSE endpoint to behave like short-polling (flush current events and exit), and the client will reconnect automatically.
+
+Add this to your `.env` file to force polling behavior:
+
+```bash
+EVENTS_STREAM_MODE=polling
+```
+
+Default is `sse`.
 
 
 #### Custom Welcome Messages

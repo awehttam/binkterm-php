@@ -1,0 +1,226 @@
+{% extends "base.twig" %}
+
+{% block title %}Chat Rooms{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Chat Rooms</h1>
+        <button type="button" class="btn btn-primary" onclick="showCreateRoomModal()">
+            <i class="fas fa-plus me-2"></i>Add Room
+        </button>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="chatRoomsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="chatRoomsTableBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="chatRoomModal" tabindex="-1" aria-labelledby="chatRoomModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chatRoomModalLabel">Add Chat Room</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="chatRoomForm">
+                    <input type="hidden" id="chatRoomId" name="chatRoomId">
+                    <div class="mb-3">
+                        <label for="chatRoomName" class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="chatRoomName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="chatRoomDescription" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="chatRoomDescription" name="description">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="chatRoomActive" name="is_active" checked>
+                        <label class="form-check-label" for="chatRoomActive">
+                            Active room
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveChatRoom()">Save Room</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadChatRooms();
+});
+
+function loadChatRooms() {
+    fetch('/admin/api/chat-rooms')
+        .then(response => response.json())
+        .then(data => {
+            displayChatRooms(data.rooms || []);
+        })
+        .catch(error => {
+            console.error('Error loading chat rooms:', error);
+            showAlert('Error loading chat rooms', 'danger');
+        });
+}
+
+function displayChatRooms(rooms) {
+    const tbody = document.getElementById('chatRoomsTableBody');
+    tbody.innerHTML = '';
+
+    rooms.forEach(room => {
+        const row = document.createElement('tr');
+        const isLobby = room.name === 'Lobby';
+        row.innerHTML = `
+            <td>${room.id}</td>
+            <td>${room.name}</td>
+            <td>${room.description || '-'}</td>
+            <td>
+                <span class="badge bg-${room.is_active ? 'success' : 'secondary'}">
+                    ${room.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td>${new Date(room.created_at).toLocaleDateString()}</td>
+            <td>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="editChatRoom(${room.id})" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteChatRoom(${room.id})" title="Delete" ${isLobby ? 'disabled' : ''}>
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function showCreateRoomModal() {
+    document.getElementById('chatRoomModalLabel').textContent = 'Add Chat Room';
+    document.getElementById('chatRoomForm').reset();
+    document.getElementById('chatRoomId').value = '';
+    document.getElementById('chatRoomName').disabled = false;
+    document.getElementById('chatRoomActive').checked = true;
+    new bootstrap.Modal(document.getElementById('chatRoomModal')).show();
+}
+
+function editChatRoom(roomId) {
+    fetch('/admin/api/chat-rooms')
+        .then(response => response.json())
+        .then(data => {
+            const room = (data.rooms || []).find(item => item.id === roomId);
+            if (!room) {
+                showAlert('Chat room not found', 'danger');
+                return;
+            }
+
+            document.getElementById('chatRoomModalLabel').textContent = 'Edit Chat Room';
+            document.getElementById('chatRoomId').value = room.id;
+            document.getElementById('chatRoomName').value = room.name;
+            document.getElementById('chatRoomName').disabled = room.name === 'Lobby';
+            document.getElementById('chatRoomDescription').value = room.description || '';
+            document.getElementById('chatRoomActive').checked = !!room.is_active;
+
+            new bootstrap.Modal(document.getElementById('chatRoomModal')).show();
+        })
+        .catch(error => {
+            console.error('Error loading chat room:', error);
+            showAlert('Error loading chat room', 'danger');
+        });
+}
+
+function saveChatRoom() {
+    const form = document.getElementById('chatRoomForm');
+    const formData = new FormData(form);
+    const roomId = formData.get('chatRoomId');
+
+    const payload = {
+        name: formData.get('name'),
+        description: formData.get('description'),
+        is_active: formData.has('is_active')
+    };
+
+    const url = roomId ? `/admin/api/chat-rooms/${roomId}` : '/admin/api/chat-rooms';
+    const method = roomId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success || data.id) {
+            showAlert(roomId ? 'Room updated successfully' : 'Room created successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('chatRoomModal')).hide();
+            loadChatRooms();
+        } else {
+            showAlert(data.error || 'Error saving room', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving chat room:', error);
+        showAlert('Error saving room', 'danger');
+    });
+}
+
+function deleteChatRoom(roomId) {
+    if (!confirm('Delete this chat room? This cannot be undone.')) {
+        return;
+    }
+
+    fetch(`/admin/api/chat-rooms/${roomId}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Room deleted successfully', 'success');
+                loadChatRooms();
+            } else {
+                showAlert(data.error || 'Error deleting room', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting chat room:', error);
+            showAlert('Error deleting room', 'danger');
+        });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,1 @@
+Refer to CLAUDE.md for important information about the project.

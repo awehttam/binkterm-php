@@ -1,0 +1,122 @@
+
+.chat-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-list-item {
+    border: 0;
+    background: transparent;
+    text-align: left;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.chat-list-item:last-child {
+    border-bottom: 0;
+}
+
+.chat-list-item.active {
+    background: rgba(13, 110, 253, 0.12);
+    font-weight: 600;
+}
+
+.chat-empty {
+    padding: 0.75rem 0.85rem;
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+.chat-thread-card {
+    min-height: 520px;
+}
+
+.chat-thread {
+    height: 460px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: #0b1220;
+    color: #e2e8f0;
+}
+
+.chat-thread .chat-message {
+    background: rgba(148, 163, 184, 0.1);
+    border-radius: 12px;
+    padding: 0.65rem 0.75rem;
+}
+
+.chat-message-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.35rem;
+}
+
+.chat-message-author {
+    color: #e2e8f0;
+    font-weight: 600;
+}
+
+.chat-message-author.admin-action {
+    cursor: context-menu;
+    text-decoration: underline dotted;
+}
+
+.chat-message-author.admin-action:hover {
+    color: #ffffff;
+}
+
+.chat-thread-title {
+    font-weight: 600;
+}
+
+.chat-context-menu {
+    position: absolute;
+    z-index: 1055;
+    min-width: 140px;
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+    padding: 0.25rem 0;
+    color: #e2e8f0;
+}
+
+.chat-context-menu .dropdown-item {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    text-align: left;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+    color: inherit;
+}
+
+.chat-context-menu .dropdown-item:hover {
+    background: rgba(148, 163, 184, 0.2);
+}
+
+.chat-context-menu .dropdown-item.text-danger {
+    color: #f87171;
+}
+
+.chat-context-menu .dropdown-item.text-danger:hover {
+    color: #ffffff;
+}
+
+@media (max-width: 991.98px) {
+    .chat-thread {
+        height: 360px;
+    }
+    .chat-thread-card {
+        min-height: 420px;
+    }
+}

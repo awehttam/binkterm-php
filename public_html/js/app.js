@@ -102,9 +102,17 @@ function formatMessageText(messageText, searchTerms = []) {
         searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
     }
 
-    // Check if this is ANSI art with cursor positioning
+    const hasAnsi = /\x1b\[[0-9;]*m/.test(messageText);
+    const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(messageText);
+    const lines = messageText.split(/\r?\n/);
+    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
+    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+    const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30);
+    const ansiLineStyle = hasAnsi ? ' style="white-space: pre;"' : '';
+
+    // Check if this is ANSI art (cursor positioning or dense ANSI text)
     // If so, use the full terminal renderer instead of line-by-line processing
-    if (/\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(messageText)) {
+    if (shouldRenderAnsiArt) {
         let rendered = renderAnsiTerminal(messageText);
         rendered = linkifyUrls(rendered);
         if (searchTerms && searchTerms.length > 0) {
@@ -114,7 +122,6 @@ function formatMessageText(messageText, searchTerms = []) {
     }
 
     // Format as readable text with preserved line breaks and quote coloring
-    const lines = messageText.split(/\r?\n/);
     let formattedLines = [];
     let inQuoteBlock = false;
     let inSignature = false;
@@ -131,7 +138,7 @@ function formatMessageText(messageText, searchTerms = []) {
             if (searchTerms && searchTerms.length > 0) {
                 highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
             }
-            formattedLines.push(`<div class="message-signature-separator">${highlightedLine}</div>`);
+            formattedLines.push(`<div class="message-signature-separator"${ansiLineStyle}>${highlightedLine}</div>`);
             continue;
         }
 
@@ -163,9 +170,9 @@ function formatMessageText(messageText, searchTerms = []) {
                 const prefix = prefixMatch ? prefixMatch[1] : '>';
                 const depth = (prefix.match(/>/g) || []).length;
                 const depthClass = Math.min(depth, 4); // Cap at 4 levels
-                formattedLines.push(`<div class="quote-line quote-level-${depthClass}">${highlightedLine}</div>`);
+                formattedLines.push(`<div class="quote-line quote-level-${depthClass}"${ansiLineStyle}>${highlightedLine}</div>`);
             } else {
-                formattedLines.push(`<div class="quote-line">${highlightedLine}</div>`);
+                formattedLines.push(`<div class="quote-line"${ansiLineStyle}>${highlightedLine}</div>`);
             }
         } else {
             if (inQuoteBlock) {
@@ -183,7 +190,7 @@ function formatMessageText(messageText, searchTerms = []) {
                 if (searchTerms && searchTerms.length > 0) {
                     highlightedLine = highlightSearchTerms(highlightedLine, searchTerms);
                 }
-                formattedLines.push(`<span class="${cssClass}">${highlightedLine}</span>`);
+                formattedLines.push(`<span class="${cssClass}"${ansiLineStyle}>${highlightedLine}</span>`);
                 // Add line break after each line except the last one
                 if (i < lines.length - 1) {
                     formattedLines.push('<br>');
@@ -485,6 +492,22 @@ function logout() {
         }
     });
 }
+
+function updateSessionActivity() {
+    if (!window.currentUserId) {
+        return;
+    }
+    const activity = document.title || '';
+    fetch('/api/user/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity })
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateSessionActivity();
+});
 
 // Utility functions
 function formatDate(dateString) {

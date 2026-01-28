@@ -214,7 +214,7 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="/webdoors/terminal/assets/xterm.js"></script>
-    <script src="//webdoors/terminal/assets/xterm-addon-fit.js"></script>
+    <script src="/webdoors/terminal/assets/xterm-addon-fit.js"></script>
     <script src="/webdoors/terminal/assets/xterm-addon-web-links.js"></script>
     <script src="/webdoors/terminal/assets/socket.io.min.js"></script>
 </head>
@@ -275,8 +275,8 @@ try {
         });
 
         // Add fit addon
-        //const fitAddon = new FitAddon.FitAddon();
-        //terminal.loadAddon(fitAddon);
+        const fitAddon = new FitAddon.FitAddon();
+        terminal.loadAddon(fitAddon);
 
         // Add web links addon
         const webLinksAddon = new WebLinksAddon.WebLinksAddon();
@@ -330,7 +330,7 @@ try {
             // Initialize terminal if not already done
             if (!terminalInitialized) {
                 terminal.open(document.getElementById('terminal'));
-                //fitAddon.fit();
+                fitAddon.fit();
                 terminalInitialized = true;
             }
 
@@ -404,7 +404,7 @@ try {
 
         // Handle window resize
         window.addEventListener('resize', function() {
-            //fitAddon.fit();
+            fitAddon.fit();
         });
 
         // Allow Enter key to submit form

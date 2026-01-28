@@ -58,9 +58,57 @@ SimpleRouter::get('/games', function() {
         }
     }
 
+    $gameLookup = [];
+    foreach ($games as $game) {
+        $gameLookup[$game['id']] = [
+            'name' => $game['name'],
+            'path' => $game['path']
+        ];
+    }
+
+    $leaderboard = [];
+    try {
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $limit = 10;
+        $stmt = $db->prepare('
+            WITH best_scores AS (
+                SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
+                    l.user_id, l.game_id, l.board, l.score, l.created_at
+                FROM webdoor_leaderboards l
+                ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
+            )
+            SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
+            FROM best_scores b
+            JOIN users u ON b.user_id = u.id
+            ORDER BY b.score DESC, b.created_at DESC
+            LIMIT ?
+        ');
+        $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($rows as $index => $row) {
+            $displayName = $row['username'] ?: $row['real_name'];
+            $gameInfo = $gameLookup[$row['game_id']] ?? null;
+            $leaderboard[] = [
+                'rank' => $index + 1,
+                'display_name' => $displayName,
+                'score' => (int)$row['score'],
+                'game_id' => $row['game_id'],
+                'game_name' => $gameInfo['name'] ?? ucfirst($row['game_id']),
+                'game_path' => $gameInfo['path'] ?? null,
+                'board' => $row['board'],
+                'date' => substr($row['created_at'], 0, 10)
+            ];
+        }
+    } catch (\Throwable $e) {
+        error_log('Failed to load WebDoor leaderboard: ' . $e->getMessage());
+    }
+
     $template = new Template();
     $template->renderResponse('webdoors.twig', [
-        'games' => $games
+        'games' => $games,
+        'leaderboard' => $leaderboard
     ]);
 });
 
