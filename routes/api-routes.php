@@ -703,7 +703,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $lastId = isset($_SERVER['HTTP_LAST_EVENT_ID']) ? (int)$_SERVER['HTTP_LAST_EVENT_ID'] : (int)($_GET['since_id'] ?? 0);
-        $cliServer = php_sapi_name() === 'cli-server';
+        $forcePolling = Config::env('EVENTS_STREAM_MODE', 'sse') === 'polling';
+        $cliServer = php_sapi_name() === 'cli-server' || $forcePolling;
 
         $db = Database::getInstance()->getPdo();
         $start = time();
@@ -753,6 +754,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo "id: {$lastId}\n";
                 echo "event: message\n";
                 echo 'data: ' . json_encode($payload) . "\n\n";
+                ob_flush();
+                flush();
             }
 
             @ob_flush();
