@@ -356,7 +356,7 @@ class Scheduler
                 'month' => (int) date('n', $checkTime),
                 'weekday' => (int) date('w', $checkTime)
             ];
-            print_r($timeData);
+            
             if ($this->matchesCronField($minute, $timeData['minute']) &&
                 $this->matchesCronField($hour, $timeData['hour']) &&
                 $this->matchesCronField($day, $timeData['day']) &&
