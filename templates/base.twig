@@ -39,7 +39,7 @@
     {% include 'custom/header.insert.twig' ignore missing %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-expand-xl navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="/">
                 <i class="fas fa-network-wired"></i>
@@ -77,12 +77,6 @@
                                 </li>
                             </ul>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/nodelist">
-                                <i class="fas fa-sitemap"></i> Nodelist
-                            </a>
-                        </li>
-
                         {% if games_enabled %}
                         <li class="nav-item">
                             <a class="nav-link" href="/games">
@@ -90,6 +84,12 @@
                             </a>
                         </li>
                         {% endif %}
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="/nodelist">
+                                <i class="fas fa-sitemap"></i> Nodelist
+                            </a>
+                        </li>
 
                         {% if current_user.is_admin %}
 
