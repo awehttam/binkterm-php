@@ -235,6 +235,18 @@ class Scheduler
             $this->db->query('SELECT 1');
         } catch (\Throwable $e) {
             $this->log("Database keepalive failed: " . $e->getMessage(), 'ERROR');
+            $this->refreshDatabaseConnection();
+        }
+    }
+
+    private function refreshDatabaseConnection(): void
+    {
+        try {
+            $this->db = Database::reconnect()->getPdo();
+            $this->crashmailService = new CrashmailService();
+            $this->log("Database connection refreshed", 'DEBUG');
+        } catch (\Throwable $e) {
+            $this->log("Database reconnect failed: " . $e->getMessage(), 'ERROR');
         }
     }
     

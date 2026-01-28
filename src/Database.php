@@ -55,6 +55,15 @@ class Database
         return self::$instance;
     }
 
+    /**
+     * Force a reconnect by resetting the singleton.
+     */
+    public static function reconnect(): self
+    {
+        self::$instance = null;
+        return self::getInstance();
+    }
+
     public function getPdo()
     {
         return $this->pdo;
