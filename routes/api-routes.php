@@ -324,14 +324,39 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
-        // Unread netmail using message_read_status table
-        $unreadStmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM netmail n
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-            WHERE n.user_id = ? AND mrs.read_at IS NULL
-        ");
-        $unreadStmt->execute([$userId, $userId]);
+        // Unread netmail using message_read_status table (sent + received)
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = $binkpConfig->getMyAddresses();
+            $myAddresses[] = $binkpConfig->getSystemAddress();
+        } catch (\Exception $e) {
+            $myAddresses = [];
+        }
+
+        if (!empty($myAddresses)) {
+            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE mrs.read_at IS NULL
+                  AND (
+                    n.user_id = ?
+                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                  )
+            ");
+            $params = [$userId, $userId, $user['username'], $user['real_name']];
+            $params = array_merge($params, $myAddresses);
+            $unreadStmt->execute($params);
+        } else {
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count 
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE n.user_id = ? AND mrs.read_at IS NULL
+            ");
+            $unreadStmt->execute([$userId, $userId]);
+        }
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
         // Unread echomail using message_read_status table (only from subscribed echoareas)
@@ -1238,13 +1263,38 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $total = $totalStmt->fetch()['count'];
 
         // Unread messages (using message_read_status table)
-        $unreadStmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM netmail n
-            LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-            WHERE n.user_id = ? AND mrs.read_at IS NULL
-        ");
-        $unreadStmt->execute([$userId, $userId]);
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $myAddresses = $binkpConfig->getMyAddresses();
+            $myAddresses[] = $binkpConfig->getSystemAddress();
+        } catch (\Exception $e) {
+            $myAddresses = [];
+        }
+
+        if (!empty($myAddresses)) {
+            $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count 
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE mrs.read_at IS NULL
+                  AND (
+                    n.user_id = ?
+                    OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
+                  )
+            ");
+            $params = [$userId, $userId, $user['username'], $user['real_name']];
+            $params = array_merge($params, $myAddresses);
+            $unreadStmt->execute($params);
+        } else {
+            $unreadStmt = $db->prepare("
+                SELECT COUNT(*) as count 
+                FROM netmail n
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
+                WHERE n.user_id = ? AND mrs.read_at IS NULL
+            ");
+            $unreadStmt->execute([$userId, $userId]);
+        }
         $unread = $unreadStmt->fetch()['count'];
 
         // Sent messages
@@ -2135,6 +2185,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(500);
             echo json_encode(['error' => 'Failed to logout all sessions']);
         }
+    });
+
+    SimpleRouter::get('/whosonline', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $onlineUsers = $auth->getOnlineUsers(15);
+        $isAdmin = !empty($user['is_admin']);
+
+        $responseUsers = array_map(function($onlineUser) use ($isAdmin) {
+            $entry = [
+                'user_id' => (int)$onlineUser['user_id'],
+                'username' => $onlineUser['username'],
+                'location' => $onlineUser['location'] ?? ''
+            ];
+            if ($isAdmin) {
+                $entry['activity'] = $onlineUser['activity'] ?? '';
+            }
+            return $entry;
+        }, $onlineUsers);
+
+        echo json_encode([
+            'users' => $responseUsers,
+            'online_minutes' => 15
+        ]);
     });
 
     SimpleRouter::post('/user/activity', function() {
