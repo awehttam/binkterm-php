@@ -84,9 +84,9 @@ try {
     $interval = isset($args['interval']) ? (int) $args['interval'] : 60;
     
     $logger = new Logger($logFile, $logLevel, $logToConsole);
-    $scheduler = new Scheduler($config, $logger);
     
     if (isset($args['status'])) {
+        $scheduler = new Scheduler($config, $logger);
         $status = $scheduler->getScheduleStatus();
         
         echo "=== POLLING SCHEDULE STATUS ===\n";
@@ -116,6 +116,8 @@ try {
         @file_put_contents($pidFile, (string)getmypid());
     }
     
+    $scheduler = new Scheduler($config, $logger);
+
     $logger->info("Starting Binkp scheduler daemon...");
     $logger->info("Polling interval: {$interval} seconds");
     
