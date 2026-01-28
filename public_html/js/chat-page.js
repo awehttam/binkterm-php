@@ -4,7 +4,6 @@
     const CHAT_STORAGE_KEY = `state:${window.currentUserId || 'unknown'}`;
     const CHAT_MAX_MESSAGES = 500;
     const CHAT_POLL_INTERVAL_MS = 3000;
-    const CHAT_EVENT_RECONNECT_MS = 2000;
 
     const state = {
         rooms: [],
@@ -385,28 +384,6 @@
             });
     }
 
-    function connectEventStream() {
-        const params = new URLSearchParams();
-        if (state.lastEventId) {
-            params.set('since_id', state.lastEventId);
-        }
-        const source = new EventSource(`/api/events/stream?${params.toString()}`);
-        source.addEventListener('message', (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'chat') {
-                handleIncoming(data.payload);
-                if (data.id) {
-                    state.lastEventId = data.id;
-                    saveState();
-                }
-            }
-        });
-        source.addEventListener('error', () => {
-            source.close();
-            setTimeout(connectEventStream, CHAT_EVENT_RECONNECT_MS);
-        });
-    }
-
     function handleIncoming(payload) {
         if (!payload || !payload.id) return;
         const thread = payload.type === 'room'
@@ -590,7 +567,8 @@
             loadMessages();
         }
         setInterval(refreshUsers, 15000);
-        connectEventStream();
+        pollMessages();
+        setInterval(pollMessages, CHAT_POLL_INTERVAL_MS);
     }
 
     document.addEventListener('DOMContentLoaded', init);

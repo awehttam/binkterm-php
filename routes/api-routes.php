@@ -371,10 +371,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
+        $chatTotalStmt = $db->prepare("
+            SELECT COUNT(*) as count
+            FROM chat_messages m
+            LEFT JOIN chat_rooms r ON m.room_id = r.id
+            WHERE (m.room_id IS NOT NULL AND r.is_active = TRUE)
+               OR m.to_user_id = ?
+               OR m.from_user_id = ?
+        ");
+        $chatTotalStmt->execute([$userId, $userId]);
+        $chatTotal = $chatTotalStmt->fetch()['count'] ?? 0;
 
         echo json_encode([
             'unread_netmail' => $unreadNetmail,
-            'new_echomail' => $unreadEchomail
+            'new_echomail' => $unreadEchomail,
+            'chat_total' => (int)$chatTotal
         ]);
     });
 
