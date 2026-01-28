@@ -71,10 +71,16 @@ SimpleRouter::get('/games', function() {
         $db = \BinktermPHP\Database::getInstance()->getPdo();
         $limit = 10;
         $stmt = $db->prepare('
-            SELECT l.game_id, l.board, u.real_name, u.username, l.score, l.created_at
-            FROM webdoor_leaderboards l
-            JOIN users u ON l.user_id = u.id
-            ORDER BY l.score DESC, l.created_at DESC
+            WITH best_scores AS (
+                SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
+                    l.user_id, l.game_id, l.board, l.score, l.created_at
+                FROM webdoor_leaderboards l
+                ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
+            )
+            SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
+            FROM best_scores b
+            JOIN users u ON b.user_id = u.id
+            ORDER BY b.score DESC, b.created_at DESC
             LIMIT ?
         ');
         $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
