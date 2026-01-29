@@ -1,8 +1,8 @@
 # Upgrading to 1.7.1
 
-This release adds web based configuration editing to the Admin section; for BinkP, system configuration, features, and Webdoors.  
+This release adds web based configuration editing to the Admin section; for BinkP, system configuration, features, and Webdoors.
 
-The Configuration tab has also been removed from the Binkp management page, which has also been renamed to "BinkP Status". 
+The Configuration tab has also been removed from the Binkp management page, which has also been renamed to "BinkP Status".
 
 
 ## Before You Upgrade
@@ -15,8 +15,9 @@ The Configuration tab has also been removed from the Binkp management page, whic
 - Online editing for BinkP configuration.
 - Online editing for system configuration including available features (ie: webdoors, voting booth, shoutbox, advertisements, etc.)
 - Online editing for Webdoors configuration.
+- Admin Ads manager for uploading and deleting ANSI ads in `bbs_ads/`.
 - Removed unused settings from binkp.json.example 
 
 ## Important Note About the Admin Daemon
 After updating configuration from the admin interface, restart the system daemons (notably the binkp daemons) to ensure the new settings are applied.
-
+The Ads manager also relies on the admin daemon for file writes, so restart it after upgrading.

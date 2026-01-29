@@ -109,6 +109,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/webdoors_config.twig');
     });
 
+    // Advertisements management page
+    SimpleRouter::get('/ads', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/ads.twig');
+    });
+
     // BBS settings page
     SimpleRouter::get('/bbs-settings', function() {
         $auth = new Auth();
@@ -705,6 +717,93 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['error' => $e->getMessage()]);
             }
         });
+
+        // Advertisements
+        SimpleRouter::get('/ads', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $ads = $client->listAds();
+                echo json_encode(['ads' => $ads]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/ads/upload', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            if (!isset($_FILES['ad_file'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'No file uploaded']);
+                return;
+            }
+
+            $file = $_FILES['ad_file'];
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Upload failed']);
+                return;
+            }
+
+            $maxSize = 1024 * 1024;
+            if (!empty($file['size']) && $file['size'] > $maxSize) {
+                http_response_code(400);
+                echo json_encode(['error' => 'File is too large (max 1MB)']);
+                return;
+            }
+
+            $content = @file_get_contents($file['tmp_name']);
+            if ($content === false) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Failed to read upload']);
+                return;
+            }
+
+            $name = trim((string)($_POST['name'] ?? ''));
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $ad = $client->uploadAd(base64_encode($content), $name, $file['name'] ?? '');
+                echo json_encode(['success' => true, 'ad' => $ad]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::delete('/ads/{name}', function($name) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->deleteAd($name);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        })->where(['name' => '[A-Za-z0-9._-]+']);
 
 
         SimpleRouter::post('/chat-rooms', function() {

@@ -54,7 +54,7 @@ SimpleRouter::get('/ads/{name}', function($name) {
     $template->renderResponse('ads/ad_full.twig', [
         'ad' => $ad
     ]);
-});
+})->where(['name' => '[A-Za-z0-9._-]+']);
 
 // Web routes
 SimpleRouter::get('/appmanifestjson', function() {
