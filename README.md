@@ -960,6 +960,21 @@ php scripts/update_nodelists.php --help
 - Post messages: `php scripts/post_message.php [options]`
 - Chat cleanup: `php scripts/chat_cleanup.php --limit=500 --max-age-days=30`
 
+#### BBS Advertising System
+ANSI ads can be placed in the `bbs_ads/` directory (files ending in `.ans`). A random ad will be displayed on the main dashboard and can be viewed full-screen via `/ads/random`.
+
+Post a random ad to an echoarea using:
+
+```bash
+php scripts/post_random_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
+```
+
+Weekly cron example (every Tuesday at 6:00 AM):
+
+```bash
+0 6 * * 2 /usr/bin/php /path/to/binkterm/scripts/post_random_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
+```
+
 ### Cron Job Setup
 The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
