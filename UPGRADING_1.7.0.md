@@ -66,6 +66,7 @@ Example crontab:
 4. **Verify `poll_schedule`** in `config/binkp.json` for each uplink.
 5. **Confirm admin daemon access**:
    - Set `ADMIN_DAEMON_SECRET` in `.env`
+   - Set `ADMIN_DAEMON_SOCKET=tcp://127.0.0.1:9065` in `env`
    - Use `scripts/admin_client.php` to test (`process-packets`, `binkp-poll`)
 
 ## Notes

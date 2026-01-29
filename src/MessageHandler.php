@@ -1398,11 +1398,29 @@ class MessageHandler
             $systemName = 'BinktermPHP System';
         }
 
-        // Find admin user ID for the netmail
-        $adminStmt = $this->db->prepare("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
-        $adminStmt->execute();
-        $admin = $adminStmt->fetch();
-        $adminUserId = $admin ? $admin['id'] : 1;
+        // Find sysop user ID by real name (admin only), fallback to first admin
+        $adminUserId = 1;
+        if (!empty($sysopName)) {
+            $sysopStmt = $this->db->prepare("
+                SELECT id
+                FROM users
+                WHERE is_admin = TRUE AND LOWER(real_name) = LOWER(?)
+                ORDER BY id
+                LIMIT 1
+            ");
+            $sysopStmt->execute([$sysopName]);
+            $sysopUser = $sysopStmt->fetch();
+            if ($sysopUser && !empty($sysopUser['id'])) {
+                $adminUserId = $sysopUser['id'];
+            }
+        }
+
+        if ($adminUserId === 1) {
+            $adminStmt = $this->db->prepare("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
+            $adminStmt->execute();
+            $admin = $adminStmt->fetch();
+            $adminUserId = $admin ? $admin['id'] : 1;
+        }
 
         $subject = "New User Registration Request";
         
