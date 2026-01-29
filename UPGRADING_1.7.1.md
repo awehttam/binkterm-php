@@ -16,6 +16,7 @@ The Configuration tab has also been removed from the Binkp management page, whic
 - Online editing for system configuration including available features (ie: webdoors, voting booth, shoutbox, advertisements, etc.)
 - Online editing for Webdoors configuration.
 - Admin Ads manager for uploading and deleting ANSI ads in `bbs_ads/`.
+- Subscriptions page now lets users view echoarea messages even if they are not subscribed.
 - Removed unused settings from binkp.json.example 
 
 ## Important Note About the Admin Daemon
