@@ -51,7 +51,7 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
         const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
         return {
             kludgeLines: kludgeLines,
-            messageBody: messageText.trim()
+            messageBody: messageText.replace(/\s+$/g, '')
         };
     }
     
@@ -87,7 +87,7 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
     
     return {
         kludgeLines: kludgeLines,
-        messageBody: messageLines.join('\n').trim()
+        messageBody: messageLines.join('\n').replace(/\s+$/g, '')
     };
 }
 
@@ -107,7 +107,8 @@ function formatMessageText(messageText, searchTerms = []) {
     const lines = messageText.split(/\r?\n/);
     const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
-    const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30);
+    const hasLeadingSpaceArt = lines.some(line => /^\s{2,}\S/.test(line));
+    const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
     const ansiLineStyle = hasAnsi ? ' style="white-space: pre;"' : '';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
