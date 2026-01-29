@@ -459,6 +459,8 @@ class BinkdProcessor
                 
                 // Map common CHRS values to iconv/mbstring compatible encoding names
                 $encodingMap = [
+                    'IBMPC' => 'CP437',
+                    'IBM437' => 'CP437',
                     'CP437' => 'CP437',
                     'CP850' => 'CP850', 
                     'CP852' => 'CP852',
