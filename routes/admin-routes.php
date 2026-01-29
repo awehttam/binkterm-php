@@ -57,6 +57,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/chat_rooms.twig');
     });
 
+    // Polls management page
+    SimpleRouter::get('/polls', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/polls.twig');
+    });
+
     // API routes for admin
     SimpleRouter::group(['prefix' => '/api'], function() {
 
@@ -189,6 +201,216 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $rooms = $stmt->fetchAll();
 
             echo json_encode(['rooms' => $rooms]);
+        });
+
+        // Polls
+        SimpleRouter::get('/polls', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+            $pollStmt = $db->prepare("
+                SELECT p.id, p.question, p.is_active, p.created_at, p.updated_at,
+                       COUNT(v.id) as vote_count
+                FROM polls p
+                LEFT JOIN poll_votes v ON v.poll_id = p.id
+                GROUP BY p.id
+                ORDER BY p.created_at DESC
+            ");
+            $pollStmt->execute();
+            $polls = $pollStmt->fetchAll();
+
+            $optionsStmt = $db->prepare("
+                SELECT id, poll_id, option_text, sort_order
+                FROM poll_options
+                ORDER BY sort_order, id
+            ");
+            $optionsStmt->execute();
+            $options = $optionsStmt->fetchAll();
+            $optionsByPoll = [];
+            foreach ($options as $opt) {
+                $optionsByPoll[$opt['poll_id']][] = [
+                    'id' => (int)$opt['id'],
+                    'option_text' => $opt['option_text'],
+                    'sort_order' => (int)$opt['sort_order']
+                ];
+            }
+
+            $payload = [];
+            foreach ($polls as $poll) {
+                $payload[] = [
+                    'id' => (int)$poll['id'],
+                    'question' => $poll['question'],
+                    'is_active' => (bool)$poll['is_active'],
+                    'created_at' => $poll['created_at'],
+                    'updated_at' => $poll['updated_at'],
+                    'vote_count' => (int)$poll['vote_count'],
+                    'options' => $optionsByPoll[$poll['id']] ?? []
+                ];
+            }
+
+            echo json_encode(['polls' => $payload]);
+        });
+
+        SimpleRouter::post('/polls', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $question = trim($input['question'] ?? '');
+                $options = $input['options'] ?? [];
+                $isActive = !empty($input['is_active']);
+
+                if ($question === '') {
+                    throw new Exception('Question is required');
+                }
+                if (!is_array($options) || count($options) < 2) {
+                    throw new Exception('At least two options are required');
+                }
+
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $db->beginTransaction();
+
+                if ($isActive) {
+                    $db->exec("UPDATE polls SET is_active = FALSE");
+                }
+
+                $pollStmt = $db->prepare("
+                    INSERT INTO polls (question, is_active, created_by)
+                    VALUES (?, ?, ?)
+                    RETURNING id
+                ");
+                $pollStmt->execute([$question, $isActive ? 1 : 0, $user['id'] ?? $user['user_id']]);
+                $pollId = $pollStmt->fetchColumn();
+
+                $optStmt = $db->prepare("
+                    INSERT INTO poll_options (poll_id, option_text, sort_order)
+                    VALUES (?, ?, ?)
+                ");
+                $order = 0;
+                foreach ($options as $optionText) {
+                    $optionText = trim($optionText);
+                    if ($optionText === '') {
+                        continue;
+                    }
+                    $optStmt->execute([$pollId, $optionText, $order++]);
+                }
+                if ($order < 2) {
+                    throw new Exception('At least two valid options are required');
+                }
+
+                $db->commit();
+                echo json_encode(['success' => true, 'id' => (int)$pollId]);
+            } catch (Exception $e) {
+                if (isset($db) && $db->inTransaction()) {
+                    $db->rollBack();
+                }
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::put('/polls/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $question = trim($input['question'] ?? '');
+                $options = $input['options'] ?? [];
+                $isActive = !empty($input['is_active']);
+
+                if ($question === '') {
+                    throw new Exception('Question is required');
+                }
+                if (!is_array($options) || count($options) < 2) {
+                    throw new Exception('At least two options are required');
+                }
+
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $db->beginTransaction();
+
+                $existingStmt = $db->prepare("SELECT id FROM polls WHERE id = ?");
+                $existingStmt->execute([$id]);
+                if (!$existingStmt->fetch()) {
+                    throw new Exception('Poll not found');
+                }
+
+                if ($isActive) {
+                    $db->exec("UPDATE polls SET is_active = FALSE");
+                }
+
+                $updateStmt = $db->prepare("
+                    UPDATE polls
+                    SET question = ?, is_active = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $updateStmt->execute([$question, $isActive ? 1 : 0, $id]);
+
+                $db->prepare("DELETE FROM poll_votes WHERE poll_id = ?")->execute([$id]);
+                $db->prepare("DELETE FROM poll_options WHERE poll_id = ?")->execute([$id]);
+
+                $optStmt = $db->prepare("
+                    INSERT INTO poll_options (poll_id, option_text, sort_order)
+                    VALUES (?, ?, ?)
+                ");
+                $order = 0;
+                foreach ($options as $optionText) {
+                    $optionText = trim($optionText);
+                    if ($optionText === '') {
+                        continue;
+                    }
+                    $optStmt->execute([$id, $optionText, $order++]);
+                }
+                if ($order < 2) {
+                    throw new Exception('At least two valid options are required');
+                }
+
+                $db->commit();
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                if (isset($db) && $db->inTransaction()) {
+                    $db->rollBack();
+                }
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::delete('/polls/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                $stmt = $db->prepare("DELETE FROM polls WHERE id = ?");
+                $stmt->execute([$id]);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
         });
 
         SimpleRouter::post('/chat-rooms', function() {

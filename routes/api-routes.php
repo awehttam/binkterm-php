@@ -389,6 +389,138 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::get('/polls/active', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $pollStmt = $db->prepare("
+            SELECT id, question
+            FROM polls
+            WHERE is_active = TRUE
+            ORDER BY created_at DESC
+            LIMIT 1
+        ");
+        $pollStmt->execute();
+        $poll = $pollStmt->fetch();
+
+        if (!$poll) {
+            echo json_encode(['poll' => null]);
+            return;
+        }
+
+        $optionsStmt = $db->prepare("
+            SELECT id, option_text
+            FROM poll_options
+            WHERE poll_id = ?
+            ORDER BY sort_order, id
+        ");
+        $optionsStmt->execute([$poll['id']]);
+        $options = $optionsStmt->fetchAll();
+
+        $voteStmt = $db->prepare("
+            SELECT option_id
+            FROM poll_votes
+            WHERE poll_id = ? AND user_id = ?
+            LIMIT 1
+        ");
+        $voteStmt->execute([$poll['id'], $userId]);
+        $vote = $voteStmt->fetch();
+        $hasVoted = $vote ? true : false;
+
+        $response = [
+            'poll' => [
+                'id' => (int)$poll['id'],
+                'question' => $poll['question'],
+                'options' => array_map(function($opt) {
+                    return [
+                        'id' => (int)$opt['id'],
+                        'option_text' => $opt['option_text']
+                    ];
+                }, $options)
+            ],
+            'has_voted' => $hasVoted
+        ];
+
+        if ($hasVoted) {
+            $resultsStmt = $db->prepare("
+                SELECT o.id, o.option_text, COUNT(v.id) as votes
+                FROM poll_options o
+                LEFT JOIN poll_votes v ON v.option_id = o.id
+                WHERE o.poll_id = ?
+                GROUP BY o.id, o.option_text
+                ORDER BY o.sort_order, o.id
+            ");
+            $resultsStmt->execute([$poll['id']]);
+            $results = $resultsStmt->fetchAll();
+            $totalVotes = 0;
+            foreach ($results as $row) {
+                $totalVotes += (int)$row['votes'];
+            }
+            $response['results'] = array_map(function($row) {
+                return [
+                    'option_id' => (int)$row['id'],
+                    'option_text' => $row['option_text'],
+                    'votes' => (int)$row['votes']
+                ];
+            }, $results);
+            $response['total_votes'] = $totalVotes;
+        }
+
+        echo json_encode($response);
+    });
+
+    SimpleRouter::post('/polls/{id}/vote', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        header('Content-Type: application/json');
+
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $optionId = isset($payload['option_id']) ? (int)$payload['option_id'] : 0;
+        if ($optionId <= 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Option is required']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $pollStmt = $db->prepare("SELECT id FROM polls WHERE id = ? AND is_active = TRUE");
+        $pollStmt->execute([$id]);
+        $poll = $pollStmt->fetch();
+        if (!$poll) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Poll not found']);
+            return;
+        }
+
+        $optionStmt = $db->prepare("SELECT id FROM poll_options WHERE id = ? AND poll_id = ?");
+        $optionStmt->execute([$optionId, $id]);
+        if (!$optionStmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid option']);
+            return;
+        }
+
+        try {
+            $insertStmt = $db->prepare("
+                INSERT INTO poll_votes (poll_id, option_id, user_id)
+                VALUES (?, ?, ?)
+            ");
+            $insertStmt->execute([$id, $optionId, $userId]);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => 'You have already voted in this poll.']);
+            return;
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/messages/recent', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();

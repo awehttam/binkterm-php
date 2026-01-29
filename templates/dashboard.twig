@@ -89,6 +89,21 @@
             </div>
         </div>
 
+        <div class="card mt-4" id="votingBoothCard">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-vote-yea me-2"></i>
+                    Voting Booth
+                </h6>
+            </div>
+            <div class="card-body" id="votingBoothBody">
+                <div class="text-center">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Loading poll...
+                </div>
+            </div>
+        </div>
+
         <div class="card mt-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">Echo Areas</h6>
@@ -113,6 +128,7 @@
 <script>
 $(document).ready(function() {
     loadDashboardData();
+    loadVotingBooth();
     loadEchoareas();
     
     // Refresh dashboard data every 30 seconds (but not system news)
@@ -127,6 +143,95 @@ function loadDashboardData() {
             $('#netmailCount').text(data.unread_netmail || 0);
             $('#echomailCount').text(data.new_echomail || 0);
         });
+}
+
+function loadVotingBooth() {
+    $.get('/api/polls/active')
+        .done(function(data) {
+            if (!data.poll) {
+                $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+                return;
+            }
+
+            const poll = data.poll;
+            if (data.has_voted) {
+                const totalVotes = data.total_votes || 0;
+                let resultsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
+                resultsHtml += '<div class="small text-muted mb-2">Results</div>';
+                if (totalVotes === 0) {
+                    resultsHtml += '<p class="text-muted mb-0">No votes yet.</p>';
+                } else {
+                    data.results.forEach(result => {
+                        const percent = totalVotes > 0 ? Math.round((result.votes / totalVotes) * 100) : 0;
+                        resultsHtml += `
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small">
+                                    <span>${escapeHtml(result.option_text)}</span>
+                                    <span>${result.votes} (${percent}%)</span>
+                                </div>
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar" role="progressbar" style="width: ${percent}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                $('#votingBoothBody').html(resultsHtml);
+                return;
+            }
+
+            let optionsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
+            optionsHtml += '<div class="small text-muted mb-2">Vote to see results</div>';
+            optionsHtml += '<form id="votingBoothForm">';
+            poll.options.forEach(option => {
+                optionsHtml += `
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="poll_option" id="pollOption${option.id}" value="${option.id}">
+                        <label class="form-check-label" for="pollOption${option.id}">
+                            ${escapeHtml(option.option_text)}
+                        </label>
+                    </div>
+                `;
+            });
+            optionsHtml += `
+                <button type="button" class="btn btn-sm btn-primary mt-2" onclick="submitPollVote(${poll.id})">
+                    Submit Vote
+                </button>
+            `;
+            optionsHtml += '</form>';
+            $('#votingBoothBody').html(optionsHtml);
+        })
+        .fail(function() {
+            $('#votingBoothBody').html('<p class="text-danger mb-0">Failed to load poll.</p>');
+        });
+}
+
+function submitPollVote(pollId) {
+    const selected = document.querySelector('input[name="poll_option"]:checked');
+    if (!selected) {
+        alert('Please select an option.');
+        return;
+    }
+
+    fetch(`/api/polls/${pollId}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ option_id: selected.value })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadVotingBooth();
+        } else {
+            alert(data.error || 'Failed to submit vote.');
+        }
+    })
+    .catch(() => alert('Failed to submit vote.'));
+}
+
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
 }
 
 
