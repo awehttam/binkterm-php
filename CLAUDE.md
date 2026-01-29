@@ -39,6 +39,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
+ - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
 
 ## URL Construction
 When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** follow this pattern:

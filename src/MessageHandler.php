@@ -2103,7 +2103,7 @@ class MessageHandler
         $kludgeLines = [];
         
         // Add CHRS kludge for UTF-8 encoding
-        $kludgeLines[] = "\x01CHRS: UTF-8 2";
+        $kludgeLines[] = "\x01CHRS: UTF-8 4";
 
         // Add TZUTC kludge line for netmail
         $tzutc = \generateTzutc();
@@ -2159,7 +2159,7 @@ class MessageHandler
         $kludgeLines = [];
 
         // Add CHRS kludge for UTF-8 encoding
-        $kludgeLines[] = "\x01CHRS: UTF-8 2";
+        $kludgeLines[] = "\x01CHRS: UTF-8 4 ";
 
         // Add TZUTC kludge line for echomail
         $tzutc = \generateTzutc();
