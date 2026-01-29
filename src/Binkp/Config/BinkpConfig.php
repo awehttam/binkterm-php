@@ -368,7 +368,7 @@ class BinkpConfig
         $this->saveConfig();
     }
     
-    public function setSystemConfig($name = null, $address = null, $sysop = null, $location = null, $hostname = null, $origin = null)
+    public function setSystemConfig($name = null, $address = null, $sysop = null, $location = null, $hostname = null, $origin = null, $timezone = null)
     {
         if ($name !== null) $this->config['system']['name'] = $name;
         if ($address !== null) $this->config['system']['address'] = $address;
@@ -376,18 +376,28 @@ class BinkpConfig
         if ($location !== null) $this->config['system']['location'] = $location;
         if ($hostname !== null) $this->config['system']['hostname'] = $hostname;
         if ($origin !== null) $this->config['system']['origin'] = $origin;
+        if ($timezone !== null) $this->config['system']['timezone'] = $timezone;
         
         $this->saveConfig();
     }
     
-    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null)
+    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null)
     {
         if ($port !== null) $this->config['binkp']['port'] = $port;
         if ($timeout !== null) $this->config['binkp']['timeout'] = $timeout;
         if ($maxConnections !== null) $this->config['binkp']['max_connections'] = $maxConnections;
         if ($bindAddress !== null) $this->config['binkp']['bind_address'] = $bindAddress;
+        if ($preserveProcessedPackets !== null) $this->config['binkp']['preserve_processed_packets'] = (bool)$preserveProcessedPackets;
         
         $this->saveConfig();
+    }
+
+    public function setPreserveProcessedPackets(?bool $preserve): void
+    {
+        if ($preserve !== null) {
+            $this->config['binkp']['preserve_processed_packets'] = (bool)$preserve;
+            $this->saveConfig();
+        }
     }
     
     private function saveConfig()
@@ -398,6 +408,22 @@ class BinkpConfig
     public function getFullConfig()
     {
         return $this->config;
+    }
+
+    public function setFullConfig(array $config): void
+    {
+        $this->config = $config;
+        $this->saveConfig();
+    }
+
+    public function getBinkpConfig(): array
+    {
+        return $this->config['binkp'] ?? [];
+    }
+
+    public function getSystemConfig(): array
+    {
+        return $this->config['system'] ?? [];
     }
     
     public function reloadConfig()
@@ -504,14 +530,6 @@ class BinkpConfig
     }
 
     /**
-     * Check if insecure outbound sessions are allowed
-     */
-    public function getAllowInsecureOutbound(): bool
-    {
-        return $this->config['security']['allow_insecure_outbound'] ?? false;
-    }
-
-    /**
      * Check if insecure sessions are receive-only (cannot pick up mail)
      */
     public function getInsecureReceiveOnly(): bool
@@ -533,22 +551,6 @@ class BinkpConfig
     public function getMaxInsecureSessionsPerHour(): int
     {
         return $this->config['security']['max_insecure_sessions_per_hour'] ?? 10;
-    }
-
-    /**
-     * Get timeout for insecure sessions in seconds
-     */
-    public function getInsecureSessionTimeout(): int
-    {
-        return $this->config['security']['insecure_session_timeout'] ?? 60;
-    }
-
-    /**
-     * Check if all sessions should be logged
-     */
-    public function getLogAllSessions(): bool
-    {
-        return $this->config['security']['log_all_sessions'] ?? true;
     }
 
     /**
@@ -612,25 +614,6 @@ class BinkpConfig
         return $this->config['crashmail']['allow_insecure_crash_delivery'] ?? true;
     }
 
-    // ========================================
-    // Transit Mail Configuration
-    // ========================================
-
-    /**
-     * Check if transit (forwarding) mail is allowed
-     */
-    public function getAllowTransitMail(): bool
-    {
-        return $this->config['transit']['allow_transit_mail'] ?? false;
-    }
-
-    /**
-     * Check if transit mail requires known route
-     */
-    public function getTransitOnlyForKnownRoutes(): bool
-    {
-        return $this->config['transit']['transit_only_for_known_routes'] ?? true;
-    }
 
     /**
      * Update security configuration
@@ -653,18 +636,6 @@ class BinkpConfig
             $this->config['crashmail'] = [];
         }
         $this->config['crashmail'] = array_merge($this->config['crashmail'], $settings);
-        $this->saveConfig();
-    }
-
-    /**
-     * Update transit mail configuration
-     */
-    public function setTransitConfig(array $settings): void
-    {
-        if (!isset($this->config['transit'])) {
-            $this->config['transit'] = [];
-        }
-        $this->config['transit'] = array_merge($this->config['transit'], $settings);
         $this->saveConfig();
     }
 

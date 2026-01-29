@@ -3,8 +3,10 @@
 namespace BinktermPHP;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\BbsConfig;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
+use Twig\TwigFunction;
 
 class Template
 {
@@ -77,7 +79,7 @@ class Template
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
 
         // Is the game system enabled
-        $this->twig->addGlobal('games_enabled', GameConfig::isGameSystemEnabled());
+        $this->twig->addGlobal('webdoors_active', GameConfig::isGameSystemEnabled());
 
         // Add available themes
         $availableThemes = Config::getThemes();
@@ -100,6 +102,10 @@ class Template
             }
         }
         $this->twig->addGlobal('stylesheet', $stylesheet);
+
+        $this->twig->addFunction(new TwigFunction('bbs_feature_enabled', function(string $feature): bool {
+            return BbsConfig::isFeatureEnabled($feature);
+        }));
     }
 
     public function render($template, $variables = [])

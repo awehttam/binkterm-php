@@ -37,6 +37,81 @@ class AdminDaemonClient
         return $this->sendCommand('binkp_poll', ['upstream' => $upstream]);
     }
 
+    public function getBbsConfig(): array
+    {
+        return $this->sendCommand('get_bbs_config');
+    }
+
+    public function setBbsConfig(array $config): array
+    {
+        return $this->sendCommand('set_bbs_config', ['config' => $config]);
+    }
+
+    public function getSystemConfig(): array
+    {
+        return $this->sendCommand('get_system_config');
+    }
+
+    public function setSystemConfig(array $config): array
+    {
+        return $this->sendCommand('set_system_config', ['config' => $config]);
+    }
+
+    public function getBinkpConfig(): array
+    {
+        return $this->sendCommand('get_binkp_config');
+    }
+
+    public function setBinkpConfig(array $config): array
+    {
+        return $this->sendCommand('set_binkp_config', ['config' => $config]);
+    }
+
+    public function getFullBinkpConfig(): array
+    {
+        return $this->sendCommand('get_full_binkp_config');
+    }
+
+    public function setFullBinkpConfig(array $config): array
+    {
+        return $this->sendCommand('set_full_binkp_config', ['config' => $config]);
+    }
+
+    public function getWebdoorsConfig(): array
+    {
+        return $this->sendCommand('get_webdoors_config');
+    }
+
+    public function saveWebdoorsConfig(string $json): array
+    {
+        return $this->sendCommand('save_webdoors_config', ['json' => $json]);
+    }
+
+    public function activateWebdoorsConfig(): array
+    {
+        return $this->sendCommand('activate_webdoors_config');
+    }
+
+    public function listAds(): array
+    {
+        return $this->sendCommand('list_ads');
+    }
+
+    public function uploadAd(string $contentBase64, string $name = '', string $originalName = ''): array
+    {
+        return $this->sendCommand('upload_ad', [
+            'content_base64' => $contentBase64,
+            'name' => $name,
+            'original_name' => $originalName
+        ]);
+    }
+
+    public function deleteAd(string $name): array
+    {
+        return $this->sendCommand('delete_ad', ['name' => $name]);
+    }
+
+
     public function close(): void
     {
         if ($this->socket && is_resource($this->socket)) {

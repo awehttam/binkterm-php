@@ -42,24 +42,17 @@
     ],
     "security": {
               "allow_insecure_inbound": false,
-              "allow_insecure_outbound": false,
               "insecure_inbound_receive_only": true,
               "require_allowlist_for_insecure": false,
               "max_insecure_sessions_per_hour": 10,
-              "insecure_session_timeout": 60,
-              "log_all_sessions": true,
               "allow_plaintext_fallback": true
           },
-          "crashmail": {
-              "enabled": false,
-              "max_attempts": 3,
-              "retry_interval_minutes": 15,
-              "use_nodelist_for_routing": true,
-              "fallback_port": 24554,
-              "allow_insecure_crash_delivery": true
-          },
-          "transit": {
-              "allow_transit_mail": false,
-              "transit_only_for_known_routes": true
+    "crashmail": {
+        "enabled": false,
+        "max_attempts": 3,
+        "retry_interval_minutes": 15,
+        "use_nodelist_for_routing": true,
+        "fallback_port": 24554,
+        "allow_insecure_crash_delivery": true
           }
 }

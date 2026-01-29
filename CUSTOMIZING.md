@@ -44,6 +44,18 @@ Edit `templates/custom/systemnews.twig` to add custom content to the user dashbo
 - `{{ fidonet_origin }}` - Your FidoNet address
 - `{{ app_version }}` - Application version
 
+### House Rules
+
+The House Rules modal pulls its content from `templates/rules.twig`.
+
+To customize it safely, create an override:
+
+```bash
+cp templates/rules.twig templates/custom/rules.twig
+```
+
+Edit `templates/custom/rules.twig` with your "House Rules" (HTML is allowed).
+
 ### Header Insertions (Custom CSS/JS)
 
 Add custom CSS, JavaScript, or meta tags by creating:
@@ -402,6 +414,15 @@ These variables are automatically available in **all templates**:
 | `terminal_enabled` | Boolean | Whether terminal feature is enabled |
 | `stylesheet` | String | Path to the active stylesheet |
 | `available_themes` | Array | Theme name => stylesheet path mapping from config/themes.json |
+
+### Twig Functions
+
+These helper functions are available in templates:
+
+| Function | Description |
+|----------|-------------|
+| `bbs_feature_enabled('feature')` | Returns true/false for feature flags in `config/bbs.json` (e.g., `webdoors`, `shoutbox`, `advertising`, `voting_booth`, `chat`). |
+| `webdoors_active` | Global Twig boolean set to true when `config/webdoors.json` exists (Webdoors activated). |
 
 ### User Object Properties
 

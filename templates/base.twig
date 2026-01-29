@@ -35,7 +35,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="/js/app.js?v={{ app_version }}"></script>
-    {% if current_user %}
+    {% if current_user and bbs_feature_enabled('chat') %}
     <script src="/js/chat-notify.js?v={{ app_version }}"></script>
     {% endif %}
     {# Include custom header insertions if available #}
@@ -72,15 +72,18 @@
                                         <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> Echomail
                                     </a>
                                 </li>
+
+                                {% if bbs_feature_enabled('chat') %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <a class="dropdown-item" href="/chat">
                                         <i class="fas fa-comments chat-menu-icon" id="chatMenuIcon"></i> Chat
                                     </a>
                                 </li>
+                                {% endif %}
                             </ul>
                         </li>
-                        {% if games_enabled %}
+                        {% if webdoors_active and bbs_feature_enabled('webdoors') %}
                         <li class="nav-item">
                             <a class="nav-link" href="/games">
                                 <i class="fas fa-gamepad"></i> Doors &amp; Games
@@ -107,15 +110,20 @@
                                 <li><a class="dropdown-item" href="/whosonline"><i class="fas fa-user-friends"></i> Who's Online</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/admin/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                                <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> Binkp Status</a></li>
                                 <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> Manage Users</a></li>
                                 <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> Advertisements</a></li>
+                                <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
                                 <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
                                 <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> Polls</a></li>
                                 <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> Shoutbox</a></li>
-                                <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
-                                <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark-plus"></i> Subscriptions</a></li>
+                                <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                                <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-gamepad"></i> Webdoors </a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> Binkp</a></li>
+                                <li><a class="dropdown-item" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a></li>
+                                <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> Binkp Configuration</a></li>
+
                             </ul>
                         </li>
                         {% endif %}

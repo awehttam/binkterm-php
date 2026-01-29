@@ -3,6 +3,7 @@
 // Web routes
 use BinktermPHP\Auth;
 use BinktermPHP\Advertising;
+use BinktermPHP\BbsConfig;
 use BinktermPHP\Config;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\Template;
@@ -53,7 +54,7 @@ SimpleRouter::get('/ads/{name}', function($name) {
     $template->renderResponse('ads/ad_full.twig', [
         'ad' => $ad
     ]);
-});
+})->where(['name' => '[A-Za-z0-9._-]+']);
 
 // Web routes
 SimpleRouter::get('/appmanifestjson', function() {
@@ -384,6 +385,14 @@ SimpleRouter::get('/chat', function() {
 
     if (!$user) {
         return SimpleRouter::response()->redirect('/login');
+    }
+
+    if (!BbsConfig::isFeatureEnabled('chat')) {
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error' => 'Sorry, chat is not enabled.'
+        ]);
+        exit;
     }
 
     $template = new Template();

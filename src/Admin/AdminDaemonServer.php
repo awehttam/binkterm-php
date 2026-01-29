@@ -3,6 +3,8 @@
 namespace BinktermPHP\Admin;
 
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\BbsConfig;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
 
 class AdminDaemonServer
@@ -135,9 +137,9 @@ class AdminDaemonServer
         $data = $payload['data'] ?? [];
 
         try {
-            $this->logger->info('Admin daemon command received', [
+            $this->logger->debug('Admin daemon command received', [
                 'cmd' => $cmd,
-                'data' => $this->sanitizeLogData($data)
+                'data' => $this->sanitizeLogData(is_array($data) ? $data : [])
             ]);
 
             switch ($cmd) {
@@ -178,6 +180,116 @@ class AdminDaemonServer
                     }
                     $this->logCommandResult($cmd, $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'get_bbs_config':
+                    BbsConfig::reload();
+                    $this->writeResponse($client, ['ok' => true, 'result' => BbsConfig::getConfig()]);
+                    break;
+                case 'set_bbs_config':
+                    $config = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!BbsConfig::saveConfig($config)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'save_failed']);
+                        break;
+                    }
+                    BbsConfig::reload();
+                    $this->writeResponse($client, ['ok' => true, 'result' => BbsConfig::getConfig()]);
+                    break;
+                case 'get_system_config':
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getSystemConfig()]);
+                    break;
+                case 'set_system_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $binkpConfig->setSystemConfig(
+                        $payload['name'] ?? null,
+                        $payload['address'] ?? null,
+                        $payload['sysop'] ?? null,
+                        $payload['location'] ?? null,
+                        $payload['hostname'] ?? null,
+                        $payload['origin'] ?? null,
+                        $payload['timezone'] ?? null
+                    );
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getSystemConfig()]);
+                    break;
+                case 'get_binkp_config':
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
+                    break;
+                case 'set_binkp_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $binkpConfig->setBinkpConfig(
+                        $payload['port'] ?? null,
+                        $payload['timeout'] ?? null,
+                        $payload['max_connections'] ?? null,
+                        $payload['bind_address'] ?? null,
+                        $payload['preserve_processed_packets'] ?? null
+                    );
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
+                    break;
+                case 'get_full_binkp_config':
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getFullConfig()]);
+                    break;
+                case 'set_full_binkp_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!is_array($payload)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_config']);
+                        break;
+                    }
+                    $payload['system'] = is_array($payload['system'] ?? null) ? $payload['system'] : [];
+                    $payload['binkp'] = is_array($payload['binkp'] ?? null) ? $payload['binkp'] : [];
+                    $payload['uplinks'] = is_array($payload['uplinks'] ?? null) ? $payload['uplinks'] : [];
+                    $payload['security'] = is_array($payload['security'] ?? null) ? $payload['security'] : [];
+                    $payload['crashmail'] = is_array($payload['crashmail'] ?? null) ? $payload['crashmail'] : [];
+
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $existing = $binkpConfig->getFullConfig();
+                    $merged = is_array($existing) ? $existing : [];
+                    $merged['system'] = array_merge($merged['system'] ?? [], $payload['system']);
+                    $merged['binkp'] = array_merge($merged['binkp'] ?? [], $payload['binkp']);
+                    $merged['security'] = array_merge($merged['security'] ?? [], $payload['security']);
+                    $merged['crashmail'] = array_merge($merged['crashmail'] ?? [], $payload['crashmail']);
+                    $merged['uplinks'] = $this->mergeUplinks($merged['uplinks'] ?? [], $payload['uplinks']);
+                    $binkpConfig->setFullConfig($merged);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getFullConfig()]);
+                    break;
+                case 'get_webdoors_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
+                    break;
+                case 'save_webdoors_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeWebdoorsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
+                    break;
+                case 'activate_webdoors_config':
+                    $this->activateWebdoorsConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
+                    break;
+                case 'list_ads':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listAds()]);
+                    break;
+                case 'upload_ad':
+                    $name = $data['name'] ?? '';
+                    $originalName = $data['original_name'] ?? '';
+                    $contentBase64 = $data['content_base64'] ?? '';
+                    $result = $this->uploadAd((string)$contentBase64, (string)$name, (string)$originalName);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'delete_ad':
+                    $name = $data['name'] ?? '';
+                    $this->deleteAd((string)$name);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
@@ -260,6 +372,195 @@ class AdminDaemonServer
         }
 
         return 'unix://' . __DIR__ . '/../../data/run/admin_daemon.sock';
+    }
+
+    private function getWebdoorsConfig(): array
+    {
+        $configPath = $this->getWebdoorsConfigPath();
+        $examplePath = $this->getWebdoorsExamplePath();
+
+        $active = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'active' => $active,
+            'config_json' => $configJson,
+            'example_json' => $exampleJson
+        ];
+    }
+
+    private function writeWebdoorsConfig(array $config): void
+    {
+        $configPath = $this->getWebdoorsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode webdoors config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function activateWebdoorsConfig(): void
+    {
+        $configPath = $this->getWebdoorsConfigPath();
+        if (file_exists($configPath)) {
+            return;
+        }
+
+        $examplePath = $this->getWebdoorsExamplePath();
+        if (!file_exists($examplePath)) {
+            throw new \RuntimeException('webdoors.json.example not found');
+        }
+
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        copy($examplePath, $configPath);
+    }
+
+    private function getWebdoorsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/webdoors.json';
+    }
+
+    private function getWebdoorsExamplePath(): string
+    {
+        return __DIR__ . '/../../config/webdoors.json.example';
+    }
+
+    private function mergeUplinks(array $existing, array $incoming): array
+    {
+        $indexed = [];
+        foreach ($existing as $uplink) {
+            if (!is_array($uplink)) {
+                continue;
+            }
+            $key = $uplink['address'] ?? ($uplink['hostname'] ?? null);
+            if ($key === null) {
+                continue;
+            }
+            $indexed[strtolower((string)$key)] = $uplink;
+        }
+
+        $merged = [];
+        foreach ($incoming as $uplink) {
+            if (!is_array($uplink)) {
+                continue;
+            }
+            $key = $uplink['address'] ?? ($uplink['hostname'] ?? null);
+            $lookup = $key !== null ? strtolower((string)$key) : null;
+            $base = $lookup !== null && isset($indexed[$lookup]) ? $indexed[$lookup] : [];
+            $merged[] = array_merge($base, $uplink);
+        }
+
+        return $merged;
+    }
+
+    private function listAds(): array
+    {
+        $adsDir = $this->getAdsDir();
+        if (!is_dir($adsDir)) {
+            return [];
+        }
+
+        $ads = [];
+        $files = glob($adsDir . DIRECTORY_SEPARATOR . '*.ans') ?: [];
+        foreach ($files as $file) {
+            $ads[] = [
+                'name' => basename($file),
+                'size' => filesize($file) ?: 0,
+                'updated_at' => date('c', filemtime($file) ?: time())
+            ];
+        }
+
+        usort($ads, function($a, $b) {
+            return strcmp($a['name'], $b['name']);
+        });
+
+        return $ads;
+    }
+
+    private function uploadAd(string $contentBase64, string $name, string $originalName): array
+    {
+        if ($contentBase64 === '') {
+            throw new \RuntimeException('Missing content');
+        }
+
+        $content = base64_decode($contentBase64, true);
+        if ($content === false) {
+            throw new \RuntimeException('Invalid content encoding');
+        }
+
+        $maxSize = 1024 * 1024;
+        if (strlen($content) > $maxSize) {
+            throw new \RuntimeException('File is too large (max 1MB)');
+        }
+
+        $safeName = $this->sanitizeAdFilename($name !== '' ? $name : $originalName);
+        if ($safeName === '') {
+            throw new \RuntimeException('Invalid file name');
+        }
+
+        $adsDir = $this->getAdsDir();
+        if (!is_dir($adsDir) && !@mkdir($adsDir, 0775, true)) {
+            throw new \RuntimeException('Failed to create ads directory');
+        }
+
+        $path = $adsDir . DIRECTORY_SEPARATOR . $safeName;
+        if (@file_put_contents($path, $content) === false) {
+            throw new \RuntimeException('Failed to save advertisement');
+        }
+
+        return [
+            'name' => $safeName,
+            'size' => filesize($path) ?: 0,
+            'updated_at' => date('c', filemtime($path) ?: time())
+        ];
+    }
+
+    private function deleteAd(string $name): void
+    {
+        $safeName = $this->sanitizeAdFilename($name);
+        if ($safeName === '') {
+            throw new \RuntimeException('Invalid file name');
+        }
+
+        $adsDir = $this->getAdsDir();
+        $path = $adsDir . DIRECTORY_SEPARATOR . $safeName;
+        if (!is_file($path)) {
+            throw new \RuntimeException('Advertisement not found');
+        }
+
+        if (!@unlink($path)) {
+            throw new \RuntimeException('Failed to delete advertisement');
+        }
+    }
+
+    private function sanitizeAdFilename(string $name): string
+    {
+        $safe = basename($name);
+        $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $safe);
+        $safe = trim($safe, '._');
+        if ($safe === '') {
+            return '';
+        }
+        if (substr($safe, -4) !== '.ans') {
+            $safe .= '.ans';
+        }
+        return $safe;
+    }
+
+    private function getAdsDir(): string
+    {
+        return __DIR__ . '/../../bbs_ads';
     }
 
 }

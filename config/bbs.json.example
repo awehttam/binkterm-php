@@ -1,0 +1,9 @@
+{
+    "features": {
+        "webdoors": true,
+        "shoutbox": true,
+        "advertising": true,
+        "voting_booth": true,
+        "chat": true
+    }
+}

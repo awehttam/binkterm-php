@@ -1,0 +1,256 @@
+{% extends "base.twig" %}
+
+{% block title %}BBS Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">BBS Settings</h1>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">System Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div id="bbsSystemAlert"></div>
+                    <form id="bbsSystemForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemName">System Name</label>
+                            <input type="text" class="form-control" id="bbsSystemName">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemSysop">Sysop Name</label>
+                            <select class="form-select" id="bbsSystemSysop"></select>
+                            <small class="text-muted">Select an admin user.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemLocation">Location</label>
+                            <input type="text" class="form-control" id="bbsSystemLocation">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemTimezone">Timezone</label>
+                            <select class="form-select" id="bbsSystemTimezone">
+                                {% for tz in timezone_list %}
+                                    <option value="{{ tz }}">{{ tz }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemAddress">System Address</label>
+                            <input type="text" class="form-control" id="bbsSystemAddress">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemOrigin">Origin Line</label>
+                            <input type="text" class="form-control" id="bbsSystemOrigin">
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">Save System Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">BBS Features</h6>
+                </div>
+                <div class="card-body">
+                    <div id="bbsSettingsAlert"></div>
+                    <form id="bbsSettingsForm">
+                        <div class="form-check mb-2 d-flex align-items-center gap-2">
+                            <input class="form-check-input" type="checkbox" id="bbsWebdoors">
+                            <label class="form-check-label" for="bbsWebdoors">Enable Webdoors</label>
+                            {% if not webdoors_active %}
+                                <small class="text-muted">
+                                    (inactive)
+                                    <a href="/admin/webdoors" class="ms-1">Activate</a>
+                                </small>
+                            {% endif %}
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsShoutbox">
+                            <label class="form-check-label" for="bbsShoutbox">Enable Shoutbox</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsAdvertising">
+                            <label class="form-check-label" for="bbsAdvertising">Enable Advertising</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsVoting">
+                            <label class="form-check-label" for="bbsVoting">Enable Voting Booth</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsChat">
+                            <label class="form-check-label" for="bbsChat">Enable Chat</label>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadBbsSettings();
+    loadBbsSystem();
+    loadAdminUsers('bbsSystemSysop');
+});
+
+function loadBbsSettings() {
+    fetch('/admin/api/bbs-settings')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load settings');
+            }
+            const features = data.config?.features || {};
+            document.getElementById('bbsWebdoors').checked = !!features.webdoors;
+            document.getElementById('bbsShoutbox').checked = !!features.shoutbox;
+            document.getElementById('bbsAdvertising').checked = !!features.advertising;
+            document.getElementById('bbsVoting').checked = !!features.voting_booth;
+            document.getElementById('bbsChat').checked = !!features.chat;
+        })
+        .catch(error => {
+            showBbsSettingsAlert(error.message || 'Failed to load settings', 'danger');
+        });
+}
+
+function saveBbsSettings() {
+    const config = {
+        features: {
+            webdoors: document.getElementById('bbsWebdoors').checked,
+            shoutbox: document.getElementById('bbsShoutbox').checked,
+            advertising: document.getElementById('bbsAdvertising').checked,
+            voting_booth: document.getElementById('bbsVoting').checked,
+            chat: document.getElementById('bbsChat').checked
+        }
+    };
+
+    fetch('/admin/api/bbs-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save settings');
+        }
+        showBbsSettingsAlert('Settings saved successfully.', 'success');
+    })
+    .catch(error => {
+        showBbsSettingsAlert(error.message || 'Failed to save settings', 'danger');
+    });
+}
+
+function loadBbsSystem() {
+    fetch('/admin/api/bbs-system')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load system settings');
+            }
+            const config = data.config || {};
+            document.getElementById('bbsSystemName').value = config.name || '';
+            document.getElementById('bbsSystemSysop').dataset.currentValue = config.sysop || '';
+            document.getElementById('bbsSystemLocation').value = config.location || '';
+            document.getElementById('bbsSystemTimezone').value = config.timezone || 'UTC';
+            document.getElementById('bbsSystemAddress').value = config.address || '';
+            document.getElementById('bbsSystemOrigin').value = config.origin || '';
+            syncSysopSelect('bbsSystemSysop');
+        })
+        .catch(error => {
+            showBbsSystemAlert(error.message || 'Failed to load system settings', 'danger');
+        });
+}
+
+function saveBbsSystem() {
+    const config = {
+        name: document.getElementById('bbsSystemName').value.trim(),
+        sysop: document.getElementById('bbsSystemSysop').value,
+        location: document.getElementById('bbsSystemLocation').value.trim(),
+        timezone: document.getElementById('bbsSystemTimezone').value,
+        address: document.getElementById('bbsSystemAddress').value.trim(),
+        origin: document.getElementById('bbsSystemOrigin').value.trim()
+    };
+
+    fetch('/admin/api/bbs-system', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save system settings');
+        }
+        showBbsSystemAlert('System settings saved successfully.', 'success');
+    })
+    .catch(error => {
+        showBbsSystemAlert(error.message || 'Failed to save system settings', 'danger');
+    });
+}
+
+function showBbsSettingsAlert(message, type) {
+    const container = document.getElementById('bbsSettingsAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showBbsSystemAlert(message, type) {
+    const container = document.getElementById('bbsSystemAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function loadAdminUsers(selectId) {
+    fetch('/admin/api/admin-users')
+        .then(response => response.json())
+        .then(data => {
+            const list = Array.isArray(data.admins) ? data.admins : [];
+            const select = document.getElementById(selectId);
+            select.innerHTML = '';
+            list.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            syncSysopSelect(selectId);
+        })
+        .catch(() => {});
+}
+
+function syncSysopSelect(selectId) {
+    const select = document.getElementById(selectId);
+    const current = select.dataset.currentValue || '';
+    if (!current) {
+        return;
+    }
+
+    const exists = Array.from(select.options).some(opt => opt.value === current);
+    if (!exists) {
+        const option = document.createElement('option');
+        option.value = current;
+        option.textContent = `${current} (current)`;
+        select.insertBefore(option, select.firstChild);
+    }
+    select.value = current;
+}
+</script>
+{% endblock %}

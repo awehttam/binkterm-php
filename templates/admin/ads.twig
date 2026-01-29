@@ -1,0 +1,225 @@
+{% extends "base.twig" %}
+
+{% block title %}Advertisements{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Advertisements</h1>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        Upload ANSI ads (`.ans`) to the <code>bbs_ads/</code> directory. Ads are displayed randomly on the dashboard.
+    </div>
+
+    <div id="adsStatusAlert"></div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header">
+            <h6 class="mb-0">Upload New Advertisement</h6>
+        </div>
+        <div class="card-body">
+            <form id="adsUploadForm">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label" for="adFile">ANSI File (.ans)</label>
+                        <input class="form-control" type="file" id="adFile" name="ad_file" accept=".ans">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="adName">Save As (optional)</label>
+                        <input class="form-control" type="text" id="adName" name="name" placeholder="retro-sale.ans">
+                        <div class="form-text">Only letters, numbers, dot, dash, underscore.</div>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload"></i>
+                            Upload
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Current Advertisements</h6>
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadAds()">
+                Refresh
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Size</th>
+                            <th>Updated</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adsTableBody">
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">Loading ads...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadAds();
+
+    const form = document.getElementById('adsUploadForm');
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        uploadAd();
+    });
+});
+
+function loadAds() {
+    fetch('/admin/api/ads')
+        .then(response => readJsonResponse(response))
+        .then(({ response, data }) => {
+            if (!response.ok || data.error) {
+                throw new Error(data.error || `Failed to load ads (${response.status})`);
+            }
+            renderAdsTable(Array.isArray(data.ads) ? data.ads : []);
+        })
+        .catch(error => {
+            renderAdsTable([]);
+            showAdsAlert(error.message || 'Failed to load ads', 'danger');
+        });
+}
+
+function renderAdsTable(ads) {
+    const tbody = document.getElementById('adsTableBody');
+    if (!ads.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted py-4">No advertisements uploaded.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = ads.map(ad => {
+        const name = ad.name || '';
+        const size = formatBytes(ad.size || 0);
+        const updated = ad.updated_at ? new Date(ad.updated_at).toLocaleString() : '-';
+        const encoded = encodeURIComponent(name);
+        return `
+            <tr>
+                <td>${escapeHtml(name)}</td>
+                <td>${size}</td>
+                <td>${escapeHtml(updated)}</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-primary me-2" href="/ads/${encoded}" target="_blank">
+                        View
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteAd('${encoded}', '${escapeHtml(name)}')">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function uploadAd() {
+    const fileInput = document.getElementById('adFile');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        showAdsAlert('Select an ANSI file to upload.', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('ad_file', fileInput.files[0]);
+    formData.append('name', document.getElementById('adName').value.trim());
+
+    fetch('/admin/api/ads/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => readJsonResponse(response))
+    .then(({ response, data }) => {
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || `Upload failed (${response.status})`);
+        }
+        fileInput.value = '';
+        document.getElementById('adName').value = '';
+        showAdsAlert('Advertisement uploaded.', 'success');
+        loadAds();
+    })
+    .catch(error => {
+        showAdsAlert(error.message || 'Upload failed', 'danger');
+    });
+}
+
+function deleteAd(encodedName, displayName) {
+    if (!confirm(`Delete ${displayName}?`)) {
+        return;
+    }
+
+    fetch(`/admin/api/ads/${encodedName}`, { method: 'DELETE' })
+        .then(response => readJsonResponse(response))
+        .then(({ response, data }) => {
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || `Delete failed (${response.status})`);
+            }
+            showAdsAlert('Advertisement deleted.', 'success');
+            loadAds();
+        })
+        .catch(error => {
+            showAdsAlert(error.message || 'Delete failed', 'danger');
+        });
+}
+
+function showAdsAlert(message, type) {
+    const container = document.getElementById('adsStatusAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const size = bytes / Math.pow(1024, idx);
+    return `${size.toFixed(size >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function readJsonResponse(response) {
+    return response.text().then(text => {
+        if (!text) {
+            return { response, data: {} };
+        }
+        try {
+            return { response, data: JSON.parse(text) };
+        } catch (error) {
+            throw new Error(`Unexpected response (${response.status})`);
+        }
+    });
+}
+</script>
+{% endblock %}

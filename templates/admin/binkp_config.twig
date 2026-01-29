@@ -1,0 +1,595 @@
+{% extends "base.twig" %}
+
+{% block title %}Binkp Configuration{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Binkp Configuration</h1>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        After saving, restart the daemons to apply changes.
+    </div>
+
+    <div id="binkpConfigAlert"></div>
+
+    <div class="row g-4">
+        <div class="col-xl-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">System</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="systemName">System Name</label>
+                        <input type="text" class="form-control" id="systemName">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="systemAddress">System Address</label>
+                        <input type="text" class="form-control" id="systemAddress">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="systemSysop">Sysop Name</label>
+                        <select class="form-select" id="systemSysop"></select>
+                        <small class="text-muted">Select an admin user.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="systemLocation">Location</label>
+                        <input type="text" class="form-control" id="systemLocation">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="systemHostname">Hostname</label>
+                        <input type="text" class="form-control" id="systemHostname">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="systemTimezone">Timezone</label>
+                        <select class="form-select" id="systemTimezone">
+                            {% for tz in timezone_list %}
+                                <option value="{{ tz }}">{{ tz }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="systemOrigin">Origin Line</label>
+                        <input type="text" class="form-control" id="systemOrigin">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">Binkp</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="binkpPort">Port</label>
+                        <input type="number" class="form-control" id="binkpPort" min="1" max="65535">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="binkpTimeout">Timeout (seconds)</label>
+                        <input type="number" class="form-control" id="binkpTimeout" min="30" max="3600">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="binkpMaxConnections">Max Connections</label>
+                        <input type="number" class="form-control" id="binkpMaxConnections" min="1" max="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="binkpBindAddress">Bind Address</label>
+                        <input type="text" class="form-control" id="binkpBindAddress">
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="binkpPreserveProcessed">
+                        <label class="form-check-label" for="binkpPreserveProcessed">Preserve Processed Packets</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">Security</h6>
+                </div>
+                <div class="card-body">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="securityAllowInsecureInbound">
+                        <label class="form-check-label" for="securityAllowInsecureInbound">Allow Insecure Inbound</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="securityInsecureReceiveOnly">
+                        <label class="form-check-label" for="securityInsecureReceiveOnly">Insecure Receive Only</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="securityRequireAllowlist">
+                        <label class="form-check-label" for="securityRequireAllowlist">Require Allowlist For Insecure</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="securityMaxInsecureSessions">Max Insecure Sessions / Hour</label>
+                        <input type="number" class="form-control" id="securityMaxInsecureSessions" min="1">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="securityAllowPlaintextFallback">
+                        <label class="form-check-label" for="securityAllowPlaintextFallback">Allow Plaintext Fallback</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">Crashmail</h6>
+                </div>
+                <div class="card-body">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="crashmailEnabled">
+                        <label class="form-check-label" for="crashmailEnabled">Enable Crashmail</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="crashmailMaxAttempts">Max Attempts</label>
+                        <input type="number" class="form-control" id="crashmailMaxAttempts" min="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="crashmailRetryInterval">Retry Interval (minutes)</label>
+                        <input type="number" class="form-control" id="crashmailRetryInterval" min="1">
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="crashmailUseNodelist">
+                        <label class="form-check-label" for="crashmailUseNodelist">Use Nodelist For Routing</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="crashmailFallbackPort">Fallback Port</label>
+                        <input type="number" class="form-control" id="crashmailFallbackPort" min="1" max="65535">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="crashmailAllowInsecure">
+                        <label class="form-check-label" for="crashmailAllowInsecure">Allow Insecure Crash Delivery</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Uplinks</h6>
+            <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal()">Add Uplink</button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped" id="uplinksTable">
+                    <thead>
+                        <tr>
+                            <th>Me</th>
+                            <th>Address</th>
+                            <th>Domain</th>
+                            <th>Hostname</th>
+                            <th>Port</th>
+                            <th>Schedule</th>
+                            <th>Enabled</th>
+                            <th>Default</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <button class="btn btn-primary" type="button" onclick="saveBinkpConfig()">Save Configuration</button>
+    </div>
+</div>
+
+<div class="modal fade" id="uplinkModal" tabindex="-1" aria-labelledby="uplinkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uplinkModalLabel">Uplink</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="uplinkIndex">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="uplinkMe">Me Address</label>
+                        <input type="text" class="form-control" id="uplinkMe">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="uplinkAddress">Uplink Address</label>
+                        <input type="text" class="form-control" id="uplinkAddress">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="uplinkDomain">Domain</label>
+                        <input type="text" class="form-control" id="uplinkDomain">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="uplinkHostname">Hostname</label>
+                        <input type="text" class="form-control" id="uplinkHostname">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="uplinkPort">Port</label>
+                        <input type="number" class="form-control" id="uplinkPort" min="1" max="65535">
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label" for="uplinkPassword">Password</label>
+                        <input type="text" class="form-control" id="uplinkPassword">
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label" for="uplinkSchedule">Poll Schedule</label>
+                        <input type="text" class="form-control" id="uplinkSchedule">
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label" for="uplinkNetworks">Networks (one per line)</label>
+                        <textarea class="form-control" id="uplinkNetworks" rows="4"></textarea>
+                    </div>
+                    <div class="col-md-3 form-check mt-2 ms-2">
+                        <input class="form-check-input" type="checkbox" id="uplinkEnabled">
+                        <label class="form-check-label" for="uplinkEnabled">Enabled</label>
+                    </div>
+                    <div class="col-md-3 form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="uplinkCompression">
+                        <label class="form-check-label" for="uplinkCompression">Compression</label>
+                    </div>
+                    <div class="col-md-3 form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="uplinkCrypt">
+                        <label class="form-check-label" for="uplinkCrypt">Crypt</label>
+                    </div>
+                    <div class="col-md-3 form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="uplinkDefault">
+                        <label class="form-check-label" for="uplinkDefault">Default</label>
+                    </div>
+                </div>
+                <div id="uplinkModalAlert" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" type="button" onclick="saveUplink()">Save Uplink</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let binkpConfig = null;
+let uplinkModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    uplinkModal = new bootstrap.Modal(document.getElementById('uplinkModal'));
+    loadBinkpConfig();
+    loadAdminUsers('systemSysop');
+});
+
+function loadBinkpConfig() {
+    fetch('/admin/api/binkp-config')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load config');
+            }
+            binkpConfig = data.config || {};
+            populateForm();
+            renderUplinks();
+        })
+        .catch(error => {
+            showBinkpAlert(error.message || 'Failed to load config', 'danger');
+        });
+}
+
+function populateForm() {
+    const system = binkpConfig.system || {};
+    document.getElementById('systemName').value = system.name || '';
+    document.getElementById('systemAddress').value = system.address || '';
+    document.getElementById('systemSysop').dataset.currentValue = system.sysop || '';
+    document.getElementById('systemLocation').value = system.location || '';
+    document.getElementById('systemHostname').value = system.hostname || '';
+    document.getElementById('systemTimezone').value = system.timezone || '';
+    document.getElementById('systemOrigin').value = system.origin || '';
+    syncSysopSelect('systemSysop');
+
+    const binkp = binkpConfig.binkp || {};
+    document.getElementById('binkpPort').value = binkp.port ?? '';
+    document.getElementById('binkpTimeout').value = binkp.timeout ?? '';
+    document.getElementById('binkpMaxConnections').value = binkp.max_connections ?? '';
+    document.getElementById('binkpBindAddress').value = binkp.bind_address || '';
+    document.getElementById('binkpPreserveProcessed').checked = !!binkp.preserve_processed_packets;
+
+    const security = binkpConfig.security || {};
+    document.getElementById('securityAllowInsecureInbound').checked = !!security.allow_insecure_inbound;
+    document.getElementById('securityInsecureReceiveOnly').checked = !!security.insecure_inbound_receive_only;
+    document.getElementById('securityRequireAllowlist').checked = !!security.require_allowlist_for_insecure;
+    document.getElementById('securityMaxInsecureSessions').value = security.max_insecure_sessions_per_hour ?? '';
+    document.getElementById('securityAllowPlaintextFallback').checked = !!security.allow_plaintext_fallback;
+
+    const crashmail = binkpConfig.crashmail || {};
+    document.getElementById('crashmailEnabled').checked = !!crashmail.enabled;
+    document.getElementById('crashmailMaxAttempts').value = crashmail.max_attempts ?? '';
+    document.getElementById('crashmailRetryInterval').value = crashmail.retry_interval_minutes ?? '';
+    document.getElementById('crashmailUseNodelist').checked = !!crashmail.use_nodelist_for_routing;
+    document.getElementById('crashmailFallbackPort').value = crashmail.fallback_port ?? '';
+    document.getElementById('crashmailAllowInsecure').checked = !!crashmail.allow_insecure_crash_delivery;
+
+
+}
+
+function gatherConfig() {
+    return {
+        system: {
+            name: document.getElementById('systemName').value.trim(),
+            address: document.getElementById('systemAddress').value.trim(),
+            sysop: document.getElementById('systemSysop').value,
+            location: document.getElementById('systemLocation').value.trim(),
+            hostname: document.getElementById('systemHostname').value.trim(),
+            timezone: document.getElementById('systemTimezone').value.trim(),
+            origin: document.getElementById('systemOrigin').value.trim()
+        },
+        binkp: {
+            port: parseInt(document.getElementById('binkpPort').value, 10),
+            timeout: parseInt(document.getElementById('binkpTimeout').value, 10),
+            max_connections: parseInt(document.getElementById('binkpMaxConnections').value, 10),
+            bind_address: document.getElementById('binkpBindAddress').value.trim(),
+            preserve_processed_packets: document.getElementById('binkpPreserveProcessed').checked
+        },
+        uplinks: binkpConfig.uplinks || [],
+        security: {
+            allow_insecure_inbound: document.getElementById('securityAllowInsecureInbound').checked,
+            insecure_inbound_receive_only: document.getElementById('securityInsecureReceiveOnly').checked,
+            require_allowlist_for_insecure: document.getElementById('securityRequireAllowlist').checked,
+            max_insecure_sessions_per_hour: parseInt(document.getElementById('securityMaxInsecureSessions').value, 10),
+            allow_plaintext_fallback: document.getElementById('securityAllowPlaintextFallback').checked
+        },
+        crashmail: {
+            enabled: document.getElementById('crashmailEnabled').checked,
+            max_attempts: parseInt(document.getElementById('crashmailMaxAttempts').value, 10),
+            retry_interval_minutes: parseInt(document.getElementById('crashmailRetryInterval').value, 10),
+            use_nodelist_for_routing: document.getElementById('crashmailUseNodelist').checked,
+            fallback_port: parseInt(document.getElementById('crashmailFallbackPort').value, 10),
+            allow_insecure_crash_delivery: document.getElementById('crashmailAllowInsecure').checked
+        },
+    };
+}
+
+function validateConfig(config) {
+    if (!config.system.name || !config.system.address || !config.system.sysop) {
+        return 'System name, address, and sysop are required.';
+    }
+    if (!Number.isInteger(config.binkp.port) || config.binkp.port < 1 || config.binkp.port > 65535) {
+        return 'Binkp port must be between 1 and 65535.';
+    }
+    if (!Number.isInteger(config.binkp.timeout) || config.binkp.timeout < 1) {
+        return 'Binkp timeout must be a positive number.';
+    }
+    if (!Number.isInteger(config.binkp.max_connections) || config.binkp.max_connections < 1) {
+        return 'Max connections must be a positive number.';
+    }
+    return null;
+}
+
+function saveBinkpConfig() {
+    if (!binkpConfig) {
+        showBinkpAlert('Config not loaded.', 'danger');
+        return;
+    }
+    const config = gatherConfig();
+    const error = validateConfig(config);
+    if (error) {
+        showBinkpAlert(error, 'danger');
+        return;
+    }
+
+    fetch('/admin/api/binkp-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save config');
+        }
+        binkpConfig = data.config || config;
+        renderUplinks();
+        showBinkpAlert('Configuration saved.', 'success');
+    })
+    .catch(error => {
+        showBinkpAlert(error.message || 'Failed to save config', 'danger');
+    });
+}
+
+function renderUplinks() {
+    const tbody = document.querySelector('#uplinksTable tbody');
+    tbody.innerHTML = '';
+    const uplinks = binkpConfig.uplinks || [];
+    if (uplinks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-muted">No uplinks configured.</td></tr>';
+        return;
+    }
+    uplinks.forEach((uplink, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${escapeHtml(uplink.me || '')}</td>
+            <td>${escapeHtml(uplink.address || '')}</td>
+            <td>${escapeHtml(uplink.domain || '')}</td>
+            <td>${escapeHtml(uplink.hostname || '')}</td>
+            <td>${uplink.port ?? ''}</td>
+            <td><code>${escapeHtml(uplink.poll_schedule || '')}</code></td>
+            <td>${uplink.enabled ? 'Yes' : 'No'}</td>
+            <td>${uplink.default ? 'Yes' : 'No'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal(${index})">Edit</button>
+                <button class="btn btn-sm btn-outline-danger ms-1" type="button" onclick="deleteUplink(${index})">Delete</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function openUplinkModal(index = null) {
+    document.getElementById('uplinkModalAlert').innerHTML = '';
+    if (index === null) {
+        document.getElementById('uplinkModalLabel').textContent = 'Add Uplink';
+        document.getElementById('uplinkIndex').value = '';
+        document.getElementById('uplinkMe').value = '';
+        document.getElementById('uplinkAddress').value = '';
+        document.getElementById('uplinkDomain').value = '';
+        document.getElementById('uplinkHostname').value = '';
+        document.getElementById('uplinkPort').value = 24554;
+        document.getElementById('uplinkPassword').value = '';
+        document.getElementById('uplinkSchedule').value = '0 */4 * * *';
+        document.getElementById('uplinkNetworks').value = '';
+        document.getElementById('uplinkEnabled').checked = true;
+        document.getElementById('uplinkCompression').checked = false;
+        document.getElementById('uplinkCrypt').checked = false;
+        document.getElementById('uplinkDefault').checked = false;
+    } else {
+        const uplink = (binkpConfig.uplinks || [])[index];
+        if (!uplink) {
+            return;
+        }
+        document.getElementById('uplinkModalLabel').textContent = 'Edit Uplink';
+        document.getElementById('uplinkIndex').value = index;
+        document.getElementById('uplinkMe').value = uplink.me || '';
+        document.getElementById('uplinkAddress').value = uplink.address || '';
+        document.getElementById('uplinkDomain').value = uplink.domain || '';
+        document.getElementById('uplinkHostname').value = uplink.hostname || '';
+        document.getElementById('uplinkPort').value = uplink.port ?? 24554;
+        document.getElementById('uplinkPassword').value = uplink.password || '';
+        document.getElementById('uplinkSchedule').value = uplink.poll_schedule || '';
+        document.getElementById('uplinkNetworks').value = Array.isArray(uplink.networks) ? uplink.networks.join('\n') : '';
+        document.getElementById('uplinkEnabled').checked = !!uplink.enabled;
+        document.getElementById('uplinkCompression').checked = !!uplink.compression;
+        document.getElementById('uplinkCrypt').checked = !!uplink.crypt;
+        document.getElementById('uplinkDefault').checked = !!uplink.default;
+    }
+
+    uplinkModal.show();
+}
+
+function saveUplink() {
+    const indexValue = document.getElementById('uplinkIndex').value;
+    const uplink = {
+        me: document.getElementById('uplinkMe').value.trim(),
+        address: document.getElementById('uplinkAddress').value.trim(),
+        domain: document.getElementById('uplinkDomain').value.trim(),
+        hostname: document.getElementById('uplinkHostname').value.trim(),
+        port: parseInt(document.getElementById('uplinkPort').value, 10),
+        password: document.getElementById('uplinkPassword').value.trim(),
+        poll_schedule: document.getElementById('uplinkSchedule').value.trim(),
+        networks: document.getElementById('uplinkNetworks').value.split('\n').map(v => v.trim()).filter(Boolean),
+        enabled: document.getElementById('uplinkEnabled').checked,
+        compression: document.getElementById('uplinkCompression').checked,
+        crypt: document.getElementById('uplinkCrypt').checked,
+        default: document.getElementById('uplinkDefault').checked
+    };
+
+    const error = validateUplink(uplink);
+    if (error) {
+        showUplinkModalAlert(error, 'danger');
+        return;
+    }
+
+    if (!Array.isArray(binkpConfig.uplinks)) {
+        binkpConfig.uplinks = [];
+    }
+
+    if (uplink.default) {
+        binkpConfig.uplinks = binkpConfig.uplinks.map(existing => ({ ...existing, default: false }));
+    }
+
+    if (indexValue === '') {
+        binkpConfig.uplinks.push(uplink);
+    } else {
+        binkpConfig.uplinks[parseInt(indexValue, 10)] = uplink;
+    }
+
+    renderUplinks();
+    uplinkModal.hide();
+}
+
+function deleteUplink(index) {
+    if (!confirm('Remove this uplink?')) {
+        return;
+    }
+    binkpConfig.uplinks.splice(index, 1);
+    renderUplinks();
+}
+
+function validateUplink(uplink) {
+    if (!uplink.hostname) {
+        return 'Uplink hostname is required.';
+    }
+    if (!Number.isInteger(uplink.port) || uplink.port < 1 || uplink.port > 65535) {
+        return 'Uplink port must be between 1 and 65535.';
+    }
+    return null;
+}
+
+function showUplinkModalAlert(message, type) {
+    const container = document.getElementById('uplinkModalAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showBinkpAlert(message, type) {
+    const container = document.getElementById('binkpConfigAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function loadAdminUsers(selectId) {
+    fetch('/admin/api/admin-users')
+        .then(response => response.json())
+        .then(data => {
+            const list = Array.isArray(data.admins) ? data.admins : [];
+            const select = document.getElementById(selectId);
+            select.innerHTML = '';
+            list.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            syncSysopSelect(selectId);
+        })
+        .catch(() => {});
+}
+
+function syncSysopSelect(selectId) {
+    const select = document.getElementById(selectId);
+    const current = select.dataset.currentValue || '';
+    if (!current) {
+        return;
+    }
+
+    const exists = Array.from(select.options).some(opt => opt.value === current);
+    if (!exists) {
+        const option = document.createElement('option');
+        option.value = current;
+        option.textContent = `${current} (current)`;
+        select.insertBefore(option, select.firstChild);
+    }
+    select.value = current;
+}
+</script>
+{% endblock %}
