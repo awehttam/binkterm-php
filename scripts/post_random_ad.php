@@ -16,8 +16,9 @@ function showUsage()
     echo "  --domain=DOMAIN       Network domain (e.g., fidonet)\n\n";
     echo "Optional:\n";
     echo "  --subject=TEXT        Subject line (default: BBS Advertisement)\n";
+    echo "  --subject-line=TEXT   Subject line (alias)\n";
     echo "  --to-name=NAME        To name (default: All)\n";
-    echo "  --user=USERNAME       Post as specific user (default: first admin)\n";
+    echo "  --from=USERNAME       Post as specific user (default: first admin)\n";
     echo "  --help                Show this help message\n\n";
 }
 
@@ -70,10 +71,10 @@ try {
     }
 
     $user = null;
-    if (!empty($args['user'])) {
-        $user = getUserByUsername($args['user']);
+    if (!empty($args['from'])) {
+        $user = getUserByUsername($args['from']);
         if (!$user) {
-            throw new RuntimeException('User not found: ' . $args['user']);
+            throw new RuntimeException('User not found: ' . $args['from']);
         }
     } else {
         $user = getSysopUser();
@@ -89,7 +90,7 @@ try {
         throw new RuntimeException('No ads found in bbs_ads');
     }
 
-    $subject = $args['subject'] ?? 'BBS Advertisement';
+    $subject = $args['subject'] ?? ($args['subject-line'] ?? 'BBS Advertisement');
     $toName = $args['to-name'] ?? 'All';
 
     $handler = new MessageHandler();
