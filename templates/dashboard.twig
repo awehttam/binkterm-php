@@ -72,6 +72,11 @@
                         Loading shouts...
                     </div>
                 </div>
+                <div class="d-flex justify-content-center mb-3">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="shoutboxLoadMore" onclick="loadMoreShouts()">
+                        Load older shouts
+                    </button>
+                </div>
                 <div class="input-group">
                     <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="Leave a shout...">
                     <button class="btn btn-primary" type="button" onclick="postShout()">Post</button>
@@ -158,6 +163,8 @@
 <script>
 let votingPolls = [];
 let votingPollIndex = 0;
+let shoutboxOffset = 0;
+const shoutboxPageSize = 20;
 
 $(document).ready(function() {
     loadDashboardData();
@@ -353,11 +360,13 @@ function loadEchoareas() {
 }
 
 function loadShoutbox() {
-    $.get('/api/shoutbox')
+    shoutboxOffset = 0;
+    $.get(`/api/shoutbox?limit=${shoutboxPageSize}&offset=${shoutboxOffset}`)
         .done(function(data) {
             const items = data.messages || [];
             if (items.length === 0) {
                 $('#shoutboxMessages').html('<p class="text-muted mb-0">No shouts yet. Be the first!</p>');
+                $('#shoutboxLoadMore').prop('disabled', true);
                 return;
             }
             let html = '';
@@ -371,9 +380,43 @@ function loadShoutbox() {
                 `;
             });
             $('#shoutboxMessages').html(html);
+            shoutboxOffset += items.length;
+            $('#shoutboxLoadMore').prop('disabled', items.length < shoutboxPageSize);
         })
         .fail(function() {
             $('#shoutboxMessages').html('<p class="text-danger mb-0">Failed to load shouts.</p>');
+            $('#shoutboxLoadMore').prop('disabled', true);
+        });
+}
+
+function loadMoreShouts() {
+    const button = document.getElementById('shoutboxLoadMore');
+    if (button.disabled) {
+        return;
+    }
+    button.disabled = true;
+    $.get(`/api/shoutbox?limit=${shoutboxPageSize}&offset=${shoutboxOffset}`)
+        .done(function(data) {
+            const items = data.messages || [];
+            if (items.length === 0) {
+                return;
+            }
+            let html = '';
+            items.forEach(function(msg) {
+                html += `
+                    <div class="mb-2">
+                        <strong>${escapeHtml(msg.username)}</strong>
+                        <span class="text-muted small ms-2">${escapeHtml(msg.created_at)}</span>
+                        <div>${escapeHtml(msg.message)}</div>
+                    </div>
+                `;
+            });
+            $('#shoutboxMessages').append(html);
+            shoutboxOffset += items.length;
+            button.disabled = items.length < shoutboxPageSize;
+        })
+        .fail(function() {
+            button.disabled = false;
         });
 }
 

@@ -544,15 +544,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
         $db = Database::getInstance()->getPdo();
+        $limit = intval($_GET['limit'] ?? 20);
+        $offset = intval($_GET['offset'] ?? 0);
+        if ($limit <= 0) {
+            $limit = 20;
+        }
+        if ($limit > 100) {
+            $limit = 100;
+        }
+        if ($offset < 0) {
+            $offset = 0;
+        }
         $stmt = $db->prepare("
             SELECT s.id, s.message, s.created_at, u.username
             FROM shoutbox_messages s
             INNER JOIN users u ON s.user_id = u.id
             WHERE s.is_hidden = FALSE
             ORDER BY s.created_at DESC
-            LIMIT 20
+            LIMIT ? OFFSET ?
         ");
-        $stmt->execute();
+        $stmt->execute([$limit, $offset]);
         $messages = $stmt->fetchAll();
         echo json_encode(['messages' => $messages]);
     });
