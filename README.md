@@ -535,7 +535,7 @@ The general steps are:
 1. **Pull the latest code** - `git pull`
 2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
 3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
-4. **Restart daemons** - `bash scripts/restart_daemons.sh`
+4. **Restart daemons (admin_daemon, binkd_scheduler, binkd_server) ** - `bash scripts/restart_daemons.sh` or restart using your preferred system service tool
 
 
 ### Version-Specific Upgrade Guides
