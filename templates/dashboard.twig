@@ -57,6 +57,28 @@
                 </div>
             </div>
         </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-bullhorn me-2"></i>
+                    Shoutbox
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="shoutboxMessages" class="mb-3">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Loading shouts...
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="Leave a shout...">
+                    <button class="btn btn-primary" type="button" onclick="postShout()">Post</button>
+                </div>
+                <div class="form-text text-muted">280 characters max.</div>
+            </div>
+        </div>
     </div>
 
     <div class="col-lg-4">
@@ -130,6 +152,7 @@ $(document).ready(function() {
     loadDashboardData();
     loadVotingBooth();
     loadEchoareas();
+    loadShoutbox();
     
     // Refresh dashboard data every 30 seconds (but not system news)
     setInterval(function() {
@@ -272,6 +295,55 @@ function loadEchoareas() {
             }
             $('#echoareaList').html(html);
         });
+}
+
+function loadShoutbox() {
+    $.get('/api/shoutbox')
+        .done(function(data) {
+            const items = data.messages || [];
+            if (items.length === 0) {
+                $('#shoutboxMessages').html('<p class="text-muted mb-0">No shouts yet. Be the first!</p>');
+                return;
+            }
+            let html = '';
+            items.forEach(function(msg) {
+                html += `
+                    <div class="mb-2">
+                        <strong>${escapeHtml(msg.username)}</strong>
+                        <span class="text-muted small ms-2">${escapeHtml(msg.created_at)}</span>
+                        <div>${escapeHtml(msg.message)}</div>
+                    </div>
+                `;
+            });
+            $('#shoutboxMessages').html(html);
+        })
+        .fail(function() {
+            $('#shoutboxMessages').html('<p class="text-danger mb-0">Failed to load shouts.</p>');
+        });
+}
+
+function postShout() {
+    const input = document.getElementById('shoutboxInput');
+    const message = input.value.trim();
+    if (!message) {
+        return;
+    }
+
+    fetch('/api/shoutbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            input.value = '';
+            loadShoutbox();
+        } else {
+            alert(data.error || 'Failed to post shout.');
+        }
+    })
+    .catch(() => alert('Failed to post shout.'));
 }
 
 

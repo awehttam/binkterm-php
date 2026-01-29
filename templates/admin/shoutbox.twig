@@ -1,0 +1,139 @@
+{% extends "base.twig" %}
+
+{% block title %}Shoutbox{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Shoutbox Moderation</h1>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="shoutboxTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>User</th>
+                            <th>Message</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shoutboxTableBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadShouts();
+});
+
+function loadShouts() {
+    fetch('/admin/api/shoutbox')
+        .then(response => response.json())
+        .then(data => {
+            displayShouts(data.messages || []);
+        })
+        .catch(error => {
+            console.error('Error loading shouts:', error);
+            showAlert('Error loading shouts', 'danger');
+        });
+}
+
+function displayShouts(messages) {
+    const tbody = document.getElementById('shoutboxTableBody');
+    tbody.innerHTML = '';
+
+    messages.forEach(msg => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${msg.id}</td>
+            <td>${escapeHtml(msg.username)}</td>
+            <td>${escapeHtml(msg.message)}</td>
+            <td>
+                <span class="badge bg-${msg.is_hidden ? 'secondary' : 'success'}">
+                    ${msg.is_hidden ? 'Hidden' : 'Visible'}
+                </span>
+            </td>
+            <td>${new Date(msg.created_at).toLocaleString()}</td>
+            <td>
+                <div class="btn-group btn-group-sm" role="group">
+                    ${msg.is_hidden
+                        ? `<button type="button" class="btn btn-outline-success" onclick="toggleShout(${msg.id}, false)" title="Unhide">
+                                <i class="fas fa-eye"></i>
+                           </button>`
+                        : `<button type="button" class="btn btn-outline-warning" onclick="toggleShout(${msg.id}, true)" title="Hide">
+                                <i class="fas fa-eye-slash"></i>
+                           </button>`
+                    }
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteShout(${msg.id})" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function toggleShout(id, hide) {
+    const endpoint = hide ? `/admin/api/shoutbox/${id}/hide` : `/admin/api/shoutbox/${id}/unhide`;
+    fetch(endpoint, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadShouts();
+            } else {
+                showAlert('Failed to update shout', 'danger');
+            }
+        })
+        .catch(() => showAlert('Failed to update shout', 'danger'));
+}
+
+function deleteShout(id) {
+    if (!confirm('Delete this shout?')) {
+        return;
+    }
+
+    fetch(`/admin/api/shoutbox/${id}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadShouts();
+            } else {
+                showAlert('Failed to delete shout', 'danger');
+            }
+        })
+        .catch(() => showAlert('Failed to delete shout', 'danger'));
+}
+
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

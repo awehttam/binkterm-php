@@ -17,6 +17,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $stats = $adminController->getSystemStats();
+        $dbVersion = $adminController->getDatabaseVersion();
         $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemAddresses = [$config->getSystemAddress()];
         foreach ($config->getUplinks() as $uplink) {
@@ -27,6 +28,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $systemAddresses = array_values(array_unique(array_filter($systemAddresses)));
         $template->renderResponse('admin/dashboard.twig', [
             'stats' => $stats,
+            'db_version' => $dbVersion,
             'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus(),
             'git_commit' => \BinktermPHP\SystemStatus::getGitCommitHash(),
             'system_addresses' => $systemAddresses
@@ -67,6 +69,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/polls.twig');
+    });
+
+    // Shoutbox moderation page
+    SimpleRouter::get('/shoutbox', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/shoutbox.twig');
     });
 
     // API routes for admin
@@ -411,6 +425,56 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(400);
                 echo json_encode(['error' => $e->getMessage()]);
             }
+        });
+
+        // Shoutbox moderation
+        SimpleRouter::get('/shoutbox', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $limit = intval($_GET['limit'] ?? 100);
+            $messages = $adminController->getShoutboxMessages($limit);
+            echo json_encode(['messages' => $messages]);
+        });
+
+        SimpleRouter::post('/shoutbox/{id}/hide', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $result = $adminController->setShoutboxHidden((int)$id, true);
+            echo json_encode(['success' => $result]);
+        });
+
+        SimpleRouter::post('/shoutbox/{id}/unhide', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $result = $adminController->setShoutboxHidden((int)$id, false);
+            echo json_encode(['success' => $result]);
+        });
+
+        SimpleRouter::delete('/shoutbox/{id}', function($id) {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            $result = $adminController->deleteShoutboxMessage((int)$id);
+            echo json_encode(['success' => $result]);
         });
 
         SimpleRouter::post('/chat-rooms', function() {

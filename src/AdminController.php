@@ -259,6 +259,51 @@ class AdminController
         return $stats;
     }
 
+    public function getDatabaseVersion(): string
+    {
+        try {
+            $stmt = $this->db->query("
+                SELECT version
+                FROM database_migrations
+                ORDER BY version DESC
+                LIMIT 1
+            ");
+            $result = $stmt->fetch();
+            return $result ? $result['version'] : 'n/a';
+        } catch (\Exception $e) {
+            return 'n/a';
+        }
+    }
+
+    public function getShoutboxMessages(int $limit = 100): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT s.id, s.message, s.is_hidden, s.created_at, u.username
+            FROM shoutbox_messages s
+            INNER JOIN users u ON s.user_id = u.id
+            ORDER BY s.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        return $stmt->fetchAll();
+    }
+
+    public function setShoutboxHidden(int $id, bool $hidden): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE shoutbox_messages
+            SET is_hidden = ?
+            WHERE id = ?
+        ");
+        return $stmt->execute([$hidden ? 1 : 0, $id]);
+    }
+
+    public function deleteShoutboxMessage(int $id): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM shoutbox_messages WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
     public function getUsersNeedingReminder()
     {
         $stmt = $this->db->query("

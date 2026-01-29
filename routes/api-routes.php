@@ -521,6 +521,54 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true]);
     });
 
+    SimpleRouter::get('/shoutbox', function() {
+        $auth = new Auth();
+        $auth->requireAuth();
+
+        header('Content-Type: application/json');
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT s.id, s.message, s.created_at, u.username
+            FROM shoutbox_messages s
+            INNER JOIN users u ON s.user_id = u.id
+            WHERE s.is_hidden = FALSE
+            ORDER BY s.created_at DESC
+            LIMIT 20
+        ");
+        $stmt->execute();
+        $messages = $stmt->fetchAll();
+        echo json_encode(['messages' => $messages]);
+    });
+
+    SimpleRouter::post('/shoutbox', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $message = trim($payload['message'] ?? '');
+
+        if ($message === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Message is required']);
+            return;
+        }
+
+        if (mb_strlen($message) > 280) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Message too long']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            INSERT INTO shoutbox_messages (user_id, message)
+            VALUES (?, ?)
+        ");
+        $stmt->execute([$user['id'] ?? $user['user_id'], $message]);
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/messages/recent', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();
