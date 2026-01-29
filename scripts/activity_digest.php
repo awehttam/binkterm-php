@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\Database;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 
 function showUsage()
 {
@@ -78,7 +79,7 @@ function buildDigest($format, $data, DateTime $start, DateTime $end)
 {
     $isAnsi = $format === 'ansi';
     $lines = [];
-    $title = 'Claude\'s BBS Activity Digest';
+    $title = BinkpConfig::getInstance()->getSystemName() . ' Activity Digest';
     $range = $start->format('Y-m-d') . ' to ' . $end->format('Y-m-d');
 
     if ($isAnsi) {

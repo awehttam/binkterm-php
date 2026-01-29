@@ -629,6 +629,23 @@ php scripts/activity_digest.php --from=2026-01-01 --to=2026-01-31 --output=diges
 php scripts/activity_digest.php --since=30d --format=ansi --output=digests/last_month.ans
 ```
 
+### Activity Report Sender
+Generate an ANSI digest and send it as netmail to the sysop (weekly by default):
+
+```bash
+# Default weekly digest to sysop
+php scripts/send_activityreport.php
+
+# Custom range and recipient
+php scripts/send_activityreport.php --from=2026-01-01 --to=2026-01-31 --to-name=sysop
+```
+
+Weekly cron example:
+
+```bash
+0 9 * * 1 /usr/bin/php /path/to/binkterm/scripts/send_activityreport.php --since=7d
+```
+
 ### Echomail Maintenance Utility
 Manage echomail storage by purging old messages based on age or message count limits:
 
