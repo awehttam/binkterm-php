@@ -165,10 +165,27 @@
             </small>
             <br>
             <small class="text-muted">
-                Powered by <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a>
+                Powered by <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a> |
+                <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">House Rules</a>
             </small>
         </div>
     </footer>
+
+    <div class="modal fade" id="houseRulesModal" tabindex="-1" aria-labelledby="houseRulesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="houseRulesModalLabel">House Rules</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="ansi-art-container">
+                        <pre class="ansi-art" id="houseRulesAnsi">{% include 'rules.twig' %}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 
 
@@ -194,6 +211,46 @@
                     });
             });
         }
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const modalEl = document.getElementById('houseRulesModal');
+            if (!modalEl) {
+                return;
+            }
+
+            modalEl.addEventListener('shown.bs.modal', () => {
+                const pre = document.getElementById('houseRulesAnsi');
+                if (!pre || pre.dataset.rendered) {
+                    return;
+                }
+
+                const rawText = pre.textContent;
+                if (!rawText.includes('\x1b[')) {
+                    pre.dataset.rendered = 'true';
+                    return;
+                }
+
+                const renderAnsi = () => {
+                    if (typeof renderAnsiTerminal !== 'function') {
+                        return;
+                    }
+                    pre.innerHTML = renderAnsiTerminal(rawText);
+                    pre.dataset.rendered = 'true';
+                };
+
+                if (typeof renderAnsiTerminal === 'function') {
+                    renderAnsi();
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = '/js/ansisys.js';
+                script.onload = renderAnsi;
+                document.body.appendChild(script);
+            });
+        });
     </script>
     
     {% block scripts %}{% endblock %}
