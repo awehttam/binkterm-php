@@ -637,8 +637,29 @@ function composeMessage(type, replyToId = null) {
 
 // Form validation
 function validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
+    if (typeof email !== 'string') {
+        return false;
+    }
+    const trimmed = email.trim();
+    if (trimmed.length === 0 || trimmed.length > 320) {
+        return false;
+    }
+    const atIndex = trimmed.indexOf('@');
+    if (atIndex <= 0 || atIndex !== trimmed.lastIndexOf('@')) {
+        return false;
+    }
+    const local = trimmed.slice(0, atIndex);
+    const domain = trimmed.slice(atIndex + 1);
+    if (local.length === 0 || domain.length === 0) {
+        return false;
+    }
+    if (/\s/.test(local) || /\s/.test(domain)) {
+        return false;
+    }
+    if (domain.indexOf('.') === -1) {
+        return false;
+    }
+    return true;
 }
 
 function validateFidonetAddress(address) {
