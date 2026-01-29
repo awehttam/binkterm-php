@@ -301,6 +301,24 @@ class BinkdProcessor
             }
         }
 
+        // FMPT/TOPT kludges provide point information when INTL lacks it (or isn't present)
+        if (strpos($messageText, "\x01FMPT") !== false || strpos($messageText, "\x01TOPT") !== false || strpos($messageText, "\x01FOPT") !== false) {
+            $lines = explode("\n", $messageText);
+            foreach ($lines as $line) {
+                if ($origPoint === 0 && preg_match('/\x01(?:FMPT|FOPT)\s+(\d+)/', $line, $matches)) {
+                    $origPoint = (int)$matches[1];
+                    $this->log("[BINKD] Found FMPT/FOPT kludge: orig point $origPoint");
+                }
+                if ($destPoint === 0 && preg_match('/\x01TOPT\s+(\d+)/', $line, $matches)) {
+                    $destPoint = (int)$matches[1];
+                    $this->log("[BINKD] Found TOPT kludge: dest point $destPoint");
+                }
+                if ($origPoint > 0 && $destPoint > 0) {
+                    break;
+                }
+            }
+        }
+
         $origAddr = $origZone . ':' . $origNet . '/' . $origNode;
         if ($origPoint > 0) {
             $origAddr .= '.' . $origPoint;
