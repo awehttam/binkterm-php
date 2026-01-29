@@ -422,6 +422,7 @@ These helper functions are available in templates:
 | Function | Description |
 |----------|-------------|
 | `bbs_feature_enabled('feature')` | Returns true/false for feature flags in `config/bbs.json` (e.g., `webdoors`, `shoutbox`, `advertising`, `voting_booth`, `chat`). |
+| `webdoors_active` | Global Twig boolean set to true when `config/webdoors.json` exists (Webdoors activated). |
 
 ### User Object Properties
 

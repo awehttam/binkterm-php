@@ -138,8 +138,7 @@ class AdminDaemonServer
 
         try {
             $this->logger->info('Admin daemon command received', [
-                'cmd' => $cmd,
-                'data' => $this->sanitizeLogData($data)
+                'cmd' => $cmd
             ]);
 
             switch ($cmd) {

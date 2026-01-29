@@ -83,7 +83,7 @@
                                 {% endif %}
                             </ul>
                         </li>
-                        {% if games_available and bbs_feature_enabled('webdoors') %}
+                        {% if webdoors_active and bbs_feature_enabled('webdoors') %}
                         <li class="nav-item">
                             <a class="nav-link" href="/games">
                                 <i class="fas fa-gamepad"></i> Doors &amp; Games
@@ -116,7 +116,7 @@
                                 <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
                                 <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> Polls</a></li>
                                 <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> Shoutbox</a></li>
-                                <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark-plus"></i> Subscriptions</a></li>
+                                <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
                                 <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-gamepad"></i> Webdoors </a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a></li>

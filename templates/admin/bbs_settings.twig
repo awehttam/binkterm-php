@@ -8,35 +8,78 @@
         <h1 class="h2">BBS Settings</h1>
     </div>
 
-    <div class="card shadow">
-        <div class="card-header">
-            <h6 class="mb-0">System Settings</h6>
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">System Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div id="bbsSystemAlert"></div>
+                    <form id="bbsSystemForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemName">System Name</label>
+                            <input type="text" class="form-control" id="bbsSystemName">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemSysop">Sysop Name</label>
+                            <input type="text" class="form-control" id="bbsSystemSysop">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemLocation">Location</label>
+                            <input type="text" class="form-control" id="bbsSystemLocation">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemAddress">System Address</label>
+                            <input type="text" class="form-control" id="bbsSystemAddress">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemOrigin">Origin Line</label>
+                            <input type="text" class="form-control" id="bbsSystemOrigin">
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">Save System Settings</button>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <div id="bbsSystemAlert"></div>
-            <form id="bbsSystemForm">
-                <div class="mb-3">
-                    <label class="form-label" for="bbsSystemName">System Name</label>
-                    <input type="text" class="form-control" id="bbsSystemName">
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">BBS Features</h6>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsSystemSysop">Sysop Name</label>
-                    <input type="text" class="form-control" id="bbsSystemSysop">
+                <div class="card-body">
+                    <div id="bbsSettingsAlert"></div>
+                    <form id="bbsSettingsForm">
+                        <div class="form-check mb-2 d-flex align-items-center gap-2">
+                            <input class="form-check-input" type="checkbox" id="bbsWebdoors">
+                            <label class="form-check-label" for="bbsWebdoors">Enable Webdoors</label>
+                            {% if not webdoors_active %}
+                                <small class="text-muted">
+                                    (inactive)
+                                    <a href="/admin/webdoors" class="ms-1">Activate</a>
+                                </small>
+                            {% endif %}
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsShoutbox">
+                            <label class="form-check-label" for="bbsShoutbox">Enable Shoutbox</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsAdvertising">
+                            <label class="form-check-label" for="bbsAdvertising">Enable Advertising</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="bbsVoting">
+                            <label class="form-check-label" for="bbsVoting">Enable Voting Booth</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsChat">
+                            <label class="form-check-label" for="bbsChat">Enable Chat</label>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
+                    </form>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsSystemLocation">Location</label>
-                    <input type="text" class="form-control" id="bbsSystemLocation">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsSystemAddress">System Address</label>
-                    <input type="text" class="form-control" id="bbsSystemAddress">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsSystemOrigin">Origin Line</label>
-                    <input type="text" class="form-control" id="bbsSystemOrigin">
-                </div>
-                <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">Save System Settings</button>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -47,6 +90,9 @@
         <div class="card-body">
             <div id="bbsBinkpAlert"></div>
             <form id="bbsBinkpForm">
+                <div class="alert alert-info">
+                    Full configuration (including uplinks) can be edited in <code>config/binkp.json</code>.
+                </div>
                 <div class="mb-3">
                     <label class="form-label" for="bbsBinkpPort">Port</label>
                     <input type="number" class="form-control" id="bbsBinkpPort" min="1" max="65535">
@@ -68,38 +114,6 @@
                     <label class="form-check-label" for="bbsBinkpPreservePackets">Preserve Processed Packets</label>
                 </div>
                 <button type="button" class="btn btn-primary" onclick="saveBbsBinkp()">Save Binkp Settings</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="card shadow mt-4">
-        <div class="card-header">
-            <h6 class="mb-0">BBS Features</h6>
-        </div>
-        <div class="card-body">
-            <div id="bbsSettingsAlert"></div>
-            <form id="bbsSettingsForm">
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="bbsWebdoors">
-                    <label class="form-check-label" for="bbsWebdoors">Enable Webdoors</label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="bbsShoutbox">
-                    <label class="form-check-label" for="bbsShoutbox">Enable Shoutbox</label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="bbsAdvertising">
-                    <label class="form-check-label" for="bbsAdvertising">Enable Advertising</label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="bbsVoting">
-                    <label class="form-check-label" for="bbsVoting">Enable Voting Booth</label>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="bbsChat">
-                    <label class="form-check-label" for="bbsChat">Enable Chat</label>
-                </div>
-                <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
             </form>
         </div>
     </div>
