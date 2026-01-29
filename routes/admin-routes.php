@@ -296,10 +296,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $db = \BinktermPHP\Database::getInstance()->getPdo();
                 $db->beginTransaction();
 
-                if ($isActive) {
-                    $db->exec("UPDATE polls SET is_active = FALSE");
-                }
-
                 $pollStmt = $db->prepare("
                     INSERT INTO polls (question, is_active, created_by)
                     VALUES (?, ?, ?)
@@ -364,10 +360,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $existingStmt->execute([$id]);
                 if (!$existingStmt->fetch()) {
                     throw new Exception('Poll not found');
-                }
-
-                if ($isActive) {
-                    $db->exec("UPDATE polls SET is_active = FALSE");
                 }
 
                 $updateStmt = $db->prepare("

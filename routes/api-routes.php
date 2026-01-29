@@ -402,75 +402,92 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             FROM polls
             WHERE is_active = TRUE
             ORDER BY created_at DESC
-            LIMIT 1
         ");
         $pollStmt->execute();
-        $poll = $pollStmt->fetch();
+        $polls = $pollStmt->fetchAll();
 
-        if (!$poll) {
-            echo json_encode(['poll' => null]);
+        if (!$polls) {
+            echo json_encode(['polls' => []]);
             return;
         }
 
+        $pollIds = array_map(function($row) {
+            return (int)$row['id'];
+        }, $polls);
+
+        $placeholders = implode(',', array_fill(0, count($pollIds), '?'));
         $optionsStmt = $db->prepare("
-            SELECT id, option_text
+            SELECT id, poll_id, option_text
             FROM poll_options
-            WHERE poll_id = ?
+            WHERE poll_id IN ($placeholders)
             ORDER BY sort_order, id
         ");
-        $optionsStmt->execute([$poll['id']]);
+        $optionsStmt->execute($pollIds);
         $options = $optionsStmt->fetchAll();
+        $optionsByPoll = [];
+        foreach ($options as $opt) {
+            $optionsByPoll[$opt['poll_id']][] = [
+                'id' => (int)$opt['id'],
+                'option_text' => $opt['option_text']
+            ];
+        }
 
         $voteStmt = $db->prepare("
-            SELECT option_id
+            SELECT poll_id
             FROM poll_votes
-            WHERE poll_id = ? AND user_id = ?
-            LIMIT 1
+            WHERE user_id = ? AND poll_id IN ($placeholders)
+            GROUP BY poll_id
         ");
-        $voteStmt->execute([$poll['id'], $userId]);
-        $vote = $voteStmt->fetch();
-        $hasVoted = $vote ? true : false;
+        $voteStmt->execute(array_merge([$userId], $pollIds));
+        $votedPolls = $voteStmt->fetchAll();
+        $votedPollIds = array_map(function($row) {
+            return (int)$row['poll_id'];
+        }, $votedPolls);
+        $votedLookup = array_flip($votedPollIds);
 
-        $response = [
-            'poll' => [
-                'id' => (int)$poll['id'],
-                'question' => $poll['question'],
-                'options' => array_map(function($opt) {
-                    return [
-                        'id' => (int)$opt['id'],
-                        'option_text' => $opt['option_text']
-                    ];
-                }, $options)
-            ],
-            'has_voted' => $hasVoted
-        ];
-
-        if ($hasVoted) {
+        $resultsByPoll = [];
+        $totalVotesByPoll = [];
+        if (!empty($votedPollIds)) {
+            $resultPlaceholders = implode(',', array_fill(0, count($votedPollIds), '?'));
             $resultsStmt = $db->prepare("
-                SELECT o.id, o.option_text, COUNT(v.id) as votes
+                SELECT o.poll_id, o.id, o.option_text, COUNT(v.id) as votes
                 FROM poll_options o
                 LEFT JOIN poll_votes v ON v.option_id = o.id
-                WHERE o.poll_id = ?
-                GROUP BY o.id, o.option_text
+                WHERE o.poll_id IN ($resultPlaceholders)
+                GROUP BY o.poll_id, o.id, o.option_text
                 ORDER BY o.sort_order, o.id
             ");
-            $resultsStmt->execute([$poll['id']]);
+            $resultsStmt->execute($votedPollIds);
             $results = $resultsStmt->fetchAll();
-            $totalVotes = 0;
             foreach ($results as $row) {
-                $totalVotes += (int)$row['votes'];
-            }
-            $response['results'] = array_map(function($row) {
-                return [
+                $pollId = (int)$row['poll_id'];
+                $resultsByPoll[$pollId][] = [
                     'option_id' => (int)$row['id'],
                     'option_text' => $row['option_text'],
                     'votes' => (int)$row['votes']
                 ];
-            }, $results);
-            $response['total_votes'] = $totalVotes;
+                $totalVotesByPoll[$pollId] = ($totalVotesByPoll[$pollId] ?? 0) + (int)$row['votes'];
+            }
         }
 
-        echo json_encode($response);
+        $payload = [];
+        foreach ($polls as $poll) {
+            $pollId = (int)$poll['id'];
+            $hasVoted = isset($votedLookup[$pollId]);
+            $entry = [
+                'id' => $pollId,
+                'question' => $poll['question'],
+                'options' => $optionsByPoll[$pollId] ?? [],
+                'has_voted' => $hasVoted
+            ];
+            if ($hasVoted) {
+                $entry['results'] = $resultsByPoll[$pollId] ?? [];
+                $entry['total_votes'] = $totalVotesByPoll[$pollId] ?? 0;
+            }
+            $payload[] = $entry;
+        }
+
+        echo json_encode(['polls' => $payload]);
     });
 
     SimpleRouter::post('/polls/{id}/vote', function($id) {

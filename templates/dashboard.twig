@@ -112,11 +112,19 @@
         </div>
 
         <div class="card mt-4" id="votingBoothCard">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
                     <i class="fas fa-vote-yea me-2"></i>
                     Voting Booth
                 </h6>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="Previous poll">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="Next poll">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
             </div>
             <div class="card-body" id="votingBoothBody">
                 <div class="text-center">
@@ -148,6 +156,9 @@
 
 {% block scripts %}
 <script>
+let votingPolls = [];
+let votingPollIndex = 0;
+
 $(document).ready(function() {
     loadDashboardData();
     loadVotingBooth();
@@ -168,65 +179,109 @@ function loadDashboardData() {
         });
 }
 
-function loadVotingBooth() {
+function loadVotingBooth(keepPollId = null) {
     $.get('/api/polls/active')
         .done(function(data) {
-            if (!data.poll) {
+            votingPolls = data.polls || [];
+            if (votingPolls.length === 0) {
                 $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+                updateVotingPollNav();
                 return;
             }
-
-            const poll = data.poll;
-            if (data.has_voted) {
-                const totalVotes = data.total_votes || 0;
-                let resultsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
-                resultsHtml += '<div class="small text-muted mb-2">Results</div>';
-                if (totalVotes === 0) {
-                    resultsHtml += '<p class="text-muted mb-0">No votes yet.</p>';
-                } else {
-                    data.results.forEach(result => {
-                        const percent = totalVotes > 0 ? Math.round((result.votes / totalVotes) * 100) : 0;
-                        resultsHtml += `
-                            <div class="mb-2">
-                                <div class="d-flex justify-content-between small">
-                                    <span>${escapeHtml(result.option_text)}</span>
-                                    <span>${result.votes} (${percent}%)</span>
-                                </div>
-                                <div class="progress" style="height: 6px;">
-                                    <div class="progress-bar" role="progressbar" style="width: ${percent}%"></div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-                $('#votingBoothBody').html(resultsHtml);
-                return;
+            if (keepPollId) {
+                const idx = votingPolls.findIndex(p => p.id === keepPollId);
+                votingPollIndex = idx >= 0 ? idx : 0;
+            } else {
+                votingPollIndex = Math.min(votingPollIndex, votingPolls.length - 1);
             }
-
-            let optionsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
-            optionsHtml += '<div class="small text-muted mb-2">Vote to see results</div>';
-            optionsHtml += '<form id="votingBoothForm">';
-            poll.options.forEach(option => {
-                optionsHtml += `
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="radio" name="poll_option" id="pollOption${option.id}" value="${option.id}">
-                        <label class="form-check-label" for="pollOption${option.id}">
-                            ${escapeHtml(option.option_text)}
-                        </label>
-                    </div>
-                `;
-            });
-            optionsHtml += `
-                <button type="button" class="btn btn-sm btn-primary mt-2" onclick="submitPollVote(${poll.id})">
-                    Submit Vote
-                </button>
-            `;
-            optionsHtml += '</form>';
-            $('#votingBoothBody').html(optionsHtml);
+            renderVotingBooth();
         })
         .fail(function() {
             $('#votingBoothBody').html('<p class="text-danger mb-0">Failed to load poll.</p>');
+            updateVotingPollNav();
         });
+}
+
+function renderVotingBooth() {
+    if (votingPolls.length === 0) {
+        $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+        updateVotingPollNav();
+        return;
+    }
+
+    const poll = votingPolls[votingPollIndex];
+    const hasVoted = !!poll.has_voted;
+    if (hasVoted) {
+        const totalVotes = poll.total_votes || 0;
+        let resultsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
+        resultsHtml += '<div class="small text-muted mb-2">Results</div>';
+        if (totalVotes === 0) {
+            resultsHtml += '<p class="text-muted mb-0">No votes yet.</p>';
+        } else {
+            (poll.results || []).forEach(result => {
+                const percent = totalVotes > 0 ? Math.round((result.votes / totalVotes) * 100) : 0;
+                resultsHtml += `
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between small">
+                            <span>${escapeHtml(result.option_text)}</span>
+                            <span>${result.votes} (${percent}%)</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar" role="progressbar" style="width: ${percent}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        $('#votingBoothBody').html(resultsHtml);
+        updateVotingPollNav();
+        return;
+    }
+
+    let optionsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
+    optionsHtml += '<div class="small text-muted mb-2">Vote to see results</div>';
+    optionsHtml += '<form id="votingBoothForm">';
+    (poll.options || []).forEach(option => {
+        optionsHtml += `
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="poll_option" id="pollOption${option.id}" value="${option.id}">
+                <label class="form-check-label" for="pollOption${option.id}">
+                    ${escapeHtml(option.option_text)}
+                </label>
+            </div>
+        `;
+    });
+    optionsHtml += `
+        <button type="button" class="btn btn-sm btn-primary mt-2" onclick="submitPollVote(${poll.id})">
+            Submit Vote
+        </button>
+    `;
+    optionsHtml += '</form>';
+    $('#votingBoothBody').html(optionsHtml);
+    updateVotingPollNav();
+}
+
+function changeVotingPoll(delta) {
+    if (votingPolls.length <= 1) {
+        return;
+    }
+    const nextIndex = votingPollIndex + delta;
+    if (nextIndex < 0 || nextIndex >= votingPolls.length) {
+        return;
+    }
+    votingPollIndex = nextIndex;
+    renderVotingBooth();
+}
+
+function updateVotingPollNav() {
+    const hasMultiple = votingPolls.length > 1;
+    const prevBtn = document.getElementById('pollPrevBtn');
+    const nextBtn = document.getElementById('pollNextBtn');
+    if (!prevBtn || !nextBtn) {
+        return;
+    }
+    prevBtn.disabled = !hasMultiple || votingPollIndex === 0;
+    nextBtn.disabled = !hasMultiple || votingPollIndex === (votingPolls.length - 1);
 }
 
 function submitPollVote(pollId) {
@@ -244,7 +299,7 @@ function submitPollVote(pollId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            loadVotingBooth();
+            loadVotingBooth(pollId);
         } else {
             alert(data.error || 'Failed to submit vote.');
         }
