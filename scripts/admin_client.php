@@ -1,4 +1,4 @@
-#!/usr/bin/php
+#!/usr/bin/env php
 <?php
 
 chdir(__DIR__ . "/../");
@@ -13,6 +13,7 @@ function showUsage()
     echo "Commands:\n";
     echo "  process-packets             Run packet processing\n";
     echo "  binkp-poll <upstream|all>    Poll a specific uplink or all uplinks\n";
+    echo "  stop-services               Stop binkp scheduler/server and admin daemon\n";
     echo "Options:\n";
     echo "  --socket=TARGET              Socket target override\n";
     echo "  --secret=SECRET              Shared secret override\n";
@@ -92,6 +93,10 @@ try {
                 exit(1);
             }
             $result = $client->binkPoll($upstream);
+            printResult($result);
+            break;
+        case 'stop-services':
+            $result = $client->stopServices();
             printResult($result);
             break;
         default:
