@@ -281,8 +281,7 @@ class BinkdProcessor
         if (strpos($messageText, "\x01INTL") !== false) {
             $lines = explode("\n", $messageText);
             foreach ($lines as $line) {
-                //if (strpos($line, "\x01INTL") === 0) {
-                if (strpos($line, "\x01INTL")) {
+                if (strpos($line, "\x01INTL") !== false) {
                     // INTL format: \x01INTL dest_zone:net/node.point orig_zone:net/node.point
                     $res=preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches);
                     if ($res) {
