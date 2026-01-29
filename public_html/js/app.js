@@ -51,7 +51,7 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
         const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
         return {
             kludgeLines: kludgeLines,
-            messageBody: messageText.trim()
+            messageBody: messageText.replace(/\s+$/g, '')
         };
     }
     
@@ -87,7 +87,7 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
     
     return {
         kludgeLines: kludgeLines,
-        messageBody: messageLines.join('\n').trim()
+        messageBody: messageLines.join('\n').replace(/\s+$/g, '')
     };
 }
 
@@ -107,7 +107,8 @@ function formatMessageText(messageText, searchTerms = []) {
     const lines = messageText.split(/\r?\n/);
     const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
-    const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30);
+    const hasLeadingSpaceArt = lines.some(line => /^\s{2,}\S/.test(line));
+    const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
     const ansiLineStyle = hasAnsi ? ' style="white-space: pre;"' : '';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
@@ -637,8 +638,29 @@ function composeMessage(type, replyToId = null) {
 
 // Form validation
 function validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
+    if (typeof email !== 'string') {
+        return false;
+    }
+    const trimmed = email.trim();
+    if (trimmed.length === 0 || trimmed.length > 320) {
+        return false;
+    }
+    const atIndex = trimmed.indexOf('@');
+    if (atIndex <= 0 || atIndex !== trimmed.lastIndexOf('@')) {
+        return false;
+    }
+    const local = trimmed.slice(0, atIndex);
+    const domain = trimmed.slice(atIndex + 1);
+    if (local.length === 0 || domain.length === 0) {
+        return false;
+    }
+    if (/\s/.test(local) || /\s/.test(domain)) {
+        return false;
+    }
+    if (domain.indexOf('.') === -1) {
+        return false;
+    }
+    return true;
 }
 
 function validateFidonetAddress(address) {

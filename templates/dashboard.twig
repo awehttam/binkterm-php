@@ -157,6 +157,16 @@
     </div>
 </div>
 
+{% if dashboard_ad %}
+<div class="row mt-4">
+    <div class="col-12 d-flex justify-content-center">
+        <div class="ansi-art-container">
+            <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -171,6 +181,7 @@ $(document).ready(function() {
     loadVotingBooth();
     loadEchoareas();
     loadShoutbox();
+    renderDashboardAd();
     
     // Refresh dashboard data every 30 seconds (but not system news)
     setInterval(function() {
@@ -443,6 +454,30 @@ function postShout() {
         }
     })
     .catch(() => alert('Failed to post shout.'));
+}
+
+function renderDashboardAd() {
+    const pre = document.getElementById('dashboardAdAnsi');
+    if (!pre) {
+        return;
+    }
+
+    const renderAd = () => {
+        if (typeof renderAnsiTerminal !== 'function') {
+            return;
+        }
+        pre.innerHTML = renderAnsiTerminal(pre.textContent);
+    };
+
+    if (typeof renderAnsiTerminal === 'function') {
+        renderAd();
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/js/ansisys.js';
+    script.onload = renderAd;
+    document.body.appendChild(script);
 }
 
 

@@ -2,6 +2,7 @@
 
 // Web routes
 use BinktermPHP\Auth;
+use BinktermPHP\Advertising;
 use BinktermPHP\Config;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\Template;
@@ -16,12 +17,41 @@ SimpleRouter::get('/', function() {
     }
 
     $template = new Template();
+    $ads = new Advertising();
+    $ad = $ads->getRandomAd();
 
     // Generate system news content
     $systemNewsContent = $template->renderSystemNews();
 
     $template->renderResponse('dashboard.twig', [
-        'system_news_content' => $systemNewsContent
+        'system_news_content' => $systemNewsContent,
+        'dashboard_ad' => $ad
+    ]);
+});
+
+SimpleRouter::get('/ads/random', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $ads = new Advertising();
+    $ad = $ads->getRandomAd();
+
+    $template = new Template();
+    $template->renderResponse('ads/ad_full.twig', [
+        'ad' => $ad
+    ]);
+});
+
+SimpleRouter::get('/ads/{name}', function($name) {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    $ads = new Advertising();
+    $ad = $ads->getAdByName($name);
+
+    $template = new Template();
+    $template->renderResponse('ads/ad_full.twig', [
+        'ad' => $ad
     ]);
 });
 

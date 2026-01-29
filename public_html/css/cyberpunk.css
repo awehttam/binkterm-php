@@ -753,7 +753,7 @@ a:hover {
 .message-quote {
     border-left: 3px solid var(--cyber-pink);
     padding-left: 1rem;
-    margin: 1rem 0;
+    margin: 0;
     background-color: var(--cyber-dark-light);
     border-radius: 0;
 }
