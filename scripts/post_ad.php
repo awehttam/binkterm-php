@@ -10,11 +10,12 @@ use BinktermPHP\MessageHandler;
 
 function showUsage()
 {
-    echo "Usage: php scripts/post_random_ad.php [options]\n\n";
+    echo "Usage: php scripts/post_ad.php [options]\n\n";
     echo "Required options:\n";
     echo "  --echoarea=TAG        Echo area tag (e.g., GENERAL)\n";
     echo "  --domain=DOMAIN       Network domain (e.g., fidonet)\n\n";
     echo "Optional:\n";
+    echo "  --ad=FILENAME         Ad file name in bbs_ads (e.g., sale.ans)\n";
     echo "  --subject=TEXT        Subject line (default: BBS Advertisement)\n";
     echo "  --subject-line=TEXT   Subject line (alias)\n";
     echo "  --to-name=NAME        To name (default: All)\n";
@@ -85,9 +86,16 @@ try {
     }
 
     $ads = new Advertising();
-    $ad = $ads->getRandomAd();
-    if (!$ad) {
-        throw new RuntimeException('No ads found in bbs_ads');
+    if (!empty($args['ad'])) {
+        $ad = $ads->getAdByName($args['ad']);
+        if (!$ad) {
+            throw new RuntimeException('Ad not found in bbs_ads: ' . $args['ad']);
+        }
+    } else {
+        $ad = $ads->getRandomAd();
+        if (!$ad) {
+            throw new RuntimeException('No ads found in bbs_ads');
+        }
     }
 
     $subject = $args['subject'] ?? ($args['subject-line'] ?? 'BBS Advertisement');
@@ -107,7 +115,8 @@ try {
         throw new RuntimeException('Failed to post advertisement');
     }
 
-    echo "Posted advertisement to {$args['echoarea']} ({$args['domain']}).\n";
+    $adLabel = $ad['name'] ?? 'random ad';
+    echo "Posted {$adLabel} to {$args['echoarea']} ({$args['domain']}).\n";
     exit(0);
 } catch (Exception $e) {
     fwrite(STDERR, "Error: " . $e->getMessage() . "\n");

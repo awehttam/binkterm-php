@@ -951,13 +951,14 @@ ANSI ads can be placed in the `bbs_ads/` directory (files ending in `.ans`). A r
 Post a random ad to an echoarea using:
 
 ```bash
-php scripts/post_random_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
+php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
+php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --ad=claudes1.ans --subject="BBS Advertisement"
 ```
 
 Weekly cron example (every Tuesday at 6:00 AM):
 
 ```bash
-0 6 * * 2 /usr/bin/php /path/to/binkterm/scripts/post_random_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
+0 6 * * 2 /usr/bin/php /path/to/binkterm/scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
 ```
 
 ### Cron Job Setup

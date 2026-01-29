@@ -66,18 +66,11 @@
                                                 </small>
                                             </div>
                                             <div class="col-md-3 text-end">
-                                                {% if echoarea.subscribed %}
-                                                    <a href="/echomail/{{ echoarea.tag }}@{{ echoarea.domain }}"
-                                                       class="btn btn-sm btn-outline-primary">
-                                                        <i class="bi bi-eye me-1"></i>
-                                                        View Messages
-                                                    </a>
-                                                {% else %}
-                                                    <button class="btn btn-sm btn-outline-secondary" disabled>
-                                                        <i class="bi bi-eye-slash me-1"></i>
-                                                        Not Subscribed
-                                                    </button>
-                                                {% endif %}
+                                                <a href="/echomail/{{ echoarea.tag }}@{{ echoarea.domain }}"
+                                                   class="btn btn-sm {{ echoarea.subscribed ? 'btn-outline-primary' : 'btn-outline-secondary' }}">
+                                                    <i class="bi bi-eye me-1"></i>
+                                                    View Messages
+                                                </a>
                                             </div>
                                         </div>
                                     </div>
