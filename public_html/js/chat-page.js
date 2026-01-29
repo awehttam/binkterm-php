@@ -388,7 +388,12 @@
         if (!payload || !payload.id) return;
         const thread = payload.type === 'room'
             ? { type: 'room', id: payload.room_id }
-            : { type: 'dm', id: payload.from_user_id };
+            : {
+                type: 'dm',
+                id: (payload.from_user_id === window.currentUserId)
+                    ? payload.to_user_id
+                    : payload.from_user_id
+            };
         const key = threadKey(thread);
 
         const isActive = state.active.type === thread.type && state.active.id === thread.id;
