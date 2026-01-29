@@ -83,6 +83,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/shoutbox.twig');
     });
 
+    // BBS settings page
+    SimpleRouter::get('/bbs-settings', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/bbs_settings.twig');
+    });
+
     // API routes for admin
     SimpleRouter::group(['prefix' => '/api'], function() {
 
@@ -467,6 +479,127 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
             $result = $adminController->deleteShoutboxMessage((int)$id);
             echo json_encode(['success' => $result]);
+        });
+
+        // BBS settings
+        SimpleRouter::get('/bbs-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getBbsConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/bbs-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? [];
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->setBbsConfig($config);
+                echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::get('/bbs-system', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getSystemConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/bbs-system', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? [];
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->setSystemConfig($config);
+                echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::get('/bbs-binkp', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getBinkpConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/bbs-binkp', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? [];
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->setBinkpConfig($config);
+                echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
         });
 
         SimpleRouter::post('/chat-rooms', function() {

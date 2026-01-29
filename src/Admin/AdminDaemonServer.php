@@ -3,6 +3,8 @@
 namespace BinktermPHP\Admin;
 
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\BbsConfig;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
 
 class AdminDaemonServer
@@ -178,6 +180,52 @@ class AdminDaemonServer
                     }
                     $this->logCommandResult($cmd, $result);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'get_bbs_config':
+                    BbsConfig::reload();
+                    $this->writeResponse($client, ['ok' => true, 'result' => BbsConfig::getConfig()]);
+                    break;
+                case 'set_bbs_config':
+                    $config = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!BbsConfig::saveConfig($config)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'save_failed']);
+                        break;
+                    }
+                    BbsConfig::reload();
+                    $this->writeResponse($client, ['ok' => true, 'result' => BbsConfig::getConfig()]);
+                    break;
+                case 'get_system_config':
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getSystemConfig()]);
+                    break;
+                case 'set_system_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $binkpConfig->setSystemConfig(
+                        $payload['name'] ?? null,
+                        $payload['address'] ?? null,
+                        $payload['sysop'] ?? null,
+                        $payload['location'] ?? null,
+                        $payload['hostname'] ?? null,
+                        $payload['origin'] ?? null
+                    );
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getSystemConfig()]);
+                    break;
+                case 'get_binkp_config':
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
+                    break;
+                case 'set_binkp_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $binkpConfig->setBinkpConfig(
+                        $payload['port'] ?? null,
+                        $payload['timeout'] ?? null,
+                        $payload['max_connections'] ?? null,
+                        $payload['bind_address'] ?? null,
+                        $payload['preserve_processed_packets'] ?? null
+                    );
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
                     break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);

@@ -631,6 +631,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Chat is disabled']);
+            return;
+        }
+
         $db = Database::getInstance()->getPdo();
         $stmt = $db->prepare("
             SELECT id, name, description
@@ -649,6 +655,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = $auth->requireAuth();
 
         header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Chat is disabled']);
+            return;
+        }
 
         $onlineUsers = $auth->getOnlineUsers(15);
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -673,6 +685,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = $auth->requireAuth();
 
         header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Chat is disabled']);
+            return;
+        }
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $roomId = isset($_GET['room_id']) ? (int)$_GET['room_id'] : null;
@@ -752,6 +770,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = $auth->requireAuth();
 
         header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Chat is disabled']);
+            return;
+        }
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $input = json_decode(file_get_contents('php://input'), true);
@@ -976,6 +1000,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Chat is disabled']);
+            return;
+        }
+
         if (empty($user['is_admin'])) {
             http_response_code(403);
             echo json_encode(['error' => 'Admin access required']);
@@ -1036,6 +1066,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = $auth->requireAuth();
 
         header('Content-Type: application/json');
+
+        if (!\BinktermPHP\BbsConfig::isFeatureEnabled('chat')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Chat is disabled']);
+            return;
+        }
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $lastId = (int)($_GET['since_id'] ?? 0);
@@ -2634,40 +2670,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $lines = intval($_GET['lines'] ?? 100);
         $controller = new \BinktermPHP\Binkp\Web\BinkpController();
         echo json_encode($controller->getLogs($lines));
-    });
-
-    SimpleRouter::get('/binkp/config', function() {
-        ob_start();
-
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-        requireBinkpAdmin($user);
-
-        try {
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $config = $controller->getConfig();
-
-            ob_clean();
-            header('Content-Type: application/json');
-            echo json_encode($config);
-        } catch (\Exception $e) {
-            ob_clean();
-            http_response_code(500);
-            header('Content-Type: application/json');
-            echo json_encode(['error' => $e->getMessage()]);
-        }
-    });
-
-    SimpleRouter::put('/binkp/config/{section}', function($section) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-        requireBinkpAdmin($user);
-
-        header('Content-Type: application/json');
-
-        $input = json_decode(file_get_contents('php://input'), true);
-        $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-        echo json_encode($controller->updateConfig($section, $input));
     });
 
     // Test endpoint to verify delete endpoint is accessible

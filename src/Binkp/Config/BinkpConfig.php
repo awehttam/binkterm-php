@@ -380,14 +380,23 @@ class BinkpConfig
         $this->saveConfig();
     }
     
-    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null)
+    public function setBinkpConfig($port = null, $timeout = null, $maxConnections = null, $bindAddress = null, $preserveProcessedPackets = null)
     {
         if ($port !== null) $this->config['binkp']['port'] = $port;
         if ($timeout !== null) $this->config['binkp']['timeout'] = $timeout;
         if ($maxConnections !== null) $this->config['binkp']['max_connections'] = $maxConnections;
         if ($bindAddress !== null) $this->config['binkp']['bind_address'] = $bindAddress;
+        if ($preserveProcessedPackets !== null) $this->config['binkp']['preserve_processed_packets'] = (bool)$preserveProcessedPackets;
         
         $this->saveConfig();
+    }
+
+    public function setPreserveProcessedPackets(?bool $preserve): void
+    {
+        if ($preserve !== null) {
+            $this->config['binkp']['preserve_processed_packets'] = (bool)$preserve;
+            $this->saveConfig();
+        }
     }
     
     private function saveConfig()
@@ -398,6 +407,16 @@ class BinkpConfig
     public function getFullConfig()
     {
         return $this->config;
+    }
+
+    public function getBinkpConfig(): array
+    {
+        return $this->config['binkp'] ?? [];
+    }
+
+    public function getSystemConfig(): array
+    {
+        return $this->config['system'] ?? [];
     }
     
     public function reloadConfig()

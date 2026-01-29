@@ -1,12 +1,12 @@
 {% extends "base.twig" %}
 
-{% block title %}Binkp Management{% endblock %}
+{% block title %}Binkp Status{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-12">
-            <h1>Binkp Management</h1>
+            <h1>Binkp Status</h1>
             <p class="text-muted">Monitor and manage your Binkp TCP/IP connections</p>
         </div>
     </div>
@@ -60,9 +60,6 @@
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">Logs</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab">Configuration</button>
         </li>
     </ul>
 
@@ -196,72 +193,6 @@
             </div>
         </div>
 
-        <!-- Configuration Tab -->
-        <div class="tab-pane fade" id="config" role="tabpanel">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>System Configuration</h5>
-                        </div>
-                        <div class="card-body">
-                            <form id="systemConfigForm">
-                                <div class="mb-3">
-                                    <label class="form-label">FTN Address</label>
-                                    <input type="text" class="form-control" name="address" id="system-address">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Sysop Name</label>
-                                    <input type="text" class="form-control" name="sysop" id="system-sysop">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Location</label>
-                                    <input type="text" class="form-control" name="location" id="system-location">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Hostname</label>
-                                    <input type="text" class="form-control" name="hostname" id="system-hostname">
-                                </div>
-                                To edit the configuration, edit config/binkp.json
-                                {#
-                                <button type="submit" class="btn btn-primary">Save Changes</button>
-                                #}
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Binkp Configuration</h5>
-                        </div>
-                        <div class="card-body">
-                            <form id="binkpConfigForm">
-                                <div class="mb-3">
-                                    <label class="form-label">Port</label>
-                                    <input type="number" class="form-control" name="port" id="binkp-port" min="1" max="65535">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Timeout (seconds)</label>
-                                    <input type="number" class="form-control" name="timeout" id="binkp-timeout" min="30" max="3600">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Max Connections</label>
-                                    <input type="number" class="form-control" name="max_connections" id="binkp-max-connections" min="1" max="100">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Bind Address</label>
-                                    <input type="text" class="form-control" name="bind_address" id="binkp-bind-address">
-                                </div>
-                                To edit the configuration, edit config/binkp.json
-
-                                {# <button type="submit" class="btn btn-primary">Save Changes</button> #}
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -319,7 +250,6 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshUplinks();
     refreshQueues();
     refreshLogs();
-    refreshConfig();
 });
 
 // Auto-refresh every 30 seconds
@@ -531,26 +461,6 @@ function refreshLogs() {
         .catch(error => console.error('Error fetching logs:', error));
 }
 
-function refreshConfig() {
-    fetch('/api/binkp/config')
-        .then(response => response.json())
-        .then(data => {
-            const config = data.config;
-            
-            // System config
-            document.getElementById('system-address').value = config.system.address;
-            document.getElementById('system-sysop').value = config.system.sysop;
-            document.getElementById('system-location').value = config.system.location;
-            document.getElementById('system-hostname').value = config.system.hostname;
-            
-            // Binkp config
-            document.getElementById('binkp-port').value = config.binkp.port;
-            document.getElementById('binkp-timeout').value = config.binkp.timeout;
-            document.getElementById('binkp-max-connections').value = config.binkp.max_connections;
-            document.getElementById('binkp-bind-address').value = config.binkp.bind_address;
-        })
-        .catch(error => console.error('Error fetching config:', error));
-}
 
 function pollUplink(address) {
     console.log('Polling uplink:', address);
@@ -693,52 +603,6 @@ function removeUplink(address) {
         });
 }
 
-// Config form handlers
-document.getElementById('systemConfigForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    const data = Object.fromEntries(formData.entries());
-
-    fetch('/api/binkp/config/system', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            showAlert('System configuration updated', 'success');
-        } else {
-            showAlert('Failed to update configuration: ' + result.error, 'danger');
-        }
-    })
-    .catch(error => {
-        showAlert('Error updating configuration: ' + error.message, 'danger');
-    });
-});
-
-document.getElementById('binkpConfigForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    const data = Object.fromEntries(formData.entries());
-
-    fetch('/api/binkp/config/binkp', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            showAlert('Binkp configuration updated', 'success');
-        } else {
-            showAlert('Failed to update configuration: ' + result.error, 'danger');
-        }
-    })
-    .catch(error => {
-        showAlert('Error updating configuration: ' + error.message, 'danger');
-    });
-});
 
 function showAlert(message, type, options = {}) {
     const alertDiv = document.createElement('div');

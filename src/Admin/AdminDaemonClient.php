@@ -37,6 +37,36 @@ class AdminDaemonClient
         return $this->sendCommand('binkp_poll', ['upstream' => $upstream]);
     }
 
+    public function getBbsConfig(): array
+    {
+        return $this->sendCommand('get_bbs_config');
+    }
+
+    public function setBbsConfig(array $config): array
+    {
+        return $this->sendCommand('set_bbs_config', ['config' => $config]);
+    }
+
+    public function getSystemConfig(): array
+    {
+        return $this->sendCommand('get_system_config');
+    }
+
+    public function setSystemConfig(array $config): array
+    {
+        return $this->sendCommand('set_system_config', ['config' => $config]);
+    }
+
+    public function getBinkpConfig(): array
+    {
+        return $this->sendCommand('get_binkp_config');
+    }
+
+    public function setBinkpConfig(array $config): array
+    {
+        return $this->sendCommand('set_binkp_config', ['config' => $config]);
+    }
+
     public function close(): void
     {
         if ($this->socket && is_resource($this->socket)) {

@@ -415,6 +415,14 @@ These variables are automatically available in **all templates**:
 | `stylesheet` | String | Path to the active stylesheet |
 | `available_themes` | Array | Theme name => stylesheet path mapping from config/themes.json |
 
+### Twig Functions
+
+These helper functions are available in templates:
+
+| Function | Description |
+|----------|-------------|
+| `bbs_feature_enabled('feature')` | Returns true/false for feature flags in `config/bbs.json` (e.g., `webdoors`, `shoutbox`, `advertising`, `voting_booth`, `chat`). |
+
 ### User Object Properties
 
 When `current_user` is not null, it has these properties:
