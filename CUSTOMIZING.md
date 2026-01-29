@@ -44,6 +44,18 @@ Edit `templates/custom/systemnews.twig` to add custom content to the user dashbo
 - `{{ fidonet_origin }}` - Your FidoNet address
 - `{{ app_version }}` - Application version
 
+### House Rules
+
+The House Rules modal pulls its content from `templates/rules.twig`.
+
+To customize it safely, create an override:
+
+```bash
+cp templates/rules.twig templates/custom/rules.twig
+```
+
+Edit `templates/custom/rules.twig` with your "House Rules" (HTML is allowed).
+
 ### Header Insertions (Custom CSS/JS)
 
 Add custom CSS, JavaScript, or meta tags by creating:
