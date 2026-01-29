@@ -1,0 +1,30 @@
+{% extends "base.twig" %}
+
+{% block title %}Advertisement{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 d-flex justify-content-center">
+        {% if ad %}
+            <div class="ansi-art-container">
+                <pre class="ansi-art" id="fullAdAnsi">{{ ad.content }}</pre>
+            </div>
+        {% else %}
+            <p class="text-muted">No advertisements available.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/js/ansisys.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const pre = document.getElementById('fullAdAnsi');
+    if (!pre || typeof renderAnsiTerminal !== 'function') {
+        return;
+    }
+    pre.innerHTML = renderAnsiTerminal(pre.textContent);
+});
+</script>
+{% endblock %}

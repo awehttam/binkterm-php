@@ -27,3 +27,6 @@ vendor/
 *~
 .env
 .env.local
+bbs_ads/*
+!bbs_ads/claudes*.ans
+
