@@ -67,6 +67,22 @@ class AdminDaemonClient
         return $this->sendCommand('set_binkp_config', ['config' => $config]);
     }
 
+    public function getWebdoorsConfig(): array
+    {
+        return $this->sendCommand('get_webdoors_config');
+    }
+
+    public function saveWebdoorsConfig(string $json): array
+    {
+        return $this->sendCommand('save_webdoors_config', ['json' => $json]);
+    }
+
+    public function activateWebdoorsConfig(): array
+    {
+        return $this->sendCommand('activate_webdoors_config');
+    }
+
+
     public function close(): void
     {
         if ($this->socket && is_resource($this->socket)) {

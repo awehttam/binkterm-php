@@ -83,6 +83,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/shoutbox.twig');
     });
 
+    // Webdoors config page
+    SimpleRouter::get('/webdoors', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/webdoors_config.twig');
+    });
+
     // BBS settings page
     SimpleRouter::get('/bbs-settings', function() {
         $auth = new Auth();
@@ -601,6 +613,66 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['error' => $e->getMessage()]);
             }
         });
+
+        SimpleRouter::get('/webdoors-config', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getWebdoorsConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/webdoors-config', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $json = $payload['json'] ?? '';
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->saveWebdoorsConfig((string)$json);
+                echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/webdoors-activate', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->activateWebdoorsConfig();
+                echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
 
         SimpleRouter::post('/chat-rooms', function() {
             $auth = new Auth();

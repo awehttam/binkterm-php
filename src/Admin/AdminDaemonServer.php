@@ -227,6 +227,27 @@ class AdminDaemonServer
                     );
                     $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
                     break;
+                case 'get_webdoors_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
+                    break;
+                case 'save_webdoors_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeWebdoorsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
+                    break;
+                case 'activate_webdoors_config':
+                    $this->activateWebdoorsConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -308,6 +329,68 @@ class AdminDaemonServer
         }
 
         return 'unix://' . __DIR__ . '/../../data/run/admin_daemon.sock';
+    }
+
+    private function getWebdoorsConfig(): array
+    {
+        $configPath = $this->getWebdoorsConfigPath();
+        $examplePath = $this->getWebdoorsExamplePath();
+
+        $active = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'active' => $active,
+            'config_json' => $configJson,
+            'example_json' => $exampleJson
+        ];
+    }
+
+    private function writeWebdoorsConfig(array $config): void
+    {
+        $configPath = $this->getWebdoorsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode webdoors config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function activateWebdoorsConfig(): void
+    {
+        $configPath = $this->getWebdoorsConfigPath();
+        if (file_exists($configPath)) {
+            return;
+        }
+
+        $examplePath = $this->getWebdoorsExamplePath();
+        if (!file_exists($examplePath)) {
+            throw new \RuntimeException('webdoors.json.example not found');
+        }
+
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        copy($examplePath, $configPath);
+    }
+
+    private function getWebdoorsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/webdoors.json';
+    }
+
+    private function getWebdoorsExamplePath(): string
+    {
+        return __DIR__ . '/../../config/webdoors.json.example';
     }
 
 }

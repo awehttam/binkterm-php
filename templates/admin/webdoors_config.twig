@@ -1,0 +1,283 @@
+{% extends "base.twig" %}
+
+{% block title %}Webdoors Config{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Webdoors Config</h1>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        Webdoors are enabled by having a <code>config/webdoors.json</code> file. This page lets you activate and edit it.
+    </div>
+
+    <div id="webdoorsStatusAlert"></div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Status</h6>
+            <div>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="activateWebdoors()" id="activateWebdoorsBtn">
+                    Activate Webdoors
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2"><strong>Config file:</strong> <span id="webdoorsConfigStatus">Loading...</span></div>
+                    <div class="mb-2 text-muted">Once activated, the config file is never deleted.</div>
+                </div>
+                <div class="col-md-6 text-md-end text-muted">
+                    <small>Editing JSON controls how doors appear in the system. Only <code>enabled</code> is known by the UI.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4" id="webdoorsEditorRow">
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">Doors</h6>
+                </div>
+                <div class="card-body" id="webdoorsList">
+                    <div class="text-muted">No config loaded.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">webdoors.json</h6>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatWebdoorsJson()">Format JSON</button>
+                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="saveWebdoorsConfig()" id="saveWebdoorsBtn">Save</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="webdoorsEditorAlert"></div>
+                    <textarea id="webdoorsJsonEditor" class="form-control" rows="20" spellcheck="false"
+                        style="font-family: Consolas, 'Courier New', monospace;"></textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="webdoorsJsonStatus">Waiting for config...</small>
+                        <small class="text-muted">JSON validation runs before saving.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let webdoorsConfigState = {
+    active: false,
+    configJson: null,
+    exampleJson: null
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadWebdoorsConfig();
+    document.getElementById('webdoorsJsonEditor').addEventListener('input', () => {
+        updateJsonStatus();
+        renderDoorList();
+    });
+});
+
+function loadWebdoorsConfig() {
+    fetch('/admin/api/webdoors-config')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load webdoors config');
+            }
+            const cfg = data.config || {};
+            webdoorsConfigState.active = !!cfg.active;
+            webdoorsConfigState.configJson = cfg.config_json || null;
+            webdoorsConfigState.exampleJson = cfg.example_json || null;
+
+            const editorValue = webdoorsConfigState.configJson || webdoorsConfigState.exampleJson || '{}';
+            document.getElementById('webdoorsJsonEditor').value = editorValue;
+            updateStatus();
+            updateJsonStatus();
+            renderDoorList();
+        })
+        .catch(error => {
+            showStatusAlert(error.message || 'Failed to load config', 'danger');
+        });
+}
+
+function updateStatus() {
+    const statusText = webdoorsConfigState.active ? 'Active (webdoors.json present)' : 'Not active (using example)';
+    document.getElementById('webdoorsConfigStatus').textContent = statusText;
+    document.getElementById('activateWebdoorsBtn').disabled = webdoorsConfigState.active;
+    document.getElementById('saveWebdoorsBtn').disabled = !webdoorsConfigState.active;
+    document.getElementById('webdoorsEditorRow').style.display = webdoorsConfigState.active ? '' : 'none';
+}
+
+function updateJsonStatus() {
+    const editor = document.getElementById('webdoorsJsonEditor');
+    const status = document.getElementById('webdoorsJsonStatus');
+    const { valid } = parseEditorJson(editor.value);
+    status.textContent = valid ? 'JSON is valid' : 'JSON has errors';
+    status.className = valid ? 'text-success' : 'text-danger';
+}
+
+function parseEditorJson(value) {
+    try {
+        return { valid: true, data: JSON.parse(value) };
+    } catch (err) {
+        return { valid: false, error: err };
+    }
+}
+
+function renderDoorList() {
+    const list = document.getElementById('webdoorsList');
+    const editorValue = document.getElementById('webdoorsJsonEditor').value;
+    const parsed = parseEditorJson(editorValue);
+
+    if (!parsed.valid || !parsed.data || typeof parsed.data !== 'object') {
+        list.innerHTML = '<div class="text-muted">Invalid JSON.</div>';
+        return;
+    }
+
+    const entries = Object.entries(parsed.data);
+    if (entries.length === 0) {
+        list.innerHTML = '<div class="text-muted">No doors defined.</div>';
+        return;
+    }
+
+    const items = entries.map(([key, value]) => {
+        const enabled = value && typeof value === 'object' ? !!value.enabled : false;
+        const encodedKey = encodeURIComponent(key);
+        return `
+            <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                <div>
+                    <div class="fw-semibold">${escapeHtml(key)}</div>
+                    <small class="text-muted">enabled: ${enabled ? 'true' : 'false'}</small>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" data-door-key="${encodedKey}" ${enabled ? 'checked' : ''} onchange="toggleDoorEnabled(this)">
+                </div>
+            </div>
+        `;
+    });
+
+    list.innerHTML = items.join('');
+}
+
+function toggleDoorEnabled(input) {
+    const key = decodeURIComponent(input.dataset.doorKey || '');
+    const enabled = input.checked;
+    const editor = document.getElementById('webdoorsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid) {
+        return;
+    }
+
+    if (!parsed.data[key] || typeof parsed.data[key] !== 'object') {
+        parsed.data[key] = {};
+    }
+
+    parsed.data[key].enabled = enabled;
+    editor.value = JSON.stringify(parsed.data, null, 2);
+    updateJsonStatus();
+}
+
+function formatWebdoorsJson() {
+    const editor = document.getElementById('webdoorsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid) {
+        showEditorAlert('Cannot format: invalid JSON', 'danger');
+        return;
+    }
+    editor.value = JSON.stringify(parsed.data, null, 2);
+    updateJsonStatus();
+}
+
+function saveWebdoorsConfig() {
+    const editor = document.getElementById('webdoorsJsonEditor');
+    const parsed = parseEditorJson(editor.value);
+    if (!parsed.valid) {
+        showEditorAlert('Please fix JSON errors before saving.', 'danger');
+        return;
+    }
+
+    fetch('/admin/api/webdoors-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json: editor.value })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save config');
+        }
+        showEditorAlert('Webdoors config saved.', 'success');
+        const cfg = data.config || {};
+        webdoorsConfigState.active = !!cfg.active;
+        webdoorsConfigState.configJson = cfg.config_json || editor.value;
+        updateStatus();
+    })
+    .catch(error => {
+        showEditorAlert(error.message || 'Failed to save config', 'danger');
+    });
+}
+
+function activateWebdoors() {
+    fetch('/admin/api/webdoors-activate', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to activate webdoors');
+            }
+            const cfg = data.config || {};
+            webdoorsConfigState.active = !!cfg.active;
+            webdoorsConfigState.configJson = cfg.config_json || webdoorsConfigState.configJson;
+            if (cfg.config_json) {
+                document.getElementById('webdoorsJsonEditor').value = cfg.config_json;
+            }
+            updateStatus();
+            updateJsonStatus();
+            renderDoorList();
+            showStatusAlert('Webdoors activated.', 'success');
+        })
+        .catch(error => {
+            showStatusAlert(error.message || 'Failed to activate webdoors', 'danger');
+        });
+}
+
+function showStatusAlert(message, type) {
+    const container = document.getElementById('webdoorsStatusAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showEditorAlert(message, type) {
+    const container = document.getElementById('webdoorsEditorAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+</script>
+{% endblock %}
