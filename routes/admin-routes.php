@@ -83,6 +83,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/shoutbox.twig');
     });
 
+    // Binkp configuration page
+    SimpleRouter::get('/binkp-config', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/binkp_config.twig', [
+            'timezone_list' => \DateTimeZone::listIdentifiers()
+        ]);
+    });
+
     // Webdoors config page
     SimpleRouter::get('/webdoors', function() {
         $auth = new Auth();
@@ -104,7 +118,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $adminController->requireAdmin($user);
 
         $template = new Template();
-        $template->renderResponse('admin/bbs_settings.twig');
+        $template->renderResponse('admin/bbs_settings.twig', [
+            'timezone_list' => \DateTimeZone::listIdentifiers()
+        ]);
     });
 
     // API routes for admin
@@ -125,6 +141,23 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
             $result = $adminController->getAllUsers($page, $limit, $search);
             echo json_encode($result);
+        });
+
+        SimpleRouter::get('/admin-users', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $stmt = $db->prepare("SELECT real_name FROM users WHERE is_admin = TRUE AND real_name IS NOT NULL ORDER BY real_name");
+            $stmt->execute();
+            $admins = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+            echo json_encode(['admins' => $admins]);
         });
 
         // Get specific user
@@ -574,7 +607,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
-        SimpleRouter::get('/bbs-binkp', function() {
+        SimpleRouter::get('/binkp-config', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
 
@@ -585,7 +618,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $config = $client->getBinkpConfig();
+                $config = $client->getFullBinkpConfig();
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
@@ -593,7 +626,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
-        SimpleRouter::post('/bbs-binkp', function() {
+        SimpleRouter::post('/binkp-config', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
 
@@ -606,10 +639,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $payload = json_decode(file_get_contents('php://input'), true);
                 $config = $payload['config'] ?? [];
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $updated = $client->setBinkpConfig($config);
+                $updated = $client->setFullBinkpConfig($config);
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
-                http_response_code(500);
+                http_response_code(400);
                 echo json_encode(['error' => $e->getMessage()]);
             }
         });

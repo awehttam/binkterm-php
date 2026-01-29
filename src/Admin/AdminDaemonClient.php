@@ -67,6 +67,16 @@ class AdminDaemonClient
         return $this->sendCommand('set_binkp_config', ['config' => $config]);
     }
 
+    public function getFullBinkpConfig(): array
+    {
+        return $this->sendCommand('get_full_binkp_config');
+    }
+
+    public function setFullBinkpConfig(array $config): array
+    {
+        return $this->sendCommand('set_full_binkp_config', ['config' => $config]);
+    }
+
     public function getWebdoorsConfig(): array
     {
         return $this->sendCommand('get_webdoors_config');

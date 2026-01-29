@@ -72,13 +72,24 @@ class BbsConfig
         }
 
         $merged = $defaults;
+        foreach ($config as $key => $value) {
+            if ($key === 'features') {
+                continue;
+            }
+            $merged[$key] = $value;
+        }
+
+        $features = $defaults['features'] ?? [];
         if (isset($config['features']) && is_array($config['features'])) {
-            foreach ($defaults['features'] as $key => $value) {
-                if (array_key_exists($key, $config['features'])) {
-                    $merged['features'][$key] = (bool)$config['features'][$key];
+            foreach ($config['features'] as $key => $value) {
+                if (array_key_exists($key, $features)) {
+                    $features[$key] = (bool)$value;
+                } else {
+                    $features[$key] = $value;
                 }
             }
         }
+        $merged['features'] = $features;
         self::$config = $merged;
     }
 
@@ -104,17 +115,44 @@ class BbsConfig
     public static function saveConfig(array $config): bool
     {
         $defaults = self::getDefaults();
-        $sanitized = $defaults;
+        $path = self::getConfigPath();
+        $existing = self::loadJsonFile($path) ?? [];
 
-        if (isset($config['features']) && is_array($config['features'])) {
-            foreach ($defaults['features'] as $key => $value) {
-                if (array_key_exists($key, $config['features'])) {
-                    $sanitized['features'][$key] = (bool)$config['features'][$key];
+        $sanitized = $defaults;
+        foreach ($existing as $key => $value) {
+            if ($key === 'features') {
+                continue;
+            }
+            $sanitized[$key] = $value;
+        }
+        foreach ($config as $key => $value) {
+            if ($key === 'features') {
+                continue;
+            }
+            $sanitized[$key] = $value;
+        }
+
+        $features = $defaults['features'] ?? [];
+        if (isset($existing['features']) && is_array($existing['features'])) {
+            foreach ($existing['features'] as $key => $value) {
+                if (array_key_exists($key, $features)) {
+                    $features[$key] = (bool)$value;
+                } else {
+                    $features[$key] = $value;
                 }
             }
         }
+        if (isset($config['features']) && is_array($config['features'])) {
+            foreach ($config['features'] as $key => $value) {
+                if (array_key_exists($key, $features)) {
+                    $features[$key] = (bool)$value;
+                } else {
+                    $features[$key] = $value;
+                }
+            }
+        }
+        $sanitized['features'] = $features;
 
-        $path = self::getConfigPath();
         $dir = dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);

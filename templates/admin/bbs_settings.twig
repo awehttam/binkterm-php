@@ -23,11 +23,20 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsSystemSysop">Sysop Name</label>
-                            <input type="text" class="form-control" id="bbsSystemSysop">
+                            <select class="form-select" id="bbsSystemSysop"></select>
+                            <small class="text-muted">Select an admin user.</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsSystemLocation">Location</label>
                             <input type="text" class="form-control" id="bbsSystemLocation">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsSystemTimezone">Timezone</label>
+                            <select class="form-select" id="bbsSystemTimezone">
+                                {% for tz in timezone_list %}
+                                    <option value="{{ tz }}">{{ tz }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsSystemAddress">System Address</label>
@@ -83,40 +92,6 @@
         </div>
     </div>
 
-    <div class="card shadow mt-4">
-        <div class="card-header">
-            <h6 class="mb-0">Binkp Configuration</h6>
-        </div>
-        <div class="card-body">
-            <div id="bbsBinkpAlert"></div>
-            <form id="bbsBinkpForm">
-                <div class="alert alert-info">
-                    Full configuration (including uplinks) can be edited in <code>config/binkp.json</code>.
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsBinkpPort">Port</label>
-                    <input type="number" class="form-control" id="bbsBinkpPort" min="1" max="65535">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsBinkpTimeout">Timeout (seconds)</label>
-                    <input type="number" class="form-control" id="bbsBinkpTimeout" min="30" max="3600">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsBinkpMaxConnections">Max Connections</label>
-                    <input type="number" class="form-control" id="bbsBinkpMaxConnections" min="1" max="100">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="bbsBinkpBindAddress">Bind Address</label>
-                    <input type="text" class="form-control" id="bbsBinkpBindAddress">
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="bbsBinkpPreservePackets">
-                    <label class="form-check-label" for="bbsBinkpPreservePackets">Preserve Processed Packets</label>
-                </div>
-                <button type="button" class="btn btn-primary" onclick="saveBbsBinkp()">Save Binkp Settings</button>
-            </form>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -125,7 +100,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     loadBbsSettings();
     loadBbsSystem();
-    loadBbsBinkp();
+    loadAdminUsers('bbsSystemSysop');
 });
 
 function loadBbsSettings() {
@@ -184,10 +159,12 @@ function loadBbsSystem() {
             }
             const config = data.config || {};
             document.getElementById('bbsSystemName').value = config.name || '';
-            document.getElementById('bbsSystemSysop').value = config.sysop || '';
+            document.getElementById('bbsSystemSysop').dataset.currentValue = config.sysop || '';
             document.getElementById('bbsSystemLocation').value = config.location || '';
+            document.getElementById('bbsSystemTimezone').value = config.timezone || 'UTC';
             document.getElementById('bbsSystemAddress').value = config.address || '';
             document.getElementById('bbsSystemOrigin').value = config.origin || '';
+            syncSysopSelect('bbsSystemSysop');
         })
         .catch(error => {
             showBbsSystemAlert(error.message || 'Failed to load system settings', 'danger');
@@ -197,8 +174,9 @@ function loadBbsSystem() {
 function saveBbsSystem() {
     const config = {
         name: document.getElementById('bbsSystemName').value.trim(),
-        sysop: document.getElementById('bbsSystemSysop').value.trim(),
+        sysop: document.getElementById('bbsSystemSysop').value,
         location: document.getElementById('bbsSystemLocation').value.trim(),
+        timezone: document.getElementById('bbsSystemTimezone').value,
         address: document.getElementById('bbsSystemAddress').value.trim(),
         origin: document.getElementById('bbsSystemOrigin').value.trim()
     };
@@ -217,51 +195,6 @@ function saveBbsSystem() {
     })
     .catch(error => {
         showBbsSystemAlert(error.message || 'Failed to save system settings', 'danger');
-    });
-}
-
-function loadBbsBinkp() {
-    fetch('/admin/api/bbs-binkp')
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load binkp settings');
-            }
-            const config = data.config || {};
-            document.getElementById('bbsBinkpPort').value = config.port ?? '';
-            document.getElementById('bbsBinkpTimeout').value = config.timeout ?? '';
-            document.getElementById('bbsBinkpMaxConnections').value = config.max_connections ?? '';
-            document.getElementById('bbsBinkpBindAddress').value = config.bind_address ?? '';
-            document.getElementById('bbsBinkpPreservePackets').checked = !!config.preserve_processed_packets;
-        })
-        .catch(error => {
-            showBbsBinkpAlert(error.message || 'Failed to load binkp settings', 'danger');
-        });
-}
-
-function saveBbsBinkp() {
-    const config = {
-        port: parseInt(document.getElementById('bbsBinkpPort').value, 10),
-        timeout: parseInt(document.getElementById('bbsBinkpTimeout').value, 10),
-        max_connections: parseInt(document.getElementById('bbsBinkpMaxConnections').value, 10),
-        bind_address: document.getElementById('bbsBinkpBindAddress').value.trim(),
-        preserve_processed_packets: document.getElementById('bbsBinkpPreservePackets').checked
-    };
-
-    fetch('/admin/api/bbs-binkp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to save binkp settings');
-        }
-        showBbsBinkpAlert('Binkp settings saved successfully.', 'success');
-    })
-    .catch(error => {
-        showBbsBinkpAlert(error.message || 'Failed to save binkp settings', 'danger');
     });
 }
 
@@ -285,14 +218,39 @@ function showBbsSystemAlert(message, type) {
     `;
 }
 
-function showBbsBinkpAlert(message, type) {
-    const container = document.getElementById('bbsBinkpAlert');
-    container.innerHTML = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
+function loadAdminUsers(selectId) {
+    fetch('/admin/api/admin-users')
+        .then(response => response.json())
+        .then(data => {
+            const list = Array.isArray(data.admins) ? data.admins : [];
+            const select = document.getElementById(selectId);
+            select.innerHTML = '';
+            list.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            syncSysopSelect(selectId);
+        })
+        .catch(() => {});
+}
+
+function syncSysopSelect(selectId) {
+    const select = document.getElementById(selectId);
+    const current = select.dataset.currentValue || '';
+    if (!current) {
+        return;
+    }
+
+    const exists = Array.from(select.options).some(opt => opt.value === current);
+    if (!exists) {
+        const option = document.createElement('option');
+        option.value = current;
+        option.textContent = `${current} (current)`;
+        select.insertBefore(option, select.firstChild);
+    }
+    select.value = current;
 }
 </script>
 {% endblock %}

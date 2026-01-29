@@ -206,7 +206,8 @@ class AdminDaemonServer
                         $payload['sysop'] ?? null,
                         $payload['location'] ?? null,
                         $payload['hostname'] ?? null,
-                        $payload['origin'] ?? null
+                        $payload['origin'] ?? null,
+                        $payload['timezone'] ?? null
                     );
                     $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getSystemConfig()]);
                     break;
@@ -225,6 +226,33 @@ class AdminDaemonServer
                         $payload['preserve_processed_packets'] ?? null
                     );
                     $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getBinkpConfig()]);
+                    break;
+                case 'get_full_binkp_config':
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getFullConfig()]);
+                    break;
+                case 'set_full_binkp_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!is_array($payload)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_config']);
+                        break;
+                    }
+                    $payload['system'] = is_array($payload['system'] ?? null) ? $payload['system'] : [];
+                    $payload['binkp'] = is_array($payload['binkp'] ?? null) ? $payload['binkp'] : [];
+                    $payload['uplinks'] = is_array($payload['uplinks'] ?? null) ? $payload['uplinks'] : [];
+                    $payload['security'] = is_array($payload['security'] ?? null) ? $payload['security'] : [];
+                    $payload['crashmail'] = is_array($payload['crashmail'] ?? null) ? $payload['crashmail'] : [];
+
+                    $binkpConfig = BinkpConfig::getInstance();
+                    $existing = $binkpConfig->getFullConfig();
+                    $merged = is_array($existing) ? $existing : [];
+                    $merged['system'] = array_merge($merged['system'] ?? [], $payload['system']);
+                    $merged['binkp'] = array_merge($merged['binkp'] ?? [], $payload['binkp']);
+                    $merged['security'] = array_merge($merged['security'] ?? [], $payload['security']);
+                    $merged['crashmail'] = array_merge($merged['crashmail'] ?? [], $payload['crashmail']);
+                    $merged['uplinks'] = $this->mergeUplinks($merged['uplinks'] ?? [], $payload['uplinks']);
+                    $binkpConfig->setFullConfig($merged);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getFullConfig()]);
                     break;
                 case 'get_webdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
@@ -390,6 +418,34 @@ class AdminDaemonServer
     private function getWebdoorsExamplePath(): string
     {
         return __DIR__ . '/../../config/webdoors.json.example';
+    }
+
+    private function mergeUplinks(array $existing, array $incoming): array
+    {
+        $indexed = [];
+        foreach ($existing as $uplink) {
+            if (!is_array($uplink)) {
+                continue;
+            }
+            $key = $uplink['address'] ?? ($uplink['hostname'] ?? null);
+            if ($key === null) {
+                continue;
+            }
+            $indexed[strtolower((string)$key)] = $uplink;
+        }
+
+        $merged = [];
+        foreach ($incoming as $uplink) {
+            if (!is_array($uplink)) {
+                continue;
+            }
+            $key = $uplink['address'] ?? ($uplink['hostname'] ?? null);
+            $lookup = $key !== null ? strtolower((string)$key) : null;
+            $base = $lookup !== null && isset($indexed[$lookup]) ? $indexed[$lookup] : [];
+            $merged[] = array_merge($base, $uplink);
+        }
+
+        return $merged;
     }
 
 }

@@ -218,7 +218,7 @@ UPDATE users SET is_admin = TRUE WHERE username = 'username';
 **A:**
 - Packet processing: `data/logs/packets.log`
 - PHP errors: Check your web server's error log
-- Binkp sessions: Enable logging in `binkp.json` with `"log_all_sessions": true`
+- Binkp sessions: The session logs are always recorded by the binkp daemons.
 
 ### Q: Messages aren't being imported from packets
 **A:** Check:

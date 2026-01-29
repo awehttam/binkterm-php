@@ -269,12 +269,10 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
     ],
     "security": {
         "allow_insecure_inbound": false,
-        "allow_insecure_outbound": false,
         "insecure_inbound_receive_only": true,
         "require_allowlist_for_insecure": false,
         "max_insecure_sessions_per_hour": 10,
-        "insecure_session_timeout": 60,
-        "log_all_sessions": true
+        "allow_plaintext_fallback": true
     },
     "crashmail": {
         "enabled": true,
@@ -283,10 +281,6 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
         "use_nodelist_for_routing": true,
         "fallback_port": 24554,
         "allow_insecure_crash_delivery": true
-    },
-    "transit": {
-        "allow_transit_mail": false,
-        "transit_only_for_known_routes": true
     }
 }
 ```
@@ -379,12 +373,10 @@ The `security` section controls insecure (passwordless) binkp sessions:
 | Field | Default | Description |
 |-------|---------|-------------|
 | `allow_insecure_inbound` | false | Allow incoming connections without password authentication |
-| `allow_insecure_outbound` | false | Allow outgoing connections without password authentication |
 | `insecure_inbound_receive_only` | true | Insecure sessions can only deliver mail, not pick up |
 | `require_allowlist_for_insecure` | false | Only allow insecure sessions from nodes in the allowlist |
 | `max_insecure_sessions_per_hour` | 10 | Rate limit for insecure sessions per remote address |
-| `insecure_session_timeout` | 60 | Timeout in seconds for insecure sessions |
-| `log_all_sessions` | true | Log all binkp sessions for audit trail |
+| `allow_plaintext_fallback` | true | Allow plaintext fallback when CRAM-MD5 is available |
 
 **Security Note**: Insecure sessions should be used with caution. They are typically used for receiving mail from nodes that don't have your password configured. The allowlist (managed via Admin > Insecure Nodes) provides fine-grained control over which nodes can connect without authentication.
 
@@ -401,14 +393,6 @@ The `crashmail` section controls immediate/direct delivery of netmail:
 | `allow_insecure_crash_delivery` | false | Allow crashmail delivery without password |
 
 **About Crashmail**: Crashmail bypasses normal hub routing and attempts direct delivery to the destination node. This is useful for urgent messages but requires the destination node to be directly reachable. The system uses nodelist IBN/INA flags to determine the destination's hostname and port.
-
-#### Transit Settings
-The `transit` section controls mail routing through your system:
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `allow_transit_mail` | false | Allow routing mail not destined for this system |
-| `transit_only_for_known_routes` | true | Only transit mail for addresses in your routing table |
 
 ### Nodelist Configuration
 
