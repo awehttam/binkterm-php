@@ -100,6 +100,9 @@ function buildDigest($format, $data, DateTime $start, DateTime $end)
     $lines[] = "- Shoutbox posts: {$data['shoutbox_posts']}";
     $lines[] = "- New polls: {$data['new_polls']}";
     $lines[] = "- New users: {$data['new_users']}";
+    $lines[] = "- Pending registrations: {$data['pending_users']}";
+    $lines[] = "- Active users: {$data['active_users']}";
+    $lines[] = "- Disabled users: {$data['disabled_users']}";
     $lines[] = '';
 
     $sectionTitle = $isAnsi ? formatAnsi('Active Polls', '1;33') : 'Active Polls';
@@ -178,6 +181,20 @@ function fetchDigestData(DateTime $start, DateTime $end): array
     $userStmt->execute([$startStr, $endStr]);
     $newUsers = (int)($userStmt->fetch()['count'] ?? 0);
 
+    $pendingStmt = $db->prepare("
+        SELECT COUNT(*) as count
+        FROM pending_users
+        WHERE status = 'pending' AND requested_at >= ? AND requested_at < ?
+    ");
+    $pendingStmt->execute([$startStr, $endStr]);
+    $pendingUsers = (int)($pendingStmt->fetch()['count'] ?? 0);
+
+    $activeUsersStmt = $db->query("SELECT COUNT(*) as count FROM users WHERE is_active = TRUE");
+    $activeUsers = (int)($activeUsersStmt->fetch()['count'] ?? 0);
+
+    $disabledUsersStmt = $db->query("SELECT COUNT(*) as count FROM users WHERE is_active = FALSE");
+    $disabledUsers = (int)($disabledUsersStmt->fetch()['count'] ?? 0);
+
     $pollQuestionsStmt = $db->prepare("
         SELECT question
         FROM polls
@@ -244,6 +261,9 @@ function fetchDigestData(DateTime $start, DateTime $end): array
         'shoutbox_posts' => $shoutboxPosts,
         'new_polls' => $newPolls,
         'new_users' => $newUsers,
+        'pending_users' => $pendingUsers,
+        'active_users' => $activeUsers,
+        'disabled_users' => $disabledUsers,
         'poll_questions' => $pollQuestions,
         'top_echoareas' => $topEchoareas,
         'top_shoutbox_users' => $topShoutboxUsers,
