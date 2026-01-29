@@ -66,6 +66,11 @@ function daemonize()
     fclose(STDERR);
 }
 
+function setConsoleTitle(string $title): void
+{
+    echo "\033]0;{$title}\007";
+}
+
 $args = parseArgs($argv);
 $defaultPidFile = __DIR__ . '/../data/run/binkp_server.pid';
 $pidFile = $args['pid-file'] ?? (\BinktermPHP\Config::env('BINKP_SERVER_PID_FILE') ?: $defaultPidFile);
@@ -95,6 +100,8 @@ try {
     if (isset($args['daemon']) && function_exists('pcntl_fork')) {
         $logger->setLogToConsole(false);
         daemonize();
+    } else {
+        setConsoleTitle('BinktermPHP Binkp Server');
     }
 
     if ($pidFile) {

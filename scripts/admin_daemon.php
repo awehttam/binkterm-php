@@ -66,6 +66,11 @@ function daemonize()
     fclose(STDERR);
 }
 
+function setConsoleTitle(string $title): void
+{
+    echo "\033]0;{$title}\007";
+}
+
 $args = parseArgs($argv);
 
 if (isset($args['help'])) {
@@ -86,6 +91,8 @@ try {
     if (isset($args['daemon']) && function_exists('pcntl_fork')) {
         $logger->setLogToConsole(false);
         daemonize();
+    } else {
+        setConsoleTitle('BinktermPHP Admin Daemon');
     }
 
     $pidDir = dirname($pidFile);
