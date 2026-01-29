@@ -401,7 +401,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             SELECT id, question
             FROM polls
             WHERE is_active = TRUE
-            ORDER BY created_at DESC
+            ORDER BY created_at ASC
         ");
         $pollStmt->execute();
         $polls = $pollStmt->fetchAll();

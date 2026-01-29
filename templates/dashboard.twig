@@ -199,7 +199,8 @@ function loadVotingBooth(keepPollId = null) {
                 const idx = votingPolls.findIndex(p => p.id === keepPollId);
                 votingPollIndex = idx >= 0 ? idx : 0;
             } else {
-                votingPollIndex = Math.min(votingPollIndex, votingPolls.length - 1);
+                const unansweredIndex = votingPolls.findIndex(p => !p.has_voted);
+                votingPollIndex = unansweredIndex >= 0 ? unansweredIndex : 0;
             }
             renderVotingBooth();
         })
