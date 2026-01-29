@@ -108,7 +108,7 @@
         </div>
 
         <div class="col-lg-6 mb-4">
-            <div class="card shadow">
+            <div class="card shadow mb-4">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">System Information</h6>
                 </div>
@@ -136,9 +136,81 @@
                             <strong>System Address:</strong>
                         </div>
                         <div class="col-sm-6">
-                            {{ fidonetOrigin }}
+                            {% if system_addresses is defined and system_addresses|length > 0 %}
+                                {{ system_addresses|join(', ') }}
+                            {% else %}
+                                {{ fidonetOrigin }}
+                            {% endif %}
                         </div>
                     </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>Version:</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {{ app_version }}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>Git Commit:</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {% if git_commit %}
+                                <span class="text-muted">{{ git_commit|slice(0, 8) }}</span>
+                            {% else %}
+                                <span class="text-muted">n/a</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <strong>Database Version:</strong>
+                        </div>
+                        <div class="col-sm-6">
+                            {% if db_version %}
+                                <span class="text-muted">{{ db_version }}</span>
+                            {% else %}
+                                <span class="text-muted">n/a</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Service Status</h6>
+                </div>
+                <div class="card-body">
+                    {% set services = {
+                        'admin_daemon': 'Admin Daemon',
+                        'binkp_scheduler': 'Binkp Scheduler',
+                        'binkp_server': 'Binkp Server'
+                    } %}
+                    {% for key, label in services %}
+                        {% set info = daemon_status[key] ?? null %}
+                        <div class="row align-items-center">
+                            <div class="col-sm-6">
+                                <strong>{{ label }}:</strong>
+                            </div>
+                            <div class="col-sm-6">
+                                {% if info and info.running %}
+                                    <span class="badge bg-success">Running</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Stopped</span>
+                                {% endif %}
+                                {% if info and info.pid %}
+                                    <small class="text-muted ms-2">PID {{ info.pid }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if not loop.last %}
+                            <hr>
+                        {% endif %}
+                    {% endfor %}
                 </div>
             </div>
         </div>

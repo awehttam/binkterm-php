@@ -16,6 +16,7 @@ function showUsage()
     echo "  --uplinks         Show uplink status\n";
     echo "  --schedule        Show polling schedule status\n";
     echo "  --queues          Show queue status\n";
+    echo "  --daemons         Show daemon status\n";
     echo "  --config          Show configuration\n";
     echo "  --all             Show all status information (default)\n";
     echo "  --json            Output in JSON format\n";
@@ -184,6 +185,52 @@ function showConfig($config, $json = false)
     return ['config' => $fullConfig];
 }
 
+function showDaemonStatus($json = false)
+{
+    $runDir = __DIR__ . '/../data/run';
+    $pidFiles = [
+        'admin_daemon' => $runDir . '/admin_daemon.pid',
+        'binkp_scheduler' => $runDir . '/binkp_scheduler.pid',
+        'binkp_server' => $runDir . '/binkp_server.pid'
+    ];
+
+    $status = [];
+
+    foreach ($pidFiles as $name => $pidFile) {
+        $pid = null;
+        $running = false;
+
+        if (file_exists($pidFile)) {
+            $pid = trim(file_get_contents($pidFile));
+            if ($pid !== '' && is_numeric($pid)) {
+                $running = function_exists('posix_kill') ? @posix_kill((int)$pid, 0) : false;
+            }
+        }
+
+        $status[$name] = [
+            'pid_file' => $pidFile,
+            'pid' => $pid ?: null,
+            'running' => $running
+        ];
+    }
+
+    if ($json) {
+        return ['daemons' => $status];
+    }
+
+    echo "\n=== DAEMON STATUS ===\n";
+    foreach ($status as $name => $info) {
+        $state = $info['running'] ? 'RUNNING' : 'STOPPED';
+        $pidLabel = $info['pid'] ?: 'n/a';
+        echo "\n{$name}:\n";
+        echo "  PID file: {$info['pid_file']}\n";
+        echo "  PID: {$pidLabel}\n";
+        echo "  Status: {$state}\n";
+    }
+
+    return ['daemons' => $status];
+}
+
 $args = parseArgs($argv);
 
 if (isset($args['help'])) {
@@ -192,7 +239,7 @@ if (isset($args['help'])) {
 }
 
 $json = isset($args['json']);
-$showAll = isset($args['all']) || (!isset($args['uplinks']) && !isset($args['schedule']) && !isset($args['queues']) && !isset($args['config']));
+$showAll = isset($args['all']) || (!isset($args['uplinks']) && !isset($args['schedule']) && !isset($args['queues']) && !isset($args['config']) && !isset($args['daemons']));
 
 try {
     $config = BinkpConfig::getInstance();
@@ -220,6 +267,11 @@ try {
     
     if ($showAll || isset($args['queues'])) {
         $result = showQueueStatus($inboundQueue, $outboundQueue, $json);
+        $output = array_merge($output, $result);
+    }
+
+    if ($showAll || isset($args['daemons'])) {
+        $result = showDaemonStatus($json);
         $output = array_merge($output, $result);
     }
     

@@ -8,6 +8,7 @@ config/systemnews.twig
 templates/custom/*
 data/*
 !data/.gitkeep
+!data/run/
 !data/logs/
 data/logs/*
 !data/logs/.gitkeep
@@ -17,6 +18,8 @@ data/inbound/*
 !data/outbound/
 data/outbound/*
 !data/outbound/.gitkeep
+data/run/*
+!data/run/.gitkeep
 backups/*
 .idea/
 .claude/

@@ -147,38 +147,53 @@ class Logger
         return $this->logFile;
     }
     
-    public function getRecentLogs($lines = 100)
+    public function getRecentLogs($lines = 100, array $logFiles = [])
     {
-        if (!file_exists($this->logFile)) {
-            return [];
+        if (empty($logFiles)) {
+            $logFiles = [
+                basename($this->logFile) => $this->logFile
+            ];
         }
-        
-        $handle = fopen($this->logFile, 'r');
-        if (!$handle) {
-            return [];
-        }
-        
-        $logLines = [];
-        $buffer = '';
-        $pos = filesize($this->logFile);
-        
-        while ($pos > 0 && count($logLines) < $lines) {
-            $chunkSize = min(8192, $pos);
-            $pos -= $chunkSize;
-            fseek($handle, $pos);
-            $chunk = fread($handle, $chunkSize);
-            $buffer = $chunk . $buffer;
-            
-            $newLines = explode("\n", $buffer);
-            if (count($newLines) > 1) {
-                $buffer = array_shift($newLines);
-                $logLines = array_merge($newLines, $logLines);
+
+        $combined = [];
+
+        foreach ($logFiles as $label => $path) {
+            if (!file_exists($path)) {
+                continue;
+            }
+
+            $handle = fopen($path, 'r');
+            if (!$handle) {
+                continue;
+            }
+
+            $logLines = [];
+            $buffer = '';
+            $pos = filesize($path);
+
+            while ($pos > 0 && count($logLines) < $lines) {
+                $chunkSize = min(8192, $pos);
+                $pos -= $chunkSize;
+                fseek($handle, $pos);
+                $chunk = fread($handle, $chunkSize);
+                $buffer = $chunk . $buffer;
+
+                $newLines = explode("\n", $buffer);
+                if (count($newLines) > 1) {
+                    $buffer = array_shift($newLines);
+                    $logLines = array_merge($newLines, $logLines);
+                }
+            }
+
+            fclose($handle);
+
+            $logLines = array_slice(array_filter($logLines), -$lines);
+            foreach ($logLines as $line) {
+                $combined[] = "{$label}: {$line}";
             }
         }
-        
-        fclose($handle);
-        
-        return array_slice(array_filter($logLines), -$lines);
+
+        return $combined;
     }
     
     public function clearLog()

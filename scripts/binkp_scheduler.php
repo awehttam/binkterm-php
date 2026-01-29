@@ -8,16 +8,18 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use BinktermPHP\Binkp\Connection\Scheduler;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Version;
 
 function showUsage()
 {
     echo "Usage: php binkp_scheduler.php [options]\n";
     echo "Options:\n";
-    echo "  --interval=SECONDS   Polling interval in seconds (default: 60)\n";
+    echo "  --interval=SECONDS   Processing interval in seconds (default: 60)\n";
     echo "  --log-level=LEVEL    Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL\n";
     echo "  --log-file=FILE      Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_scheduler.log') . ")\n";
     echo "  --no-console         Disable console logging\n";
     echo "  --daemon             Run as daemon (detach from terminal)\n";
+    echo "  --pid-file=FILE      Write PID file\n";
     echo "  --once               Run once and exit\n";
     echo "  --status             Show schedule status and exit\n";
     echo "  --help               Show this help message\n";
@@ -65,7 +67,14 @@ function daemonize()
     fclose(STDERR);
 }
 
+function setConsoleTitle(string $title): void
+{
+    echo "\033]0;{$title}\007";
+}
+
 $args = parseArgs($argv);
+$defaultPidFile = __DIR__ . '/../data/run/binkp_scheduler.pid';
+$pidFile = $args['pid-file'] ?? (\BinktermPHP\Config::env('BINKP_SCHEDULER_PID_FILE') ?: $defaultPidFile);
 
 if (isset($args['help'])) {
     showUsage();
@@ -81,9 +90,9 @@ try {
     $interval = isset($args['interval']) ? (int) $args['interval'] : 60;
     
     $logger = new Logger($logFile, $logLevel, $logToConsole);
-    $scheduler = new Scheduler($config, $logger);
     
     if (isset($args['status'])) {
+        $scheduler = new Scheduler($config, $logger);
         $status = $scheduler->getScheduleStatus();
         
         echo "=== POLLING SCHEDULE STATUS ===\n";
@@ -103,10 +112,22 @@ try {
     if (isset($args['daemon']) && function_exists('pcntl_fork')) {
         $logger->setLogToConsole(false);
         daemonize();
+    } else {
+        setConsoleTitle('BinktermPHP Binkp Scheduler');
+    }
+
+    if ($pidFile) {
+        $pidDir = dirname($pidFile);
+        if (!is_dir($pidDir)) {
+            @mkdir($pidDir, 0755, true);
+        }
+        @file_put_contents($pidFile, (string)getmypid());
     }
     
-    $logger->info("Starting Binkp scheduler daemon...");
-    $logger->info("Polling interval: {$interval} seconds");
+    $scheduler = new Scheduler($config, $logger);
+
+    $logger->info("Starting BinktermPHP scheduler daemon ".Version::getVersion()."...");
+    $logger->info("Processing interval: {$interval} seconds");
     
     $uplinks = $config->getUplinks();
     $logger->info("Configured uplinks: " . count($uplinks));
@@ -117,15 +138,17 @@ try {
         $logger->info("  - {$uplink['address']} [{$status}] ({$schedule})");
     }
     
-    pcntl_signal(SIGTERM, function() use ($logger) {
-        $logger->info("Received SIGTERM, shutting down...");
-        exit(0);
-    });
-    
-    pcntl_signal(SIGINT, function() use ($logger) {
-        $logger->info("Received SIGINT, shutting down...");
-        exit(0);
-    });
+    if (function_exists('pcntl_signal')) {
+        pcntl_signal(SIGTERM, function() use ($logger) {
+            $logger->info("Received SIGTERM, shutting down...");
+            exit(0);
+        });
+        
+        pcntl_signal(SIGINT, function() use ($logger) {
+            $logger->info("Received SIGINT, shutting down...");
+            exit(0);
+        });
+    }
     
     if (isset($args['once'])) {
         $logger->info("Running scheduled polls once...");

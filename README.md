@@ -58,7 +58,7 @@ Here are some screen shots showing various aspects of the interface with differe
   </tr>
    <Tr>
    <td align="center"><B>Web Doors</B><BR><img src="docs/screenshots/webdoors.png" width="400">"</td>
-   <td align="center"><B>Userr Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
+   <td align="center"><B>User Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
    </Tr>
 <tr>
 </tr>
@@ -105,20 +105,29 @@ Here are some screen shots showing various aspects of the interface with differe
 - **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management
-- **Operating System** - Linux, macOS, Windows (no binkp_server)
+- **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
 
-### Step 1: Clone Repository
+### Step 1: Pre-requisite Packages
+Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install -y unzip p7zip-full
+```
+
+The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
+
+### Step 2: Clone Repository
 ```bash
 git clone https://github.com/awehttam/binkterm-php
 cd binkterm-php
 ```
 
-### Step 2: Install Dependencies
+### Step 3: Install Dependencies
 ```bash
 composer install
 ```
 
-### Step 3: Configure Environment
+### Step 4: Configure Environment
 Copy the example environment file and configure your settings:
 ```bash
 cp .env.example .env
@@ -126,7 +135,7 @@ cp .env.example .env
 
 Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
 
-### Step 4: Install the database schema and configure the initial Admin user
+### Step 5: Install the database schema and configure the initial Admin user
 Use the installation script for automated setup:
 ```bash
 # Interactive installation (prompts for admin credentials)
@@ -141,7 +150,7 @@ Alternatively, use the setup script which auto-detects whether to install or upg
 php scripts/setup.php
 ```
 
-### Step 5: Configure Web Server
+### Step 6: Configure Web Server
 
 #### Apache
 ```apache
@@ -183,18 +192,24 @@ cd public_html
 php -S localhost:8080
 ```
 
-### Step 6: Set Up Cron Jobs (Recommended)
-Add cron jobs for automated mail polling and nodelist updates:
+### Step 7: Set Up Cron Jobs (Recommended)
+Start the long-running services at boot and keep cron for periodic maintenance tasks:
 
 ```cron
-# Poll uplinks every 15 minutes
-*/15 * * * * /usr/bin/php /path/to/binkterm/scripts/binkp_poll.php --quiet
+# Start admin daemon on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php --daemon
+
+# Start scheduler on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_scheduler.php --daemon
+
+# Start binkp server on boot (Linux/macOS)
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
 
 # Update nodelists daily at 3am
 0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
 ```
 
-See the [Operation](#operation) section for additional cron job examples.
+Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for additional cron examples.
 
 ### Step 7: Set Directory Permissions
 The `data/outbound` directory must be writable by both the web server and the user running binkp scripts:
@@ -209,6 +224,8 @@ The sticky bit (`t`) ensures files can only be deleted by their owner, preventin
 
 ### Basic System Configuration
 Edit `config/binkp.json` to configure your system. See `config/binkp.json.example` for a complete reference.
+
+Note:  Be sure to restart BBS services after editing binkp.json.  You can use the `scripts/restart_daemons.sh` script for this on Linux.
 
 ```json
 {
@@ -243,7 +260,7 @@ Edit `config/binkp.json` to configure your system. See `config/binkp.json.exampl
             "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
             "password": "xyzzy",
-            "poll_schedule": "0 */4 * * *",
+            "poll_schedule": "*/15 * * * *",
             "enabled": true,
             "compression": false,
             "crypt": false,
@@ -337,6 +354,7 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fidonet-hub.example.com",
             "port": 24554,
             "password": "fido_password",
+            "poll_schedule": "*/15 * * * *",
             "default": true,
             "enabled": true
         },
@@ -348,6 +366,7 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fsxnet-hub.example.com",
             "port": 24554,
             "password": "fsx_password",
+            "poll_schedule": "*/15 * * * *",
             "enabled": true
         }
     ]
@@ -516,10 +535,12 @@ The general steps are:
 1. **Pull the latest code** - `git pull`
 2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
 3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
+4. **Restart daemons** - `bash scripts/restart_daemons.sh`
 
 
 ### Version-Specific Upgrade Guides
 
+- January 28 2026 - [UPGRADING_1.7.0.md](UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
 - January 24 2026 - [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
 
 ## Database Management
@@ -593,6 +614,37 @@ php scripts/weather_report.php --config=/path/to/custom/weather.json
 ```
 
 The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [scripts/README_weather.md](scripts/README_weather.md) for detailed setup instructions and configuration examples.
+
+### Activity Digest Generator
+Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:
+
+```bash
+# Default: last 30 days, ASCII to stdout
+php scripts/activity_digest.php
+
+# Custom time range and output file
+php scripts/activity_digest.php --from=2026-01-01 --to=2026-01-31 --output=digests/january.txt
+
+# ANSI output for BBS posting
+php scripts/activity_digest.php --since=30d --format=ansi --output=digests/last_month.ans
+```
+
+### Activity Report Sender
+Generate an ANSI digest and send it as netmail to the sysop (weekly by default):
+
+```bash
+# Default weekly digest to sysop
+php scripts/send_activityreport.php
+
+# Custom range and recipient
+php scripts/send_activityreport.php --from=2026-01-01 --to=2026-01-31 --to-name=sysop
+```
+
+Weekly cron example:
+
+```bash
+0 9 * * 1 /usr/bin/php /path/to/binkterm/scripts/send_activityreport.php --since=7d
+```
 
 ### Echomail Maintenance Utility
 Manage echomail storage by purging old messages based on age or message count limits:
@@ -768,7 +820,7 @@ php scripts/binkp_scheduler.php --once
 # Show schedule status
 php scripts/binkp_scheduler.php --status
 
-# Custom interval (seconds)
+# Custom interval to check outgoing queues (seconds)
 php scripts/binkp_scheduler.php --interval=120
 ```
 
@@ -784,6 +836,48 @@ php scripts/debug_binkp.php 1:153/149
 php scripts/process_packets.php
 ```
 
+#### Fidonet Bundle Extraction
+Fidonet day bundles (e.g., `.su0`, `.mo1`, `.we1`) and legacy archives like `.arc`, `.arj`, `.lzh`, `.rar` may contain `.pkt` files. BinktermPHP will try ZIP first, then fall back to external extractors.
+
+Configure extractors via `.env`:
+```
+ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
+```
+
+Install a compatible extractor (7-Zip recommended) so non-ZIP bundles can be unpacked.
+
+### Admin Daemon
+The admin daemon is a lightweight control socket that accepts authenticated commands to run backend tasks from inside the app. It listens on a Unix socket by default (Linux/macOS) and TCP on Windows.
+
+```bash
+# Start in foreground (default)
+php scripts/admin_daemon.php
+
+# Specify socket and secret
+php scripts/admin_daemon.php --socket=unix:///tmp/binkterm_admin.sock --secret=change_me
+
+# Windows example (TCP loopback)
+php scripts/admin_daemon.php --socket=tcp://127.0.0.1:9065 --secret=change_me
+```
+
+Example usage from PHP:
+```php
+$client = new \BinktermPHP\Admin\AdminDaemonClient();
+$client->processPackets();
+$client->binkPoll('1:153/149');
+```
+
+Command line client:
+```bash
+php scripts/admin_client.php process-packets
+php scripts/admin_client.php binkp-poll 1:153/149
+```
+
+Environment options:
+- `ADMIN_DAEMON_SOCKET`: `unix:///path.sock` or `tcp://127.0.0.1:PORT`
+- `ADMIN_DAEMON_SOCKET_PERMS`: Unix socket permissions (octal, e.g. `0660`)
+- `ADMIN_DAEMON_SECRET`: Shared secret required on connect
+- `ADMIN_DAEMON_PID_FILE`: Optional PID file location
 ### Nodelist Updates
 Automatically download and import nodelists from configured sources.
 
@@ -847,10 +941,10 @@ php scripts/update_nodelists.php --help
 ### Starting the System
 
 1. **Start Web Server**: Ensure Apache/Nginx is running, or use PHP built-in server
-2. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` - not fully tested, see alternative polling
-3. **Polling** Configure cron to run `scripts/binkp_poll.php --all` periodically
-4. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
-5. **Process Packets**: Set up cron job for `php scripts/process_packets.php`
+2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
+3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
+4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
+5. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
 
 ### Daily Operations
 
@@ -864,25 +958,30 @@ php scripts/update_nodelists.php --help
 - Monitor status: `php scripts/binkp_status.php`
 - Manual poll: `php scripts/binkp_poll.php --all`
 - Post messages: `php scripts/post_message.php [options]`
+- Chat cleanup: `php scripts/chat_cleanup.php --limit=500 --max-age-days=30`
 
 ### Cron Job Setup
-Add these entries to your crontab for automated operation:
+The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
-# Process inbound packets every 3 minutes
-*/3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+# Start admin daemon on boot (pid defaults to data/run/admin_daemon.pid)
+@reboot /usr/bin/php /path/to/binktest/scripts/admin_daemon.php --daemon
 
-# Poll uplinks every 5 minutes
-*/5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php
+# Start scheduler on boot (pid defaults to data/run/binkp_scheduler.pid)
+@reboot /usr/bin/php /path/to/binktest/scripts/binkp_scheduler.php --daemon
+
+# Start binkp server on boot (Linux/macOS; pid defaults to data/run/binkp_server.pid)
+@reboot /usr/bin/php /path/to/binktest/scripts/binkp_server.php --daemon
 
 # Update nodelists daily at 4am
 0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
 
-# Backup database daily at 2am
-0 2 * * * cp /path/to/binktest/data/binktest.db /path/to/backups/binktest-$(date +\%Y\%m\%d).db
-
 # Rotate logs weekly
 0 0 * * 0 find /path/to/binktest/data/logs -name "*.log" -mtime +7 -delete
+
+# Deprecated (still supported): direct cron usage
+# */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
+# */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php --all
 ```
 
 ## Troubleshooting

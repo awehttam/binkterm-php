@@ -281,8 +281,7 @@ class BinkdProcessor
         if (strpos($messageText, "\x01INTL") !== false) {
             $lines = explode("\n", $messageText);
             foreach ($lines as $line) {
-                //if (strpos($line, "\x01INTL") === 0) {
-                if (strpos($line, "\x01INTL")) {
+                if (strpos($line, "\x01INTL") !== false) {
                     // INTL format: \x01INTL dest_zone:net/node.point orig_zone:net/node.point
                     $res=preg_match('/\x01INTL\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?\s+(\d+):(\d+)\/(\d+)(?:\.(\d+))?/', $line, $matches);
                     if ($res) {
@@ -298,6 +297,24 @@ class BinkdProcessor
                         $this->log("[BINKD] Found INTL kludge: dest $destZone:$destNet/$destNode" . ($destPoint ? ".$destPoint" : "") . ", orig $origZone:$origNet/$origNode" . ($origPoint ? ".$origPoint" : ""));
                         break;
                     }
+                }
+            }
+        }
+
+        // FMPT/TOPT kludges provide point information when INTL lacks it (or isn't present)
+        if (strpos($messageText, "\x01FMPT") !== false || strpos($messageText, "\x01TOPT") !== false || strpos($messageText, "\x01FOPT") !== false) {
+            $lines = explode("\n", $messageText);
+            foreach ($lines as $line) {
+                if ($origPoint === 0 && preg_match('/\x01(?:FMPT|FOPT)\s+(\d+)/', $line, $matches)) {
+                    $origPoint = (int)$matches[1];
+                    $this->log("[BINKD] Found FMPT/FOPT kludge: orig point $origPoint");
+                }
+                if ($destPoint === 0 && preg_match('/\x01TOPT\s+(\d+)/', $line, $matches)) {
+                    $destPoint = (int)$matches[1];
+                    $this->log("[BINKD] Found TOPT kludge: dest point $destPoint");
+                }
+                if ($origPoint > 0 && $destPoint > 0) {
+                    break;
                 }
             }
         }
@@ -1395,16 +1412,10 @@ class BinkdProcessor
             if ($extension === 'zip') {
                 $processed = $this->extractZipBundle($bundleFile, $tempDir);
             } elseif ($this->isFidonetDayBundle($extension)) {
-                // Fidonet daily bundles (su0, mo1, etc.) are typically ZIP format
-                $processed = $this->extractZipBundle($bundleFile, $tempDir);
+                // Fidonet daily bundles (su0, mo1, etc.) may be ZIP, ARC, ARJ, LZH, RAR, etc.
+                $processed = $this->extractBundleWithFallback($bundleFile, $tempDir, true);
             } elseif (in_array($extension, ['arc', 'arj', 'lzh', 'rar'])) {
-                // For now, try to handle these as ZIP (some may work)
-                // In the future, could add specific handlers for each format
-                try {
-                    $processed = $this->extractZipBundle($bundleFile, $tempDir);
-                } catch (\Exception $e) {
-                    throw new \Exception("Unsupported bundle format: $extension (file: $bundleFile)");
-                }
+                $processed = $this->extractBundleWithFallback($bundleFile, $tempDir, false);
             } else {
                 throw new \Exception("Unknown bundle format: $extension (file: $bundleFile)");
             }
@@ -1427,8 +1438,6 @@ class BinkdProcessor
             throw new \Exception("Cannot open bundle file: $bundleFile (Error code: $result)");
         }
         
-        $processed = 0;
-        
         try {
             // Extract all files to temporary directory
             if (!$zip->extractTo($tempDir)) {
@@ -1436,27 +1445,132 @@ class BinkdProcessor
             }
             
             $zip->close();
-            
-            // Process all .pkt files in the extracted bundle
-            $extractedFiles = glob($tempDir . '/*.pkt');
-            foreach ($extractedFiles as $pktFile) {
-                try {
-                    if ($this->processPacket($pktFile)) {
-                        $processed++;
-                    }
-                    unlink($pktFile); // Remove processed packet
-                } catch (\Exception $e) {
-                    $this->log("Error processing extracted packet $pktFile: " . $e->getMessage());
-                    // Move failed packet to error directory
-                    $this->moveToErrorDir($pktFile);
-                }
-            }
-            
+            return $this->processExtractedPackets($tempDir);
         } catch (\Exception $e) {
             $zip->close();
             throw $e;
         }
-        
+    }
+
+    private function extractBundleWithFallback(string $bundleFile, string $tempDir, bool $tryZipFirst): int
+    {
+        $errors = [];
+
+        if ($tryZipFirst) {
+            try {
+                return $this->extractZipBundle($bundleFile, $tempDir);
+            } catch (\Exception $e) {
+                $errors[] = 'zip: ' . $e->getMessage();
+            }
+        }
+
+        try {
+            $processed = $this->extractExternalBundle($bundleFile, $tempDir);
+            if ($processed >= 0) {
+                return $processed;
+            }
+        } catch (\Exception $e) {
+            $errors[] = 'external: ' . $e->getMessage();
+        }
+
+        if (!$tryZipFirst) {
+            try {
+                return $this->extractZipBundle($bundleFile, $tempDir);
+            } catch (\Exception $e) {
+                $errors[] = 'zip: ' . $e->getMessage();
+            }
+        }
+
+        $detail = !empty($errors) ? ' (' . implode('; ', $errors) . ')' : '';
+        throw new \Exception("Unsupported bundle format or extractor missing: " . basename($bundleFile) . $detail);
+    }
+
+    private function extractExternalBundle(string $bundleFile, string $tempDir): int
+    {
+        $commands = $this->getBundleExtractors();
+
+        foreach ($commands as $commandTemplate) {
+            $result = $this->runExtractorCommand($commandTemplate, $bundleFile, $tempDir);
+            if ($result['exit_code'] === 0) {
+                $this->log("[BINKD] Bundle extracted $bundleFile -> $tempDir using $commandTemplate");
+                return $this->processExtractedPackets($tempDir);
+            }
+
+            $this->log("[BINKD] Bundle extractor failed ({$commandTemplate}): " . trim($result['stderr'] ?: $result['stdout']));
+        }
+
+        throw new \Exception("No external bundle extractor succeeded");
+    }
+
+    private function getBundleExtractors(): array
+    {
+        $raw = \BinktermPHP\Config::env('ARCMAIL_EXTRACTORS');
+        if ($raw) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded) && !empty($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return [
+            '7z x -y -o{dest} {archive}',
+            'unzip -o {archive} -d {dest}'
+        ];
+    }
+
+    private function runExtractorCommand(string $commandTemplate, string $bundleFile, string $tempDir): array
+    {
+        $archive = escapeshellarg($bundleFile);
+        $dest = escapeshellarg($tempDir);
+        $command = str_replace(['{archive}', '{dest}'], [$archive, $dest], $commandTemplate);
+
+        $descriptorSpec = [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w']
+        ];
+
+        $this->log("runExtractorCommand($commandTemplate, $bundleFile, $tempDir", 'DEBUG');
+        $process = proc_open($command, $descriptorSpec, $pipes, $this->inboundPath);
+        if (!is_resource($process)) {
+            return [
+                'exit_code' => 1,
+                'stdout' => '',
+                'stderr' => 'Failed to start extractor command'
+            ];
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        return [
+            'exit_code' => $exitCode,
+            'stdout' => $stdout,
+            'stderr' => $stderr
+        ];
+    }
+
+    private function processExtractedPackets(string $tempDir): int
+    {
+        $processed = 0;
+
+        // Process all .pkt files in the extracted bundle
+        $extractedFiles = glob($tempDir . '/*.pkt');
+        foreach ($extractedFiles as $pktFile) {
+            try {
+                if ($this->processPacket($pktFile)) {
+                    $processed++;
+                }
+                unlink($pktFile); // Remove processed packet
+            } catch (\Exception $e) {
+                $this->log("Error processing extracted packet $pktFile: " . $e->getMessage());
+                // Move failed packet to error directory
+                $this->moveToErrorDir($pktFile);
+            }
+        }
+
         return $processed;
     }
     

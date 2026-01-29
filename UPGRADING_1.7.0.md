@@ -1,0 +1,74 @@
+# UPGRADING_1.7.0
+
+## Summary
+ /!\  BinktermPHP 1.7.0 introduces a new cron/system startup model that uses a long-running admin daemon and scheduler. The scripts `binkp_poll.php` and `process_packets.php` are **still supported and still used**, but running them directly from cron is now **deprecated**.
+
+Changes in 1.7.0:
+- Admin daemon for privileged background tasks (polling, packet processing, log retrieval).
+- Scheduler now runs polling and packet processing through the admin daemon.
+- Crashmail polling integrated into the scheduler.
+- ARCmail bundle support for day bundles like `.we1` (via external extractors).
+- New daemon status reporting on the admin dashboard and in `binkp_status.php`.
+
+## Pre-requisite Packages
+Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install -y unzip p7zip-full
+```
+
+The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
+
+## Introducing admin_daemon.php - Why This Change
+The new approach centralizes polling and packet processing through a single service:
+- **Consistent execution**: one daemon is responsible for running tasks.
+- **Better coordination**: the scheduler can poll and then immediately process packets.
+- **Easier operations**: a small set of services started at boot instead of multiple cron entries.
+- **Cross-component reuse**: the admin daemon is used by the web UI and scheduler for admin tasks.
+
+## Old Cron Method (Deprecated)
+These cron entries still work, but are no longer recommended:
+```
+*/3 * * * * /usr/bin/php /path/to/binkterm/scripts/process_packets.php
+*/5 * * * * /usr/bin/php /path/to/binkterm/scripts/binkp_poll.php --all
+```
+
+## New Method (Recommended)
+Start the following at system startup (systemd, @reboot cron, or service manager):
+1) `admin_daemon.php`
+2) `binkp_scheduler.php`
+3) `binkp_server.php`
+
+The scheduler reads `poll_schedule` for each uplink in `config/binkp.json` and uses the admin daemon to:
+- run `binkp_poll` for the uplink
+- then run `process_packets`
+
+## Migration Steps
+1. **Disable old cron jobs** that directly invoke `binkp_poll.php` and `process_packets.php`.
+2. **Enable services at boot**:
+   - `php scripts/admin_daemon.php --daemon` (pid defaults to `data/run/admin_daemon.pid`)
+   - `php scripts/binkp_scheduler.php --daemon` (pid defaults to `data/run/binkp_scheduler.pid`)
+   - `php scripts/binkp_server.php --daemon` (pid defaults to `data/run/binkp_server.pid`, Linux/macOS; Windows should run in foreground)
+
+Example crontab:
+```cron
+# Start admin daemon on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php --daemon
+
+# Start scheduler on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_scheduler.php --daemon
+
+# Start binkp server on boot (Linux/macOS)
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
+```
+3. **Stop/restart daemons** after upgrade changes:
+   - `bash scripts/restart_daemons.sh`
+4. **Verify `poll_schedule`** in `config/binkp.json` for each uplink.
+5. **Confirm admin daemon access**:
+   - Set `ADMIN_DAEMON_SECRET` in `.env`
+   - Use `scripts/admin_client.php` to test (`process-packets`, `binkp-poll`)
+
+## Notes
+- The admin daemon runs long-lived and executes tasks requested by the scheduler and web UI.
+- The scheduler and web UI still rely on `binkp_poll.php` and `process_packets.php` internally.
+- Direct cron usage of those scripts is deprecated, but the scripts remain supported.

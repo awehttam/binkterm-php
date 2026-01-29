@@ -39,6 +39,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
+ - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
 
 ## URL Construction
 When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** follow this pattern:
@@ -73,8 +74,7 @@ if ($siteUrl) {
 - `PasswordResetController` - password reset emails
 
 ## Changelog Workflow
- - **IMPORTANT**: When completing significant features, bug fixes, or improvements, ALWAYS update the changelog at `templates/recent_updates.twig`
- - Add entries to the top of the file with the current date
+ - **IMPORTANT**: When completing significant features, bug fixes, or improvements, ALWAYS update the changelog at `templates/recent_updates.twig` by adding entries to the top of the file with the current date
  - Use this format:
    ```html
    <div class="update-item mb-3" data-version="1.4.1" data-date="2025-08-29">

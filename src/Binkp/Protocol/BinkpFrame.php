@@ -159,21 +159,32 @@ class BinkpFrame
     
     public function writeToSocket($socket)
     {
+        if (!is_resource($socket)) {
+            return;
+        }
+
         $lengthAndFlags = $this->length;
         if ($this->isCommand) {
             $lengthAndFlags |= self::COMMAND_FRAME;
         }
         
         $header = pack('n', $lengthAndFlags);
-        fwrite($socket, $header);
+        $written = @fwrite($socket, $header);
+        if ($written === false) {
+            return;
+        }
         
         if ($this->isCommand && $this->length > 0) {
-            fwrite($socket, chr($this->command));
+            if (@fwrite($socket, chr($this->command)) === false) {
+                return;
+            }
             if (strlen($this->data) > 0) {
-                fwrite($socket, $this->data);
+                if (@fwrite($socket, $this->data) === false) {
+                    return;
+                }
             }
         } elseif (!$this->isCommand && $this->length > 0) {
-            fwrite($socket, $this->data);
+            @fwrite($socket, $this->data);
         }
         
         // Force immediate transmission of frames

@@ -305,7 +305,8 @@ class BinkpController
     public function getLogs($lines = 100)
     {
         try {
-            $logs = $this->logger->getRecentLogs($lines);
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $logs = $client->getLogs((int)$lines);
             
             return [
                 'success' => true,

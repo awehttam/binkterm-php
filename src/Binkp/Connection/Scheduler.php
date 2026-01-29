@@ -3,7 +3,9 @@
 namespace BinktermPHP\Binkp\Connection;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
-use BinktermPHP\Binkp\Protocol\BinkpClient;
+use BinktermPHP\Admin\AdminDaemonClient;
+use BinktermPHP\Crashmail\CrashmailService;
+use BinktermPHP\Database;
 
 class Scheduler
 {
@@ -11,19 +13,22 @@ class Scheduler
     private $logger;
     private $client;
     private $lastPollTimes;
+    private $crashmailService;
+    private $db;
     
     public function __construct($config = null, $logger = null)
     {
         $this->config = $config ?: BinkpConfig::getInstance();
         $this->logger = $logger;
-        $this->client = new BinkpClient($this->config, $this->logger);
+        $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
+        $this->crashmailService = new CrashmailService();
+        $this->db = Database::getInstance()->getPdo();
     }
     
     public function setLogger($logger)
     {
         $this->logger = $logger;
-        $this->client->setLogger($logger);
     }
     
     public function log($message, $level = 'INFO')
@@ -39,12 +44,17 @@ class Scheduler
     {
         $uplinks = $this->config->getEnabledUplinks();
         $pollsDue = [];
+
+        $this->log("Checking schedules for " . count($uplinks) . " uplinks", 'DEBUG');
         
         foreach ($uplinks as $uplink) {
             $address = $uplink['address'];
             $schedule = $uplink['poll_schedule'] ?? '0 */4 * * *';
             
-            if ($this->isScheduleDue($schedule, $address)) {
+            $isDue = $this->isScheduleDue($schedule, $address);
+            $this->log("Schedule check: {$address} ({$schedule}) due=" . ($isDue ? 'yes' : 'no'), 'DEBUG');
+
+            if ($isDue) {
                 $pollsDue[] = $uplink;
             }
         }
@@ -56,15 +66,32 @@ class Scheduler
     {
         $pollsDue = $this->checkScheduledPolls();
         $results = [];
+
+        if (empty($pollsDue)) {
+            $this->log("No scheduled polls due at this time", 'DEBUG');
+        }
         
         foreach ($pollsDue as $uplink) {
             $address = $uplink['address'];
             
             try {
                 $this->log("Scheduled poll starting for: {$address}");
-                $result = $this->client->pollUplink($address);
+                $pollResult = $this->client->binkPoll($address);
+                $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $processResult = null;
+
+                if ($pollSuccess) {
+                    $this->log("Scheduled packet processing starting for: {$address}");
+                    $processResult = $this->client->processPackets();
+                    $pollSuccess = ($processResult['exit_code'] ?? 1) === 0;
+                }
+
                 $this->lastPollTimes[$address] = time();
-                $results[$address] = $result;
+                $results[$address] = [
+                    'success' => $pollSuccess,
+                    'poll_result' => $pollResult,
+                    'process_packets' => $processResult
+                ];
                 $this->log("Scheduled poll completed for: {$address}");
                 
             } catch (\Exception $e) {
@@ -85,6 +112,7 @@ class Scheduler
         $files = glob($outboundPath . '/*.pkt');
         
         if (empty($files)) {
+            $this->log("No outbound packets found, skipping outbound poll", 'DEBUG');
             return [];
         }
         
@@ -97,9 +125,22 @@ class Scheduler
             $address = $uplink['address'];
             
             try {
-                $result = $this->client->pollUplink($address);
+                $pollResult = $this->client->binkPoll($address);
+                $pollSuccess = ($pollResult['exit_code'] ?? 1) === 0;
+                $processResult = null;
+
+                if ($pollSuccess) {
+                    $this->log("Outbound packet processing starting for: {$address}");
+                    $processResult = $this->client->processPackets();
+                    $pollSuccess = ($processResult['exit_code'] ?? 1) === 0;
+                }
+
                 $this->lastPollTimes[$address] = time();
-                $results[$address] = $result;
+                $results[$address] = [
+                    'success' => $pollSuccess,
+                    'poll_result' => $pollResult,
+                    'process_packets' => $processResult
+                ];
                 $this->log("Outbound poll completed for: {$address}");
                 
             } catch (\Exception $e) {
@@ -123,10 +164,10 @@ class Scheduler
             return false;
         }
         
-        return $this->parseCronExpression($cronExpression, $now, $lastPoll);
+        return $this->parseCronExpression($cronExpression, $now);
     }
     
-    private function parseCronExpression($cronExpression, $now, $lastCheck)
+    private function parseCronExpression($cronExpression, $now)
     {
         $parts = explode(' ', $cronExpression);
         if (count($parts) !== 5) {
@@ -143,25 +184,12 @@ class Scheduler
             'month' => (int) date('n', $now),
             'weekday' => (int) date('w', $now)
         ];
-        
-        $lastTime = [
-            'minute' => (int) date('i', $lastCheck),
-            'hour' => (int) date('G', $lastCheck),
-            'day' => (int) date('j', $lastCheck),
-            'month' => (int) date('n', $lastCheck),
-            'weekday' => (int) date('w', $lastCheck)
-        ];
-        
+
         return $this->matchesCronField($minute, $currentTime['minute']) &&
                $this->matchesCronField($hour, $currentTime['hour']) &&
                $this->matchesCronField($day, $currentTime['day']) &&
                $this->matchesCronField($month, $currentTime['month']) &&
-               $this->matchesCronField($weekday, $currentTime['weekday']) &&
-               !($this->matchesCronField($minute, $lastTime['minute']) &&
-                 $this->matchesCronField($hour, $lastTime['hour']) &&
-                 $this->matchesCronField($day, $lastTime['day']) &&
-                 $this->matchesCronField($month, $lastTime['month']) &&
-                 $this->matchesCronField($weekday, $lastTime['weekday']));
+               $this->matchesCronField($weekday, $currentTime['weekday']);
     }
     
     private function matchesCronField($cronField, $currentValue)
@@ -200,6 +228,36 @@ class Scheduler
         
         return (int) $cronField === $currentValue;
     }
+
+    private function keepDbAlive(): void
+    {
+        try {
+            $this->db->query('SELECT 1');
+        } catch (\Throwable $e) {
+            $this->log("Database keepalive failed: " . $e->getMessage(), 'ERROR');
+            if ($this->refreshDatabaseConnection()) {
+                try {
+                    $this->db->query('SELECT 1');
+                    $this->log("Database keepalive recovered after reconnect", 'DEBUG');
+                } catch (\Throwable $retryError) {
+                    $this->log("Database keepalive retry failed: " . $retryError->getMessage(), 'ERROR');
+                }
+            }
+        }
+    }
+
+    private function refreshDatabaseConnection(): bool
+    {
+        try {
+            $this->db = Database::reconnect()->getPdo();
+            $this->crashmailService = new CrashmailService();
+            $this->log("Database connection refreshed", 'DEBUG');
+            return true;
+        } catch (\Throwable $e) {
+            $this->log("Database reconnect failed: " . $e->getMessage(), 'ERROR');
+        }
+        return false;
+    }
     
     public function runDaemon($interval = 60)
     {
@@ -207,6 +265,8 @@ class Scheduler
         
         while (true) {
             try {
+                $this->keepDbAlive();
+
                 $results = $this->processScheduledPolls();
                 if (!empty($results)) {
                     $this->log("Processed " . count($results) . " scheduled polls");
@@ -216,12 +276,60 @@ class Scheduler
                 if (!empty($outboundResults)) {
                     $this->log("Processed outbound poll for " . count($outboundResults) . " uplinks");
                 }
+
+                $this->processInboundIfNeeded();
+
+                if (!$this->config->getCrashmailEnabled()) {
+                    $this->log("Crashmail disabled, skipping crashmail poll", 'DEBUG');
+                } else {
+                    try {
+                        $stats = $this->crashmailService->getQueueStats();
+                        $pending = (int)($stats['pending'] ?? 0);
+                        $attempting = (int)($stats['attempting'] ?? 0);
+                        $totalPending = $pending + $attempting;
+
+                        if ($totalPending === 0) {
+                            $this->log("No crashmail queued, skipping crashmail poll", 'DEBUG');
+                        } else {
+                            $this->log("Crashmail poll starting", 'DEBUG');
+                            $crashmailResult = $this->client->crashmailPoll();
+                            $crashmailSuccess = ($crashmailResult['exit_code'] ?? 1) === 0;
+                            if ($crashmailSuccess) {
+                                $this->log("Crashmail poll completed");
+                            } else {
+                                $this->log("Crashmail poll failed", 'ERROR');
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        $this->log("Crashmail queue check failed: " . $e->getMessage(), 'ERROR');
+                    }
+                }
                 
             } catch (\Exception $e) {
                 $this->log("Scheduler error: " . $e->getMessage(), 'ERROR');
             }
             
             sleep($interval);
+        }
+    }
+
+    private function processInboundIfNeeded(): void
+    {
+        $inboundPath = $this->config->getInboundPath();
+        $files = glob($inboundPath . '/*.pkt');
+
+        if (empty($files)) {
+            $this->log("No inbound packets found, skipping packet processing", 'DEBUG');
+            return;
+        }
+
+        $this->log("Found " . count($files) . " inbound packets, processing", 'DEBUG');
+        $processResult = $this->client->processPackets();
+        $success = ($processResult['exit_code'] ?? 1) === 0;
+        if ($success) {
+            $this->log("Inbound packet processing completed");
+        } else {
+            $this->log("Inbound packet processing failed", 'ERROR');
         }
     }
     
@@ -257,7 +365,7 @@ class Scheduler
                 'month' => (int) date('n', $checkTime),
                 'weekday' => (int) date('w', $checkTime)
             ];
-            
+
             if ($this->matchesCronField($minute, $timeData['minute']) &&
                 $this->matchesCronField($hour, $timeData['hour']) &&
                 $this->matchesCronField($day, $timeData['day']) &&

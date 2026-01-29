@@ -1,0 +1,271 @@
+{% extends "base.twig" %}
+
+{% block title %}Polls{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Polls</h1>
+        <button type="button" class="btn btn-primary" onclick="showCreatePollModal()">
+            <i class="fas fa-plus me-2"></i>Add Poll
+        </button>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="pollsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Status</th>
+                            <th>Votes</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pollsTableBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pollModal" tabindex="-1" aria-labelledby="pollModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pollModalLabel">Add Poll</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="pollForm">
+                    <input type="hidden" id="pollId" name="pollId">
+                    <div class="mb-3">
+                        <label for="pollQuestion" class="form-label">Question <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="pollQuestion" name="question" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Options <span class="text-danger">*</span></label>
+                        <div id="pollOptions">
+                            <!-- Option inputs -->
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addPollOption()">
+                            <i class="fas fa-plus me-1"></i>Add Option
+                        </button>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="pollActive" name="is_active" checked>
+                        <label class="form-check-label" for="pollActive">
+                            Active poll
+                        </label>
+                    </div>
+                    <div class="form-text text-muted mt-2">
+                        Editing options will reset votes for this poll.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="savePoll()">Save Poll</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadPolls();
+});
+
+function loadPolls() {
+    fetch('/admin/api/polls')
+        .then(response => response.json())
+        .then(data => {
+            displayPolls(data.polls || []);
+        })
+        .catch(error => {
+            console.error('Error loading polls:', error);
+            showAlert('Error loading polls', 'danger');
+        });
+}
+
+function displayPolls(polls) {
+    const tbody = document.getElementById('pollsTableBody');
+    tbody.innerHTML = '';
+
+    polls.forEach(poll => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${poll.id}</td>
+            <td>${escapeHtml(poll.question)}</td>
+            <td>
+                <span class="badge bg-${poll.is_active ? 'success' : 'secondary'}">
+                    ${poll.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td>${poll.vote_count || 0}</td>
+            <td>${new Date(poll.created_at).toLocaleDateString()}</td>
+            <td>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="editPoll(${poll.id})" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="deletePoll(${poll.id})" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function showCreatePollModal() {
+    document.getElementById('pollModalLabel').textContent = 'Add Poll';
+    document.getElementById('pollForm').reset();
+    document.getElementById('pollId').value = '';
+    document.getElementById('pollActive').checked = true;
+    resetPollOptions(['', '']);
+    new bootstrap.Modal(document.getElementById('pollModal')).show();
+}
+
+function editPoll(pollId) {
+    fetch('/admin/api/polls')
+        .then(response => response.json())
+        .then(data => {
+            const poll = (data.polls || []).find(item => item.id === pollId);
+            if (!poll) {
+                showAlert('Poll not found', 'danger');
+                return;
+            }
+            document.getElementById('pollModalLabel').textContent = 'Edit Poll';
+            document.getElementById('pollId').value = poll.id;
+            document.getElementById('pollQuestion').value = poll.question;
+            document.getElementById('pollActive').checked = !!poll.is_active;
+            const options = (poll.options || []).map(opt => opt.option_text);
+            resetPollOptions(options.length ? options : ['', '']);
+            new bootstrap.Modal(document.getElementById('pollModal')).show();
+        })
+        .catch(error => {
+            console.error('Error loading poll:', error);
+            showAlert('Error loading poll', 'danger');
+        });
+}
+
+function resetPollOptions(options) {
+    const optionsContainer = document.getElementById('pollOptions');
+    optionsContainer.innerHTML = '';
+    options.forEach(optionText => addPollOption(optionText));
+}
+
+function addPollOption(value = '') {
+    const optionsContainer = document.getElementById('pollOptions');
+    const optionRow = document.createElement('div');
+    optionRow.className = 'input-group mb-2';
+    optionRow.innerHTML = `
+        <input type="text" class="form-control poll-option" value="${escapeHtml(value)}" placeholder="Option text">
+        <button class="btn btn-outline-danger" type="button" onclick="removePollOption(this)">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    optionsContainer.appendChild(optionRow);
+}
+
+function removePollOption(button) {
+    const optionsContainer = document.getElementById('pollOptions');
+    if (optionsContainer.children.length <= 2) {
+        alert('At least two options are required.');
+        return;
+    }
+    button.closest('.input-group').remove();
+}
+
+function savePoll() {
+    const pollId = document.getElementById('pollId').value;
+    const question = document.getElementById('pollQuestion').value.trim();
+    const isActive = document.getElementById('pollActive').checked;
+    const options = Array.from(document.querySelectorAll('.poll-option'))
+        .map(input => input.value.trim())
+        .filter(text => text !== '');
+
+    if (!question) {
+        alert('Question is required.');
+        return;
+    }
+    if (options.length < 2) {
+        alert('Please provide at least two options.');
+        return;
+    }
+
+    const payload = { question, options, is_active: isActive };
+    const url = pollId ? `/admin/api/polls/${pollId}` : '/admin/api/polls';
+    const method = pollId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success || data.id) {
+            showAlert(pollId ? 'Poll updated successfully' : 'Poll created successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('pollModal')).hide();
+            loadPolls();
+        } else {
+            showAlert(data.error || 'Error saving poll', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving poll:', error);
+        showAlert('Error saving poll', 'danger');
+    });
+}
+
+function deletePoll(pollId) {
+    if (!confirm('Delete this poll? This cannot be undone.')) {
+        return;
+    }
+
+    fetch(`/admin/api/polls/${pollId}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Poll deleted successfully', 'success');
+                loadPolls();
+            } else {
+                showAlert(data.error || 'Error deleting poll', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting poll:', error);
+            showAlert('Error deleting poll', 'danger');
+        });
+}
+
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

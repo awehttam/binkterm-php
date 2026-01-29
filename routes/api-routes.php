@@ -389,6 +389,214 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::get('/polls/active', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $pollStmt = $db->prepare("
+            SELECT id, question
+            FROM polls
+            WHERE is_active = TRUE
+            ORDER BY created_at ASC
+        ");
+        $pollStmt->execute();
+        $polls = $pollStmt->fetchAll();
+
+        if (!$polls) {
+            echo json_encode(['polls' => []]);
+            return;
+        }
+
+        $pollIds = array_map(function($row) {
+            return (int)$row['id'];
+        }, $polls);
+
+        $placeholders = implode(',', array_fill(0, count($pollIds), '?'));
+        $optionsStmt = $db->prepare("
+            SELECT id, poll_id, option_text
+            FROM poll_options
+            WHERE poll_id IN ($placeholders)
+            ORDER BY sort_order, id
+        ");
+        $optionsStmt->execute($pollIds);
+        $options = $optionsStmt->fetchAll();
+        $optionsByPoll = [];
+        foreach ($options as $opt) {
+            $optionsByPoll[$opt['poll_id']][] = [
+                'id' => (int)$opt['id'],
+                'option_text' => $opt['option_text']
+            ];
+        }
+
+        $voteStmt = $db->prepare("
+            SELECT poll_id
+            FROM poll_votes
+            WHERE user_id = ? AND poll_id IN ($placeholders)
+            GROUP BY poll_id
+        ");
+        $voteStmt->execute(array_merge([$userId], $pollIds));
+        $votedPolls = $voteStmt->fetchAll();
+        $votedPollIds = array_map(function($row) {
+            return (int)$row['poll_id'];
+        }, $votedPolls);
+        $votedLookup = array_flip($votedPollIds);
+
+        $resultsByPoll = [];
+        $totalVotesByPoll = [];
+        if (!empty($votedPollIds)) {
+            $resultPlaceholders = implode(',', array_fill(0, count($votedPollIds), '?'));
+            $resultsStmt = $db->prepare("
+                SELECT o.poll_id, o.id, o.option_text, COUNT(v.id) as votes
+                FROM poll_options o
+                LEFT JOIN poll_votes v ON v.option_id = o.id
+                WHERE o.poll_id IN ($resultPlaceholders)
+                GROUP BY o.poll_id, o.id, o.option_text
+                ORDER BY o.sort_order, o.id
+            ");
+            $resultsStmt->execute($votedPollIds);
+            $results = $resultsStmt->fetchAll();
+            foreach ($results as $row) {
+                $pollId = (int)$row['poll_id'];
+                $resultsByPoll[$pollId][] = [
+                    'option_id' => (int)$row['id'],
+                    'option_text' => $row['option_text'],
+                    'votes' => (int)$row['votes']
+                ];
+                $totalVotesByPoll[$pollId] = ($totalVotesByPoll[$pollId] ?? 0) + (int)$row['votes'];
+            }
+        }
+
+        $payload = [];
+        foreach ($polls as $poll) {
+            $pollId = (int)$poll['id'];
+            $hasVoted = isset($votedLookup[$pollId]);
+            $entry = [
+                'id' => $pollId,
+                'question' => $poll['question'],
+                'options' => $optionsByPoll[$pollId] ?? [],
+                'has_voted' => $hasVoted
+            ];
+            if ($hasVoted) {
+                $entry['results'] = $resultsByPoll[$pollId] ?? [];
+                $entry['total_votes'] = $totalVotesByPoll[$pollId] ?? 0;
+            }
+            $payload[] = $entry;
+        }
+
+        echo json_encode(['polls' => $payload]);
+    });
+
+    SimpleRouter::post('/polls/{id}/vote', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        header('Content-Type: application/json');
+
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $optionId = isset($payload['option_id']) ? (int)$payload['option_id'] : 0;
+        if ($optionId <= 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Option is required']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $pollStmt = $db->prepare("SELECT id FROM polls WHERE id = ? AND is_active = TRUE");
+        $pollStmt->execute([$id]);
+        $poll = $pollStmt->fetch();
+        if (!$poll) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Poll not found']);
+            return;
+        }
+
+        $optionStmt = $db->prepare("SELECT id FROM poll_options WHERE id = ? AND poll_id = ?");
+        $optionStmt->execute([$optionId, $id]);
+        if (!$optionStmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid option']);
+            return;
+        }
+
+        try {
+            $insertStmt = $db->prepare("
+                INSERT INTO poll_votes (poll_id, option_id, user_id)
+                VALUES (?, ?, ?)
+            ");
+            $insertStmt->execute([$id, $optionId, $userId]);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => 'You have already voted in this poll.']);
+            return;
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
+    SimpleRouter::get('/shoutbox', function() {
+        $auth = new Auth();
+        $auth->requireAuth();
+
+        header('Content-Type: application/json');
+        $db = Database::getInstance()->getPdo();
+        $limit = intval($_GET['limit'] ?? 20);
+        $offset = intval($_GET['offset'] ?? 0);
+        if ($limit <= 0) {
+            $limit = 20;
+        }
+        if ($limit > 100) {
+            $limit = 100;
+        }
+        if ($offset < 0) {
+            $offset = 0;
+        }
+        $stmt = $db->prepare("
+            SELECT s.id, s.message, s.created_at, u.username
+            FROM shoutbox_messages s
+            INNER JOIN users u ON s.user_id = u.id
+            WHERE s.is_hidden = FALSE
+            ORDER BY s.created_at DESC
+            LIMIT ? OFFSET ?
+        ");
+        $stmt->execute([$limit, $offset]);
+        $messages = $stmt->fetchAll();
+        echo json_encode(['messages' => $messages]);
+    });
+
+    SimpleRouter::post('/shoutbox', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $message = trim($payload['message'] ?? '');
+
+        if ($message === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Message is required']);
+            return;
+        }
+
+        if (mb_strlen($message) > 280) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Message too long']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            INSERT INTO shoutbox_messages (user_id, message)
+            VALUES (?, ?)
+        ");
+        $stmt->execute([$user['id'] ?? $user['user_id'], $message]);
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/messages/recent', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();
@@ -2180,32 +2388,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
-    SimpleRouter::post('/binkp/poll', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        // Check if user is admin
-        if (!$user['is_admin']) {
-            http_response_code(403);
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Admin access required']);
-            return;
-        }
-
-        header('Content-Type: application/json');
-
-        try {
-            // Trigger a poll of all uplinks
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->pollAllUplinks();
-
-            echo json_encode(['success' => true, 'message' => 'Poll initiated']);
-        } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
-        }
-    });
-
     // Binkp API routes
     SimpleRouter::get('/binkp/status', function() {
         // Clean output buffer to prevent any warnings/output from corrupting JSON
@@ -2249,16 +2431,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $input = json_decode(file_get_contents('php://input'), true);
             $address = $input['address'] ?? '';
 
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
             if (empty($address)) {
-                throw new \Exception('Address is required');
+                $result = $client->binkPoll('all');
+            } else {
+                $result = $client->binkPoll($address);
             }
-
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->pollUplink($address);
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -2273,12 +2455,32 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $user = requireBinkpAdmin();
 
         try {
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->pollAllUplinks();
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->binkPoll('all');
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
+        } catch (\Exception $e) {
+            ob_clean();
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::post('/binkp/process-packets', function() {
+        ob_start();
+
+        $user = requireBinkpAdmin();
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->processPackets();
+
+            ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -2386,20 +2588,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         try {
-            // Capture any PHP warnings/errors that might corrupt JSON output
-            set_error_handler(function($severity, $message, $file, $line) {
-                throw new \ErrorException($message, 0, $severity, $file, $line);
-            });
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->processPackets();
 
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->processInbound();
-
-            restore_error_handler();
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
-            restore_error_handler();
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
@@ -2415,12 +2610,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         requireBinkpAdmin($user);
 
         try {
-            $controller = new \BinktermPHP\Binkp\Web\BinkpController();
-            $result = $controller->processOutbound();
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->binkPoll('all');
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode($result);
+            echo json_encode(['success' => true, 'result' => $result]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);

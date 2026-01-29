@@ -7,6 +7,9 @@
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2"><i class="fas fa-bolt me-2"></i>Crashmail Queue</h1>
         <div class="btn-toolbar">
+            <button class="btn btn-warning me-2" id="attemptDelivery">
+                <i class="fas fa-paper-plane me-1"></i>Attempt Delivery
+            </button>
             <button class="btn btn-outline-primary me-2" id="refreshQueue">
                 <i class="fas fa-sync-alt me-1"></i>Refresh
             </button>
@@ -164,6 +167,23 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('refreshQueue').addEventListener('click', function() {
         loadStats();
         loadQueue();
+    });
+
+    document.getElementById('attemptDelivery').addEventListener('click', function() {
+        if (!confirm('Attempt delivery for pending crashmail now?')) return;
+        fetch('/admin/api/crashmail/poll', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadStats();
+                    loadQueue();
+                } else {
+                    alert('Delivery attempt failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
     });
 
     document.getElementById('applyFilter').addEventListener('click', loadQueue);

@@ -8,6 +8,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use BinktermPHP\Binkp\Protocol\BinkpServer;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Binkp\Logger;
+use BinktermPHP\Version;
 
 function showUsage()
 {
@@ -19,6 +20,7 @@ function showUsage()
     echo "  --log-file=FILE   Log file path (default: " . \BinktermPHP\Config::getLogPath('binkp_server.log') . ")\n";
     echo "  --no-console      Disable console logging\n";
     echo "  --daemon          Run as daemon (detach from terminal)\n";
+    echo "  --pid-file=FILE   Write PID file\n";
     echo "  --help            Show this help message\n";
     echo "\n";
 }
@@ -64,7 +66,14 @@ function daemonize()
     fclose(STDERR);
 }
 
+function setConsoleTitle(string $title): void
+{
+    echo "\033]0;{$title}\007";
+}
+
 $args = parseArgs($argv);
+$defaultPidFile = __DIR__ . '/../data/run/binkp_server.pid';
+$pidFile = $args['pid-file'] ?? (\BinktermPHP\Config::env('BINKP_SERVER_PID_FILE') ?: $defaultPidFile);
 
 if (isset($args['help'])) {
     showUsage();
@@ -91,11 +100,21 @@ try {
     if (isset($args['daemon']) && function_exists('pcntl_fork')) {
         $logger->setLogToConsole(false);
         daemonize();
+    } else {
+        setConsoleTitle('BinktermPHP Binkp Server');
+    }
+
+    if ($pidFile) {
+        $pidDir = dirname($pidFile);
+        if (!is_dir($pidDir)) {
+            @mkdir($pidDir, 0755, true);
+        }
+        @file_put_contents($pidFile, (string)getmypid());
     }
     
     $server = new BinkpServer($config, $logger);
     
-    $logger->info("Starting Binkp server...");
+    $logger->info("Starting BinktermPHP binkd server ".Version::getVersion()."...");
     $logger->info("System address: " . $config->getSystemAddress());
     $logger->info("Listening on: " . $config->getBindAddress() . ":" . $config->getBinkpPort());
     $logger->info("Max connections: " . $config->getMaxConnections());
@@ -114,15 +133,17 @@ try {
         pcntl_async_signals(true);
     }
 
-    pcntl_signal(SIGTERM, function() use ($server, $logger) {
-        $logger->info("Received SIGTERM, shutting down...");
-        $server->stop();
-    });
+    if (function_exists('pcntl_signal')) {
+        pcntl_signal(SIGTERM, function() use ($server, $logger) {
+            $logger->info("Received SIGTERM, shutting down...");
+            $server->stop();
+        });
 
-    pcntl_signal(SIGINT, function() use ($server, $logger) {
-        $logger->info("Received SIGINT, shutting down...");
-        $server->stop();
-    });
+        pcntl_signal(SIGINT, function() use ($server, $logger) {
+            $logger->info("Received SIGINT, shutting down...");
+            $server->stop();
+        });
+    }
     
     $server->start();
     
