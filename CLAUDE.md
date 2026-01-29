@@ -74,8 +74,7 @@ if ($siteUrl) {
 - `PasswordResetController` - password reset emails
 
 ## Changelog Workflow
- - **IMPORTANT**: When completing significant features, bug fixes, or improvements, ALWAYS update the changelog at `templates/recent_updates.twig`
- - Add entries to the top of the file with the current date
+ - **IMPORTANT**: When completing significant features, bug fixes, or improvements, ALWAYS update the changelog at `templates/recent_updates.twig` by adding entries to the top of the file with the current date
  - Use this format:
    ```html
    <div class="update-item mb-3" data-version="1.4.1" data-date="2025-08-29">
