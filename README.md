@@ -1268,7 +1268,7 @@ BinktermPHP implements the **WebDoor** specification, enabling HTML5/JavaScript 
 
 ### Configuration
 
-By default the webdoor system is disabled.  To enable it, copy config/webdoors.json.example to config/webdoors.json.
+By default the webdoor system is not activated and requires webdoors.json to be installed.  You may do so through the Admin -> >Webdoors interface or by copying config/webdoors.json.example to config/webdoors.json.
 
 The example configuration enables a number of webdoors by default.
 
