@@ -615,6 +615,20 @@ php scripts/weather_report.php --config=/path/to/custom/weather.json
 
 The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [scripts/README_weather.md](scripts/README_weather.md) for detailed setup instructions and configuration examples.
 
+### Activity Digest Generator
+Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:
+
+```bash
+# Default: last 30 days, ASCII to stdout
+php scripts/activity_digest.php
+
+# Custom time range and output file
+php scripts/activity_digest.php --from=2026-01-01 --to=2026-01-31 --output=digests/january.txt
+
+# ANSI output for BBS posting
+php scripts/activity_digest.php --since=30d --format=ansi --output=digests/last_month.ans
+```
+
 ### Echomail Maintenance Utility
 Manage echomail storage by purging old messages based on age or message count limits:
 
