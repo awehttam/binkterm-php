@@ -214,15 +214,27 @@ function fetchDigestData(DateTime $start, DateTime $end): array
     $topShoutboxUsers = $shoutTopStmt->fetchAll();
 
     $leaderboardStmt = $db->prepare("
-        SELECT u.username, l.game_id, l.board, l.score
+        SELECT DISTINCT ON (l.user_id)
+            u.username,
+            l.game_id,
+            l.board,
+            l.score,
+            l.created_at
         FROM webdoor_leaderboards l
         INNER JOIN users u ON l.user_id = u.id
         WHERE l.created_at >= ? AND l.created_at < ?
-        ORDER BY l.score DESC, l.created_at DESC
-        LIMIT 10
+        ORDER BY l.user_id, l.score DESC, l.created_at DESC
     ");
     $leaderboardStmt->execute([$startStr, $endStr]);
-    $gameLeaderboard = $leaderboardStmt->fetchAll();
+    $leaderboardRaw = $leaderboardStmt->fetchAll();
+
+    usort($leaderboardRaw, function($a, $b) {
+        if ((int)$b['score'] === (int)$a['score']) {
+            return strtotime($b['created_at']) <=> strtotime($a['created_at']);
+        }
+        return (int)$b['score'] <=> (int)$a['score'];
+    });
+    $gameLeaderboard = array_slice($leaderboardRaw, 0, 10);
 
     return [
         'netmail_received' => $netmailReceived,
