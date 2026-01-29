@@ -1812,7 +1812,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded);
+        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false);
         echo json_encode($result);
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
