@@ -697,7 +697,7 @@ a:hover {
 .message-quote {
     border-left: 3px solid var(--term-green);
     padding-left: 1rem;
-    margin: 1rem 0;
+    margin: 0;
     background-color: var(--term-black-light);
     border-radius: 0 0.25rem 0.25rem 0;
 }

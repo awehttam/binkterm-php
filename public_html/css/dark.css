@@ -654,7 +654,7 @@ footer.bg-light a {
 .message-quote {
     border-left: 3px solid var(--message-quote-border);
     padding-left: 1rem;
-    margin: 1rem 0;
+    margin: 0;
     background-color: var(--message-quote-bg);
     border-radius: 0 0.25rem 0.25rem 0;
 }
