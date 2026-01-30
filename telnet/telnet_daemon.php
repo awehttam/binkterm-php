@@ -123,11 +123,13 @@ function sendTelnetCommand($conn, int $cmd, int $opt): void
 function setEcho($conn, bool $enable): void
 {
     if ($enable) {
+        // Request client-side echo; server will not echo
         sendTelnetCommand($conn, WONT, OPT_ECHO);
-        sendTelnetCommand($conn, DONT, OPT_ECHO);
-    } else {
-        sendTelnetCommand($conn, WILL, OPT_ECHO);
         sendTelnetCommand($conn, TELNET_DO, OPT_ECHO);
+    } else {
+        // Request server-side echo; client should stop echoing
+        sendTelnetCommand($conn, WILL, OPT_ECHO);
+        sendTelnetCommand($conn, DONT, OPT_ECHO);
     }
 }
 
