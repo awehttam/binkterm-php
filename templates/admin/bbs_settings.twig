@@ -90,6 +90,39 @@
                 </div>
             </div>
         </div>
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">Credits System Configuration</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="bbsCreditsEnabled">
+                        <label class="form-check-label" for="bbsCreditsEnabled">Credits System Enabled</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsSymbol">Currency Symbol</label>
+                        <input type="text" class="form-control" id="bbsCreditsSymbol" maxlength="5">
+                        <small class="text-muted">Example: $, USD (max 5 characters)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsDailyAmount">Daily Login Bonus Amount</label>
+                        <input type="number" class="form-control" id="bbsCreditsDailyAmount" min="0" step="1">
+                        <small class="text-muted">Amount of credits awarded to users on daily login.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsDailyDelay">Daily Login Delay (minutes)</label>
+                        <input type="number" class="form-control" id="bbsCreditsDailyDelay" min="0" step="1">
+                        <small class="text-muted">Minutes after login before daily bonus is awarded.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsApprovalBonus">New User Approval Bonus</label>
+                        <input type="number" class="form-control" id="bbsCreditsApprovalBonus" min="0" step="1">
+                        <small class="text-muted">Credits awarded when a pending user is approved.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
@@ -97,6 +130,8 @@
 
 {% block scripts %}
 <script>
+const bbsSettingsCsrf = '{{ bbs_settings_csrf|e('js') }}';
+
 document.addEventListener('DOMContentLoaded', function() {
     loadBbsSettings();
     loadBbsSystem();
@@ -111,11 +146,20 @@ function loadBbsSettings() {
                 throw new Error(data.error || 'Failed to load settings');
             }
             const features = data.config?.features || {};
+            const credits = data.config?.credits || {};
             document.getElementById('bbsWebdoors').checked = !!features.webdoors;
             document.getElementById('bbsShoutbox').checked = !!features.shoutbox;
             document.getElementById('bbsAdvertising').checked = !!features.advertising;
             document.getElementById('bbsVoting').checked = !!features.voting_booth;
             document.getElementById('bbsChat').checked = !!features.chat;
+            document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
+            document.getElementById('bbsCreditsSymbol').value = credits.symbol || '$';
+            const dailyAmountValue = parseInt(credits.daily_amount, 10);
+            const dailyDelayValue = parseInt(credits.daily_login_delay_minutes, 10);
+            const approvalBonusValue = parseInt(credits.approval_bonus, 10);
+            document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 100 : dailyAmountValue;
+            document.getElementById('bbsCreditsDailyDelay').value = Number.isNaN(dailyDelayValue) ? 5 : dailyDelayValue;
+            document.getElementById('bbsCreditsApprovalBonus').value = Number.isNaN(approvalBonusValue) ? 1000 : approvalBonusValue;
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || 'Failed to load settings', 'danger');
@@ -123,6 +167,30 @@ function loadBbsSettings() {
 }
 
 function saveBbsSettings() {
+    const symbol = document.getElementById('bbsCreditsSymbol').value.trim();
+    if (!symbol || symbol.length > 5) {
+        showBbsSettingsAlert('Currency symbol must be 1-5 characters.', 'danger');
+        return;
+    }
+
+    const dailyAmount = parseInt(document.getElementById('bbsCreditsDailyAmount').value, 10);
+    if (Number.isNaN(dailyAmount) || dailyAmount < 0) {
+        showBbsSettingsAlert('Daily login amount must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const dailyDelay = parseInt(document.getElementById('bbsCreditsDailyDelay').value, 10);
+    if (Number.isNaN(dailyDelay) || dailyDelay < 0) {
+        showBbsSettingsAlert('Daily login delay must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const approvalBonus = parseInt(document.getElementById('bbsCreditsApprovalBonus').value, 10);
+    if (Number.isNaN(approvalBonus) || approvalBonus < 0) {
+        showBbsSettingsAlert('Approval bonus must be a non-negative integer.', 'danger');
+        return;
+    }
+
     const config = {
         features: {
             webdoors: document.getElementById('bbsWebdoors').checked,
@@ -130,12 +198,19 @@ function saveBbsSettings() {
             advertising: document.getElementById('bbsAdvertising').checked,
             voting_booth: document.getElementById('bbsVoting').checked,
             chat: document.getElementById('bbsChat').checked
+        },
+        credits: {
+            enabled: document.getElementById('bbsCreditsEnabled').checked,
+            symbol: symbol,
+            daily_amount: dailyAmount,
+            daily_login_delay_minutes: dailyDelay,
+            approval_bonus: approvalBonus
         }
     };
 
     fetch('/admin/api/bbs-settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
         body: JSON.stringify({ config })
     })
     .then(response => response.json())

@@ -307,6 +307,17 @@ SimpleRouter::get('/profile', function() {
         $sysopName = 'Unknown';
     }
 
+    $creditsEnabled = \BinktermPHP\BbsConfig::getConfig()['credits']['enabled'] ?? true;
+    $creditsSymbol = \BinktermPHP\BbsConfig::getConfig()['credits']['symbol'] ?? '$';
+    $creditBalance = 0;
+    if ($creditsEnabled) {
+        try {
+            $creditBalance = \BinktermPHP\UserCredit::getBalance((int)($user['user_id'] ?? $user['id']));
+        } catch (\Throwable $e) {
+            $creditBalance = 0;
+        }
+    }
+
     $templateVars = [
         'user_username' => $user['username'],
         'user_real_name' => $user['real_name'] ?? '',
@@ -317,7 +328,10 @@ SimpleRouter::get('/profile', function() {
         'user_is_admin' => (bool)$user['is_admin'],
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
-        'system_sysop' => $sysopName
+        'system_sysop' => $sysopName,
+        'credits_enabled' => !empty($creditsEnabled),
+        'credits_symbol' => $creditsSymbol,
+        'credit_balance' => $creditBalance
     ];
 
     $template = new Template();

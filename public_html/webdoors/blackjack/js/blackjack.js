@@ -1,42 +1,38 @@
-
-const suits = ["♠","♥","♦","♣"];
-const ranks = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
-const redSuits = new Set(["♥","♦"]);
+const suitSymbols = {
+  S: "♠",
+  H: "♥",
+  D: "♦",
+  C: "♣"
+};
+const redSuits = new Set(["H", "D"]);
 
 const SAVE_SLOT = 0;
 const BOARD_ID = "blackjack_bankroll";
 
 let sessionInfo = null;
+let lastRoundProcessed = 0;
 
 let state = {
-  bankroll: 1000,
-  deck: [],
+  bankroll: 0,
+  symbol: "$",
   player: [],
   dealer: [],
-  bet: 50,
+  bet: 10,
   inRound: false,
   revealDealer: false,
   lastMessage: "Click Deal to start.",
   handsPlayed: 0,
   handsWon: 0,
   handsLost: 0,
-  bestBankroll: 1000
+  bestBankroll: 0,
+  roundId: 0,
+  lastOutcome: null
 };
 
 function setStatus(msg) {
   state.lastMessage = msg;
   const el = document.getElementById("status");
   if (el) el.textContent = msg;
-}
-
-function newDeck() {
-  let d = [];
-  for (let s of suits) for (let r of ranks) d.push({ s, r });
-  for (let i = d.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [d[i], d[j]] = [d[j], d[i]];
-  }
-  return d;
 }
 
 function handValue(hand) {
@@ -48,11 +44,6 @@ function handValue(hand) {
   }
   while (total > 21 && aces > 0) { total -= 10; aces--; }
   return total;
-}
-
-function draw(hand) {
-  if (!state.deck.length) state.deck = newDeck();
-  hand.push(state.deck.pop());
 }
 
 function canAffordBet(bet) {
@@ -76,7 +67,8 @@ function render() {
       const isHidden = hideSecondCard && idx === 1;
       div.className = "card" + (isHidden ? " back" : "");
       if (!isHidden && redSuits.has(c.s)) div.classList.add("red");
-      div.textContent = isHidden ? "" : (c.r + c.s);
+      const suit = suitSymbols[c.s] || c.s;
+      div.textContent = isHidden ? "" : (c.r + suit);
       el.appendChild(div);
     });
   };
@@ -84,7 +76,7 @@ function render() {
   renderHand(document.getElementById("dealer"), state.dealer, state.inRound && !state.revealDealer);
   renderHand(document.getElementById("player"), state.player, false);
 
-  document.getElementById("bankroll").textContent = "Bankroll: $" + state.bankroll;
+  document.getElementById("bankroll").textContent = `Bankroll: ${state.symbol}${state.bankroll}`;
 
   const pv = state.player.length ? handValue(state.player) : 0;
   const dv = state.dealer.length ? handValue(state.dealer) : 0;
@@ -93,21 +85,13 @@ function render() {
   document.getElementById("dealerValue").textContent =
     state.dealer.length ? ((state.inRound && !state.revealDealer) ? "" : `(${dv})`) : "";
 
-  setStatus(state.lastMessage);
+  if (state.lastMessage) {
+    setStatus(state.lastMessage);
+  }
   updateButtons();
 }
 
-function payout(outcome) {
-  const bet = state.bet;
-  if (outcome === "push") return 0;
-  if (outcome === "lose") return -bet;
-  if (outcome === "win") return bet;
-  if (outcome === "blackjack") return Math.floor(bet * 1.5);
-  return 0;
-}
-
 async function autosaveAndMaybeScore(outcome) {
-  // Save to storage slot 0 per spec
   const metadata = {
     save_name: "Auto-save",
     handsPlayed: state.handsPlayed,
@@ -115,111 +99,62 @@ async function autosaveAndMaybeScore(outcome) {
   };
 
   try {
-    await WebDoor.saveSlot(SAVE_SLOT, state, metadata);
-  } catch (e) {
-    // keep playing even if save fails
-  }
+    await WebDoor.saveSlot(SAVE_SLOT, {
+      handsPlayed: state.handsPlayed,
+      handsWon: state.handsWon,
+      handsLost: state.handsLost,
+      bestBankroll: state.bestBankroll
+    }, metadata);
+  } catch (e) {}
 
-  // Submit leaderboard score as "best bankroll achieved"
-  // Only submit when a round ends.
   try {
     await WebDoor.submitScore(BOARD_ID, state.bestBankroll, {
       outcome,
       bankroll: state.bankroll,
       handsPlayed: state.handsPlayed
     });
-  } catch (e) {
-    // leaderboard may not be implemented yet; ignore
+  } catch (e) {}
+}
+
+async function apiAction(action, payload = {}) {
+  const r = await fetch("index.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, ...payload })
+  });
+  let data = {};
+  try {
+    data = await r.json();
+  } catch (e) {}
+  if (!r.ok && !data.error) {
+    data.error = `Request failed: HTTP ${r.status}`;
   }
+  return data;
 }
 
-async function endRound(outcome) {
-  state.revealDealer = true;
-  state.inRound = false;
+function applyServerState(data) {
+  if (!data || !data.state) return;
+  state = { ...state, ...data.state };
+  if (Number.isFinite(data.balance)) state.bankroll = data.balance;
+  if (data.symbol) state.symbol = data.symbol;
+  if (data.error) {
+    setStatus(data.error);
+  } else if (state.lastMessage) {
+    setStatus(state.lastMessage);
+  }
 
-  state.handsPlayed += 1;
-  if (outcome === "win" || outcome === "blackjack") state.handsWon += 1;
-  if (outcome === "lose") state.handsLost += 1;
-
-  const delta = payout(outcome);
-  state.bankroll += delta;
-  state.bestBankroll = Math.max(state.bestBankroll, state.bankroll);
-
-  const pv = handValue(state.player);
-  const dv = handValue(state.dealer);
-
-  let msg = "";
-  if (outcome === "blackjack") msg = `Blackjack! You win $${delta}. (You: ${pv}, Dealer: ${dv})`;
-  else if (outcome === "win") msg = `You win $${delta}. (You: ${pv}, Dealer: ${dv})`;
-  else if (outcome === "lose") msg = `Dealer wins. You lose $${-delta}. (You: ${pv}, Dealer: ${dv})`;
-  else msg = `Push. No change. (You: ${pv}, Dealer: ${dv})`;
-
-  setStatus(msg);
-  render();
-  await autosaveAndMaybeScore(outcome);
-  await refreshLeaderboardBestEffort();
-}
-
-function startRound() {
   const betInput = document.getElementById("bet");
-  const bet = parseInt(betInput.value, 10);
-  if (!canAffordBet(bet)) {
-    setStatus("Invalid bet. It must be between $1 and your bankroll.");
-    render();
-    return;
+  if (betInput && Number.isFinite(state.bet)) {
+    betInput.value = state.bet;
   }
 
-  state.bet = bet;
-  state.player = [];
-  state.dealer = [];
-  state.revealDealer = false;
-  state.inRound = true;
-
-  if (state.deck.length < 15) state.deck = newDeck();
-
-  draw(state.player);
-  draw(state.dealer);
-  draw(state.player);
-  draw(state.dealer);
-
-  const pv = handValue(state.player);
-  const dv = handValue(state.dealer);
-
-  const playerBJ = (pv === 21 && state.player.length === 2);
-  const dealerBJ = (dv === 21 && state.dealer.length === 2);
-
-  if (playerBJ && dealerBJ) { endRound("push"); return; }
-  if (playerBJ) { endRound("blackjack"); return; }
-  if (dealerBJ) { endRound("lose"); return; }
-
-  setStatus("Round started. Hit or Stand.");
   render();
-}
 
-function playerHit() {
-  if (!state.inRound) return;
-  draw(state.player);
-  const pv = handValue(state.player);
-  if (pv > 21) { endRound("lose"); return; }
-  setStatus(`Hit. Your total is ${pv}.`);
-  render();
-}
-
-function dealerPlay() {
-  while (handValue(state.dealer) < 17) draw(state.dealer);
-}
-
-function playerStand() {
-  if (!state.inRound) return;
-  dealerPlay();
-
-  const pv = handValue(state.player);
-  const dv = handValue(state.dealer);
-
-  if (dv > 21) endRound("win");
-  else if (pv > dv) endRound("win");
-  else if (pv < dv) endRound("lose");
-  else endRound("push");
+  if (state.lastOutcome && state.roundId > lastRoundProcessed) {
+    lastRoundProcessed = state.roundId;
+    autosaveAndMaybeScore(state.lastOutcome);
+    refreshLeaderboardBestEffort();
+  }
 }
 
 async function refreshLeaderboardBestEffort() {
@@ -233,20 +168,43 @@ async function refreshLeaderboardBestEffort() {
     lb.entries.forEach((e) => {
       const li = document.createElement("li");
       const name = e.display_name ?? e.user ?? e.name ?? "Player";
-      li.textContent = `${name} — $${e.score}`;
+      li.textContent = `${name} - ${state.symbol}${e.score}`;
       ul.appendChild(li);
     });
-  } catch (e) {
-    // ignore
-  }
+  } catch (e) {}
 }
 
-document.getElementById("deal").onclick = startRound;
-document.getElementById("hit").onclick = playerHit;
-document.getElementById("stand").onclick = playerStand;
+document.getElementById("deal").onclick = async () => {
+  const betInput = document.getElementById("bet");
+  const bet = parseInt(betInput.value, 10);
+  if (!canAffordBet(bet)) {
+    setStatus(`Invalid bet. It must be between ${state.symbol}1 and your bankroll.`);
+    render();
+    return;
+  }
+
+  const data = await apiAction("deal", { bet });
+  applyServerState(data);
+};
+
+document.getElementById("hit").onclick = async () => {
+  const data = await apiAction("hit");
+  applyServerState(data);
+};
+
+document.getElementById("stand").onclick = async () => {
+  const data = await apiAction("stand");
+  applyServerState(data);
+};
+
 document.getElementById("save").onclick = async () => {
   try {
-    await WebDoor.saveSlot(SAVE_SLOT, state, { save_name: "Manual save" });
+    await WebDoor.saveSlot(SAVE_SLOT, {
+      handsPlayed: state.handsPlayed,
+      handsWon: state.handsWon,
+      handsLost: state.handsLost,
+      bestBankroll: state.bestBankroll
+    }, { save_name: "Manual save" });
     setStatus("Saved.");
   } catch (e) {
     setStatus("Save failed.");
@@ -255,15 +213,7 @@ document.getElementById("save").onclick = async () => {
 };
 
 (async () => {
-  // session call is part of spec; do it first so the host can validate/auth
   try { sessionInfo = await WebDoor.session(); } catch (e) {}
-
-  // load autosave slot 0 if present
-  try {
-    const loaded = await WebDoor.loadSlot(SAVE_SLOT);
-    if (loaded && loaded.data) state = loaded.data;
-  } catch (e) {}
-
-  render();
-  await refreshLeaderboardBestEffort();
+  const data = await apiAction("init");
+  applyServerState(data);
 })();

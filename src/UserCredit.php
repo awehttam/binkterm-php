@@ -1,0 +1,235 @@
+<?php
+
+namespace BinktermPHP;
+
+use PDO;
+
+class UserCredit
+{
+    public const TYPE_PAYMENT = 'payment';
+    public const TYPE_DAILY_LOGIN = 'daily_login';
+    public const TYPE_SYSTEM_REWARD = 'system_reward';
+    public const TYPE_ADMIN_ADJUSTMENT = 'admin_adjustment';
+    public const TYPE_NPC_TRANSACTION = 'npc_transaction';
+    public const TYPE_REFUND = 'refund';
+
+    /**
+     * Retrieve the current credit balance for the user.
+     *
+     * @param int $userId
+     * @return int
+     * @throws \Exception
+     */
+    public static function getBalance(int $userId): int
+    {
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare('SELECT credit_balance FROM users WHERE id = ?');
+        $stmt->execute([$userId]);
+        $balance = $stmt->fetchColumn();
+
+        if ($balance === false) {
+            throw new \Exception('User not found');
+        }
+
+        return (int)$balance;
+    }
+
+    /**
+     * Perform a credit transaction for a user.
+     *
+     * @param int $userId
+     * @param int $amount
+     * @param string $description
+     * @param int|null $otherPartyId
+     * @param string $type
+     * @return bool
+     * @throws \Exception
+     */
+    public static function transact(
+        int $userId,
+        int $amount,
+        string $description,
+        ?int $otherPartyId = null,
+        string $type = self::TYPE_PAYMENT
+    ): bool {
+        $credits = self::getCreditsConfig();
+        if (!$credits['enabled']) {
+            throw new \Exception('Credit system is disabled');
+        }
+
+        if (!is_int($amount) || $amount === 0) {
+            throw new \Exception('Transaction amount must be a non-zero integer');
+        }
+
+        $validTypes = [
+            self::TYPE_PAYMENT,
+            self::TYPE_DAILY_LOGIN,
+            self::TYPE_SYSTEM_REWARD,
+            self::TYPE_ADMIN_ADJUSTMENT,
+            self::TYPE_NPC_TRANSACTION,
+            self::TYPE_REFUND
+        ];
+        if (!in_array($type, $validTypes, true)) {
+            throw new \Exception('Invalid transaction type');
+        }
+
+        $description = trim($description);
+        if ($description === '') {
+            throw new \Exception('Transaction description is required');
+        }
+
+        $db = Database::getInstance()->getPdo();
+
+        try {
+            $db->beginTransaction();
+
+            $stmt = $db->prepare('SELECT credit_balance FROM users WHERE id = ? FOR UPDATE');
+            $stmt->execute([$userId]);
+            $currentBalance = $stmt->fetchColumn();
+
+            if ($currentBalance === false) {
+                throw new \Exception('User not found');
+            }
+
+            $currentBalance = (int)$currentBalance;
+            $newBalance = $currentBalance + $amount;
+
+            if ($newBalance < 0) {
+                throw new \Exception('Insufficient balance for transaction');
+            }
+
+            $updateStmt = $db->prepare('UPDATE users SET credit_balance = ? WHERE id = ?');
+            $updateStmt->execute([$newBalance, $userId]);
+
+            $insertStmt = $db->prepare('
+                INSERT INTO user_transactions
+                    (user_id, other_party_id, amount, balance_after, description, transaction_type, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, NOW())
+            ');
+            $insertStmt->execute([
+                $userId,
+                $otherPartyId,
+                $amount,
+                $newBalance,
+                mb_substr($description, 0, 500),
+                $type
+            ]);
+
+            $db->commit();
+            return true;
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Process daily login credits for the user.
+     *
+     * @param int $userId
+     * @return bool
+     * @throws \Exception
+     */
+    public static function processDaily(int $userId): bool
+    {
+        $credits = self::getCreditsConfig();
+        if (!$credits['enabled']) {
+            return false;
+        }
+
+        $dailyAmount = (int)$credits['daily_amount'];
+        if ($dailyAmount <= 0) {
+            return false;
+        }
+
+        $delayMinutes = (int)$credits['daily_login_delay_minutes'];
+
+        $db = Database::getInstance()->getPdo();
+        $eligibleStmt = $db->prepare('
+            SELECT (NOW() - created_at) >= (INTERVAL \'1 minute\' * ?) AS eligible
+            FROM user_sessions
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        ');
+        $eligibleStmt->execute([$delayMinutes, $userId]);
+        $eligible = $eligibleStmt->fetchColumn();
+
+        if (!$eligible) {
+            return false;
+        }
+
+        $meta = new UserMeta();
+        $lastDate = $meta->getValue($userId, 'last_daily_credit_date');
+        $today = (new \DateTime('now', new \DateTimeZone('UTC')))->format('Y-m-d');
+
+        if ($lastDate === $today) {
+            return false;
+        }
+
+        self::transact(
+            $userId,
+            $dailyAmount,
+            'Daily login bonus',
+            null,
+            self::TYPE_DAILY_LOGIN
+        );
+
+        $meta->setValue($userId, 'last_daily_credit_date', $today);
+        return true;
+    }
+
+    /**
+     * Retrieve recent transactions for a user.
+     *
+     * @param int $userId
+     * @param int $limit
+     * @return array
+     */
+    public static function getTransactionHistory(int $userId, int $limit = 50): array
+    {
+        $limit = max(1, min($limit, 200));
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare('
+            SELECT id, user_id, other_party_id, amount, balance_after, description, transaction_type, created_at
+            FROM user_transactions
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        ');
+        $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
+    private static function getCreditsConfig(): array
+    {
+        $config = BbsConfig::getConfig();
+        $credits = is_array($config['credits'] ?? null) ? $config['credits'] : [];
+
+        $defaults = [
+            'enabled' => true,
+            'symbol' => '$',
+            'daily_amount' => 100,
+            'daily_login_delay_minutes' => 5,
+            'approval_bonus' => 1000
+        ];
+
+        $merged = array_merge($defaults, $credits);
+        $merged['enabled'] = !empty($merged['enabled']);
+        $merged['symbol'] = trim((string)$merged['symbol']);
+        if ($merged['symbol'] === '') {
+            $merged['symbol'] = '$';
+        }
+        $merged['daily_amount'] = max(0, (int)$merged['daily_amount']);
+        $merged['daily_login_delay_minutes'] = max(0, (int)$merged['daily_login_delay_minutes']);
+        $merged['approval_bonus'] = max(0, (int)$merged['approval_bonus']);
+
+        return $merged;
+    }
+}

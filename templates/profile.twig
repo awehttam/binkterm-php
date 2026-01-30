@@ -111,12 +111,22 @@
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
+                    <dt class="col-8">Credits:</dt>
+                    <dd class="col-4">
+                        {% if credits_enabled %}
+                            {{ credits_symbol }}{{ credit_balance }}
+                        {% else %}
+                            <span class="text-muted">Disabled</span>
+                        {% endif %}
+                    </dd>
+
                     <dt class="col-8">Netmail Sent:</dt>
                     <dd class="col-4"><span id="netmailCount">-</span></dd>
                     
                     <dt class="col-8">Echomail Posted:</dt>
                     <dd class="col-4"><span id="echomailCount">-</span></dd>
                     
+
                     <dt class="col-8">Total Messages:</dt>
                     <dd class="col-4"><strong><span id="totalCount">-</span></strong></dd>
                 </dl>

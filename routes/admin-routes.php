@@ -1,8 +1,10 @@
 <?php
 
+use BinktermPHP\AdminActionLogger;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
 use BinktermPHP\Template;
+use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
 
 SimpleRouter::group(['prefix' => '/admin'], function() {
@@ -129,9 +131,17 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $adminController = new AdminController();
         $adminController->requireAdmin($user);
 
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $csrfToken = bin2hex(random_bytes(32));
+        if ($userId) {
+            $meta = new UserMeta();
+            $meta->setValue((int)$userId, 'csrf_bbs_settings', $csrfToken);
+        }
+
         $template = new Template();
         $template->renderResponse('admin/bbs_settings.twig', [
-            'timezone_list' => \DateTimeZone::listIdentifiers()
+            'timezone_list' => \DateTimeZone::listIdentifiers(),
+            'bbs_settings_csrf' => $csrfToken
         ]);
     });
 
@@ -568,10 +578,56 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
 
             try {
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+                $meta = new UserMeta();
+                $expectedToken = $userId ? $meta->getValue($userId, 'csrf_bbs_settings') : null;
+                if (!$expectedToken || !hash_equals($expectedToken, (string)$csrfToken)) {
+                    http_response_code(403);
+                    echo json_encode(['error' => 'Invalid CSRF token']);
+                    return;
+                }
+
                 $payload = json_decode(file_get_contents('php://input'), true);
                 $config = $payload['config'] ?? [];
+                if (!is_array($config)) {
+                    throw new Exception('Invalid configuration payload');
+                }
+
+                if (array_key_exists('credits', $config)) {
+                    if (!is_array($config['credits'])) {
+                        throw new Exception('Invalid credits configuration');
+                    }
+                    $credits = $config['credits'];
+                    $symbol = trim((string)($credits['symbol'] ?? ''));
+                    if ($symbol === '' || mb_strlen($symbol) > 5) {
+                        throw new Exception('Currency symbol must be 1-5 characters');
+                    }
+                    if (!is_numeric($credits['daily_amount'] ?? null) || (int)$credits['daily_amount'] < 0) {
+                        throw new Exception('Daily login amount must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['daily_login_delay_minutes'] ?? null) || (int)$credits['daily_login_delay_minutes'] < 0) {
+                        throw new Exception('Daily login delay must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['approval_bonus'] ?? null) || (int)$credits['approval_bonus'] < 0) {
+                        throw new Exception('Approval bonus must be a non-negative integer');
+                    }
+                    $config['credits'] = [
+                        'enabled' => !empty($credits['enabled']),
+                        'symbol' => $symbol,
+                        'daily_amount' => (int)$credits['daily_amount'],
+                        'daily_login_delay_minutes' => (int)$credits['daily_login_delay_minutes'],
+                        'approval_bonus' => (int)$credits['approval_bonus']
+                    ];
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'bbs_settings_updated', [
+                        'credits' => $config['credits'] ?? null
+                    ]);
+                }
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(500);

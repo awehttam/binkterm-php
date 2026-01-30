@@ -1524,6 +1524,22 @@ class MessageHandler
             
             // Send welcome netmail to new user
             $this->sendWelcomeMessage($newUserId, $pendingUser['username'], $pendingUser['real_name']);
+
+            try {
+                $credits = BbsConfig::getConfig()['credits'] ?? [];
+                $approvalBonus = isset($credits['approval_bonus']) ? (int)$credits['approval_bonus'] : 1000;
+                if ($approvalBonus > 0) {
+                    UserCredit::transact(
+                        (int)$newUserId,
+                        $approvalBonus,
+                        'New user approval bonus',
+                        null,
+                        UserCredit::TYPE_SYSTEM_REWARD
+                    );
+                }
+            } catch (\Throwable $e) {
+                error_log('[CREDITS] Failed to grant approval bonus: ' . $e->getMessage());
+            }
             
             return $newUserId;
             

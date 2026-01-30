@@ -7,7 +7,8 @@
         "proxy_port": 3000
     },
     "blackjack": {
-        "enabled": true
+        "enabled": true,
+        "start_bet": 10
     },
     "klondike-solitaire": {
         "enabled": true

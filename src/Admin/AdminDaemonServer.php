@@ -350,7 +350,7 @@ class AdminDaemonServer
 
     private function logCommandResult(string $cmd, array $result): void
     {
-        $this->logger->info('Admin daemon command completed', [
+        $this->logger->debug('Admin daemon command completed', [
             'cmd' => $cmd,
             'exit_code' => $result['exit_code'] ?? null
         ]);

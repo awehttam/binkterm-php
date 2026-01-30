@@ -3,6 +3,7 @@
 namespace BinktermPHP;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\BbsConfig;
 
 class WebDoorController
 {
@@ -74,6 +75,17 @@ class WebDoorController
         }
 
         $binkpConfig = BinkpConfig::getInstance();
+        $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
+        $creditsEnabled = !empty($creditsConfig['enabled']);
+        $creditsSymbol = $creditsConfig['symbol'] ?? '$';
+        $creditsBalance = null;
+        if ($creditsEnabled) {
+            try {
+                $creditsBalance = UserCredit::getBalance((int)$this->user['user_id']);
+            } catch (\Throwable $e) {
+                $creditsBalance = null;
+            }
+        }
 
         return [
             'session_id' => $session['session_id'],
@@ -90,9 +102,15 @@ class WebDoorController
                 'id' => $gameId,
                 'name' => ucfirst($gameId)
             ],
+            'credits' => [
+                'enabled' => $creditsEnabled,
+                'symbol' => $creditsSymbol,
+                'balance' => $creditsBalance
+            ],
             'expires_at' => $session['expires_at']
         ];
     }
+
 
     /**
      * End a WebDoor session
@@ -438,6 +456,7 @@ class WebDoorController
 
         return null;
     }
+
 
     /**
      * Get JSON input from request body

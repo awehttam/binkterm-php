@@ -98,7 +98,31 @@ class Auth
     {
         $sessionId = $_COOKIE['binktermphp_session'] ?? null;
         if ($sessionId) {
-            return $this->validateSession($sessionId);
+            $user = $this->validateSession($sessionId);
+            if ($user) {
+                $userId = $user['user_id'] ?? $user['id'] ?? null;
+                if ($userId) {
+                    $shouldCheck = true;
+                    if (session_status() === PHP_SESSION_ACTIVE) {
+                        $key = 'daily_credit_last_check_' . (int)$userId;
+                        $lastCheck = isset($_SESSION[$key]) ? (int)$_SESSION[$key] : 0;
+                        if (time() - $lastCheck < 60) {
+                            $shouldCheck = false;
+                        } else {
+                            $_SESSION[$key] = time();
+                        }
+                    }
+
+                    if ($shouldCheck) {
+                        try {
+                            UserCredit::processDaily((int)$userId);
+                        } catch (\Throwable $e) {
+                            error_log('[CREDITS] Daily processing failed: ' . $e->getMessage());
+                        }
+                    }
+                }
+            }
+            return $user;
         }
         return null;
     }

@@ -6,7 +6,7 @@
     "version": "1.0.1",
     "author": "ChatGPT",
     "description": "Single-player Blackjack with bankroll + WebDoor storage + leaderboard",
-    "entry_point": "index.html",
+    "entry_point": "index.php",
     "icon": "icon.svg"
   },
   "requirements": {
