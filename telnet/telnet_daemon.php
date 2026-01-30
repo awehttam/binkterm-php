@@ -997,6 +997,7 @@ function prompt($conn, array &$state, string $label, bool $echo = true): ?string
 
     if ($echo) {
         $value = readTelnetLine($conn, $state);
+        writeLine($conn, '');
         return $value;
     }
 
@@ -1004,6 +1005,14 @@ function prompt($conn, array &$state, string $label, bool $echo = true): ?string
     setEcho($conn, true);
     writeLine($conn, '');
     return $value;
+}
+
+function setTerminalTitle($conn, string $title): void
+{
+    // ANSI escape sequence to set terminal window title
+    // \033]0; sets both icon and window title
+    // \007 is the BEL terminator
+    safeWrite($conn, "\033]0;{$title}\007");
 }
 
 function showLoginBanner($conn): void
@@ -1574,6 +1583,10 @@ while (true) {
 
     // Log successful login to console
     echo "[" . date('Y-m-d H:i:s') . "] Login: {$username} from {$peerName}\n";
+
+    // Set terminal window title to BBS name
+    $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    setTerminalTitle($conn, $config->getSystemName());
 
     showShoutbox($conn, $state, $apiBase, $session, 5);
 
