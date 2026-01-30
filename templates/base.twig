@@ -141,6 +141,9 @@
                     {% if current_user %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                {% if credits_enabled %}
+                                    <span class="me-2">{{ credits_symbol }}{{ credit_balance }}</span>
+                                {% endif %}
                                 <i class="fas fa-user"></i> {{ current_user.username }}
                             </a>
                             <ul class="dropdown-menu">

@@ -14,6 +14,58 @@ class UserCredit
     public const TYPE_REFUND = 'refund';
 
     /**
+     * Credit a user's balance.
+     *
+     * @param int $userId
+     * @param int $amount
+     * @param string $description
+     * @param int|null $otherPartyId
+     * @param string $type
+     * @return bool
+     */
+    public static function credit(
+        int $userId,
+        int $amount,
+        string $description,
+        ?int $otherPartyId = null,
+        string $type = self::TYPE_PAYMENT
+    ): bool {
+        if(!self::isEnabled())
+            return false;
+        try {
+            return self::transact($userId, abs($amount), $description, $otherPartyId, $type);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Debit a user's balance.
+     *
+     * @param int $userId
+     * @param int $amount
+     * @param string $description
+     * @param int|null $otherPartyId
+     * @param string $type
+     * @return bool
+     */
+    public static function debit(
+        int $userId,
+        int $amount,
+        string $description,
+        ?int $otherPartyId = null,
+        string $type = self::TYPE_PAYMENT
+    ): bool {
+        if(!self::isEnabled())
+            return false;
+        try {
+            return self::transact($userId, -abs($amount), $description, $otherPartyId, $type);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * Retrieve the current credit balance for the user.
      *
      * @param int $userId
@@ -52,10 +104,8 @@ class UserCredit
         ?int $otherPartyId = null,
         string $type = self::TYPE_PAYMENT
     ): bool {
-        $credits = self::getCreditsConfig();
-        if (!$credits['enabled']) {
+        if(!self::isEnabled())
             throw new \Exception('Credit system is disabled');
-        }
 
         if (!is_int($amount) || $amount === 0) {
             throw new \Exception('Transaction amount must be a non-zero integer');
@@ -136,9 +186,8 @@ class UserCredit
     public static function processDaily(int $userId): bool
     {
         $credits = self::getCreditsConfig();
-        if (!$credits['enabled']) {
+        if(!self::isEnabled())
             return false;
-        }
 
         $dailyAmount = (int)$credits['daily_amount'];
         if ($dailyAmount <= 0) {
@@ -215,21 +264,32 @@ class UserCredit
         $defaults = [
             'enabled' => true,
             'symbol' => '$',
-            'daily_amount' => 100,
+            'daily_amount' => 25,
             'daily_login_delay_minutes' => 5,
-            'approval_bonus' => 1000
+            'approval_bonus' => 300,
+            'netmail_cost' => 1,
+            'echomail_reward' => 3
         ];
 
         $merged = array_merge($defaults, $credits);
         $merged['enabled'] = !empty($merged['enabled']);
-        $merged['symbol'] = trim((string)$merged['symbol']);
-        if ($merged['symbol'] === '') {
+        $symbolRaw = $merged['symbol'] ?? '$';
+        $merged['symbol'] = trim((string)$symbolRaw);
+        if ($merged['symbol'] === '' && !array_key_exists('symbol', $credits)) {
             $merged['symbol'] = '$';
         }
         $merged['daily_amount'] = max(0, (int)$merged['daily_amount']);
         $merged['daily_login_delay_minutes'] = max(0, (int)$merged['daily_login_delay_minutes']);
         $merged['approval_bonus'] = max(0, (int)$merged['approval_bonus']);
+        $merged['netmail_cost'] = max(0, (int)$merged['netmail_cost']);
+        $merged['echomail_reward'] = max(0, (int)$merged['echomail_reward']);
 
         return $merged;
+    }
+
+    public static function isEnabled()
+    {
+        $config = self::getCreditsConfig();
+        return((bool)$config['enabled']);
     }
 }

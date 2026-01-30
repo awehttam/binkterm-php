@@ -5,6 +5,7 @@ use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
 use BinktermPHP\Template;
 use BinktermPHP\UserMeta;
+use BinktermPHP\WebDoorManifest;
 use Pecee\SimpleRouter\SimpleRouter;
 
 SimpleRouter::group(['prefix' => '/admin'], function() {
@@ -600,8 +601,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     }
                     $credits = $config['credits'];
                     $symbol = trim((string)($credits['symbol'] ?? ''));
-                    if ($symbol === '' || mb_strlen($symbol) > 5) {
-                        throw new Exception('Currency symbol must be 1-5 characters');
+                    if (mb_strlen($symbol) > 5) {
+                        throw new Exception('Currency symbol must be 0-5 characters');
                     }
                     if (!is_numeric($credits['daily_amount'] ?? null) || (int)$credits['daily_amount'] < 0) {
                         throw new Exception('Daily login amount must be a non-negative integer');
@@ -612,12 +613,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['approval_bonus'] ?? null) || (int)$credits['approval_bonus'] < 0) {
                         throw new Exception('Approval bonus must be a non-negative integer');
                     }
+                    if (!is_numeric($credits['netmail_cost'] ?? null) || (int)$credits['netmail_cost'] < 0) {
+                        throw new Exception('Netmail cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['echomail_reward'] ?? null) || (int)$credits['echomail_reward'] < 0) {
+                        throw new Exception('Echomail reward must be a non-negative integer');
+                    }
                     $config['credits'] = [
                         'enabled' => !empty($credits['enabled']),
                         'symbol' => $symbol,
                         'daily_amount' => (int)$credits['daily_amount'],
                         'daily_login_delay_minutes' => (int)$credits['daily_login_delay_minutes'],
-                        'approval_bonus' => (int)$credits['approval_bonus']
+                        'approval_bonus' => (int)$credits['approval_bonus'],
+                        'netmail_cost' => (int)$credits['netmail_cost'],
+                        'echomail_reward' => (int)$credits['echomail_reward']
                     ];
                 }
 
@@ -732,6 +741,31 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(500);
                 echo json_encode(['error' => $e->getMessage()]);
             }
+        });
+
+        SimpleRouter::get('/webdoors-available', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $doors = [];
+            foreach (WebDoorManifest::listManifests() as $entry) {
+                $manifest = $entry['manifest'];
+                $game = $manifest['game'] ?? [];
+                $gameId = $entry['id'];
+                $doors[] = [
+                    'id' => $gameId,
+                    'name' => $game['name'] ?? $gameId,
+                    'path' => $entry['path'],
+                    'config' => is_array($manifest['config'] ?? null) ? $manifest['config'] : null
+                ];
+            }
+
+            echo json_encode(['doors' => $doors]);
         });
 
         SimpleRouter::post('/webdoors-config', function() {

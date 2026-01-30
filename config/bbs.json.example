@@ -8,9 +8,11 @@
     },
     "credits": {
         "enabled": true,
-        "symbol": "$",
-        "daily_amount": 100,
+        "symbol": "CR",
+        "daily_amount": 25,
         "daily_login_delay_minutes": 5,
-        "approval_bonus": 1000
+        "approval_bonus": 300,
+        "netmail_cost": 1,
+        "echomail_reward": 3
     }
 }

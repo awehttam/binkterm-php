@@ -103,7 +103,7 @@
                     <div class="mb-3">
                         <label class="form-label" for="bbsCreditsSymbol">Currency Symbol</label>
                         <input type="text" class="form-control" id="bbsCreditsSymbol" maxlength="5">
-                        <small class="text-muted">Example: $, USD (max 5 characters)</small>
+                        <small class="text-muted">Example: $, USD (max 5 characters). Leave blank for no symbol.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="bbsCreditsDailyAmount">Daily Login Bonus Amount</label>
@@ -120,6 +120,17 @@
                         <input type="number" class="form-control" id="bbsCreditsApprovalBonus" min="0" step="1">
                         <small class="text-muted">Credits awarded when a pending user is approved.</small>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsNetmailCost">Netmail Cost</label>
+                        <input type="number" class="form-control" id="bbsCreditsNetmailCost" min="0" step="1">
+                        <small class="text-muted">Credits charged when sending a netmail message.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsEchomailReward">Echomail Reward</label>
+                        <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
+                        <small class="text-muted">Credits earned when posting an echomail message.</small>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
                 </div>
             </div>
         </div>
@@ -153,13 +164,17 @@ function loadBbsSettings() {
             document.getElementById('bbsVoting').checked = !!features.voting_booth;
             document.getElementById('bbsChat').checked = !!features.chat;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
-            document.getElementById('bbsCreditsSymbol').value = credits.symbol || '$';
+            document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);
             const dailyDelayValue = parseInt(credits.daily_login_delay_minutes, 10);
             const approvalBonusValue = parseInt(credits.approval_bonus, 10);
-            document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 100 : dailyAmountValue;
+            const netmailCostValue = parseInt(credits.netmail_cost, 10);
+            const echomailRewardValue = parseInt(credits.echomail_reward, 10);
+            document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 25 : dailyAmountValue;
             document.getElementById('bbsCreditsDailyDelay').value = Number.isNaN(dailyDelayValue) ? 5 : dailyDelayValue;
-            document.getElementById('bbsCreditsApprovalBonus').value = Number.isNaN(approvalBonusValue) ? 1000 : approvalBonusValue;
+            document.getElementById('bbsCreditsApprovalBonus').value = Number.isNaN(approvalBonusValue) ? 300 : approvalBonusValue;
+            document.getElementById('bbsCreditsNetmailCost').value = Number.isNaN(netmailCostValue) ? 1 : netmailCostValue;
+            document.getElementById('bbsCreditsEchomailReward').value = Number.isNaN(echomailRewardValue) ? 3 : echomailRewardValue;
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || 'Failed to load settings', 'danger');
@@ -168,8 +183,8 @@ function loadBbsSettings() {
 
 function saveBbsSettings() {
     const symbol = document.getElementById('bbsCreditsSymbol').value.trim();
-    if (!symbol || symbol.length > 5) {
-        showBbsSettingsAlert('Currency symbol must be 1-5 characters.', 'danger');
+    if (symbol.length > 5) {
+        showBbsSettingsAlert('Currency symbol must be 0-5 characters.', 'danger');
         return;
     }
 
@@ -191,6 +206,18 @@ function saveBbsSettings() {
         return;
     }
 
+    const netmailCost = parseInt(document.getElementById('bbsCreditsNetmailCost').value, 10);
+    if (Number.isNaN(netmailCost) || netmailCost < 0) {
+        showBbsSettingsAlert('Netmail cost must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const echomailReward = parseInt(document.getElementById('bbsCreditsEchomailReward').value, 10);
+    if (Number.isNaN(echomailReward) || echomailReward < 0) {
+        showBbsSettingsAlert('Echomail reward must be a non-negative integer.', 'danger');
+        return;
+    }
+
     const config = {
         features: {
             webdoors: document.getElementById('bbsWebdoors').checked,
@@ -204,7 +231,9 @@ function saveBbsSettings() {
             symbol: symbol,
             daily_amount: dailyAmount,
             daily_login_delay_minutes: dailyDelay,
-            approval_bonus: approvalBonus
+            approval_bonus: approvalBonus,
+            netmail_cost: netmailCost,
+            echomail_reward: echomailReward
         }
     };
 
