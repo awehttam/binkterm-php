@@ -23,11 +23,14 @@ class EchoareaSubscriptionManager
             FROM echoareas e
             JOIN user_echoarea_subscriptions s ON e.id = s.echoarea_id
             WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE
+              AND (e.is_sysop_only = FALSE OR EXISTS (
+                    SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
+                  ))
             ORDER BY e.tag
         ";
         
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$userId]);
+        $stmt->execute([$userId, $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -45,11 +48,14 @@ class EchoareaSubscriptionManager
             FROM echoareas e
             LEFT JOIN user_echoarea_subscriptions s ON (e.id = s.echoarea_id AND s.user_id = ?)
             WHERE e.is_active = TRUE
+              AND (e.is_sysop_only = FALSE OR EXISTS (
+                    SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
+                  ))
             ORDER BY e.is_default_subscription DESC, e.tag
         ";
         
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$userId]);
+        $stmt->execute([$userId, $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -58,6 +64,14 @@ class EchoareaSubscriptionManager
      */
     public function subscribeUser($userId, $echoareaId)
     {
+        $echoareaStmt = $this->db->prepare("SELECT is_sysop_only FROM echoareas WHERE id = ?");
+        $echoareaStmt->execute([$echoareaId]);
+        $echoarea = $echoareaStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($echoarea && !empty($echoarea['is_sysop_only']) && !$this->isUserAdmin($userId)) {
+            return false;
+        }
+
         // Check if subscription already exists
         $existing = $this->getUserSubscriptionStatus($userId, $echoareaId);
         
@@ -119,8 +133,11 @@ class EchoareaSubscriptionManager
     {
         $sql = "
             SELECT COUNT(*) as count 
-            FROM user_echoarea_subscriptions 
-            WHERE user_id = ? AND echoarea_id = ? AND is_active = TRUE
+            FROM user_echoarea_subscriptions s
+            JOIN echoareas e ON s.echoarea_id = e.id
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE s.user_id = ? AND s.echoarea_id = ? AND s.is_active = TRUE
+              AND (e.is_sysop_only = FALSE OR u.is_admin = TRUE)
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$userId, $echoareaId]);
@@ -221,9 +238,12 @@ class EchoareaSubscriptionManager
         $sql = "
             SELECT id FROM echoareas
             WHERE is_active = TRUE AND is_default_subscription = TRUE
+              AND (is_sysop_only = FALSE OR EXISTS (
+                    SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
+                  ))
         ";
         $stmt = $this->db->prepare($sql);
-        $stmt->execute();
+        $stmt->execute([$userId]);
         $defaultEchoareas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $count = 0;
@@ -245,5 +265,13 @@ class EchoareaSubscriptionManager
         }
 
         return $count;
+    }
+
+    private function isUserAdmin($userId)
+    {
+        $stmt = $this->db->prepare("SELECT is_admin FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $user && !empty($user['is_admin']);
     }
 }

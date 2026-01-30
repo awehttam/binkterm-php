@@ -172,6 +172,14 @@
                         </label>
                         <div class="form-text">Messages in local areas are not transmitted to uplinks</div>
                     </div>
+
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="echoareaSysopOnly" name="is_sysop_only">
+                        <label class="form-check-label" for="echoareaSysopOnly">
+                            Sysop Access Only
+                        </label>
+                        <div class="form-text">Restrict this echo area to sysop/admin users only</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -288,6 +296,7 @@ function displayEchoareas(echoareas) {
                         </span>
                         ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
                         ${area.is_local ? `<span class="badge bg-info ms-1" style="font-size: 0.7em;" title="Local only - not transmitted to uplinks">Local</span>` : ''}
+                        ${area.is_sysop_only ? `<span class="badge bg-warning text-dark ms-1" style="font-size: 0.7em;" title="Sysop access only">Sysop</span>` : ''}
                     </td>
                     <td>
                         <strong>${escapeHtml(area.description)}</strong>
@@ -332,6 +341,7 @@ function showAddEchoareaModal() {
     $('#echoareaColor').val('#28a745');
     $('#echoareaActive').prop('checked', true);
     $('#echoareaLocal').prop('checked', false);
+    $('#echoareaSysopOnly').prop('checked', false);
     $('#echoareaModal').modal('show');
 }
 
@@ -351,6 +361,7 @@ function editEchoarea(id) {
             $('#echoareaModerator').val(area.moderator || '');
             $('#echoareaActive').prop('checked', area.is_active);
             $('#echoareaLocal').prop('checked', area.is_local);
+            $('#echoareaSysopOnly').prop('checked', area.is_sysop_only);
             $('#echoareaModal').modal('show');
         })
         .fail(function() {
@@ -373,6 +384,7 @@ function saveEchoarea() {
         moderator: $('#echoareaModerator').val() || null,
         is_active: $('#echoareaActive').is(':checked'),
         is_local: $('#echoareaLocal').is(':checked'),
+        is_sysop_only: $('#echoareaSysopOnly').is(':checked'),
         domain: $("#echoareaDomain").val() || null
     };
     

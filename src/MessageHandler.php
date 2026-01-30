@@ -514,9 +514,15 @@ class MessageHandler
 
     public function getMessage($messageId, $type, $userId = null)
     {
+        $user = null;
+        $isAdmin = false;
+        if ($userId) {
+            $user = $this->getUserById($userId);
+            $isAdmin = $user && !empty($user['is_admin']);
+        }
+
         if ($type === 'netmail') {
             // For netmail, user can access messages they sent OR received (must match name AND to_address must be one of our addresses)
-            $user = $this->getUserById($userId);
             if (!$user) {
                 return null;
             }
@@ -549,7 +555,7 @@ class MessageHandler
         } else {
             // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color,
+                SELECT em.*, ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em
@@ -564,6 +570,10 @@ class MessageHandler
         $message = $stmt->fetch();
 
         if ($message) {
+            if ($type === 'echomail' && !empty($message['is_sysop_only']) && !$isAdmin) {
+                return null;
+            }
+
             if ($type === 'netmail') {
                 $this->markNetmailAsRead($messageId, $userId);
             } elseif ($type === 'echomail') {
@@ -912,7 +922,17 @@ class MessageHandler
             $subscriptionManager = new EchoareaSubscriptionManager();
             return $subscriptionManager->getUserSubscribedEchoareas($userId);
         }
-        
+
+        if ($userId) {
+            $user = $this->getUserById($userId);
+            $isAdmin = $user && !empty($user['is_admin']);
+            if (!$isAdmin) {
+                $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE is_active = TRUE AND is_sysop_only = FALSE ORDER BY tag");
+                $stmt->execute();
+                return $stmt->fetchAll();
+            }
+        }
+
         $stmt = $this->db->query("SELECT * FROM echoareas WHERE is_active = TRUE ORDER BY tag");
         return $stmt->fetchAll();
     }
@@ -938,6 +958,11 @@ class MessageHandler
             ");
             $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
         } else {
+            $isAdmin = false;
+            if ($userId) {
+                $user = $this->getUserById($userId);
+                $isAdmin = $user && !empty($user['is_admin']);
+            }
             $sql = "
                 SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain
                 FROM echomail em
@@ -946,6 +971,9 @@ class MessageHandler
             ";
             
             $params = [$searchTerm, $searchTerm, $searchTerm];
+            if (!$isAdmin) {
+                $sql .= " AND ea.is_sysop_only = FALSE";
+            }
             
             if ($echoarea) {
                 $sql .= " AND ea.tag = ?";
