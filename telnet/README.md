@@ -58,6 +58,7 @@ This directory contains an **alpha-quality** telnet daemon for BinktermPHP. It p
 - Message count display on main menu
 - Better error messages from API calls
 - Helpful command documentation
+- Optional ANSI login screen (`telnet/screens/login.ans`) if present
 
 ## Requirements
 
@@ -290,6 +291,11 @@ SyncTERM provides the best experience with full ANSI color support:
 2. Check debug output for detected screen dimensions
 3. Try different terminal emulator (SyncTERM recommended)
 4. Manually resize terminal window to trigger NAWS update
+
+### Custom Login Screen
+
+If `telnet/screens/login.ans` exists, the daemon will display it instead of the default login banner.
+This file is sent as raw ANSI with CRLF normalization, so keep it under the terminal width for best results.
 
 ### Editor Issues
 

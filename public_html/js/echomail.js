@@ -8,6 +8,7 @@ let userSettings = {};
 let currentMessages = [];
 let currentMessageIndex = -1;
 let currentSearchTerms = [];
+let currentMessageData = null;
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
@@ -50,6 +51,11 @@ $(document).ready(function() {
                 case 'ArrowRight':
                     e.preventDefault();
                     navigateMessage(1);
+                    break;
+                case 'd':
+                case 'D':
+                    e.preventDefault();
+                    downloadCurrentMessage();
                     break;
                 case 'Escape':
                     // Let the default modal behavior handle this
@@ -623,9 +629,18 @@ function displayMessageContent(message) {
 
     // Parse message to separate kludge lines from body
     const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
+    currentMessageData = message;
 
     // Check if sender is already in address book before rendering
     checkAndDisplayEchomailMessage(message, parsedMessage);
+}
+
+function downloadCurrentMessage() {
+    if (!currentMessageId || !currentMessageData) {
+        return;
+    }
+
+    window.location.href = `/api/messages/echomail/${encodeURIComponent(currentMessageId)}/download`;
 }
 
 function checkAndDisplayEchomailMessage(message, parsedMessage) {

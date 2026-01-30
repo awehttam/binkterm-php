@@ -9,6 +9,34 @@ use BinktermPHP\MessageHandler;
 use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
 
+function sanitizeFilenameForWindows(string $name, string $fallback = 'message'): string
+{
+    $safe = preg_replace('/[<>:"\/\\\\|?*\x00-\x1F]/', '_', $name);
+    $safe = preg_replace('/\s+/', ' ', (string)$safe);
+    $safe = trim($safe);
+    $safe = rtrim($safe, '. ');
+
+    if ($safe === '') {
+        $safe = $fallback;
+    }
+
+    $upper = strtoupper($safe);
+    $reserved = [
+        'CON', 'PRN', 'AUX', 'NUL',
+        'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+        'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+    ];
+    if (in_array($upper, $reserved, true)) {
+        $safe = '_' . $safe;
+    }
+
+    if (strlen($safe) > 120) {
+        $safe = substr($safe, 0, 120);
+    }
+
+    return $safe;
+}
+
 SimpleRouter::group(['prefix' => '/api'], function() {
 
     SimpleRouter::post('/auth/login', function() {
@@ -396,6 +424,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
         if (!$userId) {
             http_response_code(400);
             echo json_encode(['error' => 'Invalid user']);
@@ -425,24 +454,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
         $meta = new UserMeta();
         $now = gmdate('Y-m-d H:i:s');
 
         $seenNetmail = $meta->getValue((int)$userId, 'notify_seen_netmail');
         if (!$seenNetmail) {
-            $seenNetmail = $now;
+            // Initialize to a date in the past so existing unread messages are counted
+            $seenNetmail = '2020-01-01 00:00:00';
             $meta->setValue((int)$userId, 'notify_seen_netmail', $seenNetmail);
         }
 
         $seenEchomail = $meta->getValue((int)$userId, 'notify_seen_echomail');
         if (!$seenEchomail) {
-            $seenEchomail = $now;
+            // Initialize to a date in the past so existing unread messages are counted
+            $seenEchomail = '2020-01-01 00:00:00';
             $meta->setValue((int)$userId, 'notify_seen_echomail', $seenEchomail);
         }
 
         $seenChat = $meta->getValue((int)$userId, 'notify_seen_chat');
         if (!$seenChat) {
-            $seenChat = $now;
+            // Initialize to a date in the past so existing chat messages are counted
+            $seenChat = '2020-01-01 00:00:00';
             $meta->setValue((int)$userId, 'notify_seen_chat', $seenChat);
         }
 
@@ -484,13 +517,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
         // Unread echomail using message_read_status table (only from subscribed echoareas)
+        $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
         $unreadEchomailStmt = $db->prepare("
             SELECT COUNT(*) as count 
             FROM echomail em
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?{$sysopUnreadFilter}
         ");
         $unreadEchomailStmt->execute([$userId, $userId, $seenEchomail]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
@@ -1246,6 +1280,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $filter = $_GET['filter'] ?? 'active';
         $subscribedOnly = $_GET['subscribed_only'] ?? 'false';
+        $isAdmin = !empty($user['is_admin']);
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
@@ -1263,6 +1298,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.created_at,
                     e.domain,
                     e.is_local,
+                    e.is_sysop_only,
                     COALESCE(total_counts.message_count, 0) as message_count,
                     COALESCE(unread_counts.unread_count, 0) as unread_count
                 FROM echoareas e";
@@ -1293,6 +1329,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
             $conditions = [];
+            if (!$isAdmin) {
+                $conditions[] = "COALESCE(e.is_sysop_only, FALSE) = FALSE";
+            }
             if ($filter === 'active') {
                 $conditions[] = "e.is_active = TRUE";
             } elseif ($filter === 'inactive') {
@@ -1303,10 +1342,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         } else {
             // Standard filtering
+            $conditions = [];
+            if (!$isAdmin) {
+                $conditions[] = "COALESCE(e.is_sysop_only, FALSE) = FALSE";
+            }
             if ($filter === 'active') {
-                $sql .= " WHERE e.is_active = TRUE";
+                $conditions[] = "e.is_active = TRUE";
             } elseif ($filter === 'inactive') {
-                $sql .= " WHERE e.is_active = FALSE";
+                $conditions[] = "e.is_active = FALSE";
+            }
+            if (!empty($conditions)) {
+                $sql .= " WHERE " . implode(' AND ', $conditions);
             }
         }
         // 'all' filter shows everything
@@ -1367,6 +1413,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
+            $isSysopOnly = !empty($input['is_sysop_only']);
             $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
@@ -1384,11 +1431,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, domain)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, is_sysop_only, domain)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $domain]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $isSysopOnly ? 1 : 0, $domain]);
 
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -1423,6 +1470,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $color = $input['color'] ?? '#28a745';
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
+            $isSysopOnly = !empty($input['is_sysop_only']);
             $domain = trim($input['domain'] ?? '' ) ?: null;
 
             if (empty($tag) || empty($description)) {
@@ -1441,11 +1489,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, domain = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $domain, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $isSysopOnly ? 1 : 0, $domain, $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);
@@ -1688,17 +1736,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+        $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
 
         // Global echomail statistics (only from subscribed echoareas)
-        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE");
+        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE{$sysopFilter}");
         $totalStmt->execute([$userId]);
         $total = $totalStmt->fetch()['count'];
 
-        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'");
+        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}");
         $recentStmt->execute([$userId]);
         $recent = $recentStmt->fetch()['count'];
 
-        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE");
+        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE{$sysopFilter}");
         $areasStmt->execute([$userId]);
         $areas = $areasStmt->fetch()['count'];
 
@@ -1721,7 +1771,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND mrs.read_at IS NULL
+                WHERE ea.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}
             ");
             $unreadStmt->execute([$userId, $userId]);
             $unreadCount = $unreadStmt->fetch()['count'];
@@ -1732,7 +1782,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND mrs.read_at IS NOT NULL
+                WHERE ea.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}
             ");
             $readStmt->execute([$userId, $userId]);
             $readCount = $readStmt->fetch()['count'];
@@ -1743,7 +1793,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                    WHERE ea.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                    WHERE ea.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}
                 ");
                 $toMeStmt->execute([$userId, $userInfo['username'], $userInfo['real_name']]);
                 $toMeCount = $toMeStmt->fetch()['count'];
@@ -1755,7 +1805,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.is_active = TRUE AND sav.id IS NOT NULL
+                WHERE ea.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}
             ");
             $savedStmt->execute([$userId, $userId]);
             $savedCount = $savedStmt->fetch()['count'];
@@ -1798,6 +1848,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $domain=$foo[1];
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!$isAdmin && $userId) {
+            $subscriptionManager = new \BinktermPHP\EchoareaSubscriptionManager();
+            $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+            $echoareaStmt->execute([$echoarea, $domain]);
+            $echoareaRow = $echoareaStmt->fetch();
+
+            if (!$echoareaRow || !$subscriptionManager->isUserSubscribed($userId, $echoareaRow['id'])) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied']);
+                return;
+            }
+        }
 
         // Statistics for specific echoarea
         $stmt = $db->prepare("
@@ -1915,6 +1979,56 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             echo json_encode(['error' => 'Message not found']);
         }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/messages/echomail/{id}/download', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $message = $handler->getMessage($id, 'echomail', $userId);
+
+        if (!$message) {
+            http_response_code(404);
+            echo 'Message not found';
+            return;
+        }
+
+        $subject = $message['subject'] ?? 'message';
+        $filename = sanitizeFilenameForWindows((string)$subject) . '.txt';
+        $area = $message['echoarea'] ?? '';
+        $domain = $message['domain'] ?? '';
+        $areaLabel = $area !== '' ? $area . ($domain !== '' ? '@' . $domain : '') : '';
+
+        $headerLines = [
+            'From: ' . ($message['from_name'] ?? 'Unknown'),
+            'To: ' . ($message['to_name'] ?? 'All'),
+            'Subject: ' . ($message['subject'] ?? '(No Subject)'),
+            'Date: ' . ($message['date_written'] ?? ''),
+            'Area: ' . $areaLabel
+        ];
+
+        $headerText = implode("\r\n", $headerLines) . "\r\n\r\n";
+        $bodyText = (string)($message['message_text'] ?? '');
+        $bodyText = str_replace(["\r\n", "\r"], "\n", $bodyText);
+        $bodyText = str_replace("\n", "\r\n", $bodyText);
+        $content = $headerText . $bodyText;
+
+        $charset = 'utf-8';
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'CP437//TRANSLIT//IGNORE', $content);
+            if ($converted !== false) {
+                $content = $converted;
+                $charset = 'cp437';
+            }
+        }
+
+        $safeFilename = str_replace(['"', "\r", "\n"], '_', $filename);
+        header('Content-Type: text/plain; charset=' . $charset);
+        header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
+        header('X-Content-Type-Options: nosniff');
+        echo $content;
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}', function($echoarea) {
