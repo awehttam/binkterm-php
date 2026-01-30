@@ -47,11 +47,13 @@ function buildApiBase(array $args): string
     if (!empty($args['api-base'])) {
         return rtrim($args['api-base'], '/');
     }
-    $siteUrl = Config::env('SITE_URL');
-    if ($siteUrl) {
-        return rtrim($siteUrl, '/');
+
+    // Try to get site URL from config
+    try {
+        return Config::getSiteUrl();
+    } catch (\Exception $e) {
+        return 'http://127.0.0.1';
     }
-    return 'http://127.0.0.1';
 }
 
 function sendTelnetCommand($conn, int $cmd, int $opt): void

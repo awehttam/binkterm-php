@@ -1315,15 +1315,30 @@ For the complete WebDoor specification including SDK examples, multiplayer proto
 
 See [FAQ.md](FAQ.md) for Frequently (or infrequently) Asked Questions
 
+## Developer Guide
+
+For developers working on BinktermPHP or integrating with the system, see the comprehensive **[Developer Guide](docs/DEVELOPER_GUIDE.md)** which covers:
+
+- **Project Architecture** - Overview of the dual web+mailer system
+- **Core Concepts** - FidoNet terminology, message types, network routing
+- **Development Workflow** - Code conventions, database migrations, best practices
+- **Credits System** - In-world currency implementation and API
+- **URL Construction** - Centralized site URL generation for reverse proxy support
+- **WebDoor Integration** - Game/application API for BBS integration
+
+The Developer Guide is essential reading for anyone contributing code, developing WebDoors, or extending the system.
+
 ## Contributing
 
-We welcome contributions to BinktermPHP! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on:
+We welcome contributions to BinktermPHP! Before contributing, please review:
 
-- Development setup and code conventions
-- Pull request workflow
-- Database migrations
-- Testing guidelines
-- Security considerations
+- **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Essential reading for understanding the codebase
+- **[Contributing Guide](CONTRIBUTING.md)** - Detailed information on:
+  - Development setup and code conventions
+  - Pull request workflow
+  - Database migrations
+  - Testing guidelines
+  - Security considerations
 
 All contributions must be submitted via pull request and will be reviewed by project maintainers.
 

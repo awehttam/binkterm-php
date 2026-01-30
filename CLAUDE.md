@@ -40,37 +40,31 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
+ - Avoid duplicating code.  Whenever possible centralize methods using a class.  
 
 ## URL Construction
-When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** follow this pattern:
+When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** use the centralized `Config::getSiteUrl()` method:
 
-1. **Use SITE_URL environment variable first**: Check `Config::env('SITE_URL')` before falling back to `$_SERVER` variables
-2. **Fallback to protocol detection**: Only use `$_SERVER['HTTPS']` and `$_SERVER['HTTP_HOST']` if SITE_URL is not configured
-
-### Why SITE_URL is Important
+### Why This Matters
 - The application may be behind an HTTPS proxy/load balancer
 - In this scenario, `$_SERVER['HTTPS']` may not be set even though the public-facing URL uses HTTPS
-- The SITE_URL environment variable ensures correct URL generation regardless of proxy configuration
+- The `SITE_URL` environment variable ensures correct URL generation regardless of proxy configuration
+- Using the centralized method prevents code duplication and ensures consistent behavior
 
-### Example Pattern
+### Usage Pattern
 ```php
-// Build URL using SITE_URL first
-$siteUrl = \BinktermPHP\Config::env('SITE_URL');
-
-if ($siteUrl) {
-    // Use configured SITE_URL (handles proxies correctly)
-    $url = rtrim($siteUrl, '/') . '/path/to/resource';
-} else {
-    // Fallback to protocol detection method if SITE_URL not configured
-    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $url = $protocol . '://' . $host . '/path/to/resource';
-}
+// Build URL using centralized method
+$url = \BinktermPHP\Config::getSiteUrl() . '/path/to/resource';
 ```
+
+The `getSiteUrl()` method:
+1. Checks `SITE_URL` environment variable first (handles proxies correctly)
+2. Falls back to protocol detection using `$_SERVER['HTTPS']` and `$_SERVER['HTTP_HOST']`
+3. Returns the base URL without trailing slash
 
 ### Examples in Codebase
 - `MessageHandler::buildShareUrl()` - share link generation
-- `routes/web-routes.php:210-222` - shared message page meta tags
+- `routes/web-routes.php` - shared message page
 - `PasswordResetController` - password reset emails
 
 ## Changelog Workflow

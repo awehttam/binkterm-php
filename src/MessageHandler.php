@@ -611,6 +611,14 @@ class MessageHandler
             throw new \Exception('User not found');
         }
 
+        $creditsRules = $this->getCreditsRules();
+        if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
+            $balance = UserCredit::getBalance($fromUserId);
+            if ($balance < $creditsRules['netmail_cost']) {
+                throw new \Exception('Insufficient credits to send netmail.');
+            }
+        }
+
         // Special case: if sending to "sysop" at our local system, route to local sysop user
         if (!empty($toName) && strtolower($toName) === 'sysop') {
             try {
@@ -691,6 +699,16 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
+
+            if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
+                $charged = UserCredit::debit(
+                    $fromUserId,
+                    (int)$creditsRules['netmail_cost'],
+                    'Netmail sent',
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+            }
 
             if($toAddress!=$originAddress) {
                 if ($crashmail) {
@@ -778,6 +796,20 @@ class MessageHandler
             $kludgeLines
         ]);
 
+        if ($result) {
+            $messageId = $this->db->lastInsertId();
+            $creditsRules = $this->getCreditsRules();
+            if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
+                $charged = UserCredit::debit(
+                    $fromUserId,
+                    (int)$creditsRules['netmail_cost'],
+                    'Netmail sent',
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+            }
+        }
+
         return $result;
     }
 
@@ -842,11 +874,35 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
+            $creditsRules = $this->getCreditsRules();
+            if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
+                $rewarded = UserCredit::credit(
+                    $fromUserId,
+                    (int)$creditsRules['echomail_reward'],
+                    'Echomail posted',
+                    null,
+                    UserCredit::TYPE_SYSTEM_REWARD
+                );
+                if (!$rewarded) {
+                    error_log('[CREDITS] Echomail reward failed.');
+                }
+            }
             $this->incrementEchoareaCount($echoarea['id']);
             $this->spoolOutboundEchomail($messageId, $echoareaTag, $domain);
         }
 
         return $result;
+    }
+
+    private function getCreditsRules(): array
+    {
+        $credits = BbsConfig::getConfig()['credits'] ?? [];
+
+        return [
+            'enabled' => !empty($credits['enabled']),
+            'netmail_cost' => max(0, (int)($credits['netmail_cost'] ?? 1)),
+            'echomail_reward' => max(0, (int)($credits['echomail_reward'] ?? 3))
+        ];
     }
 
     public function getEchoareas($userId = null, $subscribedOnly = false)
@@ -2023,18 +2079,7 @@ class MessageHandler
      */
     private function buildShareUrl($shareKey)
     {
-        $siteUrl = \BinktermPHP\Config::env('SITE_URL');
-        
-        if ($siteUrl) {
-            // Remove trailing slash if present
-            $siteUrl = rtrim($siteUrl, '/');
-            return "$siteUrl/shared/$shareKey";
-        }
-        
-        // Fallback to old protocol detection method if SITE_URL not configured
-        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        return "$protocol://$host/shared/$shareKey";
+        return \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
     }
 
     /**

@@ -242,18 +242,8 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     }
 
     // Build the full share URL for meta tags
-    // Use SITE_URL env variable first (important for apps behind HTTPS proxies)
-    $siteUrl = \BinktermPHP\Config::env('SITE_URL');
-
-    if ($siteUrl) {
-        // Use configured SITE_URL (handles proxies correctly)
-        $shareUrl = rtrim($siteUrl, '/') . '/shared/' . $shareKey;
-    } else {
-        // Fallback to protocol detection method if SITE_URL not configured
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $shareUrl = $protocol . '://' . $host . '/shared/' . $shareKey;
-    }
+    // Build share URL using centralized method
+    $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
@@ -278,7 +268,7 @@ SimpleRouter::get('/binkp', function() {
         $template = new Template();
         $template->renderResponse('error.twig', [
             'error_title' => 'Access Denied',
-            'error_message' => 'Only administrators can access BinkP functionality.'
+            'error' => 'Only administrators can access BinkP functionality.'
         ]);
         return;
     }
@@ -483,7 +473,7 @@ SimpleRouter::get('/admin/users', function() {
         $template = new Template();
         $template->renderResponse('error.twig', [
             'error_title' => 'Access Denied',
-            'error_message' => 'Only administrators can access user management.'
+            'error' => 'Only administrators can access user management.'
         ]);
         return;
     }
