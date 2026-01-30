@@ -1006,13 +1006,11 @@ function prompt($conn, array &$state, string $label, bool $echo = true): ?string
 
     if ($echo) {
         $value = readTelnetLine($conn, $state);
-        writeLine($conn, '');
         return $value;
     }
 
     $value = readTelnetLine($conn, $state);
     setEcho($conn, $state, true);
-    writeLine($conn, '');
     return $value;
 }
 
