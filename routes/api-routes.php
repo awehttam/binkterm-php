@@ -6,6 +6,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
 
 SimpleRouter::group(['prefix' => '/api'], function() {
@@ -313,6 +314,79 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(500);
             echo json_encode(['error' => 'Failed to send reminder. Please try again later.']);
         }
+    });
+
+    SimpleRouter::get('/notify/state', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid user']);
+            return;
+        }
+
+        $defaults = [
+            'mailLastCounts' => ['netmail' => 0, 'echomail' => 0],
+            'mailUnread' => ['netmail' => false, 'echomail' => false],
+            'chatLastTotal' => 0,
+            'chatUnread' => false
+        ];
+
+        $meta = new UserMeta();
+        $raw = $meta->getValue((int)$userId, 'notify_state');
+        $state = null;
+        if ($raw) {
+            $decoded = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $state = $decoded;
+            }
+        }
+
+        echo json_encode(['state' => $state ?? $defaults]);
+    });
+
+    SimpleRouter::post('/notify/state', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid user']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $state = $input['state'] ?? null;
+        if (!is_array($state)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'State payload required']);
+            return;
+        }
+
+        $normalized = [
+            'mailLastCounts' => [
+                'netmail' => max(0, (int)($state['mailLastCounts']['netmail'] ?? 0)),
+                'echomail' => max(0, (int)($state['mailLastCounts']['echomail'] ?? 0))
+            ],
+            'mailUnread' => [
+                'netmail' => !empty($state['mailUnread']['netmail']),
+                'echomail' => !empty($state['mailUnread']['echomail'])
+            ],
+            'chatLastTotal' => max(0, (int)($state['chatLastTotal'] ?? 0)),
+            'chatUnread' => !empty($state['chatUnread'])
+        ];
+
+        $meta = new UserMeta();
+        $meta->setValue((int)$userId, 'notify_state', json_encode($normalized));
+
+        echo json_encode(['success' => true, 'state' => $normalized]);
     });
 
     SimpleRouter::get('/dashboard/stats', function() {

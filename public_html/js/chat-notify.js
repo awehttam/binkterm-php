@@ -1,7 +1,4 @@
 (() => {
-    const CHAT_NOTIFY_DB = 'bink_chat';
-    const CHAT_NOTIFY_STORE = 'settings';
-    const CHAT_NOTIFY_KEY = `state:${window.currentUserId || 'unknown'}`;
     let chatUnreadTotal = 0;
     let mailUnreadTotal = 0;
     let chatLastTotal = 0;
@@ -9,48 +6,52 @@
     let mailLastCounts = { netmail: 0, echomail: 0 };
     let mailUnread = { netmail: false, echomail: false };
 
-    function openDb() {
-        return new Promise((resolve, reject) => {
-            if (!('indexedDB' in window)) {
-                reject(new Error('IndexedDB unavailable'));
-                return;
-            }
-            const request = indexedDB.open(CHAT_NOTIFY_DB, 1);
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                if (!db.objectStoreNames.contains(CHAT_NOTIFY_STORE)) {
-                    db.createObjectStore(CHAT_NOTIFY_STORE, { keyPath: 'key' });
-                }
+    function applyState(state) {
+        const next = state || {};
+        if (next.mailLastCounts) {
+            mailLastCounts = {
+                netmail: parseInt(next.mailLastCounts.netmail || 0, 10) || 0,
+                echomail: parseInt(next.mailLastCounts.echomail || 0, 10) || 0
             };
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error || new Error('IndexedDB open failed'));
-        });
+        }
+        if (next.mailUnread) {
+            mailUnread = {
+                netmail: !!next.mailUnread.netmail,
+                echomail: !!next.mailUnread.echomail
+            };
+        }
+        if (next.chatLastTotal !== undefined) {
+            chatLastTotal = parseInt(next.chatLastTotal || 0, 10) || 0;
+        }
+        if (next.chatUnread !== undefined) {
+            chatUnread = !!next.chatUnread;
+        }
     }
 
-    async function idbGet(key) {
+    async function fetchNotifyState() {
         try {
-            const db = await openDb();
-            return await new Promise((resolve, reject) => {
-                const tx = db.transaction(CHAT_NOTIFY_STORE, 'readonly');
-                const store = tx.objectStore(CHAT_NOTIFY_STORE);
-                const request = store.get(key);
-                request.onsuccess = () => resolve(request.result ? request.result.value : null);
-                request.onerror = () => reject(request.error);
-            });
+            const res = await fetch('/api/notify/state');
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.state || null;
         } catch (err) {
             return null;
         }
     }
 
-    async function idbSet(key, value) {
+    async function saveNotifyState() {
         try {
-            const db = await openDb();
-            await new Promise((resolve, reject) => {
-                const tx = db.transaction(CHAT_NOTIFY_STORE, 'readwrite');
-                const store = tx.objectStore(CHAT_NOTIFY_STORE);
-                store.put({ key, value });
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
+            await fetch('/api/notify/state', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    state: {
+                        mailLastCounts: mailLastCounts,
+                        mailUnread: mailUnread,
+                        chatLastTotal: chatLastTotal,
+                        chatUnread: chatUnread
+                    }
+                })
             });
         } catch (err) {
             // ignore
@@ -67,7 +68,7 @@
         }
     }
 
-    function updateChatIcons(unreadCounts) {
+    function updateChatIcons() {
         chatUnreadTotal = chatUnread ? 1 : 0;
         const menuIcons = document.querySelectorAll('.chat-menu-icon');
         if (chatUnreadTotal > 0) {
@@ -124,21 +125,11 @@
     }
 
     async function refreshUnreadState() {
-        const stored = await idbGet(CHAT_NOTIFY_KEY);
-        const unreadCounts = stored && stored.unreadCounts ? stored.unreadCounts : {};
-        if (stored && stored.chatLastTotal !== undefined) {
-            chatLastTotal = stored.chatLastTotal;
+        const stored = await fetchNotifyState();
+        if (stored) {
+            applyState(stored);
         }
-        if (stored && stored.chatUnread !== undefined) {
-            chatUnread = stored.chatUnread;
-        }
-        if (stored && stored.mailLastCounts) {
-            mailLastCounts = stored.mailLastCounts;
-        }
-        if (stored && stored.mailUnread) {
-            mailUnread = stored.mailUnread;
-        }
-        updateChatIcons(unreadCounts);
+        updateChatIcons();
         updateMailIcons({
             unread_netmail: mailLastCounts.netmail,
             new_echomail: mailLastCounts.echomail
@@ -159,17 +150,8 @@
                 }
                 chatLastTotal = chatTotal;
 
-                const stored = await idbGet(CHAT_NOTIFY_KEY);
-                await idbSet(CHAT_NOTIFY_KEY, {
-                    active: stored && stored.active ? stored.active : null,
-                    unreadCounts: stored && stored.unreadCounts ? stored.unreadCounts : {},
-                    lastEventId: stored && stored.lastEventId ? stored.lastEventId : 0,
-                    mailLastCounts: mailLastCounts,
-                    mailUnread: mailUnread,
-                    chatLastTotal: chatLastTotal,
-                    chatUnread: chatUnread
-                });
-                updateChatIcons({});
+                await saveNotifyState();
+                updateChatIcons();
             })
             .catch(() => {});
     }
@@ -177,18 +159,9 @@
     async function init() {
         await refreshUnreadState();
         if (window.location.pathname === '/chat') {
-            const stored = await idbGet(CHAT_NOTIFY_KEY);
-            const cleared = {
-                active: stored && stored.active ? stored.active : null,
-                unreadCounts: {},
-                lastEventId: stored && stored.lastEventId ? stored.lastEventId : 0,
-                mailLastCounts: stored && stored.mailLastCounts ? stored.mailLastCounts : mailLastCounts,
-                mailUnread: stored && stored.mailUnread ? stored.mailUnread : mailUnread,
-                chatLastTotal: stored && stored.chatLastTotal ? stored.chatLastTotal : chatLastTotal,
-                chatUnread: false
-            };
-            await idbSet(CHAT_NOTIFY_KEY, cleared);
-            updateChatIcons({});
+            chatUnread = false;
+            await saveNotifyState();
+            updateChatIcons();
         }
         if (window.location.pathname === '/netmail') {
             await refreshMailState('netmail');
