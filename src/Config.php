@@ -162,4 +162,27 @@ class Config
 
         return self::$themes;
     }
+
+    /**
+     * Get the base site URL (without trailing slash)
+     *
+     * Uses SITE_URL environment variable first (important for apps behind HTTPS proxies),
+     * falls back to protocol detection from $_SERVER variables.
+     *
+     * @return string Base site URL (e.g., "https://example.com" or "http://localhost:8080")
+     */
+    public static function getSiteUrl(): string
+    {
+        $siteUrl = self::env('SITE_URL');
+
+        if ($siteUrl) {
+            // Use configured SITE_URL (handles proxies correctly)
+            return rtrim($siteUrl, '/');
+        }
+
+        // Fallback to protocol detection method if SITE_URL not configured
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        return $protocol . '://' . $host;
+    }
 }

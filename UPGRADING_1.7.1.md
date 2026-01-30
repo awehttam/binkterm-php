@@ -1,6 +1,6 @@
 # Upgrading to 1.7.1
 
-This release adds web based configuration editing to the Admin section; for BinkP, system configuration, features, and Webdoors.
+This release adds web based configuration editing to the Admin section; for BinkP, system configuration, features, and Webdoors. It also includes major improvements to the telnet daemon with enhanced security, reliability, and user experience.
 
 The Configuration tab has also been removed from the Binkp management page, which has also been renamed to "BinkP Status".
 
@@ -17,7 +17,8 @@ The Configuration tab has also been removed from the Binkp management page, whic
 - Online editing for Webdoors configuration.
 - Admin Ads manager for uploading and deleting ANSI ads in `bbs_ads/`.
 - Subscriptions page now lets users view echoarea messages even if they are not subscribed.
-- Removed unused settings from binkp.json.example 
+- Removed unused settings from binkp.json.example
+- **Telnet Daemon Improvements**: Major enhancements including screen-aware pagination, full-screen editor with arrow key navigation, login rate limiting, API retry logic, colorized prompts, and comprehensive documentation. See [telnet/README.md](telnet/README.md) for details. 
 
 ## Important Note About the Admin Daemon
 After updating configuration from the admin interface, restart the system daemons (notably the binkp daemons) to ensure the new settings are applied.

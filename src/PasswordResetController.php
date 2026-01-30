@@ -237,17 +237,7 @@ class PasswordResetController
         }
 
         // Build reset URL
-        $siteUrl = Config::env('SITE_URL');
-
-        if ($siteUrl) {
-            // Use configured SITE_URL (includes port if configured)
-            $resetUrl = rtrim($siteUrl, '/') . '/reset-password?token=' . $token;
-        } else {
-            // Fallback to protocol detection method if SITE_URL not configured
-            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $resetUrl = "$protocol://$host/reset-password?token=$token";
-        }
+        $resetUrl = Config::getSiteUrl() . '/reset-password?token=' . $token;
 
         $subject = "Password Reset Request - $systemName";
 

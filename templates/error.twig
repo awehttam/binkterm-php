@@ -15,7 +15,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-ban text-danger mb-3" style="font-size: 4rem;"></i>
                 <h4>{{ error_title|default('Access Error') }}</h4>
-                <p class="text-muted">{{ error_message|default('An error occurred while processing your request.') }}</p>
+                <p class="text-muted">{{ error|default('An error occurred while processing your request.') }}</p>
                 
                 <div class="mt-4">
                     <a href="/" class="btn btn-primary">

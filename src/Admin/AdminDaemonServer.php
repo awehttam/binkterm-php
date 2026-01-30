@@ -15,6 +15,7 @@ class AdminDaemonServer
     private ?string $pidFile;
     private ?string $socketPerms;
     private $serverSocket;
+    private bool $shutdownRequested = false;
 
     public function __construct(?string $socketTarget = null, ?string $secret = null, ?Logger $logger = null, ?string $pidFile = null, ?string $socketPerms = null)
     {
@@ -44,7 +45,17 @@ class AdminDaemonServer
             }
 
             $this->handleClient($client);
+
+            if ($this->shutdownRequested) {
+                break;
+            }
         }
+
+        if (is_resource($this->serverSocket)) {
+            fclose($this->serverSocket);
+        }
+
+        $this->cleanupPidFile();
     }
 
     private function createServerSocket(string $socketTarget)
@@ -269,6 +280,7 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
                         break;
                     }
+                    $decoded = $this->applyWebdoorManifestConfig($decoded);
                     $this->writeWebdoorsConfig($decoded);
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
                     break;
@@ -290,6 +302,11 @@ class AdminDaemonServer
                     $name = $data['name'] ?? '';
                     $this->deleteAd((string)$name);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'stop_services':
+                    $results = $this->stopServices();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $results]);
+                    $this->shutdownRequested = true;
                     break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
@@ -334,7 +351,7 @@ class AdminDaemonServer
 
     private function logCommandResult(string $cmd, array $result): void
     {
-        $this->logger->info('Admin daemon command completed', [
+        $this->logger->debug('Admin daemon command completed', [
             'cmd' => $cmd,
             'exit_code' => $result['exit_code'] ?? null
         ]);
@@ -360,6 +377,13 @@ class AdminDaemonServer
         }
     }
 
+    private function cleanupPidFile(): void
+    {
+        if ($this->pidFile && file_exists($this->pidFile)) {
+            @unlink($this->pidFile);
+        }
+    }
+
     private function isUnixSocket(string $socketTarget): bool
     {
         return strncmp($socketTarget, 'unix://', 7) === 0;
@@ -368,6 +392,88 @@ class AdminDaemonServer
     private function getDefaultSocketTarget(): string
     {
         return 'tcp://127.0.0.1:9065';
+    }
+
+    private function stopServices(): array
+    {
+        $runDir = __DIR__ . '/../../data/run';
+        $schedulerPid = Config::env('BINKP_SCHEDULER_PID_FILE', $runDir . '/binkp_scheduler.pid');
+        $serverPid = Config::env('BINKP_SERVER_PID_FILE', $runDir . '/binkp_server.pid');
+
+        return [
+            'binkp_scheduler' => $this->stopProcess($schedulerPid, 'binkp_scheduler'),
+            'binkp_server' => $this->stopProcess($serverPid, 'binkp_server'),
+            'admin_daemon' => ['status' => 'stopping']
+        ];
+    }
+
+    private function stopProcess(string $pidFile, string $name): array
+    {
+        if (!file_exists($pidFile)) {
+            return ['status' => 'missing_pid_file'];
+        }
+
+        $pid = trim((string)@file_get_contents($pidFile));
+        if ($pid === '' || !ctype_digit($pid)) {
+            return ['status' => 'invalid_pid'];
+        }
+
+        $pidInt = (int)$pid;
+        if (!$this->isProcessRunning($pidInt)) {
+            return ['status' => 'not_running'];
+        }
+
+        $terminated = $this->sendSignal($pidInt, 15);
+        if (!$terminated) {
+            return ['status' => 'signal_failed'];
+        }
+
+        usleep(500000);
+        if ($this->isProcessRunning($pidInt)) {
+            $this->sendSignal($pidInt, 9);
+            return ['status' => 'killed'];
+        }
+
+        return ['status' => 'stopped'];
+    }
+
+    private function isProcessRunning(int $pid): bool
+    {
+        if (function_exists('posix_kill')) {
+            return @posix_kill($pid, 0);
+        }
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            $output = [];
+            @exec('tasklist /FI "PID eq ' . $pid . '"', $output);
+            foreach ($output as $line) {
+                if (preg_match('/\b' . preg_quote((string)$pid, '/') . '\b/', $line)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        $output = [];
+        @exec('ps -p ' . $pid, $output);
+        return count($output) > 1;
+    }
+
+    private function sendSignal(int $pid, int $signal): bool
+    {
+        if (function_exists('posix_kill')) {
+            return @posix_kill($pid, $signal);
+        }
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            $flag = $signal === 9 ? ' /F' : '';
+            @exec('taskkill /PID ' . $pid . $flag);
+            return true;
+        }
+
+        $cmd = $signal === 9 ? 'kill -9 ' : 'kill ';
+        @exec($cmd . $pid);
+        return true;
     }
 
     private function getWebdoorsConfig(): array
@@ -414,12 +520,13 @@ class AdminDaemonServer
             throw new \RuntimeException('webdoors.json.example not found');
         }
 
-        $configDir = dirname($configPath);
-        if (!is_dir($configDir)) {
-            mkdir($configDir, 0755, true);
+        $json = file_get_contents($examplePath);
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            throw new \RuntimeException('webdoors.json.example is invalid');
         }
-
-        copy($examplePath, $configPath);
+        $decoded = $this->applyWebdoorManifestConfig($decoded);
+        $this->writeWebdoorsConfig($decoded);
     }
 
     private function getWebdoorsConfigPath(): string
@@ -430,6 +537,38 @@ class AdminDaemonServer
     private function getWebdoorsExamplePath(): string
     {
         return __DIR__ . '/../../config/webdoors.json.example';
+    }
+
+    private function applyWebdoorManifestConfig(array $config): array
+    {
+        $manifests = \BinktermPHP\WebDoorManifest::listManifests();
+        if (empty($manifests)) {
+            return $config;
+        }
+
+        foreach ($manifests as $entry) {
+            $manifest = $entry['manifest'];
+            $gameId = $entry['id'];
+            $manifestConfig = $manifest['config'] ?? null;
+            if (!is_array($manifestConfig) || $manifestConfig === []) {
+                continue;
+            }
+
+            if (!isset($config[$gameId]) || !is_array($config[$gameId])) {
+                continue;
+            }
+            if (empty($config[$gameId]['enabled'])) {
+                continue;
+            }
+
+            foreach ($manifestConfig as $key => $value) {
+                if (!array_key_exists($key, $config[$gameId])) {
+                    $config[$gameId][$key] = $value;
+                }
+            }
+        }
+
+        return $config;
     }
 
     private function mergeUplinks(array $existing, array $incoming): array

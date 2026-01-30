@@ -242,18 +242,8 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     }
 
     // Build the full share URL for meta tags
-    // Use SITE_URL env variable first (important for apps behind HTTPS proxies)
-    $siteUrl = \BinktermPHP\Config::env('SITE_URL');
-
-    if ($siteUrl) {
-        // Use configured SITE_URL (handles proxies correctly)
-        $shareUrl = rtrim($siteUrl, '/') . '/shared/' . $shareKey;
-    } else {
-        // Fallback to protocol detection method if SITE_URL not configured
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $shareUrl = $protocol . '://' . $host . '/shared/' . $shareKey;
-    }
+    // Build share URL using centralized method
+    $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
 
     $template = new Template();
     $template->renderResponse('shared_message.twig', [
@@ -278,7 +268,7 @@ SimpleRouter::get('/binkp', function() {
         $template = new Template();
         $template->renderResponse('error.twig', [
             'error_title' => 'Access Denied',
-            'error_message' => 'Only administrators can access BinkP functionality.'
+            'error' => 'Only administrators can access BinkP functionality.'
         ]);
         return;
     }
@@ -307,6 +297,17 @@ SimpleRouter::get('/profile', function() {
         $sysopName = 'Unknown';
     }
 
+    $creditsEnabled = \BinktermPHP\BbsConfig::getConfig()['credits']['enabled'] ?? true;
+    $creditsSymbol = \BinktermPHP\BbsConfig::getConfig()['credits']['symbol'] ?? '$';
+    $creditBalance = 0;
+    if ($creditsEnabled) {
+        try {
+            $creditBalance = \BinktermPHP\UserCredit::getBalance((int)($user['user_id'] ?? $user['id']));
+        } catch (\Throwable $e) {
+            $creditBalance = 0;
+        }
+    }
+
     $templateVars = [
         'user_username' => $user['username'],
         'user_real_name' => $user['real_name'] ?? '',
@@ -317,7 +318,10 @@ SimpleRouter::get('/profile', function() {
         'user_is_admin' => (bool)$user['is_admin'],
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
-        'system_sysop' => $sysopName
+        'system_sysop' => $sysopName,
+        'credits_enabled' => !empty($creditsEnabled),
+        'credits_symbol' => $creditsSymbol,
+        'credit_balance' => $creditBalance
     ];
 
     $template = new Template();
@@ -469,7 +473,7 @@ SimpleRouter::get('/admin/users', function() {
         $template = new Template();
         $template->renderResponse('error.twig', [
             'error_title' => 'Access Denied',
-            'error_message' => 'Only administrators can access user management.'
+            'error' => 'Only administrators can access user management.'
         ]);
         return;
     }

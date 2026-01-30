@@ -77,11 +77,13 @@
 let webdoorsConfigState = {
     active: false,
     configJson: null,
-    exampleJson: null
+    exampleJson: null,
+    availableDoors: []
 };
 
 document.addEventListener('DOMContentLoaded', function() {
     loadWebdoorsConfig();
+    loadAvailableDoors();
     document.getElementById('webdoorsJsonEditor').addEventListener('input', () => {
         updateJsonStatus();
         renderDoorList();
@@ -109,6 +111,16 @@ function loadWebdoorsConfig() {
         .catch(error => {
             showStatusAlert(error.message || 'Failed to load config', 'danger');
         });
+}
+
+function loadAvailableDoors() {
+    fetch('/admin/api/webdoors-available')
+        .then(response => response.json())
+        .then(data => {
+            webdoorsConfigState.availableDoors = Array.isArray(data.doors) ? data.doors : [];
+            renderDoorList();
+        })
+        .catch(() => {});
 }
 
 function updateStatus() {
@@ -145,20 +157,27 @@ function renderDoorList() {
         return;
     }
 
-    const entries = Object.entries(parsed.data);
-    if (entries.length === 0) {
+    const configKeys = Object.keys(parsed.data);
+    const availableKeys = webdoorsConfigState.availableDoors.map(door => door.id);
+    const mergedKeys = Array.from(new Set([...configKeys, ...availableKeys])).sort();
+
+    if (mergedKeys.length === 0) {
         list.innerHTML = '<div class="text-muted">No doors defined.</div>';
         return;
     }
 
-    const items = entries.map(([key, value]) => {
+    const items = mergedKeys.map((key) => {
+        const value = parsed.data[key];
         const enabled = value && typeof value === 'object' ? !!value.enabled : false;
+        const isMissing = !(key in parsed.data);
+        const doorInfo = webdoorsConfigState.availableDoors.find(door => door.id === key);
+        const displayName = doorInfo?.name ? `${doorInfo.name}` : key;
         const encodedKey = encodeURIComponent(key);
         return `
             <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                 <div>
-                    <div class="fw-semibold">${escapeHtml(key)}</div>
-                    <small class="text-muted">enabled: ${enabled ? 'true' : 'false'}</small>
+                    <div class="fw-semibold">${escapeHtml(displayName)}</div>
+                    <small class="text-muted">enabled: ${enabled ? 'true' : 'false'}${isMissing ? ' (not in config)' : ''}</small>
                 </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" data-door-key="${encodedKey}" ${enabled ? 'checked' : ''} onchange="toggleDoorEnabled(this)">
@@ -184,6 +203,17 @@ function toggleDoorEnabled(input) {
     }
 
     parsed.data[key].enabled = enabled;
+    if (enabled) {
+        const doorInfo = webdoorsConfigState.availableDoors.find(door => door.id === key);
+        const manifestConfig = doorInfo?.config && typeof doorInfo.config === 'object' ? doorInfo.config : null;
+        if (manifestConfig) {
+            Object.keys(manifestConfig).forEach(configKey => {
+                if (!(configKey in parsed.data[key])) {
+                    parsed.data[key][configKey] = manifestConfig[configKey];
+                }
+            });
+        }
+    }
     editor.value = JSON.stringify(parsed.data, null, 2);
     updateJsonStatus();
 }

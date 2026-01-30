@@ -7,10 +7,55 @@
  */
 
 use BinktermPHP\Auth;
+use BinktermPHP\BbsConfig;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\WebDoorController;
+use BinktermPHP\WebDoorManifest;
 use Pecee\SimpleRouter\SimpleRouter;
+
+/**
+ * Helper function to get available WebDoor features
+ */
+function getAvailableWebDoorFeatures(): array {
+    $features = [];
+
+    // Storage and leaderboard are always available via WebDoor API
+    $features[] = 'storage';
+    $features[] = 'leaderboard';
+
+    // Check if credits system is enabled
+    $bbsConfig = BbsConfig::getConfig();
+    $creditsConfig = $bbsConfig['credits'] ?? [];
+    if (!empty($creditsConfig['enabled'])) {
+        $features[] = 'credits';
+    }
+
+    return $features;
+}
+
+/**
+ * Helper function to check if manifest requirements are met
+ */
+function checkManifestRequirements(array $manifest): bool {
+    $requirements = $manifest['requirements'] ?? [];
+    $requiredFeatures = $requirements['features'] ?? [];
+
+    if (empty($requiredFeatures)) {
+        return true; // No requirements, always met
+    }
+
+    $availableFeatures = getAvailableWebDoorFeatures();
+
+    // Check if all required features are available
+    foreach ($requiredFeatures as $required) {
+        if (!in_array($required, $availableFeatures, true)) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 /**
  * Web Routes for WebDoor
@@ -33,28 +78,24 @@ SimpleRouter::get('/games', function() {
          exit;
      }
 
-    // Scan webdoors directory for games
-    $gamesDir = __DIR__ . '/../public_html/webdoors';
     $games = [];
+    foreach (WebDoorManifest::listManifests() as $entry) {
+        $manifest = $entry['manifest'];
+        if (!isset($manifest['game'])) {
+            continue;
+        }
 
-    if (is_dir($gamesDir)) {
-        $dirs = scandir($gamesDir);
-        foreach ($dirs as $dir) {
-            if ($dir === '.' || $dir === '..') continue;
+        // Check if all required features are available
+        if (!checkManifestRequirements($manifest)) {
+            continue;
+        }
 
-            $manifestPath = $gamesDir . '/' . $dir . '/webdoor.json';
-            if (file_exists($manifestPath)) {
-                $manifest = json_decode(file_get_contents($manifestPath), true);
-                if ($manifest && isset($manifest['game'])) {
-                    $game = $manifest['game'];
-                    $game['path'] = $dir;
-                    $game['icon_url'] = "/webdoors/{$dir}/" . ($game['icon'] ?? 'icon.png');
+        $game = $manifest['game'];
+        $game['path'] = $entry['path'];
+        $game['icon_url'] = "/webdoors/{$entry['path']}/" . ($game['icon'] ?? 'icon.png');
 
-                    if(GameConfig::isEnabled($game['id'])){
-                        $games[] = $game;
-                    }
-                }
-            }
+        if(GameConfig::isEnabled($entry['id'])){
+            $games[] = $game;
         }
     }
 
@@ -142,6 +183,16 @@ SimpleRouter::get('/games/{game}', function($game) {
     }
 
     $manifest = json_decode(file_get_contents($manifestPath), true);
+
+    // Check if all required features are available
+    if (!checkManifestRequirements($manifest)) {
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error' => 'This game requires features that are not currently enabled on this system.'
+        ]);
+        return;
+    }
+
     $entryPoint = $manifest['game']['entry_point'] ?? 'index.html';
     $gameUrl = "/webdoors/{$game}/{$entryPoint}";
 

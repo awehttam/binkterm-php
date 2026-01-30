@@ -5,5 +5,14 @@
         "advertising": true,
         "voting_booth": true,
         "chat": true
+    },
+    "credits": {
+        "enabled": true,
+        "symbol": "CR",
+        "daily_amount": 25,
+        "daily_login_delay_minutes": 5,
+        "approval_bonus": 300,
+        "netmail_cost": 1,
+        "echomail_reward": 3
     }
 }

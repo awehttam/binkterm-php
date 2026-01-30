@@ -6,7 +6,7 @@ Draft 1
 
 ## Overview
 
-**WebDoor** is an open specification for embedding HTML5/JavaScript games ("web doors") into BBS software. It defines a secure API protocol between a host BBS and embedded games, enabling third-party game developers and BBS software authors to create interoperable experiences.
+BinktermPHP **WebDoor** is a specification for embedding HTML5/JavaScript games ("web doors") into BBS software. It defines a secure API protocol between a host BBS and embedded games, enabling third-party game developers and BBS software authors to create interoperable experiences.
 
 The name "WebDoor" references the traditional BBS "door game" concept while indicating its web-based nature.
 
@@ -84,6 +84,10 @@ Each game provides a manifest file describing its capabilities:
     "max_size_kb": 100,
     "save_slots": 3
   },
+  "config": {
+    "start_bet": 10,
+    "max_bet": 500
+  },
   "multiplayer": {
     "enabled": true,
     "min_players": 2,
@@ -91,6 +95,53 @@ Each game provides a manifest file describing its capabilities:
   }
 }
 ```
+
+**Config Overrides**
+
+Each WebDoor may include a top-level `config` object. When a door is enabled (activated), the host merges any keys from `config` into that door's entry in `config/webdoors.json` if they are not already present. This provides default settings for per-door configuration while allowing sysops to override values later.
+
+**Auto-Discovery & Configuration Flow (BinktermPHP Implementation):**
+
+1. **Discovery**: `WebDoorManifest::listManifests()` scans `public_html/webdoors/` for directories containing `webdoor.json`
+2. **Admin UI**: Admin interface queries `/admin/api/webdoors-available` which returns all discovered doors
+3. **Display**: UI shows both configured doors and newly discovered doors (marked "not in config")
+4. **Activation**: When sysop enables a door via toggle switch:
+   - Door's manifest `config` section is read
+   - Config keys are merged into the door's entry in `webdoors.json`
+   - Only keys not already present are added (preserves manual overrides)
+5. **Save**: AdminDaemonServer applies manifest config during save operation
+6. **Result**: Door is enabled with sensible defaults, sysop can adjust values later
+
+Example manifest with config:
+```json
+{
+  "webdoor_version": "1.0",
+  "game": {
+    "id": "blackjack",
+    "name": "Blackjack"
+  },
+  "config": {
+    "enabled": true,
+    "start_bet": 10,
+    "max_bet": 500,
+    "play_cost": 0
+  }
+}
+```
+
+Resulting `config/webdoors.json` entry after activation:
+```json
+{
+  "blackjack": {
+    "enabled": true,
+    "start_bet": 10,
+    "max_bet": 500,
+    "play_cost": 0
+  }
+}
+```
+
+This approach enables true "drop-in" game installation - simply copy a game directory with its manifest, and it appears in the admin UI ready to enable with appropriate defaults.
 
 ---
 
@@ -684,20 +735,97 @@ function gameLoop() {
 
 ---
 
+## Current Implementation Status (BinktermPHP)
+
+### ✅ Implemented Features
+
+**Manifest Auto-Discovery System:**
+- `WebDoorManifest` class scans `public_html/webdoors/` for games
+- Automatically parses `webdoor.json` manifests
+- Extracts game metadata (id, name, version, description, icons)
+- Reads configuration defaults from manifest `config` section
+
+**Configuration Management:**
+- Admin UI displays all discovered WebDoors
+- Per-door enable/disable toggles
+- Configuration stored in `config/webdoors.json`
+- Manifest config defaults auto-merge when door is enabled
+- Admin endpoint: `GET /admin/api/webdoors-available` lists discovered doors
+
+**Local Game Support:**
+- Games installed in `public_html/webdoors/{game-id}/` directory structure
+- Entry point served from manifest `entry_point` field
+- Session cookie authentication for local games
+- Game library page at `/games` shows enabled doors
+- Individual game launch at `/webdoors/{game-id}/`
+
+**Storage API (Implemented):**
+- `GET /api/webdoor/storage` - List save slots
+- `GET /api/webdoor/storage/{slot}` - Load save data
+- `PUT /api/webdoor/storage/{slot}` - Save game state
+- `DELETE /api/webdoor/storage/{slot}` - Delete save
+- Per-user, per-game save slots with size limits from manifest
+
+**Leaderboard API (Implemented):**
+- `GET /api/webdoor/leaderboard/{board}` - Get leaderboard with scope filtering (all/today/week/month)
+- `POST /api/webdoor/leaderboard/{board}` - Submit score
+- Per-game, per-board leaderboards with metadata support
+- Personal best tracking and ranking
+
+**Credits Integration:**
+- WebDoors can read user credit balance
+- Games can charge/reward credits through API (if enabled)
+- Configured per-door (e.g., `play_cost: 10` in webdoors.json)
+- Admin configures credit costs/rewards per WebDoor
+
+**Session Management:**
+- `GET /api/webdoor/session` - Get authenticated user session
+- Session includes user info, game info, host capabilities
+- Tracks playtime and session statistics
+
+### 🚧 Partially Implemented
+
+**Database Schema:**
+- Core tables exist for saves and leaderboards
+- Session tracking implemented
+- Multiplayer tables not yet created
+
+### ❌ Not Yet Implemented
+
+**Multiplayer System:**
+- WebSocket server integration
+- Lobby system (create/join/leave)
+- Real-time state broadcasting
+- Multiplayer WebSocket endpoint
+
+**Cross-Origin Support:**
+- Token-based authentication for external games
+- CORS configuration for third-party origins
+- POST /api/webdoor/auth endpoint for token exchange
+
+**Advanced Features:**
+- Achievements system
+- Matchmaking
+- Spectator mode
+- Game replays
+- Anti-cheat mechanisms
+
+---
+
 ## Implementation Phases
 
-### Phase 1: Core Infrastructure
-1. Database schema for games, sessions, saves, leaderboards
-2. REST API endpoints for session, storage, leaderboards
-3. Token generation and validation for cross-origin games
-4. Game library page and game player page
-5. Basic admin interface to register/manage games
+### Phase 1: Core Infrastructure ✅ COMPLETE
+1. ✅ Database schema for games, sessions, saves, leaderboards
+2. ✅ REST API endpoints for session, storage, leaderboards
+3. ❌ Token generation and validation for cross-origin games
+4. ✅ Game library page and game player page
+5. ✅ Basic admin interface to register/manage games
 
-### Phase 2: Local Game Support
-1. Game installation directory structure (`/webdoor/games/`)
-2. Manifest parsing and validation
-3. Local game serving with proper routing
-4. Example "Hello WebDoor" game
+### Phase 2: Local Game Support ✅ COMPLETE
+1. ✅ Game installation directory structure (`public_html/webdoors/`)
+2. ✅ Manifest parsing and validation (WebDoorManifest class)
+3. ✅ Local game serving with proper routing
+4. ✅ Example games (blackjack, reverse polish calculator, terminal)
 
 ### Phase 3: Multiplayer
 1. WebSocket server integration (may require separate process)
@@ -729,6 +857,27 @@ function gameLoop() {
 
 ---
 
+## Maintaining This Document
+
+**This specification is evolving.** When implementing new WebDoor functionality:
+
+1. **Update Implementation Status** - Mark features as ✅ Implemented, 🚧 Partially Implemented, or ❌ Not Yet Implemented
+2. **Document API Changes** - Add or update REST/WebSocket endpoint documentation
+3. **Update Examples** - Ensure code examples reflect current API
+4. **Note Breaking Changes** - Clearly mark any changes that break compatibility
+5. **Update SDK Section** - Keep SDK examples current with actual implementation
+
+**Key Areas to Update:**
+- **Section 3 (REST API)** - When adding/modifying endpoints
+- **Section 4 (Multiplayer API)** - When implementing WebSocket features
+- **Current Implementation Status** - When completing features
+- **Config Overrides** - When changing manifest config behavior
+- **Security Considerations** - When adding security features
+
+This document should remain the source of truth for WebDoor integration.
+
+---
+
 ## Open Questions
 
 1. **WebSocket Architecture** - Use PHP WebSocket library (Ratchet) or separate Node.js service?
@@ -736,6 +885,7 @@ function gameLoop() {
 3. **Score Verification** - How to prevent cheating in leaderboards? (proof-of-play, server validation)
 4. **Game Size Limits** - Maximum size for local game installations?
 5. **Third-Party Trust** - How to vet/approve third-party game origins?
+6. **API Versioning** - How to handle breaking changes while maintaining backward compatibility?
 
 ---
 

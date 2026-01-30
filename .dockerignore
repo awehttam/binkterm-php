@@ -1,0 +1,8 @@
+.git
+.gitignore
+.idea
+.vscode
+data/logs
+data/run
+node_modules
+vendor

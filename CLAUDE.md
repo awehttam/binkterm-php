@@ -40,37 +40,32 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
+ - Avoid duplicating code.  Whenever possible centralize methods using a class.
+ - **Git Workflow**: Do NOT stage or commit changes until explicitly instructed. Changes should be tested first before committing to git.  
 
 ## URL Construction
-When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** follow this pattern:
+When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** use the centralized `Config::getSiteUrl()` method:
 
-1. **Use SITE_URL environment variable first**: Check `Config::env('SITE_URL')` before falling back to `$_SERVER` variables
-2. **Fallback to protocol detection**: Only use `$_SERVER['HTTPS']` and `$_SERVER['HTTP_HOST']` if SITE_URL is not configured
-
-### Why SITE_URL is Important
+### Why This Matters
 - The application may be behind an HTTPS proxy/load balancer
 - In this scenario, `$_SERVER['HTTPS']` may not be set even though the public-facing URL uses HTTPS
-- The SITE_URL environment variable ensures correct URL generation regardless of proxy configuration
+- The `SITE_URL` environment variable ensures correct URL generation regardless of proxy configuration
+- Using the centralized method prevents code duplication and ensures consistent behavior
 
-### Example Pattern
+### Usage Pattern
 ```php
-// Build URL using SITE_URL first
-$siteUrl = \BinktermPHP\Config::env('SITE_URL');
-
-if ($siteUrl) {
-    // Use configured SITE_URL (handles proxies correctly)
-    $url = rtrim($siteUrl, '/') . '/path/to/resource';
-} else {
-    // Fallback to protocol detection method if SITE_URL not configured
-    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $url = $protocol . '://' . $host . '/path/to/resource';
-}
+// Build URL using centralized method
+$url = \BinktermPHP\Config::getSiteUrl() . '/path/to/resource';
 ```
+
+The `getSiteUrl()` method:
+1. Checks `SITE_URL` environment variable first (handles proxies correctly)
+2. Falls back to protocol detection using `$_SERVER['HTTPS']` and `$_SERVER['HTTP_HOST']`
+3. Returns the base URL without trailing slash
 
 ### Examples in Codebase
 - `MessageHandler::buildShareUrl()` - share link generation
-- `routes/web-routes.php:210-222` - shared message page meta tags
+- `routes/web-routes.php` - shared message page
 - `PasswordResetController` - password reset emails
 
 ## Changelog Workflow
@@ -94,8 +89,28 @@ if ($siteUrl) {
 
 ## Recent Features Added
 
-### Webdoors
-- **Webdoors**: An API documented in docs/WebDoor_Proposal.md allows drop in games to interface with the BBS
+### WebDoors System
+WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification is documented in `docs/WebDoor_Proposal.md`.
+
+**Current Implementation:**
+- **Game Manifest System**: Each WebDoor includes a `webdoor.json` manifest describing capabilities, requirements, and configuration
+- **Auto-Discovery**: System automatically scans `public_html/webdoors/` for games with manifests
+- **Drop-In Installation**: Games can be installed by simply copying to the webdoors directory
+- **Configuration Merging**: Manifest config defaults are automatically applied when enabling a door
+- **Admin Interface**: Web-based configuration UI for enabling/disabling doors and adjusting settings
+- **Credits Integration**: Games can integrate with the BBS credits economy system
+
+**Key Classes:**
+- `WebDoorManifest` - Scans and parses webdoor.json manifests from installed games
+- `GameConfig` - Manages per-door configuration from config/webdoors.json
+- `WebDoorController` - Handles game session management and API endpoints
+
+**Important Notes:**
+- When adding WebDoor API functionality, update `docs/WebDoor_Proposal.md` to reflect new features
+- WebDoor specification is evolving - keep documentation synchronized with implementation
+- All WebDoor games must include a valid `webdoor.json` manifest
+- Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
+- Games access BBS functionality through REST API endpoints at `/api/webdoor/*`
 
 ### Multi-Network Support
 - **Multiple Networks**: The system supports multiple FTN networks through individual uplinks with domain-based routing

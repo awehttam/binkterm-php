@@ -111,6 +111,11 @@ class AdminDaemonClient
         return $this->sendCommand('delete_ad', ['name' => $name]);
     }
 
+    public function stopServices(): array
+    {
+        return $this->sendCommand('stop_services');
+    }
+
 
     public function close(): void
     {

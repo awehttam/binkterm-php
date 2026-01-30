@@ -484,7 +484,7 @@ Some pages pass additional variables:
 
 **Error Pages (`error.twig`):**
 - `error_title` - Error heading
-- `error_message` - Error description
+- `error` - Error description
 
 **404 Page (`404.twig`):**
 - `requested_url` - The URL that was not found

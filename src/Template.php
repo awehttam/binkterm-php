@@ -81,6 +81,21 @@ class Template
         // Is the game system enabled
         $this->twig->addGlobal('webdoors_active', GameConfig::isGameSystemEnabled());
 
+        $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
+        $creditsEnabled = !empty($creditsConfig['enabled']);
+        $creditsSymbol = trim((string)($creditsConfig['symbol'] ?? '$'));
+        $creditBalance = 0;
+        if ($currentUser && $creditsEnabled) {
+            try {
+                $creditBalance = UserCredit::getBalance((int)($currentUser['user_id'] ?? $currentUser['id']));
+            } catch (\Throwable $e) {
+                $creditBalance = 0;
+            }
+        }
+        $this->twig->addGlobal('credits_enabled', $creditsEnabled);
+        $this->twig->addGlobal('credits_symbol', $creditsSymbol);
+        $this->twig->addGlobal('credit_balance', $creditBalance);
+
         // Add available themes
         $availableThemes = Config::getThemes();
         $this->twig->addGlobal('available_themes', $availableThemes);

@@ -1,0 +1,31 @@
+#
+# BinktermPHP docker-compose.yml
+#
+# docker support is untested and experimental.  This does not work
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:80"
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - ./data:/var/www/html/data
+      - ./config:/var/www/html/config
+      - ./public_html:/var/www/html/public_html
+      - ./templates:/var/www/html/templates
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: binkterm
+      POSTGRES_USER: binkterm
+      POSTGRES_PASSWORD: binkterm
+    volumes:
+      - binkterm_pg:/var/lib/postgresql/data
+
+volumes:
+  binkterm_pg:

@@ -21,11 +21,13 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
+- [Telnet Interface](#telnet-interface)
 - [Operation](#operation)
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
 - [WebDoors](#webdoors---web-based-door-games)
+- [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -98,6 +100,13 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](scripts/README_weather.md))
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
+
+### Telnet Interface (Alpha)
+- **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
+- **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
+- **Security Features** - Login rate limiting (3 attempts per connection, 5/minute per IP) and connection logging
+- **Multi-Platform** - Works with PuTTY, SyncTERM, and standard telnet clients on Linux/macOS/Windows
+- See **[telnet/README.md](telnet/README.md)** for complete documentation, configuration options, and troubleshooting
 
 ## Installation
 
@@ -1242,7 +1251,7 @@ if ($userIdFromUrl && $tokenFromUrl) {
 
 ## WebDoors - Web-Based Door Games
 
-BinktermPHP implements the **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
+BinktermPHP implements the evolving **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
 
 ### Features
 
@@ -1263,10 +1272,10 @@ The example configuration enables a number of webdoors by default.
 
 WebDoors supports two hosting approaches:
 
-| Model | Location | Authentication | Use Case |
-|-------|----------|----------------|----------|
-| **Local** | Same server (`/webdoor/games/`) | Session cookie | Self-hosted games |
-| **Third-Party** | External server | Token + CORS | Community games |
+| Model | Location | Authentication | Use Case | Status              |
+|-------|----------|----------------|----------|---------------------|
+| **Local** | Same server (`/webdoor/games/`) | Session cookie | Self-hosted games | In use              |
+| **Third-Party** | External server | Token + CORS | Community games | Not yet implemented |
 
 ### Game Manifest
 
@@ -1287,7 +1296,11 @@ Each game includes a `webdoor.json` manifest describing its capabilities:
   "storage": {
     "max_size_kb": 100,
     "save_slots": 3
-  }
+  },
+   "config": {
+      "enabled": "true,",
+      "play_cost": 10
+   }
 }
 ```
 
@@ -1310,15 +1323,30 @@ For the complete WebDoor specification including SDK examples, multiplayer proto
 
 See [FAQ.md](FAQ.md) for Frequently (or infrequently) Asked Questions
 
+## Developer Guide
+
+For developers working on BinktermPHP or integrating with the system, see the comprehensive **[Developer Guide](docs/DEVELOPER_GUIDE.md)** which covers:
+
+- **Project Architecture** - Overview of the dual web+mailer system
+- **Core Concepts** - FidoNet terminology, message types, network routing
+- **Development Workflow** - Code conventions, database migrations, best practices
+- **Credits System** - In-world currency implementation and API
+- **URL Construction** - Centralized site URL generation for reverse proxy support
+- **WebDoor Integration** - Game/application API for BBS integration
+
+The Developer Guide is essential reading for anyone contributing code, developing WebDoors, or extending the system.
+
 ## Contributing
 
-We welcome contributions to BinktermPHP! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on:
+We welcome contributions to BinktermPHP! Before contributing, please review:
 
-- Development setup and code conventions
-- Pull request workflow
-- Database migrations
-- Testing guidelines
-- Security considerations
+- **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Essential reading for understanding the codebase
+- **[Contributing Guide](CONTRIBUTING.md)** - Detailed information on:
+  - Development setup and code conventions
+  - Pull request workflow
+  - Database migrations
+  - Testing guidelines
+  - Security considerations
 
 All contributions must be submitted via pull request and will be reviewed by project maintainers.
 

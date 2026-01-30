@@ -6,6 +6,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
 
 SimpleRouter::group(['prefix' => '/api'], function() {
@@ -315,6 +316,107 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/notify/state', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid user']);
+            return;
+        }
+
+        $defaults = [
+            'mailLastCounts' => ['netmail' => 0, 'echomail' => 0],
+            'mailUnread' => ['netmail' => false, 'echomail' => false],
+            'chatLastTotal' => 0,
+            'chatUnread' => false
+        ];
+
+        $meta = new UserMeta();
+        $raw = $meta->getValue((int)$userId, 'notify_state');
+        $state = null;
+        if ($raw) {
+            $decoded = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $state = $decoded;
+            }
+        }
+
+        echo json_encode(['state' => $state ?? $defaults]);
+    });
+
+    SimpleRouter::post('/notify/state', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid user']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $state = $input['state'] ?? null;
+        if (!is_array($state)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'State payload required']);
+            return;
+        }
+
+        $normalized = [
+            'mailLastCounts' => [
+                'netmail' => max(0, (int)($state['mailLastCounts']['netmail'] ?? 0)),
+                'echomail' => max(0, (int)($state['mailLastCounts']['echomail'] ?? 0))
+            ],
+            'mailUnread' => [
+                'netmail' => !empty($state['mailUnread']['netmail']),
+                'echomail' => !empty($state['mailUnread']['echomail'])
+            ],
+            'chatLastTotal' => max(0, (int)($state['chatLastTotal'] ?? 0)),
+            'chatUnread' => !empty($state['chatUnread'])
+        ];
+
+        $meta = new UserMeta();
+        $meta->setValue((int)$userId, 'notify_state', json_encode($normalized));
+
+        echo json_encode(['success' => true, 'state' => $normalized]);
+    });
+
+    SimpleRouter::post('/notify/seen', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if (!$userId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid user']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $target = strtolower((string)($input['target'] ?? ''));
+        if (!in_array($target, ['netmail', 'echomail', 'chat'], true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid target']);
+            return;
+        }
+
+        $meta = new UserMeta();
+        $now = gmdate('Y-m-d H:i:s');
+        $meta->setValue((int)$userId, 'notify_seen_' . $target, $now);
+
+        echo json_encode(['success' => true, 'target' => $target, 'seen_at' => $now]);
+    });
+
     SimpleRouter::get('/dashboard/stats', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();
@@ -323,6 +425,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $meta = new UserMeta();
+        $now = gmdate('Y-m-d H:i:s');
+
+        $seenNetmail = $meta->getValue((int)$userId, 'notify_seen_netmail');
+        if (!$seenNetmail) {
+            $seenNetmail = $now;
+            $meta->setValue((int)$userId, 'notify_seen_netmail', $seenNetmail);
+        }
+
+        $seenEchomail = $meta->getValue((int)$userId, 'notify_seen_echomail');
+        if (!$seenEchomail) {
+            $seenEchomail = $now;
+            $meta->setValue((int)$userId, 'notify_seen_echomail', $seenEchomail);
+        }
+
+        $seenChat = $meta->getValue((int)$userId, 'notify_seen_chat');
+        if (!$seenChat) {
+            $seenChat = $now;
+            $meta->setValue((int)$userId, 'notify_seen_chat', $seenChat);
+        }
 
         // Unread netmail using message_read_status table (sent + received)
         try {
@@ -344,18 +466,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     n.user_id = ?
                     OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
                   )
+                  AND n.date_received > ?
             ");
             $params = [$userId, $userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
+            $params[] = $seenNetmail;
             $unreadStmt->execute($params);
         } else {
             $unreadStmt = $db->prepare("
                 SELECT COUNT(*) as count 
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL
+                WHERE n.user_id = ? AND mrs.read_at IS NULL AND n.date_received > ?
             ");
-            $unreadStmt->execute([$userId, $userId]);
+            $unreadStmt->execute([$userId, $userId, $seenNetmail]);
         }
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
@@ -366,20 +490,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?
         ");
-        $unreadEchomailStmt->execute([$userId, $userId]);
+        $unreadEchomailStmt->execute([$userId, $userId, $seenEchomail]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
         $chatTotalStmt = $db->prepare("
             SELECT COUNT(*) as count
             FROM chat_messages m
             LEFT JOIN chat_rooms r ON m.room_id = r.id
-            WHERE (m.room_id IS NOT NULL AND r.is_active = TRUE)
+            WHERE ((m.room_id IS NOT NULL AND r.is_active = TRUE)
                OR m.to_user_id = ?
-               OR m.from_user_id = ?
+               OR m.from_user_id = ?)
+              AND m.created_at > ?
         ");
-        $chatTotalStmt->execute([$userId, $userId]);
+        $chatTotalStmt->execute([$userId, $userId, $seenChat]);
         $chatTotal = $chatTotalStmt->fetch()['count'] ?? 0;
 
         echo json_encode([

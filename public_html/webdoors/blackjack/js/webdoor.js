@@ -10,7 +10,12 @@ class WebDoor {
     const base = this.apiBase();
     const r = await fetch(`${base}/session`, { credentials: "include" });
     if (!r.ok) throw new Error(`session failed: HTTP ${r.status}`);
-    return await r.json();
+    this._session = await r.json();
+    return this._session;
+  }
+
+  static credits() {
+    return this._session?.credits || null;
   }
 
   // Storage API (spec): GET/PUT/DELETE /storage/{slot}
