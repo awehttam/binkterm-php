@@ -6,7 +6,7 @@ Draft 1
 
 ## Overview
 
-**WebDoor** is an open specification for embedding HTML5/JavaScript games ("web doors") into BBS software. It defines a secure API protocol between a host BBS and embedded games, enabling third-party game developers and BBS software authors to create interoperable experiences.
+BinktermPHP **WebDoor** is a specification for embedding HTML5/JavaScript games ("web doors") into BBS software. It defines a secure API protocol between a host BBS and embedded games, enabling third-party game developers and BBS software authors to create interoperable experiences.
 
 The name "WebDoor" references the traditional BBS "door game" concept while indicating its web-based nature.
 
@@ -84,10 +84,30 @@ Each game provides a manifest file describing its capabilities:
     "max_size_kb": 100,
     "save_slots": 3
   },
+  "config": {
+    "start_bet": 10,
+    "max_bet": 500
+  },
   "multiplayer": {
     "enabled": true,
     "min_players": 2,
     "max_players": 8
+  }
+}
+```
+
+**Config Overrides**
+
+Each WebDoor may include a top-level `config` object. When a door is enabled (activated), the host merges any keys from `config` into that door's entry in `config/webdoors.json` if they are not already present. This provides default settings for per-door configuration while allowing sysops to override values later.
+
+Example: `config/webdoors.json` entry after activation
+
+```json
+{
+  "blackjack": {
+    "enabled": true,
+    "start_bet": 10,
+    "max_bet": 500
   }
 }
 ```

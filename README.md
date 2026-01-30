@@ -26,6 +26,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
 - [WebDoors](#webdoors---web-based-door-games)
+- [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -1242,7 +1243,7 @@ if ($userIdFromUrl && $tokenFromUrl) {
 
 ## WebDoors - Web-Based Door Games
 
-BinktermPHP implements the **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
+BinktermPHP implements the evolving **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
 
 ### Features
 
@@ -1263,10 +1264,10 @@ The example configuration enables a number of webdoors by default.
 
 WebDoors supports two hosting approaches:
 
-| Model | Location | Authentication | Use Case |
-|-------|----------|----------------|----------|
-| **Local** | Same server (`/webdoor/games/`) | Session cookie | Self-hosted games |
-| **Third-Party** | External server | Token + CORS | Community games |
+| Model | Location | Authentication | Use Case | Status              |
+|-------|----------|----------------|----------|---------------------|
+| **Local** | Same server (`/webdoor/games/`) | Session cookie | Self-hosted games | In use              |
+| **Third-Party** | External server | Token + CORS | Community games | Not yet implemented |
 
 ### Game Manifest
 
@@ -1287,7 +1288,11 @@ Each game includes a `webdoor.json` manifest describing its capabilities:
   "storage": {
     "max_size_kb": 100,
     "save_slots": 3
-  }
+  },
+   "config": {
+      "enabled": "true,",
+      "play_cost": 10
+   }
 }
 ```
 
