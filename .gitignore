@@ -30,3 +30,5 @@ vendor/
 bbs_ads/*
 !bbs_ads/claudes1.ans
 
+# Windows utility scripts
+delnul.cmd
