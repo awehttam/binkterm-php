@@ -9,6 +9,34 @@ use BinktermPHP\MessageHandler;
 use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
 
+function sanitizeFilenameForWindows(string $name, string $fallback = 'message'): string
+{
+    $safe = preg_replace('/[<>:"\/\\\\|?*\x00-\x1F]/', '_', $name);
+    $safe = preg_replace('/\s+/', ' ', (string)$safe);
+    $safe = trim($safe);
+    $safe = rtrim($safe, '. ');
+
+    if ($safe === '') {
+        $safe = $fallback;
+    }
+
+    $upper = strtoupper($safe);
+    $reserved = [
+        'CON', 'PRN', 'AUX', 'NUL',
+        'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+        'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+    ];
+    if (in_array($upper, $reserved, true)) {
+        $safe = '_' . $safe;
+    }
+
+    if (strlen($safe) > 120) {
+        $safe = substr($safe, 0, 120);
+    }
+
+    return $safe;
+}
+
 SimpleRouter::group(['prefix' => '/api'], function() {
 
     SimpleRouter::post('/auth/login', function() {
@@ -1945,6 +1973,56 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             echo json_encode(['error' => 'Message not found']);
         }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/messages/echomail/{id}/download', function($id) {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $message = $handler->getMessage($id, 'echomail', $userId);
+
+        if (!$message) {
+            http_response_code(404);
+            echo 'Message not found';
+            return;
+        }
+
+        $subject = $message['subject'] ?? 'message';
+        $filename = sanitizeFilenameForWindows((string)$subject) . '.txt';
+        $area = $message['echoarea'] ?? '';
+        $domain = $message['domain'] ?? '';
+        $areaLabel = $area !== '' ? $area . ($domain !== '' ? '@' . $domain : '') : '';
+
+        $headerLines = [
+            'From: ' . ($message['from_name'] ?? 'Unknown'),
+            'To: ' . ($message['to_name'] ?? 'All'),
+            'Subject: ' . ($message['subject'] ?? '(No Subject)'),
+            'Date: ' . ($message['date_written'] ?? ''),
+            'Area: ' . $areaLabel
+        ];
+
+        $headerText = implode("\r\n", $headerLines) . "\r\n\r\n";
+        $bodyText = (string)($message['message_text'] ?? '');
+        $bodyText = str_replace(["\r\n", "\r"], "\n", $bodyText);
+        $bodyText = str_replace("\n", "\r\n", $bodyText);
+        $content = $headerText . $bodyText;
+
+        $charset = 'utf-8';
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'CP437//TRANSLIT//IGNORE', $content);
+            if ($converted !== false) {
+                $content = $converted;
+                $charset = 'cp437';
+            }
+        }
+
+        $safeFilename = str_replace(['"', "\r", "\n"], '_', $filename);
+        header('Content-Type: text/plain; charset=' . $charset);
+        header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
+        header('X-Content-Type-Options: nosniff');
+        echo $content;
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}', function($echoarea) {
