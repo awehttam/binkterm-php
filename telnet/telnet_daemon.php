@@ -120,17 +120,12 @@ function sendTelnetCommand($conn, int $cmd, int $opt): void
     safeWrite($conn, chr(IAC) . chr($cmd) . chr($opt));
 }
 
-function setEcho($conn, bool $enable): void
+function setEcho($conn, array &$state, bool $enable): void
 {
-    if ($enable) {
-        // Request client-side echo; server will not echo
-        sendTelnetCommand($conn, WONT, OPT_ECHO);
-        sendTelnetCommand($conn, TELNET_DO, OPT_ECHO);
-    } else {
-        // Request server-side echo; client should stop echoing
-        sendTelnetCommand($conn, WILL, OPT_ECHO);
-        sendTelnetCommand($conn, DONT, OPT_ECHO);
-    }
+    $state['input_echo'] = $enable;
+    // Force server-side echo control (client echo off)
+    sendTelnetCommand($conn, WILL, OPT_ECHO);
+    sendTelnetCommand($conn, DONT, OPT_ECHO);
 }
 
 function negotiateTelnet($conn): void
@@ -249,6 +244,9 @@ function readTelnetLine($conn, array &$state): ?string
         }
 
         if ($byte === 10) {
+            if (!empty($state['input_echo'])) {
+                safeWrite($conn, "\r\n");
+            }
             return $line;
         }
 
@@ -260,12 +258,18 @@ function readTelnetLine($conn, array &$state): ?string
                     $state['pushback'] = ($state['pushback'] ?? '') . $next;
                 }
             }
+            if (!empty($state['input_echo'])) {
+                safeWrite($conn, "\r\n");
+            }
             return $line;
         }
 
         if ($byte === 8 || $byte === 127) {
             if ($line !== '') {
                 $line = substr($line, 0, -1);
+                if (!empty($state['input_echo'])) {
+                    safeWrite($conn, "\x08 \x08");
+                }
             }
             continue;
         }
@@ -275,6 +279,9 @@ function readTelnetLine($conn, array &$state): ?string
         }
 
         $line .= chr($byte);
+        if (!empty($state['input_echo'])) {
+            safeWrite($conn, chr($byte));
+        }
     }
 }
 
@@ -441,7 +448,7 @@ function fullScreenEditor($conn, array &$state, string $initialText = ''): strin
     $startRow = 11; // Starting row on terminal (after header - 10 lines)
     $maxRows = max(10, $rows - $startRow - 2); // Leave room for footer
 
-    setEcho($conn, false);
+    setEcho($conn, $state, false);
 
     while (true) {
         // Display current text
@@ -462,7 +469,7 @@ function fullScreenEditor($conn, array &$state, string $initialText = ''): strin
         // Read character
         $char = readRawChar($conn, $state);
         if ($char === null) {
-            setEcho($conn, true);
+            setEcho($conn, $state, true);
             return '';
         }
 
@@ -475,7 +482,7 @@ function fullScreenEditor($conn, array &$state, string $initialText = ''): strin
 
         // Check for Ctrl+C (ETX) - Cancel
         if ($ord === 3) {
-            setEcho($conn, true);
+            setEcho($conn, $state, true);
             writeLine($conn, '');
             writeLine($conn, colorize('Message cancelled.', ANSI_RED));
             return '';
@@ -613,7 +620,7 @@ function fullScreenEditor($conn, array &$state, string $initialText = ''): strin
         }
     }
 
-    setEcho($conn, true);
+    setEcho($conn, $state, true);
     safeWrite($conn, "\033[" . ($startRow + $maxRows + 1) . ";1H");
     writeLine($conn, '');
     writeLine($conn, colorize('Message saved and ready to send.', ANSI_GREEN));
@@ -994,7 +1001,7 @@ function apiRequest(string $base, string $method, string $path, ?array $payload,
 
 function prompt($conn, array &$state, string $label, bool $echo = true): ?string
 {
-    setEcho($conn, $echo);
+    setEcho($conn, $state, $echo);
     safeWrite($conn, $label);
 
     if ($echo) {
@@ -1004,7 +1011,7 @@ function prompt($conn, array &$state, string $label, bool $echo = true): ?string
     }
 
     $value = readTelnetLine($conn, $state);
-    setEcho($conn, true);
+    setEcho($conn, $state, true);
     writeLine($conn, '');
     return $value;
 }
@@ -1509,6 +1516,7 @@ while (true) {
     stream_set_timeout($conn, 300);
     $state = [
         'telnet_mode' => null,
+        'input_echo' => true,
         'cols' => 80,
         'rows' => 24
     ];
