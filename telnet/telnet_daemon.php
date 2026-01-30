@@ -1024,24 +1024,67 @@ function setTerminalTitle($conn, string $title): void
 
 function showLoginBanner($conn): void
 {
+    $loginAnsiPath = __DIR__ . '/screens/login.ans';
+    if (is_file($loginAnsiPath)) {
+        $content = @file_get_contents($loginAnsiPath);
+        if ($content !== false && $content !== '') {
+            $content = str_replace("\r\n", "\n", $content);
+            $content = str_replace("\n", "\r\n", $content);
+            safeWrite($conn, $content . "\r\n");
+            return;
+        }
+    }
+
     $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-
-    writeLine($conn, colorize('Welcome to BinktermPHP ' . Version::getVersion() . ' Telnet.', ANSI_CYAN . ANSI_BOLD));
-    writeLine($conn, '');
-    writeLine($conn, colorize('    ' . $config->getSystemName(), ANSI_MAGENTA . ANSI_BOLD));
-    writeLine($conn, colorize('    ' . $config->getSystemLocation(), ANSI_DIM));
-    writeLine($conn, '');
-    writeLine($conn, colorize('    ' . $config->getSystemOrigin(), ANSI_DIM));
-    writeLine($conn, colorize(str_repeat('=', 40), ANSI_DIM));
-    writeLine($conn, '');
-
-    // Display web URL
+    $siteUrl = '';
     try {
         $siteUrl = Config::getSiteUrl();
-        writeLine($conn, colorize('For a good time visit us on the web at ' . $siteUrl, ANSI_YELLOW));
-        writeLine($conn, '');
     } catch (\Exception $e) {
-        // Silently skip if getSiteUrl fails
+        $siteUrl = '';
+    }
+
+    $rawLines = [
+        ['text' => 'BinktermPHP ' . Version::getVersion() . ' Telnet', 'color' => ANSI_MAGENTA . ANSI_BOLD, 'center' => true],
+        ['text' => '', 'color' => ANSI_DIM, 'center' => false],
+        ['text' => 'System: ' . $config->getSystemName(), 'color' => ANSI_CYAN, 'center' => false],
+        ['text' => 'Location: ' . $config->getSystemLocation(), 'color' => ANSI_DIM, 'center' => false],
+        ['text' => 'Origin: ' . $config->getSystemOrigin(), 'color' => ANSI_DIM, 'center' => false],
+    ];
+    if ($siteUrl !== '') {
+        $rawLines[] = ['text' => '', 'color' => ANSI_DIM, 'center' => false];
+        $rawLines[] = ['text' => 'Web: ' . $siteUrl, 'color' => ANSI_YELLOW, 'center' => false];
+    }
+
+    $maxLen = 0;
+    foreach ($rawLines as $entry) {
+        $maxLen = max($maxLen, strlen($entry['text']));
+    }
+    $frameWidth = max(48, min(90, $maxLen + 6));
+    $innerWidth = $frameWidth - 4;
+    $border = '+' . str_repeat('-', $frameWidth - 2) . '+';
+
+    writeLine($conn, '');
+    writeLine($conn, colorize($border, ANSI_MAGENTA));
+
+    foreach ($rawLines as $entry) {
+        $text = $entry['text'];
+        $wrapped = wordwrap($text, $innerWidth, "\n", true);
+        foreach (explode("\n", $wrapped) as $part) {
+            $padded = $entry['center']
+                ? str_pad($part, $innerWidth, ' ', STR_PAD_BOTH)
+                : str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT);
+            $content = '| ' . $padded . ' |';
+            writeLine($conn, colorize($content, $entry['color']));
+        }
+    }
+
+    writeLine($conn, colorize($border, ANSI_MAGENTA));
+    writeLine($conn, '');
+
+    if ($siteUrl !== '') {
+
+        writeLine($conn, colorize('  For a good time visit us on the web @ ' . $siteUrl, ANSI_YELLOW));
+        writeLine($conn, '');
     }
 }
 
@@ -1123,18 +1166,41 @@ function showShoutbox($conn, array &$state, string $apiBase, string $session, in
     }
     $response = apiRequest($apiBase, 'GET', '/api/shoutbox?limit=' . $limit, null, $session);
     $messages = $response['data']['messages'] ?? [];
+    $cols = (int)($state['cols'] ?? 80);
+    $frameWidth = max(40, min($cols, 80));
+    $innerWidth = $frameWidth - 4;
+    $title = 'Recent Shoutbox';
+
+    $lines = [];
     if (!$messages) {
-        writeLine($conn, 'No shoutbox messages.');
-        return;
+        $lines[] = 'No shoutbox messages.';
+    } else {
+        foreach ($messages as $msg) {
+            $user = $msg['username'] ?? 'Unknown';
+            $text = $msg['message'] ?? '';
+            $date = $msg['created_at'] ?? '';
+            $lines[] = sprintf('[%s] %s: %s', $date, $user, $text);
+        }
     }
+
+    $borderTop = '+' . str_repeat('-', $frameWidth - 2) . '+';
+    $borderMid = '|' . str_repeat(' ', $frameWidth - 2) . '|';
+    $titleLine = '| ' . str_pad($title, $innerWidth, ' ', STR_PAD_BOTH) . ' |';
+
     writeLine($conn, '');
-    writeLine($conn, 'Recent Shoutbox');
-    foreach ($messages as $msg) {
-        $user = $msg['username'] ?? 'Unknown';
-        $text = $msg['message'] ?? '';
-        $date = $msg['created_at'] ?? '';
-        writeLine($conn, sprintf('[%s] %s: %s', $date, $user, $text));
+    writeLine($conn, colorize($borderTop, ANSI_MAGENTA));
+    writeLine($conn, colorize($titleLine, ANSI_MAGENTA));
+    writeLine($conn, colorize($borderMid, ANSI_MAGENTA));
+
+    foreach ($lines as $line) {
+        $wrapped = wordwrap($line, $innerWidth, "\n", true);
+        foreach (explode("\n", $wrapped) as $part) {
+            $contentLine = '| ' . str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT) . ' |';
+            writeLine($conn, colorize($contentLine, ANSI_MAGENTA));
+        }
     }
+
+    writeLine($conn, colorize($borderTop, ANSI_MAGENTA));
 }
 
 function showPolls($conn, array &$state, string $apiBase, string $session): void
@@ -1612,6 +1678,7 @@ while (true) {
         }
 
         writeLine($conn, '');
+        writeLine($conn, colorize($config->getSystemName(), ANSI_CYAN . ANSI_BOLD));
         writeLine($conn, colorize('Main Menu', ANSI_BLUE . ANSI_BOLD));
         writeLine($conn, colorize(' 1) Netmail (' . $messageCounts['netmail'] . ' messages)', ANSI_GREEN));
         writeLine($conn, colorize(' 2) Echomail (' . $messageCounts['echomail'] . ' messages)', ANSI_GREEN));
