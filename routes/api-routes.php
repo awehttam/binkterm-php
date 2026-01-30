@@ -499,34 +499,32 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     n.user_id = ?
                     OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
                   )
-                  AND n.date_received > ?
             ");
             $params = [$userId, $userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
-            $params[] = $seenNetmail;
             $unreadStmt->execute($params);
         } else {
             $unreadStmt = $db->prepare("
-                SELECT COUNT(*) as count 
+                SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL AND n.date_received > ?
+                WHERE n.user_id = ? AND mrs.read_at IS NULL
             ");
-            $unreadStmt->execute([$userId, $userId, $seenNetmail]);
+            $unreadStmt->execute([$userId, $userId]);
         }
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
         // Unread echomail using message_read_status table (only from subscribed echoareas)
         $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
         $unreadEchomailStmt = $db->prepare("
-            SELECT COUNT(*) as count 
+            SELECT COUNT(*) as count
             FROM echomail em
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?{$sysopUnreadFilter}
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE{$sysopUnreadFilter}
         ");
-        $unreadEchomailStmt->execute([$userId, $userId, $seenEchomail]);
+        $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
         $chatTotalStmt = $db->prepare("
