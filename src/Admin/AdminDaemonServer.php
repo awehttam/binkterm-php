@@ -303,6 +303,32 @@ class AdminDaemonServer
                     $this->deleteAd((string)$name);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'list_custom_templates':
+                    $templates = $this->listCustomTemplates();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $templates]);
+                    break;
+                case 'get_custom_template':
+                    $path = (string)($data['path'] ?? '');
+                    $template = $this->getCustomTemplate($path);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $template]);
+                    break;
+                case 'save_custom_template':
+                    $path = (string)($data['path'] ?? '');
+                    $content = (string)($data['content'] ?? '');
+                    $result = $this->saveCustomTemplate($path, $content);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'delete_custom_template':
+                    $path = (string)($data['path'] ?? '');
+                    $result = $this->deleteCustomTemplate($path);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'install_custom_template':
+                    $source = (string)($data['source'] ?? '');
+                    $overwrite = !empty($data['overwrite']);
+                    $result = $this->installCustomTemplate($source, $overwrite);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
                 case 'stop_services':
                     $results = $this->stopServices();
                     $this->writeResponse($client, ['ok' => true, 'result' => $results]);
@@ -696,6 +722,181 @@ class AdminDaemonServer
     private function getAdsDir(): string
     {
         return __DIR__ . '/../../bbs_ads';
+    }
+
+    private function getCustomTemplatesBasePath(): string
+    {
+        return rtrim(Config::TEMPLATE_PATH, '/\\') . '/custom';
+    }
+
+    private function resolveCustomTemplatePath(string $relativePath, bool $allowExample = false): ?string
+    {
+        $relativePath = str_replace('\\', '/', $relativePath);
+        $relativePath = ltrim($relativePath, '/');
+
+        if ($relativePath === '' || strpos($relativePath, "\0") !== false) {
+            return null;
+        }
+
+        if (preg_match('#(^|/)\.{1,2}(/|$)#', $relativePath)) {
+            return null;
+        }
+
+        if (!preg_match('#^[A-Za-z0-9._/-]+$#', $relativePath)) {
+            return null;
+        }
+
+        $pattern = $allowExample ? '#\.twig(\.example)?$#' : '#\.twig$#';
+        if (!preg_match($pattern, $relativePath)) {
+            return null;
+        }
+
+        $basePath = $this->getCustomTemplatesBasePath();
+        $fullPath = $basePath . '/' . $relativePath;
+        $baseReal = realpath($basePath);
+        $dirReal = realpath(dirname($fullPath));
+
+        if ($baseReal === false || $dirReal === false || strpos($dirReal, $baseReal) !== 0) {
+            return null;
+        }
+
+        return $fullPath;
+    }
+
+    private function listCustomTemplates(): array
+    {
+        $basePath = $this->getCustomTemplatesBasePath();
+        if (!is_dir($basePath)) {
+            return [];
+        }
+
+        $templates = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($basePath, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo->isFile()) {
+                continue;
+            }
+
+            $filename = $fileInfo->getFilename();
+            if (!preg_match('/\.twig(\.example)?$/', $filename)) {
+                continue;
+            }
+
+            $fullPath = $fileInfo->getPathname();
+            $relativePath = str_replace('\\', '/', substr($fullPath, strlen($basePath) + 1));
+
+            $templates[] = [
+                'path' => $relativePath,
+                'size' => $fileInfo->getSize(),
+                'modified_at' => date('c', $fileInfo->getMTime())
+            ];
+        }
+
+        usort($templates, function($a, $b) {
+            return strcasecmp($a['path'], $b['path']);
+        });
+
+        return $templates;
+    }
+
+    private function getCustomTemplate(string $path): array
+    {
+        $fullPath = $this->resolveCustomTemplatePath($path, true);
+        if ($fullPath === null || !is_file($fullPath)) {
+            throw new \RuntimeException('Template not found');
+        }
+
+        $content = @file_get_contents($fullPath);
+        if ($content === false) {
+            throw new \RuntimeException('Failed to read template');
+        }
+
+        return [
+            'path' => $path,
+            'content' => $content
+        ];
+    }
+
+    private function saveCustomTemplate(string $path, string $content): array
+    {
+        if (!preg_match('#\.twig$#', $path)) {
+            throw new \RuntimeException('Only .twig files can be saved');
+        }
+
+        $fullPath = $this->resolveCustomTemplatePath($path, false);
+        if ($fullPath === null) {
+            throw new \RuntimeException('Invalid template path');
+        }
+
+        $dir = dirname($fullPath);
+        if (!is_dir($dir)) {
+            throw new \RuntimeException('Directory does not exist');
+        }
+
+        $maxBytes = 512 * 1024;
+        if (strlen($content) > $maxBytes) {
+            throw new \RuntimeException('Template is too large (max 512KB)');
+        }
+
+        if (@file_put_contents($fullPath, $content, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to save template');
+        }
+
+        return ['success' => true, 'path' => $path];
+    }
+
+    private function deleteCustomTemplate(string $path): array
+    {
+        if (!preg_match('#\.twig$#', $path)) {
+            throw new \RuntimeException('Only .twig files can be deleted');
+        }
+
+        $fullPath = $this->resolveCustomTemplatePath($path, false);
+        if ($fullPath === null || !is_file($fullPath)) {
+            throw new \RuntimeException('Template not found');
+        }
+
+        if (!@unlink($fullPath)) {
+            throw new \RuntimeException('Failed to delete template');
+        }
+
+        return ['success' => true];
+    }
+
+    private function installCustomTemplate(string $source, bool $overwrite): array
+    {
+        if (!preg_match('#\.twig\.example$#', $source)) {
+            throw new \RuntimeException('Source must be a .twig.example file');
+        }
+
+        $sourcePath = $this->resolveCustomTemplatePath($source, true);
+        if ($sourcePath === null || !is_file($sourcePath)) {
+            throw new \RuntimeException('Example template not found');
+        }
+
+        $target = preg_replace('#\.example$#', '', $source);
+        $targetPath = $this->resolveCustomTemplatePath($target, false);
+        if ($targetPath === null) {
+            throw new \RuntimeException('Invalid target path');
+        }
+
+        if (file_exists($targetPath) && !$overwrite) {
+            throw new \RuntimeException('Target template already exists');
+        }
+
+        $dir = dirname($targetPath);
+        if (!is_dir($dir)) {
+            throw new \RuntimeException('Directory does not exist');
+        }
+
+        if (!@copy($sourcePath, $targetPath)) {
+            throw new \RuntimeException('Failed to install template');
+        }
+
+        return ['success' => true, 'path' => $target];
     }
 
 }

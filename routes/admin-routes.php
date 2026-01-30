@@ -146,6 +146,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // Custom template editor page
+    SimpleRouter::get('/template-editor', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        $adminController = new AdminController();
+        $adminController->requireAdmin($user);
+
+        $template = new Template();
+        $template->renderResponse('admin/template_editor.twig');
+    });
+
     // API routes for admin
     SimpleRouter::group(['prefix' => '/api'], function() {
 
@@ -1213,6 +1225,112 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             $period = $_GET['period'] ?? 'day';
             $stats = $adminController->getBinkpSessionStats($period);
             echo json_encode($stats);
+        });
+
+        // ========================================
+        // Custom Template Editor
+        // ========================================
+
+        SimpleRouter::get('/custom-templates', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $templates = $client->listCustomTemplates();
+                echo json_encode(['templates' => $templates]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::get('/custom-templates/file', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $path = $_GET['path'] ?? '';
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $template = $client->getCustomTemplate($path);
+                echo json_encode($template);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/custom-templates/file', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            $path = trim($input['path'] ?? '');
+            $content = (string)($input['content'] ?? '');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->saveCustomTemplate($path, $content);
+                echo json_encode($result);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::delete('/custom-templates/file', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $path = $_GET['path'] ?? '';
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->deleteCustomTemplate($path);
+                echo json_encode($result);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/custom-templates/install', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            $source = trim($input['source'] ?? '');
+            $overwrite = !empty($input['overwrite']);
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->installCustomTemplate($source, $overwrite);
+                echo json_encode($result);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
         });
     });
 });

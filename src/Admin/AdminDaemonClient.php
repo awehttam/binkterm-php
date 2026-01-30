@@ -111,6 +111,37 @@ class AdminDaemonClient
         return $this->sendCommand('delete_ad', ['name' => $name]);
     }
 
+    public function listCustomTemplates(): array
+    {
+        return $this->sendCommand('list_custom_templates');
+    }
+
+    public function getCustomTemplate(string $path): array
+    {
+        return $this->sendCommand('get_custom_template', ['path' => $path]);
+    }
+
+    public function saveCustomTemplate(string $path, string $content): array
+    {
+        return $this->sendCommand('save_custom_template', [
+            'path' => $path,
+            'content' => $content
+        ]);
+    }
+
+    public function deleteCustomTemplate(string $path): array
+    {
+        return $this->sendCommand('delete_custom_template', ['path' => $path]);
+    }
+
+    public function installCustomTemplate(string $source, bool $overwrite = false): array
+    {
+        return $this->sendCommand('install_custom_template', [
+            'source' => $source,
+            'overwrite' => $overwrite
+        ]);
+    }
+
     public function stopServices(): array
     {
         return $this->sendCommand('stop_services');

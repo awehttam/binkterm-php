@@ -1,0 +1,279 @@
+{% extends "base.twig" %}
+
+{% block title %}Admin: Template Editor - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-file-code"></i>
+        Template Editor
+    </h2>
+    <div class="text-muted small">
+        Edits are restricted to <code>templates/custom</code>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Custom Templates</h6>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadTemplates()">
+                    <i class="fas fa-sync"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="templateSearch" placeholder="Search templates...">
+                </div>
+                <div id="templateList" class="list-group small">
+                    <div class="text-muted">Loading templates...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">New Template</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <label class="form-label">Path (relative to templates/custom)</label>
+                    <input type="text" class="form-control font-monospace" id="newTemplatePath" placeholder="systemnews.twig">
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="createTemplate()">
+                    <i class="fas fa-plus"></i> Create
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-1">Editor</h6>
+                    <div class="text-muted small" id="currentTemplateLabel">No template selected</div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-outline-primary btn-sm" id="installTemplateBtn" onclick="installTemplate()" disabled>
+                        <i class="fas fa-download"></i> Install
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" id="saveTemplateBtn" onclick="saveTemplate()" disabled>
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" id="deleteTemplateBtn" onclick="deleteTemplate()" disabled>
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <textarea class="form-control font-monospace" id="templateEditor" rows="20" disabled></textarea>
+                <div class="form-text mt-2">
+                    Changes apply immediately after saving. Make sure your Twig syntax is valid.
+                </div>
+            </div>
+        </div>
+        <div id="templateStatus" class="alert d-none mt-3" role="alert"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let templates = [];
+let currentTemplate = null;
+let isDirty = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplates();
+
+    document.getElementById('templateSearch').addEventListener('input', function() {
+        renderTemplateList(this.value.trim().toLowerCase());
+    });
+
+    document.getElementById('templateEditor').addEventListener('input', function() {
+        if (currentTemplate) {
+            isDirty = true;
+        }
+    });
+});
+
+function setStatus(message, type = 'info') {
+    const status = document.getElementById('templateStatus');
+    status.className = `alert alert-${type}`;
+    status.textContent = message;
+    status.classList.remove('d-none');
+}
+
+function clearStatus() {
+    const status = document.getElementById('templateStatus');
+    status.classList.add('d-none');
+    status.textContent = '';
+}
+
+function loadTemplates() {
+    clearStatus();
+    fetch('/admin/api/custom-templates')
+        .then(response => response.json())
+        .then(data => {
+            templates = data.templates || [];
+            renderTemplateList(document.getElementById('templateSearch').value.trim().toLowerCase());
+        })
+        .catch(() => {
+            setStatus('Failed to load templates.', 'danger');
+        });
+}
+
+function renderTemplateList(filter = '') {
+    const list = document.getElementById('templateList');
+    list.innerHTML = '';
+
+    const filtered = templates.filter(t => t.path.toLowerCase().includes(filter));
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="text-muted">No templates found.</div>';
+        return;
+    }
+
+    filtered.forEach(t => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'list-group-item list-group-item-action';
+        item.textContent = t.path;
+        item.onclick = () => loadTemplate(t.path);
+        list.appendChild(item);
+    });
+}
+
+function loadTemplate(path) {
+    if (isDirty && !confirm('You have unsaved changes. Continue and discard them?')) {
+        return;
+    }
+
+    clearStatus();
+    fetch(`/admin/api/custom-templates/file?path=${encodeURIComponent(path)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to load template');
+            }
+            return response.json();
+        })
+        .then(data => {
+            currentTemplate = data.path;
+            isDirty = false;
+            document.getElementById('currentTemplateLabel').textContent = data.path;
+            const editor = document.getElementById('templateEditor');
+            editor.value = data.content || '';
+            const isExample = data.path.endsWith('.twig.example');
+            editor.disabled = isExample;
+            document.getElementById('saveTemplateBtn').disabled = isExample;
+            document.getElementById('deleteTemplateBtn').disabled = isExample;
+            document.getElementById('installTemplateBtn').disabled = !isExample;
+        })
+        .catch(() => {
+            setStatus('Failed to load template.', 'danger');
+        });
+}
+
+function createTemplate() {
+    const path = document.getElementById('newTemplatePath').value.trim();
+    if (!path) {
+        setStatus('Enter a template path (e.g., systemnews.twig).', 'warning');
+        return;
+    }
+    currentTemplate = path;
+    isDirty = true;
+    document.getElementById('currentTemplateLabel').textContent = path;
+    const editor = document.getElementById('templateEditor');
+    editor.value = '';
+    editor.disabled = false;
+    document.getElementById('saveTemplateBtn').disabled = false;
+    document.getElementById('deleteTemplateBtn').disabled = true;
+    document.getElementById('installTemplateBtn').disabled = true;
+}
+
+function saveTemplate() {
+    if (!currentTemplate) {
+        return;
+    }
+
+    const content = document.getElementById('templateEditor').value;
+    fetch('/admin/api/custom-templates/file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: currentTemplate, content })
+    })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok) {
+                throw new Error(data.error || 'Failed to save template');
+            }
+            isDirty = false;
+            loadTemplates();
+            setStatus('Template saved successfully.', 'success');
+            document.getElementById('deleteTemplateBtn').disabled = false;
+            document.getElementById('installTemplateBtn').disabled = true;
+        })
+        .catch(err => {
+            setStatus(err.message || 'Failed to save template.', 'danger');
+        });
+}
+
+function deleteTemplate() {
+    if (!currentTemplate) {
+        return;
+    }
+
+    if (!confirm(`Delete ${currentTemplate}? This cannot be undone.`)) {
+        return;
+    }
+
+    fetch(`/admin/api/custom-templates/file?path=${encodeURIComponent(currentTemplate)}`, {
+        method: 'DELETE'
+    })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok) {
+                throw new Error(data.error || 'Failed to delete template');
+            }
+            currentTemplate = null;
+            isDirty = false;
+            document.getElementById('templateEditor').value = '';
+            document.getElementById('templateEditor').disabled = true;
+            document.getElementById('currentTemplateLabel').textContent = 'No template selected';
+            document.getElementById('saveTemplateBtn').disabled = true;
+            document.getElementById('deleteTemplateBtn').disabled = true;
+            document.getElementById('installTemplateBtn').disabled = true;
+            loadTemplates();
+            setStatus('Template deleted.', 'success');
+        })
+        .catch(err => {
+            setStatus(err.message || 'Failed to delete template.', 'danger');
+        });
+}
+
+function installTemplate() {
+    if (!currentTemplate || !currentTemplate.endsWith('.twig.example')) {
+        return;
+    }
+
+    fetch('/admin/api/custom-templates/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: currentTemplate })
+    })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok) {
+                throw new Error(data.error || 'Failed to install template');
+            }
+            loadTemplates();
+            loadTemplate(data.path);
+            setStatus('Template installed from example.', 'success');
+        })
+        .catch(err => {
+            setStatus(err.message || 'Failed to install template.', 'danger');
+        });
+}
+</script>
+{% endblock %}
