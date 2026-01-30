@@ -280,6 +280,7 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
                         break;
                     }
+                    $decoded = $this->applyWebdoorManifestConfig($decoded);
                     $this->writeWebdoorsConfig($decoded);
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
                     break;
@@ -519,12 +520,13 @@ class AdminDaemonServer
             throw new \RuntimeException('webdoors.json.example not found');
         }
 
-        $configDir = dirname($configPath);
-        if (!is_dir($configDir)) {
-            mkdir($configDir, 0755, true);
+        $json = file_get_contents($examplePath);
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            throw new \RuntimeException('webdoors.json.example is invalid');
         }
-
-        copy($examplePath, $configPath);
+        $decoded = $this->applyWebdoorManifestConfig($decoded);
+        $this->writeWebdoorsConfig($decoded);
     }
 
     private function getWebdoorsConfigPath(): string
@@ -535,6 +537,38 @@ class AdminDaemonServer
     private function getWebdoorsExamplePath(): string
     {
         return __DIR__ . '/../../config/webdoors.json.example';
+    }
+
+    private function applyWebdoorManifestConfig(array $config): array
+    {
+        $manifests = \BinktermPHP\WebDoorManifest::listManifests();
+        if (empty($manifests)) {
+            return $config;
+        }
+
+        foreach ($manifests as $entry) {
+            $manifest = $entry['manifest'];
+            $gameId = $entry['id'];
+            $manifestConfig = $manifest['config'] ?? null;
+            if (!is_array($manifestConfig) || $manifestConfig === []) {
+                continue;
+            }
+
+            if (!isset($config[$gameId]) || !is_array($config[$gameId])) {
+                continue;
+            }
+            if (empty($config[$gameId]['enabled'])) {
+                continue;
+            }
+
+            foreach ($manifestConfig as $key => $value) {
+                if (!array_key_exists($key, $config[$gameId])) {
+                    $config[$gameId][$key] = $value;
+                }
+            }
+        }
+
+        return $config;
     }
 
     private function mergeUplinks(array $existing, array $incoming): array

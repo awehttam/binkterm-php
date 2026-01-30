@@ -10,6 +10,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\WebDoorController;
+use BinktermPHP\WebDoorManifest;
 use Pecee\SimpleRouter\SimpleRouter;
 
 /**
@@ -33,28 +34,18 @@ SimpleRouter::get('/games', function() {
          exit;
      }
 
-    // Scan webdoors directory for games
-    $gamesDir = __DIR__ . '/../public_html/webdoors';
     $games = [];
+    foreach (WebDoorManifest::listManifests() as $entry) {
+        $manifest = $entry['manifest'];
+        if (!isset($manifest['game'])) {
+            continue;
+        }
+        $game = $manifest['game'];
+        $game['path'] = $entry['path'];
+        $game['icon_url'] = "/webdoors/{$entry['path']}/" . ($game['icon'] ?? 'icon.png');
 
-    if (is_dir($gamesDir)) {
-        $dirs = scandir($gamesDir);
-        foreach ($dirs as $dir) {
-            if ($dir === '.' || $dir === '..') continue;
-
-            $manifestPath = $gamesDir . '/' . $dir . '/webdoor.json';
-            if (file_exists($manifestPath)) {
-                $manifest = json_decode(file_get_contents($manifestPath), true);
-                if ($manifest && isset($manifest['game'])) {
-                    $game = $manifest['game'];
-                    $game['path'] = $dir;
-                    $game['icon_url'] = "/webdoors/{$dir}/" . ($game['icon'] ?? 'icon.png');
-
-                    if(GameConfig::isEnabled($game['id'])){
-                        $games[] = $game;
-                    }
-                }
-            }
+        if(GameConfig::isEnabled($entry['id'])){
+            $games[] = $game;
         }
     }
 
