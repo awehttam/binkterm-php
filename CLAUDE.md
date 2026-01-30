@@ -40,7 +40,8 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
- - Avoid duplicating code.  Whenever possible centralize methods using a class.  
+ - Avoid duplicating code.  Whenever possible centralize methods using a class.
+ - **Git Workflow**: Do NOT stage or commit changes until explicitly instructed. Changes should be tested first before committing to git.  
 
 ## URL Construction
 When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** use the centralized `Config::getSiteUrl()` method:

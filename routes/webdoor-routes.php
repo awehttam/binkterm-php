@@ -7,11 +7,55 @@
  */
 
 use BinktermPHP\Auth;
+use BinktermPHP\BbsConfig;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\WebDoorController;
 use BinktermPHP\WebDoorManifest;
 use Pecee\SimpleRouter\SimpleRouter;
+
+/**
+ * Helper function to get available WebDoor features
+ */
+function getAvailableWebDoorFeatures(): array {
+    $features = [];
+
+    // Storage and leaderboard are always available via WebDoor API
+    $features[] = 'storage';
+    $features[] = 'leaderboard';
+
+    // Check if credits system is enabled
+    $bbsConfig = BbsConfig::getConfig();
+    $creditsConfig = $bbsConfig['credits'] ?? [];
+    if (!empty($creditsConfig['enabled'])) {
+        $features[] = 'credits';
+    }
+
+    return $features;
+}
+
+/**
+ * Helper function to check if manifest requirements are met
+ */
+function checkManifestRequirements(array $manifest): bool {
+    $requirements = $manifest['requirements'] ?? [];
+    $requiredFeatures = $requirements['features'] ?? [];
+
+    if (empty($requiredFeatures)) {
+        return true; // No requirements, always met
+    }
+
+    $availableFeatures = getAvailableWebDoorFeatures();
+
+    // Check if all required features are available
+    foreach ($requiredFeatures as $required) {
+        if (!in_array($required, $availableFeatures, true)) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 /**
  * Web Routes for WebDoor
@@ -40,6 +84,12 @@ SimpleRouter::get('/games', function() {
         if (!isset($manifest['game'])) {
             continue;
         }
+
+        // Check if all required features are available
+        if (!checkManifestRequirements($manifest)) {
+            continue;
+        }
+
         $game = $manifest['game'];
         $game['path'] = $entry['path'];
         $game['icon_url'] = "/webdoors/{$entry['path']}/" . ($game['icon'] ?? 'icon.png');
@@ -133,6 +183,16 @@ SimpleRouter::get('/games/{game}', function($game) {
     }
 
     $manifest = json_decode(file_get_contents($manifestPath), true);
+
+    // Check if all required features are available
+    if (!checkManifestRequirements($manifest)) {
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error' => 'This game requires features that are not currently enabled on this system.'
+        ]);
+        return;
+    }
+
     $entryPoint = $manifest['game']['entry_point'] ?? 'index.html';
     $gameUrl = "/webdoors/{$game}/{$entryPoint}";
 
