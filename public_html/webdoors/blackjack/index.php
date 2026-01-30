@@ -1,6 +1,10 @@
 <?php
 
-require_once __DIR__ . '/../../../vendor/autoload.php';
+if (!defined('BINKTERMPHP_BASEDIR')) {
+    define('BINKTERMPHP_BASEDIR', dirname(__DIR__, 3));
+}
+
+require_once BINKTERMPHP_BASEDIR . '/vendor/autoload.php';
 
 use BinktermPHP\Auth;
 use BinktermPHP\BbsConfig;
@@ -35,7 +39,7 @@ $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
 if (empty($creditsConfig['enabled'])) {
     $template = new Template();
     $template->renderResponse('error.twig', [
-        'error' => 'Credits are currently disabled.'
+        'error' => 'Credits system is currently disabled.'
     ]);
     exit;
 }

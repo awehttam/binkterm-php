@@ -14,7 +14,7 @@ let lastRoundProcessed = 0;
 
 let state = {
   bankroll: 0,
-  symbol: "$",
+  symbol: "",
   player: [],
   dealer: [],
   bet: 10,
@@ -214,6 +214,9 @@ document.getElementById("save").onclick = async () => {
 
 (async () => {
   try { sessionInfo = await WebDoor.session(); } catch (e) {}
+  if (sessionInfo && sessionInfo.credits && sessionInfo.credits.symbol) {
+    state.symbol = sessionInfo.credits.symbol;
+  }
   const data = await apiAction("init");
   applyServerState(data);
 })();

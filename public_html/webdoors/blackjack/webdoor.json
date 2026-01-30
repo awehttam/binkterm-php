@@ -22,5 +22,8 @@
   "storage": {
     "max_size_kb": 256,
     "save_slots": 1
+  },
+  "config": {
+    "start_bet": 10
   }
 }
