@@ -21,6 +21,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
+- [Telnet Interface](#telnet-interface)
 - [Operation](#operation)
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
@@ -99,6 +100,13 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Weather Reports** - Configurable weather forecast generator for posting to echomail areas ([details](scripts/README_weather.md))
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
+
+### Telnet Interface (Alpha)
+- **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
+- **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
+- **Security Features** - Login rate limiting (3 attempts per connection, 5/minute per IP) and connection logging
+- **Multi-Platform** - Works with PuTTY, SyncTERM, and standard telnet clients on Linux/macOS/Windows
+- See **[telnet/README.md](telnet/README.md)** for complete documentation, configuration options, and troubleshooting
 
 ## Installation
 
