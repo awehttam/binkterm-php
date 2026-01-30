@@ -1,3 +1,8 @@
+#
+# BinktermPHP docker-compose.yml
+#
+# docker support is untested and experimental.  This does not work
+
 services:
   app:
     build: .
@@ -11,6 +16,7 @@ services:
       - ./data:/var/www/html/data
       - ./config:/var/www/html/config
       - ./public_html:/var/www/html/public_html
+      - ./templates:/var/www/html/templates
 
   db:
     image: postgres:16

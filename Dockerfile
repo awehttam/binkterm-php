@@ -1,3 +1,8 @@
+#
+# BinktermPHP Dockerfile
+#
+# docker support is untested and experimental.  This does not work
+#
 FROM php:8.2-apache
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
