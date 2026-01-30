@@ -88,8 +88,28 @@ The `getSiteUrl()` method:
 
 ## Recent Features Added
 
-### Webdoors
-- **Webdoors**: An API documented in docs/WebDoor_Proposal.md allows drop in games to interface with the BBS
+### WebDoors System
+WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification is documented in `docs/WebDoor_Proposal.md`.
+
+**Current Implementation:**
+- **Game Manifest System**: Each WebDoor includes a `webdoor.json` manifest describing capabilities, requirements, and configuration
+- **Auto-Discovery**: System automatically scans `public_html/webdoors/` for games with manifests
+- **Drop-In Installation**: Games can be installed by simply copying to the webdoors directory
+- **Configuration Merging**: Manifest config defaults are automatically applied when enabling a door
+- **Admin Interface**: Web-based configuration UI for enabling/disabling doors and adjusting settings
+- **Credits Integration**: Games can integrate with the BBS credits economy system
+
+**Key Classes:**
+- `WebDoorManifest` - Scans and parses webdoor.json manifests from installed games
+- `GameConfig` - Manages per-door configuration from config/webdoors.json
+- `WebDoorController` - Handles game session management and API endpoints
+
+**Important Notes:**
+- When adding WebDoor API functionality, update `docs/WebDoor_Proposal.md` to reflect new features
+- WebDoor specification is evolving - keep documentation synchronized with implementation
+- All WebDoor games must include a valid `webdoor.json` manifest
+- Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
+- Games access BBS functionality through REST API endpoints at `/api/webdoor/*`
 
 ### Multi-Network Support
 - **Multiple Networks**: The system supports multiple FTN networks through individual uplinks with domain-based routing
