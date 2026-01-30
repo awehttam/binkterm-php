@@ -927,7 +927,7 @@ class MessageHandler
             $user = $this->getUserById($userId);
             $isAdmin = $user && !empty($user['is_admin']);
             if (!$isAdmin) {
-                $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE is_active = TRUE AND is_sysop_only = FALSE ORDER BY tag");
+                $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE is_active = TRUE AND COALESCE(is_sysop_only, FALSE) = FALSE ORDER BY tag");
                 $stmt->execute();
                 return $stmt->fetchAll();
             }
@@ -972,7 +972,7 @@ class MessageHandler
             
             $params = [$searchTerm, $searchTerm, $searchTerm];
             if (!$isAdmin) {
-                $sql .= " AND ea.is_sysop_only = FALSE";
+                $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
             }
             
             if ($echoarea) {

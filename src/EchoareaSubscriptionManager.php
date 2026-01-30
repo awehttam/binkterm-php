@@ -23,7 +23,7 @@ class EchoareaSubscriptionManager
             FROM echoareas e
             JOIN user_echoarea_subscriptions s ON e.id = s.echoarea_id
             WHERE s.user_id = ? AND s.is_active = TRUE AND e.is_active = TRUE
-              AND (e.is_sysop_only = FALSE OR EXISTS (
+              AND (COALESCE(e.is_sysop_only, FALSE) = FALSE OR EXISTS (
                     SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
                   ))
             ORDER BY e.tag
@@ -48,7 +48,7 @@ class EchoareaSubscriptionManager
             FROM echoareas e
             LEFT JOIN user_echoarea_subscriptions s ON (e.id = s.echoarea_id AND s.user_id = ?)
             WHERE e.is_active = TRUE
-              AND (e.is_sysop_only = FALSE OR EXISTS (
+              AND (COALESCE(e.is_sysop_only, FALSE) = FALSE OR EXISTS (
                     SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
                   ))
             ORDER BY e.is_default_subscription DESC, e.tag
@@ -137,7 +137,7 @@ class EchoareaSubscriptionManager
             JOIN echoareas e ON s.echoarea_id = e.id
             LEFT JOIN users u ON s.user_id = u.id
             WHERE s.user_id = ? AND s.echoarea_id = ? AND s.is_active = TRUE
-              AND (e.is_sysop_only = FALSE OR u.is_admin = TRUE)
+              AND (COALESCE(e.is_sysop_only, FALSE) = FALSE OR u.is_admin = TRUE)
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$userId, $echoareaId]);
@@ -238,7 +238,7 @@ class EchoareaSubscriptionManager
         $sql = "
             SELECT id FROM echoareas
             WHERE is_active = TRUE AND is_default_subscription = TRUE
-              AND (is_sysop_only = FALSE OR EXISTS (
+              AND (COALESCE(is_sysop_only, FALSE) = FALSE OR EXISTS (
                     SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
                   ))
         ";

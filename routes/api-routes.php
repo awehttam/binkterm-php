@@ -424,6 +424,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
         if (!$userId) {
             http_response_code(400);
             echo json_encode(['error' => 'Invalid user']);
@@ -453,24 +454,28 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
         $meta = new UserMeta();
         $now = gmdate('Y-m-d H:i:s');
 
         $seenNetmail = $meta->getValue((int)$userId, 'notify_seen_netmail');
         if (!$seenNetmail) {
-            $seenNetmail = $now;
+            // Initialize to a date in the past so existing unread messages are counted
+            $seenNetmail = '2020-01-01 00:00:00';
             $meta->setValue((int)$userId, 'notify_seen_netmail', $seenNetmail);
         }
 
         $seenEchomail = $meta->getValue((int)$userId, 'notify_seen_echomail');
         if (!$seenEchomail) {
-            $seenEchomail = $now;
+            // Initialize to a date in the past so existing unread messages are counted
+            $seenEchomail = '2020-01-01 00:00:00';
             $meta->setValue((int)$userId, 'notify_seen_echomail', $seenEchomail);
         }
 
         $seenChat = $meta->getValue((int)$userId, 'notify_seen_chat');
         if (!$seenChat) {
-            $seenChat = $now;
+            // Initialize to a date in the past so existing chat messages are counted
+            $seenChat = '2020-01-01 00:00:00';
             $meta->setValue((int)$userId, 'notify_seen_chat', $seenChat);
         }
 
@@ -512,13 +517,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
         // Unread echomail using message_read_status table (only from subscribed echoareas)
+        $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
         $unreadEchomailStmt = $db->prepare("
             SELECT COUNT(*) as count 
             FROM echomail em
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?{$sysopUnreadFilter}
         ");
         $unreadEchomailStmt->execute([$userId, $userId, $seenEchomail]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
@@ -1324,7 +1330,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
             $conditions = [];
             if (!$isAdmin) {
-                $conditions[] = "e.is_sysop_only = FALSE";
+                $conditions[] = "COALESCE(e.is_sysop_only, FALSE) = FALSE";
             }
             if ($filter === 'active') {
                 $conditions[] = "e.is_active = TRUE";
@@ -1338,7 +1344,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // Standard filtering
             $conditions = [];
             if (!$isAdmin) {
-                $conditions[] = "e.is_sysop_only = FALSE";
+                $conditions[] = "COALESCE(e.is_sysop_only, FALSE) = FALSE";
             }
             if ($filter === 'active') {
                 $conditions[] = "e.is_active = TRUE";
@@ -1731,7 +1737,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
-        $sysopFilter = $isAdmin ? "" : " AND ea.is_sysop_only = FALSE";
+        $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
 
         // Global echomail statistics (only from subscribed echoareas)
         $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE{$sysopFilter}");
