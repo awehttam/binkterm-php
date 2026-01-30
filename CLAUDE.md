@@ -202,7 +202,7 @@ Add an entry to `templates/recent_updates.twig` documenting the changes in this 
 ```
 
 #### 4. Commit and Tag
-Commit your changes and create a git tag:
+Commit your changes. Do NOT create a tag.
 
 ```bash
 git add src/Version.php composer.json templates/recent_updates.twig
