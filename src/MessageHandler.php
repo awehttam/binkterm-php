@@ -622,10 +622,17 @@ class MessageHandler
         }
 
         $creditsRules = $this->getCreditsRules();
-        if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
-            $balance = UserCredit::getBalance($fromUserId);
-            if ($balance < $creditsRules['netmail_cost']) {
-                throw new \Exception('Insufficient credits to send netmail.');
+        if ($creditsRules['enabled']) {
+            $totalCost = $creditsRules['netmail_cost'];
+            if ($crashmail && $creditsRules['crashmail_cost'] > 0) {
+                $totalCost += $creditsRules['crashmail_cost'];
+            }
+
+            if ($totalCost > 0) {
+                $balance = UserCredit::getBalance($fromUserId);
+                if ($balance < $totalCost) {
+                    throw new \Exception('Insufficient credits to send ' . ($crashmail ? 'crashmail' : 'netmail') . '.');
+                }
             }
         }
 
@@ -715,6 +722,16 @@ class MessageHandler
                     $fromUserId,
                     (int)$creditsRules['netmail_cost'],
                     'Netmail sent',
+                    null,
+                    UserCredit::TYPE_PAYMENT
+                );
+            }
+
+            if ($creditsRules['enabled'] && $crashmail && $creditsRules['crashmail_cost'] > 0) {
+                $charged = UserCredit::debit(
+                    $fromUserId,
+                    (int)$creditsRules['crashmail_cost'],
+                    'Crashmail priority delivery',
                     null,
                     UserCredit::TYPE_PAYMENT
                 );
@@ -911,7 +928,8 @@ class MessageHandler
         return [
             'enabled' => !empty($credits['enabled']),
             'netmail_cost' => max(0, (int)($credits['netmail_cost'] ?? 1)),
-            'echomail_reward' => max(0, (int)($credits['echomail_reward'] ?? 3))
+            'echomail_reward' => max(0, (int)($credits['echomail_reward'] ?? 3)),
+            'crashmail_cost' => max(0, (int)($credits['crashmail_cost'] ?? 10))
         ];
     }
 

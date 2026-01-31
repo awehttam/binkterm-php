@@ -132,6 +132,34 @@
                 </dl>
             </div>
         </div>
+
+        {% if credits_enabled %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Credit System</h6>
+            </div>
+            <div class="card-body">
+                <small class="text-muted d-block mb-2">Credit costs and rewards:</small>
+                <dl class="row mb-2 small">
+                    <dt class="col-8">Daily Login:</dt>
+                    <dd class="col-4 text-success">+{{ credits_config.daily_amount|default(25) }}</dd>
+
+                    <dt class="col-8">Netmail Sent:</dt>
+                    <dd class="col-4 text-danger">-{{ credits_config.netmail_cost|default(1) }}</dd>
+
+                    <dt class="col-8">Crashmail:</dt>
+                    <dd class="col-4 text-danger">-{{ credits_config.crashmail_cost|default(10) }}</dd>
+
+                    <dt class="col-8">Echomail Posted:</dt>
+                    <dd class="col-4 text-success">+{{ credits_config.echomail_reward|default(3) }}</dd>
+                </dl>
+                <small class="text-muted fst-italic">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Web doors and other system elements may have additional costs or rewards.
+                </small>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
