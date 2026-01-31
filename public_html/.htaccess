@@ -1,5 +1,13 @@
 RewriteEngine On
 
+# Cache-Control headers - force browsers to revalidate using ETags
+<IfModule mod_headers.c>
+    # CSS/JS: Must check with server before using cached copy
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "max-age=0, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
 #RewriteCond %{REMOTE_ADDR} !^1\.2\.3\.4
 
 RewriteCond %{DOCUMENT_ROOT}/maint/ -d
