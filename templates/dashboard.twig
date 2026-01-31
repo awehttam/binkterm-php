@@ -200,8 +200,8 @@ $(document).ready(function() {
 function loadDashboardData() {
     $.get('/api/dashboard/stats')
         .done(function(data) {
-            $('#netmailCount').text(data.unread_netmail || 0);
-            $('#echomailCount').text(data.new_echomail || 0);
+            $('#netmailCount').text(data.total_netmail || 0);
+            $('#echomailCount').text(data.total_echomail || 0);
         });
 }
 
