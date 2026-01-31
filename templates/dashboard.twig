@@ -86,6 +86,16 @@
             </div>
         </div>
         {% endif %}
+
+        {% if dashboard_ad and bbs_feature_enabled('advertising') %}
+        <div class="card mt-4">
+            <div class="card-body d-flex justify-content-center">
+                <div class="ansi-art-container">
+                    <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="col-lg-4">
@@ -160,16 +170,6 @@
         </div>
     </div>
 </div>
-
-{% if dashboard_ad and bbs_feature_enabled('advertising') %}
-<div class="row mt-4">
-    <div class="col-12 d-flex justify-content-center">
-        <div class="ansi-art-container">
-            <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 {% endblock %}
 
