@@ -28,7 +28,7 @@
         <ul class="list-unstyled">
             <li class="mb-2">
                 <i class="fas fa-calendar me-2 text-primary"></i>
-                <strong>August 30, 2025:</strong> System upgraded to BinktermPHP {{ app_version }}
+                System upgraded to BinktermPHP {{ app_version }}
             </li>
             <li class="mb-2">
                 <i class="fas fa-share-alt me-2 text-info"></i>
