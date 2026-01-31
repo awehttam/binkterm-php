@@ -408,5 +408,21 @@ window.currentUser = {{ current_user|json_encode|raw }};
         box-shadow: 0 0 0 1px #cccc00;
     }
 }
+
+/* Modal header layout improvements */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-title {
+    flex: 1;
+    text-align: right;
+    margin: 0 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 </style>
 {% endblock %}

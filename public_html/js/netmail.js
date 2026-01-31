@@ -411,15 +411,12 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
             <div class="row">
                 <div class="col-md-6">
                     <strong>From:</strong> ${escapeHtml(message.from_name)}
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
                     ${addressBookButton}
-                    <br>
-                    <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
-                    ${message.from_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.from_domain}</span>` : ''}
                 </div>
                 <div class="col-md-6">
-                    <strong>To:</strong> ${escapeHtml(message.to_name)}<br>
-                    <small class="text-muted">${formatFidonetAddress(message.to_address)}</small>
-                    ${message.to_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.to_domain}</span>` : ''}
+                    <strong>To:</strong> ${escapeHtml(message.to_name)}
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.to_address)}</small>
                 </div>
             </div>
             <div class="row mt-2">
