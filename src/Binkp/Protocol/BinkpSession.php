@@ -443,6 +443,11 @@ class BinkpSession
             $this->log("Transfer command: " . $frame->getCommand(), 'DEBUG');
 
             switch ($frame->getCommand()) {
+                case BinkpFrame::M_NUL:
+                    // M_NUL can be sent during transfer for informational purposes
+                    $this->log("M_NUL during transfer: " . $frame->getData(), 'DEBUG');
+                    break;
+
                 case BinkpFrame::M_FILE:
                     $this->handleFileCommand($frame->getData());
                     break;
@@ -458,7 +463,7 @@ class BinkpSession
                         $this->state = self::STATE_EOB_RECEIVED;
                     }
                     break;
-                    
+
                 case BinkpFrame::M_GOT:
                     $this->log("Received M_GOT: " . $frame->getData(), 'DEBUG');
                     $this->handleGotCommand($frame->getData());

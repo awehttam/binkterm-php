@@ -206,7 +206,10 @@ function selectEchoarea(tag) {
     // Collapse mobile accordion after selection
     $('#echoAreasCollapse').collapse('hide');
 
-    loadEchoareas(); // Refresh to show active state
+    // Update active state in existing DOM instead of re-rendering entire list
+    $('.node-item, .list-group-item-action').removeClass('bg-primary text-white active');
+    $('.node-item .badge, .list-group-item-action .badge').removeClass('bg-light text-dark').addClass('bg-secondary');
+
     loadMessages();
 }
 

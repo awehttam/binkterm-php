@@ -132,7 +132,7 @@ class Mail
         $plainTextMessage .= "4. Customize your settings and preferences\n\n";
         $plainTextMessage .= "If you've forgotten your password or have any questions,\n";
         $plainTextMessage .= "please contact the sysop at $sysopName.\n\n";
-        $plainTextMessage .= "Welcome to the FidoNet community!";
+        $plainTextMessage .= "Welcome to the community!";
         
         // Convert plain text to HTML for email
         $htmlMessage = $this->convertTextToHtml($plainTextMessage);
@@ -159,7 +159,7 @@ class Mail
         $defaultMessage .= "- Use the Netmail section to send private messages\n";
         $defaultMessage .= "- Check your Settings to customize your experience\n\n";
         $defaultMessage .= "If you have any questions, feel free to send netmail to the sysop.\n\n";
-        $defaultMessage .= "Welcome to the FidoNet community!";
+        $defaultMessage .= "Welcome to the community!";
         
         if (!file_exists($welcomeFile)) {
             return $defaultMessage;

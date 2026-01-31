@@ -86,6 +86,16 @@
             </div>
         </div>
         {% endif %}
+
+        {% if dashboard_ad and bbs_feature_enabled('advertising') %}
+        <div class="card mt-4">
+            <div class="card-body d-flex justify-content-center">
+                <div class="ansi-art-container">
+                    <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="col-lg-4">
@@ -160,16 +170,6 @@
         </div>
     </div>
 </div>
-
-{% if dashboard_ad and bbs_feature_enabled('advertising') %}
-<div class="row mt-4">
-    <div class="col-12 d-flex justify-content-center">
-        <div class="ansi-art-container">
-            <pre class="ansi-art" id="dashboardAdAnsi">{{ dashboard_ad.content }}</pre>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 {% endblock %}
 
@@ -356,11 +356,12 @@ function loadEchoareas() {
                 data.echoareas.forEach(function(area) {
                     const unreadCount = area.unread_count || 0;
                     const totalCount = area.message_count || 0;
-                    
+                    const fullTag = `${area.tag}@${area.domain}`;
+
                     html += `
                         <div class="d-flex justify-content-between align-items-center py-1">
                             <div>
-                                <a href="/echomail/${area.tag}" class="text-decoration-none">
+                                <a href="/echomail/${encodeURIComponent(fullTag)}" class="text-decoration-none">
                                     ${area.tag}
                                 </a>
                                 ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.65em; vertical-align: middle;">${area.domain}</span>` : ''}
