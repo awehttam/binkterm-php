@@ -13,11 +13,11 @@ class Version
 {
     /**
      * The current version of BinktermPHP
-     * 
+     *
      * This should be updated when releasing new versions.
      * Format: MAJOR.MINOR.PATCH
      */
-    private const VERSION = '1.7.3';
+    private const VERSION = '1.7.4';
     
     /**
      * Get the current application version
