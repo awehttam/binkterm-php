@@ -440,7 +440,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $meta = new UserMeta();
-        $now = gmdate('Y-m-d H:i:s');
+        $db = Database::getInstance()->getPdo();
+
+        // Use database NOW() to get timestamp in database timezone
+        $stmt = $db->query("SELECT NOW() as now");
+        $now = $stmt->fetchColumn();
+
         $meta->setValue((int)$userId, 'notify_seen_' . $target, $now);
 
         echo json_encode(['success' => true, 'target' => $target, 'seen_at' => $now]);
@@ -456,26 +461,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
         $meta = new UserMeta();
-        $now = gmdate('Y-m-d H:i:s');
+
+        // Get a past date in database timezone for initialization
+        $stmt = $db->query("SELECT TIMESTAMP '2020-01-01 00:00:00' as past");
+        $pastDate = $stmt->fetchColumn();
 
         $seenNetmail = $meta->getValue((int)$userId, 'notify_seen_netmail');
         if (!$seenNetmail) {
-            // Initialize to a date in the past so existing unread messages are counted
-            $seenNetmail = '2020-01-01 00:00:00';
+            // Initialize to past date so existing unread messages show up
+            $seenNetmail = $pastDate;
             $meta->setValue((int)$userId, 'notify_seen_netmail', $seenNetmail);
         }
 
         $seenEchomail = $meta->getValue((int)$userId, 'notify_seen_echomail');
         if (!$seenEchomail) {
-            // Initialize to a date in the past so existing unread messages are counted
-            $seenEchomail = '2020-01-01 00:00:00';
+            // Initialize to past date so existing unread messages show up
+            $seenEchomail = $pastDate;
             $meta->setValue((int)$userId, 'notify_seen_echomail', $seenEchomail);
         }
 
         $seenChat = $meta->getValue((int)$userId, 'notify_seen_chat');
         if (!$seenChat) {
-            // Initialize to a date in the past so existing chat messages are counted
-            $seenChat = '2020-01-01 00:00:00';
+            // Initialize to past date so existing chat messages show up
+            $seenChat = $pastDate;
             $meta->setValue((int)$userId, 'notify_seen_chat', $seenChat);
         }
 
@@ -499,18 +507,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     n.user_id = ?
                     OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
                   )
+                  AND n.date_received > ?::timestamp
             ");
             $params = [$userId, $userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
+            $params[] = $seenNetmail;
             $unreadStmt->execute($params);
         } else {
             $unreadStmt = $db->prepare("
                 SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL
+                WHERE n.user_id = ? AND mrs.read_at IS NULL AND n.date_received > ?::timestamp
             ");
-            $unreadStmt->execute([$userId, $userId]);
+            $unreadStmt->execute([$userId, $userId, $seenNetmail]);
         }
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
@@ -522,9 +532,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE{$sysopUnreadFilter}
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?::timestamp{$sysopUnreadFilter}
         ");
-        $unreadEchomailStmt->execute([$userId, $userId]);
+        $unreadEchomailStmt->execute([$userId, $userId, $seenEchomail]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
         $chatTotalStmt = $db->prepare("
