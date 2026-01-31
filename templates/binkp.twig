@@ -94,18 +94,6 @@
                     </div>
                 </div>
             </div>
-            <div class="row mt-3">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Polling Schedule</h5>
-                        </div>
-                        <div class="card-body" id="schedule-status">
-                            Loading schedule status...
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Uplinks Tab -->
@@ -316,26 +304,6 @@ function updateStatusDisplay(data) {
         `;
     }
     uplinkStatus.innerHTML = uplinkHtml || '<p class="text-muted">No uplinks configured</p>';
-
-    // Update schedule status
-    const scheduleStatus = document.getElementById('schedule-status');
-    let scheduleHtml = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Address</th><th>Schedule</th><th>Last Poll</th><th>Next Poll</th><th>Status</th></tr></thead><tbody>';
-    for (const [address, info] of Object.entries(data.schedule)) {
-        const status = info.due_now ? 
-            '<span class="badge bg-warning">Due Now</span>' : 
-            '<span class="badge bg-secondary">Scheduled</span>';
-        scheduleHtml += `
-            <tr>
-                <td>${address}</td>
-                <td><code>${info.schedule}</code></td>
-                <td>${info.last_poll}</td>
-                <td>${info.next_poll}</td>
-                <td>${status}</td>
-            </tr>
-        `;
-    }
-    scheduleHtml += '</tbody></table></div>';
-    scheduleStatus.innerHTML = scheduleHtml;
 }
 
 function refreshUplinks() {

@@ -1494,7 +1494,8 @@ function showShareDialog(messageId) {
                         if (diffHours < 24) {
                             expiryText = `Expires in ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
                         } else {
-                            expiryText = `Expires in ${diffDays} day${diffDays !== 1 ? 's' : ''} (${expiresDate.toLocaleString()})`;
+                            const userDateFormat = window.userSettings?.date_format || 'en-US';
+                            expiryText = `Expires in ${diffDays} day${diffDays !== 1 ? 's' : ''} (${expiresDate.toLocaleString(userDateFormat)})`;
                         }
                         $('#shareExpiryText').text(expiryText);
                         $('#shareExpiryInfo').show().removeClass('alert-warning').addClass('alert-info');
@@ -1514,7 +1515,8 @@ function showShareDialog(messageId) {
 
                 // Show access information
                 const accessCount = share.access_count || 0;
-                const lastAccessed = share.last_accessed_at ? new Date(share.last_accessed_at).toLocaleString() : 'Never';
+                const userDateFormat = window.userSettings?.date_format || 'en-US';
+                const lastAccessed = share.last_accessed_at ? new Date(share.last_accessed_at).toLocaleString(userDateFormat) : 'Never';
                 $('#shareAccessText').text(`Accessed ${accessCount} time${accessCount !== 1 ? 's' : ''}. Last accessed: ${lastAccessed}`);
                 $('#shareAccessInfo').show();
             }

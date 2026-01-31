@@ -229,17 +229,18 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND domain=?
+                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
                 ORDER BY CASE
                     WHEN em.date_received > NOW() THEN 0
                     ELSE 1
                 END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag, $domain];
+            $params = [$userId, $userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            $params[] = $domain;
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -250,12 +251,13 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND domain=?
+                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
             ");
-            $countParams = [$userId, $userId, $echoareaTag, $domain];
+            $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
+            $countParams[] = $domain;
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
@@ -1359,25 +1361,27 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size) 
-                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16) 
+                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format)
+                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US')
                 ON CONFLICT (user_id) DO UPDATE SET
                     messages_per_page = COALESCE(user_settings.messages_per_page, 25),
                     threaded_view = COALESCE(user_settings.threaded_view, FALSE),
                     netmail_threaded_view = COALESCE(user_settings.netmail_threaded_view, FALSE),
                     default_sort = COALESCE(user_settings.default_sort, 'date_desc'),
                     font_family = COALESCE(user_settings.font_family, 'Courier New, Monaco, Consolas, monospace'),
-                    font_size = COALESCE(user_settings.font_size, 16)
+                    font_size = COALESCE(user_settings.font_size, 16),
+                    date_format = COALESCE(user_settings.date_format, 'en-US')
             ");
             $insertStmt->execute([$userId]);
-            
+
             return [
                 'messages_per_page' => 25,
                 'threaded_view' => false,
                 'netmail_threaded_view' => false,
                 'default_sort' => 'date_desc',
                 'font_family' => 'Courier New, Monaco, Consolas, monospace',
-                'font_size' => 16
+                'font_size' => 16,
+                'date_format' => 'en-US'
             ];
         }
 
@@ -1405,7 +1409,8 @@ class MessageHandler
             'show_origin' => 'BOOLEAN',
             'show_tearline' => 'BOOLEAN',
             'auto_refresh' => 'BOOLEAN',
-            'quote_coloring' => 'BOOLEAN'
+            'quote_coloring' => 'BOOLEAN',
+            'date_format' => 'STRING'
         ];
 
         $updates = [];
@@ -2729,10 +2734,11 @@ class MessageHandler
                 WHERE ea.tag = ?{$filterClause} AND ea.domain=?
                 ORDER BY em.date_received DESC
             ");
-            $params = [$userId, $userId, $userId, $echoareaTag, $domain];
+            $params = [$userId, $userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            $params[] = $domain;
             $stmt->execute($params);
         } else {
             // For "all messages" view, we need to load thread-related messages too

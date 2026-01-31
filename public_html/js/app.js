@@ -546,7 +546,9 @@ function formatDate(dateString) {
     } else if (diffDays < 7) {
         return `${diffDays} days ago`;
     } else {
-        return date.toLocaleDateString();
+        // Use user's preferred date format for older dates
+        const userDateFormat = window.userSettings?.date_format || 'en-US';
+        return date.toLocaleDateString(userDateFormat);
     }
 }
 
@@ -558,8 +560,9 @@ function formatFullDate(dateString) {
     // Database stores dates in UTC, so parse as UTC
     const date = new Date(dateString + 'Z'); // Add 'Z' to treat as UTC
     const userTimezone = window.userSettings?.timezone || 'America/Los_Angeles';
-    
-    return date.toLocaleString("en-US", {
+    const userDateFormat = window.userSettings?.date_format || 'en-US';
+
+    return date.toLocaleString(userDateFormat, {
         timeZone: userTimezone,
         year: 'numeric',
         month: 'short',

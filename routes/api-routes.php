@@ -1893,9 +1893,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND mrs.read_at IS NULL
+                WHERE ea.tag = ? AND ea.domain = ? AND mrs.read_at IS NULL
             ");
-            $unreadStmt->execute([$userId, $echoarea]);
+            $unreadStmt->execute([$userId, $echoarea, $domain]);
             $unreadCount = $unreadStmt->fetch()['count'];
 
             // Read count
@@ -1903,9 +1903,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND mrs.read_at IS NOT NULL
+                WHERE ea.tag = ? AND ea.domain = ? AND mrs.read_at IS NOT NULL
             ");
-            $readStmt->execute([$userId, $echoarea]);
+            $readStmt->execute([$userId, $echoarea, $domain]);
             $readCount = $readStmt->fetch()['count'];
 
             // To Me count
@@ -1913,9 +1913,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $toMeStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
-                    WHERE ea.tag = ? AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                    WHERE ea.tag = ? AND ea.domain = ? AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
                 ");
-                $toMeStmt->execute([$echoarea, $userInfo['username'], $userInfo['real_name']]);
+                $toMeStmt->execute([$echoarea, $domain, $userInfo['username'], $userInfo['real_name']]);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
 
@@ -1924,9 +1924,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ? AND sav.id IS NOT NULL
+                WHERE ea.tag = ? AND ea.domain = ? AND sav.id IS NOT NULL
             ");
-            $savedStmt->execute([$userId, $echoarea]);
+            $savedStmt->execute([$userId, $echoarea, $domain]);
             $savedCount = $savedStmt->fetch()['count'];
         }
 

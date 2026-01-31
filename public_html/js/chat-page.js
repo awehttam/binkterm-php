@@ -13,7 +13,8 @@
         oldestIds: {},
         hasMore: {},
         lastEventId: 0,
-        loadingHistory: false
+        loadingHistory: false,
+        displayedMessageIds: new Set() // Track displayed messages to prevent duplicates
     };
 
     let dbPromise = null;
@@ -103,7 +104,12 @@
 
     function formatTimestamp(ts) {
         if (!ts) return '';
-        return window.formatFullDate ? window.formatFullDate(ts) : new Date(ts).toLocaleString();
+        if (window.formatFullDate) {
+            return window.formatFullDate(ts);
+        } else {
+            const userDateFormat = window.userSettings?.date_format || 'en-US';
+            return new Date(ts).toLocaleString(userDateFormat);
+        }
     }
 
     function threadKey(thread) {
@@ -113,6 +119,8 @@
     function setActiveThread(thread) {
         state.active = thread;
         state.unreadCounts[threadKey(thread)] = 0;
+        // Clear displayed message IDs when switching threads
+        state.displayedMessageIds.clear();
         saveState();
         renderUnreadBadge();
         renderRooms();
@@ -210,15 +218,35 @@
         if (!container || messages.length === 0) return;
         const insertBefore = loadOlderWrap ? loadOlderWrap.nextSibling : container.firstChild;
         const frag = document.createDocumentFragment();
-        messages.forEach(msg => frag.appendChild(buildMessageElement(msg)));
+        messages.forEach(msg => {
+            // Skip if message already displayed (deduplication)
+            if (msg.id && state.displayedMessageIds.has(msg.id)) {
+                return;
+            }
+            frag.appendChild(buildMessageElement(msg));
+            // Track this message ID
+            if (msg.id) {
+                state.displayedMessageIds.add(msg.id);
+            }
+        });
         container.insertBefore(frag, insertBefore);
         trimMessages(container);
     }
 
     function appendMessage(msg, skipScroll) {
+        // Skip if message already displayed (deduplication)
+        if (msg.id && state.displayedMessageIds.has(msg.id)) {
+            return;
+        }
+
         const container = document.getElementById('chatThread');
         const wrapper = buildMessageElement(msg);
         container.appendChild(wrapper);
+
+        // Track this message ID
+        if (msg.id) {
+            state.displayedMessageIds.add(msg.id);
+        }
 
         trimMessages(container);
 
