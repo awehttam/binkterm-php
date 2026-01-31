@@ -40,6 +40,90 @@ const ANSI_RED = "\033[31m";
 
 // Global rate limiting tracking
 $GLOBALS['failed_login_attempts'] = [];
+$GLOBALS['telnet_log_file'] = null;
+
+function telnetLog(string $message): void
+{
+    $timestamp = '[' . date('Y-m-d H:i:s') . '] ';
+    $logMessage = $timestamp . $message . "\n";
+
+    // Write to log file if configured
+    if ($GLOBALS['telnet_log_file']) {
+        file_put_contents($GLOBALS['telnet_log_file'], $logMessage, FILE_APPEND);
+    }
+
+    // Also write to stdout if not in daemon mode
+    if (empty($GLOBALS['telnet_daemon_mode'])) {
+        echo $logMessage;
+    }
+}
+
+function daemonize(string $pidFile): void
+{
+    // Check if already running
+    if (file_exists($pidFile)) {
+        $pid = (int)file_get_contents($pidFile);
+        if ($pid > 0 && posix_kill($pid, 0)) {
+            fwrite(STDERR, "Daemon already running with PID $pid\n");
+            exit(1);
+        }
+        // Stale PID file, remove it
+        @unlink($pidFile);
+    }
+
+    // Fork the process
+    $pid = pcntl_fork();
+    if ($pid === -1) {
+        fwrite(STDERR, "Failed to fork daemon process\n");
+        exit(1);
+    } elseif ($pid > 0) {
+        // Parent process - exit
+        exit(0);
+    }
+
+    // Child process continues
+
+    // Become session leader
+    if (posix_setsid() === -1) {
+        fwrite(STDERR, "Failed to become session leader\n");
+        exit(1);
+    }
+
+    // Fork again to prevent acquiring a controlling terminal
+    $pid = pcntl_fork();
+    if ($pid === -1) {
+        fwrite(STDERR, "Failed to fork second time\n");
+        exit(1);
+    } elseif ($pid > 0) {
+        // First child exits
+        exit(0);
+    }
+
+    // Second child continues as daemon
+
+    // Close standard file descriptors
+    fclose(STDIN);
+    fclose(STDOUT);
+    fclose(STDERR);
+
+    // Reopen them to /dev/null (or NUL on Windows)
+    $devNull = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
+    $GLOBALS['STDIN'] = fopen($devNull, 'r');
+    $GLOBALS['STDOUT'] = fopen($devNull, 'w');
+    $GLOBALS['STDERR'] = fopen($devNull, 'w');
+
+    // Write PID file
+    file_put_contents($pidFile, getmypid());
+    $GLOBALS['telnet_daemon_mode'] = true;
+    $GLOBALS['telnet_pid_file'] = $pidFile;
+}
+
+function cleanupDaemon(): void
+{
+    if (!empty($GLOBALS['telnet_pid_file']) && file_exists($GLOBALS['telnet_pid_file'])) {
+        @unlink($GLOBALS['telnet_pid_file']);
+    }
+}
 
 function cleanupOldLoginAttempts(): void
 {
@@ -1916,11 +2000,12 @@ function showEchomail($conn, array &$state, string $apiBase, string $session, st
 $args = parseArgs($argv);
 
 if (!empty($args['help'])) {
-    echo "Usage: php scripts/telnet_daemon.php [options]\n";
+    echo "Usage: php telnet/telnet_daemon.php [options]\n";
     echo "  --host=ADDR       Bind address (default: 0.0.0.0)\n";
     echo "  --port=PORT       Bind port (default: 2323)\n";
     echo "  --api-base=URL    API base URL (default: SITE_URL or http://127.0.0.1)\n";
     echo "  --debug           Enable debug mode with verbose logging\n";
+    echo "  --daemon          Run as background daemon\n";
     echo "  --insecure        Disable SSL certificate verification\n";
     exit(0);
 }
@@ -1929,8 +2014,31 @@ $host = $args['host'] ?? '0.0.0.0';
 $port = (int)($args['port'] ?? 2323);
 $apiBase = buildApiBase($args);
 $debug = !empty($args['debug']);
+$daemonMode = !empty($args['daemon']);
 $GLOBALS['telnet_debug'] = $debug;
 $GLOBALS['telnet_api_insecure'] = !empty($args['insecure']);
+
+// Set up logging
+$logDir = __DIR__ . '/../data/logs';
+if (!is_dir($logDir)) {
+    mkdir($logDir, 0755, true);
+}
+$GLOBALS['telnet_log_file'] = $logDir . '/telnetd.log';
+
+// Daemonize if requested
+if ($daemonMode) {
+    if (!function_exists('pcntl_fork') || !function_exists('posix_setsid')) {
+        fwrite(STDERR, "Daemon mode requires pcntl and posix extensions\n");
+        exit(1);
+    }
+
+    $pidFile = __DIR__ . '/../data/telnetd.pid';
+    telnetLog("Starting telnet daemon in background mode");
+    daemonize($pidFile);
+
+    // Register cleanup on shutdown
+    register_shutdown_function('cleanupDaemon');
+}
 
 // Set up signal handling for process cleanup
 if (function_exists('pcntl_signal')) {
@@ -1943,7 +2051,8 @@ if (function_exists('pcntl_signal')) {
 
     // Handle SIGTERM and SIGINT for graceful shutdown
     $gracefulShutdown = function($signo) use (&$server) {
-        echo "\nReceived shutdown signal, cleaning up...\n";
+        telnetLog("Received shutdown signal, cleaning up...");
+        cleanupDaemon();
         if (is_resource($server)) {
             fclose($server);
         }
@@ -1964,10 +2073,15 @@ if (!$server) {
     exit(1);
 }
 
-echo "Telnet daemon listening on {$host}:{$port}\n";
-if($debug){
-    echo " DEBUG MODE\n";
-    echo " API Base URL: {$apiBase}\n";
+telnetLog("Telnet daemon listening on {$host}:{$port}");
+if ($debug) {
+    telnetLog("DEBUG MODE");
+    telnetLog("API Base URL: {$apiBase}");
+}
+
+// Set terminal title in foreground mode
+if (!$daemonMode) {
+    echo "\033]0;BinktermPHP Telnet Server\007";
 }
 
 $connectionCount = 0;
