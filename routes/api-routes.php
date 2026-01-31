@@ -2017,6 +2017,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $content = $headerText . $bodyText;
 
         $charset = 'utf-8';
+        /*
         if (function_exists('iconv')) {
             $converted = @iconv('UTF-8', 'CP437//TRANSLIT//IGNORE', $content);
             if ($converted !== false) {
@@ -2024,7 +2025,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $charset = 'cp437';
             }
         }
-
+*/
+        $converted = $content;
         $safeFilename = str_replace(['"', "\r", "\n"], '_', $filename);
         header('Content-Type: text/plain; charset=' . $charset);
         header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
