@@ -308,6 +308,58 @@ function writeWrapped($conn, string $text, int $width): void
     }
 }
 
+/**
+ * Write wrapped text with "more" pagination for long messages
+ * Pauses after each page and waits for keypress to continue
+ */
+function writeWrappedWithMore($conn, string $text, int $width, int $height, array &$state): void
+{
+    // Reserve lines for message header, separator, and prompt
+    $linesPerPage = max(10, $height - 6);
+    $currentLine = 0;
+
+    $lines = preg_split("/\\r?\\n/", $text);
+    $wrappedLines = [];
+
+    // First, wrap all lines
+    foreach ($lines as $line) {
+        if ($line === '') {
+            $wrappedLines[] = '';
+            continue;
+        }
+        $wrapped = wordwrap($line, max(20, $width), "\n", true);
+        $parts = explode("\n", $wrapped);
+        foreach ($parts as $part) {
+            $wrappedLines[] = $part;
+        }
+    }
+
+    // Now output with pagination
+    foreach ($wrappedLines as $line) {
+        // Check if we need to pause for "more"
+        if ($currentLine > 0 && $currentLine % $linesPerPage === 0) {
+            // Show "-- More --" prompt
+            safeWrite($conn, colorize("\r\n-- More -- (press any key to continue, q to quit) ", ANSI_YELLOW . ANSI_BOLD));
+
+            // Read a single character
+            $char = readRawChar($conn, $state);
+
+            // Clear the "-- More --" line
+            safeWrite($conn, "\r\033[K");
+
+            // If user pressed 'q' or 'Q', stop displaying
+            if ($char !== null && strtolower($char) === 'q') {
+                writeLine($conn, '');
+                writeLine($conn, colorize('[Message display interrupted]', ANSI_DIM));
+                return;
+            }
+        }
+
+        safeWrite($conn, $line . "\r\n");
+        $currentLine++;
+    }
+}
+
 function safeWrite($conn, string $data): void
 {
     if (!is_resource($conn)) {
@@ -1137,6 +1189,394 @@ function attemptLogin($conn, array &$state, string $apiBase, bool $debug): ?arra
     return ['session' => $result['cookie'], 'username' => $username];
 }
 
+function attemptRegistration($conn, array &$state, string $apiBase): bool
+{
+    $cols = $state['cols'] ?? 80;
+
+    writeLine($conn, '');
+    writeLine($conn, colorize('=== New User Registration ===', ANSI_CYAN . ANSI_BOLD));
+    writeLine($conn, '');
+    writeLine($conn, 'Please provide the following information to create your account.');
+    writeLine($conn, 'All fields are required.');
+    writeLine($conn, colorize('(Type "cancel" at any prompt to abort registration)', ANSI_DIM));
+    writeLine($conn, '');
+
+    $formData = [];
+    $editMode = false;
+
+    while (true) {
+        // Collect or display all fields
+        if (!$editMode) {
+            // Username
+            while (true) {
+                $username = prompt($conn, $state, 'Username (3-20 chars, letters/numbers/_): ', true);
+                if ($username === null) {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+                $username = trim($username);
+
+                if (strtolower($username) === 'cancel') {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+
+                if ($username === '') {
+                    writeLine($conn, colorize('Username cannot be empty.', ANSI_RED));
+                    continue;
+                }
+
+                if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+                    writeLine($conn, colorize('Invalid username. Must be 3-20 characters, letters, numbers, and underscores only.', ANSI_RED));
+                    continue;
+                }
+                $formData['username'] = $username;
+                break;
+            }
+
+            // Password
+            while (true) {
+                $password = prompt($conn, $state, 'Password (min 8 chars): ', false);
+                writeLine($conn, '');
+                if ($password === null) {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+                $password = trim($password);
+
+                if (strtolower($password) === 'cancel') {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+
+                if ($password === '') {
+                    writeLine($conn, colorize('Password cannot be empty.', ANSI_RED));
+                    continue;
+                }
+
+                if (strlen($password) < 8) {
+                    writeLine($conn, colorize('Password must be at least 8 characters.', ANSI_RED));
+                    continue;
+                }
+
+                $passwordConfirm = prompt($conn, $state, 'Confirm password: ', false);
+                writeLine($conn, '');
+                if ($passwordConfirm === null) {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+
+                if (strtolower(trim($passwordConfirm)) === 'cancel') {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+
+                if ($password !== $passwordConfirm) {
+                    writeLine($conn, colorize('Passwords do not match. Please try again.', ANSI_RED));
+                    continue;
+                }
+
+                $formData['password'] = $password;
+                break;
+            }
+
+            // Real Name
+            while (true) {
+                $realName = prompt($conn, $state, 'Real Name: ', true);
+                if ($realName === null) {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+                $realName = trim($realName);
+
+                if (strtolower($realName) === 'cancel') {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+
+                if ($realName === '' || strlen($realName) < 2) {
+                    writeLine($conn, colorize('Please enter your real name (at least 2 characters).', ANSI_RED));
+                    continue;
+                }
+                $formData['real_name'] = $realName;
+                break;
+            }
+
+            // Email Address
+            while (true) {
+                $email = prompt($conn, $state, 'Email Address: ', true);
+                if ($email === null) {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+                $email = trim($email);
+
+                if (strtolower($email) === 'cancel') {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+
+                if ($email === '') {
+                    writeLine($conn, colorize('Email address cannot be empty.', ANSI_RED));
+                    continue;
+                }
+
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    writeLine($conn, colorize('Invalid email address format.', ANSI_RED));
+                    continue;
+                }
+                $formData['email'] = $email;
+                break;
+            }
+
+            // Location
+            while (true) {
+                $location = prompt($conn, $state, 'Location (City, State/Country): ', true);
+                if ($location === null) {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+                $location = trim($location);
+
+                if (strtolower($location) === 'cancel') {
+                    writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                    return false;
+                }
+
+                if ($location === '') {
+                    writeLine($conn, colorize('Location cannot be empty.', ANSI_RED));
+                    continue;
+                }
+
+                $formData['location'] = $location;
+                break;
+            }
+
+            // Reason for joining
+            while (true) {
+                writeLine($conn, '');
+                writeLine($conn, 'Please tell us why you want to join:');
+                writeLine($conn, '(Enter your reason, then press Enter on a blank line when done)');
+                writeLine($conn, '');
+                $reasonLines = [];
+                $cancelled = false;
+                while (count($reasonLines) < 10) {
+                    $line = readTelnetLine($conn, $state);
+                    if ($line === null) {
+                        writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                        return false;
+                    }
+                    $trimmedLine = trim($line);
+
+                    // Check for cancel on first line
+                    if (count($reasonLines) === 0 && strtolower($trimmedLine) === 'cancel') {
+                        writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+                        return false;
+                    }
+
+                    if ($trimmedLine === '' && count($reasonLines) > 0) {
+                        break;
+                    }
+                    if ($trimmedLine !== '') {
+                        $reasonLines[] = $trimmedLine;
+                    }
+                }
+
+                if (count($reasonLines) === 0) {
+                    writeLine($conn, colorize('Please provide a reason for joining.', ANSI_RED));
+                    writeLine($conn, '');
+                    continue;
+                }
+                $formData['reason'] = implode("\n", $reasonLines);
+                break;
+            }
+
+            // Mark that initial field collection is complete
+            $editMode = true;
+        }
+
+        // Show summary
+        writeLine($conn, '');
+        writeLine($conn, colorize('=== Registration Summary ===', ANSI_CYAN . ANSI_BOLD));
+        writeLine($conn, '');
+        writeLine($conn, sprintf('%-15s %s', 'Username:', $formData['username']));
+        writeLine($conn, sprintf('%-15s %s', 'Real Name:', $formData['real_name']));
+        writeLine($conn, sprintf('%-15s %s', 'Email:', $formData['email']));
+        writeLine($conn, sprintf('%-15s %s', 'Location:', $formData['location'] ?: '(not provided)'));
+        writeLine($conn, sprintf('%-15s', 'Reason:'));
+        $wrappedReason = wordwrap($formData['reason'], $cols - 17, "\n", true);
+        foreach (explode("\n", $wrappedReason) as $line) {
+            writeLine($conn, '                ' . $line);
+        }
+        writeLine($conn, '');
+
+        // Confirm or edit
+        writeLine($conn, 'Is this information correct?');
+        writeLine($conn, '  (S)ubmit registration');
+        writeLine($conn, '  (E)dit fields');
+        writeLine($conn, '  (C)ancel registration');
+        writeLine($conn, '');
+        $choice = prompt($conn, $state, 'Your choice: ', true);
+
+        if ($choice === null || trim($choice) === '') {
+            writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+            return false;
+        }
+
+        $choice = strtolower(trim($choice));
+
+        if ($choice === 'c') {
+            writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
+            return false;
+        }
+
+        if ($choice === 'e') {
+            writeLine($conn, '');
+            writeLine($conn, 'Which field would you like to edit?');
+            writeLine($conn, '  1) Username');
+            writeLine($conn, '  2) Password');
+            writeLine($conn, '  3) Real Name');
+            writeLine($conn, '  4) Email');
+            writeLine($conn, '  5) Location');
+            writeLine($conn, '  6) Reason');
+            writeLine($conn, '  7) Cancel editing');
+            writeLine($conn, '');
+            $fieldChoice = prompt($conn, $state, 'Field number: ', true);
+
+            if ($fieldChoice === null || trim($fieldChoice) === '' || $fieldChoice === '7') {
+                continue;
+            }
+
+            writeLine($conn, '');
+
+            switch (trim($fieldChoice)) {
+                case '1':
+                    while (true) {
+                        $username = prompt($conn, $state, 'Username (3-20 chars, letters/numbers/_): ', true);
+                        if ($username === null) break;
+                        $username = trim($username);
+                        if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
+                            writeLine($conn, colorize('Invalid username format.', ANSI_RED));
+                            continue;
+                        }
+                        $formData['username'] = $username;
+                        break;
+                    }
+                    break;
+
+                case '2':
+                    while (true) {
+                        $password = prompt($conn, $state, 'Password (min 8 chars): ', false);
+                        writeLine($conn, '');
+                        if ($password === null) break;
+                        $password = trim($password);
+                        if (strlen($password) < 8) {
+                            writeLine($conn, colorize('Password must be at least 8 characters.', ANSI_RED));
+                            continue;
+                        }
+                        $passwordConfirm = prompt($conn, $state, 'Confirm password: ', false);
+                        writeLine($conn, '');
+                        if ($password !== $passwordConfirm) {
+                            writeLine($conn, colorize('Passwords do not match.', ANSI_RED));
+                            continue;
+                        }
+                        $formData['password'] = $password;
+                        break;
+                    }
+                    break;
+
+                case '3':
+                    $realName = prompt($conn, $state, 'Real Name: ', true);
+                    if ($realName !== null && trim($realName) !== '') {
+                        $formData['real_name'] = trim($realName);
+                    }
+                    break;
+
+                case '4':
+                    while (true) {
+                        $email = prompt($conn, $state, 'Email Address: ', true);
+                        if ($email === null) break;
+                        $email = trim($email);
+                        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                            writeLine($conn, colorize('Invalid email address format.', ANSI_RED));
+                            continue;
+                        }
+                        $formData['email'] = $email;
+                        break;
+                    }
+                    break;
+
+                case '5':
+                    $location = prompt($conn, $state, 'Location (City, State/Country): ', true);
+                    if ($location !== null) {
+                        $formData['location'] = trim($location);
+                    }
+                    break;
+
+                case '6':
+                    writeLine($conn, 'Enter reason (press Enter on blank line when done):');
+                    $reasonLines = [];
+                    while (count($reasonLines) < 10) {
+                        $line = readTelnetLine($conn, $state);
+                        if ($line === null) break;
+                        $line = trim($line);
+                        if ($line === '' && count($reasonLines) > 0) {
+                            break;
+                        }
+                        if ($line !== '') {
+                            $reasonLines[] = $line;
+                        }
+                    }
+                    if (count($reasonLines) > 0) {
+                        $formData['reason'] = implode("\n", $reasonLines);
+                    }
+                    break;
+            }
+            continue;
+        }
+
+        if ($choice === 's') {
+            // Submit registration
+            writeLine($conn, '');
+            writeLine($conn, colorize('Submitting registration...', ANSI_CYAN));
+
+            try {
+                $result = apiRequest($apiBase, 'POST', '/api/register', [
+                    'username' => $formData['username'],
+                    'password' => $formData['password'],
+                    'real_name' => $formData['real_name'],
+                    'email' => $formData['email'],
+                    'reason' => $formData['reason'],
+                    'location' => $formData['location'] ?? ''
+                ], null);
+
+                if ($result['status'] === 200 && !empty($result['data']['success'])) {
+                    writeLine($conn, '');
+                    writeLine($conn, colorize('✓ Registration successful!', ANSI_GREEN . ANSI_BOLD));
+                    writeLine($conn, '');
+                    writeLine($conn, 'Your account has been submitted for approval by the sysop.');
+                    writeLine($conn, 'You will be notified via email once your account is approved.');
+                    writeLine($conn, '');
+                    writeLine($conn, 'Thank you for registering!');
+                    writeLine($conn, '');
+                    return true;
+                } else {
+                    $error = $result['data']['error'] ?? 'Registration failed';
+                    writeLine($conn, '');
+                    writeLine($conn, colorize('✗ Registration failed: ' . $error, ANSI_RED));
+                    writeLine($conn, '');
+                    return false;
+                }
+            } catch (Throwable $e) {
+                writeLine($conn, '');
+                writeLine($conn, colorize('✗ Registration failed: ' . $e->getMessage(), ANSI_RED));
+                writeLine($conn, '');
+                return false;
+            }
+        }
+    }
+}
+
 function getMessageCounts(string $apiBase, string $session): array
 {
     $counts = ['netmail' => 0, 'echomail' => 0];
@@ -1317,11 +1757,12 @@ function showNetmail($conn, array &$state, string $apiBase, string $session): vo
                 $detail = apiRequest($apiBase, 'GET', '/api/messages/netmail/' . $id, null, $session);
                 $body = $detail['data']['message_text'] ?? '';
                 $cols = $state['cols'] ?? 80;
+                $rows = $state['rows'] ?? 24;
                 writeLine($conn, '');
                 writeLine($conn, colorize($msg['subject'] ?? 'Message', ANSI_BOLD));
                 writeLine($conn, colorize('From: ' . ($msg['from_name'] ?? 'Unknown'), ANSI_DIM));
                 writeLine($conn, str_repeat('-', min(78, $cols)));
-                writeWrapped($conn, $body, $cols);
+                writeWrappedWithMore($conn, $body, $cols, $rows, $state);
                 writeLine($conn, '');
                 writeLine($conn, 'Press Enter to return, r to reply.');
                 $action = trim((string)readTelnetLine($conn, $state));
@@ -1454,11 +1895,12 @@ function showEchomail($conn, array &$state, string $apiBase, string $session, st
                 $detail = apiRequest($apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
                 $body = $detail['data']['message_text'] ?? '';
                 $cols = $state['cols'] ?? 80;
+                $rows = $state['rows'] ?? 24;
                 writeLine($conn, '');
                 writeLine($conn, colorize($msg['subject'] ?? 'Message', ANSI_BOLD));
                 writeLine($conn, colorize('From: ' . ($msg['from_name'] ?? 'Unknown') . ' to ' . ($msg['to_name'] ?? 'All'), ANSI_DIM));
                 writeLine($conn, str_repeat('-', min(78, $cols)));
-                writeWrapped($conn, $body, $cols);
+                writeWrappedWithMore($conn, $body, $cols, $rows, $state);
                 writeLine($conn, '');
                 writeLine($conn, 'Press Enter to return, r to reply.');
                 $action = trim((string)readTelnetLine($conn, $state));
@@ -1611,42 +2053,82 @@ while (true) {
     // Show login banner
     showLoginBanner($conn);
 
-    // Allow up to 3 login attempts
+    // Login/Register loop - allows retry after cancelled registration
     $loginResult = null;
-    $maxAttempts = 3;
-    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-        $loginResult = attemptLogin($conn, $state, $apiBase, $debug);
+    while ($loginResult === null) {
+        // Ask if user wants to login or register
+        writeLine($conn, 'Would you like to:');
+        writeLine($conn, '  (L) Login to existing account');
+        writeLine($conn, '  (R) Register new account');
+        writeLine($conn, '  (Q) Quit');
+        writeLine($conn, '');
+        $loginOrRegister = prompt($conn, $state, 'Your choice: ', true);
 
-        if ($loginResult !== null) {
-            // Successful login
-            writeLine($conn, colorize('Login successful.', ANSI_GREEN));
-            writeLine($conn, '');
-            break;
+        if ($loginOrRegister === null || strtolower(trim($loginOrRegister)) === 'q') {
+            writeLine($conn, colorize('Goodbye!', ANSI_CYAN));
+            fclose($conn);
+            if ($forked) {
+                exit(0);
+            }
+            continue 2; // Continue outer connection loop
         }
 
-        // Failed login
-        recordFailedLogin($peerIp);
-        echo "[" . date('Y-m-d H:i:s') . "] Failed login attempt from {$peerName} (attempt {$attempt}/{$maxAttempts})\n";
-
-        if ($attempt < $maxAttempts) {
-            $remaining = $maxAttempts - $attempt;
-            writeLine($conn, colorize("Login failed. {$remaining} attempt(s) remaining.", ANSI_RED));
+        // Handle registration
+        if (strtolower(trim($loginOrRegister)) === 'r') {
+            $registered = attemptRegistration($conn, $state, $apiBase);
+            if ($registered) {
+                writeLine($conn, 'Press Enter to disconnect.');
+                readTelnetLine($conn, $state);
+                fclose($conn);
+                if ($forked) {
+                    exit(0);
+                }
+                continue 2; // Continue outer connection loop
+            }
+            // Registration was cancelled - loop back to menu
             writeLine($conn, '');
-        } else {
-            writeLine($conn, colorize('Login failed. Maximum attempts exceeded.', ANSI_RED));
-            writeLine($conn, '');
+            continue;
         }
-    }
 
-    // If all attempts failed, disconnect
-    if ($loginResult === null) {
-        echo "[" . date('Y-m-d H:i:s') . "] Login failed (max attempts) from {$peerName}\n";
-        fclose($conn);
-        if ($forked) {
-            exit(0);
+        // Proceed with login
+        writeLine($conn, '');
+
+        // Allow up to 3 login attempts
+        $maxAttempts = 3;
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $loginResult = attemptLogin($conn, $state, $apiBase, $debug);
+
+            if ($loginResult !== null) {
+                // Successful login
+                writeLine($conn, colorize('Login successful.', ANSI_GREEN));
+                writeLine($conn, '');
+                break 2; // Break out of both for loop and while loop
+            }
+
+            // Failed login
+            recordFailedLogin($peerIp);
+            echo "[" . date('Y-m-d H:i:s') . "] Failed login attempt from {$peerName} (attempt {$attempt}/{$maxAttempts})\n";
+
+            if ($attempt < $maxAttempts) {
+                $remaining = $maxAttempts - $attempt;
+                writeLine($conn, colorize("Login failed. {$remaining} attempt(s) remaining.", ANSI_RED));
+                writeLine($conn, '');
+            } else {
+                writeLine($conn, colorize('Login failed. Maximum attempts exceeded.', ANSI_RED));
+                writeLine($conn, '');
+            }
         }
-        continue;
-    }
+
+        // If all attempts failed, disconnect
+        if ($loginResult === null) {
+            echo "[" . date('Y-m-d H:i:s') . "] Login failed (max attempts) from {$peerName}\n";
+            fclose($conn);
+            if ($forked) {
+                exit(0);
+            }
+            continue 2; // Continue outer connection loop
+        }
+    } // End of login/register while loop
 
     $session = $loginResult['session'];
     $username = $loginResult['username'];

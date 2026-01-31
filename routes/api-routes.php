@@ -210,13 +210,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/register', function() {
         header('Content-Type: application/json');
 
-        // Get form data (not JSON for form submission)
-        $username = $_POST['username'] ?? '';
-        $password = $_POST['password'] ?? '';
-        $email = $_POST['email'] ?? '';
-        $realName = $_POST['real_name'] ?? '';
-        $location = $_POST['location'] ?? '';
-        $reason = $_POST['reason'] ?? '';
+        // Accept both JSON and form data
+        $data = [];
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        if (stripos($contentType, 'application/json') !== false) {
+            $input = file_get_contents('php://input');
+            $data = json_decode($input, true) ?? [];
+        } else {
+            $data = $_POST;
+        }
+
+        $username = $data['username'] ?? '';
+        $password = $data['password'] ?? '';
+        $email = $data['email'] ?? '';
+        $realName = $data['real_name'] ?? '';
+        $location = $data['location'] ?? '';
+        $reason = $data['reason'] ?? '';
 
         // Validate required fields
         if (empty($username) || empty($password) || empty($realName)) {
