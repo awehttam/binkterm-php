@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v2';
+const CACHE_NAME = 'binkcache-v4';
 
 // Static assets to precache
 const staticAssets = [
@@ -13,7 +13,7 @@ const staticAssets = [
     '/css/chat-page.css'
 ];
 
-// Install event - cache static assets
+// Install event - cache static assets but don't activate yet
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
@@ -21,7 +21,18 @@ self.addEventListener('install', (event) => {
                 console.log('[SW] Caching static assets');
                 return cache.addAll(staticAssets);
             })
-            .then(() => self.skipWaiting()) // Activate immediately
+            .then(() => {
+                console.log('[SW] New version installed, waiting for activation');
+                // Notify all clients that an update is available
+                return self.clients.matchAll().then(clients => {
+                    clients.forEach(client => {
+                        client.postMessage({
+                            type: 'UPDATE_AVAILABLE',
+                            version: CACHE_NAME
+                        });
+                    });
+                });
+            })
     );
 });
 
@@ -37,8 +48,19 @@ self.addEventListener('activate', (event) => {
                     }
                 })
             );
-        }).then(() => self.clients.claim()) // Take control immediately
+        }).then(() => {
+            console.log('[SW] New version activated');
+            return self.clients.claim();
+        })
     );
+});
+
+// Listen for skip waiting message from page
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        console.log('[SW] Activating new version now');
+        self.skipWaiting();
+    }
 });
 
 // Fetch event - serve from cache, update in background
