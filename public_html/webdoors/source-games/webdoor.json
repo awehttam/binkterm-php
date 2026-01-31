@@ -1,0 +1,53 @@
+{
+  "webdoor_version": "1.0",
+  "game": {
+    "id": "source-games",
+    "name": "Source Games",
+    "version": "1.0.0",
+    "author": "BinktermPHP",
+    "description": "Join community Source engine game servers! Connect to Half-Life 2 Deathmatch, Counter-Strike Source, Team Fortress 2, and other Source games.",
+    "entry_point": "index.php",
+    "icon": "icon.svg"
+  },
+  "requirements": {
+    "min_host_version": "1.0",
+    "features": [],
+    "permissions": []
+  },
+  "storage": {
+    "max_size_kb": 0,
+    "save_slots": 0
+  },
+  "config": {
+    "servers": [
+      {
+        "name": "Fusionhead Jazz Club",
+        "game": "Half-Life 2 Deathmatch",
+        "address": "74.91.118.209:27015",
+        "description": "Join the Jazz Club for smooth HL2:DM action!",
+        "steamAppId": 320
+      },
+      {
+        "name": "TayTay's Ultimate Chaos",
+        "game": "Half-Life 2 Deathmatch",
+        "address": "185.199.95.227:27061",
+        "description": "Ultimate chaos and mayhem!",
+        "steamAppId": 320
+      },
+      {
+        "name": "+ORCON+ Crossbow",
+        "game": "Half-Life 2 Deathmatch",
+        "address": "162.248.94.16:27015",
+        "description": "Crossbow-focused combat server",
+        "steamAppId": 320
+      },
+      {
+        "name": "[foo] bar's low grav high kill server",
+        "game": "Half-Life 2 Deathmatch",
+        "address": "72.11.147.180:27015",
+        "description": "Low gravity, high kill madness!",
+        "steamAppId": 320
+      }
+    ]
+  }
+}
