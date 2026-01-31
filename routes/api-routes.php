@@ -440,15 +440,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $meta = new UserMeta();
-        $db = Database::getInstance()->getPdo();
+        $currentCount = (int)($input['current_count'] ?? 0);
 
-        // Use database NOW() to get timestamp in database timezone
-        $stmt = $db->query("SELECT NOW() as now");
-        $now = $stmt->fetchColumn();
+        // Store the current count - badge will only show if count increases
+        $meta->setValue((int)$userId, 'last_' . $target . '_count', (string)$currentCount);
 
-        $meta->setValue((int)$userId, 'notify_seen_' . $target, $now);
-
-        echo json_encode(['success' => true, 'target' => $target, 'seen_at' => $now]);
+        echo json_encode(['success' => true, 'target' => $target, 'count' => $currentCount]);
     });
 
     SimpleRouter::get('/dashboard/stats', function() {
@@ -462,32 +459,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $isAdmin = !empty($user['is_admin']);
         $meta = new UserMeta();
 
-        // Get a past date in database timezone for initialization
-        $stmt = $db->query("SELECT TIMESTAMP '2020-01-01 00:00:00' as past");
-        $pastDate = $stmt->fetchColumn();
+        // Get last seen counts (not timestamps - we compare counts, not dates)
+        $lastNetmailCount = (int)($meta->getValue((int)$userId, 'last_netmail_count') ?? 0);
+        $lastEchomailCount = (int)($meta->getValue((int)$userId, 'last_echomail_count') ?? 0);
+        $lastChatCount = (int)($meta->getValue((int)$userId, 'last_chat_count') ?? 0);
 
-        $seenNetmail = $meta->getValue((int)$userId, 'notify_seen_netmail');
-        if (!$seenNetmail) {
-            // Initialize to past date so existing unread messages show up
-            $seenNetmail = $pastDate;
-            $meta->setValue((int)$userId, 'notify_seen_netmail', $seenNetmail);
-        }
-
-        $seenEchomail = $meta->getValue((int)$userId, 'notify_seen_echomail');
-        if (!$seenEchomail) {
-            // Initialize to past date so existing unread messages show up
-            $seenEchomail = $pastDate;
-            $meta->setValue((int)$userId, 'notify_seen_echomail', $seenEchomail);
-        }
-
-        $seenChat = $meta->getValue((int)$userId, 'notify_seen_chat');
-        if (!$seenChat) {
-            // Initialize to past date so existing chat messages show up
-            $seenChat = $pastDate;
-            $meta->setValue((int)$userId, 'notify_seen_chat', $seenChat);
-        }
-
-        // Unread netmail using message_read_status table (sent + received)
+        // Get address list for netmail queries
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             $myAddresses = $binkpConfig->getMyAddresses();
@@ -496,6 +473,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $myAddresses = [];
         }
 
+        // Total unread netmail
         if (!empty($myAddresses)) {
             $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
             $unreadStmt = $db->prepare("
@@ -507,24 +485,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     n.user_id = ?
                     OR ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders))
                   )
-                  AND n.date_received > ?::timestamp
             ");
             $params = [$userId, $userId, $user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses);
-            $params[] = $seenNetmail;
             $unreadStmt->execute($params);
         } else {
             $unreadStmt = $db->prepare("
                 SELECT COUNT(*) as count
                 FROM netmail n
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
-                WHERE n.user_id = ? AND mrs.read_at IS NULL AND n.date_received > ?::timestamp
+                WHERE n.user_id = ? AND mrs.read_at IS NULL
             ");
-            $unreadStmt->execute([$userId, $userId, $seenNetmail]);
+            $unreadStmt->execute([$userId, $userId]);
         }
         $unreadNetmail = $unreadStmt->fetch()['count'] ?? 0;
 
-        // Unread echomail using message_read_status table (only from subscribed echoareas)
+        // Total unread echomail
         $sysopUnreadFilter = $isAdmin ? "" : " AND COALESCE(e.is_sysop_only, FALSE) = FALSE";
         $unreadEchomailStmt = $db->prepare("
             SELECT COUNT(*) as count
@@ -532,27 +508,35 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND em.date_received > ?::timestamp{$sysopUnreadFilter}
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE{$sysopUnreadFilter}
         ");
-        $unreadEchomailStmt->execute([$userId, $userId, $seenEchomail]);
+        $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
 
+        // Total chat count
         $chatTotalStmt = $db->prepare("
             SELECT COUNT(*) as count
             FROM chat_messages m
             LEFT JOIN chat_rooms r ON m.room_id = r.id
-            WHERE ((m.room_id IS NOT NULL AND r.is_active = TRUE)
+            WHERE (m.room_id IS NOT NULL AND r.is_active = TRUE)
                OR m.to_user_id = ?
-               OR m.from_user_id = ?)
-              AND m.created_at > ?
+               OR m.from_user_id = ?
         ");
-        $chatTotalStmt->execute([$userId, $userId, $seenChat]);
+        $chatTotalStmt->execute([$userId, $userId]);
         $chatTotal = $chatTotalStmt->fetch()['count'] ?? 0;
 
+        // Notification badge shows ONLY if count increased
+        $netmailBadge = $unreadNetmail > $lastNetmailCount ? $unreadNetmail : 0;
+        $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
+        $chatBadge = $chatTotal > $lastChatCount ? $chatTotal : 0;
+
         echo json_encode([
-            'unread_netmail' => $unreadNetmail,
-            'new_echomail' => $unreadEchomail,
-            'chat_total' => (int)$chatTotal
+            'unread_netmail' => $netmailBadge,
+            'new_echomail' => $echomailBadge,
+            'chat_total' => (int)$chatBadge,
+            'total_netmail' => $unreadNetmail,
+            'total_echomail' => $unreadEchomail,
+            'total_chat' => $chatTotal
         ]);
     });
 

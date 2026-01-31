@@ -83,12 +83,12 @@
         return window.location.pathname === path || window.location.pathname.startsWith(path + '/');
     }
 
-    async function markSeen(target) {
+    async function markSeen(target, currentCount) {
         try {
             await fetch('/api/notify/seen', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target })
+                body: JSON.stringify({ target, current_count: currentCount || 0 })
             });
         } catch (err) {
             // ignore
@@ -96,16 +96,19 @@
     }
 
     async function init() {
+        // Get current stats first, then mark as seen with the current count
+        const stats = await fetch('/api/dashboard/stats').then(r => r.json()).catch(() => ({}));
+
         if (isPathMatch('/chat')) {
             chatUnread = false;
             updateChatIcons();
-            await markSeen('chat');
+            await markSeen('chat', stats.total_chat);
         }
         if (isPathMatch('/netmail')) {
-            await markSeen('netmail');
+            await markSeen('netmail', stats.total_netmail);
             await refreshMailState('netmail');
         } else if (isPathMatch('/echomail')) {
-            await markSeen('echomail');
+            await markSeen('echomail', stats.total_echomail);
             await refreshMailState('echomail');
         }
         if (isPathMatch('/chat')) {
