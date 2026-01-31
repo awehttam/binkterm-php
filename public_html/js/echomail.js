@@ -695,28 +695,28 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <strong>From:</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="Send netmail to ${escapeHtml(message.from_name)}">${escapeHtml(message.from_name)}</a>
+                    <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
                     ${addressBookButton}
-                    <br>
-                    <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
                 </div>
-                <div class="col-md-6">
-                    <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>
-                    <span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>
-                    ${message.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${message.domain}</span>` : ''}
+                <div class="col-md-4">
+                    <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}
+                </div>
+                <div class="col-md-4">
+                    <strong>Area:</strong> ${escapeHtml(message.echoarea)}${message.domain ? '@' + escapeHtml(message.domain) : ''}
                 </div>
             </div>
             <div class="row mt-2">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <strong>Date:</strong> ${formatFullDate(message.date_written)}
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-8">
                     <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
                 </div>
             </div>
             <div class="row mt-2">
-                <div class="col-12">
+                <div class="col-12 text-end">
                     <i class="fas fa-bookmark modal-header-save-icon ${message.is_saved == 1 ? 'text-warning' : 'text-muted'}"
                        id="modalHeaderSaveIcon"
                        style="cursor: pointer;"
@@ -1494,7 +1494,8 @@ function showShareDialog(messageId) {
                         if (diffHours < 24) {
                             expiryText = `Expires in ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
                         } else {
-                            expiryText = `Expires in ${diffDays} day${diffDays !== 1 ? 's' : ''} (${expiresDate.toLocaleString()})`;
+                            const userDateFormat = window.userSettings?.date_format || 'en-US';
+                            expiryText = `Expires in ${diffDays} day${diffDays !== 1 ? 's' : ''} (${expiresDate.toLocaleString(userDateFormat)})`;
                         }
                         $('#shareExpiryText').text(expiryText);
                         $('#shareExpiryInfo').show().removeClass('alert-warning').addClass('alert-info');
@@ -1514,7 +1515,8 @@ function showShareDialog(messageId) {
 
                 // Show access information
                 const accessCount = share.access_count || 0;
-                const lastAccessed = share.last_accessed_at ? new Date(share.last_accessed_at).toLocaleString() : 'Never';
+                const userDateFormat = window.userSettings?.date_format || 'en-US';
+                const lastAccessed = share.last_accessed_at ? new Date(share.last_accessed_at).toLocaleString(userDateFormat) : 'Never';
                 $('#shareAccessText').text(`Accessed ${accessCount} time${accessCount !== 1 ? 's' : ''}. Last accessed: ${lastAccessed}`);
                 $('#shareAccessInfo').show();
             }

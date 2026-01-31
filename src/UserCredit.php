@@ -268,7 +268,8 @@ class UserCredit
             'daily_login_delay_minutes' => 5,
             'approval_bonus' => 300,
             'netmail_cost' => 1,
-            'echomail_reward' => 3
+            'echomail_reward' => 3,
+            'crashmail_cost' => 10
         ];
 
         $merged = array_merge($defaults, $credits);
@@ -283,6 +284,7 @@ class UserCredit
         $merged['approval_bonus'] = max(0, (int)$merged['approval_bonus']);
         $merged['netmail_cost'] = max(0, (int)$merged['netmail_cost']);
         $merged['echomail_reward'] = max(0, (int)$merged['echomail_reward']);
+        $merged['crashmail_cost'] = max(0, (int)$merged['crashmail_cost']);
 
         return $merged;
     }

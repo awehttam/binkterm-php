@@ -96,6 +96,7 @@
                     <h6 class="mb-0">Credits System Configuration</h6>
                 </div>
                 <div class="card-body">
+                    <div id="bbsCreditsAlert"></div>
                     <div class="mb-3 form-check">
                         <input class="form-check-input" type="checkbox" id="bbsCreditsEnabled">
                         <label class="form-check-label" for="bbsCreditsEnabled">Credits System Enabled</label>
@@ -130,7 +131,7 @@
                         <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
                         <small class="text-muted">Credits earned when posting an echomail message.</small>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">Save Settings</button>
                 </div>
             </div>
         </div>
@@ -182,76 +183,39 @@ function loadBbsSettings() {
 }
 
 function saveBbsSettings() {
-    const symbol = document.getElementById('bbsCreditsSymbol').value.trim();
-    if (symbol.length > 5) {
-        showBbsSettingsAlert('Currency symbol must be 0-5 characters.', 'danger');
-        return;
-    }
+    // Get current credits settings (don't change them)
+    fetch('/admin/api/bbs-settings')
+        .then(response => response.json())
+        .then(currentData => {
+            const credits = currentData.config?.credits || {};
 
-    const dailyAmount = parseInt(document.getElementById('bbsCreditsDailyAmount').value, 10);
-    if (Number.isNaN(dailyAmount) || dailyAmount < 0) {
-        showBbsSettingsAlert('Daily login amount must be a non-negative integer.', 'danger');
-        return;
-    }
+            const config = {
+                features: {
+                    webdoors: document.getElementById('bbsWebdoors').checked,
+                    shoutbox: document.getElementById('bbsShoutbox').checked,
+                    advertising: document.getElementById('bbsAdvertising').checked,
+                    voting_booth: document.getElementById('bbsVoting').checked,
+                    chat: document.getElementById('bbsChat').checked
+                },
+                credits: credits
+            };
 
-    const dailyDelay = parseInt(document.getElementById('bbsCreditsDailyDelay').value, 10);
-    if (Number.isNaN(dailyDelay) || dailyDelay < 0) {
-        showBbsSettingsAlert('Daily login delay must be a non-negative integer.', 'danger');
-        return;
-    }
-
-    const approvalBonus = parseInt(document.getElementById('bbsCreditsApprovalBonus').value, 10);
-    if (Number.isNaN(approvalBonus) || approvalBonus < 0) {
-        showBbsSettingsAlert('Approval bonus must be a non-negative integer.', 'danger');
-        return;
-    }
-
-    const netmailCost = parseInt(document.getElementById('bbsCreditsNetmailCost').value, 10);
-    if (Number.isNaN(netmailCost) || netmailCost < 0) {
-        showBbsSettingsAlert('Netmail cost must be a non-negative integer.', 'danger');
-        return;
-    }
-
-    const echomailReward = parseInt(document.getElementById('bbsCreditsEchomailReward').value, 10);
-    if (Number.isNaN(echomailReward) || echomailReward < 0) {
-        showBbsSettingsAlert('Echomail reward must be a non-negative integer.', 'danger');
-        return;
-    }
-
-    const config = {
-        features: {
-            webdoors: document.getElementById('bbsWebdoors').checked,
-            shoutbox: document.getElementById('bbsShoutbox').checked,
-            advertising: document.getElementById('bbsAdvertising').checked,
-            voting_booth: document.getElementById('bbsVoting').checked,
-            chat: document.getElementById('bbsChat').checked
-        },
-        credits: {
-            enabled: document.getElementById('bbsCreditsEnabled').checked,
-            symbol: symbol,
-            daily_amount: dailyAmount,
-            daily_login_delay_minutes: dailyDelay,
-            approval_bonus: approvalBonus,
-            netmail_cost: netmailCost,
-            echomail_reward: echomailReward
-        }
-    };
-
-    fetch('/admin/api/bbs-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
-        body: JSON.stringify({ config })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to save settings');
-        }
-        showBbsSettingsAlert('Settings saved successfully.', 'success');
-    })
-    .catch(error => {
-        showBbsSettingsAlert(error.message || 'Failed to save settings', 'danger');
-    });
+            return fetch('/admin/api/bbs-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
+                body: JSON.stringify({ config })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to save settings');
+            }
+            showBbsSettingsAlert('BBS features saved successfully.', 'success');
+        })
+        .catch(error => {
+            showBbsSettingsAlert(error.message || 'Failed to save settings', 'danger');
+        });
 }
 
 function loadBbsSystem() {
@@ -302,8 +266,92 @@ function saveBbsSystem() {
     });
 }
 
+function saveBbsCredits() {
+    const symbol = document.getElementById('bbsCreditsSymbol').value.trim();
+    if (symbol.length > 5) {
+        showBbsCreditsAlert('Currency symbol must be 0-5 characters.', 'danger');
+        return;
+    }
+
+    const dailyAmount = parseInt(document.getElementById('bbsCreditsDailyAmount').value, 10);
+    if (Number.isNaN(dailyAmount) || dailyAmount < 0) {
+        showBbsCreditsAlert('Daily login amount must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const dailyDelay = parseInt(document.getElementById('bbsCreditsDailyDelay').value, 10);
+    if (Number.isNaN(dailyDelay) || dailyDelay < 0) {
+        showBbsCreditsAlert('Daily login delay must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const approvalBonus = parseInt(document.getElementById('bbsCreditsApprovalBonus').value, 10);
+    if (Number.isNaN(approvalBonus) || approvalBonus < 0) {
+        showBbsCreditsAlert('Approval bonus must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const netmailCost = parseInt(document.getElementById('bbsCreditsNetmailCost').value, 10);
+    if (Number.isNaN(netmailCost) || netmailCost < 0) {
+        showBbsCreditsAlert('Netmail cost must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const echomailReward = parseInt(document.getElementById('bbsCreditsEchomailReward').value, 10);
+    if (Number.isNaN(echomailReward) || echomailReward < 0) {
+        showBbsCreditsAlert('Echomail reward must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    // Get current BBS features settings (don't change them)
+    fetch('/admin/api/bbs-settings')
+        .then(response => response.json())
+        .then(currentData => {
+            const features = currentData.config?.features || {};
+
+            const config = {
+                features: features,
+                credits: {
+                    enabled: document.getElementById('bbsCreditsEnabled').checked,
+                    symbol: symbol,
+                    daily_amount: dailyAmount,
+                    daily_login_delay_minutes: dailyDelay,
+                    approval_bonus: approvalBonus,
+                    netmail_cost: netmailCost,
+                    echomail_reward: echomailReward
+                }
+            };
+
+            return fetch('/admin/api/bbs-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
+                body: JSON.stringify({ config })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to save credits settings');
+            }
+            showBbsCreditsAlert('Credits settings saved successfully.', 'success');
+        })
+        .catch(error => {
+            showBbsCreditsAlert(error.message || 'Failed to save credits settings', 'danger');
+        });
+}
+
 function showBbsSettingsAlert(message, type) {
     const container = document.getElementById('bbsSettingsAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showBbsCreditsAlert(message, type) {
+    const container = document.getElementById('bbsCreditsAlert');
     container.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             ${message}

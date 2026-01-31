@@ -227,8 +227,8 @@
 window.systemAddress = '{{ system_address }}';
 window.currentUser = {{ current_user|json_encode|raw }};
 </script>
-<script src="/js/ansisys.js"></script>
-<script src="/js/netmail.js"></script>
+<script src="/js/ansisys.js?v={{ app_version }}"></script>
+<script src="/js/netmail.js?v={{ app_version }}"></script>
 
 <style>
 /* Read/Unread message styling - colors handled by theme stylesheets */
@@ -407,6 +407,22 @@ window.currentUser = {{ current_user|json_encode|raw }};
         color: #000000 !important;
         box-shadow: 0 0 0 1px #cccc00;
     }
+}
+
+/* Modal header layout improvements */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-title {
+    flex: 1;
+    text-align: right;
+    margin: 0 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 </style>
 {% endblock %}
