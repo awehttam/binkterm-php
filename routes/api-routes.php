@@ -1664,6 +1664,320 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    // File Areas API routes
+    SimpleRouter::get('/fileareas', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $filter = $_GET['filter'] ?? 'active';
+        $db = Database::getInstance()->getPdo();
+
+        $sql = "SELECT * FROM file_areas WHERE 1=1";
+        $params = [];
+
+        if ($filter === 'active') {
+            $sql .= " AND is_active = TRUE";
+        } elseif ($filter === 'inactive') {
+            $sql .= " AND is_active = FALSE";
+        }
+
+        $sql .= " ORDER BY tag ASC";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $fileareas = $stmt->fetchAll();
+
+        echo json_encode(['fileareas' => $fileareas]);
+    });
+
+    SimpleRouter::get('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("SELECT * FROM file_areas WHERE id = ?");
+        $stmt->execute([$id]);
+        $filearea = $stmt->fetch();
+
+        if ($filearea) {
+            echo json_encode(['filearea' => $filearea]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'File area not found']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/fileareas', function() {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            $tag = strtoupper(trim($data['tag'] ?? ''));
+            $description = trim($data['description'] ?? '');
+            $domain = trim($data['domain'] ?? 'fidonet');
+            $maxFileSize = intval($data['max_file_size'] ?? 10485760);
+            $allowedExtensions = trim($data['allowed_extensions'] ?? '');
+            $blockedExtensions = trim($data['blocked_extensions'] ?? '');
+            $replaceExisting = !empty($data['replace_existing']);
+            $isLocal = !empty($data['is_local']);
+            $isActive = !empty($data['is_active']);
+
+            if (empty($tag) || empty($description)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Tag and description are required']);
+                return;
+            }
+
+            $db = Database::getInstance()->getPdo();
+
+            // Check for duplicate tag in same domain
+            $stmt = $db->prepare("SELECT id FROM file_areas WHERE tag = ? AND domain = ?");
+            $stmt->execute([$tag, $domain]);
+            if ($stmt->fetch()) {
+                http_response_code(400);
+                echo json_encode(['error' => 'File area with this tag already exists in this domain']);
+                return;
+            }
+
+            $stmt = $db->prepare("
+                INSERT INTO file_areas (
+                    tag, description, domain, is_local, is_active,
+                    max_file_size, allowed_extensions, blocked_extensions, replace_existing,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                RETURNING id
+            ");
+
+            $stmt->execute([
+                $tag, $description, $domain, $isLocal, $isActive,
+                $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting
+            ]);
+
+            $result = $stmt->fetch();
+            echo json_encode(['success' => true, 'id' => $result['id']]);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::put('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            $tag = strtoupper(trim($data['tag'] ?? ''));
+            $description = trim($data['description'] ?? '');
+            $domain = trim($data['domain'] ?? 'fidonet');
+            $maxFileSize = intval($data['max_file_size'] ?? 10485760);
+            $allowedExtensions = trim($data['allowed_extensions'] ?? '');
+            $blockedExtensions = trim($data['blocked_extensions'] ?? '');
+            $replaceExisting = !empty($data['replace_existing']);
+            $isLocal = !empty($data['is_local']);
+            $isActive = !empty($data['is_active']);
+
+            if (empty($tag) || empty($description)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Tag and description are required']);
+                return;
+            }
+
+            $db = Database::getInstance()->getPdo();
+
+            // Check for duplicate tag in same domain (excluding current record)
+            $stmt = $db->prepare("SELECT id FROM file_areas WHERE tag = ? AND domain = ? AND id != ?");
+            $stmt->execute([$tag, $domain, $id]);
+            if ($stmt->fetch()) {
+                http_response_code(400);
+                echo json_encode(['error' => 'File area with this tag already exists in this domain']);
+                return;
+            }
+
+            $stmt = $db->prepare("
+                UPDATE file_areas
+                SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
+                    max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
+                    replace_existing = ?, updated_at = NOW()
+                WHERE id = ?
+            ");
+
+            $result = $stmt->execute([
+                $tag, $description, $domain, $isLocal, $isActive,
+                $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting, $id
+            ]);
+
+            if ($result && $stmt->rowCount() > 0) {
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'File area not found']);
+            }
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::delete('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Check if file area has files
+            $stmt = $db->prepare("SELECT COUNT(*) as count FROM files WHERE file_area_id = ?");
+            $stmt->execute([$id]);
+            $fileCount = $stmt->fetch()['count'];
+
+            if ($fileCount > 0) {
+                // Delete all files from disk first
+                $stmt = $db->prepare("SELECT storage_path FROM files WHERE file_area_id = ?");
+                $stmt->execute([$id]);
+                $files = $stmt->fetchAll();
+
+                foreach ($files as $file) {
+                    if (file_exists($file['storage_path'])) {
+                        unlink($file['storage_path']);
+                    }
+                }
+            }
+
+            // Delete file area (CASCADE will delete files table records)
+            $stmt = $db->prepare("DELETE FROM file_areas WHERE id = ?");
+            $result = $stmt->execute([$id]);
+
+            if ($result && $stmt->rowCount() > 0) {
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'File area not found']);
+            }
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/fileareas/stats', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+
+        $activeCount = $db->query("SELECT COUNT(*) as count FROM file_areas WHERE is_active = TRUE")->fetch()['count'];
+        $totalFiles = $db->query("SELECT SUM(file_count) as count FROM file_areas")->fetch()['count'] ?? 0;
+        $totalSize = $db->query("SELECT SUM(total_size) as size FROM file_areas")->fetch()['size'] ?? 0;
+
+        echo json_encode([
+            'active_count' => (int)$activeCount,
+            'total_files' => (int)$totalFiles,
+            'total_size' => (int)$totalSize
+        ]);
+    });
+
+    // Files API routes
+    SimpleRouter::get('/files', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $areaId = $_GET['area_id'] ?? null;
+
+        if (!$areaId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'area_id parameter required']);
+            return;
+        }
+
+        $stmt = $db->prepare("
+            SELECT f.*, fa.tag as area_tag
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE f.file_area_id = ? AND f.status = 'approved'
+            ORDER BY f.created_at DESC
+        ");
+        $stmt->execute([$areaId]);
+        $files = $stmt->fetchAll();
+
+        echo json_encode(['files' => $files]);
+    });
+
+    SimpleRouter::get('/files/{id}', function($id) {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT f.*, fa.tag as area_tag, fa.domain
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([$id]);
+        $file = $stmt->fetch();
+
+        if ($file) {
+            echo json_encode(['file' => $file]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/files/{id}/download', function($id) {
+        RouteHelper::requireAuth();
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT f.*, fa.tag as area_tag
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE f.id = ? AND f.status = 'approved'
+        ");
+        $stmt->execute([$id]);
+        $file = $stmt->fetch();
+
+        if (!$file) {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        $storagePath = $file['storage_path'];
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo 'File not found on disk';
+            return;
+        }
+
+        // Set headers for file download
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . basename($file['filename']) . '"');
+        header('Content-Length: ' . filesize($storagePath));
+        header('Cache-Control: no-cache, must-revalidate');
+        header('Pragma: public');
+
+        // Output file
+        readfile($storagePath);
+        exit;
+    })->where(['id' => '[0-9]+']);
+
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
         $user = RouteHelper::requireAuth();

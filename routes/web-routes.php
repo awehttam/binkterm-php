@@ -581,6 +581,29 @@ SimpleRouter::get('/echoareas', function() {
     $template->renderResponse('echoareas.twig');
 });
 
+SimpleRouter::get('/fileareas', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    // Check if user is admin (file areas management is admin only)
+    if (!$user['is_admin']) {
+        return SimpleRouter::response()->httpCode(403);
+    }
+
+    $template = new Template();
+    $template->renderResponse('fileareas.twig');
+});
+
+SimpleRouter::get('/files', function() {
+    $user = RouteHelper::requireAuth();
+
+    $template = new Template();
+    $template->renderResponse('files.twig');
+});
 
 SimpleRouter::get('/compose/{type}', function($type) {
     $auth = new Auth();

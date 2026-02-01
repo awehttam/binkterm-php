@@ -1,0 +1,305 @@
+{% extends "base.twig" %}
+
+{% block title %}Files - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-file"></i>
+        File Areas
+    </h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-3">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0">File Areas</h6>
+            </div>
+            <div class="list-group list-group-flush" id="fileAreasList">
+                <div class="loading-spinner p-3">
+                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-7">Total Areas:</dt>
+                    <dd class="col-5" id="totalAreas">-</dd>
+
+                    <dt class="col-7">Total Files:</dt>
+                    <dd class="col-5" id="totalFiles">-</dd>
+
+                    <dt class="col-7">Total Size:</dt>
+                    <dd class="col-5" id="totalSize">-</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0" id="currentAreaTitle">Select a file area</h6>
+                    <div>
+                        <input type="text" class="form-control form-control-sm" id="searchFiles" placeholder="Search files..." style="width: 250px;">
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="filesContainer">
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-folder-open fa-3x mb-3"></i>
+                        <p>Select a file area from the left to browse files</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Details Modal -->
+<div class="modal fade" id="fileDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fileDetailsTitle">File Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Filename:</dt>
+                    <dd class="col-sm-9" id="detailFilename"></dd>
+
+                    <dt class="col-sm-3">Size:</dt>
+                    <dd class="col-sm-9" id="detailSize"></dd>
+
+                    <dt class="col-sm-3">Uploaded:</dt>
+                    <dd class="col-sm-9" id="detailUploaded"></dd>
+
+                    <dt class="col-sm-3">From:</dt>
+                    <dd class="col-sm-9" id="detailFrom"></dd>
+
+                    <dt class="col-sm-3">Description:</dt>
+                    <dd class="col-sm-9" id="detailDescription"></dd>
+                </dl>
+
+                <div id="detailLongDescription" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" class="btn btn-primary" id="downloadFileBtn" download>
+                    <i class="fas fa-download"></i> Download
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentAreaId = null;
+let allFiles = [];
+
+$(document).ready(function() {
+    loadFileAreas();
+    loadStats();
+
+    $('#searchFiles').on('input', function() {
+        filterFiles($(this).val());
+    });
+});
+
+function loadFileAreas() {
+    $.get('/api/fileareas?filter=active')
+        .done(function(data) {
+            displayFileAreas(data.fileareas);
+        })
+        .fail(function() {
+            $('#fileAreasList').html('<div class="alert alert-danger m-3">Failed to load file areas</div>');
+        });
+}
+
+function displayFileAreas(areas) {
+    if (areas.length === 0) {
+        $('#fileAreasList').html('<div class="p-3 text-muted">No file areas available</div>');
+        return;
+    }
+
+    let html = '';
+    areas.forEach(function(area) {
+        const fileCount = area.file_count || 0;
+        const totalSize = formatBytes(area.total_size || 0);
+
+        html += `
+            <a href="#" class="list-group-item list-group-item-action" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}'); return false;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <strong>${escapeHtml(area.tag)}</strong>
+                        <small class="d-block text-muted">${escapeHtml(area.description || '')}</small>
+                    </div>
+                    <div class="text-end ms-2">
+                        <small class="d-block">${fileCount} files</small>
+                        <small class="text-muted">${totalSize}</small>
+                    </div>
+                </div>
+            </a>
+        `;
+    });
+
+    $('#fileAreasList').html(html);
+}
+
+function selectFileArea(areaId, areaTag) {
+    currentAreaId = areaId;
+    $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${escapeHtml(areaTag)}`);
+    $('#searchFiles').val('');
+
+    // Highlight selected area
+    $('#fileAreasList .list-group-item').removeClass('active');
+    $(`#fileAreasList .list-group-item:contains("${areaTag}")`).first().addClass('active');
+
+    loadFiles(areaId);
+}
+
+function loadFiles(areaId) {
+    $('#filesContainer').html('<div class="loading-spinner p-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading files...</div>');
+
+    $.get(`/api/files?area_id=${areaId}`)
+        .done(function(data) {
+            allFiles = data.files;
+            displayFiles(allFiles);
+        })
+        .fail(function() {
+            $('#filesContainer').html('<div class="alert alert-danger m-3">Failed to load files</div>');
+        });
+}
+
+function displayFiles(files) {
+    if (files.length === 0) {
+        $('#filesContainer').html('<div class="p-4 text-center text-muted">No files in this area</div>');
+        return;
+    }
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="40%">Filename</th>
+                        <th width="20%">Description</th>
+                        <th width="10%">Size</th>
+                        <th width="15%">Uploaded</th>
+                        <th width="15%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    files.forEach(function(file) {
+        const shortDesc = escapeHtml(file.short_description || '');
+        const fileSize = formatBytes(file.filesize);
+        const uploadDate = formatDate(file.created_at);
+
+        html += `
+            <tr>
+                <td>
+                    <i class="fas fa-file me-2"></i>
+                    <strong>${escapeHtml(file.filename)}</strong>
+                </td>
+                <td><small class="text-muted">${shortDesc}</small></td>
+                <td>${fileSize}</td>
+                <td><small>${uploadDate}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                        <i class="fas fa-download"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table></div>';
+    $('#filesContainer').html(html);
+}
+
+function filterFiles(query) {
+    if (!query) {
+        displayFiles(allFiles);
+        return;
+    }
+
+    query = query.toLowerCase();
+    const filtered = allFiles.filter(function(file) {
+        return file.filename.toLowerCase().includes(query) ||
+               (file.short_description && file.short_description.toLowerCase().includes(query));
+    });
+
+    displayFiles(filtered);
+}
+
+function showFileDetails(fileId) {
+    $.get(`/api/files/${fileId}`)
+        .done(function(data) {
+            const file = data.file;
+
+            $('#detailFilename').text(file.filename);
+            $('#detailSize').text(formatBytes(file.filesize));
+            $('#detailUploaded').text(formatDate(file.created_at));
+            $('#detailFrom').text(file.uploaded_from_address || 'Unknown');
+            $('#detailDescription').text(file.short_description || 'No description');
+
+            if (file.long_description) {
+                $('#detailLongDescription').html(`
+                    <strong>Long Description:</strong>
+                    <pre class="bg-light p-2 rounded">${escapeHtml(file.long_description)}</pre>
+                `);
+            } else {
+                $('#detailLongDescription').html('');
+            }
+
+            $('#downloadFileBtn').attr('href', `/api/files/${fileId}/download`);
+            $('#fileDetailsTitle').text(file.filename);
+
+            new bootstrap.Modal('#fileDetailsModal').show();
+        })
+        .fail(function() {
+            showError('Failed to load file details');
+        });
+}
+
+function loadStats() {
+    $.get('/api/fileareas/stats')
+        .done(function(data) {
+            $('#totalAreas').text(data.active_count);
+            $('#totalFiles').text(data.total_files);
+            $('#totalSize').text(formatBytes(data.total_size));
+        });
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+}
+</script>
+{% endblock %}
