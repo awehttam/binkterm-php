@@ -391,4 +391,15 @@ class UserCredit
         $key = $name . '_reward';
         return max(0, (int)($config[$key] ?? $default));
     }
+
+    /**
+     * Get the currency symbol for credits.
+     *
+     * @return string
+     */
+    public static function getCurrencySymbol(): string
+    {
+        $config = self::getCreditsConfig();
+        return (string)($config['symbol'] ?? '$');
+    }
 }

@@ -596,6 +596,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['echomail_reward'] ?? null) || (int)$credits['echomail_reward'] < 0) {
                         throw new Exception('Echomail reward must be a non-negative integer');
                     }
+                    if (!is_numeric($credits['crashmail_cost'] ?? null) || (int)$credits['crashmail_cost'] < 0) {
+                        throw new Exception('Crashmail cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['poll_creation_cost'] ?? null) || (int)$credits['poll_creation_cost'] < 0) {
+                        throw new Exception('Poll creation cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['return_14days'] ?? null) || (int)$credits['return_14days'] < 0) {
+                        throw new Exception('14-day return bonus must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['transfer_fee_percent'] ?? null) || (float)$credits['transfer_fee_percent'] < 0 || (float)$credits['transfer_fee_percent'] > 1) {
+                        throw new Exception('Transfer fee must be between 0 and 1 (0% to 100%)');
+                    }
                     $config['credits'] = [
                         'enabled' => !empty($credits['enabled']),
                         'symbol' => $symbol,
@@ -603,7 +615,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'daily_login_delay_minutes' => (int)$credits['daily_login_delay_minutes'],
                         'approval_bonus' => (int)$credits['approval_bonus'],
                         'netmail_cost' => (int)$credits['netmail_cost'],
-                        'echomail_reward' => (int)$credits['echomail_reward']
+                        'echomail_reward' => (int)$credits['echomail_reward'],
+                        'crashmail_cost' => (int)$credits['crashmail_cost'],
+                        'poll_creation_cost' => (int)$credits['poll_creation_cost'],
+                        'return_14days' => (int)$credits['return_14days'],
+                        'transfer_fee_percent' => (float)$credits['transfer_fee_percent']
                     ];
                 }
 

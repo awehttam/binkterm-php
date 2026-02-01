@@ -68,11 +68,11 @@
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail">
                             <label class="form-check-label" for="crashmail">
-                                <i class="fas fa-bolt text-warning me-1"></i>Crashmail (Direct Delivery)
+                                <i class="fas fa-bolt text-warning me-1"></i>Crashmail (Direct Delivery){% if credits_enabled %} - <strong>{{ crashmail_cost }} {{ currency_symbol }}</strong>{% endif %}
                             </label>
                             <div class="form-text">
                                 Attempt immediate direct delivery to the destination node, bypassing hub routing.
-                                Requires the destination to be directly reachable.
+                                Requires the destination to be directly reachable.{% if credits_enabled %} Costs {{ crashmail_cost }} {{ currency_symbol }}.{% endif %}
                             </div>
                         </div>
                     </div>
@@ -148,6 +148,9 @@
                         <li>Use proper Fidonet addressing</li>
                         <li>Be respectful and professional</li>
                         <li>Messages are routed through the network</li>
+                        {% if credits_enabled %}
+                        <li><strong>Cost: {{ netmail_cost }} {{ currency_symbol }}</strong></li>
+                        {% endif %}
                     </ul>
                 {% else %}
                     <h6>Echomail Guidelines:</h6>

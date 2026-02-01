@@ -615,13 +615,23 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $crashmailEnabled = false;
     }
 
+    // Get credit costs for display
+    $netmailCost = \BinktermPHP\UserCredit::getCreditCost('netmail', 1);
+    $crashmailCost = \BinktermPHP\UserCredit::getCreditCost('crashmail', 10);
+    $currencySymbol = \BinktermPHP\UserCredit::getCurrencySymbol();
+    $creditsEnabled = \BinktermPHP\UserCredit::isEnabled();
+
     $templateVars = [
         'type' => $type,
         'current_user' => $user,
         'user_name' => $user['real_name'] ?: $user['username'],
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
-        'crashmail_enabled' => $crashmailEnabled
+        'crashmail_enabled' => $crashmailEnabled,
+        'netmail_cost' => $netmailCost,
+        'crashmail_cost' => $crashmailCost,
+        'currency_symbol' => $currencySymbol,
+        'credits_enabled' => $creditsEnabled
     ];
 
     if ($replyId) {
