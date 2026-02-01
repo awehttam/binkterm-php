@@ -1,9 +1,13 @@
 MAILTO=""
 
-*/3     *       *       *       * /home/binkweb/binkterm-php/scripts/binkp_poll.php --all --queued-only
-*/3     *       *       *       * /home/binkweb/binkterm-php/scripts/process_packets.php
-*/3     *       *       *       * /home/binkweb/binkterm-php/scripts/crashmail_poll.php
+# Start admin daemon on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/admin_daemon.php --daemon
 
-0       1       *       *       * /home/binkweb/binkterm-php/scripts/update_nodelists.php
+# Start scheduler on boot
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_scheduler.php --daemon
 
-@reboot /home/claudebbs/binkterm-php/scripts/binkp_server.php --daemon
+# Start binkp server on boot (Linux/macOS)
+@reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
+
+# Update nodelists daily at 3am
+0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet

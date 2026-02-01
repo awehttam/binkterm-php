@@ -2274,27 +2274,53 @@ while (true) {
             break;
         }
 
+        // Build the main menu with boxes
+        $cols = $state['cols'] ?? 80;
+        $menuWidth = min(60, $cols - 4);
+        $innerWidth = $menuWidth - 4;
+
+        $systemName = $config->getSystemName();
+        $border = '+' . str_repeat('=', $menuWidth - 2) . '+';
+        $divider = '+' . str_repeat('-', $menuWidth - 2) . '+';
+
         writeLine($conn, '');
-        writeLine($conn, colorize($config->getSystemName(), ANSI_CYAN . ANSI_BOLD));
-        writeLine($conn, colorize('Main Menu', ANSI_BLUE . ANSI_BOLD));
-        writeLine($conn, colorize(' 1) Netmail (' . $messageCounts['netmail'] . ' messages)', ANSI_GREEN));
-        writeLine($conn, colorize(' 2) Echomail (' . $messageCounts['echomail'] . ' messages)', ANSI_GREEN));
+        writeLine($conn, colorize($border, ANSI_CYAN . ANSI_BOLD));
+        $headerLine = '| ' . str_pad($systemName, $innerWidth, ' ', STR_PAD_BOTH) . ' |';
+        writeLine($conn, colorize($headerLine, ANSI_CYAN . ANSI_BOLD));
+        writeLine($conn, colorize($divider, ANSI_CYAN . ANSI_BOLD));
+        $titleLine = '| ' . str_pad('Main Menu', $innerWidth, ' ', STR_PAD_BOTH) . ' |';
+        writeLine($conn, colorize($titleLine, ANSI_BLUE . ANSI_BOLD));
+        writeLine($conn, colorize($divider, ANSI_CYAN));
+
+        // Menu options
         $showShoutbox = \BinktermPHP\BbsConfig::isFeatureEnabled('shoutbox');
         $showPolls = \BinktermPHP\BbsConfig::isFeatureEnabled('voting_booth');
 
+        $option1 = '| 1) Netmail (' . $messageCounts['netmail'] . ' messages)';
+        writeLine($conn, colorize(str_pad($option1, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', ANSI_GREEN));
+
+        $option2 = '| 2) Echomail (' . $messageCounts['echomail'] . ' messages)';
+        writeLine($conn, colorize(str_pad($option2, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', ANSI_GREEN));
+
         $option = 3;
         if ($showShoutbox) {
-            writeLine($conn, colorize(" {$option}) Shoutbox", ANSI_GREEN));
+            $optionLine = "| {$option}) Shoutbox";
+            writeLine($conn, colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', ANSI_GREEN));
             $shoutboxOption = (string)$option;
             $option++;
         }
         if ($showPolls) {
-            writeLine($conn, colorize(" {$option}) Polls", ANSI_GREEN));
+            $optionLine = "| {$option}) Polls";
+            writeLine($conn, colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', ANSI_GREEN));
             $pollsOption = (string)$option;
             $option++;
         }
-        writeLine($conn, colorize(" {$option}) Quit", ANSI_YELLOW));
+        $quitLine = "| {$option}) Quit";
+        writeLine($conn, colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', ANSI_YELLOW));
         $quitOption = (string)$option;
+
+        writeLine($conn, colorize($border, ANSI_CYAN . ANSI_BOLD));
+        writeLine($conn, '');
         writeLine($conn, colorize('Select option:', ANSI_DIM));
         $choice = trim((string)readTelnetLine($conn, $state));
         if ($choice === null) {
@@ -2332,16 +2358,12 @@ while (true) {
                 // Silently skip if getSiteUrl fails
             }
             writeLine($conn, '');
-            writeLine($conn, 'Press Enter to disconnect...');
 
-            // Flush output and wait for acknowledgment
+            // Flush output and wait a couple seconds before disconnecting
             if (is_resource($conn)) {
                 fflush($conn);
             }
-
-            // Wait for user to press enter or timeout after 5 seconds
-            stream_set_timeout($conn, 5);
-            readTelnetLine($conn, $state);
+            sleep(2);
 
             // Graceful logout
             $duration = time() - $loginTime;
