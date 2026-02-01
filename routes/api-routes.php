@@ -47,6 +47,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $input = json_decode(file_get_contents('php://input'), true);
         $username = $input['username'] ?? '';
         $password = $input['password'] ?? '';
+        $service = $input['service'] ?? 'web';
 
         if (empty($username) || empty($password)) {
             http_response_code(400);
@@ -55,7 +56,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $auth = new Auth();
-        $sessionId = $auth->login($username, $password);
+        $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
             setcookie('binktermphp_session', $sessionId, time() + 86400 * 30, '/', '', false, true);
@@ -2957,6 +2958,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ];
             if ($isAdmin) {
                 $entry['activity'] = $onlineUser['activity'] ?? '';
+                $entry['service'] = $onlineUser['service'] ?? 'web';
             }
             return $entry;
         }, $onlineUsers);
