@@ -114,7 +114,15 @@ When adding new UserCredit credit/reward types or debit types, you must update c
    - Ensure field names match the keys in bbs.json
    - The admin page allows runtime configuration which gets saved to data/bbs.json
 
-4. **Update README.md**: Document the new credit type in the README
+4. **Update Admin API Endpoint**: Add backend validation and saving in `routes/admin-routes.php`
+   - Location: The POST `/admin/api/bbs-settings` endpoint handler
+   - Add validation for the new credit field (check if numeric, non-negative, etc.)
+   - Add the field to the `$config['credits']` array that gets saved
+   - Ensure proper type casting (int for costs/rewards, float for percentages)
+   - **CRITICAL**: The admin daemon must be restarted after code changes to pick up the new validation
+   - Without this step, the admin interface will send the field but it won't be saved to config
+
+5. **Update README.md**: Document the new credit type in the README
    - Add the new credit type to the credits system documentation section
    - Explain what the credit type does and when it's awarded/charged
    - Include the default value for reference
@@ -123,7 +131,7 @@ When adding new UserCredit credit/reward types or debit types, you must update c
 The system uses this priority order for credit values:
 1. Runtime configuration in `data/bbs.json` (highest priority - set via admin interface)
 2. Default template in `bbs.json.example` (used during initial setup)
-3. Code defaults in `src/Config.php` (lowest priority - fallback values)
+3. Code defaults in `src/UserCredit.php` (lowest priority - fallback values)
 
 ### Example Credit Types
 - Login rewards (daily login bonus)
@@ -138,6 +146,7 @@ The system uses this priority order for credit values:
 - Document the purpose of each credit type in comments within bbs.json.example
 - Ensure the admin interface provides clear descriptions of what each credit type does
 - Test both new installations (using defaults) and existing installations (manual config) when adding new credit types
+- When updating a template to add information about user credits use the credits_enabled variable in the twig template to determine whether to show the information
 
 ## Recent Features Added
 
