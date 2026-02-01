@@ -11,14 +11,14 @@ class Auth
         $this->db = Database::getInstance()->getPdo();
     }
 
-    public function login($username, $password)
+    public function login($username, $password, string $service = 'web')
     {
         $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE username = ? AND is_active = TRUE');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            $sessionId = $this->createSession($user['id']);
+            $sessionId = $this->createSession($user['id'], $service);
             $this->updateLastLogin($user['id']);
             return $sessionId;
         }
@@ -70,19 +70,20 @@ class Auth
         $stmt->execute([mb_substr($activity, 0, 255), $sessionId]);
     }
 
-    public function createSession($userId)
+    public function createSession($userId, string $service = 'web')
     {
         $sessionId = bin2hex(random_bytes(32));
 
         $stmt = $this->db->prepare('
-            INSERT INTO user_sessions (session_id, user_id, expires_at, ip_address, user_agent, last_activity)
-            VALUES (?, ?, NOW() + INTERVAL \'' . Config::SESSION_LIFETIME . ' seconds\', ?, ?, NOW())
+            INSERT INTO user_sessions (session_id, user_id, expires_at, ip_address, user_agent, last_activity, service)
+            VALUES (?, ?, NOW() + INTERVAL \'' . Config::SESSION_LIFETIME . ' seconds\', ?, ?, NOW(), ?)
         ');
         $stmt->execute([
             $sessionId,
             $userId,
             $_SERVER['REMOTE_ADDR'] ?? '',
-            $_SERVER['HTTP_USER_AGENT'] ?? ''
+            $_SERVER['HTTP_USER_AGENT'] ?? '',
+            $service
         ]);
 
         return $sessionId;
@@ -163,7 +164,8 @@ class Auth
                 u.fidonet_address,
                 s.last_activity,
                 s.activity,
-                s.ip_address
+                s.ip_address,
+                s.service
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.last_activity > NOW() - INTERVAL '1 minute' * ?

@@ -23,6 +23,7 @@
                                 <th>Username</th>
                                 <th>Location</th>
                                 {% if current_user and current_user.is_admin %}
+                                <th>Service</th>
                                 <th>Last Activity</th>
                                 {% endif %}
                             </tr>
@@ -35,6 +36,7 @@
                                 </td>
                                 <td>{{ user.location ?: 'Unknown' }}</td>
                                 {% if current_user and current_user.is_admin %}
+                                <td><span class="badge bg-secondary">{{ user.service ?: 'web' }}</span></td>
                                 <td>{{ user.activity ?: '-' }}</td>
                                 {% endif %}
                             </tr>
@@ -90,10 +92,12 @@
                 const location = user.location && user.location !== '' ? user.location : 'Unknown';
                 const username = escapeHtml(user.username || '');
                 const usernameCell = `<a href="/profile/${encodeURIComponent(user.username)}" class="text-decoration-none">${username}</a>`;
-                const activityCell = isAdmin ? `<td>${user.activity && user.activity !== '' ? user.activity : '-'}</td>` : '';
+                const serviceCell = isAdmin ? `<td><span class="badge bg-secondary">${escapeHtml(user.service || 'web')}</span></td>` : '';
+                const activityCell = isAdmin ? `<td>${user.activity && user.activity !== '' ? escapeHtml(user.activity) : '-'}</td>` : '';
                 return `<tr>
                     <td>${usernameCell}</td>
                     <td>${escapeHtml(location)}</td>
+                    ${serviceCell}
                     ${activityCell}
                 </tr>`;
             }).join('');

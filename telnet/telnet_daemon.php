@@ -1243,7 +1243,8 @@ function attemptLogin($conn, array &$state, string $apiBase, bool $debug): ?arra
     try {
         $result = apiRequest($apiBase, 'POST', '/api/auth/login', [
             'username' => $username,
-            'password' => $password
+            'password' => $password,
+            'service' => 'telnet'
         ], null);
     } catch (Throwable $e) {
         writeLine($conn, colorize('Login failed: ' . $e->getMessage(), ANSI_RED));
