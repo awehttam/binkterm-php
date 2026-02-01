@@ -6,6 +6,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\UserCredit;
 use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
 
@@ -2531,6 +2532,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode([
             'netmail_count' => (int)$netmailCount,
             'echomail_count' => (int)$echomailCount
+        ]);
+    });
+
+    SimpleRouter::get('/user/credits', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+
+        header('Content-Type: application/json');
+
+        $balance = UserCredit::getBalance($user['user_id']);
+
+        echo json_encode([
+            'id' => $user['user_id'],
+            'username' => $user['username'],
+            'credit_balance' => (int)$balance
         ]);
     });
 

@@ -1,0 +1,90 @@
+{
+    "webdoor_version": "1.0",
+
+    "game": {
+        "id": "cwn",
+        "name": "Community Wireless Node List",
+        "description": "Discover and share community wireless networks - mesh networks, wireless BBSs, and grassroots wireless infrastructure",
+        "version": "1.0.0",
+        "author": "BinktermPHP",
+        "license": "MIT",
+        "icon": "icon.svg",
+        "entry_point": "index.html"
+    },
+
+    "entrypoint": {
+        "type": "html",
+        "file": "index.html"
+    },
+
+    "runtime": {
+        "language": "javascript",
+        "framework": "vanilla",
+        "requires": {
+            "websocket": false,
+            "cookies": true,
+            "local_storage": true,
+            "geolocation": true
+        }
+    },
+
+    "session": {
+        "mode": "host",
+        "persistence": "server",
+        "max_duration_seconds": 86400
+    },
+
+    "capabilities": {
+        "singleplayer": true,
+        "multiplayer": false,
+        "leaderboards": false,
+        "achievements": false,
+        "spectators": false,
+        "credits": true,
+        "map_display": true
+    },
+
+    "api": {
+        "base_path": "/webdoors/cwn",
+        "endpoints": {
+            "list": "/api.php?action=list",
+            "get": "/api.php?action=get",
+            "submit": "/api.php?action=submit",
+            "update": "/api.php?action=update",
+            "delete": "/api.php?action=delete",
+            "search": "/api.php?action=search"
+        }
+    },
+
+    "ui": {
+        "preferred_width": 1280,
+        "preferred_height": 800,
+        "responsive": true,
+        "orientation": "any"
+    },
+
+    "security": {
+        "same_origin_only": true,
+        "csrf_protection": "host",
+        "content_sandbox": false
+    },
+
+    "config": {
+        "credits": {
+            "submission_reward": 3,
+            "search_cost": 1,
+            "edit_cost": 0,
+            "delete_cost": 0
+        },
+        "limits": {
+            "max_submissions_per_day": 20,
+            "max_searches_per_day": 50,
+            "max_description_length": 500
+        },
+        "map": {
+            "default_zoom": 10,
+            "cluster_radius": 50,
+            "tile_provider": "openstreetmap"
+        }
+    }
+}

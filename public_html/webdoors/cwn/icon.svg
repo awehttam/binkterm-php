@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#0d6efd" rx="8"/>
+  <g fill="white">
+    <!-- WiFi symbol -->
+    <path d="M32 48 a2 2 0 1 1 0 4 a2 2 0 1 1 0 -4"/>
+    <path d="M32 40 a6 6 0 0 1 4.2 1.8 l2.8 -2.8 a10 10 0 0 0 -14 0 l2.8 2.8 a6 6 0 0 1 4.2 -1.8" opacity="0.7"/>
+    <path d="M32 32 a14 14 0 0 1 9.9 4.1 l2.8 -2.8 a18 18 0 0 0 -25.4 0 l2.8 2.8 a14 14 0 0 1 9.9 -4.1" opacity="0.5"/>
+    <path d="M32 24 a22 22 0 0 1 15.6 6.5 l2.8 -2.8 a26 26 0 0 0 -36.8 0 l2.8 2.8 a22 22 0 0 1 15.6 -6.5" opacity="0.3"/>
+  </g>
+  <!-- Small "CWN" text -->
+  <text x="32" y="16" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle" font-weight="bold">CWN</text>
+</svg>
