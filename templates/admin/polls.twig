@@ -21,6 +21,7 @@
                             <th>Question</th>
                             <th>Status</th>
                             <th>Votes</th>
+                            <th>Created By</th>
                             <th>Created</th>
                             <th>Actions</th>
                         </tr>
@@ -44,6 +45,10 @@
             <div class="modal-body">
                 <form id="pollForm">
                     <input type="hidden" id="pollId" name="pollId">
+                    <div class="mb-3" id="createdByContainer" style="display: none;">
+                        <label class="form-label">Created By</label>
+                        <input type="text" class="form-control" id="pollCreatedBy" readonly>
+                    </div>
                     <div class="mb-3">
                         <label for="pollQuestion" class="form-label">Question <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="pollQuestion" name="question" required>
@@ -108,6 +113,7 @@ function displayPolls(polls) {
                 </span>
             </td>
             <td>${poll.vote_count || 0}</td>
+            <td>${escapeHtml(poll.created_by_username || 'Unknown')}</td>
             <td>${new Date(poll.created_at).toLocaleDateString()}</td>
             <td>
                 <div class="btn-group btn-group-sm" role="group">
@@ -129,6 +135,7 @@ function showCreatePollModal() {
     document.getElementById('pollForm').reset();
     document.getElementById('pollId').value = '';
     document.getElementById('pollActive').checked = true;
+    document.getElementById('createdByContainer').style.display = 'none';
     resetPollOptions(['', '']);
     new bootstrap.Modal(document.getElementById('pollModal')).show();
 }
@@ -146,6 +153,12 @@ function editPoll(pollId) {
             document.getElementById('pollId').value = poll.id;
             document.getElementById('pollQuestion').value = poll.question;
             document.getElementById('pollActive').checked = !!poll.is_active;
+            if (poll.created_by_username) {
+                document.getElementById('pollCreatedBy').value = poll.created_by_username;
+                document.getElementById('createdByContainer').style.display = 'block';
+            } else {
+                document.getElementById('createdByContainer').style.display = 'none';
+            }
             const options = (poll.options || []).map(opt => opt.option_text);
             resetPollOptions(options.length ? options : ['', '']);
             new bootstrap.Modal(document.getElementById('pollModal')).show();

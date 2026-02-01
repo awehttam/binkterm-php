@@ -284,10 +284,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             $pollStmt = $db->prepare("
                 SELECT p.id, p.question, p.is_active, p.created_at, p.updated_at,
+                       u.username as created_by_username,
                        COUNT(v.id) as vote_count
                 FROM polls p
+                LEFT JOIN users u ON u.id = p.created_by
                 LEFT JOIN poll_votes v ON v.poll_id = p.id
-                GROUP BY p.id
+                GROUP BY p.id, u.username
                 ORDER BY p.created_at DESC
             ");
             $pollStmt->execute();
@@ -317,6 +319,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'is_active' => (bool)$poll['is_active'],
                     'created_at' => $poll['created_at'],
                     'updated_at' => $poll['updated_at'],
+                    'created_by_username' => $poll['created_by_username'] ?? 'Unknown',
                     'vote_count' => (int)$poll['vote_count'],
                     'options' => $optionsByPoll[$poll['id']] ?? []
                 ];
