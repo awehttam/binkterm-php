@@ -4,13 +4,28 @@
       "name": "FidoNet",
       "domain": "fidonet",
       "url": "https://darkrealms.ca/Z1DAILY.Z|DAY|",
-      "enabled": true
+      "enabled": true,
+      "comment": "Direct download of FidoNet Zone 1 nodelist (compressed .Znnn format)"
     },
     {
       "name": "FSXNet",
       "domain": "fsxnet",
       "url": "https://github.com/fsxnet/nodelist/raw/refs/heads/master/FSXNET.Z|DAY|",
-      "enabled": true
+      "enabled": true,
+      "comment": "Direct download of FSXNet nodelist (compressed .Znnn format)"
+    },
+    {
+      "name": "AgoraNet",
+      "domain": "agoranet",
+      "url": "http://phoenix.bnbbbs.net/files/agoranet/agn_info/agoranet.zip",
+      "extract_script": "scripts/extract_nodelist_zip.php",
+      "enabled": false,
+      "comment": "ZIP archive containing agoranet.z## - requires extraction script"
     }
-  ]
+  ],
+  "settings": {
+    "keep_downloads": 3,
+    "timeout": 300,
+    "user_agent": "BinktermPHP Nodelist Updater"
+  }
 }
