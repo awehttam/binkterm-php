@@ -189,13 +189,45 @@ Set `"enabled": false` in the credits configuration to disable the entire system
 
 ## Installation
 
+BinktermPHP can be installed using two methods: the standard Git-based installation, or the experimental installer which is currently under development.
+
 ### Requirements
 - **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
+- **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
-- **Composer** - For dependency management
+- **Composer** - For dependency management (Git installation only)
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
 
-### Step 1: Pre-requisite Packages
+### Method 1: Using the Installer (Experimental)
+
+The installer provides an automated setup process that downloads, configures, and installs BinktermPHP.
+
+```bash
+# Download the installer
+wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/binkterm-installer.phar
+
+# Run the installer
+php binkterm-installer.phar [options]
+
+# Or make it executable (Linux/macOS)
+chmod +x binkterm-installer.phar
+./binkterm-installer.phar [options]
+```
+
+The installer will:
+- Check system requirements (PHP version, extensions)
+- Download the latest release from GitHub
+- Configure the database and environment
+- Set up initial admin user
+- Configure FidoNet settings
+
+**Note:** The installer is experimental and under active development. The standard Git-based installation (Method 2) is currently the primary installation method used by most installations.
+
+### Method 2: From Git
+
+This is the standard installation method currently in use while the installer is being developed.
+
+#### Step 1: Pre-requisite Packages
 Ubuntu/Debian:
 ```bash
 sudo apt-get update
@@ -204,18 +236,18 @@ sudo apt-get install -y unzip p7zip-full
 
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
-### Step 2: Clone Repository
+#### Step 2: Clone Repository
 ```bash
 git clone https://github.com/awehttam/binkterm-php
 cd binkterm-php
 ```
 
-### Step 3: Install Dependencies
+#### Step 3: Install Dependencies
 ```bash
 composer install
 ```
 
-### Step 4: Configure Environment
+#### Step 4: Configure Environment
 Copy the example environment file and configure your settings:
 ```bash
 cp .env.example .env
@@ -223,7 +255,7 @@ cp .env.example .env
 
 Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
 
-### Step 5: Install the database schema and configure the initial Admin user
+#### Step 5: Install the database schema and configure the initial Admin user
 
 First, use the installation script for automated setup:
 ```bash
@@ -239,7 +271,6 @@ Alternatively, use the setup script which auto-detects whether to install or upg
 php scripts/setup.php
 ```
 
-
 Then run the schema upgrader to ensure all schemas are up to date:
 
 ```bash
@@ -247,9 +278,9 @@ php scripts/upgrade.php
 ```
 
 
-### Step 6: Configure Web Server
+#### Step 6: Configure Web Server
 
-#### Apache
+##### Apache
 ```apache
 <VirtualHost *:80>
     ServerName binktest.local
@@ -262,18 +293,18 @@ php scripts/upgrade.php
 </VirtualHost>
 ```
 
-#### Nginx
+##### Nginx
 ```nginx
 server {
     listen 80;
     server_name binktest.local;
     root /path/to/binktest/public_html;
     index index.php;
-    
+
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
-    
+
     location ~ \.php$ {
         fastcgi_pass unix:/var/run/php/php8.0-fpm.sock;
         fastcgi_index index.php;
@@ -283,13 +314,13 @@ server {
 }
 ```
 
-#### PHP Built-in Server (Development)
+##### PHP Built-in Server (Development)
 ```bash
 cd public_html
 php -S localhost:8080
 ```
 
-### Step 7: Set Up Cron Jobs (Recommended)
+#### Step 7: Set Up Cron Jobs (Recommended)
 Start the long-running services at boot and keep cron for periodic maintenance tasks:
 
 ```cron
@@ -308,7 +339,7 @@ Start the long-running services at boot and keep cron for periodic maintenance t
 
 Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for additional cron examples.
 
-### Step 7: Set Directory Permissions
+#### Step 8: Set Directory Permissions
 The `data/outbound` directory must be writable by both the web server and the user running binkp scripts:
 
 ```bash
