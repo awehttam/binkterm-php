@@ -11,8 +11,10 @@
         "symbol": "CR",
         "daily_amount": 25,
         "daily_login_delay_minutes": 5,
-        "approval_bonus": 300,
-        "netmail_cost": 1,
-        "echomail_reward": 3
+        "approval_bonus": 100,
+        "netmail_cost": 10,
+        "echomail_reward": 3,
+        "crashmail_cost": 20,
+        "poll_creation_cost": 15
     }
 }

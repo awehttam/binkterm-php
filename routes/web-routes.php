@@ -7,6 +7,7 @@ use BinktermPHP\BbsConfig;
 use BinktermPHP\Config;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\Template;
+use BinktermPHP\UserCredit;
 use Pecee\SimpleRouter\SimpleRouter;
 
 SimpleRouter::get('/', function() {
@@ -659,6 +660,23 @@ SimpleRouter::get('/subscriptions', function() {
         $template = new Template();
         $template->renderResponse('user_subscriptions.twig', $data);
     }
+});
+
+SimpleRouter::get('/polls/create', function() {
+    $auth = new Auth();
+    $user = $auth->requireAuth();
+
+    // Get poll creation cost
+    $pollCost = UserCredit::getCreditCost('poll_creation', 15);
+
+    // Get user's credit balance
+    $balance = UserCredit::getBalance($user['user_id'] ?? $user['id']);
+
+    $template = new Template();
+    $template->renderResponse('create_poll.twig', [
+        'poll_cost' => $pollCost,
+        'credit_balance' => $balance
+    ]);
 });
 
 // Include local/custom routes if they exist

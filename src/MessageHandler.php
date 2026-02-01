@@ -905,9 +905,15 @@ class MessageHandler
             $messageId = $this->db->lastInsertId();
             $creditsRules = $this->getCreditsRules();
             if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
+                // Award 2x credits for longer messages (over 1200 characters)
+                $messageLength = strlen($messageText);
+                $rewardAmount = $messageLength > 1200
+                    ? (int)$creditsRules['echomail_reward'] * 2
+                    : (int)$creditsRules['echomail_reward'];
+
                 $rewarded = UserCredit::credit(
                     $fromUserId,
-                    (int)$creditsRules['echomail_reward'],
+                    $rewardAmount,
                     'Echomail posted',
                     null,
                     UserCredit::TYPE_SYSTEM_REWARD

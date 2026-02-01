@@ -129,7 +129,17 @@
                     <div class="mb-3">
                         <label class="form-label" for="bbsCreditsEchomailReward">Echomail Reward</label>
                         <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
-                        <small class="text-muted">Credits earned when posting an echomail message.</small>
+                        <small class="text-muted">Credits earned when posting an echomail message.  Doubled when >= 1200 characters long.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsCrashmailCost">Crashmail Cost</label>
+                        <input type="number" class="form-control" id="bbsCreditsCrashmailCost" min="0" step="1">
+                        <small class="text-muted">Credits charged when sending direct/crashmail delivery.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsCreditsPollCreationCost">Poll Creation Cost</label>
+                        <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
+                        <small class="text-muted">Credits charged when creating a new poll.</small>
                     </div>
                     <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">Save Settings</button>
                 </div>
@@ -171,11 +181,15 @@ function loadBbsSettings() {
             const approvalBonusValue = parseInt(credits.approval_bonus, 10);
             const netmailCostValue = parseInt(credits.netmail_cost, 10);
             const echomailRewardValue = parseInt(credits.echomail_reward, 10);
+            const crashmailCostValue = parseInt(credits.crashmail_cost, 10);
+            const pollCreationCostValue = parseInt(credits.poll_creation_cost, 10);
             document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 25 : dailyAmountValue;
             document.getElementById('bbsCreditsDailyDelay').value = Number.isNaN(dailyDelayValue) ? 5 : dailyDelayValue;
-            document.getElementById('bbsCreditsApprovalBonus').value = Number.isNaN(approvalBonusValue) ? 300 : approvalBonusValue;
+            document.getElementById('bbsCreditsApprovalBonus').value = Number.isNaN(approvalBonusValue) ? 100 : approvalBonusValue;
             document.getElementById('bbsCreditsNetmailCost').value = Number.isNaN(netmailCostValue) ? 1 : netmailCostValue;
             document.getElementById('bbsCreditsEchomailReward').value = Number.isNaN(echomailRewardValue) ? 3 : echomailRewardValue;
+            document.getElementById('bbsCreditsCrashmailCost').value = Number.isNaN(crashmailCostValue) ? 10 : crashmailCostValue;
+            document.getElementById('bbsCreditsPollCreationCost').value = Number.isNaN(pollCreationCostValue) ? 15 : pollCreationCostValue;
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || 'Failed to load settings', 'danger');
@@ -303,6 +317,18 @@ function saveBbsCredits() {
         return;
     }
 
+    const crashmailCost = parseInt(document.getElementById('bbsCreditsCrashmailCost').value, 10);
+    if (Number.isNaN(crashmailCost) || crashmailCost < 0) {
+        showBbsCreditsAlert('Crashmail cost must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const pollCreationCost = parseInt(document.getElementById('bbsCreditsPollCreationCost').value, 10);
+    if (Number.isNaN(pollCreationCost) || pollCreationCost < 0) {
+        showBbsCreditsAlert('Poll creation cost must be a non-negative integer.', 'danger');
+        return;
+    }
+
     // Get current BBS features settings (don't change them)
     fetch('/admin/api/bbs-settings')
         .then(response => response.json())
@@ -318,7 +344,9 @@ function saveBbsCredits() {
                     daily_login_delay_minutes: dailyDelay,
                     approval_bonus: approvalBonus,
                     netmail_cost: netmailCost,
-                    echomail_reward: echomailReward
+                    echomail_reward: echomailReward,
+                    crashmail_cost: crashmailCost,
+                    poll_creation_cost: pollCreationCost
                 }
             };
 
