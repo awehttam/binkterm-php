@@ -1,6 +1,6 @@
 # BinktermPHP - “Your Public Home Point on the Network.”
 
-BinktermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
+BinktermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible bulletin board system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
 
 One of BinktermPHP’s key strengths is its mobile-responsive interface, making netmail and echomail comfortably accessible from phones and tablets while retaining the familiar feel of a classic BBS. ANSI art is supported, links are detected automatically, messages can be searched, and built-in address books help users keep track of their contacts. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
 
@@ -101,7 +101,10 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
 
-### Telnet Interface (Alpha)
+### Telnet Interface
+
+A basic telnet service is available in alpha state.  
+
 - **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
 - **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
 - **Security Features** - Login rate limiting (3 attempts per connection, 5/minute per IP) and connection logging
@@ -1253,12 +1256,29 @@ if ($userIdFromUrl && $tokenFromUrl) {
 
 BinktermPHP implements the evolving **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
 
+### Included WebDoors
+
+BinktermPHP ships with the following WebDoors out of the box:
+
+**Games:**
+- **Blackjack** - Classic casino card game against the dealer
+- **Hangman** - Word guessing game with category selection
+- **Klondike Solitaire** - Traditional solitaire with save/load support
+- **Reverse Polarity** - Reverse Polarity BBS 
+- **Wordle** - Popular five-letter word guessing game
+
+**Utilities:**
+- **BBSLink** - Gateway to classic DOS door games via BBSLink service
+- **Community Wireless Node List** - Interactive map for discovering and sharing community wireless networks, mesh networks, and grassroots infrastructure
+- **Source Games** - Live server browser for Source engine games (TF2, CS:GO) with real-time stats
+- **Terminal** - Web-based SSH terminal for system access
+
 ### Features
 
 - **Game Library** - Browse and launch available games from the web interface
 - **Save/Load Support** - Games can persist user progress via the BBS API
 - **Leaderboards** - Global and time-scoped high score tracking
-- **Multiplayer** - Real-time multiplayer support via WebSocket connections
+- **Multiplayer** - Real-time multiplayer support via WebSocket connections (not yet implemented)
 - **Lobby System** - Create and join game rooms for multiplayer sessions
 
 ### Configuration

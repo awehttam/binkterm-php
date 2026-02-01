@@ -99,7 +99,7 @@ For HTTPS with a self-signed certificate:
 php telnet/telnet_daemon.php --api-base=https://your-host --insecure
 ```
 
-Enable debug logging (shows API URLs, screen dimensions, login attempts):
+Enable debug logging (shows API URLs, screen dimensions, login attempts and misc debugging information to console and telnet sessions):
 
 ```bash
 php telnet/telnet_daemon.php --debug
@@ -157,7 +157,7 @@ sudo systemctl status binkterm-telnet
 Add to crontab for startup on boot:
 
 ```bash
-@reboot /usr/bin/php /path/to/binkterm/telnet/telnet_daemon.php >> /path/to/binkterm/data/logs/telnet.log 2>&1
+@reboot /usr/bin/php /path/to/binkterm/telnet/telnet_daemon.php --daemon
 ```
 
 ## Editor Controls
