@@ -232,6 +232,69 @@ class UserCredit
     }
 
     /**
+     * Process 14-day return bonus for new users.
+     * Awards bonus once when user logs in 14+ days after account creation.
+     *
+     * @param int $userId
+     * @return bool
+     * @throws \Exception
+     */
+    public static function process14DayReturn(int $userId): bool
+    {
+        $credits = self::getCreditsConfig();
+        if(!self::isEnabled())
+            return false;
+
+        $bonusAmount = (int)$credits['return_14days'];
+        if ($bonusAmount <= 0) {
+            return false;
+        }
+
+        // Check if user has already received this bonus
+        $meta = new UserMeta();
+        $alreadyAwarded = $meta->getValue($userId, 'received_14day_bonus');
+        if ($alreadyAwarded === '1') {
+            return false;
+        }
+
+        $db = Database::getInstance()->getPdo();
+
+        // Get the user's account creation date
+        $userStmt = $db->prepare('
+            SELECT created_at
+            FROM users
+            WHERE id = ?
+        ');
+        $userStmt->execute([$userId]);
+        $createdAt = $userStmt->fetchColumn();
+
+        if ($createdAt === false) {
+            return false;
+        }
+
+        $creationTime = new \DateTime($createdAt, new \DateTimeZone('UTC'));
+        $now = new \DateTime('now', new \DateTimeZone('UTC'));
+        $daysSinceCreation = $now->diff($creationTime)->days;
+
+        // Award bonus if 14 or more days since account creation
+        if ($daysSinceCreation >= 14) {
+            self::transact(
+                $userId,
+                $bonusAmount,
+                sprintf('Welcome back! Bonus for returning after %d days since joining', $daysSinceCreation),
+                null,
+                self::TYPE_SYSTEM_REWARD
+            );
+
+            // Mark as awarded (one-time bonus)
+            $meta->setValue($userId, 'received_14day_bonus', '1');
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Retrieve recent transactions for a user.
      *
      * @param int $userId
@@ -270,7 +333,9 @@ class UserCredit
             'netmail_cost' => 1,
             'echomail_reward' => 3,
             'crashmail_cost' => 10,
-            'poll_creation_cost' => 15
+            'poll_creation_cost' => 15,
+            'return_14days' => 50,
+            'transfer_fee_percent' => 0.05
         ];
 
         $merged = array_merge($defaults, $credits);
@@ -287,6 +352,8 @@ class UserCredit
         $merged['echomail_reward'] = max(0, (int)$merged['echomail_reward']);
         $merged['crashmail_cost'] = max(0, (int)$merged['crashmail_cost']);
         $merged['poll_creation_cost'] = max(0, (int)$merged['poll_creation_cost']);
+        $merged['return_14days'] = max(0, (int)$merged['return_14days']);
+        $merged['transfer_fee_percent'] = max(0, min(1, (float)$merged['transfer_fee_percent']));
 
         return $merged;
     }

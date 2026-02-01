@@ -330,6 +330,86 @@ SimpleRouter::get('/profile', function() {
     $template->renderResponse('profile.twig', $templateVars);
 });
 
+SimpleRouter::get('/profile/{username}', function($username) {
+    $auth = new Auth();
+    $currentUser = $auth->getCurrentUser();
+
+    if (!$currentUser) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    // Get the target user's information
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->prepare('
+        SELECT id, username, real_name, location, fidonet_address, created_at, last_login, is_admin, is_active
+        FROM users
+        WHERE username = ? AND is_active = TRUE
+    ');
+    $stmt->execute([$username]);
+    $targetUser = $stmt->fetch();
+
+    if (!$targetUser) {
+        // User not found or inactive
+        return SimpleRouter::response()->httpCode(404)->html('User not found');
+    }
+
+    // Get credits configuration
+    $creditsConfig = \BinktermPHP\BbsConfig::getConfig()['credits'] ?? [];
+    $creditsEnabled = $creditsConfig['enabled'] ?? true;
+    $creditsSymbol = $creditsConfig['symbol'] ?? '$';
+
+    // Get credit balance (public information)
+    $creditBalance = 0;
+    if ($creditsEnabled) {
+        try {
+            $creditBalance = \BinktermPHP\UserCredit::getBalance((int)$targetUser['id']);
+        } catch (\Throwable $e) {
+            $creditBalance = 0;
+        }
+    }
+
+    // Check if viewing own profile
+    $isOwnProfile = ($currentUser['username'] === $username);
+    $canViewSensitive = $isOwnProfile || !empty($currentUser['is_admin']);
+    $viewerIsAdmin = !empty($currentUser['is_admin']);
+
+    // Get transaction history for admins
+    $transactions = [];
+    if ($viewerIsAdmin && $creditsEnabled) {
+        try {
+            $transactions = \BinktermPHP\UserCredit::getTransactionHistory((int)$targetUser['id'], 10);
+        } catch (\Throwable $e) {
+            $transactions = [];
+        }
+    }
+
+    // Get transfer fee percentage
+    $transferFeePercent = isset($creditsConfig['transfer_fee_percent']) ? (float)$creditsConfig['transfer_fee_percent'] : 0.05;
+    $transferFeePercent = max(0, min(1, $transferFeePercent));
+
+    $templateVars = [
+        'profile_username' => $targetUser['username'],
+        'profile_real_name' => $targetUser['real_name'] ?? '',
+        'profile_location' => $targetUser['location'] ?? '',
+        'profile_fidonet_address' => $targetUser['fidonet_address'] ?? '',
+        'profile_created_at' => $targetUser['created_at'],
+        'profile_last_login' => $targetUser['last_login'],
+        'profile_is_admin' => (bool)$targetUser['is_admin'],
+        'profile_user_id' => $targetUser['id'],
+        'credits_enabled' => !empty($creditsEnabled),
+        'credits_symbol' => $creditsSymbol,
+        'credit_balance' => $creditBalance,
+        'is_own_profile' => $isOwnProfile,
+        'can_view_sensitive' => $canViewSensitive,
+        'viewer_is_admin' => $viewerIsAdmin,
+        'transactions' => $transactions,
+        'transfer_fee_percent' => $transferFeePercent
+    ];
+
+    $template = new Template();
+    $template->renderResponse('user_profile.twig', $templateVars);
+});
+
 SimpleRouter::get('/development-history', function() {
     // Get system configuration for display
     try {

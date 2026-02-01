@@ -2611,6 +2611,259 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::get('/user/stats/{userId}', function($userId) {
+        $user = RouteHelper::requireAuth();
+
+        // Only admins can view other users' stats
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+
+        // Verify target user exists and is active
+        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt->execute([$userId]);
+        if (!$userStmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        // Get user message statistics
+        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ?");
+        $netmailStmt->execute([$userId]);
+        $netmailCount = $netmailStmt->fetch()['count'];
+
+        // For echomail, count messages from this user based on their username
+        // We need to get the user's real name to match echomail posts
+        $userInfoStmt = $db->prepare("SELECT real_name FROM users WHERE id = ?");
+        $userInfoStmt->execute([$userId]);
+        $userInfo = $userInfoStmt->fetch();
+
+        $echomailCount = 0;
+        if ($userInfo && !empty($userInfo['real_name'])) {
+            $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE from_name = ?");
+            $echomailStmt->execute([$userInfo['real_name']]);
+            $echomailCount = $echomailStmt->fetch()['count'];
+        }
+
+        echo json_encode([
+            'netmail_count' => (int)$netmailCount,
+            'echomail_count' => (int)$echomailCount
+        ]);
+    });
+
+    SimpleRouter::get('/user/transactions/{userId}', function($userId) {
+        $user = RouteHelper::requireAuth();
+
+        // Only admins can view transaction history
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+
+        // Verify target user exists and is active
+        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt->execute([$userId]);
+        if (!$userStmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        // Get pagination parameters
+        $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+        $limit = isset($_GET['limit']) ? max(1, min(50, (int)$_GET['limit'])) : 10;
+
+        try {
+            $stmt = $db->prepare('
+                SELECT id, user_id, other_party_id, amount, balance_after, description, transaction_type, created_at
+                FROM user_transactions
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            ');
+            $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+            $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $transactions = $stmt->fetchAll();
+
+            echo json_encode([
+                'success' => true,
+                'transactions' => $transactions,
+                'offset' => $offset,
+                'limit' => $limit
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to fetch transactions']);
+        }
+    });
+
+    SimpleRouter::post('/credits/send', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!UserCredit::isEnabled()) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Credits system is disabled']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $recipientId = isset($input['recipient_id']) ? (int)$input['recipient_id'] : 0;
+        $amount = isset($input['amount']) ? (int)$input['amount'] : 0;
+        $message = isset($input['message']) ? trim($input['message']) : '';
+
+        $senderId = (int)($user['user_id'] ?? $user['id']);
+
+        // Validate amount
+        if ($amount < 1 || $amount > 200) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Amount must be between 1 and 200 credits']);
+            return;
+        }
+
+        // Can't send to yourself
+        if ($senderId === $recipientId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Cannot send credits to yourself']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+
+        try {
+            // Verify recipient exists and is active
+            $recipientStmt = $db->prepare('SELECT id, username FROM users WHERE id = ? AND is_active = TRUE');
+            $recipientStmt->execute([$recipientId]);
+            $recipient = $recipientStmt->fetch();
+
+            if (!$recipient) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Recipient not found']);
+                return;
+            }
+
+            // Check sender has enough credits
+            $senderBalance = UserCredit::getBalance($senderId);
+            if ($senderBalance < $amount) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Insufficient credits']);
+                return;
+            }
+
+            // Get configured transfer fee percentage
+            $creditsConfig = \BinktermPHP\BbsConfig::getConfig()['credits'] ?? [];
+            $feePercent = isset($creditsConfig['transfer_fee_percent']) ? (float)$creditsConfig['transfer_fee_percent'] : 0.05;
+            $feePercent = max(0, min(1, $feePercent)); // Clamp between 0 and 1
+
+            // Calculate fee and distribution
+            $fee = (int)ceil($amount * $feePercent);
+            $amountToRecipient = $amount - $fee;
+
+            // Get all sysops (admins)
+            $sysopStmt = $db->prepare('SELECT id, username FROM users WHERE is_admin = TRUE AND is_active = TRUE');
+            $sysopStmt->execute();
+            $sysops = $sysopStmt->fetchAll();
+
+            if (empty($sysops)) {
+                // No sysops, give full amount to recipient (shouldn't happen but handle gracefully)
+                $amountToRecipient = $amount;
+                $fee = 0;
+            }
+
+            // Debit sender (UserCredit methods handle their own transactions)
+            $messageText = $message ? " - {$message}" : '';
+            $debitSuccess = UserCredit::debit(
+                $senderId,
+                $amount,
+                "Sent to {$recipient['username']}{$messageText}",
+                $recipientId,
+                UserCredit::TYPE_PAYMENT
+            );
+
+            if (!$debitSuccess) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to debit sender']);
+                return;
+            }
+
+            // Credit recipient
+            $senderUsername = $user['username'];
+            $creditSuccess = UserCredit::credit(
+                $recipientId,
+                $amountToRecipient,
+                "Received from {$senderUsername}{$messageText}",
+                $senderId,
+                UserCredit::TYPE_PAYMENT
+            );
+
+            if (!$creditSuccess) {
+                // Try to refund sender
+                UserCredit::credit(
+                    $senderId,
+                    $amount,
+                    "Refund: Failed transfer to {$recipient['username']}",
+                    $recipientId,
+                    UserCredit::TYPE_REFUND
+                );
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to credit recipient']);
+                return;
+            }
+
+            // Distribute fee to sysops
+            if ($fee > 0 && !empty($sysops)) {
+                $feePerSysop = (int)floor($fee / count($sysops));
+                $remainder = $fee - ($feePerSysop * count($sysops));
+
+                foreach ($sysops as $index => $sysop) {
+                    $sysopFee = $feePerSysop;
+                    // Give remainder to first sysop
+                    if ($index === 0) {
+                        $sysopFee += $remainder;
+                    }
+
+                    if ($sysopFee > 0) {
+                        UserCredit::credit(
+                            (int)$sysop['id'],
+                            $sysopFee,
+                            "Transaction fee from {$senderUsername} → {$recipient['username']}",
+                            $senderId,
+                            UserCredit::TYPE_SYSTEM_REWARD
+                        );
+                    }
+                }
+            }
+
+            echo json_encode([
+                'success' => true,
+                'fee' => $fee,
+                'amount_received' => $amountToRecipient,
+                'message' => 'Credits sent successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
     SimpleRouter::get('/user/credits', function() {
         $user = RouteHelper::requireAuth();
 

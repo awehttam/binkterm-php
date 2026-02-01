@@ -90,58 +90,74 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-6">
-            <div class="card shadow h-100">
+        <div class="col-12">
+            <div class="card shadow">
                 <div class="card-header">
                     <h6 class="mb-0">Credits System Configuration</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsCreditsAlert"></div>
-                    <div class="mb-3 form-check">
-                        <input class="form-check-input" type="checkbox" id="bbsCreditsEnabled">
-                        <label class="form-check-label" for="bbsCreditsEnabled">Credits System Enabled</label>
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="mb-3 form-check">
+                                <input class="form-check-input" type="checkbox" id="bbsCreditsEnabled">
+                                <label class="form-check-label" for="bbsCreditsEnabled">Credits System Enabled</label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsSymbol">Currency Symbol</label>
+                                <input type="text" class="form-control" id="bbsCreditsSymbol" maxlength="5">
+                                <small class="text-muted">Example: $, USD (max 5 characters). Leave blank for no symbol.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsDailyAmount">Daily Login Bonus Amount</label>
+                                <input type="number" class="form-control" id="bbsCreditsDailyAmount" min="0" step="1">
+                                <small class="text-muted">Amount of credits awarded to users on daily login.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsDailyDelay">Daily Login Delay (minutes)</label>
+                                <input type="number" class="form-control" id="bbsCreditsDailyDelay" min="0" step="1">
+                                <small class="text-muted">Minutes after login before daily bonus is awarded.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsApprovalBonus">New User Approval Bonus</label>
+                                <input type="number" class="form-control" id="bbsCreditsApprovalBonus" min="0" step="1">
+                                <small class="text-muted">Credits awarded when a pending user is approved.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsNew14Days">New User 14-Day Milestone Bonus</label>
+                                <input type="number" class="form-control" id="bbsCreditsNew14Days" min="0" step="1">
+                                <small class="text-muted">One-time bonus awarded when user logs in 14+ days after account creation.</small>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsNetmailCost">Netmail Cost</label>
+                                <input type="number" class="form-control" id="bbsCreditsNetmailCost" min="0" step="1">
+                                <small class="text-muted">Credits charged when sending a netmail message.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsEchomailReward">Echomail Reward</label>
+                                <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
+                                <small class="text-muted">Credits earned when posting an echomail message. Doubled when >= 1200 characters long.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsCrashmailCost">Crashmail Cost</label>
+                                <input type="number" class="form-control" id="bbsCreditsCrashmailCost" min="0" step="1">
+                                <small class="text-muted">Credits charged when sending direct/crashmail delivery.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsPollCreationCost">Poll Creation Cost</label>
+                                <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
+                                <small class="text-muted">Credits charged when creating a new poll.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsTransferFee">Transfer Fee Percentage</label>
+                                <input type="number" class="form-control" id="bbsCreditsTransferFee" min="0" max="1" step="0.01">
+                                <small class="text-muted">Percentage of credit transfers taken as fee (0.05 = 5%). Distributed to sysops.</small>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsSymbol">Currency Symbol</label>
-                        <input type="text" class="form-control" id="bbsCreditsSymbol" maxlength="5">
-                        <small class="text-muted">Example: $, USD (max 5 characters). Leave blank for no symbol.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsDailyAmount">Daily Login Bonus Amount</label>
-                        <input type="number" class="form-control" id="bbsCreditsDailyAmount" min="0" step="1">
-                        <small class="text-muted">Amount of credits awarded to users on daily login.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsDailyDelay">Daily Login Delay (minutes)</label>
-                        <input type="number" class="form-control" id="bbsCreditsDailyDelay" min="0" step="1">
-                        <small class="text-muted">Minutes after login before daily bonus is awarded.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsApprovalBonus">New User Approval Bonus</label>
-                        <input type="number" class="form-control" id="bbsCreditsApprovalBonus" min="0" step="1">
-                        <small class="text-muted">Credits awarded when a pending user is approved.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsNetmailCost">Netmail Cost</label>
-                        <input type="number" class="form-control" id="bbsCreditsNetmailCost" min="0" step="1">
-                        <small class="text-muted">Credits charged when sending a netmail message.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsEchomailReward">Echomail Reward</label>
-                        <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
-                        <small class="text-muted">Credits earned when posting an echomail message.  Doubled when >= 1200 characters long.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsCrashmailCost">Crashmail Cost</label>
-                        <input type="number" class="form-control" id="bbsCreditsCrashmailCost" min="0" step="1">
-                        <small class="text-muted">Credits charged when sending direct/crashmail delivery.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="bbsCreditsPollCreationCost">Poll Creation Cost</label>
-                        <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
-                        <small class="text-muted">Credits charged when creating a new poll.</small>
-                    </div>
-                    <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">Save Settings</button>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">Save Credit Settings</button>
                 </div>
             </div>
         </div>
@@ -183,6 +199,8 @@ function loadBbsSettings() {
             const echomailRewardValue = parseInt(credits.echomail_reward, 10);
             const crashmailCostValue = parseInt(credits.crashmail_cost, 10);
             const pollCreationCostValue = parseInt(credits.poll_creation_cost, 10);
+            const new14DaysValue = parseInt(credits.return_14days, 10);
+            const transferFeeValue = parseFloat(credits.transfer_fee_percent);
             document.getElementById('bbsCreditsDailyAmount').value = Number.isNaN(dailyAmountValue) ? 25 : dailyAmountValue;
             document.getElementById('bbsCreditsDailyDelay').value = Number.isNaN(dailyDelayValue) ? 5 : dailyDelayValue;
             document.getElementById('bbsCreditsApprovalBonus').value = Number.isNaN(approvalBonusValue) ? 100 : approvalBonusValue;
@@ -190,6 +208,8 @@ function loadBbsSettings() {
             document.getElementById('bbsCreditsEchomailReward').value = Number.isNaN(echomailRewardValue) ? 3 : echomailRewardValue;
             document.getElementById('bbsCreditsCrashmailCost').value = Number.isNaN(crashmailCostValue) ? 10 : crashmailCostValue;
             document.getElementById('bbsCreditsPollCreationCost').value = Number.isNaN(pollCreationCostValue) ? 15 : pollCreationCostValue;
+            document.getElementById('bbsCreditsNew14Days').value = Number.isNaN(new14DaysValue) ? 50 : new14DaysValue;
+            document.getElementById('bbsCreditsTransferFee').value = Number.isNaN(transferFeeValue) ? 0.05 : transferFeeValue;
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || 'Failed to load settings', 'danger');
@@ -329,6 +349,18 @@ function saveBbsCredits() {
         return;
     }
 
+    const new14Days = parseInt(document.getElementById('bbsCreditsNew14Days').value, 10);
+    if (Number.isNaN(new14Days) || new14Days < 0) {
+        showBbsCreditsAlert('14-day return bonus must be a non-negative integer.', 'danger');
+        return;
+    }
+
+    const transferFee = parseFloat(document.getElementById('bbsCreditsTransferFee').value);
+    if (Number.isNaN(transferFee) || transferFee < 0 || transferFee > 1) {
+        showBbsCreditsAlert('Transfer fee must be between 0 and 1 (0% to 100%).', 'danger');
+        return;
+    }
+
     // Get current BBS features settings (don't change them)
     fetch('/admin/api/bbs-settings')
         .then(response => response.json())
@@ -346,7 +378,9 @@ function saveBbsCredits() {
                     netmail_cost: netmailCost,
                     echomail_reward: echomailReward,
                     crashmail_cost: crashmailCost,
-                    poll_creation_cost: pollCreationCost
+                    poll_creation_cost: pollCreationCost,
+                    return_14days: new14Days,
+                    transfer_fee_percent: transferFee
                 }
             };
 

@@ -184,9 +184,12 @@ function displayUsers(users) {
             <td>${new Date(user.created_at).toLocaleDateString()}</td>
             <td>
                 <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-info" onclick="viewUser(${user.id})" title="View">
+                    <button type="button" class="btn btn-outline-info" onclick="viewUser(${user.id})" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <a href="/profile/${encodeURIComponent(user.username)}" class="btn btn-outline-secondary btn-sm" title="View Profile" target="_blank">
+                        <i class="fas fa-user"></i>
+                    </a>
                     <button type="button" class="btn btn-outline-primary" onclick="editUser(${user.id})" title="Edit">
                         <i class="fas fa-edit"></i>
                     </button>
@@ -266,7 +269,7 @@ function editUser(userId) {
             document.getElementById('password').required = false;
             document.getElementById('passwordRequired').style.display = 'none';
             document.getElementById('passwordHelp').style.display = 'block';
-            
+
             new bootstrap.Modal(document.getElementById('userModal')).show();
         })
         .catch(error => {

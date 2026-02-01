@@ -30,7 +30,9 @@
                         <tbody id="onlineUsersBody">
                             {% for user in online_users %}
                             <tr>
-                                <td>{{ user.username }}</td>
+                                <td>
+                                    <a href="/profile/{{ user.username }}" class="text-decoration-none">{{ user.username }}</a>
+                                </td>
                                 <td>{{ user.location ?: 'Unknown' }}</td>
                                 {% if current_user and current_user.is_admin %}
                                 <td>{{ user.activity ?: '-' }}</td>
@@ -86,9 +88,11 @@
         if (onlineUsersBody) {
             onlineUsersBody.innerHTML = users.map(user => {
                 const location = user.location && user.location !== '' ? user.location : 'Unknown';
+                const username = escapeHtml(user.username || '');
+                const usernameCell = `<a href="/profile/${encodeURIComponent(user.username)}" class="text-decoration-none">${username}</a>`;
                 const activityCell = isAdmin ? `<td>${user.activity && user.activity !== '' ? user.activity : '-'}</td>` : '';
                 return `<tr>
-                    <td>${escapeHtml(user.username || '')}</td>
+                    <td>${usernameCell}</td>
                     <td>${escapeHtml(location)}</td>
                     ${activityCell}
                 </tr>`;
