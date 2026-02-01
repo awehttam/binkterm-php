@@ -116,4 +116,35 @@ class SystemStatus
 
         return $head;
     }
+
+    /**
+     * Get the current git branch name
+     *
+     * @return string|null The current branch name or null if not in a git repo
+     */
+    public static function getGitBranch(): ?string
+    {
+        $gitDir = __DIR__ . '/../.git';
+        if (!is_dir($gitDir)) {
+            return null;
+        }
+
+        $headFile = $gitDir . '/HEAD';
+        if (!is_file($headFile)) {
+            return null;
+        }
+
+        $head = trim((string)@file_get_contents($headFile));
+        if ($head === '') {
+            return null;
+        }
+
+        // HEAD file contains "ref: refs/heads/branchname"
+        if (strpos($head, 'ref: refs/heads/') === 0) {
+            return substr($head, 16); // Extract branch name after "ref: refs/heads/"
+        }
+
+        // If HEAD is detached (contains a commit hash directly), return null or "HEAD"
+        return null;
+    }
 }

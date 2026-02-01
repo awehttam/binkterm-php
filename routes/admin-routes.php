@@ -32,6 +32,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'db_version' => $dbVersion,
             'daemon_status' => \BinktermPHP\SystemStatus::getDaemonStatus(),
             'git_commit' => \BinktermPHP\SystemStatus::getGitCommitHash(),
+            'git_branch' => \BinktermPHP\SystemStatus::getGitBranch(),
             'system_addresses' => $systemAddresses
         ]);
     });

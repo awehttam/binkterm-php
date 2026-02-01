@@ -155,9 +155,12 @@
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>Git Commit:</strong>
+                            <strong>Git Branch / Commit:</strong>
                         </div>
                         <div class="col-sm-6">
+                            {% if git_branch %}
+                                <span class="badge bg-info">{{ git_branch }}</span>
+                            {% endif %}
                             {% if git_commit %}
                                 <span class="text-muted">{{ git_commit|slice(0, 8) }}</span>
                             {% else %}
