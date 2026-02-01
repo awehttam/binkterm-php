@@ -44,7 +44,8 @@ class SetupManager
 
         echo "\nSetting directory permissions...\n";
 
-        $outboundDir = __DIR__ . '/../data/outbound';
+        $baseDir = __DIR__ . '/../data';
+        $outboundDir = $baseDir . '/outbound';
 
         if (is_dir($outboundDir)) {
             // chmod a+rwxt (1777) - world writable with sticky bit
@@ -57,6 +58,31 @@ class SetupManager
             }
         } else {
             echo "⚠ data/outbound directory not found\n";
+        }
+
+        // Create and set permissions for file areas directories
+        $filesDirs = [
+            $baseDir . '/files',
+            $baseDir . '/files/.quarantine',
+            $baseDir . '/files/private'
+        ];
+
+        foreach ($filesDirs as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0777, true);
+                echo "✓ Created directory: " . basename(dirname($dir)) . "/" . basename($dir) . "\n";
+
+                // Create .gitkeep file
+                file_put_contents($dir . '/.gitkeep', '');
+            }
+
+            // Set world writable with sticky bit
+            $result = chmod($dir, 01777);
+            if ($result) {
+                echo "✓ Set permissions on " . str_replace($baseDir . '/', 'data/', $dir) . " (a+rwxt)\n";
+            } else {
+                echo "⚠ Could not set permissions on " . str_replace($baseDir . '/', 'data/', $dir) . "\n";
+            }
         }
     }
     
