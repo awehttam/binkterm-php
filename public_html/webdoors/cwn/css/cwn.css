@@ -1,0 +1,391 @@
+/* Community Wireless Node List - Dark Theme */
+
+body {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+.container-fluid {
+    background-color: #1a1a1a;
+}
+
+h3, h5, h6 {
+    color: #ffffff;
+}
+
+.text-muted {
+    color: #999 !important;
+}
+
+/* Cards */
+.card {
+    background-color: #242424;
+    border: 1px solid #333;
+    color: #e0e0e0;
+}
+
+.card-header {
+    background-color: #2a2a2a;
+    border-bottom: 1px solid #333;
+    color: #ffffff;
+}
+
+.card-body {
+    background-color: #242424;
+}
+
+/* Map */
+#map {
+    z-index: 1;
+    border: 1px solid #444 !important;
+}
+
+/* Network cards */
+.network-card {
+    background-color: #2a2a2a;
+    border-left: 4px solid #0d6efd;
+    border: 1px solid #333;
+    transition: all 0.2s;
+}
+
+.network-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    background-color: #303030;
+}
+
+.network-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.network-type-mesh { background-color: #198754; }
+.network-type-bbs { background-color: #0d6efd; }
+.network-type-community { background-color: #ffc107; color: #000; }
+.network-type-experimental { background-color: #6f42c1; }
+.network-type-event { background-color: #fd7e14; }
+.network-type-isp { background-color: #20c997; }
+.network-type-other { background-color: #6c757d; }
+
+/* Leaflet popup dark theme */
+.leaflet-popup-content-wrapper {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+}
+
+.leaflet-popup-content {
+    min-width: 250px;
+    color: #e0e0e0;
+}
+
+.leaflet-popup-content h6 {
+    margin-bottom: 0.5rem;
+    color: #4a9eff;
+}
+
+.leaflet-popup-content .badge {
+    font-size: 0.7rem;
+}
+
+.leaflet-popup-content small {
+    color: #999;
+}
+
+.leaflet-popup-tip {
+    background-color: #2a2a2a;
+}
+
+/* Statistics cards */
+.stat-card {
+    transition: all 0.2s;
+}
+
+.stat-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.2);
+}
+
+/* List groups */
+#networksList .list-group-item {
+    background-color: #2a2a2a;
+    border: 1px solid #333;
+    border-left: 3px solid transparent;
+    color: #e0e0e0;
+    transition: all 0.2s;
+}
+
+#networksList .list-group-item:hover {
+    border-left-color: #0d6efd;
+    background-color: #303030;
+}
+
+.network-meta {
+    font-size: 0.875rem;
+    color: #999;
+}
+
+.network-meta i {
+    width: 16px;
+    text-align: center;
+}
+
+/* Modals */
+.modal-content {
+    background-color: #242424;
+    border: 1px solid #444;
+    color: #e0e0e0;
+}
+
+.modal-header {
+    background-color: #2a2a2a;
+    border-bottom: 1px solid #444;
+    color: #ffffff;
+}
+
+.modal-footer {
+    background-color: #2a2a2a;
+    border-top: 1px solid #444;
+}
+
+.modal-body .alert {
+    border-radius: 0.375rem;
+}
+
+.modal-body .alert-info {
+    background-color: #1a3a52;
+    border-color: #2a5a7a;
+    color: #7ec8ff;
+}
+
+.btn-close {
+    filter: invert(1);
+}
+
+/* Forms */
+.form-label {
+    color: #e0e0e0;
+}
+
+.form-control,
+.form-select {
+    background-color: #1a1a1a;
+    border: 1px solid #444;
+    color: #e0e0e0;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: #242424;
+    border-color: #0d6efd;
+    color: #e0e0e0;
+}
+
+.form-control::placeholder {
+    color: #666;
+}
+
+.form-text {
+    color: #999;
+}
+
+.form-check-label {
+    color: #e0e0e0;
+}
+
+.form-check-input {
+    background-color: #1a1a1a;
+    border-color: #444;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* Character counter */
+#charCount {
+    font-weight: bold;
+}
+
+#charCount.text-danger {
+    color: #ff6b6b !important;
+}
+
+#charCount.text-warning {
+    color: #ffd93d !important;
+}
+
+#charCount.text-success {
+    color: #51cf66 !important;
+}
+
+/* Loading states */
+.loading-spinner {
+    text-align: center;
+    padding: 2rem;
+    color: #999;
+}
+
+/* Buttons */
+.btn-success {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.btn-success:hover {
+    background-color: #20a362;
+    border-color: #20a362;
+}
+
+.btn-outline-primary {
+    color: #4a9eff;
+    border-color: #4a9eff;
+}
+
+.btn-outline-primary:hover {
+    background-color: #4a9eff;
+    border-color: #4a9eff;
+    color: #000;
+}
+
+.btn-outline-secondary {
+    color: #adb5bd;
+    border-color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+/* Badges */
+.badge.bg-primary {
+    background-color: #0d6efd !important;
+}
+
+.badge.bg-secondary {
+    background-color: #6c757d !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #map {
+        height: 350px !important;
+    }
+
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    h3 {
+        font-size: 1.5rem;
+    }
+}
+
+/* Custom marker icons */
+.custom-marker {
+    background-color: #0d6efd;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+/* User location marker */
+.user-location-marker {
+    background: none !important;
+    border: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-location-marker i {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+/* Network details styling */
+.network-details dt {
+    font-weight: 600;
+    color: #adb5bd;
+}
+
+.network-details dd {
+    margin-bottom: 0.5rem;
+    color: #e0e0e0;
+}
+
+.coordinates {
+    font-family: 'Courier New', monospace;
+    background-color: #1a1a1a;
+    color: #4a9eff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    border: 1px solid #333;
+}
+
+/* Password field styling */
+.password-field {
+    font-family: 'Courier New', monospace;
+    background-color: #1a1a1a;
+    color: #51cf66;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px dashed #444;
+}
+
+.password-hidden {
+    filter: blur(4px);
+    cursor: pointer;
+}
+
+.password-hidden:hover {
+    filter: blur(2px);
+}
+
+/* Links */
+a {
+    color: #4a9eff;
+}
+
+a:hover {
+    color: #7bb4ff;
+}
+
+/* Text colors */
+.text-center.text-muted {
+    color: #999 !important;
+}
+
+/* Definition lists */
+dl {
+    color: #e0e0e0;
+}
+
+/* Ensure readable text */
+p, span, div, small {
+    color: inherit;
+}
+
+/* Fix Bootstrap default text colors */
+.list-group-item h6 {
+    color: #ffffff;
+}
+
+.list-group-item p {
+    color: #e0e0e0;
+}

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Wireless Node List</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="/vendor/leaflet-1.9.4/css/leaflet.css" />
+    <link rel="stylesheet" href="/vendor/leaflet.markercluster-1.5.3/css/MarkerCluster.css" />
+    <link rel="stylesheet" href="/vendor/leaflet.markercluster-1.5.3/css/MarkerCluster.Default.css" />
+
+    <!-- Bootstrap -->
+    <link href="/vendor/bootstrap-5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/vendor/fontawesome-6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/cwn.css">
+</head>
+<body>
+    <div class="container-fluid p-3">
+        <!-- Header -->
+        <div class="row mb-3">
+            <div class="col">
+                <h3><i class="fas fa-wifi"></i> Community Wireless Node List</h3>
+                <p class="text-muted">Discover and share community wireless networks</p>
+            </div>
+            <div class="col-auto">
+                <span class="badge bg-primary fs-6">Credits: <span id="userCredits">-</span></span>
+            </div>
+        </div>
+
+        <!-- Search Controls -->
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <button class="btn btn-success w-100" onclick="showSubmitForm()">
+                    <i class="fas fa-plus"></i> Submit Network (+3 credits)
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-outline-primary w-100" onclick="useMyLocation()">
+                    <i class="fas fa-location-arrow"></i> Show Nearby Networks (1 credit)
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-outline-secondary w-100" onclick="refreshNetworks()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div class="row mb-3">
+            <div class="col">
+                <div id="map" style="height: 500px; border-radius: 8px; border: 1px solid #ddd;"></div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 id="totalNetworks">-</h5>
+                        <small class="text-muted">Total Networks</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 id="mySubmissions">-</h5>
+                        <small class="text-muted">My Submissions</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 id="totalSearches">-</h5>
+                        <small class="text-muted">My Searches</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 id="creditsEarned">-</h5>
+                        <small class="text-muted">Credits Earned</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Networks List -->
+        <div class="row">
+            <div class="col">
+                <h5>Recent Networks</h5>
+                <div id="networksList">
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-spinner fa-spin"></i> Loading networks...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit Network Modal -->
+    <div class="modal fade" id="submitModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Submit New Network</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="submitForm">
+                        <div class="mb-3">
+                            <label for="ssid" class="form-label">Network Name (SSID) *</label>
+                            <input type="text" class="form-control" id="ssid" required maxlength="100">
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="latitude" class="form-label">Latitude *</label>
+                                <input type="number" class="form-control" id="latitude" step="0.001" min="-90" max="90" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="longitude" class="form-label">Longitude *</label>
+                                <input type="number" class="form-control" id="longitude" step="0.001" min="-180" max="180" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="useCurrentLocation()">
+                                <i class="fas fa-location-arrow"></i> Use Current Location
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="pickOnMap()">
+                                <i class="fas fa-map-marker-alt"></i> Pick on Map
+                            </button>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="networkType" class="form-label">Network Type</label>
+                            <select class="form-select" id="networkType">
+                                <option value="mesh">Mesh Network</option>
+                                <option value="bbs">Wireless BBS</option>
+                                <option value="community">Community WiFi</option>
+                                <option value="experimental">Experimental</option>
+                                <option value="event">Event Network</option>
+                                <option value="isp">Community ISP</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description * (10-500 characters)</label>
+                            <textarea class="form-control" id="description" rows="3" required minlength="10" maxlength="500"></textarea>
+                            <div class="form-text"><span id="charCount">0</span>/500 characters</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="wifiPassword" class="form-label">WiFi Password (optional, for public networks)</label>
+                            <input type="text" class="form-control" id="wifiPassword" maxlength="100">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="isOpen" onchange="togglePassword()">
+                                <label class="form-check-label" for="isOpen">
+                                    This network is open (no password)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-coins"></i> You will earn <strong>3 credits</strong> for this submission!
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="submitNetwork()">
+                        <i class="fas fa-paper-plane"></i> Submit Network
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailsTitle">Network Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="detailsBody">
+                    <!-- Details will be populated here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <div id="detailsActions">
+                        <!-- Edit/Delete buttons will be added here if user owns the network -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Network Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Network</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="editNetworkId">
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> You can only edit the description, password, and network type. Location and SSID cannot be changed.
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editNetworkType" class="form-label">Network Type</label>
+                            <select class="form-select" id="editNetworkType">
+                                <option value="mesh">Mesh Network</option>
+                                <option value="bbs">Wireless BBS</option>
+                                <option value="community">Community WiFi</option>
+                                <option value="experimental">Experimental</option>
+                                <option value="event">Event Network</option>
+                                <option value="isp">Community ISP</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editDescription" class="form-label">Description * (10-500 characters)</label>
+                            <textarea class="form-control" id="editDescription" rows="3" required minlength="10" maxlength="500"></textarea>
+                            <div class="form-text"><span id="editCharCount">0</span>/500 characters</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editWifiPassword" class="form-label">WiFi Password (optional)</label>
+                            <input type="text" class="form-control" id="editWifiPassword" maxlength="100">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="editIsOpen" onchange="toggleEditPassword()">
+                                <label class="form-check-label" for="editIsOpen">
+                                    This network is open (no password)
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNetworkEdit()">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/vendor/leaflet-1.9.4/js/leaflet.js"></script>
+    <script src="/vendor/leaflet.markercluster-1.5.3/js/leaflet.markercluster.js"></script>
+    <script src="/vendor/jquery-3.7.1/jquery-3.7.1.min.js"></script>
+    <script src="/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="js/cwn.js"></script>
+</body>
+</html>

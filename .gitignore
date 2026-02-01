@@ -23,7 +23,7 @@ data/run/*
 backups/*
 .idea/
 .claude/
-vendor/
+/vendor/
 *~
 .env
 .env.local
