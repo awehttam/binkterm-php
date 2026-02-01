@@ -1,6 +1,6 @@
 # BinktermPHP - “Your Public Home Point on the Network.”
 
-BinktermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
+BinktermPHP is a modern web-based BBS built for the Fidonet world, combining classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail while providing a browser-accessible bulletin board system where users can read messages, chat, access web doors, and participate just like on a traditional bulletin board. In this context, PHP stands for Public Home Point — a place on the network where packets, people, and conversations come together.
 
 One of BinktermPHP’s key strengths is its mobile-responsive interface, making netmail and echomail comfortably accessible from phones and tablets while retaining the familiar feel of a classic BBS. ANSI art is supported, links are detected automatically, messages can be searched, and built-in address books help users keep track of their contacts. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
 
@@ -101,12 +101,91 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
 
-### Telnet Interface (Alpha)
+### Telnet Interface
+
+A basic telnet service is available in alpha state.  
+
 - **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
 - **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
 - **Security Features** - Login rate limiting (3 attempts per connection, 5/minute per IP) and connection logging
 - **Multi-Platform** - Works with PuTTY, SyncTERM, and standard telnet clients on Linux/macOS/Windows
 - See **[telnet/README.md](telnet/README.md)** for complete documentation, configuration options, and troubleshooting
+
+### Credits System
+
+BinktermPHP includes an integrated credits economy that rewards user participation and allows charging for certain actions. Credits can be used to encourage quality content, manage resource usage, and gamify the BBS experience.
+
+**Key Features:**
+- Configurable credit costs and rewards for various activities
+- Daily login bonuses to encourage regular participation
+- New user approval bonuses to welcome approved members
+- Bonus rewards for longer, higher-quality content
+- Transaction history and balance tracking
+
+**Default Credit Values:**
+
+| Activity                                      | Amount | Type | Notes |
+|-----------------------------------------------|--------|------|-------|
+| Daily Login                                   | +25    | Reward | Awarded once per day after 5-minute delay |
+| New User Approval                             | +100   | Bonus | One-time reward when account is approved |
+| Netmail Sent                                  | -5     | Cost | Private messages to other users |
+| Echomail Posted                               | +3     | Reward | Public forum posts |
+| Echomail Posted (approx. 2 paragraphs) | +6     | Bonus | 2x reward for substantial posts (2+ paragraphs) |
+| Crashmail Sent                                | -10    | Cost | Direct delivery bypassing uplink |
+| Poll Creation                                 | -15    | Cost | Creating a new poll in voting booth |
+
+**Configuration:**
+
+Credits are configured in `config/bbs.json` under the `credits` section. All values are customizable:
+
+```json
+{
+  "credits": {
+    "enabled": true,
+    "symbol": "CR",
+    "daily_amount": 25,
+    "daily_login_delay_minutes": 5,
+    "approval_bonus": 100,
+    "netmail_cost": 1,
+    "echomail_reward": 5,
+    "crashmail_cost": 10,
+    "poll_creation_cost": 15
+  }
+}
+```
+
+Settings can also be modified through the web interface at **Admin → BBS Settings → Credits System Configuration**.
+
+**Transaction Types:**
+- `payment` - User paid for a service
+- `system_reward` - Automatic reward for activity
+- `daily_login` - Daily login bonus
+- `admin_adjustment` - Manual admin modification
+- `npc_transaction` - Transaction with system/game
+- `refund` - Credit refund
+
+**Developer API:**
+
+Extensions and WebDoors can integrate with the credits system:
+
+```php
+// Get user's balance
+$balance = UserCredit::getBalance($userId);
+
+// Award credits
+UserCredit::credit($userId, 10, 'Completed quest', null, UserCredit::TYPE_SYSTEM_REWARD);
+
+// Charge credits
+UserCredit::debit($userId, 5, 'Used service', null, UserCredit::TYPE_PAYMENT);
+
+// Get configurable costs/rewards
+$cost = UserCredit::getCreditCost('action_name', $defaultValue);
+$reward = UserCredit::getRewardAmount('action_name', $defaultValue);
+```
+
+**Disabling Credits:**
+
+Set `"enabled": false` in the credits configuration to disable the entire system. When disabled, all credit-related functionality is hidden and no transactions are recorded.
 
 ## Installation
 
@@ -145,7 +224,8 @@ cp .env.example .env
 Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
 
 ### Step 5: Install the database schema and configure the initial Admin user
-Use the installation script for automated setup:
+
+First, use the installation script for automated setup:
 ```bash
 # Interactive installation (prompts for admin credentials)
 php scripts/install.php
@@ -158,6 +238,14 @@ Alternatively, use the setup script which auto-detects whether to install or upg
 ```bash
 php scripts/setup.php
 ```
+
+
+Then run the schema upgrader to ensure all schemas are up to date:
+
+```bash
+php scripts/upgrade.php
+```
+
 
 ### Step 6: Configure Web Server
 
@@ -1253,12 +1341,29 @@ if ($userIdFromUrl && $tokenFromUrl) {
 
 BinktermPHP implements the evolving **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
 
+### Included WebDoors
+
+BinktermPHP ships with the following WebDoors out of the box:
+
+**Games:**
+- **Blackjack** - Classic casino card game against the dealer
+- **Hangman** - Word guessing game with category selection
+- **Klondike Solitaire** - Traditional solitaire with save/load support
+- **Reverse Polarity** - Reverse Polarity BBS 
+- **Wordle** - Popular five-letter word guessing game
+
+**Utilities:**
+- **BBSLink** - Gateway to classic DOS door games via BBSLink service
+- **Community Wireless Node List** - Interactive map for discovering and sharing community wireless networks, mesh networks, and grassroots infrastructure
+- **Source Games** - Live server browser for Source engine games (TF2, CS:GO) with real-time stats
+- **Terminal** - Web-based SSH terminal for system access
+
 ### Features
 
 - **Game Library** - Browse and launch available games from the web interface
 - **Save/Load Support** - Games can persist user progress via the BBS API
 - **Leaderboards** - Global and time-scoped high score tracking
-- **Multiplayer** - Real-time multiplayer support via WebSocket connections
+- **Multiplayer** - Real-time multiplayer support via WebSocket connections (not yet implemented)
 - **Lobby System** - Create and join game rooms for multiplayer sessions
 
 ### Configuration

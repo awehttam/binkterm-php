@@ -266,10 +266,11 @@ class UserCredit
             'symbol' => '$',
             'daily_amount' => 25,
             'daily_login_delay_minutes' => 5,
-            'approval_bonus' => 300,
+            'approval_bonus' => 100,
             'netmail_cost' => 1,
             'echomail_reward' => 3,
-            'crashmail_cost' => 10
+            'crashmail_cost' => 10,
+            'poll_creation_cost' => 15
         ];
 
         $merged = array_merge($defaults, $credits);
@@ -285,6 +286,7 @@ class UserCredit
         $merged['netmail_cost'] = max(0, (int)$merged['netmail_cost']);
         $merged['echomail_reward'] = max(0, (int)$merged['echomail_reward']);
         $merged['crashmail_cost'] = max(0, (int)$merged['crashmail_cost']);
+        $merged['poll_creation_cost'] = max(0, (int)$merged['poll_creation_cost']);
 
         return $merged;
     }
@@ -293,5 +295,33 @@ class UserCredit
     {
         $config = self::getCreditsConfig();
         return((bool)$config['enabled']);
+    }
+
+    /**
+     * Get the credit cost for a named action.
+     *
+     * @param string $name The action name (e.g., 'poll_creation' becomes 'poll_creation_cost')
+     * @param int $default Default cost if not configured
+     * @return int
+     */
+    public static function getCreditCost(string $name, int $default = 0): int
+    {
+        $config = self::getCreditsConfig();
+        $key = $name . '_cost';
+        return max(0, (int)($config[$key] ?? $default));
+    }
+
+    /**
+     * Get the reward amount for a named action.
+     *
+     * @param string $name The action name (e.g., 'poll_creation' becomes 'poll_creation_reward')
+     * @param int $default Default reward if not configured
+     * @return int
+     */
+    public static function getRewardAmount(string $name, int $default = 0): int
+    {
+        $config = self::getCreditsConfig();
+        $key = $name . '_reward';
+        return max(0, (int)($config[$key] ?? $default));
     }
 }

@@ -699,6 +699,123 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['success' => true]);
     });
 
+    SimpleRouter::post('/polls/create', function() {
+        $auth = new Auth();
+        $user = $auth->requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        header('Content-Type: application/json');
+
+        $payload = json_decode(file_get_contents('php://input'), true);
+
+        // Validate input
+        $question = trim($payload['question'] ?? '');
+        $options = $payload['options'] ?? [];
+
+        if (empty($question)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Question is required']);
+            return;
+        }
+
+        if (strlen($question) < 10 || strlen($question) > 500) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Question must be 10-500 characters']);
+            return;
+        }
+
+        if (!is_array($options) || count($options) < 2 || count($options) > 10) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Must provide 2-10 options']);
+            return;
+        }
+
+        // Validate and clean options
+        $cleanOptions = [];
+        foreach ($options as $option) {
+            $trimmed = trim($option);
+            if (empty($trimmed)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'All options must have text']);
+                return;
+            }
+            if (strlen($trimmed) > 200) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Options must be under 200 characters']);
+                return;
+            }
+            $cleanOptions[] = $trimmed;
+        }
+
+        // Check for duplicate options
+        if (count($cleanOptions) !== count(array_unique($cleanOptions))) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Options must be unique']);
+            return;
+        }
+
+        // Get poll creation cost
+        $cost = UserCredit::getCreditCost('poll_creation', 15);
+
+        // Deduct credits first (will fail if insufficient balance)
+        $debitSuccess = UserCredit::debit(
+            $userId,
+            $cost,
+            "Created poll: " . substr($question, 0, 50),
+            null,
+            UserCredit::TYPE_PAYMENT
+        );
+
+        if (!$debitSuccess) {
+            http_response_code(400);
+            echo json_encode([
+                'error' => "Failed to deduct credits. You may have insufficient balance.",
+                'cost' => $cost
+            ]);
+            return;
+        }
+
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Create poll
+            $pollStmt = $db->prepare("
+                INSERT INTO polls (question, is_active, created_by, created_at, updated_at)
+                VALUES (?, TRUE, ?, NOW(), NOW())
+                RETURNING id
+            ");
+            $pollStmt->execute([$question, $userId]);
+            $pollId = $pollStmt->fetch()['id'];
+
+            // Insert options
+            $optionStmt = $db->prepare("
+                INSERT INTO poll_options (poll_id, option_text, sort_order)
+                VALUES (?, ?, ?)
+            ");
+            foreach ($cleanOptions as $index => $option) {
+                $optionStmt->execute([$pollId, $option, $index]);
+            }
+
+            echo json_encode([
+                'success' => true,
+                'poll_id' => $pollId,
+                'credits_spent' => $cost
+            ]);
+        } catch (Exception $e) {
+            // Refund credits if poll creation failed
+            UserCredit::credit(
+                $userId,
+                $cost,
+                "Poll creation failed - refund",
+                null,
+                UserCredit::TYPE_REFUND
+            );
+
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to create poll: ' . $e->getMessage()]);
+        }
+    });
+
     SimpleRouter::get('/shoutbox', function() {
         $auth = new Auth();
         $auth->requireAuth();

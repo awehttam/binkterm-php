@@ -1,0 +1,209 @@
+{% extends "base.twig" %}
+
+{% block title %}Create Poll - {{ system_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 offset-lg-2">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-poll"></i> Create New Poll</h5>
+                <span class="badge bg-primary">Cost: {{ poll_cost }} credits</span>
+            </div>
+            <div class="card-body">
+                {% if credit_balance < poll_cost %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Insufficient Credits</strong><br>
+                    You need {{ poll_cost }} credits to create a poll, but you only have {{ credit_balance }} credits.
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    Creating a poll costs <strong>{{ poll_cost }} credits</strong>. Your current balance: <strong>{{ credit_balance }} credits</strong>
+                </div>
+
+                <form id="createPollForm">
+                    <div class="mb-3">
+                        <label for="question" class="form-label">Poll Question *</label>
+                        <input type="text" class="form-control" id="question" maxlength="500" required
+                               placeholder="What would you like to ask?">
+                        <div class="form-text">
+                            <span id="questionCount">0</span>/500 characters (minimum 10)
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Poll Options * (2-10)</label>
+                        <div id="optionsContainer">
+                            <div class="input-group mb-2 option-row">
+                                <span class="input-group-text">1</span>
+                                <input type="text" class="form-control option-input" maxlength="200" required
+                                       placeholder="Enter option">
+                                <button type="button" class="btn btn-outline-danger remove-option" disabled>
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="input-group mb-2 option-row">
+                                <span class="input-group-text">2</span>
+                                <input type="text" class="form-control option-input" maxlength="200" required
+                                       placeholder="Enter option">
+                                <button type="button" class="btn btn-outline-danger remove-option" disabled>
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addOption">
+                            <i class="fas fa-plus"></i> Add Option
+                        </button>
+                        <div class="form-text">Each option must be unique and under 200 characters</div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>Note:</strong> Once created, polls cannot be edited or deleted. Make sure your question and options are correct before submitting.
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="/" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success" id="submitBtn">
+                            <i class="fas fa-check"></i> Create Poll ({{ poll_cost }} credits)
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    let optionCount = 2;
+
+    // Character counter for question
+    $('#question').on('input', function() {
+        const len = $(this).val().length;
+        $('#questionCount').text(len);
+    });
+
+    // Add option button
+    $('#addOption').on('click', function() {
+        if (optionCount >= 10) {
+            alert('Maximum 10 options allowed');
+            return;
+        }
+
+        optionCount++;
+        const newOption = `
+            <div class="input-group mb-2 option-row">
+                <span class="input-group-text">${optionCount}</span>
+                <input type="text" class="form-control option-input" maxlength="200" required
+                       placeholder="Enter option">
+                <button type="button" class="btn btn-outline-danger remove-option">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        $('#optionsContainer').append(newOption);
+        updateRemoveButtons();
+    });
+
+    // Remove option button
+    $(document).on('click', '.remove-option', function() {
+        $(this).closest('.option-row').remove();
+        updateRemoveButtons();
+        renumberOptions();
+    });
+
+    function updateRemoveButtons() {
+        const rows = $('.option-row');
+        optionCount = rows.length;
+
+        // Disable remove buttons if only 2 options remain
+        if (optionCount <= 2) {
+            $('.remove-option').prop('disabled', true);
+        } else {
+            $('.remove-option').prop('disabled', false);
+        }
+
+        // Hide add button if at max options
+        if (optionCount >= 10) {
+            $('#addOption').hide();
+        } else {
+            $('#addOption').show();
+        }
+    }
+
+    function renumberOptions() {
+        $('.option-row').each(function(index) {
+            $(this).find('.input-group-text').text(index + 1);
+        });
+        optionCount = $('.option-row').length;
+    }
+
+    // Form submission
+    $('#createPollForm').on('submit', function(e) {
+        e.preventDefault();
+
+        const question = $('#question').val().trim();
+        const options = [];
+
+        $('.option-input').each(function() {
+            const val = $(this).val().trim();
+            if (val) {
+                options.push(val);
+            }
+        });
+
+        // Validation
+        if (question.length < 10) {
+            alert('Question must be at least 10 characters');
+            return;
+        }
+
+        if (options.length < 2) {
+            alert('Please provide at least 2 options');
+            return;
+        }
+
+        if (options.length > 10) {
+            alert('Maximum 10 options allowed');
+            return;
+        }
+
+        // Check for duplicates
+        const uniqueOptions = [...new Set(options)];
+        if (uniqueOptions.length !== options.length) {
+            alert('All options must be unique');
+            return;
+        }
+
+        // Disable submit button
+        $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
+
+        // Submit
+        $.ajax({
+            url: '/api/polls/create',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                question: question,
+                options: options
+            })
+        })
+        .done(function(response) {
+            alert(`Poll created successfully! You spent ${response.credits_spent} credits.`);
+            window.location.href = '/';
+        })
+        .fail(function(xhr) {
+            const error = xhr.responseJSON?.error || 'Failed to create poll';
+            alert('Error: ' + error);
+            $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Create Poll ({{ poll_cost }} credits)');
+        });
+    });
+
+    updateRemoveButtons();
+});
+</script>
+{% endblock %}
