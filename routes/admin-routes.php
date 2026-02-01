@@ -3,6 +3,7 @@
 use BinktermPHP\AdminActionLogger;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\RouteHelper;
 use BinktermPHP\Template;
 use BinktermPHP\UserMeta;
 use BinktermPHP\WebDoorManifest;
@@ -12,13 +13,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Admin dashboard
     SimpleRouter::get('/', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
+        $adminController = new AdminController();
         $stats = $adminController->getSystemStats();
         $dbVersion = $adminController->getDatabaseVersion();
         $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -40,11 +38,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Users management page
     SimpleRouter::get('/users', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/users.twig');
@@ -52,11 +46,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Chat rooms management page
     SimpleRouter::get('/chat-rooms', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/chat_rooms.twig');
@@ -64,11 +54,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Polls management page
     SimpleRouter::get('/polls', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/polls.twig');
@@ -76,11 +62,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Shoutbox moderation page
     SimpleRouter::get('/shoutbox', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/shoutbox.twig');
@@ -88,11 +70,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Binkp configuration page
     SimpleRouter::get('/binkp-config', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/binkp_config.twig', [
@@ -102,11 +80,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Webdoors config page
     SimpleRouter::get('/webdoors', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/webdoors_config.twig');
@@ -114,11 +88,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Advertisements management page
     SimpleRouter::get('/ads', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/ads.twig');
@@ -126,11 +96,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // BBS settings page
     SimpleRouter::get('/bbs-settings', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $csrfToken = bin2hex(random_bytes(32));
@@ -148,11 +114,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Custom template editor page
     SimpleRouter::get('/template-editor', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/template_editor.twig');

@@ -6,6 +6,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\RouteHelper;
 use BinktermPHP\UserCredit;
 use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -125,8 +126,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/auth/gateway-token', function() {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         $input = json_decode(file_get_contents('php://input'), true);
         $door = $input['door'] ?? null;
@@ -134,7 +134,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Cap TTL at 10 minutes for security
         $ttl = min((int)$ttl, 600);
-
+        $auth = new Auth();
         $token = $auth->generateGatewayToken($user['user_id'], $door, $ttl);
 
         echo json_encode([
@@ -355,8 +355,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/notify/state', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -388,8 +387,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/notify/state', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -428,8 +426,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/notify/seen', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -459,8 +456,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/dashboard/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -551,8 +547,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/polls/active', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         header('Content-Type: application/json');
@@ -652,8 +647,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/polls/{id}/vote', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         header('Content-Type: application/json');
@@ -700,8 +694,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/polls/create', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         header('Content-Type: application/json');
@@ -847,8 +840,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/shoutbox', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
         $payload = json_decode(file_get_contents('php://input'), true);
@@ -876,8 +868,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/recent', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -904,8 +895,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Chat API endpoints
     SimpleRouter::get('/chat/rooms', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -929,8 +919,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/chat/online', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -939,6 +928,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => 'Chat is disabled']);
             return;
         }
+        $auth = new Auth();
 
         $onlineUsers = $auth->getOnlineUsers(15);
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -959,8 +949,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/chat/messages', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1044,8 +1033,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/chat/send', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1273,8 +1261,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/chat/moderate', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1340,8 +1327,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/chat/poll', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1392,8 +1378,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/echoareas', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1486,8 +1471,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/echoareas/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1511,8 +1495,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/echoareas', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1568,8 +1551,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::put('/echoareas/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1626,8 +1608,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::delete('/echoareas/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1684,8 +1665,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1699,8 +1679,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Statistics endpoints - must come before parameterized routes
     SimpleRouter::get('/messages/netmail/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1777,8 +1756,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/netmail/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1811,8 +1789,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::delete('/messages/netmail/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1828,8 +1805,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1848,8 +1824,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Echomail statistics endpoints - must come before parameterized routes
     SimpleRouter::get('/messages/echomail/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1955,8 +1930,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/echomail/stats/{echoarea}', function($echoarea) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2065,8 +2039,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Route for getting specific echomail message by ID only (when echoarea not known)
     SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2101,8 +2074,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{id}/download', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $handler = new MessageHandler();
@@ -2152,8 +2124,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}', function($echoarea) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2176,8 +2147,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         // URL decode the echoarea parameter to handle dots and special characters
@@ -2217,8 +2187,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/send', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2280,8 +2249,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Save message draft
     SimpleRouter::post('/messages/draft', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2319,8 +2287,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get user's drafts
     SimpleRouter::get('/messages/drafts', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2347,8 +2314,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get specific draft
     SimpleRouter::get('/messages/drafts/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2378,8 +2344,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Delete draft
     SimpleRouter::delete('/messages/drafts/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2403,8 +2368,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/search', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2434,8 +2398,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Mark message as read
     SimpleRouter::post('/messages/{type}/{id}/read', function($type, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2481,8 +2444,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Save message for later viewing
     SimpleRouter::post('/messages/{type}/{id}/save', function($type, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2527,8 +2489,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Unsave message
     SimpleRouter::delete('/messages/{type}/{id}/save', function($type, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2577,8 +2538,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // User profile API endpoints
     SimpleRouter::post('/user/profile', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2622,8 +2582,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/user/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2653,8 +2612,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/user/credits', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2668,8 +2626,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/user/sessions', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2691,8 +2648,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::delete('/user/sessions/{sessionId}', function($sessionId) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2711,8 +2667,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::delete('/user/sessions/all', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2760,8 +2715,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/user/activity', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2774,6 +2728,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => 'Session not found']);
             return;
         }
+        $auth = new Auth();
 
         $auth->updateSessionActivity($sessionId, (string)$activity);
         echo json_encode(['success' => true]);
@@ -2803,8 +2758,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Clean output buffer to prevent any warnings/output from corrupting JSON
         ob_start();
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         // Check if user is admin
         if (!$user['is_admin']) {
@@ -2993,8 +2947,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/binkp/process/inbound', function() {
         ob_start();
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
 
         try {
@@ -3015,8 +2968,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/binkp/process/outbound', function() {
         ob_start();
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
 
         try {
@@ -3035,8 +2987,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/binkp/logs', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
 
         header('Content-Type: application/json');
@@ -3056,8 +3007,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/messages/echomail/{id}/share', function($id) {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         $input = json_decode(file_get_contents('php://input'), true);
@@ -3099,8 +3049,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/messages/echomail/{id}/shares', function($id) {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         try {
@@ -3116,8 +3065,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::delete('/messages/echomail/{id}/share', function($id) {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         try {
@@ -3164,8 +3112,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/user/shares', function() {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         try {
@@ -3180,8 +3127,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // User settings API endpoints
     SimpleRouter::get('/user/settings', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -3197,8 +3143,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/user/settings', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -3228,8 +3173,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Admin API endpoints for user management
     SimpleRouter::get('/admin/pending-users', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3250,8 +3194,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/admin/pending-users/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3281,8 +3224,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/admin/pending-users/{id}/approve', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3305,8 +3247,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/admin/pending-users/{id}/reject', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3329,8 +3270,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/admin/users', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3357,8 +3297,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get single user for editing
     SimpleRouter::get('/admin/users/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3389,8 +3328,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Update user
     SimpleRouter::post('/admin/users/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3464,8 +3402,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Toggle user status
     SimpleRouter::post('/admin/users/{id}/toggle-status', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3499,8 +3436,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Create new user
     SimpleRouter::post('/admin/users/create', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3589,8 +3525,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Cleanup old registrations
     SimpleRouter::post('/admin/users/cleanup', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3612,8 +3547,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Send account reminder to user
     SimpleRouter::post('/admin/users/{userId}/send-reminder', function($userId) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3666,8 +3600,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get users who need reminders
     SimpleRouter::get('/admin/users/need-reminders', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);

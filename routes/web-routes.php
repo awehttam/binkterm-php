@@ -6,6 +6,7 @@ use BinktermPHP\Advertising;
 use BinktermPHP\BbsConfig;
 use BinktermPHP\Config;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\RouteHelper;
 use BinktermPHP\Template;
 use BinktermPHP\UserCredit;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -32,8 +33,7 @@ SimpleRouter::get('/', function() {
 });
 
 SimpleRouter::get('/ads/random', function() {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     $ads = new Advertising();
     $ad = $ads->getRandomAd();
@@ -45,8 +45,7 @@ SimpleRouter::get('/ads/random', function() {
 });
 
 SimpleRouter::get('/ads/{name}', function($name) {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     $ads = new Advertising();
     $ad = $ads->getAdByName($name);
@@ -649,8 +648,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
 
 // Subscription management routes
 SimpleRouter::get('/subscriptions', function() {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     $controller = new BinktermPHP\SubscriptionController();
     $data = $controller->renderUserSubscriptionPage();
@@ -663,8 +661,7 @@ SimpleRouter::get('/subscriptions', function() {
 });
 
 SimpleRouter::get('/polls/create', function() {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     // Get poll creation cost
     $pollCost = UserCredit::getCreditCost('poll_creation', 15);
