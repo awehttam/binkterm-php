@@ -6,7 +6,7 @@
         "name": "Community Wireless Node List",
         "description": "Discover and share community wireless networks - mesh networks, wireless BBSs, and grassroots wireless infrastructure",
         "version": "1.0.0",
-        "author": "BinktermPHP",
+        "author": "awehttam",
         "license": "MIT",
         "icon": "icon.svg",
         "entry_point": "index.html"

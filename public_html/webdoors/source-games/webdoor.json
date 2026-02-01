@@ -4,7 +4,7 @@
     "id": "source-games",
     "name": "Source Games",
     "version": "1.0.0",
-    "author": "BinktermPHP",
+    "author": "awehttam",
     "description": "Join community Source engine game servers! Connect to Half-Life 2 Deathmatch, Counter-Strike Source, Team Fortress 2, and other Source games.",
     "entry_point": "index.php",
     "icon": "icon.svg"
