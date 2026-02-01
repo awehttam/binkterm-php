@@ -70,6 +70,11 @@ class TicFileProcessor
                 // File already exists - skip it
                 error_log("TIC file already exists: {$ticData['File']} (file_id={$existingFile['id']})");
 
+                // Clean up temp file since we're not storing it
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                }
+
                 return [
                     'success' => true,
                     'file_id' => $existingFile['id'],
