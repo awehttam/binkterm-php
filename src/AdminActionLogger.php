@@ -2,28 +2,21 @@
 
 namespace BinktermPHP;
 
-use BinktermPHP\Binkp\Logger;
-
 class AdminActionLogger
 {
-    private static ?Logger $logger = null;
-
     public static function logAction(int $userId, string $action, array $details = []): void
     {
-        $logger = self::getLogger();
-        $logger->info('Admin action', [
-            'user_id' => $userId,
-            'action' => $action,
-            'details' => $details
-        ]);
-    }
+        $timestamp = date('Y-m-d H:i:s');
+        $detailsJson = !empty($details) ? json_encode($details) : '[]';
 
-    private static function getLogger(): Logger
-    {
-        if (self::$logger === null) {
-            self::$logger = new Logger(Config::getLogPath('admin_actions.log'), 'INFO', false);
-        }
+        $logMessage = sprintf(
+            "[%s] Admin action - User ID: %d, Action: %s, Details: %s",
+            $timestamp,
+            $userId,
+            $action,
+            $detailsJson
+        );
 
-        return self::$logger;
+        error_log($logMessage);
     }
 }
