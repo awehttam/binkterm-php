@@ -6,6 +6,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\RouteHelper;
 use BinktermPHP\UserCredit;
 use BinktermPHP\UserMeta;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -125,8 +126,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/auth/gateway-token', function() {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         $input = json_decode(file_get_contents('php://input'), true);
         $door = $input['door'] ?? null;
@@ -134,7 +134,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         // Cap TTL at 10 minutes for security
         $ttl = min((int)$ttl, 600);
-
+        $auth = new Auth();
         $token = $auth->generateGatewayToken($user['user_id'], $door, $ttl);
 
         echo json_encode([
@@ -355,8 +355,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/notify/state', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -388,8 +387,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/notify/state', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -428,8 +426,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/notify/seen', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -459,8 +456,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/dashboard/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -551,8 +547,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/polls/active', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         header('Content-Type: application/json');
@@ -652,8 +647,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/polls/{id}/vote', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         header('Content-Type: application/json');
@@ -700,8 +694,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/polls/create', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         header('Content-Type: application/json');
@@ -847,8 +840,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/shoutbox', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
         $payload = json_decode(file_get_contents('php://input'), true);
@@ -876,8 +868,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/recent', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -904,8 +895,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Chat API endpoints
     SimpleRouter::get('/chat/rooms', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -929,8 +919,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/chat/online', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -939,6 +928,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => 'Chat is disabled']);
             return;
         }
+        $auth = new Auth();
 
         $onlineUsers = $auth->getOnlineUsers(15);
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -959,8 +949,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/chat/messages', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1044,8 +1033,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/chat/send', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1273,8 +1261,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/chat/moderate', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1340,8 +1327,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/chat/poll', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1392,8 +1378,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/echoareas', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1486,8 +1471,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/echoareas/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1511,8 +1495,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/echoareas', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1568,8 +1551,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::put('/echoareas/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1626,8 +1608,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::delete('/echoareas/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -1684,8 +1665,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1699,8 +1679,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Statistics endpoints - must come before parameterized routes
     SimpleRouter::get('/messages/netmail/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1777,8 +1756,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/netmail/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1811,8 +1789,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::delete('/messages/netmail/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1828,8 +1805,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1848,8 +1824,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Echomail statistics endpoints - must come before parameterized routes
     SimpleRouter::get('/messages/echomail/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -1859,15 +1834,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
 
         // Global echomail statistics (only from subscribed echoareas)
-        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE{$sysopFilter}");
+        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
         $totalStmt->execute([$userId]);
         $total = $totalStmt->fetch()['count'];
 
-        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}");
+        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}");
         $recentStmt->execute([$userId]);
         $recent = $recentStmt->fetch()['count'];
 
-        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE{$sysopFilter}");
+        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
         $areasStmt->execute([$userId]);
         $areas = $areasStmt->fetch()['count'];
 
@@ -1890,7 +1865,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}
             ");
             $unreadStmt->execute([$userId, $userId]);
             $unreadCount = $unreadStmt->fetch()['count'];
@@ -1901,7 +1876,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}
             ");
             $readStmt->execute([$userId, $userId]);
             $readCount = $readStmt->fetch()['count'];
@@ -1912,7 +1887,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                    WHERE ea.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}
+                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}
                 ");
                 $toMeStmt->execute([$userId, $userInfo['username'], $userInfo['real_name']]);
                 $toMeCount = $toMeStmt->fetch()['count'];
@@ -1924,7 +1899,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}
             ");
             $savedStmt->execute([$userId, $userId]);
             $savedCount = $savedStmt->fetch()['count'];
@@ -1955,8 +1930,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/echomail/stats/{echoarea}', function($echoarea) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2065,8 +2039,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Route for getting specific echomail message by ID only (when echoarea not known)
     SimpleRouter::get('/messages/echomail/message/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2101,8 +2074,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{id}/download', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $handler = new MessageHandler();
@@ -2152,8 +2124,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}', function($echoarea) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2176,8 +2147,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
     SimpleRouter::get('/messages/echomail/{echoarea}/{id}', function($echoarea, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         // URL decode the echoarea parameter to handle dots and special characters
@@ -2217,8 +2187,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/send', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2280,8 +2249,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Save message draft
     SimpleRouter::post('/messages/draft', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2319,8 +2287,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get user's drafts
     SimpleRouter::get('/messages/drafts', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2347,8 +2314,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get specific draft
     SimpleRouter::get('/messages/drafts/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2378,8 +2344,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Delete draft
     SimpleRouter::delete('/messages/drafts/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2403,8 +2368,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/messages/search', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2434,8 +2398,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Mark message as read
     SimpleRouter::post('/messages/{type}/{id}/read', function($type, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2481,8 +2444,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Save message for later viewing
     SimpleRouter::post('/messages/{type}/{id}/save', function($type, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2527,8 +2489,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Unsave message
     SimpleRouter::delete('/messages/{type}/{id}/save', function($type, $id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2577,8 +2538,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // User profile API endpoints
     SimpleRouter::post('/user/profile', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2622,8 +2582,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/user/stats', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2652,9 +2611,261 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    SimpleRouter::get('/user/stats/{userId}', function($userId) {
+        $user = RouteHelper::requireAuth();
+
+        // Only admins can view other users' stats
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+
+        // Verify target user exists and is active
+        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt->execute([$userId]);
+        if (!$userStmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        // Get user message statistics
+        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ?");
+        $netmailStmt->execute([$userId]);
+        $netmailCount = $netmailStmt->fetch()['count'];
+
+        // For echomail, count messages from this user based on their username
+        // We need to get the user's real name to match echomail posts
+        $userInfoStmt = $db->prepare("SELECT real_name FROM users WHERE id = ?");
+        $userInfoStmt->execute([$userId]);
+        $userInfo = $userInfoStmt->fetch();
+
+        $echomailCount = 0;
+        if ($userInfo && !empty($userInfo['real_name'])) {
+            $echomailStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail WHERE from_name = ?");
+            $echomailStmt->execute([$userInfo['real_name']]);
+            $echomailCount = $echomailStmt->fetch()['count'];
+        }
+
+        echo json_encode([
+            'netmail_count' => (int)$netmailCount,
+            'echomail_count' => (int)$echomailCount
+        ]);
+    });
+
+    SimpleRouter::get('/user/transactions/{userId}', function($userId) {
+        $user = RouteHelper::requireAuth();
+
+        // Only admins can view transaction history
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Admin access required']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+
+        // Verify target user exists and is active
+        $userStmt = $db->prepare("SELECT id FROM users WHERE id = ? AND is_active = TRUE");
+        $userStmt->execute([$userId]);
+        if (!$userStmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        // Get pagination parameters
+        $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+        $limit = isset($_GET['limit']) ? max(1, min(50, (int)$_GET['limit'])) : 10;
+
+        try {
+            $stmt = $db->prepare('
+                SELECT id, user_id, other_party_id, amount, balance_after, description, transaction_type, created_at
+                FROM user_transactions
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            ');
+            $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+            $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $transactions = $stmt->fetchAll();
+
+            echo json_encode([
+                'success' => true,
+                'transactions' => $transactions,
+                'offset' => $offset,
+                'limit' => $limit
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to fetch transactions']);
+        }
+    });
+
+    SimpleRouter::post('/credits/send', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!UserCredit::isEnabled()) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Credits system is disabled']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $recipientId = isset($input['recipient_id']) ? (int)$input['recipient_id'] : 0;
+        $amount = isset($input['amount']) ? (int)$input['amount'] : 0;
+        $message = isset($input['message']) ? trim($input['message']) : '';
+
+        $senderId = (int)($user['user_id'] ?? $user['id']);
+
+        // Validate amount
+        if ($amount < 1 || $amount > 200) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Amount must be between 1 and 200 credits']);
+            return;
+        }
+
+        // Can't send to yourself
+        if ($senderId === $recipientId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Cannot send credits to yourself']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+
+        try {
+            // Verify recipient exists and is active
+            $recipientStmt = $db->prepare('SELECT id, username FROM users WHERE id = ? AND is_active = TRUE');
+            $recipientStmt->execute([$recipientId]);
+            $recipient = $recipientStmt->fetch();
+
+            if (!$recipient) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Recipient not found']);
+                return;
+            }
+
+            // Check sender has enough credits
+            $senderBalance = UserCredit::getBalance($senderId);
+            if ($senderBalance < $amount) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Insufficient credits']);
+                return;
+            }
+
+            // Get configured transfer fee percentage
+            $creditsConfig = \BinktermPHP\BbsConfig::getConfig()['credits'] ?? [];
+            $feePercent = isset($creditsConfig['transfer_fee_percent']) ? (float)$creditsConfig['transfer_fee_percent'] : 0.05;
+            $feePercent = max(0, min(1, $feePercent)); // Clamp between 0 and 1
+
+            // Calculate fee and distribution
+            $fee = (int)ceil($amount * $feePercent);
+            $amountToRecipient = $amount - $fee;
+
+            // Get all sysops (admins)
+            $sysopStmt = $db->prepare('SELECT id, username FROM users WHERE is_admin = TRUE AND is_active = TRUE');
+            $sysopStmt->execute();
+            $sysops = $sysopStmt->fetchAll();
+
+            if (empty($sysops)) {
+                // No sysops, give full amount to recipient (shouldn't happen but handle gracefully)
+                $amountToRecipient = $amount;
+                $fee = 0;
+            }
+
+            // Debit sender (UserCredit methods handle their own transactions)
+            $messageText = $message ? " - {$message}" : '';
+            $debitSuccess = UserCredit::debit(
+                $senderId,
+                $amount,
+                "Sent to {$recipient['username']}{$messageText}",
+                $recipientId,
+                UserCredit::TYPE_PAYMENT
+            );
+
+            if (!$debitSuccess) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to debit sender']);
+                return;
+            }
+
+            // Credit recipient
+            $senderUsername = $user['username'];
+            $creditSuccess = UserCredit::credit(
+                $recipientId,
+                $amountToRecipient,
+                "Received from {$senderUsername}{$messageText}",
+                $senderId,
+                UserCredit::TYPE_PAYMENT
+            );
+
+            if (!$creditSuccess) {
+                // Try to refund sender
+                UserCredit::credit(
+                    $senderId,
+                    $amount,
+                    "Refund: Failed transfer to {$recipient['username']}",
+                    $recipientId,
+                    UserCredit::TYPE_REFUND
+                );
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to credit recipient']);
+                return;
+            }
+
+            // Distribute fee to sysops
+            if ($fee > 0 && !empty($sysops)) {
+                $feePerSysop = (int)floor($fee / count($sysops));
+                $remainder = $fee - ($feePerSysop * count($sysops));
+
+                foreach ($sysops as $index => $sysop) {
+                    $sysopFee = $feePerSysop;
+                    // Give remainder to first sysop
+                    if ($index === 0) {
+                        $sysopFee += $remainder;
+                    }
+
+                    if ($sysopFee > 0) {
+                        UserCredit::credit(
+                            (int)$sysop['id'],
+                            $sysopFee,
+                            "Transaction fee from {$senderUsername} → {$recipient['username']}",
+                            $senderId,
+                            UserCredit::TYPE_SYSTEM_REWARD
+                        );
+                    }
+                }
+            }
+
+            echo json_encode([
+                'success' => true,
+                'fee' => $fee,
+                'amount_received' => $amountToRecipient,
+                'message' => 'Credits sent successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
     SimpleRouter::get('/user/credits', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2668,8 +2879,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/user/sessions', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2691,8 +2901,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::delete('/user/sessions/{sessionId}', function($sessionId) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2711,8 +2920,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::delete('/user/sessions/all', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2760,8 +2968,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/user/activity', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         header('Content-Type: application/json');
 
@@ -2774,6 +2981,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['error' => 'Session not found']);
             return;
         }
+        $auth = new Auth();
 
         $auth->updateSessionActivity($sessionId, (string)$activity);
         echo json_encode(['success' => true]);
@@ -2803,8 +3011,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Clean output buffer to prevent any warnings/output from corrupting JSON
         ob_start();
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         // Check if user is admin
         if (!$user['is_admin']) {
@@ -2993,8 +3200,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/binkp/process/inbound', function() {
         ob_start();
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
 
         try {
@@ -3015,8 +3221,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/binkp/process/outbound', function() {
         ob_start();
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
 
         try {
@@ -3035,8 +3240,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/binkp/logs', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         requireBinkpAdmin($user);
 
         header('Content-Type: application/json');
@@ -3056,8 +3260,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/messages/echomail/{id}/share', function($id) {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         $input = json_decode(file_get_contents('php://input'), true);
@@ -3099,8 +3302,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/messages/echomail/{id}/shares', function($id) {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         try {
@@ -3116,8 +3318,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::delete('/messages/echomail/{id}/share', function($id) {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         try {
@@ -3164,8 +3365,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::get('/user/shares', function() {
         header('Content-Type: application/json');
 
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         try {
@@ -3180,8 +3380,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // User settings API endpoints
     SimpleRouter::get('/user/settings', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -3197,8 +3396,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::post('/user/settings', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -3228,8 +3426,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Admin API endpoints for user management
     SimpleRouter::get('/admin/pending-users', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3250,8 +3447,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     SimpleRouter::get('/admin/pending-users/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3281,8 +3477,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/admin/pending-users/{id}/approve', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3305,8 +3500,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/admin/pending-users/{id}/reject', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3329,8 +3523,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/admin/users', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3357,8 +3550,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get single user for editing
     SimpleRouter::get('/admin/users/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3389,8 +3581,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Update user
     SimpleRouter::post('/admin/users/{id}', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3464,8 +3655,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Toggle user status
     SimpleRouter::post('/admin/users/{id}/toggle-status', function($id) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3499,8 +3689,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Create new user
     SimpleRouter::post('/admin/users/create', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3589,8 +3778,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Cleanup old registrations
     SimpleRouter::post('/admin/users/cleanup', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3612,8 +3800,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Send account reminder to user
     SimpleRouter::post('/admin/users/{userId}/send-reminder', function($userId) {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);
@@ -3666,8 +3853,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Get users who need reminders
     SimpleRouter::get('/admin/users/need-reminders', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!$user['is_admin']) {
             http_response_code(403);

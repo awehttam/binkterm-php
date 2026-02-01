@@ -15,6 +15,8 @@
         "netmail_cost": 10,
         "echomail_reward": 3,
         "crashmail_cost": 20,
-        "poll_creation_cost": 15
+        "poll_creation_cost": 15,
+        "return_14days": 50,
+        "transfer_fee_percent": 0.05
     }
 }

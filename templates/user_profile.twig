@@ -1,0 +1,362 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ profile_username }}'s Profile - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-user"></i>
+        {{ profile_username }}'s Profile
+    </h2>
+    {% if is_own_profile %}
+        <a href="/profile" class="btn btn-sm btn-fidonet">
+            <i class="fas fa-edit"></i>
+            Edit My Profile
+        </a>
+    {% endif %}
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">User Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Username:</dt>
+                    <dd class="col-sm-9">{{ profile_username }}</dd>
+
+                    {% if can_view_sensitive %}
+                    <dt class="col-sm-3">Real Name:</dt>
+                    <dd class="col-sm-9">{{ profile_real_name|default('Not specified') }}</dd>
+                    {% endif %}
+
+                    {% if profile_location %}
+                    <dt class="col-sm-3">Location:</dt>
+                    <dd class="col-sm-9">
+                        <i class="fas fa-map-marker-alt me-1"></i>
+                        {{ profile_location }}
+                    </dd>
+                    {% endif %}
+
+                    {% if profile_fidonet_address and can_view_sensitive %}
+                    <dt class="col-sm-3">FidoNet Address:</dt>
+                    <dd class="col-sm-9">
+                        <code>{{ profile_fidonet_address }}</code>
+                    </dd>
+                    {% endif %}
+
+                    <dt class="col-sm-3">Member Since:</dt>
+                    <dd class="col-sm-9">{{ profile_created_at|date('F j, Y') }}</dd>
+
+                    {% if profile_last_login and can_view_sensitive %}
+                    <dt class="col-sm-3">Last Seen:</dt>
+                    <dd class="col-sm-9">{{ profile_last_login|date('F j, Y g:i A') }}</dd>
+                    {% endif %}
+
+                    <dt class="col-sm-3">Role:</dt>
+                    <dd class="col-sm-9">
+                        {% if profile_is_admin %}
+                            <span class="badge bg-danger">Administrator</span>
+                        {% else %}
+                            <span class="badge bg-primary">User</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        {% if credits_enabled and can_view_sensitive %}
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Credits</h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <h3 class="mb-0">{{ credits_symbol }}{{ credit_balance }}</h3>
+                    <small class="text-muted">Current Balance</small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if credits_enabled and not is_own_profile %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Send Credits</h6>
+            </div>
+            <div class="card-body">
+                <div id="sendCreditsAlert"></div>
+                <form id="sendCreditsForm">
+                    <div class="mb-3">
+                        <label for="creditAmount" class="form-label">Amount</label>
+                        <input type="number" class="form-control" id="creditAmount" name="amount" min="1" max="200" required>
+                        <small class="text-muted">Max 200 credits per transaction. {{ (transfer_fee_percent * 100)|round(1) }}% fee applies.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="creditMessage" class="form-label">Message (optional)</label>
+                        <input type="text" class="form-control" id="creditMessage" name="message" maxlength="100" placeholder="What's this for?">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-paper-plane me-2"></i>Send Credits
+                    </button>
+                </form>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {{ (transfer_fee_percent * 100)|round(1) }}% transaction fee distributed to system operators
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_view_sensitive %}
+        <div class="card {% if credits_enabled %}mt-3{% endif %}">
+            <div class="card-header">
+                <h6 class="mb-0">Activity Summary</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-8">Netmail Sent:</dt>
+                    <dd class="col-4"><span id="netmailCount">-</span></dd>
+
+                    <dt class="col-8">Echomail Posted:</dt>
+                    <dd class="col-4"><span id="echomailCount">-</span></dd>
+
+                    <dt class="col-8">Total Messages:</dt>
+                    <dd class="col-4"><strong><span id="totalCount">-</span></strong></dd>
+                </dl>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center text-muted">
+                <i class="fas fa-lock fa-2x mb-2"></i>
+                <p class="mb-0">Additional profile information is private</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if viewer_is_admin and credits_enabled %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Transaction History</h5>
+                <span class="badge bg-secondary">Admin View</span>
+            </div>
+            <div class="card-body p-0">
+                {% if transactions|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 15%">Date</th>
+                                <th style="width: 15%">Type</th>
+                                <th>Description</th>
+                                <th style="width: 12%" class="text-end">Amount</th>
+                                <th style="width: 12%" class="text-end">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionTableBody">
+                            {% for tx in transactions %}
+                            <tr data-transaction-id="{{ tx.id }}">
+                                <td>
+                                    <small>{{ tx.created_at|date('m/d/Y') }}</small><br>
+                                    <small class="text-muted">{{ tx.created_at|date('g:i A') }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{% if tx.transaction_type == 'daily_login' %}info{% elseif tx.transaction_type == 'system_reward' %}success{% elseif tx.transaction_type == 'payment' %}primary{% elseif tx.transaction_type == 'admin_adjustment' %}warning{% else %}secondary{% endif %}">
+                                        {{ tx.transaction_type|replace({'_': ' '})|title }}
+                                    </span>
+                                </td>
+                                <td>{{ tx.description }}</td>
+                                <td class="text-end {% if tx.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                                    <strong>{{ tx.amount > 0 ? '+' : '' }}{{ credits_symbol }}{{ tx.amount }}</strong>
+                                </td>
+                                <td class="text-end">{{ credits_symbol }}{{ tx.balance_after }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-light" id="loadMoreSection">
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="loadMoreBtn" onclick="loadMoreTransactions()">
+                        <i class="fas fa-chevron-down me-2"></i>
+                        Load More Transactions
+                    </button>
+                </div>
+                {% else %}
+                <div class="p-3 text-center text-muted">
+                    <i class="fas fa-receipt fa-2x mb-2"></i>
+                    <p class="mb-0">No transactions yet</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentOffset = 10; // We already loaded 10 transactions
+
+$(document).ready(function() {
+    {% if can_view_sensitive %}
+    loadActivityStats();
+    {% endif %}
+
+    {% if credits_enabled and not is_own_profile %}
+    $('#sendCreditsForm').on('submit', function(e) {
+        e.preventDefault();
+        sendCredits();
+    });
+    {% endif %}
+});
+
+function loadActivityStats() {
+    $.get('/api/user/stats/{{ profile_user_id }}')
+        .done(function(data) {
+            $('#netmailCount').text(data.netmail_count || 0);
+            $('#echomailCount').text(data.echomail_count || 0);
+            $('#totalCount').text((data.netmail_count || 0) + (data.echomail_count || 0));
+        })
+        .fail(function() {
+            $('#netmailCount, #echomailCount, #totalCount').text('?');
+        });
+}
+
+function sendCredits() {
+    const amount = parseInt($('#creditAmount').val());
+    const message = $('#creditMessage').val();
+
+    if (amount < 1 || amount > 200) {
+        showSendCreditsAlert('Amount must be between 1 and 200 credits', 'danger');
+        return;
+    }
+
+    const btn = $('#sendCreditsForm button[type=submit]');
+    const originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Sending...');
+
+    $.ajax({
+        url: '/api/credits/send',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            recipient_id: {{ profile_user_id }},
+            amount: amount,
+            message: message
+        }),
+        success: function(response) {
+            if (response.success) {
+                showSendCreditsAlert(
+                    `Successfully sent {{ credits_symbol }}${amount} to {{ profile_username }}! ` +
+                    `(Fee: {{ credits_symbol }}${response.fee}, They received: {{ credits_symbol }}${response.amount_received})`,
+                    'success'
+                );
+                $('#sendCreditsForm')[0].reset();
+            } else {
+                showSendCreditsAlert(response.error || 'Failed to send credits', 'danger');
+            }
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to send credits';
+            showSendCreditsAlert(error, 'danger');
+        },
+        complete: function() {
+            btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+}
+
+function showSendCreditsAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${escapeHtml(message)}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    $('#sendCreditsAlert').html(alertHtml);
+
+    if (type === 'success') {
+        setTimeout(function() {
+            $('#sendCreditsAlert').fadeOut(function() {
+                $(this).html('').show();
+            });
+        }, 5000);
+    }
+}
+
+function loadMoreTransactions() {
+    const btn = $('#loadMoreBtn');
+    const originalHtml = btn.html();
+
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Loading...');
+
+    $.get('/api/user/transactions/{{ profile_user_id }}?offset=' + currentOffset + '&limit=10')
+        .done(function(data) {
+            if (data.transactions && data.transactions.length > 0) {
+                const tbody = $('#transactionTableBody');
+                data.transactions.forEach(function(tx) {
+                    const txDate = new Date(tx.created_at);
+                    const dateStr = (txDate.getMonth() + 1).toString().padStart(2, '0') + '/' +
+                                   txDate.getDate().toString().padStart(2, '0') + '/' +
+                                   txDate.getFullYear();
+                    const timeStr = txDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+                    let badgeClass = 'secondary';
+                    if (tx.transaction_type === 'daily_login') badgeClass = 'info';
+                    else if (tx.transaction_type === 'system_reward') badgeClass = 'success';
+                    else if (tx.transaction_type === 'payment') badgeClass = 'primary';
+                    else if (tx.transaction_type === 'admin_adjustment') badgeClass = 'warning';
+
+                    const typeLabel = tx.transaction_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const amountClass = tx.amount > 0 ? 'text-success' : 'text-danger';
+                    const amountSign = tx.amount > 0 ? '+' : '';
+
+                    const row = `<tr data-transaction-id="${tx.id}">
+                        <td>
+                            <small>${dateStr}</small><br>
+                            <small class="text-muted">${timeStr}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-${badgeClass}">${typeLabel}</span>
+                        </td>
+                        <td>${escapeHtml(tx.description)}</td>
+                        <td class="text-end ${amountClass}">
+                            <strong>${amountSign}{{ credits_symbol }}${tx.amount}</strong>
+                        </td>
+                        <td class="text-end">{{ credits_symbol }}${tx.balance_after}</td>
+                    </tr>`;
+
+                    tbody.append(row);
+                });
+
+                currentOffset += data.transactions.length;
+
+                // Hide button if we loaded less than requested (no more transactions)
+                if (data.transactions.length < 10) {
+                    $('#loadMoreSection').html('<div class="text-center text-muted p-2"><small>No more transactions</small></div>');
+                }
+            } else {
+                $('#loadMoreSection').html('<div class="text-center text-muted p-2"><small>No more transactions</small></div>');
+            }
+        })
+        .fail(function() {
+            alert('Failed to load transactions');
+        })
+        .always(function() {
+            btn.prop('disabled', false).html(originalHtml);
+        });
+}
+</script>
+{% endblock %}

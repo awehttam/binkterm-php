@@ -125,23 +125,72 @@ class DatabaseBackup
 
         $this->log("Executing backup...");
         $startTime = microtime(true);
-        
+
         // Set PGPASSWORD environment variable for authentication
         putenv('PGPASSWORD=' . $this->dbPass);
-        
+
         // Execute backup
-        $output = [];
-        $returnCode = 0;
-        exec($cmd . ' 2>&1', $output, $returnCode);
-        
+        if ($format === 'sql' && $compress) {
+            // For compressed SQL output, capture stdout and compress with PHP
+            $descriptors = [
+                0 => ['pipe', 'r'],  // stdin
+                1 => ['pipe', 'w'],  // stdout
+                2 => ['pipe', 'w'],  // stderr
+            ];
+
+            $process = proc_open($cmd, $descriptors, $pipes);
+
+            if (!is_resource($process)) {
+                putenv('PGPASSWORD');
+                $this->error("Failed to start pg_dump process");
+            }
+
+            // Close stdin
+            fclose($pipes[0]);
+
+            // Read stdout and compress
+            $compressedFile = gzopen($backupFile, 'wb9');
+            if (!$compressedFile) {
+                putenv('PGPASSWORD');
+                $this->error("Failed to open output file for writing: $backupFile");
+            }
+
+            while (!feof($pipes[1])) {
+                $chunk = fread($pipes[1], 8192);
+                if ($chunk !== false && $chunk !== '') {
+                    gzwrite($compressedFile, $chunk);
+                }
+            }
+
+            gzclose($compressedFile);
+            fclose($pipes[1]);
+
+            // Capture stderr
+            $stderr = stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+
+            $returnCode = proc_close($process);
+
+            if ($returnCode !== 0) {
+                putenv('PGPASSWORD');
+                $this->error("Backup failed with return code $returnCode:\n" . $stderr);
+            }
+        } else {
+            // Regular output (no compression or custom/tar format)
+            $output = [];
+            $returnCode = 0;
+            exec($cmd . ' 2>&1', $output, $returnCode);
+
+            if ($returnCode !== 0) {
+                putenv('PGPASSWORD');
+                $this->error("Backup failed with return code $returnCode:\n" . implode("\n", $output));
+            }
+        }
+
         // Clear the password from environment
         putenv('PGPASSWORD');
 
         $duration = microtime(true) - $startTime;
-
-        if ($returnCode !== 0) {
-            $this->error("Backup failed with return code $returnCode:\n" . implode("\n", $output));
-        }
 
         // Check if backup file was created and has content
         if (!file_exists($backupFile) || filesize($backupFile) === 0) {
@@ -162,32 +211,78 @@ class DatabaseBackup
 
     private function buildPgDumpCommand($format, $outputFile, $gzipOutput = false)
     {
+        $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+
+        // Find pg_dump executable
+        $pgDump = $this->findPgDump();
+
         // Build base command
-        $cmd = 'pg_dump';
-        
+        $cmd = escapeshellarg($pgDump);
+
         // Add connection parameters
         $cmd .= ' --host=' . escapeshellarg($this->dbHost);
         $cmd .= ' --port=' . escapeshellarg($this->dbPort);
         $cmd .= ' --username=' . escapeshellarg($this->dbUser);
         $cmd .= ' --dbname=' . escapeshellarg($this->dbName);
-        
+
         // Add format option
         $cmd .= ' ' . $format;
-        
+
         // Add other options
         $cmd .= ' --verbose --no-password';
-        
+
         // Handle output redirection
         if ($gzipOutput) {
-            $cmd .= ' | gzip > ' . escapeshellarg($outputFile);
+            // For gzip output, we'll use pg_dump to stdout and compress with PHP
+            // This avoids platform-specific shell piping issues
+            $cmd .= ' --file=-';  // Output to stdout
         } else {
             $cmd .= ' --file=' . escapeshellarg($outputFile);
         }
 
-        // Set PGPASSWORD environment variable for authentication
-        $envCmd = 'PGPASSWORD=' . escapeshellarg($this->dbPass) . ' ' . $cmd;
-        
-        return $envCmd;
+        // On Windows, we need to set PGPASSWORD differently
+        // We'll use putenv() before exec() instead of inline environment variable
+        // So we don't prepend PGPASSWORD= here
+
+        return $cmd;
+    }
+
+    /**
+     * Find pg_dump executable in system PATH or common PostgreSQL installation directories
+     */
+    private function findPgDump()
+    {
+        $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+
+        // Try finding in PATH first
+        $pgDump = 'pg_dump';
+        $which = $isWindows ? 'where' : 'which';
+
+        exec("$which pg_dump 2>&1", $output, $returnCode);
+        if ($returnCode === 0) {
+            return 'pg_dump';  // Found in PATH
+        }
+
+        // Try common Windows PostgreSQL installation paths
+        if ($isWindows) {
+            $commonPaths = [
+                'C:\Program Files\PostgreSQL\16\bin\pg_dump.exe',
+                'C:\Program Files\PostgreSQL\15\bin\pg_dump.exe',
+                'C:\Program Files\PostgreSQL\14\bin\pg_dump.exe',
+                'C:\Program Files\PostgreSQL\13\bin\pg_dump.exe',
+                'C:\Program Files (x86)\PostgreSQL\16\bin\pg_dump.exe',
+                'C:\Program Files (x86)\PostgreSQL\15\bin\pg_dump.exe',
+            ];
+
+            foreach ($commonPaths as $path) {
+                if (file_exists($path)) {
+                    return $path;
+                }
+            }
+        }
+
+        // Return default and let it fail with a helpful error
+        return 'pg_dump';
     }
 
     private function cleanupOldBackups($days)

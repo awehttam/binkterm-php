@@ -6,6 +6,7 @@ use BinktermPHP\Advertising;
 use BinktermPHP\BbsConfig;
 use BinktermPHP\Config;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\RouteHelper;
 use BinktermPHP\Template;
 use BinktermPHP\UserCredit;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -32,8 +33,7 @@ SimpleRouter::get('/', function() {
 });
 
 SimpleRouter::get('/ads/random', function() {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     $ads = new Advertising();
     $ad = $ads->getRandomAd();
@@ -45,8 +45,7 @@ SimpleRouter::get('/ads/random', function() {
 });
 
 SimpleRouter::get('/ads/{name}', function($name) {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     $ads = new Advertising();
     $ad = $ads->getAdByName($name);
@@ -331,6 +330,86 @@ SimpleRouter::get('/profile', function() {
     $template->renderResponse('profile.twig', $templateVars);
 });
 
+SimpleRouter::get('/profile/{username}', function($username) {
+    $auth = new Auth();
+    $currentUser = $auth->getCurrentUser();
+
+    if (!$currentUser) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    // Get the target user's information
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    $stmt = $db->prepare('
+        SELECT id, username, real_name, location, fidonet_address, created_at, last_login, is_admin, is_active
+        FROM users
+        WHERE username = ? AND is_active = TRUE
+    ');
+    $stmt->execute([$username]);
+    $targetUser = $stmt->fetch();
+
+    if (!$targetUser) {
+        // User not found or inactive
+        return SimpleRouter::response()->httpCode(404)->html('User not found');
+    }
+
+    // Get credits configuration
+    $creditsConfig = \BinktermPHP\BbsConfig::getConfig()['credits'] ?? [];
+    $creditsEnabled = $creditsConfig['enabled'] ?? true;
+    $creditsSymbol = $creditsConfig['symbol'] ?? '$';
+
+    // Get credit balance (public information)
+    $creditBalance = 0;
+    if ($creditsEnabled) {
+        try {
+            $creditBalance = \BinktermPHP\UserCredit::getBalance((int)$targetUser['id']);
+        } catch (\Throwable $e) {
+            $creditBalance = 0;
+        }
+    }
+
+    // Check if viewing own profile
+    $isOwnProfile = ($currentUser['username'] === $username);
+    $canViewSensitive = $isOwnProfile || !empty($currentUser['is_admin']);
+    $viewerIsAdmin = !empty($currentUser['is_admin']);
+
+    // Get transaction history for admins
+    $transactions = [];
+    if ($viewerIsAdmin && $creditsEnabled) {
+        try {
+            $transactions = \BinktermPHP\UserCredit::getTransactionHistory((int)$targetUser['id'], 10);
+        } catch (\Throwable $e) {
+            $transactions = [];
+        }
+    }
+
+    // Get transfer fee percentage
+    $transferFeePercent = isset($creditsConfig['transfer_fee_percent']) ? (float)$creditsConfig['transfer_fee_percent'] : 0.05;
+    $transferFeePercent = max(0, min(1, $transferFeePercent));
+
+    $templateVars = [
+        'profile_username' => $targetUser['username'],
+        'profile_real_name' => $targetUser['real_name'] ?? '',
+        'profile_location' => $targetUser['location'] ?? '',
+        'profile_fidonet_address' => $targetUser['fidonet_address'] ?? '',
+        'profile_created_at' => $targetUser['created_at'],
+        'profile_last_login' => $targetUser['last_login'],
+        'profile_is_admin' => (bool)$targetUser['is_admin'],
+        'profile_user_id' => $targetUser['id'],
+        'credits_enabled' => !empty($creditsEnabled),
+        'credits_symbol' => $creditsSymbol,
+        'credit_balance' => $creditBalance,
+        'is_own_profile' => $isOwnProfile,
+        'can_view_sensitive' => $canViewSensitive,
+        'viewer_is_admin' => $viewerIsAdmin,
+        'transactions' => $transactions,
+        'transfer_fee_percent' => $transferFeePercent
+    ];
+
+    $template = new Template();
+    $template->renderResponse('user_profile.twig', $templateVars);
+});
+
 SimpleRouter::get('/development-history', function() {
     // Get system configuration for display
     try {
@@ -536,13 +615,23 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $crashmailEnabled = false;
     }
 
+    // Get credit costs for display
+    $netmailCost = \BinktermPHP\UserCredit::getCreditCost('netmail', 1);
+    $crashmailCost = \BinktermPHP\UserCredit::getCreditCost('crashmail', 10);
+    $currencySymbol = \BinktermPHP\UserCredit::getCurrencySymbol();
+    $creditsEnabled = \BinktermPHP\UserCredit::isEnabled();
+
     $templateVars = [
         'type' => $type,
         'current_user' => $user,
         'user_name' => $user['real_name'] ?: $user['username'],
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
-        'crashmail_enabled' => $crashmailEnabled
+        'crashmail_enabled' => $crashmailEnabled,
+        'netmail_cost' => $netmailCost,
+        'crashmail_cost' => $crashmailCost,
+        'currency_symbol' => $currencySymbol,
+        'credits_enabled' => $creditsEnabled
     ];
 
     if ($replyId) {
@@ -649,8 +738,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
 
 // Subscription management routes
 SimpleRouter::get('/subscriptions', function() {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     $controller = new BinktermPHP\SubscriptionController();
     $data = $controller->renderUserSubscriptionPage();
@@ -663,8 +751,7 @@ SimpleRouter::get('/subscriptions', function() {
 });
 
 SimpleRouter::get('/polls/create', function() {
-    $auth = new Auth();
-    $user = $auth->requireAuth();
+    $user = RouteHelper::requireAuth();
 
     // Get poll creation cost
     $pollCost = UserCredit::getCreditCost('poll_creation', 15);

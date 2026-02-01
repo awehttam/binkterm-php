@@ -18,8 +18,7 @@ class SubscriptionController
      */
     public function handleUserSubscriptions()
     {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         
         if (!$user) {
             return; // requireAuth() already sent 401 response
@@ -65,8 +64,7 @@ class SubscriptionController
      */
     public function handleAdminSubscriptions()
     {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
+        $user = RouteHelper::requireAuth();
         
         if (!$user) {
             return; // requireAuth() already sent 401 response
@@ -120,8 +118,7 @@ class SubscriptionController
      */
     public function renderUserSubscriptionPage()
     {
-        $auth = new Auth();
-        $user = $auth->getCurrentUser();
+        $user = RouteHelper::getUser();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         
         $echoareas = $this->subscriptionManager->getAllEchoareasWithSubscriptionStatus($userId);

@@ -116,6 +116,7 @@ class Auth
                     if ($shouldCheck) {
                         try {
                             UserCredit::processDaily((int)$userId);
+                            UserCredit::process14DayReturn((int)$userId);
                         } catch (\Throwable $e) {
                             error_log('[CREDITS] Daily processing failed: ' . $e->getMessage());
                         }

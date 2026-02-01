@@ -477,6 +477,9 @@ function renderAllUsers(users) {
                 <td>${lastLogin}</td>
                 <td>${lastReminded}</td>
                 <td>
+                    <a href="/profile/${encodeURIComponent(user.username)}" class="btn btn-sm btn-secondary me-1" target="_blank" title="View Profile">
+                        <i class="fas fa-user"></i> View Profile
+                    </a>
                     <button class="btn btn-sm btn-primary me-1" onclick="editUser(${user.id})">
                         <i class="fas fa-edit"></i> Edit
                     </button>

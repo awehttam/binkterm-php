@@ -3,7 +3,11 @@
 /**
  * Nodelist download and import script for cron
  *
- * Usage: php update_nodelists.php [--quiet] [--force]
+ * Usage: php update_nodelists.php [nodelist_name] [--quiet] [--force]
+ *
+ * Arguments:
+ *   nodelist_name - Optional. Update only this nodelist (by name or domain)
+ *                   If omitted, all enabled nodelists are updated
  *
  * Configure nodelist sources in config/nodelists.json or via environment variables.
  *
@@ -13,6 +17,13 @@
  *   |YY|     - 2-digit year (26)
  *   |MONTH|  - 2-digit month (01-12)
  *   |DATE|   - 2-digit day of month (01-31)
+ *
+ * Extraction Scripts:
+ *   For ZIP or other archive formats, specify an optional "extract_script" field.
+ *   The script receives the downloaded file path as an argument and should output
+ *   the path to the extracted nodelist file to stdout (last line of output).
+ *
+ *   Supported script types: .php, .sh, .bash (or any executable)
  *
  * Example config/nodelists.json:
  * {
@@ -24,9 +35,10 @@
  *       "enabled": true
  *     },
  *     {
- *       "name": "FSXNet",
+ *       "name": "FSXNet ZIP",
  *       "domain": "fsxnet",
- *       "url": "https://bbs.nz/fsxnet/FSXNET.ZIP",
+ *       "url": "https://example.com/FSXNET.ZIP",
+ *       "extract_script": "scripts/extract_nodelist_zip.php",
  *       "enabled": true
  *     }
  *   ]
@@ -140,6 +152,14 @@ class NodelistUpdater
                     'url' => 'https://github.com/fsxnet/nodelist/raw/refs/heads/master/FSXNET.Z|DAY|',
                     'enabled' => false,
                     'comment' => 'Enable and verify URL before use'
+                ],
+                [
+                    'name' => 'Example ZIP Archive',
+                    'domain' => 'example',
+                    'url' => 'https://example.com/NODELIST.ZIP',
+                    'extract_script' => 'scripts/extract_nodelist_zip.php',
+                    'enabled' => false,
+                    'comment' => 'Example: ZIP file containing nodelist - uses extraction script'
                 ]
             ],
             'settings' => [
@@ -198,6 +218,75 @@ class NodelistUpdater
         $this->log("Downloaded " . number_format(strlen($content)) . " bytes to " . basename($destFile));
 
         return $destFile;
+    }
+
+    /**
+     * Run custom extraction script if configured
+     *
+     * The extraction script receives the downloaded file path as an argument
+     * and should output the path to the extracted nodelist file to stdout.
+     *
+     * @param string $downloadedFile Path to the downloaded file
+     * @param string $scriptPath Path to the extraction script
+     * @return string Path to the extracted nodelist file
+     * @throws Exception if extraction fails
+     */
+    public function runExtractionScript($downloadedFile, $scriptPath)
+    {
+        // Make script path relative to project root if not absolute
+        if (!file_exists($scriptPath)) {
+            $absolutePath = __DIR__ . '/../' . $scriptPath;
+            if (file_exists($absolutePath)) {
+                $scriptPath = $absolutePath;
+            }
+        }
+
+        if (!file_exists($scriptPath)) {
+            throw new Exception("Extraction script not found: {$scriptPath}");
+        }
+
+        $this->log("Running extraction script: " . basename($scriptPath));
+
+        // Determine script type and build command
+        $ext = strtolower(pathinfo($scriptPath, PATHINFO_EXTENSION));
+
+        if ($ext === 'php') {
+            $cmd = sprintf(
+                'php %s %s 2>&1',
+                escapeshellarg($scriptPath),
+                escapeshellarg($downloadedFile)
+            );
+        } else {
+            // Assume shell script (bash, sh, etc.)
+            $cmd = sprintf(
+                '%s %s 2>&1',
+                escapeshellarg($scriptPath),
+                escapeshellarg($downloadedFile)
+            );
+        }
+
+        $output = [];
+        $returnCode = 0;
+        exec($cmd, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            throw new Exception("Extraction script failed with code {$returnCode}: " . implode("\n", $output));
+        }
+
+        // The last line of output should be the path to the extracted file
+        $extractedFile = trim(end($output));
+
+        if (empty($extractedFile)) {
+            throw new Exception("Extraction script produced no output");
+        }
+
+        if (!file_exists($extractedFile)) {
+            throw new Exception("Extraction script output invalid file path: {$extractedFile}");
+        }
+
+        $this->log("Extracted: " . basename($extractedFile));
+
+        return $extractedFile;
     }
 
     public function importNodelist($file, $domain)
@@ -265,7 +354,7 @@ class NodelistUpdater
         }
     }
 
-    public function run()
+    public function run($targetName = null)
     {
         $this->log("=== Nodelist Update Started ===");
 
@@ -282,10 +371,30 @@ class NodelistUpdater
             return 1;
         }
 
-        $enabledSources = array_filter($sources, fn($s) => $s['enabled'] ?? false);
-        if (empty($enabledSources)) {
-            $this->log("No enabled nodelist sources found", 'ERROR');
-            return 1;
+        // If target name specified, filter to only that source
+        if ($targetName !== null) {
+            $matchedSources = array_filter($sources, function($s) use ($targetName) {
+                $name = strtolower($s['name'] ?? '');
+                $domain = strtolower($s['domain'] ?? '');
+                $target = strtolower($targetName);
+                return $name === $target || $domain === $target;
+            });
+
+            if (empty($matchedSources)) {
+                $this->log("No nodelist source found matching: {$targetName}", 'ERROR');
+                $this->log("Available sources: " . implode(', ', array_column($sources, 'name')), 'ERROR');
+                return 1;
+            }
+
+            $this->log("Processing only: {$targetName}");
+            $enabledSources = $matchedSources;
+        } else {
+            // Process all enabled sources
+            $enabledSources = array_filter($sources, fn($s) => $s['enabled'] ?? false);
+            if (empty($enabledSources)) {
+                $this->log("No enabled nodelist sources found", 'ERROR');
+                return 1;
+            }
         }
 
         $errors = 0;
@@ -314,8 +423,14 @@ class NodelistUpdater
                 // Download
                 $this->download($expandedUrl, $downloadFile, $settings);
 
+                // Extract if extraction script is configured
+                $nodelistFile = $downloadFile;
+                if (!empty($source['extract_script'])) {
+                    $nodelistFile = $this->runExtractionScript($downloadFile, $source['extract_script']);
+                }
+
                 // Import
-                $this->importNodelist($downloadFile, $domain);
+                $this->importNodelist($nodelistFile, $domain);
 
                 $updated++;
                 $this->log("Successfully updated: {$name}");
@@ -340,9 +455,22 @@ class NodelistUpdater
 // Parse arguments
 $quiet = in_array('--quiet', $argv) || in_array('-q', $argv);
 $force = in_array('--force', $argv) || in_array('-f', $argv);
+$targetName = null;
+
+// Check for positional argument (nodelist name)
+foreach ($argv as $i => $arg) {
+    if ($i === 0) continue; // Skip script name
+    if (strpos($arg, '-') !== 0) {
+        $targetName = $arg;
+        break;
+    }
+}
 
 if (in_array('--help', $argv) || in_array('-h', $argv)) {
-    echo "Usage: php update_nodelists.php [options]\n";
+    echo "Usage: php update_nodelists.php [nodelist_name] [options]\n";
+    echo "\nArguments:\n";
+    echo "  nodelist_name Optional. Update only this nodelist (by name or domain)\n";
+    echo "                If omitted, all enabled nodelists are updated\n";
     echo "\nOptions:\n";
     echo "  -q, --quiet   Suppress output except errors\n";
     echo "  -f, --force   Force update even if recently updated\n";
@@ -357,10 +485,17 @@ if (in_array('--help', $argv) || in_array('-h', $argv)) {
     echo "\nConfiguration:\n";
     echo "  Edit config/nodelists.json to configure nodelist sources.\n";
     echo "  Run without config to generate an example configuration.\n";
-    echo "\nCron example (daily at 3am):\n";
+    echo "\nExamples:\n";
+    echo "  # Update all enabled nodelists\n";
+    echo "  php scripts/update_nodelists.php --quiet\n\n";
+    echo "  # Update only FidoNet nodelist\n";
+    echo "  php scripts/update_nodelists.php fidonet\n\n";
+    echo "  # Update only AgoraNet (by domain)\n";
+    echo "  php scripts/update_nodelists.php agoranet\n\n";
+    echo "Cron example (daily at 3am):\n";
     echo "  0 3 * * * cd /path/to/binkterm-php && php scripts/update_nodelists.php --quiet\n";
     exit(0);
 }
 
 $updater = new NodelistUpdater($quiet, $force);
-exit($updater->run());
+exit($updater->run($targetName));

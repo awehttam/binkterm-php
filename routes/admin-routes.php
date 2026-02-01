@@ -3,6 +3,7 @@
 use BinktermPHP\AdminActionLogger;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\RouteHelper;
 use BinktermPHP\Template;
 use BinktermPHP\UserMeta;
 use BinktermPHP\WebDoorManifest;
@@ -12,13 +13,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Admin dashboard
     SimpleRouter::get('/', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
+        $adminController = new AdminController();
         $stats = $adminController->getSystemStats();
         $dbVersion = $adminController->getDatabaseVersion();
         $config = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -40,11 +38,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Users management page
     SimpleRouter::get('/users', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/users.twig');
@@ -52,11 +46,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Chat rooms management page
     SimpleRouter::get('/chat-rooms', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/chat_rooms.twig');
@@ -64,11 +54,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Polls management page
     SimpleRouter::get('/polls', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/polls.twig');
@@ -76,11 +62,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Shoutbox moderation page
     SimpleRouter::get('/shoutbox', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/shoutbox.twig');
@@ -88,11 +70,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Binkp configuration page
     SimpleRouter::get('/binkp-config', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/binkp_config.twig', [
@@ -102,11 +80,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Webdoors config page
     SimpleRouter::get('/webdoors', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/webdoors_config.twig');
@@ -114,11 +88,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Advertisements management page
     SimpleRouter::get('/ads', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/ads.twig');
@@ -126,11 +96,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // BBS settings page
     SimpleRouter::get('/bbs-settings', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $csrfToken = bin2hex(random_bytes(32));
@@ -148,11 +114,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Custom template editor page
     SimpleRouter::get('/template-editor', function() {
-        $auth = new Auth();
-        $user = $auth->requireAuth();
-
-        $adminController = new AdminController();
-        $adminController->requireAdmin($user);
+        $user = RouteHelper::requireAdmin();
 
         $template = new Template();
         $template->renderResponse('admin/template_editor.twig');
@@ -322,10 +284,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             $pollStmt = $db->prepare("
                 SELECT p.id, p.question, p.is_active, p.created_at, p.updated_at,
+                       u.username as created_by_username,
                        COUNT(v.id) as vote_count
                 FROM polls p
+                LEFT JOIN users u ON u.id = p.created_by
                 LEFT JOIN poll_votes v ON v.poll_id = p.id
-                GROUP BY p.id
+                GROUP BY p.id, u.username
                 ORDER BY p.created_at DESC
             ");
             $pollStmt->execute();
@@ -355,6 +319,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'is_active' => (bool)$poll['is_active'],
                     'created_at' => $poll['created_at'],
                     'updated_at' => $poll['updated_at'],
+                    'created_by_username' => $poll['created_by_username'] ?? 'Unknown',
                     'vote_count' => (int)$poll['vote_count'],
                     'options' => $optionsByPoll[$poll['id']] ?? []
                 ];
@@ -631,6 +596,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['echomail_reward'] ?? null) || (int)$credits['echomail_reward'] < 0) {
                         throw new Exception('Echomail reward must be a non-negative integer');
                     }
+                    if (!is_numeric($credits['crashmail_cost'] ?? null) || (int)$credits['crashmail_cost'] < 0) {
+                        throw new Exception('Crashmail cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['poll_creation_cost'] ?? null) || (int)$credits['poll_creation_cost'] < 0) {
+                        throw new Exception('Poll creation cost must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['return_14days'] ?? null) || (int)$credits['return_14days'] < 0) {
+                        throw new Exception('14-day return bonus must be a non-negative integer');
+                    }
+                    if (!is_numeric($credits['transfer_fee_percent'] ?? null) || (float)$credits['transfer_fee_percent'] < 0 || (float)$credits['transfer_fee_percent'] > 1) {
+                        throw new Exception('Transfer fee must be between 0 and 1 (0% to 100%)');
+                    }
                     $config['credits'] = [
                         'enabled' => !empty($credits['enabled']),
                         'symbol' => $symbol,
@@ -638,7 +615,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'daily_login_delay_minutes' => (int)$credits['daily_login_delay_minutes'],
                         'approval_bonus' => (int)$credits['approval_bonus'],
                         'netmail_cost' => (int)$credits['netmail_cost'],
-                        'echomail_reward' => (int)$credits['echomail_reward']
+                        'echomail_reward' => (int)$credits['echomail_reward'],
+                        'crashmail_cost' => (int)$credits['crashmail_cost'],
+                        'poll_creation_cost' => (int)$credits['poll_creation_cost'],
+                        'return_14days' => (int)$credits['return_14days'],
+                        'transfer_fee_percent' => (float)$credits['transfer_fee_percent']
                     ];
                 }
 
