@@ -1834,15 +1834,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sysopFilter = $isAdmin ? "" : " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
 
         // Global echomail statistics (only from subscribed echoareas)
-        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE{$sysopFilter}");
+        $totalStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
         $totalStmt->execute([$userId]);
         $total = $totalStmt->fetch()['count'];
 
-        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}");
+        $recentStmt = $db->prepare("SELECT COUNT(*) as count FROM echomail em JOIN echoareas ea ON em.echoarea_id = ea.id JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND date_received > NOW() - INTERVAL '1 day'{$sysopFilter}");
         $recentStmt->execute([$userId]);
         $recent = $recentStmt->fetch()['count'];
 
-        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE{$sysopFilter}");
+        $areasStmt = $db->prepare("SELECT COUNT(*) as count FROM echoareas ea JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ? WHERE ea.is_active = TRUE AND ues.is_active = TRUE{$sysopFilter}");
         $areasStmt->execute([$userId]);
         $areas = $areasStmt->fetch()['count'];
 
@@ -1865,7 +1865,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NULL{$sysopFilter}
             ");
             $unreadStmt->execute([$userId, $userId]);
             $unreadCount = $unreadStmt->fetch()['count'];
@@ -1876,7 +1876,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND mrs.read_at IS NOT NULL{$sysopFilter}
             ");
             $readStmt->execute([$userId, $userId]);
             $readCount = $readStmt->fetch()['count'];
@@ -1887,7 +1887,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
-                    WHERE ea.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}
+                    WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?)){$sysopFilter}
                 ");
                 $toMeStmt->execute([$userId, $userInfo['username'], $userInfo['real_name']]);
                 $toMeCount = $toMeStmt->fetch()['count'];
@@ -1899,7 +1899,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 JOIN user_echoarea_subscriptions ues ON ea.id = ues.echoarea_id AND ues.user_id = ?
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}
+                WHERE ea.is_active = TRUE AND ues.is_active = TRUE AND sav.id IS NOT NULL{$sysopFilter}
             ");
             $savedStmt->execute([$userId, $userId]);
             $savedCount = $savedStmt->fetch()['count'];
