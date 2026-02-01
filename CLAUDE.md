@@ -224,7 +224,10 @@ BinktermPHP uses a centralized application version management system that ensure
 - Package metadata (composer.json)
 - API responses and system information
 
-Database version is seperate from application version.  Database versions are reflected in the database schema migration files.
+- Database version is separate from application version.  Database versions are reflected in the database schema migration files.
+- Database versions can be in the format of 1.2.3 or 1.2.3.4
+- Application versions can be in the format of 1.2.3
+
 
 ### How to Update the Version
 

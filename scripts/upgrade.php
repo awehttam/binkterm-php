@@ -112,8 +112,8 @@ class DatabaseUpgrader
         foreach ($files as $file) {
             $filename = basename($file, '.sql');
             
-            // Expected format: v1.1.0_description_here.sql
-            if (preg_match('/^v(\d+\.\d+\.\d+)_(.+)$/', $filename, $matches)) {
+            // Expected format: v1.1.0_description_here.sql (supports 3+ part versions)
+            if (preg_match('/^v(\d+(?:\.\d+){2,})_(.+)$/', $filename, $matches)) {
                 $version = $matches[1];
                 $description = str_replace('_', ' ', $matches[2]);
                 
@@ -187,8 +187,8 @@ class DatabaseUpgrader
     
     public function createMigration($version, $description)
     {
-        if (!preg_match('/^\d+\.\d+\.\d+$/', $version)) {
-            throw new Exception("Version must be in format X.Y.Z (e.g., 1.1.0)");
+        if (!preg_match('/^\d+(?:\.\d+){2,}$/', $version)) {
+            throw new Exception("Version must be in format X.Y.Z or X.Y.Z.W (e.g., 1.1.0 or 1.8.9.1)");
         }
         
         $filename = 'v' . $version . '_' . str_replace(' ', '_', strtolower($description)) . '.sql';
@@ -326,6 +326,7 @@ function showUsage()
     echo "  php upgrade.php                              # Apply all pending migrations\n";
     echo "  php upgrade.php status                       # Show migration status\n";
     echo "  php upgrade.php create 1.1.0 'add user roles'\n";
+    echo "  php upgrade.php create 1.8.9.1 'hotfix for bug'\n";
     echo "  php upgrade.php rollback 1.0.0               # Rollback to version 1.0.0\n\n";
 }
 
