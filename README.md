@@ -224,7 +224,8 @@ cp .env.example .env
 Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
 
 ### Step 5: Install the database schema and configure the initial Admin user
-Use the installation script for automated setup:
+
+First, use the installation script for automated setup:
 ```bash
 # Interactive installation (prompts for admin credentials)
 php scripts/install.php
@@ -237,6 +238,14 @@ Alternatively, use the setup script which auto-detects whether to install or upg
 ```bash
 php scripts/setup.php
 ```
+
+
+Then run the schema upgrader to ensure all schemas are up to date:
+
+```bash
+php scripts/upgrade.php
+```
+
 
 ### Step 6: Configure Web Server
 
