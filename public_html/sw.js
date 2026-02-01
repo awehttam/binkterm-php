@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v6';
+const CACHE_NAME = 'binkcache-v7';
 
 // Static assets to precache
 const staticAssets = [
@@ -10,7 +10,15 @@ const staticAssets = [
     '/js/chat-notify.js',
     '/js/ansisys.js',
     '/css/ansisys.css',
-    '/css/chat-page.css'
+    '/css/chat-page.css',
+    // Vendor libraries
+    '/vendor/bootstrap-5.3.0/css/bootstrap.min.css',
+    '/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js',
+    '/vendor/jquery-3.7.1/jquery-3.7.1.min.js',
+    '/vendor/fontawesome-6.4.0/css/all.min.css',
+    '/vendor/fontawesome-6.4.0/webfonts/fa-solid-900.woff2',
+    '/vendor/fontawesome-6.4.0/webfonts/fa-regular-400.woff2',
+    '/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2'
 ];
 
 // Install event - cache static assets but don't activate yet
