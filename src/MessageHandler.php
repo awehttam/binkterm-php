@@ -69,15 +69,17 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            SELECT n.*,
+            SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.date_received, n.user_id, n.date_written,
+                   n.attributes, n.is_sent, n.reply_to_id,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
-            ORDER BY CASE 
-                WHEN n.date_received > NOW() THEN 0 
-                ELSE 1 
-            END, n.date_received DESC 
+            ORDER BY CASE
+                WHEN n.date_received > NOW() THEN 0
+                ELSE 1
+            END, n.date_received DESC
             LIMIT ? OFFSET ?
         ");
         
@@ -220,7 +222,10 @@ class MessageHandler
         
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -261,7 +266,10 @@ class MessageHandler
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -418,7 +426,10 @@ class MessageHandler
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
         
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
+            SELECT em.id, em.from_name, em.from_address, em.to_name,
+                   em.subject, em.date_received, em.date_written, em.echoarea_id,
+                   em.message_id, em.reply_to_id,
+                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
