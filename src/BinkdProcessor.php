@@ -845,9 +845,9 @@ class BinkdProcessor
                 // Extract TZUTC offset for proper date calculation
                 if (strpos($line, "\x01TZUTC:") === 0) {
                     $tzutcLine = trim(substr($line, 7)); // Remove "\x01TZUTC:" prefix
-                    // TZUTC format: "+HHMM" or "-HHMM" (e.g., "+0800", "-0500")
-                    if (preg_match('/^([+-])(\d{2})(\d{2})/', $tzutcLine, $matches)) {
-                        $sign = $matches[1];
+                    // TZUTC format: "+HHMM", "-HHMM", or "HHMM" (e.g., "+0800", "-0500", "1100")
+                    if (preg_match('/^([+-])?(\d{2})(\d{2})/', $tzutcLine, $matches)) {
+                        $sign = $matches[1] ?? '+'; // Default to + if no sign provided
                         $hours = (int)$matches[2];
                         $minutes = (int)$matches[3];
                         $totalMinutes = ($hours * 60) + $minutes;

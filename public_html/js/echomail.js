@@ -347,7 +347,7 @@ function displayMessages(messages, isThreaded = false) {
                             </th>
                             <th style="width: 25%">From</th>
                             <th style="width: 60%">Subject</th>
-                            <th colspan="2" style="width: 15%">Received</th>
+                            <th colspan="2" style="width: 15%">Written</th>
 
                         </tr>
                     </thead>
@@ -401,7 +401,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
-                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written date: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Received: ${formatFullDate(msg.date_received)}">${formatDate(msg.date_written)}</td>
                 </tr>
             `;
         });
