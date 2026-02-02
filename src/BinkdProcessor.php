@@ -898,8 +898,8 @@ class BinkdProcessor
             VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
         ");
         
-        //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
-        $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.  
+        $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
+        //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.
         $kludgeText = implode("\n", $kludgeLines);
 
         // Extract REPLY MSGID from kludges to populate reply_to_id for threading
