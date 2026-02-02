@@ -267,8 +267,10 @@ function displayFileAreas(areas) {
             displayTag += '<span class="text-muted">@' + escapeHtml(area.domain) + '</span>';
         }
 
+        const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
+
         html += `
-            <a href="#" class="list-group-item list-group-item-action" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}', ${area.is_local ? 'true' : 'false'}, '${escapeHtml(area.domain || '')}'); return false;">
+            <a href="#" class="list-group-item list-group-item-action" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}', ${area.is_local ? 'true' : 'false'}, '${escapeHtml(area.domain || '')}', ${uploadPermission}); return false;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <strong>${displayTag}</strong>
@@ -286,7 +288,7 @@ function displayFileAreas(areas) {
     $('#fileAreasList').html(html);
 }
 
-function selectFileArea(areaId, areaTag, isLocal, domain) {
+function selectFileArea(areaId, areaTag, isLocal, domain, uploadPermission) {
     currentAreaId = areaId;
 
     // Display domain for non-local areas
@@ -297,7 +299,24 @@ function selectFileArea(areaId, areaTag, isLocal, domain) {
 
     $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
     $('#searchFiles').val('');
-    $('#uploadFileBtn').show();
+
+    // Control upload button visibility based on upload permission
+    // 0 = UPLOAD_ADMIN_ONLY, 1 = UPLOAD_USERS_ALLOWED, 2 = UPLOAD_READ_ONLY
+    const UPLOAD_ADMIN_ONLY = 0;
+    const UPLOAD_USERS_ALLOWED = 1;
+    const UPLOAD_READ_ONLY = 2;
+
+    if (uploadPermission === UPLOAD_READ_ONLY) {
+        $('#uploadFileBtn').hide();
+    } else if (uploadPermission === UPLOAD_ADMIN_ONLY) {
+        if (isAdmin) {
+            $('#uploadFileBtn').show();
+        } else {
+            $('#uploadFileBtn').hide();
+        }
+    } else {
+        $('#uploadFileBtn').show();
+    }
 
     // Highlight selected area
     $('#fileAreasList .list-group-item').removeClass('active');

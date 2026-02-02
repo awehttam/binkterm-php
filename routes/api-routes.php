@@ -1891,11 +1891,27 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Short description is required');
             }
 
+            // Check upload permissions for this file area
+            $manager = new \BinktermPHP\FileAreaManager();
+            $fileArea = $manager->getFileAreaById($fileAreaId);
+
+            if (!$fileArea) {
+                throw new \Exception('File area not found');
+            }
+
+            $uploadPermission = $fileArea['upload_permission'] ?? \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
+            $isAdmin = ($user['is_admin'] ?? false) === true || ($user['is_admin'] ?? 0) === 1;
+
+            // Check upload permission
+            if ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY) {
+                throw new \Exception('This file area is read-only. Uploads are not permitted.');
+            } elseif ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_ADMIN_ONLY && !$isAdmin) {
+                throw new \Exception('Only administrators can upload files to this area.');
+            }
+
             // Get user's FidoNet address or username
             $uploadedBy = $user['username'] ?? 'Unknown';
             $ownerId = $user['user_id'] ?? $user['id'] ?? null;
-
-            $manager = new \BinktermPHP\FileAreaManager();
             $fileId = $manager->uploadFile(
                 $fileAreaId,
                 $_FILES['file'],

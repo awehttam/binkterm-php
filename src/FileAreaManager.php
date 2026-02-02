@@ -11,6 +11,11 @@ use PDO;
  */
 class FileAreaManager
 {
+    // Upload permission constants
+    public const UPLOAD_ADMIN_ONLY = 0;
+    public const UPLOAD_USERS_ALLOWED = 1;
+    public const UPLOAD_READ_ONLY = 2;
+
     private PDO $db;
 
     public function __construct()
