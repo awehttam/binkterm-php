@@ -239,7 +239,13 @@ function buildEchoAreaRow(area) {
 
     // Stats and last post on the right
     html += '<div class="text-end">';
-    html += `<div><span class="badge bg-secondary">${area.message_count || 0} post${area.message_count !== 1 ? 's' : ''}</span></div>`;
+    const unreadCount = area.unread_count || 0;
+    const totalCount = area.message_count || 0;
+    if (unreadCount > 0) {
+        html += `<div><span class="badge bg-primary">${unreadCount} unread</span> <span class="text-muted">of</span> <span class="badge bg-secondary">${totalCount} post${totalCount !== 1 ? 's' : ''}</span></div>`;
+    } else {
+        html += `<div><span class="badge bg-secondary">${totalCount} post${totalCount !== 1 ? 's' : ''}</span></div>`;
+    }
     if (area.last_subject) {
         html += `<div class="small text-muted mt-1 d-none d-md-block">`;
         html += `<div class="text-truncate" style="max-width: 200px;" title="${escapeHtml(area.last_subject)}">${escapeHtml(area.last_subject)}</div>`;
