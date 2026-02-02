@@ -56,10 +56,6 @@
             <i class="fas fa-comments"></i>
             Echo List
         </h2>
-        <button class="btn btn-fidonet" onclick="composeMessage('echomail')">
-            <i class="fas fa-plus"></i>
-            New Post
-        </button>
     </div>
 
     <div class="row mb-3 g-3">
@@ -176,8 +172,13 @@ function displayEchoAreas(areas) {
 
     let html = '';
 
-    // Local first
+    // Local first with New Post button
     if (groups['Local'].length > 0) {
+        html += '<div class="d-flex justify-content-end mb-2">';
+        html += '<button class="btn btn-fidonet" onclick="composeMessage(\'echomail\')">';
+        html += '<i class="fas fa-plus"></i> New Post';
+        html += '</button>';
+        html += '</div>';
         html += buildCategory('Local', 'Local Areas', groups['Local'], true);
         delete groups['Local'];
     }
