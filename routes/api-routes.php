@@ -515,7 +515,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE{$sysopUnreadFilter}
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND ues.is_active = TRUE{$sysopUnreadFilter}
         ");
         $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
