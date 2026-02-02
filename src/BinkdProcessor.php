@@ -873,11 +873,13 @@ class BinkdProcessor
                 
                 // Extract original author address from Origin line
                 // Origin format: " * Origin: System Name (1:123/456)"
-                if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
-                    $originalAuthorAddress = $matches[1];
-                    $this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
-                } else {
-                    $this->log("[BINKD] WARNING: Could not extract address from Origin line: " . $line);
+                if(!$originalAuthorAddress){
+                    if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
+                        $originalAuthorAddress = $matches[1];
+                        $this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
+                    } else {
+                        $this->log("[BINKD] WARNING: Could not extract address from Origin line: " . $line);
+                    }
                 }
                 
                 $cleanedLines[] = $line; // Keep origin line in message body
