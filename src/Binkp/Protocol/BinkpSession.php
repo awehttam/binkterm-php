@@ -316,6 +316,13 @@ class BinkpSession
                     break;
                 }
 
+                // Check if we should send EOB (file completed, nothing left to send/receive)
+                if ($this->state === self::STATE_FILE_TRANSFER && !$this->currentFile) {
+                    $this->log("No active file transfer, sending EOB", 'DEBUG');
+                    $this->sendEOB();
+                    $this->state = self::STATE_EOB_SENT;
+                }
+
                 // Use non-blocking mode with short timeout to prevent indefinite blocking
                 $frame = BinkpFrame::parseFromSocket($this->socket, true);
                 if (!$frame) {
@@ -820,13 +827,6 @@ class BinkpSession
                 $this->log("Sent M_GOT: " . $this->currentFile['name'], 'DEBUG');
 
                 $this->currentFile = null;
-
-                // After receiving file, if we have no files to send and haven't sent EOB yet, send it now
-                if ($this->state === self::STATE_FILE_TRANSFER) {
-                    $this->log("File reception complete, sending EOB", 'DEBUG');
-                    $this->sendEOB();
-                    $this->state = self::STATE_EOB_SENT;
-                }
             }
         } else {
             $this->log("Received file data but no active file transfer", 'WARNING');
