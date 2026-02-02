@@ -48,7 +48,10 @@
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0" id="currentAreaTitle">Select a file area</h6>
-                    <div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-primary" id="uploadFileBtn" onclick="showUploadModal()" style="display: none;">
+                            <i class="fas fa-upload"></i> Upload File
+                        </button>
                         <input type="text" class="form-control form-control-sm" id="searchFiles" placeholder="Search files..." style="width: 250px;">
                     </div>
                 </div>
@@ -102,12 +105,100 @@
         </div>
     </div>
 </div>
+
+<!-- Upload File Modal -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadFileForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="uploadFile" class="form-label">Select File *</label>
+                        <input type="file" class="form-control" id="uploadFile" name="file" required>
+                        <div class="form-text">Maximum file size: <span id="maxFileSize">10 MB</span></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadDescription" class="form-label">Short Description *</label>
+                        <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
+                        <div class="form-text">Brief description of the file</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadLongDescription" class="form-label">Long Description</label>
+                        <textarea class="form-control" id="uploadLongDescription" name="long_description" rows="4" maxlength="2000"></textarea>
+                        <div class="form-text">Optional detailed description</div>
+                    </div>
+
+                    <div id="uploadProgress" class="progress" style="display: none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="uploadFile()">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload File Modal -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadFileForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="uploadFile" class="form-label">Select File *</label>
+                        <input type="file" class="form-control" id="uploadFile" name="file" required>
+                        <div class="form-text">Maximum file size: <span id="maxFileSize">10 MB</span></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadDescription" class="form-label">Short Description *</label>
+                        <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
+                        <div class="form-text">Brief description of the file</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadLongDescription" class="form-label">Long Description</label>
+                        <textarea class="form-control" id="uploadLongDescription" name="long_description" rows="4" maxlength="2000"></textarea>
+                        <div class="form-text">Optional detailed description</div>
+                    </div>
+
+                    <div id="uploadProgress" class="progress" style="display: none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="uploadFile()">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let currentAreaId = null;
 let allFiles = [];
+const currentUserId = {{ current_user.id|default('null') }};
+const isAdmin = {{ current_user.is_admin|default('false') ? 'true' : 'false' }};
 
 $(document).ready(function() {
     loadFileAreas();
@@ -162,6 +253,7 @@ function selectFileArea(areaId, areaTag) {
     currentAreaId = areaId;
     $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${escapeHtml(areaTag)}`);
     $('#searchFiles').val('');
+    $('#uploadFileBtn').show();
 
     // Highlight selected area
     $('#fileAreasList .list-group-item').removeClass('active');
@@ -208,6 +300,7 @@ function displayFiles(files) {
         const shortDesc = escapeHtml(file.short_description || '');
         const fileSize = formatBytes(file.filesize);
         const uploadDate = formatDate(file.created_at);
+        const canDelete = isAdmin || (file.owner_id && file.owner_id === currentUserId);
 
         html += `
             <tr>
@@ -225,6 +318,11 @@ function displayFiles(files) {
                     <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
                         <i class="fas fa-download"></i>
                     </a>
+                    ${canDelete ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    ` : ''}
                 </td>
             </tr>
         `;
@@ -300,6 +398,97 @@ function formatDate(dateStr) {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+}
+
+function showUploadModal() {
+    if (!currentAreaId) {
+        showError('Please select a file area first');
+        return;
+    }
+
+    $('#uploadFileForm')[0].reset();
+    $('#uploadProgress').hide();
+    $('#uploadProgress .progress-bar').css('width', '0%');
+    new bootstrap.Modal('#uploadFileModal').show();
+}
+
+function uploadFile() {
+    if (!currentAreaId) {
+        showError('Please select a file area first');
+        return;
+    }
+
+    const form = $('#uploadFileForm')[0];
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    const fileInput = $('#uploadFile')[0];
+    const file = fileInput.files[0];
+    if (!file) {
+        showError('Please select a file');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('file_area_id', currentAreaId);
+    formData.append('short_description', $('#uploadDescription').val());
+    formData.append('long_description', $('#uploadLongDescription').val());
+
+    $('#uploadProgress').show();
+
+    $.ajax({
+        url: '/api/files/upload',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        xhr: function() {
+            const xhr = new window.XMLHttpRequest();
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    $('#uploadProgress .progress-bar').css('width', percentComplete + '%');
+                }
+            }, false);
+            return xhr;
+        },
+        success: function(response) {
+            bootstrap.Modal.getInstance('#uploadFileModal').hide();
+            showSuccess('File uploaded successfully');
+            loadFiles(currentAreaId);
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.error || 'Failed to upload file';
+            showError(error);
+            $('#uploadProgress').hide();
+        }
+    });
+}
+
+function confirmDeleteFile(fileId, filename) {
+    if (confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) {
+        deleteFile(fileId);
+    }
+}
+
+function deleteFile(fileId) {
+    $.ajax({
+        url: `/api/files/${fileId}/delete`,
+        method: 'DELETE',
+        success: function(response) {
+            showSuccess('File deleted successfully');
+            loadFiles(currentAreaId);
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.error || 'Failed to delete file';
+            showError(error);
+        }
+    });
 }
 </script>
 {% endblock %}

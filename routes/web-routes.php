@@ -601,6 +601,10 @@ SimpleRouter::get('/fileareas', function() {
 SimpleRouter::get('/files', function() {
     $user = RouteHelper::requireAuth();
 
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas')) {
+        return SimpleRouter::response()->httpCode(404);
+    }
+
     $template = new Template();
     $template->renderResponse('files.twig');
 });

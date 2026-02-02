@@ -110,11 +110,13 @@
                         </li>
                         {% endif %}
 
+                        {% if bbs_feature_enabled('file_areas') %}
                         <li class="nav-item">
                             <a class="nav-link" href="/files">
                                 <i class="fas fa-file"></i> Files
                             </a>
                         </li>
+                        {% endif %}
 
                         <li class="nav-item">
                             <a class="nav-link" href="/nodelist">

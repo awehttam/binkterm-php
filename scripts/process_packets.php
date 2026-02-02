@@ -89,10 +89,12 @@ try {
     $processed = $processor->processInboundPackets();
     echo "Processed {$processed} inbound packets\n";
 
-    // Process TIC files
-    $ticProcessed = processInboundTicFiles($ticProcessor);
-    if ($ticProcessed > 0) {
-        echo "Processed {$ticProcessed} TIC files\n";
+    // Process TIC files (if feature is enabled)
+    if (\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+        $ticProcessed = processInboundTicFiles($ticProcessor);
+        if ($ticProcessed > 0) {
+            echo "Processed {$ticProcessed} TIC files\n";
+        }
     }
 
     // Clean up old packet records (older than 6 months)
