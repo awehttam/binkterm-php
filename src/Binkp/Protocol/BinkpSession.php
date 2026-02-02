@@ -820,6 +820,13 @@ class BinkpSession
                 $this->log("Sent M_GOT: " . $this->currentFile['name'], 'DEBUG');
 
                 $this->currentFile = null;
+
+                // After receiving file, if we have no files to send and haven't sent EOB yet, send it now
+                if ($this->state === self::STATE_FILE_TRANSFER) {
+                    $this->log("File reception complete, sending EOB", 'DEBUG');
+                    $this->sendEOB();
+                    $this->state = self::STATE_EOB_SENT;
+                }
             }
         } else {
             $this->log("Received file data but no active file transfer", 'WARNING');
