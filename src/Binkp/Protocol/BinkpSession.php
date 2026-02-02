@@ -500,7 +500,7 @@ class BinkpSession
                     } else {
                         $this->log("Received EOB first - sending our EOB", 'DEBUG');
                         $this->sendEOB();
-                        $this->state = self::STATE_EOB_RECEIVED;
+                        $this->state = self::STATE_TERMINATED; // immediate shutdown
                     }
                     break;
 
