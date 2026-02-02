@@ -71,7 +71,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
-                   n.flags, n.cost, n.reply, n.area, n.msgid,
+                   n.attributes, n.is_sent, n.reply_to_id,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
