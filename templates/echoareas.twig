@@ -139,7 +139,22 @@
                         </div>
                         <div class="col-md-4">
                             <label for="echoareaColor" class="form-label">Color</label>
-                            <input type="color" class="form-control form-control-color" id="echoareaColor" name="color" value="#28a745">
+                            <input type="hidden" id="echoareaColor" name="color" value="#28a745">
+                            <div class="color-palette">
+                                <div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;" title="Red"></div>
+                                <div class="color-swatch" data-color="#fd7e14" style="background-color: #fd7e14;" title="Orange"></div>
+                                <div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;" title="Yellow"></div>
+                                <div class="color-swatch" data-color="#28a745" style="background-color: #28a745;" title="Green"></div>
+                                <div class="color-swatch" data-color="#20c997" style="background-color: #20c997;" title="Teal"></div>
+                                <div class="color-swatch" data-color="#17a2b8" style="background-color: #17a2b8;" title="Cyan"></div>
+                                <div class="color-swatch" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="Light Blue"></div>
+                                <div class="color-swatch" data-color="#0d6efd" style="background-color: #0d6efd;" title="Blue"></div>
+                                <div class="color-swatch" data-color="#6610f2" style="background-color: #6610f2;" title="Indigo"></div>
+                                <div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;" title="Purple"></div>
+                                <div class="color-swatch" data-color="#d63384" style="background-color: #d63384;" title="Pink"></div>
+                                <div class="color-swatch" data-color="#6c757d" style="background-color: #6c757d;" title="Gray"></div>
+                            </div>
+                            <div class="form-text mt-2">Selected: <span id="selectedColorPreview" style="display: inline-block; width: 20px; height: 20px; border: 1px solid #ccc; vertical-align: middle; background-color: #28a745;"></span></div>
                         </div>
                     </div>
 
@@ -218,6 +233,39 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.color-palette {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    width: 100%;
+}
+
+.color-swatch {
+    display: block !important;
+    width: calc((100% - 40px) / 6);
+    height: 35px;
+    min-height: 35px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.color-swatch.selected {
+    border-color: #000;
+    box-shadow: 0 0 0 1px #fff, 0 0 0 3px #000;
+}
+</style>
 <script>
 let currentFilter = 'active';
 let currentEchoareaId = null;
@@ -225,16 +273,27 @@ let currentEchoareaId = null;
 $(document).ready(function() {
     loadEchoareas();
     loadStats();
-    
+
     // Filter change handler
     $('input[name="filter"]').change(function() {
         currentFilter = $(this).val();
         loadEchoareas();
     });
-    
+
     // Form validation
     $('#echoareaTag').on('input', function() {
         $(this).val($(this).val().toUpperCase());
+    });
+
+    // Color palette click handler - use event delegation
+    $(document).on('click', '.color-swatch', function() {
+        const color = $(this).data('color');
+        $('#echoareaColor').val(color);
+        $('#selectedColorPreview').css('background-color', color);
+
+        // Update selected state
+        $('.color-swatch').removeClass('selected');
+        $(this).addClass('selected');
     });
 });
 
@@ -342,6 +401,7 @@ function showAddEchoareaModal() {
     $('#echoareaActive').prop('checked', true);
     $('#echoareaLocal').prop('checked', false);
     $('#echoareaSysopOnly').prop('checked', false);
+    updateColorSelection('#28a745');
     $('#echoareaModal').modal('show');
 }
 
@@ -362,6 +422,7 @@ function editEchoarea(id) {
             $('#echoareaActive').prop('checked', area.is_active);
             $('#echoareaLocal').prop('checked', area.is_local);
             $('#echoareaSysopOnly').prop('checked', area.is_sysop_only);
+            updateColorSelection(area.color || '#28a745');
             $('#echoareaModal').modal('show');
         })
         .fail(function() {
@@ -455,6 +516,18 @@ function exportConfiguration() {
 
 function validateConfiguration() {
     showSuccess('Validation functionality not yet implemented');
+}
+
+function updateColorSelection(color) {
+    // Update the hidden input
+    $('#echoareaColor').val(color);
+
+    // Update the preview
+    $('#selectedColorPreview').css('background-color', color);
+
+    // Update selected state on swatches
+    $('.color-swatch').removeClass('selected');
+    $(`.color-swatch[data-color="${color}"]`).addClass('selected');
 }
 </script>
 {% endblock %}
