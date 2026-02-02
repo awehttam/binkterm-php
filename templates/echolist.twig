@@ -242,7 +242,7 @@ function buildEchoAreaRow(area) {
     const unreadCount = area.unread_count || 0;
     const totalCount = area.message_count || 0;
     if (unreadCount > 0) {
-        html += `<div><span class="badge bg-info">${unreadCount} unread of ${totalCount} post${totalCount !== 1 ? 's' : ''}</span></div>`;
+        html += `<div><span class="badge bg-secondary">${unreadCount} unread of ${totalCount} post${totalCount !== 1 ? 's' : ''}</span></div>`;
     } else {
         html += `<div><span class="badge bg-secondary">${totalCount} post${totalCount !== 1 ? 's' : ''}</span></div>`;
     }
