@@ -145,6 +145,8 @@ class FileAreaManager
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');
         $replaceExisting = (bool)($data['replace_existing'] ?? false);
         $isLocal = (bool)($data['is_local'] ?? false);
+        $uploadPermission = intval($data['upload_permission'] ?? self::UPLOAD_USERS_ALLOWED);
+        $scanVirus = (bool)($data['scan_virus'] ?? true);
         $isActive = (bool)($data['is_active'] ?? false);
 
         if (empty($tag) || empty($description)) {
@@ -160,14 +162,16 @@ class FileAreaManager
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
+                upload_permission, scan_virus,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
         $stmt->execute([
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
-            $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0
+            $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
+            $uploadPermission, $scanVirus ? 1 : 0
         ]);
 
         $result = $stmt->fetch();
@@ -192,6 +196,8 @@ class FileAreaManager
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');
         $replaceExisting = (bool)($data['replace_existing'] ?? false);
         $isLocal = (bool)($data['is_local'] ?? false);
+        $uploadPermission = intval($data['upload_permission'] ?? self::UPLOAD_USERS_ALLOWED);
+        $scanVirus = (bool)($data['scan_virus'] ?? true);
         $isActive = (bool)($data['is_active'] ?? false);
 
         if (empty($tag) || empty($description)) {
@@ -208,13 +214,14 @@ class FileAreaManager
             UPDATE file_areas
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
                 max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
-                replace_existing = ?, updated_at = NOW()
+                replace_existing = ?, upload_permission = ?, scan_virus = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
         $result = $stmt->execute([
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
-            $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0, $id
+            $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
+            $uploadPermission, $scanVirus ? 1 : 0, $id
         ]);
 
         if (!$result || $stmt->rowCount() === 0) {

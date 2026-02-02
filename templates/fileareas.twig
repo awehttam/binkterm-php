@@ -142,6 +142,24 @@
                         <div class="form-text">Don't forward files to uplinks</div>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="fileareaUploadPermission" class="form-label">Upload Permission</label>
+                        <select class="form-select" id="fileareaUploadPermission" name="upload_permission">
+                            <option value="1">Users Can Upload</option>
+                            <option value="0">Admin Only</option>
+                            <option value="2">Read-Only (No Uploads)</option>
+                        </select>
+                        <div class="form-text">Control who can upload files to this area</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="fileareaScanVirus" name="scan_virus" checked>
+                        <label class="form-check-label" for="fileareaScanVirus">
+                            Virus Scanning
+                        </label>
+                        <div class="form-text">Scan uploaded files for viruses (requires ClamAV)</div>
+                    </div>
+
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="fileareaIsActive" name="is_active" checked>
                         <label class="form-check-label" for="fileareaIsActive">
@@ -298,6 +316,8 @@ function editFilearea(id) {
             $('#fileareaBlockedExt').val(area.blocked_extensions || '');
             $('#fileareaReplaceExisting').prop('checked', area.replace_existing);
             $('#fileareaIsLocal').prop('checked', area.is_local);
+            $('#fileareaUploadPermission').val(area.upload_permission !== undefined ? area.upload_permission : 1);
+            $('#fileareaScanVirus').prop('checked', area.scan_virus !== false);
             $('#fileareaIsActive').prop('checked', area.is_active);
             new bootstrap.Modal('#fileareaModal').show();
         })
@@ -319,6 +339,8 @@ function saveFilearea() {
         blocked_extensions: $('#fileareaBlockedExt').val(),
         replace_existing: $('#fileareaReplaceExisting').is(':checked'),
         is_local: $('#fileareaIsLocal').is(':checked'),
+        upload_permission: parseInt($('#fileareaUploadPermission').val()),
+        scan_virus: $('#fileareaScanVirus').is(':checked'),
         is_active: $('#fileareaIsActive').is(':checked')
     };
 
