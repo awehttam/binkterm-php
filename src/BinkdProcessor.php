@@ -1091,16 +1091,21 @@ class BinkdProcessor
         }
         
         try {
-            // The raw date from the message is in the sender's local timezone
-            // TZUTC tells us the offset from UTC (+0800 means UTC+8, -0500 means UTC-5)
-            // To convert to UTC, we need to subtract the offset
-            $dt = new \DateTime($dateString, new \DateTimeZone('UTC'));
-            $dt->modify("-{$tzutcOffsetMinutes} minutes"); // Convert from sender's timezone to UTC
+            // The raw date from the message is in the sender's local timezone (not UTC)
+            // TZUTC tells us the offset from UTC (+0200 means sender is UTC+2, -0500 means UTC-5)
+            // To convert sender's local time to UTC, we subtract the offset:
+            //   Example: Sender at UTC+2 sends message at 18:00 local = 16:00 UTC
+            //   Calculation: 18:00 - (+2:00) = 16:00 UTC
+            // Since DateTime constructor interprets the string in the given timezone context,
+            // we create it without timezone (naive), then adjust
+            $dt = new \DateTime($dateString);
+            $dt->modify("-{$tzutcOffsetMinutes} minutes"); // Subtract to convert to UTC
+            $dt->setTimezone(new \DateTimeZone('UTC')); // Ensure result is in UTC
             $result = $dt->format('Y-m-d H:i:s');
-  //          error_log("DEBUG: Applied TZUTC offset {$tzutcOffsetMinutes}min: '{$dateString}' -> '{$result}'");
+            error_log("DEBUG: Applied TZUTC offset -{$tzutcOffsetMinutes}min: '{$dateString}' -> '{$result}'");
             return $result;
         } catch (\Exception $e) {
-//            error_log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
+            error_log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
             return $dateString; // Return original date if offset application fails
         }
     }
