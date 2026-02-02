@@ -347,7 +347,7 @@ function displayMessages(messages, isThreaded = false) {
                             </th>
                             <th style="width: 25%">From</th>
                             <th style="width: 60%">Subject</th>
-                            <th colspan="2" style="width: 15%">Written</th>
+                            <th colspan="2" style="width: 15%">Received</th>
 
                         </tr>
                     </thead>
@@ -383,18 +383,6 @@ function displayMessages(messages, isThreaded = false) {
             // Add thread-specific CSS classes
             const threadClasses = isThreaded ? `thread-level-${threadLevel} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
 
-            // Check if date_written is valid (not more than 1 year in the future - likely corrupt)
-            const writtenDate = new Date(msg.date_written);
-            const receivedDate = new Date(msg.date_received);
-            const currentYear = new Date().getFullYear();
-            const maxValidYear = currentYear + 1; // More than 1 year in the future is likely corrupt
-            const useReceivedDate = writtenDate.getFullYear() > maxValidYear;
-
-            const displayDate = useReceivedDate ? msg.date_received : msg.date_written;
-            const dateTooltip = useReceivedDate
-                ? `Written date invalid (${formatFullDate(msg.date_written)}), showing received date`
-                : `Received: ${formatFullDate(msg.date_received)}`;
-
             html += `
                 <tr class="message-row ${readClass} ${threadClasses}" data-message-id="${msg.id}">
                     <td class="message-checkbox d-none">
@@ -413,7 +401,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
-                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${dateTooltip}">${formatDate(displayDate)}</td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
                 </tr>
             `;
         });
