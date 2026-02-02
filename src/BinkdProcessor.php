@@ -974,7 +974,8 @@ class BinkdProcessor
     {
         // Parse Fidonet date format - can be incomplete like "Aug 25  17:42:39"
         $dateStr = trim($dateStr);
-        
+
+        $this->log(__FILE__.":".__LINE__." dateStr is $dateStr");
         // Debug: Log the raw date string being parsed
         //error_log("DEBUG: Parsing Fidonet date: '$dateStr'");
         
@@ -1010,7 +1011,8 @@ class BinkdProcessor
                 return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
-        
+
+        $this->log(__FILE__.":".__LINE__." fall through");
         // Handle incomplete date format (missing year only) - "Aug 29  11:05:00" 
         if (preg_match('/^(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})$/', $dateStr, $matches)) {
             //error_log("DEBUG: Incomplete date pattern matched for '$dateStr'");
@@ -1047,7 +1049,7 @@ class BinkdProcessor
                 return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
-        
+        $this->log(__FILE__.":".__LINE__." fall through");
         // Handle full date format: "01 Jan 70  02:34:56" or "24 Aug 25  17:37:38"
         if (preg_match('/(\d{1,2})\s+(\w{3})\s+(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
             //error_log("DEBUG: Full date pattern matched for '$dateStr'");
@@ -1076,7 +1078,7 @@ class BinkdProcessor
                 return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
-        
+        $this->log(__FILE__.":".__LINE__." fall through");
         // Fallback to original parsing for non-standard formats
         $timestamp = strtotime($dateStr);
         if ($timestamp) {
@@ -1094,7 +1096,7 @@ class BinkdProcessor
         if ($tzutcOffsetMinutes === null) {
             return $dateString;
         }
-        
+        $this->log(__FILE__.":".__LINE__." dateString=$dateString");
         try {
             // The raw date from the message is in the sender's local timezone (not UTC)
             // TZUTC tells us the offset from UTC (+0200 means sender is UTC+2, -0500 means UTC-5)
@@ -1107,10 +1109,12 @@ class BinkdProcessor
             $dt->modify("-{$tzutcOffsetMinutes} minutes"); // Subtract to convert to UTC
             $dt->setTimezone(new \DateTimeZone('UTC')); // Ensure result is in UTC
             $result = $dt->format('Y-m-d H:i:s');
-            error_log("DEBUG: Applied TZUTC offset -{$tzutcOffsetMinutes}min: '{$dateString}' -> '{$result}'");
+            $this->log("DEBUG: Applied TZUTC offset -{$tzutcOffsetMinutes}min: '{$dateString}' -> '{$result}'");
+            $this->log(__FILE__.":".__LINE__." returning $result");
             return $result;
         } catch (\Exception $e) {
-            error_log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
+            $this->log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
+            $this->log(__FILE__.":".__LINE__." returning $result");
             return $dateString; // Return original date if offset application fails
         }
     }
