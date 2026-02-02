@@ -40,7 +40,7 @@ class EchoareaSubscriptionManager
     public function getAllEchoareasWithSubscriptionStatus($userId)
     {
         $sql = "
-            SELECT e.*, 
+            SELECT e.*,
                    s.is_active as subscribed,
                    s.subscription_type,
                    s.subscribed_at,
@@ -51,7 +51,7 @@ class EchoareaSubscriptionManager
               AND (COALESCE(e.is_sysop_only, FALSE) = FALSE OR EXISTS (
                     SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
                   ))
-            ORDER BY e.is_default_subscription DESC, e.tag
+            ORDER BY LOWER(e.tag)
         ";
         
         $stmt = $this->db->prepare($sql);
