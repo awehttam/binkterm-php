@@ -110,6 +110,13 @@ class VirusScanner
      */
     private function findClamdscan(): ?string
     {
+        // Check environment variable first
+        $envPath = getenv('CLAMDSCAN');
+        if (!empty($envPath) && file_exists($envPath) && is_executable($envPath)) {
+            return $envPath;
+        }
+
+        // Fall back to common locations
         $paths = [
             '/usr/bin/clamdscan',
             '/usr/local/bin/clamdscan',
@@ -122,7 +129,7 @@ class VirusScanner
             }
         }
 
-        // Try which command
+        // Try which command as last resort
         $which = trim((string)shell_exec('which clamdscan 2>/dev/null'));
         if (!empty($which) && file_exists($which)) {
             return $which;
