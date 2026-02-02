@@ -10,7 +10,7 @@ namespace BinktermPHP;
  */
 class VirusScanner
 {
-    private string $clamdscanPath;
+    private ?string $clamdscanPath;
     private bool $enabled;
 
     public function __construct()
