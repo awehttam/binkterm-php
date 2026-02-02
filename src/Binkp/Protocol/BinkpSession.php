@@ -178,7 +178,7 @@ class BinkpSession
                     $timeout = time() + 120; // Increased timeout to 120 seconds
                     $lastActivity = time();
 
-                    while (!empty($pendingFiles) && time() < $timeout && $this->state < self::STATE_TERMINATED) {
+                    while (!empty($pendingFiles) && time() < $timeout) {
                         $frame = BinkpFrame::parseFromSocket($this->socket);
                         if (!$frame) {
                             // Check for extended timeout without activity
@@ -500,7 +500,12 @@ class BinkpSession
                     } else {
                         $this->log("Received EOB first - sending our EOB", 'DEBUG');
                         $this->sendEOB();
-                        $this->state = self::STATE_TERMINATED; // immediate shutdown
+                        // Only terminate if we have no files waiting for confirmation
+                        if (empty($this->filesSent)) {
+                            $this->state = self::STATE_TERMINATED;
+                        } else {
+                            $this->state = self::STATE_EOB_RECEIVED;
+                        }
                     }
                     break;
 

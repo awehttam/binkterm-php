@@ -1161,26 +1161,32 @@ class BinkdProcessor
         $destAddr = trim($destAddr);
         list($destZone, $destNetNode) = explode(':', $destAddr);
         list($destNet, $destNodePoint) = explode('/', $destNetNode);
-        $destNode = explode('.', $destNodePoint)[0]; // Remove point if present
+
+        // Parse node and point
+        $destNodeParts = explode('.', $destNodePoint);
+        $destNode = (int)$destNodeParts[0];
+        $destPoint = isset($destNodeParts[1]) ? (int)$destNodeParts[1] : 0;
 
         // Cast to integers for pack()
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
-        $destNode = (int)$destNode;
 
         // Parse origin address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
-        $origNode = explode('.', $origNodePoint)[0]; // Remove point if present
+
+        // Parse node and point
+        $origNodeParts = explode('.', $origNodePoint);
+        $origNode = (int)$origNodeParts[0];
+        $origPoint = isset($origNodeParts[1]) ? (int)$origNodeParts[1] : 0;
 
         // Cast to integers for pack()
         $origZone = (int)$origZone;
         $origNet = (int)$origNet;
-        $origNode = (int)$origNode;
 
-        $this->log("writePacketHeader: origZone=$origZone destZone=$destZone origNet=$origNet destNet=$destNet origNode=$origNode destNode=$destNode");
+        $this->log("writePacketHeader: origZone=$origZone destZone=$destZone origNet=$origNet destNet=$destNet origNode=$origNode destNode=$destNode origPoint=$origPoint destPoint=$destPoint");
 
         $now = time();
         
@@ -1200,19 +1206,30 @@ class BinkdProcessor
             $destNet             // 22-23: Destination net
         );
         
-        // Remaining 34 bytes of standard header with zone information
-        $header .= str_pad('', 8, "\0");     // 24-31: Product code (low)
-        $header .= str_pad('', 2, "\0");     // 32-33: Product code (high)
-        
-        // FSC-39 (Type-2e) zone information at offset 34-37
-        $header .= pack('vv', $origZone, $destZone);  // 34-37: Origin zone, dest zone
-        
-        $header .= str_pad('', 8, "\0");     // 38-45: Password  
-        $header .= str_pad('', 6, "\0");     // 46-51: Reserved
-        
-        // Additional zone info for FSC-48 compatibility
-        $header .= pack('vv', $origZone, $destZone);  // 52-55: Orig zone, dest zone (FSC-48)
-        $header .= str_pad('', 2, "\0");     // 56-57: Auxiliary net info
+        // Remaining 34 bytes - FSC-0048 Type 2+ format (Binkd-compatible)
+        // Bytes 24-25: Product code and revision
+        $header .= pack('CC', 0, 0);         // 24-25: prodCode, prodRev
+
+        // Bytes 26-33: Password (8 bytes)
+        $header .= str_pad('', 8, "\0");     // 26-33: Password
+
+        // Bytes 34-37: Zone information (FSC-0039/0045)
+        $header .= pack('vv', $origZone, $destZone);    // 34-37: origZone, destZone
+
+        // Bytes 38-41: AuxNet and capability word
+        $header .= pack('vv', 0, 0);         // 38-41: auxNet, cwCopy
+
+        // Bytes 42-45: Extended product info
+        $header .= pack('CCv', 0, 0, 0);     // 42-45: prodCodeHi, revision, cwVal
+
+        // Bytes 46-49: Duplicate zone info (FSC-0048 compatibility)
+        $header .= pack('vv', $origZone, $destZone);    // 46-49: origZone_, destZone_
+
+        // Bytes 50-53: Point information (FSC-0048)
+        $header .= pack('vv', $origPoint, $destPoint);  // 50-53: origPoint, destPoint
+
+        // Bytes 54-57: Product data
+        $header .= pack('V', 0);             // 54-57: prodData (32-bit)
         
         // Verify we have exactly 58 bytes
         if (strlen($header) !== 58) {
