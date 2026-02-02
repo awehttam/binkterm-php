@@ -81,9 +81,13 @@
                             <input class="form-check-input" type="checkbox" id="bbsVoting">
                             <label class="form-check-label" for="bbsVoting">Enable Voting Booth</label>
                         </div>
-                        <div class="form-check mb-3">
+                        <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsChat">
                             <label class="form-check-label" for="bbsChat">Enable Chat</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsFileAreas">
+                            <label class="form-check-label" for="bbsFileAreas">Enable File Areas</label>
                         </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
                     </form>
@@ -190,6 +194,7 @@ function loadBbsSettings() {
             document.getElementById('bbsAdvertising').checked = !!features.advertising;
             document.getElementById('bbsVoting').checked = !!features.voting_booth;
             document.getElementById('bbsChat').checked = !!features.chat;
+            document.getElementById('bbsFileAreas').checked = !!features.file_areas;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
             document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);
@@ -229,7 +234,8 @@ function saveBbsSettings() {
                     shoutbox: document.getElementById('bbsShoutbox').checked,
                     advertising: document.getElementById('bbsAdvertising').checked,
                     voting_booth: document.getElementById('bbsVoting').checked,
-                    chat: document.getElementById('bbsChat').checked
+                    chat: document.getElementById('bbsChat').checked,
+                    file_areas: document.getElementById('bbsFileAreas').checked
                 },
                 credits: credits
             };

@@ -30,9 +30,10 @@ The file area system extends BinktermPHP's capabilities beyond message-based com
 
 - **User File Sharing**: Upload and download files through the web interface
 - **Fidonet File Distribution**: Receive and distribute files via binkp protocol
-- **Credit Economy**: Reward uploads and charge for downloads
+- **Private File Storage**: Users receive netmail attachments in their private file area
+- **Credit Economy**: Reward uploads and charge for downloads (public files only)
 - **Quality Control**: Sysop approval queue for user-uploaded content
-- **Security**: Optional ClamAV virus scanning
+- **Security**: Optional ClamAV virus scanning for all files
 - **Multi-Network Support**: File areas per network domain
 - **Future FREQ Support**: Framework for Fidonet file request protocol
 
@@ -44,6 +45,7 @@ The file area system extends BinktermPHP's capabilities beyond message-based com
 4. **Archive Preservation**: Historical BBS files, vintage software
 5. **Network Collaboration**: Share files between Fidonet nodes
 6. **User Contributions**: Allow users to upload content for community benefit
+7. **Private File Storage**: Users receive files via netmail attachments in their private file area
 
 ---
 
@@ -119,6 +121,22 @@ Based on stakeholder input and architectural review, the following design decisi
 - Whitelist mode: `allowed_extensions` (e.g., `.txt,.zip,.pdf`)
 - Blacklist mode: `blocked_extensions` (e.g., `.exe,.bat,.com`)
 - Admin can configure per-area
+
+### 9. Private File Storage
+**Decision**: Use `is_private` flag instead of creating private file areas per user
+**Rationale**: Simpler implementation, reuses existing infrastructure
+**Implementation**:
+- Set `is_private = TRUE` on file record
+- Set `file_area_id = NULL` (not associated with public area)
+- Store in `data/files/private/{user_id}/` directory
+- Access controlled by `uploaded_by_user_id` ownership
+- No approval workflow (auto-approved)
+- No credit costs for downloading own files
+**Benefits**:
+- Single `files` table for both public and private files
+- Reuses virus scanning, download handlers, storage logic
+- Simple access control (owner check)
+- Easy to implement file transfer from private → public
 
 ---
 
@@ -214,7 +232,6 @@ The file area system follows existing BinktermPHP patterns for consistency:
 ## Database Schema
 
 ### Migration File
-**Filename**: `database/migrations/v1.9.0_add_file_areas.sql`
 
 ### Table: `file_areas`
 
@@ -250,6 +267,7 @@ CREATE TABLE file_areas (
 
     CONSTRAINT unique_tag_domain UNIQUE(tag, domain)
 );
+
 ```
 
 **Key Fields**:
@@ -267,7 +285,7 @@ File metadata and tracking.
 ```sql
 CREATE TABLE files (
     id SERIAL PRIMARY KEY,
-    file_area_id INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE CASCADE,
+    file_area_id INTEGER REFERENCES file_areas(id) ON DELETE CASCADE,
 
     -- File information
     filename VARCHAR(255) NOT NULL,
@@ -278,13 +296,16 @@ CREATE TABLE files (
     -- Upload information
     uploaded_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     uploaded_from_address VARCHAR(255), -- Fidonet address (e.g., 1:123/456)
-    source_type VARCHAR(20) DEFAULT 'user', -- 'user', 'fidonet', 'freq'
+    source_type VARCHAR(20) DEFAULT 'user', -- 'user', 'fidonet', 'freq', 'netmail_attachment'
+
+    -- Privacy
+    is_private BOOLEAN DEFAULT FALSE, -- If true, only uploaded_by_user_id can access
 
     -- Descriptions
     short_description VARCHAR(255),
     long_description TEXT,
 
-    -- Approval workflow
+    -- Approval workflow (not used for private files)
     status VARCHAR(20) DEFAULT 'pending', -- pending, approved, rejected, quarantined
     approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     approved_at TIMESTAMP,
@@ -308,10 +329,21 @@ CREATE TABLE files (
 ```
 
 **Key Fields**:
+- `file_area_id`: Can be NULL for private files (not associated with public area)
 - `file_hash`: SHA256 hash for duplicate detection
-- `source_type`: Track origin (user upload vs Fidonet)
-- `status`: Workflow state (pending → approved/rejected/quarantined)
+- `source_type`: Track origin (user upload, fidonet, netmail_attachment, freq)
+- `is_private`: If TRUE, only the owning user can access (bypasses approval workflow)
+- `status`: Workflow state (pending → approved/rejected/quarantined) - auto-set to 'approved' for private files
 - `virus_scan_result`: ClamAV scan outcome
+
+**Private Files Behavior**:
+- Private files have `is_private = TRUE` and `file_area_id = NULL`
+- Stored in user-specific directory: `data/files/private/{user_id}/`
+- No approval workflow (auto-approved upon receipt)
+- Only accessible by the owning user (via `uploaded_by_user_id`)
+- Created when files are received as netmail attachments
+- No credit costs for downloading your own private files
+- Still subject to virus scanning for security
 
 ### Table: `user_file_area_subscriptions`
 
@@ -916,6 +948,16 @@ class FileAreaController
      * Unsubscribe from file area
      */
     public function handleUnsubscribe(Request $request, int $fileAreaId): Response;
+
+    /**
+     * List user's private files (netmail attachments)
+     */
+    public function handleListPrivateFiles(Request $request): Response;
+
+    /**
+     * Delete user's private file
+     */
+    public function handleDeletePrivateFile(Request $request, int $fileId): Response;
 }
 ```
 
@@ -946,9 +988,286 @@ public function handleApproveFile(Request $request, int $fileId): Response;
 public function handleRejectFile(Request $request, int $fileId): Response;
 ```
 
+#### Private File Methods
+
+```php
+/**
+ * List user's private files
+ */
+public function handleListPrivateFiles(Request $request): Response
+{
+    $userId = $request->user['id'];
+
+    $db = Database::getInstance()->getPdo();
+    $stmt = $db->prepare("
+        SELECT id, filename, filesize, short_description, long_description,
+               uploaded_from_address, virus_scan_result, created_at,
+               download_count
+        FROM files
+        WHERE is_private = TRUE
+          AND uploaded_by_user_id = ?
+          AND status != 'deleted'
+        ORDER BY created_at DESC
+    ");
+    $stmt->execute([$userId]);
+    $files = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    // Calculate storage usage
+    $totalSize = array_sum(array_column($files, 'filesize'));
+    $storageQuota = intval(getenv('FILES_PRIVATE_STORAGE_QUOTA') ?: 104857600);
+
+    return $this->json([
+        'success' => true,
+        'files' => $files,
+        'storage' => [
+            'used' => $totalSize,
+            'quota' => $storageQuota,
+            'percent' => round(($totalSize / $storageQuota) * 100, 1)
+        ]
+    ]);
+}
+
+/**
+ * Delete user's private file
+ */
+public function handleDeletePrivateFile(Request $request, int $fileId): Response
+{
+    $userId = $request->user['id'];
+
+    $db = Database::getInstance()->getPdo();
+
+    // Verify ownership
+    $stmt = $db->prepare("
+        SELECT id, storage_path, is_private, uploaded_by_user_id
+        FROM files
+        WHERE id = ?
+    ");
+    $stmt->execute([$fileId]);
+    $file = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$file) {
+        return $this->json(['success' => false, 'error' => 'File not found'], 404);
+    }
+
+    if (!$file['is_private'] || $file['uploaded_by_user_id'] != $userId) {
+        return $this->json(['success' => false, 'error' => 'Access denied'], 403);
+    }
+
+    // Delete from disk
+    if (file_exists($file['storage_path'])) {
+        unlink($file['storage_path']);
+    }
+
+    // Delete from database
+    $stmt = $db->prepare("DELETE FROM files WHERE id = ?");
+    $stmt->execute([$fileId]);
+
+    return $this->json([
+        'success' => true,
+        'message' => 'File deleted successfully'
+    ]);
+}
+```
+
 ---
 
-### 7. FileRequestHandler
+### 7. TicFileProcessor
+
+**File**: `src/TicFileProcessor.php`
+**Purpose**: Process incoming TIC files and handle file distribution
+
+#### Key Methods
+
+```php
+class TicFileProcessor
+{
+    /**
+     * Process TIC file received via binkp
+     */
+    public function processTicFile(string $ticPath, string $filePath): array;
+
+    /**
+     * Parse TIC file content
+     */
+    protected function parseTicFile(string $ticPath): array;
+
+    /**
+     * Validate file against TIC metadata
+     */
+    protected function validateFile(array $ticData, string $filePath): bool;
+
+    /**
+     * Calculate CRC32 checksum
+     */
+    protected function calculateCrc32(string $filePath): string;
+
+    /**
+     * Store file in file area
+     */
+    protected function storeFile(array $ticData, string $filePath): int;
+
+    /**
+     * Update TIC path and seenby lines
+     */
+    protected function updateTicRouting(array &$ticData, string $ourAddress): void;
+
+    /**
+     * Forward TIC to downstream nodes
+     */
+    protected function forwardTic(array $ticData, int $fileId): void;
+
+    /**
+     * Create TIC file for outbound
+     */
+    public function createTicFile(int $fileId, string $destAddress): string;
+
+    /**
+     * Check if file area is subscribed
+     */
+    protected function isAreaSubscribed(string $areaTag): bool;
+}
+```
+
+#### TIC File Format
+
+**Standard TIC Fields**:
+- `Area` - File area tag (required)
+- `File` - Filename (required)
+- `Desc` - Short description (required)
+- `From` - Origin address (required)
+- `Path` - Routing path (required)
+- `Seenby` - Distribution tracking (required)
+- `Size` - File size in bytes
+- `Crc` - CRC32 checksum (8 hex digits)
+- `Created` - Creation program
+- `Date` - Creation timestamp
+- `Pw` - Password (optional)
+- `Replaces` - File being replaced (optional)
+- `LDesc` - Long description (multi-line, optional)
+
+#### Processing Workflow
+
+```php
+public function processTicFile(string $ticPath, string $filePath): array
+{
+    try {
+        // Parse TIC file
+        $ticData = $this->parseTicFile($ticPath);
+
+        // Check if we're subscribed to this area
+        if (!$this->isAreaSubscribed($ticData['Area'])) {
+            return [
+                'success' => false,
+                'error' => "Not subscribed to file area: {$ticData['Area']}"
+            ];
+        }
+
+        // Validate file
+        if (!$this->validateFile($ticData, $filePath)) {
+            return [
+                'success' => false,
+                'error' => 'File validation failed (size/CRC mismatch)'
+            ];
+        }
+
+        // Store file
+        $fileId = $this->storeFile($ticData, $filePath);
+
+        // Update routing
+        $this->updateTicRouting($ticData, $this->getOurAddress());
+
+        // Forward to downstream nodes if configured
+        $this->forwardTic($ticData, $fileId);
+
+        return [
+            'success' => true,
+            'file_id' => $fileId,
+            'area' => $ticData['Area']
+        ];
+
+    } catch (\Exception $e) {
+        error_log("TIC processing error: " . $e->getMessage());
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
+    }
+}
+
+protected function parseTicFile(string $ticPath): array
+{
+    $content = file_get_contents($ticPath);
+    $lines = explode("\n", $content);
+
+    $ticData = [
+        'Path' => [],
+        'Seenby' => [],
+        'LDesc' => []
+    ];
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if (empty($line)) continue;
+
+        // Parse key value pairs
+        if (preg_match('/^(\w+)\s+(.+)$/', $line, $matches)) {
+            $key = $matches[1];
+            $value = trim($matches[2]);
+
+            if ($key === 'Path' || $key === 'Seenby') {
+                $ticData[$key][] = $value;
+            } elseif ($key === 'LDesc') {
+                $ticData['LDesc'][] = $value;
+            } else {
+                $ticData[$key] = $value;
+            }
+        }
+    }
+
+    // Validate required fields
+    $required = ['Area', 'File', 'From'];
+    foreach ($required as $field) {
+        if (!isset($ticData[$field])) {
+            throw new \Exception("Missing required TIC field: $field");
+        }
+    }
+
+    return $ticData;
+}
+
+protected function validateFile(array $ticData, string $filePath): bool
+{
+    // Validate size
+    if (isset($ticData['Size'])) {
+        $actualSize = filesize($filePath);
+        if ($actualSize != intval($ticData['Size'])) {
+            error_log("TIC size mismatch: expected {$ticData['Size']}, got $actualSize");
+            return false;
+        }
+    }
+
+    // Validate CRC32
+    if (isset($ticData['Crc'])) {
+        $actualCrc = $this->calculateCrc32($filePath);
+        if (strtoupper($actualCrc) !== strtoupper($ticData['Crc'])) {
+            error_log("TIC CRC mismatch: expected {$ticData['Crc']}, got $actualCrc");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+protected function calculateCrc32(string $filePath): string
+{
+    $hash = hash_file('crc32b', $filePath);
+    return strtoupper($hash);
+}
+```
+
+---
+
+### 8. FileRequestHandler
 
 **File**: `src/FileRequestHandler.php`
 **Purpose**: Stub for future FREQ implementation
@@ -1025,6 +1344,13 @@ $router->post('/api/file-areas/{id}/subscribe',
 
 $router->post('/api/file-areas/{id}/unsubscribe',
     [FileAreaController::class, 'handleUnsubscribe']);
+
+// Private files
+$router->get('/api/files/private',
+    [FileAreaController::class, 'handleListPrivateFiles']);
+
+$router->delete('/api/files/private/{id}',
+    [FileAreaController::class, 'handleDeletePrivateFile']);
 ```
 
 ### Admin Endpoints
@@ -1410,6 +1736,56 @@ Content-Length: 1024000
 
 ---
 
+#### 5. Private Files (`templates/file_private.twig`)
+
+**Features**:
+- List user's private files (received via netmail)
+- Download private files (no credit cost)
+- Delete unwanted files
+- Show file origin (sender address/name)
+- Virus scan status
+
+**Layout**:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ My Private Files                                                │
+├─────────────────────────────────────────────────────────────────┤
+│ Files received via netmail are stored here.                    │
+│ Storage used: 15.2 MB / 100 MB                                  │
+├─────────────────────────────────────────────────────────────────┤
+│ 📄 document.pdf (2.4 MB)                                        │
+│    Received from: John Doe (1:123/456)                         │
+│    Date: 2025-01-30 10:23                                      │
+│    Subject: RE: Project files                                  │
+│    ✅ Virus Scan: CLEAN                                        │
+│    [⬇ Download] [🗑️ Delete]                                    │
+├─────────────────────────────────────────────────────────────────┤
+│ 📦 archive.zip (5.1 MB)                                         │
+│    Received from: Jane Smith (1:234/567)                       │
+│    Date: 2025-01-29 14:15                                      │
+│    Subject: Files you requested                                │
+│    ✅ Virus Scan: CLEAN                                        │
+│    [⬇ Download] [🗑️ Delete]                                    │
+├─────────────────────────────────────────────────────────────────┤
+│ 📄 infected.exe (142 KB)                                        │
+│    Received from: Unknown (1:999/999)                          │
+│    Date: 2025-01-28 08:30                                      │
+│    ⚠️  Virus Scan: QUARANTINED - Win.Trojan.Generic           │
+│    This file cannot be downloaded (infected)                   │
+│    [🗑️ Delete]                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Features**:
+- Read-only list (files added automatically via netmail)
+- No upload button (files come from netmail only)
+- Free downloads (no credit cost for own files)
+- Delete option to manage storage
+- Shows sender information from netmail
+- Quarantined files clearly marked and not downloadable
+
+---
+
 ## Integration Points
 
 ### 1. BinkpSession.php Integration
@@ -1423,9 +1799,10 @@ Content-Length: 1024000
 - Only processes .pkt files
 
 **New Behavior**:
-- Distinguish between .pkt files and other files
-- Route non-packet files to FileUploadHandler
-- Determine target file area based on filename or configuration
+- Process .pkt files (existing behavior)
+- Detect .TIC files and their associated data files
+- Process TIC files via TicFileProcessor
+- Store files in appropriate file areas
 
 **Implementation**:
 
@@ -1442,72 +1819,60 @@ protected function handleFileFrame($filename, $fileData)
         // Existing packet processing
         $this->logger->info("Received packet: $filename");
         // ... existing packet handling code
+    } elseif (str_ends_with(strtolower($filename), '.tic')) {
+        // NEW: TIC file processing
+        $this->logger->info("Received TIC file: $filename from {$this->remoteAddress}");
+        $this->pendingTicFiles[$filename] = $tempPath;
+        // TIC processing happens after associated file is received
     } else {
-        // NEW: File area processing
-        $this->logger->info("Received file: $filename from {$this->remoteAddress}");
+        // Regular file - check if there's a pending TIC for it
+        $ticFile = $filename . '.tic';
+        if (isset($this->pendingTicFiles[$ticFile])) {
+            // Process TIC + file together
+            try {
+                $ticProcessor = new \BinktermPHP\TicFileProcessor();
+                $result = $ticProcessor->processTicFile(
+                    $this->pendingTicFiles[$ticFile],
+                    $tempPath
+                );
 
-        try {
-            $fileHandler = new \BinktermPHP\FileUploadHandler();
+                if ($result['success']) {
+                    $this->logger->info("TIC processed: {$result['area']} - $filename (file_id={$result['file_id']})");
+                    // Clean up TIC file
+                    unlink($this->pendingTicFiles[$ticFile]);
+                    unset($this->pendingTicFiles[$ticFile]);
+                } else {
+                    $this->logger->error("TIC processing failed: {$result['error']}");
+                }
 
-            // Determine target file area (could be from filename pattern, config, etc.)
-            $fileAreaId = $this->determineFileArea($filename);
-
-            $result = $fileHandler->handleFidonetFile(
-                $fileAreaId,
-                $tempPath,
-                $this->remoteAddress,
-                [
-                    'domain' => $this->getCurrentDomain(),
-                    'session_id' => $this->sessionId
-                ]
-            );
-
-            if ($result['success']) {
-                $this->logger->info("File processed successfully: file_id={$result['file_id']}");
-                // Optionally send acknowledgment back
-            } else {
-                $this->logger->error("File processing failed: {$result['error']}");
+            } catch (\Exception $e) {
+                $this->logger->error("TIC handling exception: " . $e->getMessage());
             }
-
-        } catch (\Exception $e) {
-            $this->logger->error("File handling exception: " . $e->getMessage());
+        } else {
+            // File without TIC - log warning and skip
+            $this->logger->warning("Received file without TIC: $filename");
         }
     }
 }
-
-/**
- * Determine target file area for incoming file
- * TODO: This could be enhanced with routing rules, filename patterns, etc.
- */
-protected function determineFileArea(string $filename): int
-{
-    // Simple implementation: use GENERAL_FILES for now
-    // Future: Could check routing table, filename patterns, etc.
-
-    $db = \BinktermPHP\Database::getInstance()->getPdo();
-    $stmt = $db->prepare("SELECT id FROM file_areas WHERE tag = ? AND is_active = TRUE LIMIT 1");
-    $stmt->execute(['GENERAL_FILES']);
-    $area = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-    if ($area) {
-        return $area['id'];
-    }
-
-    throw new \Exception("No active file area found for incoming file");
-}
 ```
 
-**File Area Routing** (Future Enhancement):
+**Session Variables**:
+```php
+class BinkpSession
+{
+    // Add to class properties
+    private array $pendingTicFiles = [];
 
-Could be enhanced with routing table:
-```sql
-CREATE TABLE file_area_routing (
-    id SERIAL PRIMARY KEY,
-    from_address VARCHAR(255), -- Pattern like "1:123/*"
-    filename_pattern VARCHAR(255), -- Pattern like "*.txt"
-    target_file_area_id INTEGER REFERENCES file_areas(id),
-    priority INTEGER DEFAULT 0
-);
+    // At end of session, process any orphaned TIC files
+    protected function cleanup()
+    {
+        foreach ($this->pendingTicFiles as $ticFile => $ticPath) {
+            $this->logger->warning("TIC file received without data file: $ticFile");
+            unlink($ticPath);
+        }
+        $this->pendingTicFiles = [];
+    }
+}
 ```
 
 ---
@@ -1677,7 +2042,232 @@ public function approveFile(int $fileId, int $adminUserId): bool
 
 ---
 
-### 4. AdminActionLogger Integration
+### 4. Netmail File Attachment Integration
+
+**File**: Netmail packet processing (location TBD based on current netmail handling)
+**Purpose**: Extract file attachments from netmail and store in user's private area
+
+#### Implementation
+
+When processing incoming netmail packets, detect file attachments and handle them:
+
+```php
+/**
+ * Process netmail with file attachments
+ */
+protected function processNetmailAttachments(array $netmail, array $attachedFiles): void
+{
+    // Get recipient user
+    $db = Database::getInstance()->getPdo();
+    $stmt = $db->prepare("SELECT id FROM users WHERE ftn_address = ? OR real_name = ?");
+    $stmt->execute([$netmail['to_address'], $netmail['to_name']]);
+    $recipient = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$recipient) {
+        error_log("Cannot store attachments: recipient not found for {$netmail['to_name']}");
+        return;
+    }
+
+    $fileHandler = new FileUploadHandler();
+
+    foreach ($attachedFiles as $filePath) {
+        $filename = basename($filePath);
+
+        // Store in user's private area
+        $result = $fileHandler->handleNetmailAttachment(
+            $recipient['id'],
+            $filePath,
+            $netmail['from_address'],
+            [
+                'netmail_subject' => $netmail['subject'],
+                'from_name' => $netmail['from_name']
+            ]
+        );
+
+        if ($result['success']) {
+            error_log("Netmail attachment stored: $filename (file_id={$result['file_id']})");
+
+            // Optionally: Add note to netmail body about received file
+            $this->addAttachmentNote($netmail['id'], $filename, $result['file_id']);
+        } else {
+            error_log("Failed to store netmail attachment: $filename - {$result['error']}");
+        }
+    }
+}
+
+/**
+ * Add note to netmail about received file attachment
+ */
+protected function addAttachmentNote(int $netmailId, string $filename, int $fileId): void
+{
+    // Could append to message body or add system message
+    $note = "\n\n--- File Attachment ---\nFile: $filename\nStored in your private files. View at: /files/private\n";
+
+    $db = Database::getInstance()->getPdo();
+    $stmt = $db->prepare("UPDATE netmail SET body = body || ? WHERE id = ?");
+    $stmt->execute([$note, $netmailId]);
+}
+```
+
+#### FileUploadHandler New Method
+
+Add to `FileUploadHandler` class:
+
+```php
+/**
+ * Handle file received as netmail attachment
+ *
+ * @param int $userId Owner of the file
+ * @param string $filePath Path to temporary file
+ * @param string $fromAddress Sender's Fidonet address
+ * @param array $metadata Additional metadata
+ * @return array Result array
+ */
+public function handleNetmailAttachment(
+    int $userId,
+    string $filePath,
+    string $fromAddress,
+    array $metadata = []
+): array {
+    try {
+        $filename = basename($filePath);
+        $filesize = filesize($filePath);
+
+        // Calculate hash
+        $fileHash = $this->calculateFileHash($filePath);
+
+        // Scan for viruses
+        $scanResult = $this->scanForViruses($filePath);
+        if ($scanResult['result'] === 'infected') {
+            // Quarantine infected files even in private area
+            $this->moveToQuarantine($filePath, $userId, $filename);
+
+            return [
+                'success' => false,
+                'error' => 'File infected with virus: ' . $scanResult['signature'],
+                'quarantined' => true
+            ];
+        }
+
+        // Move to private storage
+        $storagePath = $this->moveToPrivateStorage($filePath, $userId, $filename);
+
+        // Create database record
+        $fileId = $this->storePrivateFileRecord([
+            'filename' => $filename,
+            'filesize' => $filesize,
+            'file_hash' => $fileHash,
+            'storage_path' => $storagePath,
+            'uploaded_by_user_id' => $userId,
+            'uploaded_from_address' => $fromAddress,
+            'source_type' => 'netmail_attachment',
+            'is_private' => true,
+            'status' => 'approved', // Auto-approved
+            'short_description' => $metadata['netmail_subject'] ?? '',
+            'long_description' => "Received from {$metadata['from_name']} ({$fromAddress})",
+            'virus_scanned' => $scanResult['scanned'],
+            'virus_scan_result' => $scanResult['result'],
+            'virus_scanned_at' => $scanResult['scanned_at'] ?? null
+        ]);
+
+        return [
+            'success' => true,
+            'file_id' => $fileId,
+            'storage_path' => $storagePath
+        ];
+
+    } catch (\Exception $e) {
+        error_log("Netmail attachment handling error: " . $e->getMessage());
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
+    }
+}
+
+/**
+ * Move file to user's private storage directory
+ */
+protected function moveToPrivateStorage(string $tempPath, int $userId, string $filename): string
+{
+    $filename = $this->sanitizeFilename($filename);
+
+    // Build storage path: data/files/private/{user_id}/
+    $baseDir = realpath(__DIR__ . '/../data/files/private');
+    $userDir = $baseDir . '/' . $userId;
+
+    // Create user directory if needed
+    if (!is_dir($userDir)) {
+        mkdir($userDir, 0755, true);
+    }
+
+    // Handle filename conflicts
+    $storagePath = $userDir . '/' . $filename;
+    $counter = 1;
+    while (file_exists($storagePath)) {
+        $pathInfo = pathinfo($filename);
+        $newFilename = $pathInfo['filename'] . '_' . $counter . '.' . $pathInfo['extension'];
+        $storagePath = $userDir . '/' . $newFilename;
+        $counter++;
+    }
+
+    // Move file
+    if (!rename($tempPath, $storagePath)) {
+        throw new \Exception("Failed to move file to private storage");
+    }
+
+    // Set permissions
+    chmod($storagePath, 0644);
+
+    return $storagePath;
+}
+
+/**
+ * Store private file record in database
+ */
+protected function storePrivateFileRecord(array $data): int
+{
+    $db = Database::getInstance()->getPdo();
+
+    $stmt = $db->prepare("
+        INSERT INTO files (
+            file_area_id, filename, filesize, file_hash, storage_path,
+            uploaded_by_user_id, uploaded_from_address, source_type,
+            is_private, status, short_description, long_description,
+            virus_scanned, virus_scan_result, virus_scanned_at,
+            created_at, updated_at
+        ) VALUES (
+            NULL, ?, ?, ?, ?,
+            ?, ?, ?,
+            TRUE, 'approved', ?, ?,
+            ?, ?, ?,
+            NOW(), NOW()
+        ) RETURNING id
+    ");
+
+    $stmt->execute([
+        $data['filename'],
+        $data['filesize'],
+        $data['file_hash'],
+        $data['storage_path'],
+        $data['uploaded_by_user_id'],
+        $data['uploaded_from_address'],
+        $data['source_type'],
+        $data['short_description'],
+        $data['long_description'],
+        $data['virus_scanned'],
+        $data['virus_scan_result'],
+        $data['virus_scanned_at']
+    ]);
+
+    $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+    return $result['id'];
+}
+```
+
+---
+
+### 5. AdminActionLogger Integration
 
 **Purpose**: Audit trail for all file area admin actions
 
@@ -1837,7 +2427,7 @@ protected function moveToStorage(string $tempPath, string $areaTag, string $file
 
 ### 3. Access Control
 
-**Subscription Checks**:
+**Access Check with Private File Support**:
 
 ```php
 protected function checkAccess(int $fileId, int $userId): bool
@@ -1845,22 +2435,31 @@ protected function checkAccess(int $fileId, int $userId): bool
     $db = Database::getInstance()->getPdo();
 
     $stmt = $db->prepare("
-        SELECT f.id, fa.is_sysop_only
+        SELECT f.id, f.is_private, f.uploaded_by_user_id,
+               f.file_area_id, fa.is_sysop_only
         FROM files f
-        JOIN file_areas fa ON f.file_area_id = fa.id
-        LEFT JOIN user_file_area_subscriptions sub ON fa.id = sub.file_area_id AND sub.user_id = ?
+        LEFT JOIN file_areas fa ON f.file_area_id = fa.id
         WHERE f.id = ? AND f.status = 'approved'
     ");
-    $stmt->execute([$userId, $fileId]);
+    $stmt->execute([$fileId]);
     $result = $stmt->fetch(\PDO::FETCH_ASSOC);
 
     if (!$result) {
         return false; // File not found or not approved
     }
 
+    // Private files: only owner can access
+    if ($result['is_private']) {
+        return $result['uploaded_by_user_id'] == $userId;
+    }
+
+    // Public files: check subscriptions and sysop restrictions
+    if (!$result['file_area_id']) {
+        return false; // Public file must have area
+    }
+
     // Check if sysop-only and user is not sysop
     if ($result['is_sysop_only']) {
-        // Check if user is sysop
         $userStmt = $db->prepare("SELECT is_sysop FROM users WHERE id = ?");
         $userStmt->execute([$userId]);
         $user = $userStmt->fetch(\PDO::FETCH_ASSOC);
@@ -1873,10 +2472,10 @@ protected function checkAccess(int $fileId, int $userId): bool
     // Check subscription
     $subStmt = $db->prepare("
         SELECT id FROM user_file_area_subscriptions
-        WHERE user_id = ? AND file_area_id = (SELECT file_area_id FROM files WHERE id = ?)
+        WHERE user_id = ? AND file_area_id = ?
         AND is_active = TRUE
     ");
-    $subStmt->execute([$userId, $fileId]);
+    $subStmt->execute([$userId, $result['file_area_id']]);
 
     return $subStmt->fetch() !== false;
 }
@@ -1886,14 +2485,19 @@ protected function checkAccess(int $fileId, int $userId): bool
 
 ### 4. Credit Balance Checks
 
-**Pre-Download Validation**:
+**Pre-Download Validation with Private File Support**:
 
 ```php
 protected function checkCredits(int $fileId, int $userId): array
 {
     $file = $this->getFileDetails($fileId);
-    $fileArea = $this->getFileArea($file['file_area_id']);
 
+    // Private files are always free for the owner
+    if ($file['is_private']) {
+        return ['sufficient' => true, 'cost' => 0, 'balance' => null];
+    }
+
+    $fileArea = $this->getFileArea($file['file_area_id']);
     $cost = $fileArea['download_credit_cost'];
 
     if ($cost <= 0) {
@@ -1966,9 +2570,9 @@ ORDER BY f.virus_scanned_at DESC;
 ### Phase 1: Foundation (Week 1)
 
 **Tasks**:
-1. Create database migration `v1.9.0_add_file_areas.sql`
+1. Create database migration
 2. Run migration and verify tables created
-3. Create directory structure (`data/files/`, `.quarantine/`, etc.)
+3. Create directory structure (`data/files/`, `.quarantine/`, etc.). Place .gitkeep in. Update setup.php to make these world writable just as data/outbound is
 4. Create `FileAreaManager` class
 5. Create `FileUploadHandler` class (basic validation)
 6. Create `FileDownloadHandler` class (basic download)
@@ -2027,11 +2631,16 @@ ORDER BY f.virus_scanned_at DESC;
 4. Test receiving files via binkp
 5. Auto-approval for Fidonet sources
 6. File area routing table (optional)
+7. **Implement netmail attachment extraction**
+8. **Private file storage for netmail attachments**
+9. **Create private files UI template**
 
 **Deliverables**:
 - Files received via binkp processed correctly
 - Auto-approval for trusted nodes
 - Routing logic functional
+- **Netmail attachments stored in user private areas**
+- **Users can browse and download their private files**
 
 ---
 
@@ -2245,6 +2854,79 @@ ORDER BY f.virus_scanned_at DESC;
 
 ---
 
+**Test Scenario 6: Private File Delivery via Netmail**
+
+1. User sends netmail with file attachment to user "alice"
+2. Netmail processed by system
+3. File attachment extracted
+4. Virus scan performed
+5. File stored in alice's private area
+6. Verify file record created with is_private=TRUE
+7. Verify storage path: `data/files/private/{alice_user_id}/filename`
+
+8. Login as alice
+9. Navigate to "My Private Files"
+10. See attached file listed
+11. Verify sender information displayed
+12. Download file
+13. Verify no credit charge
+14. Verify download successful
+
+15. Login as different user (bob)
+16. Attempt to access alice's private file via direct URL
+17. Verify access denied
+
+**Expected Results**:
+- Netmail attachment extracted correctly
+- File stored in private area
+- Only owner can access
+- No credit charge for owner
+- Other users blocked from access
+
+---
+
+**Test Scenario 7: Private File Deletion**
+
+1. Login as user with private files
+2. Navigate to "My Private Files"
+3. Select file to delete
+4. Click delete button
+5. Confirm deletion
+6. Verify file removed from list
+7. Verify file deleted from disk
+8. Verify database record removed/marked deleted
+9. Verify storage quota updated
+
+**Expected Results**:
+- File deleted successfully
+- Storage space reclaimed
+- Database cleaned up
+
+---
+
+**Test Scenario 8: Private File Virus Quarantine**
+
+1. User receives netmail with infected file (EICAR test)
+2. System extracts attachment
+3. Virus scan detects infection
+4. File quarantined (not placed in private area)
+5. Database record created with status='quarantined'
+
+6. Login as recipient user
+7. Navigate to "My Private Files"
+8. See quarantined file with warning
+9. Verify download button disabled
+10. Verify prominent virus warning displayed
+11. Option to delete quarantined file
+
+**Expected Results**:
+- Infected file quarantined
+- User notified of virus
+- Download prevented
+- Clear security warning
+
+---
+
 ## Future Enhancements
 
 ### Phase 2: File Request (FREQ) Support
@@ -2428,13 +3110,15 @@ This proposal outlines a comprehensive file area system for BinktermPHP that:
 
 **Key Benefits**:
 - ✅ Multi-network file distribution
-- ✅ Credit-based economy integration
-- ✅ Virus protection with ClamAV
-- ✅ Sysop approval workflow
+- ✅ Private file storage for netmail attachments
+- ✅ Credit-based economy integration (public files)
+- ✅ Virus protection with ClamAV for all files
+- ✅ Sysop approval workflow (public files)
 - ✅ Download statistics and tracking
 - ✅ Fidonet file reception via binkp
 - ✅ Future FREQ protocol support
 - ✅ Scalable storage architecture
+- ✅ Simple ownership-based access control for private files
 
 **Implementation Timeline**: 5 weeks for core features, ongoing enhancements
 
@@ -2458,6 +3142,11 @@ FILES_QUARANTINE_INFECTED=true          # Move infected to .quarantine/
 FILES_DEFAULT_DOWNLOAD_COST=10          # Default credits per download
 FILES_DEFAULT_UPLOAD_REWARD=25          # Default credits per approved upload
 
+# Private File Settings
+FILES_PRIVATE_STORAGE_QUOTA=104857600   # 100MB per user default
+FILES_PRIVATE_MAX_FILE_SIZE=10485760    # 10MB max size for netmail attachments
+FILES_PRIVATE_SCAN_VIRUSES=true         # Scan private files for viruses
+
 # ClamAV Virus Scanning (optional)
 CLAMAV_ENABLED=false
 CLAMAV_PATH=/usr/bin/clamdscan
@@ -2469,34 +3158,68 @@ FILES_AUTO_ROUTE_ENABLED=false
 FILES_ROUTING_CONFIG=/path/to/routing.json
 ```
 
-### File Area Routing Configuration (Future)
+### TIC File Configuration
 
-**File**: `config/file_routing.json`
+File areas use the TIC (File Catalog) system for Fidonet file distribution. Configuration similar to binkp.json for uplink file area subscriptions.
+
+**File**: `config/fileareas.json`
 
 ```json
 {
-    "routes": [
+    "file_areas": [
         {
-            "from_address": "1:123/*",
-            "filename_pattern": "*.txt",
-            "target_area": "TEXT_FILES",
-            "priority": 1
+            "tag": "COOKING_FILES",
+            "description": "Cooking recipes and food-related files",
+            "domain": "fidonet",
+            "uplinks": ["1:123/456"],
+            "forward_to": [],
+            "is_passive": false
         },
         {
-            "from_address": "*",
-            "filename_pattern": "*",
-            "target_area": "GENERAL_FILES",
-            "priority": 99
+            "tag": "BBS_ADS",
+            "description": "BBS advertisements and ANSI art",
+            "domain": "fidonet",
+            "uplinks": ["1:123/456"],
+            "forward_to": ["1:234/567"],
+            "is_passive": false
         }
-    ]
+    ],
+    "tic_settings": {
+        "inbound_path": "data/inbound/tic",
+        "validate_crc": true,
+        "validate_size": true,
+        "require_password": false,
+        "replace_existing": false
+    }
 }
 ```
+
+**TIC File Format** (received with files):
+```
+Area COOKING_FILES
+File recipe.txt
+Desc A great recipe for chocolate cake
+From 1:123/456
+Path 1:123/456 1234567890
+Seenby 1:123/456
+Created by BinktermPHP v1.9.0
+Date Wed, 30 Jan 2025 12:34:56 -0500
+Size 2048
+Crc A3B5C7D9
+```
+
+**Processing Flow**:
+1. Receive .TIC + file via binkp
+2. Parse TIC metadata
+3. Validate CRC and size
+4. Look up file area by tag
+5. Store file in area
+6. Update Path/Seenby
+7. Forward to downstream nodes if configured
 
 ---
 
 ## Appendix: SQL Schema Summary
-
-**Complete schema available in**: `database/migrations/v1.9.0_add_file_areas.sql`
 
 **Tables Created**:
 1. `file_areas` - File distribution areas (8 rows expected initially)
@@ -2512,6 +3235,6 @@ FILES_ROUTING_CONFIG=/path/to/routing.json
 
 ---
 
-**Document Version**: 1.0
+**Document Version**: 1.1
 **Last Updated**: 2025-01-30
 **Status**: DRAFT - Pending Review

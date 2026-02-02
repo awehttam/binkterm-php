@@ -1664,6 +1664,304 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    // File Areas API routes
+    SimpleRouter::get('/fileareas', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $filter = $_GET['filter'] ?? 'active';
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+        $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
+
+        echo json_encode(['fileareas' => $fileareas]);
+    });
+
+    SimpleRouter::get('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $filearea = $manager->getFileAreaById((int)$id);
+
+        if ($filearea) {
+            echo json_encode(['filearea' => $filearea]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'File area not found']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/fileareas', function() {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $manager = new \BinktermPHP\FileAreaManager();
+            $id = $manager->createFileArea($data);
+
+            echo json_encode(['success' => true, 'id' => $id]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::put('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $manager = new \BinktermPHP\FileAreaManager();
+            $manager->updateFileArea((int)$id, $data);
+
+            echo json_encode(['success' => true]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::delete('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $manager->deleteFileArea((int)$id);
+
+            echo json_encode(['success' => true]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/fileareas/stats', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $stats = $manager->getStats();
+
+        echo json_encode($stats);
+    });
+
+    // Files API routes
+    SimpleRouter::get('/files', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $areaId = $_GET['area_id'] ?? null;
+        if (!$areaId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'area_id parameter required']);
+            return;
+        }
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        // Check if user has access to this file area
+        if (!$manager->canAccessFileArea((int)$areaId, $userId, $isAdmin)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Access denied to this file area']);
+            return;
+        }
+
+        $files = $manager->getFiles((int)$areaId);
+
+        echo json_encode(['files' => $files]);
+    });
+
+    SimpleRouter::get('/files/{id}', function($id) {
+        RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file = $manager->getFileById((int)$id);
+
+        if ($file) {
+            echo json_encode(['file' => $file]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/files/{id}/download', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo 'File areas feature is disabled';
+            return;
+        }
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file = $manager->getFileById((int)$id);
+
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        // Check if user has access to this file's area
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+            http_response_code(403);
+            echo 'Access denied to this file';
+            return;
+        }
+
+        $storagePath = $file['storage_path'];
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo 'File not found on disk';
+            return;
+        }
+
+        // Set headers for file download
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . basename($file['filename']) . '"');
+        header('Content-Length: ' . filesize($storagePath));
+        header('Cache-Control: no-cache, must-revalidate');
+        header('Pragma: public');
+
+        // Output file
+        readfile($storagePath);
+        exit;
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/files/upload', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            if (!isset($_FILES['file'])) {
+                throw new \Exception('No file uploaded');
+            }
+
+            $fileAreaId = (int)($_POST['file_area_id'] ?? 0);
+            $shortDescription = trim($_POST['short_description'] ?? '');
+            $longDescription = trim($_POST['long_description'] ?? '');
+
+            if (!$fileAreaId) {
+                throw new \Exception('File area ID is required');
+            }
+
+            if (empty($shortDescription)) {
+                throw new \Exception('Short description is required');
+            }
+
+            // Check upload permissions for this file area
+            $manager = new \BinktermPHP\FileAreaManager();
+            $fileArea = $manager->getFileAreaById($fileAreaId);
+
+            if (!$fileArea) {
+                throw new \Exception('File area not found');
+            }
+
+            $uploadPermission = $fileArea['upload_permission'] ?? \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
+            $isAdmin = ($user['is_admin'] ?? false) === true || ($user['is_admin'] ?? 0) === 1;
+
+            // Check upload permission
+            if ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY) {
+                throw new \Exception('This file area is read-only. Uploads are not permitted.');
+            } elseif ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_ADMIN_ONLY && !$isAdmin) {
+                throw new \Exception('Only administrators can upload files to this area.');
+            }
+
+            // Get user's FidoNet address or username
+            $uploadedBy = $user['username'] ?? 'Unknown';
+            $ownerId = $user['user_id'] ?? $user['id'] ?? null;
+            $fileId = $manager->uploadFile(
+                $fileAreaId,
+                $_FILES['file'],
+                $shortDescription,
+                $longDescription,
+                $uploadedBy,
+                $ownerId
+            );
+
+            echo json_encode([
+                'success' => true,
+                'file_id' => $fileId,
+                'message' => 'File uploaded successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::delete('/files/{id}/delete', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            $userId = $user['user_id'] ?? $user['id'] ?? 0;
+            $isAdmin = !empty($user['is_admin']);
+
+            $manager = new \BinktermPHP\FileAreaManager();
+            $manager->deleteFile((int)$id, $userId, $isAdmin);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'File deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            http_response_code(403);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
         $user = RouteHelper::requireAuth();
@@ -1780,6 +2078,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $message['replyto_address'] = $replyToDataKludge['address'];
                     $message['replyto_name'] = $replyToDataKludge['name'];
                 }
+            }
+
+            // Include file attachments if file areas feature is enabled
+            if (\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+                try {
+                    $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                    $attachments = $fileAreaManager->getMessageAttachments($id, 'netmail');
+                    $message['attachments'] = $attachments;
+                } catch (\Exception $e) {
+                    $message['attachments'] = [];
+                }
+            } else {
+                $message['attachments'] = [];
             }
 
             echo json_encode($message);

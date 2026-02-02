@@ -4,7 +4,8 @@
         "shoutbox": true,
         "advertising": true,
         "voting_booth": true,
-        "chat": true
+        "chat": true,
+        "file_areas": true
     },
     "credits": {
         "enabled": true,

@@ -695,7 +695,91 @@ class BinkdProcessor
             $replyToId
         ]);
 
+        $netmailId = $this->db->lastInsertId();
+
         $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$fromAddr." to ".$message['toName'].'@'.$message['destAddr']);
+
+        // Check for file attachments (bit 4 = 0x0010 in FidoNet attributes)
+        if (($message['attributes'] ?? 0) & 0x0010) {
+            $this->processNetmailAttachment($userId, $message, $netmailId, $fromAddr);
+        }
+    }
+
+    /**
+     * Process file attachments in netmail messages
+     * FidoNet standard: bit 4 (0x0010) indicates file attachment, subject contains filename
+     *
+     * @param int $userId Target user ID
+     * @param array $message Message data
+     * @param int $netmailId Database ID of the stored netmail
+     * @param string $fromAddr Sender's FidoNet address
+     */
+    private function processNetmailAttachment($userId, $message, $netmailId, $fromAddr)
+    {
+        if (!FileAreaManager::isFeatureEnabled()) {
+            $this->log("[BINKD] File attachment detected but file areas feature is disabled");
+            return;
+        }
+
+        // Extract filename from subject (FidoNet standard)
+        // Subject may contain full path like "C:\FILES\DOCUMENT.TXT" or just "DOCUMENT.TXT"
+        $subject = trim($message['subject'] ?? '');
+        if (empty($subject)) {
+            $this->log("[BINKD] File attach bit set but subject is empty");
+            return;
+        }
+
+        // Extract just the filename (remove path if present)
+        $filename = basename($subject);
+
+        // Clean up filename - remove any invalid characters
+        $filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename);
+
+        if (empty($filename)) {
+            $this->log("[BINKD] Could not extract valid filename from subject: {$subject}");
+            return;
+        }
+
+        // Look for file in inbound directory
+        $filePath = $this->inboundPath . '/' . $filename;
+
+        // Try case-insensitive search if exact match not found (Windows compatibility)
+        if (!file_exists($filePath)) {
+            $files = glob($this->inboundPath . '/*', GLOB_NOSORT);
+            foreach ($files as $file) {
+                if (strcasecmp(basename($file), $filename) === 0) {
+                    $filePath = $file;
+                    $filename = basename($file); // Use actual filename with correct case
+                    break;
+                }
+            }
+        }
+
+        if (!file_exists($filePath)) {
+            $this->log("[BINKD] File attachment not found: {$filename} (expected at {$filePath})");
+            return;
+        }
+
+        if (!is_file($filePath)) {
+            $this->log("[BINKD] File attachment path exists but is not a file: {$filePath}");
+            return;
+        }
+
+        // Store the attachment using FileAreaManager
+        try {
+            $fileAreaManager = new FileAreaManager();
+            $fileId = $fileAreaManager->storeNetmailAttachment(
+                $userId,
+                $filePath,
+                $filename,
+                $netmailId,
+                $fromAddr
+            );
+
+            $this->log("[BINKD] Stored netmail attachment: {$filename} -> file_id={$fileId} for netmail_id={$netmailId}");
+        } catch (\Exception $e) {
+            $this->log("[BINKD] Failed to store netmail attachment: {$filename} - " . $e->getMessage());
+        }
     }
 
     /** Records an incoming echomail message into the database
@@ -1224,7 +1308,7 @@ class BinkdProcessor
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for netmail
-                $tzutc = generateTzutc();
+                $tzutc = \generateTzutc();
                 $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
                 
                 // Add MSGID kludge (required for netmail)
@@ -1260,7 +1344,7 @@ class BinkdProcessor
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for echomail
-                $tzutc = generateTzutc();
+                $tzutc = \generateTzutc();
                 $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
                 
                 // Add MSGID kludge (required for echomail)

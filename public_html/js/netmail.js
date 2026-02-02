@@ -447,6 +447,31 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         <div class="message-text">
             ${formatMessageText(parsedMessage.messageBody)}
         </div>
+
+        ${message.attachments && message.attachments.length > 0 ? `
+        <div class="message-attachments mt-3">
+            <h6 class="text-muted mb-2">
+                <i class="fas fa-paperclip"></i>
+                File Attachments (${message.attachments.length})
+            </h6>
+            <div class="list-group">
+                ${message.attachments.map(file => `
+                    <a href="/api/files/${file.id}/download" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" target="_blank">
+                        <div>
+                            <i class="fas fa-file me-2"></i>
+                            <strong>${escapeHtml(file.filename)}</strong>
+                            <br>
+                            <small class="text-muted">
+                                ${formatFileSize(file.filesize)}
+                                ${file.short_description ? ' - ' + escapeHtml(file.short_description) : ''}
+                            </small>
+                        </div>
+                        <i class="fas fa-download"></i>
+                    </a>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
     `;
 
     $('#messageContent').html(html);
@@ -931,4 +956,20 @@ function deleteDraft(draftId) {
             showError('Failed to delete draft');
         }
     });
+}
+
+/**
+ * Format file size in human-readable format
+ * @param {number} bytes File size in bytes
+ * @returns {string} Formatted file size (e.g., "1.5 MB")
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    if (!bytes) return 'Unknown size';
+
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 }

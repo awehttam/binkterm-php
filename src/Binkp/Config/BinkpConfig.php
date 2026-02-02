@@ -517,6 +517,29 @@ class BinkpConfig
         return null;
     }
 
+    /**
+     * Get all uplinks for a specific domain
+     *
+     * @param string $domain Domain name
+     * @return array Array of uplink configurations (only enabled uplinks)
+     */
+    public function getUplinksForDomain(string $domain): array
+    {
+        $matchingUplinks = [];
+
+        foreach ($this->getUplinks() as $uplink) {
+            // Match uplinks by domain (case-insensitive)
+            if (strcasecmp($uplink['domain'] ?? '', $domain) === 0) {
+                // Only include enabled uplinks
+                if (!isset($uplink['enabled']) || $uplink['enabled'] === true) {
+                    $matchingUplinks[] = $uplink;
+                }
+            }
+        }
+
+        return $matchingUplinks;
+    }
+
     // ========================================
     // Security Configuration (Insecure Sessions)
     // ========================================
