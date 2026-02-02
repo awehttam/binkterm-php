@@ -18,19 +18,21 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0">Active Echo Areas</h6>
                     <div class="btn-group btn-group-sm" role="group">
                         <input type="radio" class="btn-check" name="filter" id="active" value="active" checked>
                         <label class="btn btn-outline-secondary" for="active">Active</label>
-                        
+
                         <input type="radio" class="btn-check" name="filter" id="all" value="all">
                         <label class="btn btn-outline-secondary" for="all">All</label>
-                        
+
                         <input type="radio" class="btn-check" name="filter" id="inactive" value="inactive">
                         <label class="btn btn-outline-secondary" for="inactive">Inactive</label>
                     </div>
                 </div>
+                <input type="text" class="form-control form-control-sm" id="echoareaSearch"
+                       placeholder="Search tags..." onkeyup="searchEchoareas(this.value)">
             </div>
             <div class="card-body p-0">
                 <div id="echoareasContainer">
@@ -269,6 +271,8 @@
 <script>
 let currentFilter = 'active';
 let currentEchoareaId = null;
+let allEchoareas = [];
+let searchQuery = '';
 
 $(document).ready(function() {
     loadEchoareas();
@@ -299,19 +303,38 @@ $(document).ready(function() {
 
 function loadEchoareas() {
     showLoading('#echoareasContainer');
-    
+
     let url = '/api/echoareas';
     if (currentFilter !== 'all') {
         url += `?filter=${currentFilter}`;
     }
-    
+
     $.get(url)
         .done(function(data) {
-            displayEchoareas(data.echoareas);
+            allEchoareas = data.echoareas;
+            applySearchFilter();
         })
         .fail(function() {
             $('#echoareasContainer').html('<div class="text-center text-danger py-4">Failed to load echo areas</div>');
         });
+}
+
+function searchEchoareas(query) {
+    searchQuery = query.toLowerCase();
+    applySearchFilter();
+}
+
+function applySearchFilter() {
+    let filtered = allEchoareas;
+
+    if (searchQuery.length > 0) {
+        filtered = allEchoareas.filter(area =>
+            area.tag.toLowerCase().includes(searchQuery) ||
+            (area.description && area.description.toLowerCase().includes(searchQuery))
+        );
+    }
+
+    displayEchoareas(filtered);
 }
 
 function displayEchoareas(echoareas) {

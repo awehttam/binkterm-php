@@ -9,6 +9,7 @@ This release addresses issues with message threading, file area support, and var
  * The Admin dashboard now displays which Git branch is in use (alongside git commit #)
  * Fix an issue with binkp M_GOT sending an incorrect timestamp that would cause the remote sender to re-send the message
  * Binkp now terminates immediately on reception of an M_EOB
+ * Echo Area lists are now searchable 
  * Miscellaneous fixes and enhancements
 
 ## Table of Contents

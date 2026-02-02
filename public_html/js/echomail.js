@@ -9,6 +9,8 @@ let currentMessages = [];
 let currentMessageIndex = -1;
 let currentSearchTerms = [];
 let currentMessageData = null;
+let allEchoareas = [];
+let echoareaSearchQuery = '';
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
@@ -92,13 +94,32 @@ $(document).ready(function() {
 function loadEchoareas() {
     $.get('/api/echoareas?subscribed_only=true')
         .done(function(data) {
-            displayEchoareas(data.echoareas);
-            displayMobileEchoareas(data.echoareas);
+            allEchoareas = data.echoareas;
+            applyEchoareaFilter();
         })
         .fail(function() {
             $('#echoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
             $('#mobileEchoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
         });
+}
+
+function searchEchoareas(query) {
+    echoareaSearchQuery = query.toLowerCase();
+    applyEchoareaFilter();
+}
+
+function applyEchoareaFilter() {
+    let filtered = allEchoareas;
+
+    if (echoareaSearchQuery.length > 0) {
+        filtered = allEchoareas.filter(area =>
+            area.tag.toLowerCase().includes(echoareaSearchQuery) ||
+            (area.description && area.description.toLowerCase().includes(echoareaSearchQuery))
+        );
+    }
+
+    displayEchoareas(filtered);
+    displayMobileEchoareas(filtered);
 }
 
 function displayEchoareas(echoareas) {
