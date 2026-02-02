@@ -657,10 +657,23 @@ class BinkdProcessor
         // Priority: REPLYADDR > MSGID original author > message envelope
         $fromAddr = $replyAddress ?: ($originalAuthorAddress ?: $message['origAddr']);
 
+        // Extract REPLY MSGID from kludges to populate reply_to_id for threading
+        $replyToId = null;
+        $replyMsgId = $this->extractReplyFromKludge($kludgeText);
+        if ($replyMsgId) {
+            // Look up parent message by its message_id to get database ID
+            $parentStmt = $this->db->prepare("SELECT id FROM netmail WHERE message_id = ? LIMIT 1");
+            $parentStmt->execute([$replyMsgId]);
+            $parent = $parentStmt->fetch();
+            if ($parent) {
+                $replyToId = $parent['id'];
+            }
+        }
+
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, reply_to_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -678,7 +691,8 @@ class BinkdProcessor
             $messageId,
             $originalAuthorAddress,
             $replyAddress,
-            $kludgeText // Store kludges separately
+            $kludgeText, // Store kludges separately
+            $replyToId
         ]);
 
         $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$fromAddr." to ".$message['toName'].'@'.$message['destAddr']);
@@ -796,20 +810,34 @@ class BinkdProcessor
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines, reply_to_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
         $kludgeText = implode("\n", $kludgeLines);
-        
+
+        // Extract REPLY MSGID from kludges to populate reply_to_id for threading
+        $replyToId = null;
+        $replyMsgId = $this->extractReplyFromKludge($kludgeText);
+        if ($replyMsgId) {
+            // Look up parent message by its message_id to get database ID
+            $parentStmt = $this->db->prepare("SELECT id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
+            $parentStmt->execute([$replyMsgId, $echoarea['id']]);
+            $parent = $parentStmt->fetch();
+            if ($parent) {
+                $replyToId = $parent['id'];
+            }
+        }
+
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
-        
+
         $this->log("[BINKD]: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') .
-                  ", Packet sender: " . $message['origAddr'] . 
-                  ", Using: " . $fromAddress);
-        
+                  ", Packet sender: " . $message['origAddr'] .
+                  ", Using: " . $fromAddress .
+                  ($replyToId ? ", Reply to ID: " . $replyToId : ""));
+
         $stmt->execute([
             $echoarea['id'],
             $fromAddress,
@@ -820,7 +848,8 @@ class BinkdProcessor
             $dateWritten,
             $messageId,
             $originLine,
-            $kludgeText
+            $kludgeText,
+            $replyToId
         ]);
         
         // Update message count
@@ -1698,7 +1727,37 @@ class BinkdProcessor
 
         if($deletedCount)
             $this->log("[BINKD] Cleaned up {$deletedCount} old packet records");
-        
+
         return $deletedCount;
+    }
+
+    /**
+     * Extract REPLY MSGID from kludge lines for threading
+     */
+    private function extractReplyFromKludge($kludgeLines)
+    {
+        if (empty($kludgeLines)) {
+            return null;
+        }
+
+        // Look for REPLY: line in kludge
+        $lines = explode("\n", $kludgeLines);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Check for REPLY kludge (starts with \x01 or ^A)
+            if (preg_match('/^\x01REPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+            // Also handle ^A notation (visible ^A character)
+            if (preg_match('/^\^AREPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+            // Also handle plain REPLY: without control character
+            if (preg_match('/^REPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+        }
+
+        return null;
     }
 }
