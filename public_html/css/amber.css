@@ -1341,3 +1341,76 @@ tbody, td, tfoot, th, thead, tr {
         --bs-modal-width: 1200px;
     }
 }
+
+/* Echolist page - Amber Terminal theme overrides */
+#echolist-page .forums-table {
+    background: var(--term-black-light);
+    border-color: var(--term-amber);
+}
+
+#echolist-page .forum-item {
+    border-bottom-color: var(--term-amber-dark);
+}
+
+#echolist-page .forum-item:hover {
+    background-color: rgba(255, 176, 0, 0.05);
+}
+
+#echolist-page .forum-title {
+    color: var(--term-amber-bright);
+}
+
+#echolist-page .forum-title-link {
+    color: var(--term-amber);
+}
+
+#echolist-page .forum-title-link:hover {
+    color: var(--term-amber-bright);
+}
+
+#echolist-page .forum-desc {
+    color: var(--term-amber-dim);
+}
+
+#echolist-page .forum-mod {
+    color: var(--term-amber-dim);
+}
+
+#echolist-page .stat-number {
+    color: var(--term-amber-bright);
+}
+
+#echolist-page .stat-label {
+    color: var(--term-amber-dim);
+}
+
+#echolist-page .lastpost-subject {
+    color: var(--term-amber);
+}
+
+#echolist-page .lastpost-by {
+    color: var(--term-amber-dim);
+}
+
+#echolist-page .lastpost-time {
+    color: var(--term-amber-dim);
+}
+
+#echolist-page .stat-box h5 {
+    color: var(--term-amber-bright);
+}
+
+#echolist-page .stat-box small {
+    color: var(--term-amber-dim);
+}
+
+#echolist-page .empty-state,
+#echolist-page .loading {
+    color: var(--term-amber-dim);
+}
+
+@media (max-width: 575.98px) {
+    #echolist-page .forum-stats-cell {
+        border-top-color: var(--term-amber-dark);
+    }
+}

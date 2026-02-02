@@ -515,7 +515,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             INNER JOIN echoareas e ON em.echoarea_id = e.id
             INNER JOIN user_echoarea_subscriptions ues ON e.id = ues.echoarea_id AND ues.user_id = ?
             LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-            WHERE mrs.read_at IS NULL AND e.is_active = TRUE{$sysopUnreadFilter}
+            WHERE mrs.read_at IS NULL AND e.is_active = TRUE AND ues.is_active = TRUE{$sysopUnreadFilter}
         ");
         $unreadEchomailStmt->execute([$userId, $userId]);
         $unreadEchomail = $unreadEchomailStmt->fetch()['count'] ?? 0;
@@ -1391,7 +1391,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
 
-        // Query with separate subqueries for total and unread counts
+        // Query with separate subqueries for total and unread counts, plus last post info
         $sql = "SELECT
                     e.id,
                     e.tag,
@@ -1405,7 +1405,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.is_local,
                     e.is_sysop_only,
                     COALESCE(total_counts.message_count, 0) as message_count,
-                    COALESCE(unread_counts.unread_count, 0) as unread_count
+                    COALESCE(unread_counts.unread_count, 0) as unread_count,
+                    last_posts.last_subject,
+                    last_posts.last_author,
+                    last_posts.last_date
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -1418,18 +1421,27 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $sql .= " LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as message_count
-                    FROM echomail 
+                    FROM echomail
                     GROUP BY echoarea_id
                 ) total_counts ON e.id = total_counts.echoarea_id
                 LEFT JOIN (
-                    SELECT 
+                    SELECT
                         em.echoarea_id,
                         COUNT(*) as unread_count
                     FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE mrs.read_at IS NULL
                     GROUP BY em.echoarea_id
-                ) unread_counts ON e.id = unread_counts.echoarea_id";
+                ) unread_counts ON e.id = unread_counts.echoarea_id
+                LEFT JOIN (
+                    SELECT DISTINCT ON (echoarea_id)
+                        echoarea_id,
+                        subject as last_subject,
+                        from_name as last_author,
+                        date_received as last_date
+                    FROM echomail
+                    ORDER BY echoarea_id, date_received DESC
+                ) last_posts ON e.id = last_posts.echoarea_id";
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
@@ -1664,6 +1676,304 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         ]);
     });
 
+    // File Areas API routes
+    SimpleRouter::get('/fileareas', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $filter = $_GET['filter'] ?? 'active';
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+        $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
+
+        echo json_encode(['fileareas' => $fileareas]);
+    });
+
+    SimpleRouter::get('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $filearea = $manager->getFileAreaById((int)$id);
+
+        if ($filearea) {
+            echo json_encode(['filearea' => $filearea]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'File area not found']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/fileareas', function() {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $manager = new \BinktermPHP\FileAreaManager();
+            $id = $manager->createFileArea($data);
+
+            echo json_encode(['success' => true, 'id' => $id]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::put('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $manager = new \BinktermPHP\FileAreaManager();
+            $manager->updateFileArea((int)$id, $data);
+
+            echo json_encode(['success' => true]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::delete('/fileareas/{id}', function($id) {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        try {
+            $manager = new \BinktermPHP\FileAreaManager();
+            $manager->deleteFileArea((int)$id);
+
+            echo json_encode(['success' => true]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/fileareas/stats', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $stats = $manager->getStats();
+
+        echo json_encode($stats);
+    });
+
+    // Files API routes
+    SimpleRouter::get('/files', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $areaId = $_GET['area_id'] ?? null;
+        if (!$areaId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'area_id parameter required']);
+            return;
+        }
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        // Check if user has access to this file area
+        if (!$manager->canAccessFileArea((int)$areaId, $userId, $isAdmin)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Access denied to this file area']);
+            return;
+        }
+
+        $files = $manager->getFiles((int)$areaId);
+
+        echo json_encode(['files' => $files]);
+    });
+
+    SimpleRouter::get('/files/{id}', function($id) {
+        RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file = $manager->getFileById((int)$id);
+
+        if ($file) {
+            echo json_encode(['file' => $file]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'File not found']);
+        }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/files/{id}/download', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo 'File areas feature is disabled';
+            return;
+        }
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $file = $manager->getFileById((int)$id);
+
+        if (!$file || $file['status'] !== 'approved') {
+            http_response_code(404);
+            echo 'File not found';
+            return;
+        }
+
+        // Check if user has access to this file's area
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+            http_response_code(403);
+            echo 'Access denied to this file';
+            return;
+        }
+
+        $storagePath = $file['storage_path'];
+        if (!file_exists($storagePath)) {
+            http_response_code(404);
+            echo 'File not found on disk';
+            return;
+        }
+
+        // Set headers for file download
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . basename($file['filename']) . '"');
+        header('Content-Length: ' . filesize($storagePath));
+        header('Cache-Control: no-cache, must-revalidate');
+        header('Pragma: public');
+
+        // Output file
+        readfile($storagePath);
+        exit;
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::post('/files/upload', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            if (!isset($_FILES['file'])) {
+                throw new \Exception('No file uploaded');
+            }
+
+            $fileAreaId = (int)($_POST['file_area_id'] ?? 0);
+            $shortDescription = trim($_POST['short_description'] ?? '');
+            $longDescription = trim($_POST['long_description'] ?? '');
+
+            if (!$fileAreaId) {
+                throw new \Exception('File area ID is required');
+            }
+
+            if (empty($shortDescription)) {
+                throw new \Exception('Short description is required');
+            }
+
+            // Check upload permissions for this file area
+            $manager = new \BinktermPHP\FileAreaManager();
+            $fileArea = $manager->getFileAreaById($fileAreaId);
+
+            if (!$fileArea) {
+                throw new \Exception('File area not found');
+            }
+
+            $uploadPermission = $fileArea['upload_permission'] ?? \BinktermPHP\FileAreaManager::UPLOAD_USERS_ALLOWED;
+            $isAdmin = ($user['is_admin'] ?? false) === true || ($user['is_admin'] ?? 0) === 1;
+
+            // Check upload permission
+            if ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_READ_ONLY) {
+                throw new \Exception('This file area is read-only. Uploads are not permitted.');
+            } elseif ($uploadPermission === \BinktermPHP\FileAreaManager::UPLOAD_ADMIN_ONLY && !$isAdmin) {
+                throw new \Exception('Only administrators can upload files to this area.');
+            }
+
+            // Get user's FidoNet address or username
+            $uploadedBy = $user['username'] ?? 'Unknown';
+            $ownerId = $user['user_id'] ?? $user['id'] ?? null;
+            $fileId = $manager->uploadFile(
+                $fileAreaId,
+                $_FILES['file'],
+                $shortDescription,
+                $longDescription,
+                $uploadedBy,
+                $ownerId
+            );
+
+            echo json_encode([
+                'success' => true,
+                'file_id' => $fileId,
+                'message' => 'File uploaded successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::delete('/files/{id}/delete', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            $userId = $user['user_id'] ?? $user['id'] ?? 0;
+            $isAdmin = !empty($user['is_admin']);
+
+            $manager = new \BinktermPHP\FileAreaManager();
+            $manager->deleteFile((int)$id, $userId, $isAdmin);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'File deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            http_response_code(403);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    })->where(['id' => '[0-9]+']);
+
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
         $user = RouteHelper::requireAuth();
@@ -1780,6 +2090,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $message['replyto_address'] = $replyToDataKludge['address'];
                     $message['replyto_name'] = $replyToDataKludge['name'];
                 }
+            }
+
+            // Include file attachments if file areas feature is enabled
+            if (\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+                try {
+                    $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                    $attachments = $fileAreaManager->getMessageAttachments($id, 'netmail');
+                    $message['attachments'] = $attachments;
+                } catch (\Exception $e) {
+                    $message['attachments'] = [];
+                }
+            } else {
+                $message['attachments'] = [];
             }
 
             echo json_encode($message);
@@ -2394,7 +2717,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         $messages = $handler->searchMessages($query, $type, $echoarea, $userId);
-        echo json_encode(['messages' => $messages]);
+
+        // For echomail searches, also get per-echo-area counts and filter counts
+        $echoareaCounts = [];
+        $filterCounts = [];
+        if ($type === 'echomail' || $type === null) {
+            $echoareaCounts = $handler->getSearchResultCounts($query, $echoarea, $userId);
+            $filterCounts = $handler->getSearchFilterCounts($query, $echoarea, $userId);
+        }
+
+        echo json_encode([
+            'messages' => $messages,
+            'echoarea_counts' => $echoareaCounts,
+            'filter_counts' => $filterCounts
+        ]);
     });
 
     // Mark message as read

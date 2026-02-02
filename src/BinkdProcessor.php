@@ -657,10 +657,23 @@ class BinkdProcessor
         // Priority: REPLYADDR > MSGID original author > message envelope
         $fromAddr = $replyAddress ?: ($originalAuthorAddress ?: $message['origAddr']);
 
+        // Extract REPLY MSGID from kludges to populate reply_to_id for threading
+        $replyToId = null;
+        $replyMsgId = $this->extractReplyFromKludge($kludgeText);
+        if ($replyMsgId) {
+            // Look up parent message by its message_id to get database ID
+            $parentStmt = $this->db->prepare("SELECT id FROM netmail WHERE message_id = ? LIMIT 1");
+            $parentStmt->execute([$replyMsgId]);
+            $parent = $parentStmt->fetch();
+            if ($parent) {
+                $replyToId = $parent['id'];
+            }
+        }
+
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, reply_to_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -678,10 +691,95 @@ class BinkdProcessor
             $messageId,
             $originalAuthorAddress,
             $replyAddress,
-            $kludgeText // Store kludges separately
+            $kludgeText, // Store kludges separately
+            $replyToId
         ]);
 
+        $netmailId = $this->db->lastInsertId();
+
         $this->log("[BINKD] Stored netmail for userId $userId; messageId=".$messageId." from=".$message['fromName']."@".$fromAddr." to ".$message['toName'].'@'.$message['destAddr']);
+
+        // Check for file attachments (bit 4 = 0x0010 in FidoNet attributes)
+        if (($message['attributes'] ?? 0) & 0x0010) {
+            $this->processNetmailAttachment($userId, $message, $netmailId, $fromAddr);
+        }
+    }
+
+    /**
+     * Process file attachments in netmail messages
+     * FidoNet standard: bit 4 (0x0010) indicates file attachment, subject contains filename
+     *
+     * @param int $userId Target user ID
+     * @param array $message Message data
+     * @param int $netmailId Database ID of the stored netmail
+     * @param string $fromAddr Sender's FidoNet address
+     */
+    private function processNetmailAttachment($userId, $message, $netmailId, $fromAddr)
+    {
+        if (!FileAreaManager::isFeatureEnabled()) {
+            $this->log("[BINKD] File attachment detected but file areas feature is disabled");
+            return;
+        }
+
+        // Extract filename from subject (FidoNet standard)
+        // Subject may contain full path like "C:\FILES\DOCUMENT.TXT" or just "DOCUMENT.TXT"
+        $subject = trim($message['subject'] ?? '');
+        if (empty($subject)) {
+            $this->log("[BINKD] File attach bit set but subject is empty");
+            return;
+        }
+
+        // Extract just the filename (remove path if present)
+        $filename = basename($subject);
+
+        // Clean up filename - remove any invalid characters
+        $filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename);
+
+        if (empty($filename)) {
+            $this->log("[BINKD] Could not extract valid filename from subject: {$subject}");
+            return;
+        }
+
+        // Look for file in inbound directory
+        $filePath = $this->inboundPath . '/' . $filename;
+
+        // Try case-insensitive search if exact match not found (Windows compatibility)
+        if (!file_exists($filePath)) {
+            $files = glob($this->inboundPath . '/*', GLOB_NOSORT);
+            foreach ($files as $file) {
+                if (strcasecmp(basename($file), $filename) === 0) {
+                    $filePath = $file;
+                    $filename = basename($file); // Use actual filename with correct case
+                    break;
+                }
+            }
+        }
+
+        if (!file_exists($filePath)) {
+            $this->log("[BINKD] File attachment not found: {$filename} (expected at {$filePath})");
+            return;
+        }
+
+        if (!is_file($filePath)) {
+            $this->log("[BINKD] File attachment path exists but is not a file: {$filePath}");
+            return;
+        }
+
+        // Store the attachment using FileAreaManager
+        try {
+            $fileAreaManager = new FileAreaManager();
+            $fileId = $fileAreaManager->storeNetmailAttachment(
+                $userId,
+                $filePath,
+                $filename,
+                $netmailId,
+                $fromAddr
+            );
+
+            $this->log("[BINKD] Stored netmail attachment: {$filename} -> file_id={$fileId} for netmail_id={$netmailId}");
+        } catch (\Exception $e) {
+            $this->log("[BINKD] Failed to store netmail attachment: {$filename} - " . $e->getMessage());
+        }
     }
 
     /** Records an incoming echomail message into the database
@@ -747,9 +845,9 @@ class BinkdProcessor
                 // Extract TZUTC offset for proper date calculation
                 if (strpos($line, "\x01TZUTC:") === 0) {
                     $tzutcLine = trim(substr($line, 7)); // Remove "\x01TZUTC:" prefix
-                    // TZUTC format: "+HHMM" or "-HHMM" (e.g., "+0800", "-0500")
-                    if (preg_match('/^([+-])(\d{2})(\d{2})/', $tzutcLine, $matches)) {
-                        $sign = $matches[1];
+                    // TZUTC format: "+HHMM", "-HHMM", or "HHMM" (e.g., "+0800", "-0500", "1100")
+                    if (preg_match('/^([+-])?(\d{2})(\d{2})/', $tzutcLine, $matches)) {
+                        $sign = $matches[1] ?? '+'; // Default to + if no sign provided
                         $hours = (int)$matches[2];
                         $minutes = (int)$matches[3];
                         $totalMinutes = ($hours * 60) + $minutes;
@@ -796,20 +894,34 @@ class BinkdProcessor
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines, reply_to_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
         ");
         
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
         $kludgeText = implode("\n", $kludgeLines);
-        
+
+        // Extract REPLY MSGID from kludges to populate reply_to_id for threading
+        $replyToId = null;
+        $replyMsgId = $this->extractReplyFromKludge($kludgeText);
+        if ($replyMsgId) {
+            // Look up parent message by its message_id to get database ID
+            $parentStmt = $this->db->prepare("SELECT id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
+            $parentStmt->execute([$replyMsgId, $echoarea['id']]);
+            $parent = $parentStmt->fetch();
+            if ($parent) {
+                $replyToId = $parent['id'];
+            }
+        }
+
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
-        
+
         $this->log("[BINKD]: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') .
-                  ", Packet sender: " . $message['origAddr'] . 
-                  ", Using: " . $fromAddress);
-        
+                  ", Packet sender: " . $message['origAddr'] .
+                  ", Using: " . $fromAddress .
+                  ($replyToId ? ", Reply to ID: " . $replyToId : ""));
+
         $stmt->execute([
             $echoarea['id'],
             $fromAddress,
@@ -820,7 +932,8 @@ class BinkdProcessor
             $dateWritten,
             $messageId,
             $originLine,
-            $kludgeText
+            $kludgeText,
+            $replyToId
         ]);
         
         // Update message count
@@ -1048,26 +1161,32 @@ class BinkdProcessor
         $destAddr = trim($destAddr);
         list($destZone, $destNetNode) = explode(':', $destAddr);
         list($destNet, $destNodePoint) = explode('/', $destNetNode);
-        $destNode = explode('.', $destNodePoint)[0]; // Remove point if present
+
+        // Parse node and point
+        $destNodeParts = explode('.', $destNodePoint);
+        $destNode = (int)$destNodeParts[0];
+        $destPoint = isset($destNodeParts[1]) ? (int)$destNodeParts[1] : 0;
 
         // Cast to integers for pack()
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
-        $destNode = (int)$destNode;
 
         // Parse origin address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
-        $origNode = explode('.', $origNodePoint)[0]; // Remove point if present
+
+        // Parse node and point
+        $origNodeParts = explode('.', $origNodePoint);
+        $origNode = (int)$origNodeParts[0];
+        $origPoint = isset($origNodeParts[1]) ? (int)$origNodeParts[1] : 0;
 
         // Cast to integers for pack()
         $origZone = (int)$origZone;
         $origNet = (int)$origNet;
-        $origNode = (int)$origNode;
 
-        $this->log("writePacketHeader: origZone=$origZone destZone=$destZone origNet=$origNet destNet=$destNet origNode=$origNode destNode=$destNode");
+        $this->log("writePacketHeader: origZone=$origZone destZone=$destZone origNet=$origNet destNet=$destNet origNode=$origNode destNode=$destNode origPoint=$origPoint destPoint=$destPoint");
 
         $now = time();
         
@@ -1087,19 +1206,30 @@ class BinkdProcessor
             $destNet             // 22-23: Destination net
         );
         
-        // Remaining 34 bytes of standard header with zone information
-        $header .= str_pad('', 8, "\0");     // 24-31: Product code (low)
-        $header .= str_pad('', 2, "\0");     // 32-33: Product code (high)
-        
-        // FSC-39 (Type-2e) zone information at offset 34-37
-        $header .= pack('vv', $origZone, $destZone);  // 34-37: Origin zone, dest zone
-        
-        $header .= str_pad('', 8, "\0");     // 38-45: Password  
-        $header .= str_pad('', 6, "\0");     // 46-51: Reserved
-        
-        // Additional zone info for FSC-48 compatibility
-        $header .= pack('vv', $origZone, $destZone);  // 52-55: Orig zone, dest zone (FSC-48)
-        $header .= str_pad('', 2, "\0");     // 56-57: Auxiliary net info
+        // Remaining 34 bytes - FSC-0048 Type 2+ format (Binkd-compatible)
+        // Bytes 24-25: Product code and revision
+        $header .= pack('CC', 0, 0);         // 24-25: prodCode, prodRev
+
+        // Bytes 26-33: Password (8 bytes)
+        $header .= str_pad('', 8, "\0");     // 26-33: Password
+
+        // Bytes 34-37: Zone information (FSC-0039/0045)
+        $header .= pack('vv', $origZone, $destZone);    // 34-37: origZone, destZone
+
+        // Bytes 38-41: AuxNet and capability word
+        $header .= pack('vv', 0, 0);         // 38-41: auxNet, cwCopy
+
+        // Bytes 42-45: Extended product info
+        $header .= pack('CCv', 0, 0, 0);     // 42-45: prodCodeHi, revision, cwVal
+
+        // Bytes 46-49: Duplicate zone info (FSC-0048 compatibility)
+        $header .= pack('vv', $origZone, $destZone);    // 46-49: origZone_, destZone_
+
+        // Bytes 50-53: Point information (FSC-0048)
+        $header .= pack('vv', $origPoint, $destPoint);  // 50-53: origPoint, destPoint
+
+        // Bytes 54-57: Product data
+        $header .= pack('V', 0);             // 54-57: prodData (32-bit)
         
         // Verify we have exactly 58 bytes
         if (strlen($header) !== 58) {
@@ -1195,7 +1325,7 @@ class BinkdProcessor
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for netmail
-                $tzutc = generateTzutc();
+                $tzutc = \generateTzutc();
                 $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
                 
                 // Add MSGID kludge (required for netmail)
@@ -1231,7 +1361,7 @@ class BinkdProcessor
             } else {
                 // Fallback to generating kludges if not stored (for backward compatibility)
                 // Add TZUTC kludge line for echomail
-                $tzutc = generateTzutc();
+                $tzutc = \generateTzutc();
                 $kludgeLines .= "\x01TZUTC: {$tzutc}\r\n";
                 
                 // Add MSGID kludge (required for echomail)
@@ -1698,7 +1828,37 @@ class BinkdProcessor
 
         if($deletedCount)
             $this->log("[BINKD] Cleaned up {$deletedCount} old packet records");
-        
+
         return $deletedCount;
+    }
+
+    /**
+     * Extract REPLY MSGID from kludge lines for threading
+     */
+    private function extractReplyFromKludge($kludgeLines)
+    {
+        if (empty($kludgeLines)) {
+            return null;
+        }
+
+        // Look for REPLY: line in kludge
+        $lines = explode("\n", $kludgeLines);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Check for REPLY kludge (starts with \x01 or ^A)
+            if (preg_match('/^\x01REPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+            // Also handle ^A notation (visible ^A character)
+            if (preg_match('/^\^AREPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+            // Also handle plain REPLY: without control character
+            if (preg_match('/^REPLY:\s*(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+        }
+
+        return null;
     }
 }

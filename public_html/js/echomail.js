@@ -9,11 +9,29 @@ let currentMessages = [];
 let currentMessageIndex = -1;
 let currentSearchTerms = [];
 let currentMessageData = null;
+let allEchoareas = [];
+let echoareaSearchQuery = '';
+let searchResultCounts = null;
+let searchFilterCounts = null;
+let originalFilterCounts = null;
+let isSearchActive = false;
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
         loadEchoareas();
-        loadMessages();
+
+        // Check for search parameter in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const searchQuery = urlParams.get('search');
+
+        if (searchQuery) {
+            // Populate search input and trigger search
+            $('#searchInput').val(searchQuery);
+            $('#mobileSearchInput').val(searchQuery);
+            searchMessages();
+        } else {
+            loadMessages();
+        }
     });
     loadStats();
 
@@ -92,13 +110,32 @@ $(document).ready(function() {
 function loadEchoareas() {
     $.get('/api/echoareas?subscribed_only=true')
         .done(function(data) {
-            displayEchoareas(data.echoareas);
-            displayMobileEchoareas(data.echoareas);
+            allEchoareas = data.echoareas;
+            applyEchoareaFilter();
         })
         .fail(function() {
             $('#echoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
             $('#mobileEchoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
         });
+}
+
+function searchEchoareas(query) {
+    echoareaSearchQuery = query.toLowerCase();
+    applyEchoareaFilter();
+}
+
+function applyEchoareaFilter() {
+    let filtered = allEchoareas;
+
+    if (echoareaSearchQuery.length > 0) {
+        filtered = allEchoareas.filter(area =>
+            area.tag.toLowerCase().includes(echoareaSearchQuery) ||
+            (area.description && area.description.toLowerCase().includes(echoareaSearchQuery))
+        );
+    }
+
+    displayEchoareas(filtered);
+    displayMobileEchoareas(filtered);
 }
 
 function displayEchoareas(echoareas) {
@@ -124,6 +161,15 @@ function displayEchoareas(echoareas) {
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
+
+            // Use search count if search is active
+            let countDisplay;
+            if (isSearchActive && area.search_count !== undefined) {
+                countDisplay = `<span class="badge bg-info">${area.search_count} found</span>`;
+            } else {
+                countDisplay = `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${unreadCount}/${totalCount}</span>`;
+            }
+
             html += `
                 <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
@@ -131,7 +177,7 @@ function displayEchoareas(echoareas) {
                             <div class="node-address">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="node-system">${escapeHtml(area.description)}</div>
                         </div>
-                        <span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${unreadCount}/${totalCount}</span>
+                        ${countDisplay}
                     </div>
                 </div>
             `;
@@ -166,6 +212,15 @@ function displayMobileEchoareas(echoareas) {
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
+
+            // Use search count if search is active
+            let countDisplay;
+            if (isSearchActive && area.search_count !== undefined) {
+                countDisplay = `<span class="badge bg-info">${area.search_count} found</span>`;
+            } else {
+                countDisplay = `<span class="badge bg-secondary">${unreadCount}/${totalCount}</span>`;
+            }
+
             html += `
                 <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
@@ -173,7 +228,7 @@ function displayMobileEchoareas(echoareas) {
                             <div class="fw-bold">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="text-muted small">${escapeHtml(area.description)}</div>
                         </div>
-                        <span class="badge bg-secondary">${unreadCount}/${totalCount}</span>
+                        ${countDisplay}
                     </div>
                 </div>
             `;
@@ -213,6 +268,21 @@ function selectEchoarea(tag) {
     // Update active state in existing DOM instead of re-rendering entire list
     $('.node-item, .list-group-item-action').removeClass('bg-primary text-white active');
     $('.node-item .badge, .list-group-item-action .badge').removeClass('bg-light text-dark').addClass('bg-secondary');
+
+    // Add active state to the selected item
+    if (tag) {
+        // Find the clicked item by checking the onclick attribute
+        $(`.node-item[onclick*="selectEchoarea('${tag.replace(/'/g, "\\'")}')"]`).addClass('bg-primary text-white');
+        $(`.node-item[onclick*="selectEchoarea('${tag.replace(/'/g, "\\'")}')"] .badge`).removeClass('bg-secondary').addClass('bg-light text-dark');
+
+        $(`.list-group-item-action[onclick*="selectEchoarea('${tag.replace(/'/g, "\\'")}')"]`).addClass('active');
+    } else {
+        // "All Messages" is selected
+        $(".node-item[onclick*=\"selectEchoarea(null)\"]").addClass('bg-primary text-white');
+        $(".node-item[onclick*=\"selectEchoarea(null)\"] .badge").removeClass('bg-secondary').addClass('bg-light text-dark');
+
+        $(".list-group-item-action[onclick*=\"selectEchoarea(null)\"]").addClass('active');
+    }
 
     loadMessages();
 }
@@ -401,7 +471,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
-                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written date: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
                 </tr>
             `;
         });
@@ -822,6 +892,33 @@ function searchMessages() {
         .done(function(data) {
             displayMessages(data.messages);
             $('#pagination').empty();
+
+            // Store original filter counts if not already stored
+            if (!originalFilterCounts) {
+                originalFilterCounts = {
+                    all: parseInt($('#allCount').text()) || 0,
+                    unread: parseInt($('#unreadCount').text()) || 0,
+                    read: parseInt($('#readCount').text()) || 0,
+                    tome: parseInt($('#toMeCount').text()) || 0,
+                    saved: parseInt($('#savedCount').text()) || 0,
+                    drafts: parseInt($('#draftsCount').text()) || 0
+                };
+            }
+
+            // Update echo area counts with search results
+            if (data.echoarea_counts) {
+                searchResultCounts = data.echoarea_counts;
+                isSearchActive = true;
+                updateEchoareaCountsWithSearchResults();
+                showClearSearchButton();
+            }
+
+            // Update filter counts with search results
+            if (data.filter_counts) {
+                searchFilterCounts = data.filter_counts;
+                updateFilterCounts(data.filter_counts);
+            }
+
             // Collapse mobile search after searching
             $('#mobileSearchCollapse').collapse('hide');
         })
@@ -835,6 +932,79 @@ function searchMessagesFromMobile() {
     const query = $('#mobileSearchInput').val().trim();
     $('#searchInput').val(query);
     searchMessages();
+}
+
+function updateEchoareaCountsWithSearchResults() {
+    if (!searchResultCounts) return;
+
+    // Create a map of echoarea counts by tag@domain
+    const countMap = {};
+    searchResultCounts.forEach(area => {
+        const fullTag = `${area.tag}@${area.domain}`;
+        countMap[fullTag] = area.message_count;
+    });
+
+    // Update the allEchoareas array with search counts
+    allEchoareas.forEach(area => {
+        const fullTag = `${area.tag}@${area.domain}`;
+        area.search_count = countMap[fullTag] || 0;
+    });
+
+    // Re-display with search counts
+    applyEchoareaFilter();
+}
+
+function showClearSearchButton() {
+    // Add clear search button if not already present
+    if ($('#clearSearchBtn').length === 0) {
+        const clearBtn = `
+            <button id="clearSearchBtn" class="btn btn-sm btn-secondary w-100 mt-2" onclick="clearSearch()">
+                <i class="fas fa-times me-1"></i> Clear Search
+            </button>
+        `;
+        $('#searchInput').after(clearBtn);
+    }
+
+    // Also add to mobile
+    if ($('#mobileClearSearchBtn').length === 0) {
+        const mobileClearBtn = `
+            <button id="mobileClearSearchBtn" class="btn btn-sm btn-secondary w-100 mt-2" onclick="clearSearch()">
+                <i class="fas fa-times me-1"></i> Clear Search
+            </button>
+        `;
+        $('#mobileSearchInput').after(mobileClearBtn);
+    }
+}
+
+function clearSearch() {
+    // Clear search inputs
+    $('#searchInput').val('');
+    $('#mobileSearchInput').val('');
+
+    // Clear search state
+    currentSearchTerms = [];
+    searchResultCounts = null;
+    searchFilterCounts = null;
+    isSearchActive = false;
+
+    // Remove clear buttons
+    $('#clearSearchBtn').remove();
+    $('#mobileClearSearchBtn').remove();
+
+    // Remove search counts from echoareas
+    allEchoareas.forEach(area => {
+        delete area.search_count;
+    });
+
+    // Restore original filter counts
+    if (originalFilterCounts) {
+        updateFilterCounts(originalFilterCounts);
+        originalFilterCounts = null;
+    }
+
+    // Reload messages and redisplay echoareas
+    loadMessages();
+    applyEchoareaFilter();
 }
 
 // Toggle save status of a message

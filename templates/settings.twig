@@ -73,6 +73,15 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="defaultEchoList" class="form-label">Default Echo Area List</label>
+                        <select class="form-select" id="defaultEchoList" name="default_echo_list">
+                            <option value="reader" selected>Reader (Message List)</option>
+                            <option value="echolist">Echo List (Grouped by Network)</option>
+                        </select>
+                        <div class="form-text">Choose your preferred default view when accessing echo areas from the menu</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="fontFamily" class="form-label">Message Font</label>
                         <select class="form-select" id="fontFamily" name="font_family">
                             <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
@@ -310,6 +319,7 @@ function loadSettings() {
             if (data.timezone) $('#timezone').val(data.timezone);
             if (data.date_format) $('#dateFormat').val(data.date_format);
             if (data.theme) $('#theme').val(data.theme);
+            if (data.default_echo_list) $('#defaultEchoList').val(data.default_echo_list);
             if (data.font_family) $('#fontFamily').val(data.font_family);
             if (data.font_size) $('#fontSize').val(data.font_size);
 
@@ -348,6 +358,7 @@ function saveSettings() {
         timezone: $('#timezone').val(),
         date_format: $('#dateFormat').val(),
         theme: $('#theme').val(),
+        default_echo_list: $('#defaultEchoList').val(),
         font_family: $('#fontFamily').val(),
         font_size: parseInt($('#fontSize').val()),
         threaded_view: $('#threadedView').is(':checked'),

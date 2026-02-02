@@ -1,0 +1,323 @@
+{% extends "base.twig" %}
+
+{% block title %}Echo Areas - {{ parent() }}{% endblock %}
+
+{% block content %}
+<style>
+/* Minimal scoped styles for echolist page */
+#echolist-page .echoarea-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+#echolist-page .echoarea-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin-bottom: 0.25rem;
+}
+
+#echolist-page .echoarea-desc {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+#echolist-page .echoarea-mod {
+    font-size: 0.85rem;
+    color: #868e96;
+}
+
+#echolist-page .network-badge {
+    font-size: 0.85rem;
+}
+
+@media (max-width: 767.98px) {
+    #echolist-page .echoarea-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+
+    #echolist-page .d-none-mobile {
+        display: none !important;
+    }
+}
+</style>
+
+<div id="echolist-page">
+    <div class="page-header">
+        <h2>
+            <i class="fas fa-comments"></i>
+            Echo List
+        </h2>
+        <button class="btn btn-fidonet" onclick="composeMessage('echomail')">
+            <i class="fas fa-plus"></i>
+            New Post
+        </button>
+    </div>
+
+    <div class="row mb-3 g-3">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-filter me-2"></i>Filter Echo Areas</h6>
+                </div>
+                <div class="card-body">
+                    <input type="text" class="form-control" id="areaSearch" placeholder="Type to filter by name or description..." onkeyup="searchEchoAreas(this.value)">
+                    <small class="text-muted d-block mt-1">Filters the list below in real-time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-search me-2"></i>Search Messages</h6>
+                </div>
+                <div class="card-body">
+                    <form onsubmit="searchMessages(); return false;">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="messageSearch" placeholder="Search message content...">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-1">Search all echomail message content</small>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="forumsContainer">
+        <div class="loading">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Loading echos...
+        </div>
+    </div>
+
+    <div class="stats-bar">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 stat-box">
+                        <h5 id="totalAreas">-</h5>
+                        <small>Total echos</small>
+                    </div>
+                    <div class="col-md-3 stat-box">
+                        <h5 id="totalMessages">-</h5>
+                        <small>Total Messages</small>
+                    </div>
+                    <div class="col-md-3 stat-box">
+                        <h5 id="totalNetworks">-</h5>
+                        <small>Networks</small>
+                    </div>
+                    <div class="col-md-3 stat-box">
+                        <h5 id="recentMessages">-</h5>
+                        <small>24h Messages</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allEchoAreas = [];
+let searchQuery = '';
+
+$(document).ready(function() {
+    loadEchoAreas();
+    loadStatistics();
+
+    // Auto refresh every 2 minutes
+    setInterval(function() {
+        loadEchoAreas();
+        loadStatistics();
+    }, 120000);
+});
+
+function loadEchoAreas() {
+    $.get('/api/echoareas?subscribed_only=true')
+        .done(function(data) {
+            allEchoAreas = data.echoareas || [];
+            displayEchoAreas(allEchoAreas);
+        })
+        .fail(function() {
+            $('#forumsContainer').html('<div class="alert alert-danger">Failed to load echo areas</div>');
+        });
+}
+
+function displayEchoAreas(areas) {
+    if (areas.length === 0) {
+        $('#forumsContainer').html('<div class="empty-state"><i class="fas fa-inbox fa-3x mb-3"></i><p>No echo areas available.</p></div>');
+        return;
+    }
+
+    // Group by network
+    const groups = { 'Local': [] };
+
+    areas.forEach(area => {
+        if (area.is_local) {
+            groups['Local'].push(area);
+        } else {
+            const net = area.domain || 'Unknown';
+            if (!groups[net]) groups[net] = [];
+            groups[net].push(area);
+        }
+    });
+
+    let html = '';
+
+    // Local first
+    if (groups['Local'].length > 0) {
+        html += buildCategory('Local', 'Local Areas', groups['Local'], true);
+        delete groups['Local'];
+    }
+
+    // Other networks
+    Object.keys(groups).sort().forEach(net => {
+        if (groups[net].length > 0) {
+            html += buildCategory(net, net.toUpperCase() + ' Network', groups[net], false);
+        }
+    });
+
+    $('#forumsContainer').html(html);
+}
+
+function buildCategory(id, name, areas, isLocal) {
+    const badgeColor = isLocal ? 'bg-success' : 'bg-primary';
+
+    let html = '<div class="card mb-3">';
+    html += '<div class="card-header d-flex justify-content-between align-items-center">';
+    html += `<h6 class="mb-0"><i class="fas fa-folder me-2"></i>${escapeHtml(name)}</h6>`;
+    html += `<span class="badge ${badgeColor}">${areas.length} area${areas.length !== 1 ? 's' : ''}</span>`;
+    html += '</div>';
+    html += '<div class="list-group list-group-flush">';
+
+    areas.forEach(area => {
+        html += buildEchoAreaRow(area);
+    });
+
+    html += '</div></div>';
+    return html;
+}
+
+function buildEchoAreaRow(area) {
+    const color = area.color || '#28a745';
+
+    let html = `<a href="#" class="list-group-item list-group-item-action" onclick="navigateToEchoArea('${escapeHtml(area.tag)}', '${escapeHtml(area.domain || '')}'); return false;">`;
+    html += '<div class="d-flex align-items-start gap-3">';
+
+    // Icon
+    html += `<div class="echoarea-icon" style="background-color: ${color};">`;
+    html += '<i class="fas fa-comments"></i>';
+    html += '</div>';
+
+    // Info
+    html += '<div class="flex-grow-1 min-width-0">';
+    html += '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">';
+    html += '<div>';
+    html += '<div class="echoarea-title">';
+    html += escapeHtml(area.tag);
+    if (area.is_sysop_only) {
+        html += ' <span class="badge bg-warning text-dark">Sysop</span>';
+    }
+    html += '</div>';
+    html += `<div class="echoarea-desc">${escapeHtml(area.description || 'No description')}</div>`;
+    if (area.moderator) {
+        html += `<div class="echoarea-mod"><i class="fas fa-user-shield"></i> Moderator: ${escapeHtml(area.moderator)}</div>`;
+    }
+    html += '</div>';
+
+    // Stats and last post on the right
+    html += '<div class="text-end">';
+    html += `<div><span class="badge bg-secondary">${area.message_count || 0} post${area.message_count !== 1 ? 's' : ''}</span></div>`;
+    if (area.last_subject) {
+        html += `<div class="small text-muted mt-1 d-none d-md-block">`;
+        html += `<div class="text-truncate" style="max-width: 200px;" title="${escapeHtml(area.last_subject)}">${escapeHtml(area.last_subject)}</div>`;
+        html += `<div>by ${escapeHtml(area.last_author || 'Unknown')}</div>`;
+        html += `<div>${formatDate(area.last_date)}</div>`;
+        html += '</div>';
+    }
+    html += '</div>';
+
+    html += '</div></div>'; // Close flex container and info div
+    html += '</div></a>';
+    return html;
+}
+
+function navigateToEchoArea(tag, domain) {
+    let url = '/echomail?echoarea=' + encodeURIComponent(tag);
+    if (domain) {
+        url += '&domain=' + encodeURIComponent(domain);
+    }
+    window.location.href = url;
+}
+
+function searchEchoAreas(query) {
+    searchQuery = query.toLowerCase().trim();
+
+    if (searchQuery === '') {
+        displayEchoAreas(allEchoAreas);
+        return;
+    }
+
+    const filtered = allEchoAreas.filter(f => {
+        return f.tag.toLowerCase().includes(searchQuery) ||
+               (f.description && f.description.toLowerCase().includes(searchQuery)) ||
+               (f.moderator && f.moderator.toLowerCase().includes(searchQuery));
+    });
+
+    displayEchoAreas(filtered);
+}
+
+function searchMessages() {
+    const query = $('#messageSearch').val().trim();
+
+    if (query.length < 2) {
+        alert('Please enter at least 2 characters to search');
+        return;
+    }
+
+    // Redirect to echomail page with search query
+    window.location.href = '/echomail?search=' + encodeURIComponent(query);
+}
+
+function loadStatistics() {
+    $.get('/api/messages/echomail/stats')
+        .done(function(data) {
+            $('#totalMessages').text(data.total || 0);
+            $('#recentMessages').text(data.recent || 0);
+            $('#totalAreas').text(data.areas || 0);
+        });
+
+    const networks = new Set();
+    allEchoAreas.forEach(f => {
+        networks.add(f.is_local ? 'Local' : (f.domain || 'Unknown'));
+    });
+    $('#totalNetworks').text(networks.size);
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return 'Never';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000);
+
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 2592000) return Math.floor(diff / 86400) + 'd ago';
+
+    return date.toLocaleDateString();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,596 @@
+{% extends "base.twig" %}
+
+{% block title %}Files - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-file"></i>
+        File Areas
+    </h2>
+</div>
+
+<div class="alert alert-warning mb-4" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>Security Notice:</strong> No assurances are given regarding file safety. Users are responsible for using their own reliable malware protection when downloading and opening files.
+</div>
+
+<div class="row">
+    <div class="col-lg-9 order-2 order-lg-1">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0" id="currentAreaTitle">Select a file area</h6>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-primary" id="uploadFileBtn" onclick="showUploadModal()" style="display: none;">
+                            <i class="fas fa-upload"></i> Upload File
+                        </button>
+                        <input type="text" class="form-control form-control-sm" id="searchFiles" placeholder="Search files..." style="width: 250px;">
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="filesContainer">
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-folder-open fa-3x mb-3"></i>
+                        <p>Select a file area from the right to browse files</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Areas (mobile and desktop) -->
+    <div class="col-lg-3 order-1 order-lg-2">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0">File Areas</h6>
+            </div>
+            <div class="list-group list-group-flush" id="fileAreasList">
+                <div class="loading-spinner p-3">
+                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics (desktop only - directly under File Areas) -->
+        <div class="card d-none d-lg-block">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-7">Total Areas:</dt>
+                    <dd class="col-5" id="totalAreas">-</dd>
+
+                    <dt class="col-7">Total Files:</dt>
+                    <dd class="col-5" id="totalFiles">-</dd>
+
+                    <dt class="col-7">Total Size:</dt>
+                    <dd class="col-5" id="totalSize">-</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics (mobile only - at bottom) -->
+    <div class="col-12 d-lg-none order-3">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-7">Total Areas:</dt>
+                    <dd class="col-5" id="totalAreas-mobile">-</dd>
+
+                    <dt class="col-7">Total Files:</dt>
+                    <dd class="col-5" id="totalFiles-mobile">-</dd>
+
+                    <dt class="col-7">Total Size:</dt>
+                    <dd class="col-5" id="totalSize-mobile">-</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Details Modal -->
+<div class="modal fade" id="fileDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fileDetailsTitle">File Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Filename:</dt>
+                    <dd class="col-sm-9" id="detailFilename"></dd>
+
+                    <dt class="col-sm-3">Size:</dt>
+                    <dd class="col-sm-9" id="detailSize"></dd>
+
+                    <dt class="col-sm-3">Uploaded:</dt>
+                    <dd class="col-sm-9" id="detailUploaded"></dd>
+
+                    <dt class="col-sm-3">From:</dt>
+                    <dd class="col-sm-9" id="detailFrom"></dd>
+
+                    <dt class="col-sm-3">Virus Scan:</dt>
+                    <dd class="col-sm-9" id="detailVirusScan"></dd>
+
+                    <dt class="col-sm-3">Description:</dt>
+                    <dd class="col-sm-9" id="detailDescription"></dd>
+                </dl>
+
+                <div id="detailLongDescription" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" class="btn btn-primary" id="downloadFileBtn" download>
+                    <i class="fas fa-download"></i> Download
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload File Modal -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadFileForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="uploadFile" class="form-label">Select File *</label>
+                        <input type="file" class="form-control" id="uploadFile" name="file" required>
+                        <div class="form-text">Maximum file size: <span id="maxFileSize">10 MB</span></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadDescription" class="form-label">Short Description *</label>
+                        <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
+                        <div class="form-text">Brief description of the file</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadLongDescription" class="form-label">Long Description</label>
+                        <textarea class="form-control" id="uploadLongDescription" name="long_description" rows="4" maxlength="2000"></textarea>
+                        <div class="form-text">Optional detailed description</div>
+                    </div>
+
+                    <div id="uploadProgress" class="progress" style="display: none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="uploadFile()">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload File Modal -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadFileForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="uploadFile" class="form-label">Select File *</label>
+                        <input type="file" class="form-control" id="uploadFile" name="file" required>
+                        <div class="form-text">Maximum file size: <span id="maxFileSize">10 MB</span></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadDescription" class="form-label">Short Description *</label>
+                        <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
+                        <div class="form-text">Brief description of the file</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadLongDescription" class="form-label">Long Description</label>
+                        <textarea class="form-control" id="uploadLongDescription" name="long_description" rows="4" maxlength="2000"></textarea>
+                        <div class="form-text">Optional detailed description</div>
+                    </div>
+
+                    <div id="uploadProgress" class="progress" style="display: none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="uploadFile()">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentAreaId = null;
+let allFiles = [];
+const currentUserId = {{ current_user.id|default('null') }};
+const isAdmin = {{ current_user.is_admin|default('false') ? 'true' : 'false' }};
+
+$(document).ready(function() {
+    loadFileAreas();
+    loadStats();
+
+    $('#searchFiles').on('input', function() {
+        filterFiles($(this).val());
+    });
+});
+
+function loadFileAreas() {
+    $.get('/api/fileareas?filter=active')
+        .done(function(data) {
+            displayFileAreas(data.fileareas);
+        })
+        .fail(function() {
+            $('#fileAreasList').html('<div class="alert alert-danger m-3">Failed to load file areas</div>');
+        });
+}
+
+function displayFileAreas(areas) {
+    if (areas.length === 0) {
+        $('#fileAreasList').html('<div class="p-3 text-muted">No file areas available</div>');
+        return;
+    }
+
+    let html = '';
+    areas.forEach(function(area) {
+        const fileCount = area.file_count || 0;
+        const totalSize = formatBytes(area.total_size || 0);
+
+        // Display domain for non-local areas (e.g., "GENERAL_FILES@fidonet")
+        let displayTag = escapeHtml(area.tag);
+        if (!area.is_local && area.domain) {
+            displayTag += '<span class="text-muted">@' + escapeHtml(area.domain) + '</span>';
+        }
+
+        const uploadPermission = area.upload_permission !== undefined ? area.upload_permission : 1;
+
+        html += `
+            <a href="#" class="list-group-item list-group-item-action" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}', ${area.is_local ? 'true' : 'false'}, '${escapeHtml(area.domain || '')}', ${uploadPermission}); return false;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <strong>${displayTag}</strong>
+                        <small class="d-block text-muted">${escapeHtml(area.description || '')}</small>
+                    </div>
+                    <div class="text-end ms-2">
+                        <small class="d-block">${fileCount} files</small>
+                        <small class="text-muted">${totalSize}</small>
+                    </div>
+                </div>
+            </a>
+        `;
+    });
+
+    $('#fileAreasList').html(html);
+}
+
+function selectFileArea(areaId, areaTag, isLocal, domain, uploadPermission) {
+    currentAreaId = areaId;
+
+    // Display domain for non-local areas
+    let displayTag = escapeHtml(areaTag);
+    if (!isLocal && domain) {
+        displayTag += '<span class="text-muted">@' + escapeHtml(domain) + '</span>';
+    }
+
+    $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
+    $('#searchFiles').val('');
+
+    // Control upload button visibility based on upload permission
+    // 0 = UPLOAD_ADMIN_ONLY, 1 = UPLOAD_USERS_ALLOWED, 2 = UPLOAD_READ_ONLY
+    const UPLOAD_ADMIN_ONLY = 0;
+    const UPLOAD_USERS_ALLOWED = 1;
+    const UPLOAD_READ_ONLY = 2;
+
+    if (uploadPermission === UPLOAD_READ_ONLY) {
+        $('#uploadFileBtn').hide();
+    } else if (uploadPermission === UPLOAD_ADMIN_ONLY) {
+        if (isAdmin) {
+            $('#uploadFileBtn').show();
+        } else {
+            $('#uploadFileBtn').hide();
+        }
+    } else {
+        $('#uploadFileBtn').show();
+    }
+
+    // Highlight selected area
+    $('#fileAreasList .list-group-item').removeClass('active');
+    $(`#fileAreasList .list-group-item:contains("${areaTag}")`).first().addClass('active');
+
+    loadFiles(areaId);
+}
+
+function loadFiles(areaId) {
+    $('#filesContainer').html('<div class="loading-spinner p-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading files...</div>');
+
+    $.get(`/api/files?area_id=${areaId}`)
+        .done(function(data) {
+            allFiles = data.files;
+            displayFiles(allFiles);
+        })
+        .fail(function() {
+            $('#filesContainer').html('<div class="alert alert-danger m-3">Failed to load files</div>');
+        });
+}
+
+function displayFiles(files) {
+    if (files.length === 0) {
+        $('#filesContainer').html('<div class="p-4 text-center text-muted">No files in this area</div>');
+        return;
+    }
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="40%">Filename</th>
+                        <th width="20%">Description</th>
+                        <th width="10%">Size</th>
+                        <th width="15%">Uploaded</th>
+                        <th width="15%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    files.forEach(function(file) {
+        const shortDesc = escapeHtml(file.short_description || '');
+        const fileSize = formatBytes(file.filesize);
+        const uploadDate = formatDate(file.created_at);
+        const canDelete = isAdmin || (file.owner_id && file.owner_id === currentUserId);
+
+        // Virus scan status icon
+        let scanIcon = '<i class="fas fa-file me-2"></i>';
+        if (file.virus_scanned) {
+            if (file.virus_scan_result === 'clean') {
+                scanIcon = '<i class="fas fa-shield-alt text-success me-2" title="Virus scan: Clean"></i>';
+            } else if (file.virus_scan_result === 'infected') {
+                scanIcon = '<i class="fas fa-shield-alt text-danger me-2" title="Virus detected: ' + escapeHtml(file.virus_signature || 'Unknown') + '"></i>';
+            } else if (file.virus_scan_result === 'error') {
+                scanIcon = '<i class="fas fa-shield-alt text-warning me-2" title="Virus scan: Error"></i>';
+            } else if (file.virus_scan_result === 'skipped') {
+                scanIcon = '<i class="fas fa-shield-alt text-muted me-2" title="Virus scan: Skipped"></i>';
+            }
+        }
+
+        html += `
+            <tr>
+                <td>
+                    ${scanIcon}
+                    <strong>${escapeHtml(file.filename)}</strong>
+                </td>
+                <td><small class="text-muted">${shortDesc}</small></td>
+                <td>${fileSize}</td>
+                <td><small>${uploadDate}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                        <i class="fas fa-download"></i>
+                    </a>
+                    ${canDelete ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table></div>';
+    $('#filesContainer').html(html);
+}
+
+function filterFiles(query) {
+    if (!query) {
+        displayFiles(allFiles);
+        return;
+    }
+
+    query = query.toLowerCase();
+    const filtered = allFiles.filter(function(file) {
+        return file.filename.toLowerCase().includes(query) ||
+               (file.short_description && file.short_description.toLowerCase().includes(query));
+    });
+
+    displayFiles(filtered);
+}
+
+function showFileDetails(fileId) {
+    $.get(`/api/files/${fileId}`)
+        .done(function(data) {
+            const file = data.file;
+
+            $('#detailFilename').text(file.filename);
+            $('#detailSize').text(formatBytes(file.filesize));
+            $('#detailUploaded').text(formatDate(file.created_at));
+            $('#detailFrom').text(file.uploaded_from_address || 'Unknown');
+
+            // Virus scan status
+            let scanStatus = 'Not scanned';
+            if (file.virus_scanned) {
+                if (file.virus_scan_result === 'clean') {
+                    scanStatus = '<span class="badge bg-success"><i class="fas fa-shield-alt"></i> Clean</span>';
+                } else if (file.virus_scan_result === 'infected') {
+                    scanStatus = '<span class="badge bg-danger"><i class="fas fa-shield-alt"></i> Infected: ' + escapeHtml(file.virus_signature || 'Unknown') + '</span>';
+                } else if (file.virus_scan_result === 'error') {
+                    scanStatus = '<span class="badge bg-warning"><i class="fas fa-shield-alt"></i> Scan Error</span>';
+                } else if (file.virus_scan_result === 'skipped') {
+                    scanStatus = '<span class="badge bg-secondary"><i class="fas fa-shield-alt"></i> Skipped</span>';
+                }
+                if (file.virus_scanned_at) {
+                    scanStatus += ' <small class="text-muted">(' + formatDate(file.virus_scanned_at) + ')</small>';
+                }
+            }
+            $('#detailVirusScan').html(scanStatus);
+
+            $('#detailDescription').text(file.short_description || 'No description');
+
+            if (file.long_description) {
+                $('#detailLongDescription').html(`
+                    <strong>Long Description:</strong>
+                    <pre class="bg-light p-2 rounded">${escapeHtml(file.long_description)}</pre>
+                `);
+            } else {
+                $('#detailLongDescription').html('');
+            }
+
+            $('#downloadFileBtn').attr('href', `/api/files/${fileId}/download`);
+            $('#fileDetailsTitle').text(file.filename);
+
+            new bootstrap.Modal('#fileDetailsModal').show();
+        })
+        .fail(function() {
+            showError('Failed to load file details');
+        });
+}
+
+function loadStats() {
+    $.get('/api/fileareas/stats')
+        .done(function(data) {
+            // Update desktop stats
+            $('#totalAreas').text(data.active_count);
+            $('#totalFiles').text(data.total_files);
+            $('#totalSize').text(formatBytes(data.total_size));
+
+            // Update mobile stats
+            $('#totalAreas-mobile').text(data.active_count);
+            $('#totalFiles-mobile').text(data.total_files);
+            $('#totalSize-mobile').text(formatBytes(data.total_size));
+        });
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+}
+
+function showUploadModal() {
+    if (!currentAreaId) {
+        showError('Please select a file area first');
+        return;
+    }
+
+    $('#uploadFileForm')[0].reset();
+    $('#uploadProgress').hide();
+    $('#uploadProgress .progress-bar').css('width', '0%');
+    new bootstrap.Modal('#uploadFileModal').show();
+}
+
+function uploadFile() {
+    if (!currentAreaId) {
+        showError('Please select a file area first');
+        return;
+    }
+
+    const form = $('#uploadFileForm')[0];
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    const fileInput = $('#uploadFile')[0];
+    const file = fileInput.files[0];
+    if (!file) {
+        showError('Please select a file');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('file_area_id', currentAreaId);
+    formData.append('short_description', $('#uploadDescription').val());
+    formData.append('long_description', $('#uploadLongDescription').val());
+
+    $('#uploadProgress').show();
+
+    $.ajax({
+        url: '/api/files/upload',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        xhr: function() {
+            const xhr = new window.XMLHttpRequest();
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    $('#uploadProgress .progress-bar').css('width', percentComplete + '%');
+                }
+            }, false);
+            return xhr;
+        },
+        success: function(response) {
+            bootstrap.Modal.getInstance('#uploadFileModal').hide();
+            showSuccess('File uploaded successfully');
+            loadFiles(currentAreaId);
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.error || 'Failed to upload file';
+            showError(error);
+            $('#uploadProgress').hide();
+        }
+    });
+}
+
+function confirmDeleteFile(fileId, filename) {
+    if (confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) {
+        deleteFile(fileId);
+    }
+}
+
+function deleteFile(fileId) {
+    $.ajax({
+        url: `/api/files/${fileId}/delete`,
+        method: 'DELETE',
+        success: function(response) {
+            showSuccess('File deleted successfully');
+            loadFiles(currentAreaId);
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.error || 'Failed to delete file';
+            showError(error);
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1436,3 +1436,76 @@ tbody, td, tfoot, th, thead, tr {
         --bs-modal-width: 1200px;
     }
 }
+
+/* Echolist page - Cyberpunk theme overrides */
+#echolist-page .forums-table {
+    background: var(--cyber-dark-light);
+    border-color: var(--cyber-purple);
+}
+
+#echolist-page .forum-item {
+    border-bottom-color: var(--cyber-purple-dim);
+}
+
+#echolist-page .forum-item:hover {
+    background-color: rgba(157, 78, 221, 0.1);
+}
+
+#echolist-page .forum-title {
+    color: var(--text-color);
+}
+
+#echolist-page .forum-title-link {
+    color: var(--cyber-cyan);
+}
+
+#echolist-page .forum-title-link:hover {
+    color: var(--cyber-cyan-bright);
+}
+
+#echolist-page .forum-desc {
+    color: var(--text-color-muted);
+}
+
+#echolist-page .forum-mod {
+    color: var(--text-color-muted);
+}
+
+#echolist-page .stat-number {
+    color: var(--cyber-pink-bright);
+}
+
+#echolist-page .stat-label {
+    color: var(--text-color-muted);
+}
+
+#echolist-page .lastpost-subject {
+    color: var(--text-color);
+}
+
+#echolist-page .lastpost-by {
+    color: var(--text-color-muted);
+}
+
+#echolist-page .lastpost-time {
+    color: var(--text-color-muted);
+}
+
+#echolist-page .stat-box h5 {
+    color: var(--cyber-pink-bright);
+}
+
+#echolist-page .stat-box small {
+    color: var(--text-color-muted);
+}
+
+#echolist-page .empty-state,
+#echolist-page .loading {
+    color: var(--text-color-muted);
+}
+
+@media (max-width: 575.98px) {
+    #echolist-page .forum-stats-cell {
+        border-top-color: var(--cyber-purple-dim);
+    }
+}

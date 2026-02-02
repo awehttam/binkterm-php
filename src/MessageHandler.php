@@ -69,15 +69,17 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            SELECT n.*,
+            SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.date_received, n.user_id, n.date_written,
+                   n.attributes, n.is_sent, n.reply_to_id,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
             $whereClause
-            ORDER BY CASE 
-                WHEN n.date_received > NOW() THEN 0 
-                ELSE 1 
-            END, n.date_received DESC 
+            ORDER BY CASE
+                WHEN n.date_received > NOW() THEN 0
+                ELSE 1
+            END, n.date_received DESC
             LIMIT ? OFFSET ?
         ");
         
@@ -220,7 +222,10 @@ class MessageHandler
         
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -261,7 +266,10 @@ class MessageHandler
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -323,29 +331,10 @@ class MessageHandler
             $unreadCount = $unreadCountStmt->fetch()['count'];
         }
 
-        // Clean message data for proper JSON encoding and add REPLYTO parsing
+        // Clean message data for proper JSON encoding
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
-            
-            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
-            $replyToData = null;
-            
-            // For echomail, check kludge_lines first
-            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
-                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
-            }
-            
-            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
-            if (!$replyToData) {
-                $replyToData = $this->parseReplyToKludge($message);
-            }
-            
-            if ($replyToData && isset($replyToData['address'])) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
-            }
-            
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -418,7 +407,10 @@ class MessageHandler
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
         
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain, ea.domain as echoarea_domain,
+            SELECT em.id, em.from_name, em.from_address, em.to_name,
+                   em.subject, em.date_received, em.date_written, em.echoarea_id,
+                   em.message_id, em.reply_to_id,
+                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -431,7 +423,7 @@ class MessageHandler
             ORDER BY em.date_received DESC
             LIMIT ? OFFSET ?
         ");
-        
+
         $params = [$userId, $userId, $userId];
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
@@ -966,19 +958,19 @@ class MessageHandler
     public function searchMessages($query, $type = null, $echoarea = null, $userId = null)
     {
         $searchTerm = '%' . $query . '%';
-        
+
         if ($type === 'netmail') {
             if ($userId === null) {
                 // If no user ID provided, return empty results for privacy
                 return [];
             }
             $stmt = $this->db->prepare("
-                SELECT * FROM netmail 
-                WHERE (subject ILIKE ? OR message_text ILIKE ? OR from_name ILIKE ?) 
+                SELECT * FROM netmail
+                WHERE (subject ILIKE ? OR message_text ILIKE ? OR from_name ILIKE ?)
                 AND user_id = ?
-                ORDER BY CASE 
-                    WHEN date_received > NOW() THEN 0 
-                    ELSE 1 
+                ORDER BY CASE
+                    WHEN date_received > NOW() THEN 0
+                    ELSE 1
                 END, date_received DESC
                 LIMIT 50
             ");
@@ -995,25 +987,139 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
             ";
-            
+
             $params = [$searchTerm, $searchTerm, $searchTerm];
             if (!$isAdmin) {
                 $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
             }
-            
+
             if ($echoarea) {
                 $sql .= " AND ea.tag = ?";
                 $params[] = $echoarea;
             }
-            
-            $sql .= " ORDER BY CASE 
-                WHEN em.date_written > NOW() THEN 0 
-                ELSE 1 
-            END, em.date_written DESC LIMIT 50";
-            
+
+            $sql .= " ORDER BY CASE
+                WHEN em.date_written > NOW() THEN 0
+                ELSE 1
+            END, em.date_written DESC";
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
         }
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Get filter counts for search results (all, unread, read, tome, saved, drafts)
+     *
+     * @param string $query The search query
+     * @param string|null $echoarea Optional specific echo area to search within
+     * @param int|null $userId User ID for permission checking
+     * @return array Array with filter counts
+     */
+    public function getSearchFilterCounts($query, $echoarea = null, $userId = null)
+    {
+        $searchTerm = '%' . $query . '%';
+
+        $isAdmin = false;
+        $userRealName = null;
+        if ($userId) {
+            $user = $this->getUserById($userId);
+            $isAdmin = $user && !empty($user['is_admin']);
+            $userRealName = $user['real_name'] ?? null;
+        }
+
+        $sql = "
+            SELECT
+                COUNT(*) as all_count,
+                COUNT(*) FILTER (WHERE mr.id IS NULL) as unread_count,
+                COUNT(*) FILTER (WHERE mr.id IS NOT NULL) as read_count,
+                COUNT(*) FILTER (WHERE em.to_name = ?) as tome_count,
+                COUNT(*) FILTER (WHERE sm.message_id IS NOT NULL) as saved_count
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mr ON mr.message_id = em.id
+                AND mr.message_type = 'echomail'
+                AND mr.user_id = ?
+            LEFT JOIN saved_messages sm ON sm.message_id = em.id
+                AND sm.message_type = 'echomail'
+                AND sm.user_id = ?
+            WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
+                AND ea.is_active = TRUE
+        ";
+
+        $params = [$userRealName, $userId, $userId, $searchTerm, $searchTerm, $searchTerm];
+
+        if (!$isAdmin) {
+            $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
+        }
+
+        if ($echoarea) {
+            $sql .= " AND ea.tag = ?";
+            $params[] = $echoarea;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+
+        // Drafts are not included in echomail search
+        return [
+            'all' => (int)$result['all_count'],
+            'unread' => (int)$result['unread_count'],
+            'read' => (int)$result['read_count'],
+            'tome' => (int)$result['tome_count'],
+            'saved' => (int)$result['saved_count'],
+            'drafts' => 0
+        ];
+    }
+
+    /**
+     * Get per-echo-area message counts for search results
+     *
+     * @param string $query The search query
+     * @param string|null $echoarea Optional specific echo area to search within
+     * @param int|null $userId User ID for permission checking
+     * @return array Array of echo areas with their search result counts
+     */
+    public function getSearchResultCounts($query, $echoarea = null, $userId = null)
+    {
+        $searchTerm = '%' . $query . '%';
+
+        $isAdmin = false;
+        if ($userId) {
+            $user = $this->getUserById($userId);
+            $isAdmin = $user && !empty($user['is_admin']);
+        }
+
+        $sql = "
+            SELECT
+                ea.id,
+                ea.tag,
+                ea.domain,
+                COUNT(em.id) as message_count
+            FROM echoareas ea
+            LEFT JOIN echomail em ON em.echoarea_id = ea.id
+                AND (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
+            WHERE ea.is_active = TRUE
+        ";
+
+        $params = [$searchTerm, $searchTerm, $searchTerm];
+
+        if (!$isAdmin) {
+            $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
+        }
+
+        if ($echoarea) {
+            $sql .= " AND ea.tag = ?";
+            $params[] = $echoarea;
+        }
+
+        $sql .= " GROUP BY ea.id, ea.tag, ea.domain ORDER BY ea.tag";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
 
         return $stmt->fetchAll();
     }
@@ -1412,6 +1518,7 @@ class MessageHandler
             'font_size' => 'INTEGER',
             'timezone' => 'STRING',
             'theme' => 'STRING',
+            'default_echo_list' => 'STRING',
             'show_origin' => 'BOOLEAN',
             'show_tearline' => 'BOOLEAN',
             'auto_refresh' => 'BOOLEAN',
@@ -2356,66 +2463,30 @@ class MessageHandler
      */
     private function ensureCompleteThreadContext($messages, $userId)
     {
-        $messagesByMsgId = [];
-        $missingMsgIds = [];
         $messagesById = [];
-        
-        // Index existing messages
+        $missingParentIds = [];
+
+        // Index existing messages and collect missing parent IDs
         foreach ($messages as $message) {
-            $messagesByMsgId[$message['message_id']] = $message;
             $messagesById[$message['id']] = $message;
-        }
-        
-        // Find missing parent messages (messages that are referenced in REPLY kludges)
-        foreach ($messages as $message) {
-            $replyTo = $this->extractReplyFromKludge($message['kludge_lines']);
-            if ($replyTo && !isset($messagesByMsgId[$replyTo])) {
-                $missingMsgIds[] = $replyTo;
+
+            // If message has a reply_to_id but we don't have the parent, mark it as missing
+            if (!empty($message['reply_to_id']) && !isset($messagesById[$message['reply_to_id']])) {
+                $missingParentIds[$message['reply_to_id']] = true;
             }
         }
-        
-        // Find missing child messages (messages that reply to current messages)
-        // Use a simpler approach - just look for messages with REPLY kludges
-        $currentMsgIds = array_keys($messagesByMsgId);
-        if (!empty($currentMsgIds)) {
-            foreach ($currentMsgIds as $currentMsgId) {
-                $stmt = $this->db->prepare("
-                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
-                           CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                           CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
-                           CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
-                    FROM echomail em
-                    JOIN echoareas ea ON em.echoarea_id = ea.id
-                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                    WHERE em.kludge_lines LIKE ? 
-                    LIMIT 10
-                ");
-                
-                $searchPattern = '%REPLY: ' . $currentMsgId . '%';
-                $stmt->execute([$userId, $userId, $userId, $searchPattern]);
-                $childMessages = $stmt->fetchAll();
-                
-                foreach ($childMessages as $childMessage) {
-                    if (!isset($messagesById[$childMessage['id']])) {
-                        // Verify this is actually a reply to avoid false positives
-                        $replyTo = $this->extractReplyFromKludge($childMessage['kludge_lines']);
-                        if ($replyTo === $currentMsgId) {
-                            $messages[] = $childMessage;
-                            $messagesByMsgId[$childMessage['message_id']] = $childMessage;
-                            $messagesById[$childMessage['id']] = $childMessage;
-                        }
-                    }
-                }
-            }
-        }
-        
+
+        $currentIds = array_keys($messagesById);
+
         // Load missing parent messages
-        if (!empty($missingMsgIds)) {
-            $placeholders = implode(',', array_fill(0, count($missingMsgIds), '?'));
+        if (!empty($missingParentIds)) {
+            $parentIds = array_keys($missingParentIds);
+            $placeholders = implode(',', array_fill(0, count($parentIds), '?'));
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2424,24 +2495,57 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE em.message_id IN ({$placeholders})
+                WHERE em.id IN ({$placeholders})
             ");
-            
+
             $params = [$userId, $userId, $userId];
-            foreach ($missingMsgIds as $msgId) {
-                $params[] = $msgId;
-            }
-            
+            $params = array_merge($params, $parentIds);
+
             $stmt->execute($params);
             $parentMessages = $stmt->fetchAll();
-            
+
             foreach ($parentMessages as $parentMessage) {
                 if (!isset($messagesById[$parentMessage['id']])) {
                     $messages[] = $parentMessage;
+                    $messagesById[$parentMessage['id']] = $parentMessage;
                 }
             }
         }
-        
+
+        // Load missing child messages (messages that reply to current messages)
+        if (!empty($currentIds)) {
+            $placeholders = implode(',', array_fill(0, count($currentIds), '?'));
+            $stmt = $this->db->prepare("
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE em.reply_to_id IN ({$placeholders})
+                LIMIT 100
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $currentIds);
+
+            $stmt->execute($params);
+            $childMessages = $stmt->fetchAll();
+
+            foreach ($childMessages as $childMessage) {
+                if (!isset($messagesById[$childMessage['id']])) {
+                    $messages[] = $childMessage;
+                    $messagesById[$childMessage['id']] = $childMessage;
+                }
+            }
+        }
+
         return $messages;
     }
 
@@ -2574,7 +2678,10 @@ class MessageHandler
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+            SELECT em.id, em.from_name, em.from_address, em.to_name,
+                   em.subject, em.date_received, em.date_written, em.echoarea_id,
+                   em.message_id, em.reply_to_id,
+                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2587,7 +2694,7 @@ class MessageHandler
             ORDER BY em.date_received DESC
             LIMIT ? OFFSET ?
         ");
-        
+
         $params = [$userId, $userId, $userId];
         $params = array_merge($params, $echoareaIds);
         foreach ($filterParams as $param) {
@@ -2597,7 +2704,7 @@ class MessageHandler
         $params[] = $offset;
         $stmt->execute($params);
         $pageMessages = $stmt->fetchAll();
-        
+
         // Debug: log what we got
         //error_log("DEBUG: Page $page, got " . count($pageMessages) . " page messages");
         
@@ -2654,29 +2761,10 @@ class MessageHandler
             }
         }
 
-        // Clean message data for proper JSON encoding and add REPLYTO parsing
+        // Clean message data for proper JSON encoding
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
-            
-            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
-            $replyToData = null;
-            
-            // For echomail, check kludge_lines first
-            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
-                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
-            }
-            
-            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
-            if (!$replyToData) {
-                $replyToData = $this->parseReplyToKludge($message);
-            }
-            
-            if ($replyToData && isset($replyToData['address'])) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
-            }
-            
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -2709,7 +2797,7 @@ class MessageHandler
         // Build the WHERE clause based on filter
         $filterClause = "";
         $filterParams = [];
-        
+
         if ($filter === 'unread' && $userId) {
             $filterClause = " AND mrs.read_at IS NULL";
         } elseif ($filter === 'read' && $userId) {
@@ -2725,10 +2813,50 @@ class MessageHandler
             $filterClause = " AND sav.id IS NOT NULL";
         }
 
-        // Get all messages for threading (need to load more data to ensure thread completeness)
+        // First, get the total count of root messages (threads) for pagination
+        $totalThreads = 0;
         if ($echoareaTag) {
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as total
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
+            ");
+            $countParams = [$userId, $userId, $echoareaTag];
+            foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            $countParams[] = $domain;
+            $countStmt->execute($countParams);
+            $totalThreads = $countStmt->fetch()['total'];
+        } else {
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as total
+                FROM echomail em
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE em.reply_to_id IS NULL{$filterClause}
+            ");
+            $countParams = [$userId, $userId];
+            foreach ($filterParams as $param) {
+                $countParams[] = $param;
+            }
+            $countStmt->execute($countParams);
+            $totalThreads = $countStmt->fetch()['total'];
+        }
+
+        // Get root messages for the current page
+        $rootOffset = ($page - 1) * $limit;
+
+        if ($echoareaTag) {
+            // Get root messages (threads) for the current page
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2737,21 +2865,25 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
+                WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
                 ORDER BY em.date_received DESC
+                LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
             $params[] = $domain;
+            $params[] = $limit;
+            $params[] = $rootOffset;
             $stmt->execute($params);
         } else {
-            // For "all messages" view, we need to load thread-related messages too
-            // First get the base messages with a larger limit to include thread context
-            $threadLimit = $limit * 3; // Load more to capture thread relationships
+            // For "all messages" view, get root messages for the current page
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2760,41 +2892,36 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE 1=1{$filterClause}
+                WHERE em.reply_to_id IS NULL{$filterClause}
                 ORDER BY em.date_received DESC
-                LIMIT {$threadLimit}
+                LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
+            $params[] = $limit;
+            $params[] = $rootOffset;
             $stmt->execute($params);
         }
-        
-        $allMessages = $stmt->fetchAll();
-        
-        // For "all messages" view, ensure we have complete thread context
-        if (!$echoareaTag) {
-            $allMessages = $this->ensureCompleteThreadContext($allMessages, $userId);
-        }
-        
+
+        $rootMessages = $stmt->fetchAll();
+
+        // Now load all child messages for these root messages recursively
+        $allMessages = $this->loadThreadChildren($rootMessages, $userId);
+
         // Build threading relationships
         $threads = $this->buildMessageThreads($allMessages);
-        
+
         // Sort threads by most recent message in each thread
         usort($threads, function($a, $b) {
             $aLatest = $this->getLatestMessageInThread($a);
             $bLatest = $this->getLatestMessageInThread($b);
             return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
         });
-        
-        // Apply pagination to threads
-        $totalThreads = count($threads);
-        $offset = ($page - 1) * $limit;
-        $pagedThreads = array_slice($threads, $offset, $limit);
-        
+
         // Flatten threads for display while maintaining structure
-        $messages = $this->flattenThreadsForDisplay($pagedThreads);
+        $messages = $this->flattenThreadsForDisplay($threads);
         
         // Get unread count
         $unreadCount = 0;
@@ -2806,29 +2933,10 @@ class MessageHandler
             }
         }
 
-        // Clean message data for proper JSON encoding and add REPLYTO parsing
+        // Clean message data for proper JSON encoding
         $cleanMessages = [];
         foreach ($messages as $message) {
             $cleanMessage = $this->cleanMessageForJson($message);
-            
-            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
-            $replyToData = null;
-            
-            // For echomail, check kludge_lines first
-            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
-                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
-            }
-            
-            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
-            if (!$replyToData) {
-                $replyToData = $this->parseReplyToKludge($message);
-            }
-            
-            if ($replyToData && isset($replyToData['address'])) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
-            }
-            
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -2846,74 +2954,130 @@ class MessageHandler
     }
 
     /**
-     * Build message threads using MSGID/REPLY relationships
+     * Load all child messages for given root messages recursively
+     */
+    private function loadThreadChildren($rootMessages, $userId)
+    {
+        if (empty($rootMessages)) {
+            return [];
+        }
+
+        $allMessages = $rootMessages;
+        $messageIds = array_column($rootMessages, 'id');
+
+        // Recursively load children until no more children are found
+        $currentLevelIds = $messageIds;
+        $maxDepth = 50; // Prevent infinite loops
+        $depth = 0;
+
+        while (!empty($currentLevelIds) && $depth < $maxDepth) {
+            $placeholders = implode(',', array_fill(0, count($currentLevelIds), '?'));
+
+            $stmt = $this->db->prepare("
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE em.reply_to_id IN ({$placeholders})
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $currentLevelIds);
+            $stmt->execute($params);
+
+            $children = $stmt->fetchAll();
+
+            if (empty($children)) {
+                break;
+            }
+
+            // Add children to all messages
+            $allMessages = array_merge($allMessages, $children);
+
+            // Prepare for next level
+            $currentLevelIds = array_column($children, 'id');
+            $depth++;
+        }
+
+        return $allMessages;
+    }
+
+    /**
+     * Build message threads using reply_to_id relationships
      */
     private function buildMessageThreads($messages)
     {
-        $messagesByMsgId = [];
-        $messagesByReply = [];
+        $messagesById = [];
+        $messagesByParentId = [];
         $rootMessages = [];
-        
-        // Index messages by their MSGID and build reply relationships
+
+        // Index messages by their ID and build reply relationships using reply_to_id
         foreach ($messages as $message) {
-            $msgId = $message['message_id'];
-            $messagesByMsgId[$msgId] = $message;
-            
-            // Extract REPLY from kludge lines
-            $replyTo = @$this->extractReplyFromKludge($message['kludge_lines']);
-            
-            if ($replyTo) {
-                $messagesByReply[$replyTo][] = $message;
-                $message['reply_to_msgid'] = $replyTo;
+            $id = $message['id'];
+            $messagesById[$id] = $message;
+
+            // Use reply_to_id column instead of parsing kludges
+            $replyToId = $message['reply_to_id'] ?? null;
+
+            if ($replyToId) {
+                $messagesByParentId[$replyToId][] = $message;
             } else {
-                // No REPLY found, this is a root message
+                // No reply_to_id, this is a root message
                 $rootMessages[] = $message;
             }
         }
-        
+
         // Build thread trees
         $threads = [];
         foreach ($rootMessages as $root) {
-            $thread = $this->buildThreadTree($root, $messagesByReply);
+            $thread = $this->buildThreadTree($root, $messagesByParentId);
             $threads[] = $thread;
         }
-        
-        // Handle orphaned replies (replies that don't have parent messages)
-        foreach ($messagesByReply as $parentMsgId => $replies) {
-            if (!isset($messagesByMsgId[$parentMsgId])) {
-                // Parent not found, treat each orphaned reply as a separate thread
+
+        // Handle orphaned replies (replies that don't have parent messages in result set)
+        foreach ($messagesByParentId as $parentId => $replies) {
+            if (!isset($messagesById[$parentId])) {
+                // Parent not found in result set, treat each orphaned reply as a separate thread
                 foreach ($replies as $orphan) {
-                    $thread = $this->buildThreadTree($orphan, $messagesByReply);
+                    $thread = $this->buildThreadTree($orphan, $messagesByParentId);
                     $threads[] = $thread;
                 }
             }
         }
-        
+
         return $threads;
     }
     
     /**
      * Recursively build a thread tree
      */
-    private function buildThreadTree($message, $messagesByReply)
+    private function buildThreadTree($message, $messagesByParentId)
     {
-        $msgId = $message['message_id'];
+        $messageId = $message['id'];
         $thread = [
             'message' => $message,
             'replies' => []
         ];
-        
-        if (isset($messagesByReply[$msgId])) {
-            foreach ($messagesByReply[$msgId] as $reply) {
-                $thread['replies'][] = $this->buildThreadTree($reply, $messagesByReply);
+
+        if (isset($messagesByParentId[$messageId])) {
+            foreach ($messagesByParentId[$messageId] as $reply) {
+                $thread['replies'][] = $this->buildThreadTree($reply, $messagesByParentId);
             }
-            
+
             // Sort replies by date
             usort($thread['replies'], function($a, $b) {
                 return strtotime($a['message']['date_received']) - strtotime($b['message']['date_received']);
             });
         }
-        
+
         return $thread;
     }
     
@@ -3066,7 +3230,9 @@ class MessageHandler
 
         // Get all messages first
         $stmt = $this->db->prepare("
-            SELECT n.*,
+            SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.date_received, n.user_id, n.date_written,
+                   n.attributes, n.is_sent, n.reply_to_id,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
@@ -3162,84 +3328,105 @@ class MessageHandler
     }
 
     /**
-     * Get thread context for specific messages efficiently
+     * Get thread context for specific messages efficiently using reply_to_id
      */
     private function getThreadContextForMessages($pageMessages, $userId, $echoareaIds, $filterClause, $filterParams)
     {
         // Start with the page messages
         $allMessages = $pageMessages;
-        
-        // Extract MSGID and REPLY values from page messages
-        $msgIds = [];
-        $replyIds = [];
-        
+        $messageIds = array_column($pageMessages, 'id');
+
+        // Collect parent IDs (messages referenced by reply_to_id)
+        $parentIds = [];
         foreach ($pageMessages as $msg) {
-            if (!empty($msg['kludge_lines'])) {
-                $kludgeLines = explode("\n", $msg['kludge_lines']);
-                foreach ($kludgeLines as $line) {
-                    if (preg_match('/^\x01MSGID:\s*(.+)$/i', trim($line), $matches)) {
-                        $msgIds[] = trim($matches[1]);
-                    }
-                    if (preg_match('/^\x01REPLY:\s*(.+)$/i', trim($line), $matches)) {
-                        $replyIds[] = trim($matches[1]);
-                    }
+            if (!empty($msg['reply_to_id']) && !in_array($msg['reply_to_id'], $messageIds)) {
+                $parentIds[] = $msg['reply_to_id'];
+            }
+        }
+
+        // Get parent messages if needed
+        if (!empty($parentIds)) {
+            $parentIds = array_unique($parentIds);
+            $placeholders = str_repeat('?,', count($parentIds) - 1) . '?';
+            $echoareaPlaceholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+
+            $parentStmt = $this->db->prepare("
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($echoareaPlaceholders) AND ea.is_active = TRUE{$filterClause}
+                AND em.id IN ($placeholders)
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $echoareaIds);
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            $params = array_merge($params, $parentIds);
+
+            $parentStmt->execute($params);
+            $parentMessages = $parentStmt->fetchAll();
+
+            foreach ($parentMessages as $parentMsg) {
+                if (!in_array($parentMsg['id'], $messageIds)) {
+                    $allMessages[] = $parentMsg;
+                    $messageIds[] = $parentMsg['id'];
                 }
             }
         }
-        
-        // If we have thread references, get the related messages
-        if (!empty($msgIds) || !empty($replyIds)) {
-            $threadIds = array_merge($msgIds, $replyIds);
-            $threadIds = array_unique($threadIds);
-            
-            if (!empty($threadIds)) {
-                $placeholders = str_repeat('?,', count($threadIds) - 1) . '?';
-                $echoareaPlaceholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
-                
-                // Build LIKE conditions for thread IDs
-                $likeConditions = [];
-                $threadParams = [$userId, $userId, $userId];
-                $threadParams = array_merge($threadParams, $echoareaIds);
-                foreach ($filterParams as $param) {
-                    $threadParams[] = $param;
-                }
-                
-                foreach ($threadIds as $threadId) {
-                    $likeConditions[] = "(em.kludge_lines LIKE ? OR em.kludge_lines LIKE ?)";
-                    $threadParams[] = "%MSGID: " . $threadId . "%";
-                    $threadParams[] = "%REPLY: " . $threadId . "%";
-                }
-                
-                $likeClause = implode(' OR ', $likeConditions);
-                
-                // Get related thread messages
-                $threadStmt = $this->db->prepare("
-                    SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
-                           CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
-                           CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
-                           CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
-                    FROM echomail em
-                    JOIN echoareas ea ON em.echoarea_id = ea.id
-                    LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
-                    LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                    WHERE ea.id IN ($echoareaPlaceholders) AND ea.is_active = TRUE{$filterClause}
-                    AND ($likeClause)
-                ");
-                
-                $threadStmt->execute($threadParams);
-                $threadMessages = $threadStmt->fetchAll();
-                
-                // Merge with page messages, avoiding duplicates
-                $messageIds = array_column($allMessages, 'id');
-                foreach ($threadMessages as $threadMsg) {
-                    if (!in_array($threadMsg['id'], $messageIds)) {
-                        $allMessages[] = $threadMsg;
-                    }
+
+        // Get child messages (messages that reply to our page messages)
+        if (!empty($messageIds)) {
+            $placeholders = str_repeat('?,', count($messageIds) - 1) . '?';
+            $echoareaPlaceholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
+
+            $childStmt = $this->db->prepare("
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                       CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
+                       CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
+                       CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
+                FROM echomail em
+                JOIN echoareas ea ON em.echoarea_id = ea.id
+                LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
+                LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
+                LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
+                WHERE ea.id IN ($echoareaPlaceholders) AND ea.is_active = TRUE{$filterClause}
+                AND em.reply_to_id IN ($placeholders)
+                LIMIT 100
+            ");
+
+            $params = [$userId, $userId, $userId];
+            $params = array_merge($params, $echoareaIds);
+            foreach ($filterParams as $param) {
+                $params[] = $param;
+            }
+            $originalMessageIds = array_column($pageMessages, 'id');
+            $params = array_merge($params, $originalMessageIds);
+
+            $childStmt->execute($params);
+            $childMessages = $childStmt->fetchAll();
+
+            $currentMessageIds = array_column($allMessages, 'id');
+            foreach ($childMessages as $childMsg) {
+                if (!in_array($childMsg['id'], $currentMessageIds)) {
+                    $allMessages[] = $childMsg;
                 }
             }
         }
-        
+
         return $allMessages;
     }
 

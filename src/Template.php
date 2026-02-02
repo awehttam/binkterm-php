@@ -102,6 +102,7 @@ class Template
 
         // Determine stylesheet to use - check user's theme preference if logged in
         $stylesheet = Config::getStylesheet();
+        $defaultEchoList = 'reader'; // Default value
         if ($currentUser && !empty($currentUser['user_id'])) {
             try {
                 $handler = new MessageHandler();
@@ -112,11 +113,16 @@ class Template
                         $stylesheet = $settings['theme'];
                     }
                 }
+                // Get default echo list preference
+                if (!empty($settings['default_echo_list'])) {
+                    $defaultEchoList = $settings['default_echo_list'];
+                }
             } catch (\Exception $e) {
                 // Fall back to default stylesheet on error
             }
         }
         $this->twig->addGlobal('stylesheet', $stylesheet);
+        $this->twig->addGlobal('default_echo_list', $defaultEchoList);
 
         $this->twig->addFunction(new TwigFunction('bbs_feature_enabled', function(string $feature): bool {
             return BbsConfig::isFeatureEnabled($feature);

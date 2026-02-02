@@ -200,8 +200,25 @@ SimpleRouter::get('/echomail', function() {
         return SimpleRouter::response()->redirect('/login');
     }
 
+    // Check for echoarea and domain query parameters
+    $echoareaParam = $_GET['echoarea'] ?? null;
+    $domainParam = $_GET['domain'] ?? null;
+
+    $echoarea = null;
+    if ($echoareaParam) {
+        // Combine echoarea with domain if both provided
+        if ($domainParam) {
+            $echoarea = $echoareaParam . '@' . $domainParam;
+        } else {
+            $echoarea = $echoareaParam;
+        }
+    }
+
     $template = new Template();
-    $template->renderResponse('echomail.twig', ['echoarea' => null]);
+    $template->renderResponse('echomail.twig', [
+        'echoarea' => $echoarea,
+        'domain' => $domainParam
+    ]);
 });
 
 SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
@@ -581,6 +598,40 @@ SimpleRouter::get('/echoareas', function() {
     $template->renderResponse('echoareas.twig');
 });
 
+SimpleRouter::get('/echolist', function() {
+    $user = RouteHelper::requireAuth();
+
+    $template = new Template();
+    $template->renderResponse('echolist.twig');
+});
+
+SimpleRouter::get('/fileareas', function() {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+
+    // Check if user is admin (file areas management is admin only)
+    if (!$user['is_admin']) {
+        return SimpleRouter::response()->httpCode(403);
+    }
+
+    $template = new Template();
+    $template->renderResponse('fileareas.twig');
+});
+
+SimpleRouter::get('/files', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas')) {
+        return SimpleRouter::response()->httpCode(404);
+    }
+
+    $template = new Template();
+    $template->renderResponse('files.twig');
+});
 
 SimpleRouter::get('/compose/{type}', function($type) {
     $auth = new Auth();

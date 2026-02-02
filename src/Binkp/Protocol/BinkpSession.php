@@ -178,7 +178,7 @@ class BinkpSession
                     $timeout = time() + 120; // Increased timeout to 120 seconds
                     $lastActivity = time();
 
-                    while (!empty($pendingFiles) && time() < $timeout && $this->state < self::STATE_TERMINATED) {
+                    while (!empty($pendingFiles) && time() < $timeout) {
                         $frame = BinkpFrame::parseFromSocket($this->socket);
                         if (!$frame) {
                             // Check for extended timeout without activity
@@ -292,18 +292,55 @@ class BinkpSession
                 $this->state = self::STATE_EOB_SENT;
             }
 
-            // Continue until session terminates
+            // Continue until session terminates with timeout protection
+            $eobWaitStart = time();
+            $eobTimeout = 60; // 60 second timeout for EOB exchange
+            $lastActivity = time();
+            $activityTimeout = 30; // 30 seconds without any frames
+
+            $this->log("Waiting for session termination (state: {$this->state})", 'DEBUG');
+
             while ($this->state < self::STATE_TERMINATED) {
-                $frame = BinkpFrame::parseFromSocket($this->socket);
-                if (!$frame) {
+                $elapsed = time() - $eobWaitStart;
+                $inactivity = time() - $lastActivity;
+
+                // Check for overall timeout
+                if ($elapsed >= $eobTimeout) {
+                    $this->log("EOB exchange timeout after {$elapsed} seconds (state: {$this->state})", 'WARNING');
                     break;
                 }
+
+                // Check for inactivity timeout
+                if ($inactivity >= $activityTimeout) {
+                    $this->log("No activity for {$inactivity} seconds during EOB exchange (state: {$this->state})", 'WARNING');
+                    break;
+                }
+
+                // Check if we should send EOB (file completed, nothing left to send/receive)
+                if ($this->state === self::STATE_FILE_TRANSFER && !$this->currentFile) {
+                    $this->log("No active file transfer, sending EOB", 'DEBUG');
+                    $this->sendEOB();
+                    $this->state = self::STATE_EOB_SENT;
+                }
+
+                // Use non-blocking mode with short timeout to prevent indefinite blocking
+                $frame = BinkpFrame::parseFromSocket($this->socket, true);
+                if (!$frame) {
+                    usleep(100000); // 100ms delay
+                    continue;
+                }
+
+                $lastActivity = time();
                 $this->log("Received: {$frame}", 'DEBUG');
                 $this->processTransferFrame($frame);
             }
 
             $this->cleanup();
-            $this->log('Session completed successfully');
+            if ($this->state === self::STATE_TERMINATED) {
+                $this->log('Session completed successfully', 'INFO');
+            } else {
+                $this->log("Session ended (final state: {$this->state})", 'WARNING');
+            }
             return true;
             
         } catch (\Exception $e) {
@@ -453,14 +490,22 @@ class BinkpSession
                     break;
 
                 case BinkpFrame::M_EOB:
-                    $this->log("Received M_EOB", 'DEBUG');
+                    $this->log("Received M_EOB (current state: {$this->state})", 'DEBUG');
                     if ($this->state === self::STATE_EOB_SENT) {
+                        $this->log("Both sides sent EOB - terminating session", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                     } elseif ($this->state === self::STATE_EOB_RECEIVED) {
+                        $this->log("EOB already received - terminating session", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                     } else {
+                        $this->log("Received EOB first - sending our EOB", 'DEBUG');
                         $this->sendEOB();
-                        $this->state = self::STATE_EOB_RECEIVED;
+                        // Only terminate if we have no files waiting for confirmation
+                        if (empty($this->filesSent)) {
+                            $this->state = self::STATE_TERMINATED;
+                        } else {
+                            $this->state = self::STATE_EOB_RECEIVED;
+                        }
                     }
                     break;
 
@@ -557,11 +602,27 @@ class BinkpSession
     private function sendFiles()
     {
         $outboundPath = $this->config->getOutboundPath();
-        $files = glob($outboundPath . '/*.pkt');
 
-        $this->log("Found " . count($files) . " outbound files", 'DEBUG');
+        // Get both packet files and TIC files
+        $pktFiles = glob($outboundPath . '/*.pkt');
+        $ticFiles = glob($outboundPath . '/*.tic');
 
-        if (empty($files)) {
+        // For each TIC file, we need to send both the TIC and its data file
+        $ticPairs = [];
+        foreach ($ticFiles as $ticFile) {
+            $dataFile = $this->getDataFileForTic($ticFile);
+            if ($dataFile && file_exists($dataFile)) {
+                $ticPairs[] = ['tic' => $ticFile, 'data' => $dataFile];
+            } else {
+                $this->log("TIC file without data file: " . basename($ticFile), 'WARNING');
+            }
+        }
+
+        $files = $pktFiles;
+
+        $this->log("Found " . count($pktFiles) . " packet files and " . count($ticPairs) . " TIC pairs", 'DEBUG');
+
+        if (empty($files) && empty($ticPairs)) {
             $this->log("No outbound files to send", 'DEBUG');
             return;
         }
@@ -603,17 +664,40 @@ class BinkpSession
             $this->log("Skipped {$filesSkipped} packets not for this uplink", 'DEBUG');
         }
 
-        if (empty($filesToSend)) {
+        // Filter TIC pairs for current uplink if applicable
+        $ticPairsToSend = [];
+        if ($this->currentUplink !== null) {
+            foreach ($ticPairs as $pair) {
+                // TIC files don't have destination addresses like packets
+                // Send all TIC files for this uplink's domain
+                // This is a simplified approach - could be improved with area subscriptions
+                $ticPairsToSend[] = $pair;
+            }
+        } else {
+            $ticPairsToSend = $ticPairs;
+        }
+
+        $totalFiles = count($filesToSend) + count($ticPairsToSend);
+
+        if ($totalFiles === 0) {
             $this->log("No outbound files for this uplink", 'DEBUG');
             return;
         }
 
+        // Send packet files
         foreach ($filesToSend as $file) {
-            $this->log("Preparing to send file: " . basename($file));
+            $this->log("Preparing to send packet: " . basename($file));
             $this->sendFile($file);
         }
 
-        $this->log("Finished sending " . count($filesToSend) . " files");
+        // Send TIC pairs (data file first, then TIC file)
+        foreach ($ticPairsToSend as $pair) {
+            $this->log("Preparing to send TIC pair: " . basename($pair['data']) . " + " . basename($pair['tic']));
+            $this->sendFile($pair['data']);  // Send data file first
+            $this->sendFile($pair['tic']);   // Then send TIC file
+        }
+
+        $this->log("Finished sending {$totalFiles} files (" . count($filesToSend) . " packets, " . count($ticPairsToSend) . " TIC pairs)");
     }
 
     /**
@@ -672,7 +756,34 @@ class BinkpSession
 
         return $destAddr;
     }
-    
+
+    /**
+     * Extract the data filename from a TIC file
+     *
+     * @param string $ticPath Path to TIC file
+     * @return string|null Path to data file or null if not found
+     */
+    private function getDataFileForTic(string $ticPath): ?string
+    {
+        $ticContent = @file_get_contents($ticPath);
+        if ($ticContent === false) {
+            return null;
+        }
+
+        // Parse TIC file to find the "File" field
+        $lines = explode("\n", $ticContent);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match('/^File\s+(.+)$/i', $line, $matches)) {
+                $dataFilename = trim($matches[1]);
+                $dataPath = dirname($ticPath) . '/' . $dataFilename;
+                return $dataPath;
+            }
+        }
+
+        return null;
+    }
+
     private function sendFile($filePath)
     {
         $filename = basename($filePath);
@@ -781,7 +892,7 @@ class BinkpSession
                 $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
 
                 // Send M_GOT
-                $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . time();
+                $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
                 $frame = BinkpFrame::createCommand(BinkpFrame::M_GOT, $gotData);
                 $frame->writeToSocket($this->socket);
                 $this->log("Sent M_GOT: " . $this->currentFile['name'], 'DEBUG');
