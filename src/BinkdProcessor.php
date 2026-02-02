@@ -897,8 +897,10 @@ class BinkdProcessor
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines, reply_to_id)
             VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
         ");
-        
+
+        $this->log("Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
+        $this->log("dateWritten is $dateWritten");
         //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.
         $kludgeText = implode("\n", $kludgeLines);
 
