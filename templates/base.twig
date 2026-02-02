@@ -87,11 +87,10 @@
                                     </a>
                                 </li>
                                 <li>
-                                    <a class="dropdown-item" href="/echomail">
+                                    <a class="dropdown-item" href="{{ default_echo_list == 'echolist' ? '/echolist' : '/echomail' }}">
                                         <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> Echomail
                                     </a>
                                 </li>
-
                                 {% if bbs_feature_enabled('chat') %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>

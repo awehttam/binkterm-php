@@ -1391,7 +1391,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
 
-        // Query with separate subqueries for total and unread counts
+        // Query with separate subqueries for total and unread counts, plus last post info
         $sql = "SELECT
                     e.id,
                     e.tag,
@@ -1405,7 +1405,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.is_local,
                     e.is_sysop_only,
                     COALESCE(total_counts.message_count, 0) as message_count,
-                    COALESCE(unread_counts.unread_count, 0) as unread_count
+                    COALESCE(unread_counts.unread_count, 0) as unread_count,
+                    last_posts.last_subject,
+                    last_posts.last_author,
+                    last_posts.last_date
                 FROM echoareas e";
 
         // Add subscription filtering if requested
@@ -1418,18 +1421,27 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $sql .= " LEFT JOIN (
                     SELECT echoarea_id, COUNT(*) as message_count
-                    FROM echomail 
+                    FROM echomail
                     GROUP BY echoarea_id
                 ) total_counts ON e.id = total_counts.echoarea_id
                 LEFT JOIN (
-                    SELECT 
+                    SELECT
                         em.echoarea_id,
                         COUNT(*) as unread_count
                     FROM echomail em
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                     WHERE mrs.read_at IS NULL
                     GROUP BY em.echoarea_id
-                ) unread_counts ON e.id = unread_counts.echoarea_id";
+                ) unread_counts ON e.id = unread_counts.echoarea_id
+                LEFT JOIN (
+                    SELECT DISTINCT ON (echoarea_id)
+                        echoarea_id,
+                        subject as last_subject,
+                        from_name as last_author,
+                        date_received as last_date
+                    FROM echomail
+                    ORDER BY echoarea_id, date_received DESC
+                ) last_posts ON e.id = last_posts.echoarea_id";
 
         if ($subscribedOnly === 'true') {
             // For subscribed only, we already have the JOIN, just need to add WHERE conditions
@@ -2705,7 +2717,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
 
         $messages = $handler->searchMessages($query, $type, $echoarea, $userId);
-        echo json_encode(['messages' => $messages]);
+
+        // For echomail searches, also get per-echo-area counts and filter counts
+        $echoareaCounts = [];
+        $filterCounts = [];
+        if ($type === 'echomail' || $type === null) {
+            $echoareaCounts = $handler->getSearchResultCounts($query, $echoarea, $userId);
+            $filterCounts = $handler->getSearchFilterCounts($query, $echoarea, $userId);
+        }
+
+        echo json_encode([
+            'messages' => $messages,
+            'echoarea_counts' => $echoareaCounts,
+            'filter_counts' => $filterCounts
+        ]);
     });
 
     // Mark message as read

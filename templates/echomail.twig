@@ -36,6 +36,14 @@
             </h2>
             <div id="echoAreasCollapse" class="accordion-collapse collapse" data-bs-parent="#mobileControlsAccordion">
                 <div class="accordion-body">
+                    <div class="d-flex gap-2 mb-2">
+                        <a href="/echolist" class="btn btn-sm btn-outline-primary flex-fill">
+                            <i class="fa-solid fa-list me-1"></i> Echo List
+                        </a>
+                        <a href="/subscriptions" class="btn btn-sm btn-outline-secondary flex-fill">
+                            <i class="fa-solid fa-wrench me-1"></i> Manage
+                        </a>
+                    </div>
                     <input type="text" class="form-control form-control-sm mb-2" id="mobileEchoareaSearchInput"
                            placeholder="Search areas..." onkeyup="searchEchoareas(this.value)">
                     <div style="max-height: 300px; overflow-y: auto;">
@@ -188,9 +196,14 @@
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0">Echo Areas</h6>
-                    <a href="/subscriptions" class="" title="Manage Subscriptions">
-                        <i class="fa-solid fa-wrench"></i>
-                    </a>
+                    <div class="d-flex gap-2">
+                        <a href="/echolist" class="" title="Echo List View">
+                            <i class="fa-solid fa-list"></i>
+                        </a>
+                        <a href="/subscriptions" class="" title="Manage Subscriptions">
+                            <i class="fa-solid fa-wrench"></i>
+                        </a>
+                    </div>
                 </div>
                 <input type="text" class="form-control form-control-sm" id="echoareaSearchInput"
                        placeholder="Search areas..." onkeyup="searchEchoareas(this.value)">

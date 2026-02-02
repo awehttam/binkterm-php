@@ -698,3 +698,76 @@ body {
         --bs-modal-width: 1200px;
     }
 }
+
+/* Echolist page - Light theme overrides */
+#echolist-page .forums-table {
+    background: #ffffff;
+    border-color: #dee2e6;
+}
+
+#echolist-page .forum-item {
+    border-bottom-color: #e9ecef;
+}
+
+#echolist-page .forum-item:hover {
+    background-color: #f8f9fa;
+}
+
+#echolist-page .forum-title {
+    color: #2c3e50;
+}
+
+#echolist-page .forum-title-link {
+    color: #0066cc;
+}
+
+#echolist-page .forum-title-link:hover {
+    color: #004999;
+}
+
+#echolist-page .forum-desc {
+    color: #6c757d;
+}
+
+#echolist-page .forum-mod {
+    color: #868e96;
+}
+
+#echolist-page .stat-number {
+    color: #0066cc;
+}
+
+#echolist-page .stat-label {
+    color: #6c757d;
+}
+
+#echolist-page .lastpost-subject {
+    color: #2c3e50;
+}
+
+#echolist-page .lastpost-by {
+    color: #6c757d;
+}
+
+#echolist-page .lastpost-time {
+    color: #868e96;
+}
+
+#echolist-page .stat-box h5 {
+    color: #0066cc;
+}
+
+#echolist-page .stat-box small {
+    color: #6c757d;
+}
+
+#echolist-page .empty-state,
+#echolist-page .loading {
+    color: #6c757d;
+}
+
+@media (max-width: 575.98px) {
+    #echolist-page .forum-stats-cell {
+        border-top-color: #e9ecef;
+    }
+}

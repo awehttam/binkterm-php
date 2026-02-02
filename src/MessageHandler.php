@@ -958,19 +958,19 @@ class MessageHandler
     public function searchMessages($query, $type = null, $echoarea = null, $userId = null)
     {
         $searchTerm = '%' . $query . '%';
-        
+
         if ($type === 'netmail') {
             if ($userId === null) {
                 // If no user ID provided, return empty results for privacy
                 return [];
             }
             $stmt = $this->db->prepare("
-                SELECT * FROM netmail 
-                WHERE (subject ILIKE ? OR message_text ILIKE ? OR from_name ILIKE ?) 
+                SELECT * FROM netmail
+                WHERE (subject ILIKE ? OR message_text ILIKE ? OR from_name ILIKE ?)
                 AND user_id = ?
-                ORDER BY CASE 
-                    WHEN date_received > NOW() THEN 0 
-                    ELSE 1 
+                ORDER BY CASE
+                    WHEN date_received > NOW() THEN 0
+                    ELSE 1
                 END, date_received DESC
                 LIMIT 50
             ");
@@ -987,25 +987,139 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
             ";
-            
+
             $params = [$searchTerm, $searchTerm, $searchTerm];
             if (!$isAdmin) {
                 $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
             }
-            
+
             if ($echoarea) {
                 $sql .= " AND ea.tag = ?";
                 $params[] = $echoarea;
             }
-            
-            $sql .= " ORDER BY CASE 
-                WHEN em.date_written > NOW() THEN 0 
-                ELSE 1 
-            END, em.date_written DESC LIMIT 50";
-            
+
+            $sql .= " ORDER BY CASE
+                WHEN em.date_written > NOW() THEN 0
+                ELSE 1
+            END, em.date_written DESC";
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
         }
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Get filter counts for search results (all, unread, read, tome, saved, drafts)
+     *
+     * @param string $query The search query
+     * @param string|null $echoarea Optional specific echo area to search within
+     * @param int|null $userId User ID for permission checking
+     * @return array Array with filter counts
+     */
+    public function getSearchFilterCounts($query, $echoarea = null, $userId = null)
+    {
+        $searchTerm = '%' . $query . '%';
+
+        $isAdmin = false;
+        $userRealName = null;
+        if ($userId) {
+            $user = $this->getUserById($userId);
+            $isAdmin = $user && !empty($user['is_admin']);
+            $userRealName = $user['real_name'] ?? null;
+        }
+
+        $sql = "
+            SELECT
+                COUNT(*) as all_count,
+                COUNT(*) FILTER (WHERE mr.id IS NULL) as unread_count,
+                COUNT(*) FILTER (WHERE mr.id IS NOT NULL) as read_count,
+                COUNT(*) FILTER (WHERE em.to_name = ?) as tome_count,
+                COUNT(*) FILTER (WHERE sm.message_id IS NOT NULL) as saved_count
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            LEFT JOIN message_read_status mr ON mr.message_id = em.id
+                AND mr.message_type = 'echomail'
+                AND mr.user_id = ?
+            LEFT JOIN saved_messages sm ON sm.message_id = em.id
+                AND sm.message_type = 'echomail'
+                AND sm.user_id = ?
+            WHERE (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
+                AND ea.is_active = TRUE
+        ";
+
+        $params = [$userRealName, $userId, $userId, $searchTerm, $searchTerm, $searchTerm];
+
+        if (!$isAdmin) {
+            $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
+        }
+
+        if ($echoarea) {
+            $sql .= " AND ea.tag = ?";
+            $params[] = $echoarea;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+
+        // Drafts are not included in echomail search
+        return [
+            'all' => (int)$result['all_count'],
+            'unread' => (int)$result['unread_count'],
+            'read' => (int)$result['read_count'],
+            'tome' => (int)$result['tome_count'],
+            'saved' => (int)$result['saved_count'],
+            'drafts' => 0
+        ];
+    }
+
+    /**
+     * Get per-echo-area message counts for search results
+     *
+     * @param string $query The search query
+     * @param string|null $echoarea Optional specific echo area to search within
+     * @param int|null $userId User ID for permission checking
+     * @return array Array of echo areas with their search result counts
+     */
+    public function getSearchResultCounts($query, $echoarea = null, $userId = null)
+    {
+        $searchTerm = '%' . $query . '%';
+
+        $isAdmin = false;
+        if ($userId) {
+            $user = $this->getUserById($userId);
+            $isAdmin = $user && !empty($user['is_admin']);
+        }
+
+        $sql = "
+            SELECT
+                ea.id,
+                ea.tag,
+                ea.domain,
+                COUNT(em.id) as message_count
+            FROM echoareas ea
+            LEFT JOIN echomail em ON em.echoarea_id = ea.id
+                AND (em.subject ILIKE ? OR em.message_text ILIKE ? OR em.from_name ILIKE ?)
+            WHERE ea.is_active = TRUE
+        ";
+
+        $params = [$searchTerm, $searchTerm, $searchTerm];
+
+        if (!$isAdmin) {
+            $sql .= " AND COALESCE(ea.is_sysop_only, FALSE) = FALSE";
+        }
+
+        if ($echoarea) {
+            $sql .= " AND ea.tag = ?";
+            $params[] = $echoarea;
+        }
+
+        $sql .= " GROUP BY ea.id, ea.tag, ea.domain ORDER BY ea.tag";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
 
         return $stmt->fetchAll();
     }
@@ -1404,6 +1518,7 @@ class MessageHandler
             'font_size' => 'INTEGER',
             'timezone' => 'STRING',
             'theme' => 'STRING',
+            'default_echo_list' => 'STRING',
             'show_origin' => 'BOOLEAN',
             'show_tearline' => 'BOOLEAN',
             'auto_refresh' => 'BOOLEAN',
