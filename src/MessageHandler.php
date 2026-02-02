@@ -2585,7 +2585,10 @@ class MessageHandler
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
         $stmt = $this->db->prepare("
-            SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+            SELECT em.id, em.from_name, em.from_address, em.to_name,
+                   em.subject, em.date_received, em.date_written, em.echoarea_id,
+                   em.message_id, em.reply_to_id,
+                   ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                    CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2739,7 +2742,10 @@ class MessageHandler
         // Get all messages for threading (need to load more data to ensure thread completeness)
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -2762,7 +2768,10 @@ class MessageHandler
             // First get the base messages with a larger limit to include thread context
             $threadLimit = $limit * 3; // Load more to capture thread relationships
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
+                SELECT em.id, em.from_name, em.from_address, em.to_name,
+                       em.subject, em.date_received, em.date_written, em.echoarea_id,
+                       em.message_id, em.reply_to_id,
+                       ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved
@@ -3077,7 +3086,9 @@ class MessageHandler
 
         // Get all messages first
         $stmt = $this->db->prepare("
-            SELECT n.*,
+            SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
+                   n.subject, n.date_received, n.user_id, n.date_written,
+                   n.attributes, n.is_sent, n.reply_to_id,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read
             FROM netmail n
             LEFT JOIN message_read_status mrs ON (mrs.message_id = n.id AND mrs.message_type = 'netmail' AND mrs.user_id = ?)
