@@ -292,18 +292,48 @@ class BinkpSession
                 $this->state = self::STATE_EOB_SENT;
             }
 
-            // Continue until session terminates
+            // Continue until session terminates with timeout protection
+            $eobWaitStart = time();
+            $eobTimeout = 60; // 60 second timeout for EOB exchange
+            $lastActivity = time();
+            $activityTimeout = 30; // 30 seconds without any frames
+
+            $this->log("Waiting for session termination (state: {$this->state})", 'DEBUG');
+
             while ($this->state < self::STATE_TERMINATED) {
-                $frame = BinkpFrame::parseFromSocket($this->socket);
-                if (!$frame) {
+                $elapsed = time() - $eobWaitStart;
+                $inactivity = time() - $lastActivity;
+
+                // Check for overall timeout
+                if ($elapsed >= $eobTimeout) {
+                    $this->log("EOB exchange timeout after {$elapsed} seconds (state: {$this->state})", 'WARNING');
                     break;
                 }
+
+                // Check for inactivity timeout
+                if ($inactivity >= $activityTimeout) {
+                    $this->log("No activity for {$inactivity} seconds during EOB exchange (state: {$this->state})", 'WARNING');
+                    break;
+                }
+
+                // Use non-blocking mode with short timeout to prevent indefinite blocking
+                $frame = BinkpFrame::parseFromSocket($this->socket, true);
+                if (!$frame) {
+                    usleep(100000); // 100ms delay
+                    continue;
+                }
+
+                $lastActivity = time();
                 $this->log("Received: {$frame}", 'DEBUG');
                 $this->processTransferFrame($frame);
             }
 
             $this->cleanup();
-            $this->log('Session completed successfully');
+            if ($this->state === self::STATE_TERMINATED) {
+                $this->log('Session completed successfully', 'INFO');
+            } else {
+                $this->log("Session ended (final state: {$this->state})", 'WARNING');
+            }
             return true;
             
         } catch (\Exception $e) {
@@ -453,12 +483,15 @@ class BinkpSession
                     break;
 
                 case BinkpFrame::M_EOB:
-                    $this->log("Received M_EOB", 'DEBUG');
+                    $this->log("Received M_EOB (current state: {$this->state})", 'DEBUG');
                     if ($this->state === self::STATE_EOB_SENT) {
+                        $this->log("Both sides sent EOB - terminating session", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                     } elseif ($this->state === self::STATE_EOB_RECEIVED) {
+                        $this->log("EOB already received - terminating session", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                     } else {
+                        $this->log("Received EOB first - sending our EOB", 'DEBUG');
                         $this->sendEOB();
                         $this->state = self::STATE_EOB_RECEIVED;
                     }
