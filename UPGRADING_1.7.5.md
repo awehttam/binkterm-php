@@ -1,6 +1,27 @@
 # Upgrading to 1.7.5
 
-This release includes major performance improvements for message threading, file area support, and various fixes and enhancements.
+This release addresses issues with message threading, file area support, and various fixes and enhancements.
+
+ * Memory optimizations to prevent excessive memory usage on large echoso
+ * Threading now uses new parent message id column in database
+ * Introduction of file areas and inbound file processing.  Outbound is untested.  Support for virus scanning (untested)
+ * Echo Area manager now uses a color palette rather than a full spectrum color picker for color coding
+ * The Admin dashboard now displays which Git branch is in use (alongside git commit #)
+ * Fix an issue with binkp M_GOT sending an incorrect timestamp that would cause the remote sender to re-send the message
+ * Binkp now terminates immediately on reception of an M_EOB
+ * Miscellaneous fixes and enhancements
+
+## Table of Contents
+
+- [Before You Upgrade](#before-you-upgrade)
+- [Database Migration](#database-migration)
+- [Backfill Script (Required for Threading)](#backfill-script-required-for-threading)
+  - [Backfill Options](#backfill-options)
+  - [Example](#example)
+  - [Expected Output](#expected-output)
+- [After You Upgrade](#after-you-upgrade)
+- [Breaking Changes](#breaking-changes)
+- [Troubleshooting](#troubleshooting)
 
 ## Before You Upgrade
 - Make a backup of your database
@@ -9,8 +30,6 @@ This release includes major performance improvements for message threading, file
 ## Database Migration
 - Run the upgrade script to apply migrations:
   - `php scripts/upgrade.php`
-- This version includes migration `database/migrations/v1.7.5_echoarea_is_local.sql`
-  - Adds `echoareas.is_local` flag for local-only message areas that are not transmitted to uplinks
 
 ## Backfill Script (Required for Threading)
 
@@ -57,33 +76,6 @@ Echomail Results:
 - "No REPLY kludge" is normal - message is not a reply
 - Safe to run multiple times
 - New messages automatically have threading data populated
-
-## What's New
-
-### File Areas
-- Added file area support for uploading and downloading files
-- Integrated with credit system
-- TIC file processing for Fidonet file distribution
-- ClamAV virus scanning support
-- Upload permission controls
-- Admin interface for managing file areas
-
-### Threading Performance & Memory Optimization
-- **Fixed:** Memory exhaustion (256MB+) on large echoareas
-- **Fixed:** Broken pagination in threaded views
-- **Improved:** Threading now uses indexed database relationships instead of text parsing
-- **Improved:** Significantly faster query performance
-
-### Local-Only Echo Areas
-- Echo areas can be marked as `is_local` to prevent transmission to uplinks
-- Useful for local discussion areas
-
-### Bug Fixes & Enhancements
-- Fixed netmail query schema mismatches
-- Fixed memory usage in message list views
-- Fixed undefined message_id warnings in threading
-- Added support for 4-part version numbers in database migrations
-- Various UI improvements and bug fixes
 
 ## After You Upgrade
 
