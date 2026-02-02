@@ -32,9 +32,11 @@ class FileAreaManager
      * Get all file areas with optional filtering
      *
      * @param string $filter Filter: 'active', 'inactive', or 'all'
+     * @param int|null $userId User ID for filtering private areas (null = exclude all private areas)
+     * @param bool $isAdmin Whether the user is an admin (admins see all areas)
      * @return array Array of file areas
      */
-    public function getFileAreas(string $filter = 'active'): array
+    public function getFileAreas(string $filter = 'active', ?int $userId = null, bool $isAdmin = false): array
     {
         $sql = "SELECT * FROM file_areas WHERE 1=1";
         $params = [];
@@ -44,6 +46,11 @@ class FileAreaManager
         } elseif ($filter === 'inactive') {
             $sql .= " AND is_active = FALSE";
         }
+
+        // Always hide private areas from file areas list
+        // Private areas are system-managed (e.g., netmail attachments)
+        // Users can still access their files via direct download links
+        $sql .= " AND (is_private = FALSE OR is_private IS NULL)";
 
         $sql .= " ORDER BY tag ASC";
 
@@ -64,6 +71,41 @@ class FileAreaManager
         $stmt->execute([$id]);
         $result = $stmt->fetch();
         return $result ?: null;
+    }
+
+    /**
+     * Check if a user can access a file area
+     *
+     * @param int $areaId File area ID
+     * @param int|null $userId User ID (null for anonymous)
+     * @param bool $isAdmin Whether user is admin
+     * @return bool True if user has access, false otherwise
+     */
+    public function canAccessFileArea(int $areaId, ?int $userId, bool $isAdmin = false): bool
+    {
+        // Admins can access all areas
+        if ($isAdmin) {
+            return true;
+        }
+
+        $area = $this->getFileAreaById($areaId);
+        if (!$area) {
+            return false;
+        }
+
+        // Check if it's a private area
+        if (!empty($area['is_private'])) {
+            // Private areas are only accessible by their owner
+            if ($userId === null) {
+                return false;
+            }
+            // Check if this is the user's private area (format: PRIVATE_USER_{id})
+            $expectedTag = 'PRIVATE_USER_' . $userId;
+            return $area['tag'] === $expectedTag;
+        }
+
+        // Public areas are accessible to everyone
+        return true;
     }
 
     /**
@@ -403,6 +445,24 @@ class FileAreaManager
         // Update file area statistics
         $this->updateFileAreaStats($fileAreaId);
 
+        // Generate TIC files for distribution to uplinks (if not a local area)
+        if (empty($fileArea['is_local']) && empty($fileArea['is_private'])) {
+            try {
+                // Fetch the complete file record for TIC generation
+                $fileRecord = $this->getFileById($fileId);
+
+                $ticGenerator = new TicFileGenerator();
+                $createdTics = $ticGenerator->createTicFilesForUplinks($fileRecord, $fileArea);
+
+                if (count($createdTics) > 0) {
+                    error_log("Generated " . count($createdTics) . " TIC file(s) for file: {$filename}");
+                }
+            } catch (\Exception $e) {
+                // Log error but don't fail the upload
+                error_log("Failed to generate TIC files for uploaded file: " . $e->getMessage());
+            }
+        }
+
         return $fileId;
     }
 
@@ -489,6 +549,154 @@ class FileAreaManager
         $result = $stmt->fetch();
 
         return $result ?: null;
+    }
+
+    /**
+     * Get or create a user's private file area
+     *
+     * @param int $userId User ID
+     * @return array File area record
+     */
+    public function getOrCreatePrivateFileArea(int $userId): array
+    {
+        // Check if user already has a private file area
+        $stmt = $this->db->prepare("
+            SELECT * FROM file_areas
+            WHERE tag = ? AND is_private = TRUE
+            LIMIT 1
+        ");
+        $tag = "PRIVATE_USER_{$userId}";
+        $stmt->execute([$tag]);
+        $fileArea = $stmt->fetch();
+
+        if ($fileArea) {
+            return $fileArea;
+        }
+
+        // Create private file area for user
+        $stmt = $this->db->prepare("
+            INSERT INTO file_areas (
+                tag, description, domain, is_private, is_local, is_active,
+                max_file_size, replace_existing,
+                created_at, updated_at
+            ) VALUES (?, ?, 'private', TRUE, TRUE, TRUE, 104857600, FALSE, NOW(), NOW())
+            RETURNING *
+        ");
+
+        $description = "Private file area for user {$userId}";
+        $stmt->execute([$tag, $description]);
+        $fileArea = $stmt->fetch();
+
+        return $fileArea;
+    }
+
+    /**
+     * Store a netmail attachment
+     *
+     * @param int $userId User ID (recipient)
+     * @param string $filePath Path to file in inbound
+     * @param string $filename Original filename
+     * @param int|null $messageId Netmail message ID
+     * @param string $fromAddress Sender's address
+     * @return int File ID
+     * @throws \Exception If storage fails
+     */
+    public function storeNetmailAttachment(int $userId, string $filePath, string $filename, ?int $messageId, string $fromAddress): int
+    {
+        if (!file_exists($filePath)) {
+            throw new \Exception("Attachment file not found: {$filePath}");
+        }
+
+        // Get or create user's private file area
+        $fileArea = $this->getOrCreatePrivateFileArea($userId);
+
+        // Calculate file info
+        $fileSize = filesize($filePath);
+        $fileHash = hash_file('sha256', $filePath);
+
+        // Create area directory if needed
+        $filesBasePath = __DIR__ . '/../data/files';
+        $areaDir = $filesBasePath . '/' . $fileArea['tag'];
+        if (!is_dir($areaDir)) {
+            mkdir($areaDir, 0755, true);
+        }
+
+        // Determine storage path (with versioning for duplicates)
+        $storagePath = $areaDir . '/' . $filename;
+        $counter = 1;
+        while (file_exists($storagePath)) {
+            $pathInfo = pathinfo($filename);
+            $newFilename = $pathInfo['filename'] . '_' . $counter;
+            if (isset($pathInfo['extension'])) {
+                $newFilename .= '.' . $pathInfo['extension'];
+            }
+            $storagePath = $areaDir . '/' . $newFilename;
+            $filename = $newFilename;
+            $counter++;
+        }
+
+        // Move file from inbound to storage
+        if (!rename($filePath, $storagePath)) {
+            throw new \Exception("Failed to move attachment file");
+        }
+
+        chmod($storagePath, 0644);
+        $storagePath = realpath($storagePath);
+
+        // Store in database
+        $stmt = $this->db->prepare("
+            INSERT INTO files (
+                file_area_id, filename, filesize, file_hash, storage_path,
+                uploaded_from_address, source_type,
+                short_description, owner_id, message_id, message_type,
+                status, created_at
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, 'netmail_attachment',
+                ?, ?, ?, 'netmail',
+                'approved', NOW()
+            ) RETURNING id
+        ");
+
+        $shortDescription = "Netmail attachment from {$fromAddress}";
+
+        $stmt->execute([
+            $fileArea['id'],
+            $filename,
+            $fileSize,
+            $fileHash,
+            $storagePath,
+            $fromAddress,
+            $shortDescription,
+            $userId,
+            $messageId,
+        ]);
+
+        $result = $stmt->fetch();
+        $fileId = $result['id'];
+
+        // Update file area statistics
+        $this->updateFileAreaStats($fileArea['id']);
+
+        return $fileId;
+    }
+
+    /**
+     * Get files attached to a message
+     *
+     * @param int $messageId Message ID
+     * @param string $messageType 'netmail' or 'echomail'
+     * @return array Array of file records
+     */
+    public function getMessageAttachments(int $messageId, string $messageType): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM files
+            WHERE message_id = ? AND message_type = ?
+            ORDER BY created_at ASC
+        ");
+        $stmt->execute([$messageId, $messageType]);
+        return $stmt->fetchAll();
     }
 
     /**

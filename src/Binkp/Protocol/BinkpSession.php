@@ -557,11 +557,27 @@ class BinkpSession
     private function sendFiles()
     {
         $outboundPath = $this->config->getOutboundPath();
-        $files = glob($outboundPath . '/*.pkt');
 
-        $this->log("Found " . count($files) . " outbound files", 'DEBUG');
+        // Get both packet files and TIC files
+        $pktFiles = glob($outboundPath . '/*.pkt');
+        $ticFiles = glob($outboundPath . '/*.tic');
 
-        if (empty($files)) {
+        // For each TIC file, we need to send both the TIC and its data file
+        $ticPairs = [];
+        foreach ($ticFiles as $ticFile) {
+            $dataFile = $this->getDataFileForTic($ticFile);
+            if ($dataFile && file_exists($dataFile)) {
+                $ticPairs[] = ['tic' => $ticFile, 'data' => $dataFile];
+            } else {
+                $this->log("TIC file without data file: " . basename($ticFile), 'WARNING');
+            }
+        }
+
+        $files = $pktFiles;
+
+        $this->log("Found " . count($pktFiles) . " packet files and " . count($ticPairs) . " TIC pairs", 'DEBUG');
+
+        if (empty($files) && empty($ticPairs)) {
             $this->log("No outbound files to send", 'DEBUG');
             return;
         }
@@ -603,17 +619,40 @@ class BinkpSession
             $this->log("Skipped {$filesSkipped} packets not for this uplink", 'DEBUG');
         }
 
-        if (empty($filesToSend)) {
+        // Filter TIC pairs for current uplink if applicable
+        $ticPairsToSend = [];
+        if ($this->currentUplink !== null) {
+            foreach ($ticPairs as $pair) {
+                // TIC files don't have destination addresses like packets
+                // Send all TIC files for this uplink's domain
+                // This is a simplified approach - could be improved with area subscriptions
+                $ticPairsToSend[] = $pair;
+            }
+        } else {
+            $ticPairsToSend = $ticPairs;
+        }
+
+        $totalFiles = count($filesToSend) + count($ticPairsToSend);
+
+        if ($totalFiles === 0) {
             $this->log("No outbound files for this uplink", 'DEBUG');
             return;
         }
 
+        // Send packet files
         foreach ($filesToSend as $file) {
-            $this->log("Preparing to send file: " . basename($file));
+            $this->log("Preparing to send packet: " . basename($file));
             $this->sendFile($file);
         }
 
-        $this->log("Finished sending " . count($filesToSend) . " files");
+        // Send TIC pairs (data file first, then TIC file)
+        foreach ($ticPairsToSend as $pair) {
+            $this->log("Preparing to send TIC pair: " . basename($pair['data']) . " + " . basename($pair['tic']));
+            $this->sendFile($pair['data']);  // Send data file first
+            $this->sendFile($pair['tic']);   // Then send TIC file
+        }
+
+        $this->log("Finished sending {$totalFiles} files (" . count($filesToSend) . " packets, " . count($ticPairsToSend) . " TIC pairs)");
     }
 
     /**
@@ -672,7 +711,34 @@ class BinkpSession
 
         return $destAddr;
     }
-    
+
+    /**
+     * Extract the data filename from a TIC file
+     *
+     * @param string $ticPath Path to TIC file
+     * @return string|null Path to data file or null if not found
+     */
+    private function getDataFileForTic(string $ticPath): ?string
+    {
+        $ticContent = @file_get_contents($ticPath);
+        if ($ticContent === false) {
+            return null;
+        }
+
+        // Parse TIC file to find the "File" field
+        $lines = explode("\n", $ticContent);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match('/^File\s+(.+)$/i', $line, $matches)) {
+                $dataFilename = trim($matches[1]);
+                $dataPath = dirname($ticPath) . '/' . $dataFilename;
+                return $dataPath;
+            }
+        }
+
+        return null;
+    }
+
     private function sendFile($filePath)
     {
         $filename = basename($filePath);

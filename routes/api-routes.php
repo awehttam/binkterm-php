@@ -1672,7 +1672,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $manager = new \BinktermPHP\FileAreaManager();
         $filter = $_GET['filter'] ?? 'active';
-        $fileareas = $manager->getFileAreas($filter);
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+        $fileareas = $manager->getFileAreas($filter, $userId, $isAdmin);
 
         echo json_encode(['fileareas' => $fileareas]);
     });
@@ -1759,7 +1761,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     // Files API routes
     SimpleRouter::get('/files', function() {
-        RouteHelper::requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
@@ -1777,6 +1779,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $manager = new \BinktermPHP\FileAreaManager();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        // Check if user has access to this file area
+        if (!$manager->canAccessFileArea((int)$areaId, $userId, $isAdmin)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Access denied to this file area']);
+            return;
+        }
+
         $files = $manager->getFiles((int)$areaId);
 
         echo json_encode(['files' => $files]);
@@ -1805,7 +1817,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::get('/files/{id}/download', function($id) {
-        RouteHelper::requireAuth();
+        $user = RouteHelper::requireAuth();
 
         if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
             http_response_code(404);
@@ -1819,6 +1831,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         if (!$file || $file['status'] !== 'approved') {
             http_response_code(404);
             echo 'File not found';
+            return;
+        }
+
+        // Check if user has access to this file's area
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+            http_response_code(403);
+            echo 'Access denied to this file';
             return;
         }
 
@@ -2040,6 +2062,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $message['replyto_address'] = $replyToDataKludge['address'];
                     $message['replyto_name'] = $replyToDataKludge['name'];
                 }
+            }
+
+            // Include file attachments if file areas feature is enabled
+            if (\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+                try {
+                    $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                    $attachments = $fileAreaManager->getMessageAttachments($id, 'netmail');
+                    $message['attachments'] = $attachments;
+                } catch (\Exception $e) {
+                    $message['attachments'] = [];
+                }
+            } else {
+                $message['attachments'] = [];
             }
 
             echo json_encode($message);

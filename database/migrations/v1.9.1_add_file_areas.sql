@@ -68,4 +68,4 @@ CREATE INDEX idx_files_created_at ON files(created_at DESC);
 
 -- Create default file area
 INSERT INTO file_areas (tag, description, domain, is_local) VALUES
-('GENERAL_FILES', 'General purpose file area for miscellaneous files', 'fidonet', TRUE);
+('GENERAL_FILES', 'General purpose file area for miscellaneous files', 'local', TRUE);
