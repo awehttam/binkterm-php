@@ -224,7 +224,7 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
-                       em.message_id, em.reply_to_id,
+                       em.message_id, em.reply_to_id, em.kludge_lines,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
@@ -268,7 +268,7 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
-                       em.message_id, em.reply_to_id,
+                       em.message_id, em.reply_to_id, em.kludge_lines,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
@@ -428,7 +428,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
-                   em.message_id, em.reply_to_id,
+                   em.message_id, em.reply_to_id, em.kludge_lines,
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
@@ -2587,7 +2587,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
-                   em.message_id, em.reply_to_id,
+                   em.message_id, em.reply_to_id, em.kludge_lines,
                    ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
@@ -2744,7 +2744,7 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
-                       em.message_id, em.reply_to_id,
+                       em.message_id, em.reply_to_id, em.kludge_lines,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
@@ -2770,7 +2770,7 @@ class MessageHandler
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
-                       em.message_id, em.reply_to_id,
+                       em.message_id, em.reply_to_id, em.kludge_lines,
                        ea.tag as echoarea, ea.color as echoarea_color, ea.domain as echoarea_domain,
                        CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared,
