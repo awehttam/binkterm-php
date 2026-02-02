@@ -821,7 +821,7 @@ class BinkpSession
                 $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
 
                 // Send M_GOT
-                $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . time();
+                $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
                 $frame = BinkpFrame::createCommand(BinkpFrame::M_GOT, $gotData);
                 $frame->writeToSocket($this->socket);
                 $this->log("Sent M_GOT: " . $this->currentFile['name'], 'DEBUG');
