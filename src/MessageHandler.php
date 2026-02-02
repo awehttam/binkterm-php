@@ -334,26 +334,11 @@ class MessageHandler
         // Clean message data for proper JSON encoding and add REPLYTO parsing
         $cleanMessages = [];
         foreach ($messages as $message) {
+            // Remove kludge_lines before sending to client - it was only needed for threading
+            unset($message['kludge_lines']);
+
             $cleanMessage = $this->cleanMessageForJson($message);
-            
-            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
-            $replyToData = null;
-            
-            // For echomail, check kludge_lines first
-            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
-                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
-            }
-            
-            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
-            if (!$replyToData) {
-                $replyToData = $this->parseReplyToKludge($message);
-            }
-            
-            if ($replyToData && isset($replyToData['address'])) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
-            }
-            
+
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -2671,26 +2656,11 @@ class MessageHandler
         // Clean message data for proper JSON encoding and add REPLYTO parsing
         $cleanMessages = [];
         foreach ($messages as $message) {
+            // Remove kludge_lines before sending to client - it was only needed for threading
+            unset($message['kludge_lines']);
+
             $cleanMessage = $this->cleanMessageForJson($message);
-            
-            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
-            $replyToData = null;
-            
-            // For echomail, check kludge_lines first
-            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
-                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
-            }
-            
-            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
-            if (!$replyToData) {
-                $replyToData = $this->parseReplyToKludge($message);
-            }
-            
-            if ($replyToData && isset($replyToData['address'])) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
-            }
-            
+
             $cleanMessages[] = $cleanMessage;
         }
 
@@ -2829,26 +2799,11 @@ class MessageHandler
         // Clean message data for proper JSON encoding and add REPLYTO parsing
         $cleanMessages = [];
         foreach ($messages as $message) {
+            // Remove kludge_lines before sending to client - it was only needed for threading
+            unset($message['kludge_lines']);
+
             $cleanMessage = $this->cleanMessageForJson($message);
-            
-            // Parse REPLYTO kludge - check kludge_lines first, then message_text for backward compatibility
-            $replyToData = null;
-            
-            // For echomail, check kludge_lines first
-            if (isset($message['kludge_lines']) && !empty($message['kludge_lines'])) {
-                $replyToData = $this->parseEchomailReplyToKludge($message['kludge_lines']);
-            }
-            
-            // For netmail or if no kludge_lines found, check message array (handles both kludge_lines and message_text)
-            if (!$replyToData) {
-                $replyToData = $this->parseReplyToKludge($message);
-            }
-            
-            if ($replyToData && isset($replyToData['address'])) {
-                $cleanMessage['replyto_address'] = $replyToData['address'];
-                $cleanMessage['replyto_name'] = $replyToData['name'] ?? null;
-            }
-            
+
             $cleanMessages[] = $cleanMessage;
         }
 
