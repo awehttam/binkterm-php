@@ -2876,13 +2876,13 @@ class MessageHandler
      */
     private function buildThreadTree($message, $messagesByReply)
     {
-        $msgId = $message['message_id'];
+        $msgId = $message['message_id'] ?? null;
         $thread = [
             'message' => $message,
             'replies' => []
         ];
-        
-        if (isset($messagesByReply[$msgId])) {
+
+        if ($msgId && isset($messagesByReply[$msgId])) {
             foreach ($messagesByReply[$msgId] as $reply) {
                 $thread['replies'][] = $this->buildThreadTree($reply, $messagesByReply);
             }
