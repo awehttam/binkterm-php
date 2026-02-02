@@ -2710,6 +2710,9 @@ class MessageHandler
         }
 
         // Get all messages for threading (need to load more data to ensure thread completeness)
+        // Limit to prevent memory exhaustion on large echoareas
+        $threadLimit = $limit * 3; // Load more to capture thread relationships
+
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
@@ -2726,6 +2729,7 @@ class MessageHandler
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND ea.domain=?
                 ORDER BY em.date_received DESC
+                LIMIT {$threadLimit}
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
