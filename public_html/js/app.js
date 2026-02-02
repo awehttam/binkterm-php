@@ -107,7 +107,11 @@ function formatMessageText(messageText, searchTerms = []) {
     const lines = messageText.split(/\r?\n/);
     const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
-    const hasLeadingSpaceArt = lines.some(line => /^\s{2,}\S/.test(line));
+
+    // Check for ASCII art: require at least 5 leading spaces and multiple lines with this pattern
+    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
+    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
+
     const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
     const ansiLineStyle = hasAnsi ? ' style="white-space: pre;"' : '';
 
