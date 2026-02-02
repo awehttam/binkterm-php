@@ -1,6 +1,6 @@
 # Upgrading to 1.7.5
 
-This release addresses issues with message threading, file area support, and various fixes and enhancements.
+This release addresses issues with message threading, file area support, binkp and various fixes and enhancements.
 
  * Memory optimizations to prevent excessive memory usage on large echoso
  * Threading now uses new parent message id column in database
@@ -8,8 +8,13 @@ This release addresses issues with message threading, file area support, and var
  * Echo Area manager now uses a color palette rather than a full spectrum color picker for color coding
  * The Admin dashboard now displays which Git branch is in use (alongside git commit #)
  * Fix an issue with binkp M_GOT sending an incorrect timestamp that would cause the remote sender to re-send the message
- * Binkp now terminates immediately on reception of an M_EOB
- * Echo Area lists are now searchable 
+ * Added Forum List view - a phpBB-style echo area browser that groups forums by network (Local, FidoNet, etc.)
+ * Users can set their preferred default view (Reader or Forum List) in Settings → Display Preferences
+ * Forum List is accessible via the list icon in the echo areas sidebar or directly at /echolist
+ * Echo area lists now include search functionality to filter by tag or description 
+ * Echo area message search results now update the message counts to be relevant to the search results
+ * Fixes for binkp transmissions where the remote side would not receive our EOB properly
+ * Fixes for binkp packet creation where packets would be malformed
  * Miscellaneous fixes and enhancements
 
 ## Table of Contents

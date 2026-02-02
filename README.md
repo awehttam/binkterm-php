@@ -359,7 +359,7 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
 {
     "system": {
         "name": "My new BinktermPHP system",
-        "address": "1:123/456.57599",
+        "address": "1:123/456.500",
         "sysop": "Claude the Coder",
         "location": "Over Yonder",
         "hostname": "localhost",
@@ -376,7 +376,7 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
     },
     "uplinks": [
         {
-            "me": "1:123/456.57599",
+            "me": "1:123/456.500",
             "networks": [
                 "1:*/*",
                 "2:*/*",
@@ -469,7 +469,7 @@ Each uplink in the `uplinks` array supports the following fields:
 {
     "uplinks": [
         {
-            "me": "1:123/456.57599",
+            "me": "1:123/456.500",
             "address": "1:123/456",
             "domain": "fidonet",
             "networks": ["1:*/*", "2:*/*", "3:*/*", "4:*/*"],
@@ -693,14 +693,14 @@ Post netmail or echomail from command line:
 ```bash
 # Send netmail
 php scripts/post_message.php --type=netmail \
-  --from=1:153/149.57599 --from-name="John Doe" \
+  --from=1:153/149.500 --from-name="John Doe" \
   --to=1:153/149 --to-name="Jane Smith" \
   --subject="Test Message" \
   --text="Hello, this is a test!"
 
 # Post to echomail
 php scripts/post_message.php --type=echomail \
-  --from=1:153/149.57599 --from-name="John Doe" \
+  --from=1:153/149.500 --from-name="John Doe" \
   --echoarea=GENERAL --subject="Discussion Topic" \
   --file=message.txt
 

@@ -15,7 +15,7 @@ function showUsage()
     echo "\n";
     echo "Required options:\n";
     echo "  --type=TYPE           Message type: 'netmail' or 'echomail'\n";
-    echo "  --from=ADDRESS        From FTN address (e.g., 1:153/149.57599)\n";
+    echo "  --from=ADDRESS        From FTN address (e.g., 1:153/149.500)\n";
     echo "  --from-name=NAME      From name\n";
     echo "  --subject=SUBJECT     Message subject\n";
     echo "\n";
@@ -42,18 +42,18 @@ function showUsage()
     echo "\n";
     echo "Examples:\n";
     echo "  # Send netmail\n";
-    echo "  php post_message.php --type=netmail --from=1:153/149.57599 \\\n";
+    echo "  php post_message.php --type=netmail --from=1:153/149.500 \\\n";
     echo "    --from-name=\"John Doe\" --to=1:153/149 --to-name=\"Jane Smith\" \\\n";
     echo "    --subject=\"Test Message\" --text=\"Hello, this is a test!\"\n";
     echo "\n";
     echo "  # Post to echomail\n";
-    echo "  php post_message.php --type=echomail --from=1:153/149.57599 \\\n";
+    echo "  php post_message.php --type=echomail --from=1:153/149.500 \\\n";
     echo "    --from-name=\"John Doe\" --echoarea=GENERAL --domain=fidonet \\\n";
     echo "    --subject=\"General Discussion\" --file=message.txt\n";
     echo "\n";
     echo "  # Read from stdin\n";
     echo "  echo \"Hello World\" | php post_message.php --type=netmail \\\n";
-    echo "    --from=1:153/149.57599 --from-name=\"John\" --to=1:153/149 \\\n";
+    echo "    --from=1:153/149.500 --from-name=\"John\" --to=1:153/149 \\\n";
     echo "    --to-name=\"Jane\" --subject=\"Quick Note\" --stdin\n";
     echo "\n";
 }

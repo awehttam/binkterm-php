@@ -68,9 +68,13 @@ function analyzePacketHeader($header)
         return false;
     }
 
-    // Parse zone information from FSC-39 (Type-2e) format at offset 34-37
+    // Parse zone and point information from FSC-0048 (Binkd-compatible format)
+    $origPoint = 0; // Default
+    $destPoint = 0; // Default
     $origZone = 1; // Default
     $destZone = 1; // Default
+
+    // Zones at offset 34-37 (FSC-0039/0045 standard location)
     if ($headerLen >= 38) {
         $zoneData = unpack('vorigZone/vdestZone', substr($header, 34, 4));
         if ($zoneData) {
@@ -83,23 +87,40 @@ function analyzePacketHeader($header)
         }
     }
 
+    // Points at offset 50-53 (FSC-0048 point extension)
+    if ($headerLen >= 54) {
+        $pointData = unpack('vorigPoint/vdestPoint', substr($header, 50, 4));
+        if ($pointData) {
+            $origPoint = $pointData['origPoint'];
+            $destPoint = $pointData['destPoint'];
+        }
+    }
+
     // Store zones globally for message analysis
     $packetOrigZone = $origZone;
     $packetDestZone = $destZone;
 
-    printf("Origin: %d:%d/%d\n", $origZone, $data['origNet'], $data['origNode']);
-    printf("Destination: %d:%d/%d\n", $destZone, $data['destNet'], $data['destNode']);
-    printf("Zones (FSC-39 at offset 34-37): origZone=%d, destZone=%d\n", $origZone, $destZone);
+    // Format addresses with point if non-zero
+    $origAddr = sprintf("%d:%d/%d", $origZone, $data['origNet'], $data['origNode']);
+    if ($origPoint > 0) $origAddr .= ".$origPoint";
+
+    $destAddr = sprintf("%d:%d/%d", $destZone, $data['destNet'], $data['destNode']);
+    if ($destPoint > 0) $destAddr .= ".$destPoint";
+
+    printf("Origin: %s\n", $origAddr);
+    printf("Destination: %s\n", $destAddr);
+    printf("Zones (FSC-0039 at offset 34-37): origZone=%d, destZone=%d\n", $origZone, $destZone);
+    printf("Points (FSC-0048 at offset 50-53): origPoint=%d, destPoint=%d\n", $origPoint, $destPoint);
     printf("Date: %04d-%02d-%02d %02d:%02d:%02d\n",
         $data['year'], $data['month'] + 1, $data['day'],
         $data['hour'], $data['minute'], $data['second']);
     printf("Baud rate: %d\n", $data['baud']);
     printf("Packet version: %d\n", $data['packetVersion']);
 
-    // Try to parse password - it's at offset 38-45 in FSC-39
-    if ($headerLen >= 46) {
-        $password = substr($header, 38, 8);
-        echo "Password (offset 38-45): ";
+    // Try to parse password - it's at offset 46-53 in FSC-0048
+    if ($headerLen >= 54) {
+        $password = substr($header, 46, 8);
+        echo "Password (offset 46-53): ";
         $hasPassword = false;
         for ($i = 0; $i < 8; $i++) {
             $char = ord($password[$i]);
@@ -116,11 +137,11 @@ function analyzePacketHeader($header)
         echo "Password: Not enough data\n";
     }
 
-    // Check FSC-48 zone info at offset 52-55
-    if ($headerLen >= 56) {
-        $zone48Data = unpack('vorigZone48/vdestZone48', substr($header, 52, 4));
-        if ($zone48Data) {
-            printf("Zones (FSC-48 at offset 52-55): origZone=%d, destZone=%d\n",
+    // Check duplicate zone info at offset 46-49 (some mailers use this)
+    if ($headerLen >= 50) {
+        $zone48Data = unpack('vorigZone48/vdestZone48', substr($header, 46, 4));
+        if ($zone48Data && ($zone48Data['origZone48'] != 0 || $zone48Data['destZone48'] != 0)) {
+            printf("Zones duplicate (offset 46-49): origZone=%d, destZone=%d\n",
                 $zone48Data['origZone48'], $zone48Data['destZone48']);
         }
     }

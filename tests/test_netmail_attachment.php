@@ -28,7 +28,7 @@ $testFilePath = $inboundPath . '/' . $testFilename;
 $testContent = "This is a test file attachment sent via FidoNet netmail.\n\n";
 $testContent .= "Timestamp: " . date('Y-m-d H:i:s') . "\n";
 $testContent .= "From: awehttam@1:153/150\n";
-$testContent .= "To: Matthew Asham@1:153/149.57599\n\n";
+$testContent .= "To: Matthew Asham@1:153/149.500\n\n";
 $testContent .= "This file should be automatically stored in the recipient's private file area.\n";
 
 file_put_contents($testFilePath, $testContent);
@@ -39,7 +39,7 @@ $message = [
     'from_name' => 'Matt Henderson',
     'from_address' => '1:153/150',
     'to_name' => 'Matthew Asham',
-    'to_address' => '1:153/149.57599',
+    'to_address' => '1:153/149.500',
     'subject' => $testFilename,  // FidoNet standard: subject contains filename
     'message_text' => "Hello Matthew,\n\nThis is a test netmail message with a file attachment.\n\nThe attached file should appear in your private file area and be linked to this message.\n\nPlease verify that the file was received correctly.\n\nRegards,\nMatt",
     'date_written' => date('Y-m-d H:i:s'),
@@ -52,7 +52,7 @@ $processor = new BinkdProcessor();
 try {
     // Create packet in inbound directory (simulating incoming packet)
     $packetPath = $inboundPath . '/test_' . time() . '.pkt';
-    $processor->createOutboundPacket([$message], '1:153/149.57599', $packetPath);
+    $processor->createOutboundPacket([$message], '1:153/149.500', $packetPath);
     echo "✓ Created test packet: " . basename($packetPath) . "\n\n";
 
     // Process the packet
