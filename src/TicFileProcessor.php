@@ -87,6 +87,9 @@ class TicFileProcessor
             // Store file (will copy, not move)
             $fileId = $this->storeFile($ticData, $filePath, $fileArea, $fileHash);
 
+            // Scan for viruses if enabled for this file area
+            $this->scanFileForViruses($fileId, $fileArea);
+
             // Update file area statistics
             $this->updateFileAreaStats($fileArea['id']);
 
@@ -224,7 +227,7 @@ class TicFileProcessor
     protected function getFileArea(string $tag): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT id, tag, max_file_size, is_active, replace_existing
+            SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus
             FROM file_areas
             WHERE tag = ? AND is_active = TRUE
             LIMIT 1
@@ -461,5 +464,70 @@ class TicFileProcessor
             WHERE id = ?
         ");
         $stmt->execute([$fileAreaId, $fileAreaId, $fileAreaId]);
+    }
+
+    /**
+     * Scan a file for viruses using ClamAV
+     *
+     * @param int $fileId File ID in database
+     * @param array $fileArea File area record
+     * @return void
+     */
+    protected function scanFileForViruses(int $fileId, array $fileArea): void
+    {
+        // Check if virus scanning is enabled for this area
+        if (empty($fileArea['scan_virus'])) {
+            return; // Scanning not enabled for this area
+        }
+
+        // Get file path from database
+        $stmt = $this->db->prepare("SELECT storage_path FROM files WHERE id = ?");
+        $stmt->execute([$fileId]);
+        $fileRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$fileRecord || !file_exists($fileRecord['storage_path'])) {
+            error_log("Cannot scan file {$fileId}: file not found");
+            return;
+        }
+
+        $filePath = $fileRecord['storage_path'];
+
+        // Perform virus scan
+        $scanner = new VirusScanner();
+        $result = $scanner->scanFile($filePath);
+
+        // Update database with scan results
+        $stmt = $this->db->prepare("
+            UPDATE files
+            SET virus_scanned = ?,
+                virus_scan_result = ?,
+                virus_signature = ?,
+                virus_scanned_at = NOW()
+            WHERE id = ?
+        ");
+
+        $stmt->execute([
+            $result['scanned'] ? 1 : 0,
+            $result['result'],
+            $result['signature'],
+            $fileId
+        ]);
+
+        // Handle infected files
+        if ($result['result'] === 'infected') {
+            error_log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}");
+
+            // Delete infected file immediately
+            if (file_exists($filePath)) {
+                unlink($filePath);
+                error_log("Deleted infected TIC file: {$filePath}");
+            }
+
+            // Mark file record as deleted
+            $stmt = $this->db->prepare("UPDATE files SET deleted = TRUE, status = 'rejected' WHERE id = ?");
+            $stmt->execute([$fileId]);
+        } elseif ($result['result'] === 'error') {
+            error_log("Virus scan error for TIC file ID {$fileId}: {$result['error']}");
+        }
     }
 }

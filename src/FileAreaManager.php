@@ -445,6 +445,11 @@ class FileAreaManager
         // Update file area statistics
         $this->updateFileAreaStats($fileAreaId);
 
+        // Scan for viruses if enabled for this file area
+        if (!empty($fileArea['scan_virus'])) {
+            $this->scanFileForViruses($fileId, $storagePath);
+        }
+
         // Generate TIC files for distribution to uplinks (if not a local area)
         if (empty($fileArea['is_local']) && empty($fileArea['is_private'])) {
             try {
@@ -464,6 +469,53 @@ class FileAreaManager
         }
 
         return $fileId;
+    }
+
+    /**
+     * Scan a file for viruses using ClamAV
+     *
+     * @param int $fileId File ID in database
+     * @param string $filePath Path to file to scan
+     * @return void
+     */
+    private function scanFileForViruses(int $fileId, string $filePath): void
+    {
+        $scanner = new VirusScanner();
+        $result = $scanner->scanFile($filePath);
+
+        // Update database with scan results
+        $stmt = $this->db->prepare("
+            UPDATE files
+            SET virus_scanned = ?,
+                virus_scan_result = ?,
+                virus_signature = ?,
+                virus_scanned_at = NOW()
+            WHERE id = ?
+        ");
+
+        $stmt->execute([
+            $result['scanned'] ? 1 : 0,
+            $result['result'],
+            $result['signature'],
+            $fileId
+        ]);
+
+        // Handle infected files
+        if ($result['result'] === 'infected') {
+            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}");
+
+            // Delete infected file immediately
+            if (file_exists($filePath)) {
+                unlink($filePath);
+                error_log("Deleted infected file: {$filePath}");
+            }
+
+            // Mark file record as deleted/quarantined
+            $stmt = $this->db->prepare("UPDATE files SET deleted = TRUE WHERE id = ?");
+            $stmt->execute([$fileId]);
+        } elseif ($result['result'] === 'error') {
+            error_log("Virus scan error for file ID {$fileId}: {$result['error']}");
+        }
     }
 
     /**
@@ -674,6 +726,11 @@ class FileAreaManager
 
         $result = $stmt->fetch();
         $fileId = $result['id'];
+
+        // Scan for viruses (private file areas should be scanned)
+        if (!empty($fileArea['scan_virus'])) {
+            $this->scanFileForViruses($fileId, $storagePath);
+        }
 
         // Update file area statistics
         $this->updateFileAreaStats($fileArea['id']);

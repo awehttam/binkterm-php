@@ -11,39 +11,7 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-3">
-        <div class="card mb-3">
-            <div class="card-header">
-                <h6 class="mb-0">File Areas</h6>
-            </div>
-            <div class="list-group list-group-flush" id="fileAreasList">
-                <div class="loading-spinner p-3">
-                    <i class="fas fa-spinner fa-spin me-2"></i>
-                    Loading...
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">Statistics</h6>
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0 small">
-                    <dt class="col-7">Total Areas:</dt>
-                    <dd class="col-5" id="totalAreas">-</dd>
-
-                    <dt class="col-7">Total Files:</dt>
-                    <dd class="col-5" id="totalFiles">-</dd>
-
-                    <dt class="col-7">Total Size:</dt>
-                    <dd class="col-5" id="totalSize">-</dd>
-                </dl>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-9">
+    <div class="col-lg-9 order-2 order-lg-1">
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
@@ -60,9 +28,43 @@
                 <div id="filesContainer">
                     <div class="p-4 text-center text-muted">
                         <i class="fas fa-folder-open fa-3x mb-3"></i>
-                        <p>Select a file area from the left to browse files</p>
+                        <p>Select a file area from the right to browse files</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 order-1 order-lg-2">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0">File Areas</h6>
+            </div>
+            <div class="list-group list-group-flush" id="fileAreasList">
+                <div class="loading-spinner p-3">
+                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 order-3 order-lg-2">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-7">Total Areas:</dt>
+                    <dd class="col-5" id="totalAreas">-</dd>
+
+                    <dt class="col-7">Total Files:</dt>
+                    <dd class="col-5" id="totalFiles">-</dd>
+
+                    <dt class="col-7">Total Size:</dt>
+                    <dd class="col-5" id="totalSize">-</dd>
+                </dl>
             </div>
         </div>
     </div>
@@ -89,6 +91,9 @@
 
                     <dt class="col-sm-3">From:</dt>
                     <dd class="col-sm-9" id="detailFrom"></dd>
+
+                    <dt class="col-sm-3">Virus Scan:</dt>
+                    <dd class="col-sm-9" id="detailVirusScan"></dd>
 
                     <dt class="col-sm-3">Description:</dt>
                     <dd class="col-sm-9" id="detailDescription"></dd>
@@ -302,10 +307,24 @@ function displayFiles(files) {
         const uploadDate = formatDate(file.created_at);
         const canDelete = isAdmin || (file.owner_id && file.owner_id === currentUserId);
 
+        // Virus scan status icon
+        let scanIcon = '<i class="fas fa-file me-2"></i>';
+        if (file.virus_scanned) {
+            if (file.virus_scan_result === 'clean') {
+                scanIcon = '<i class="fas fa-shield-alt text-success me-2" title="Virus scan: Clean"></i>';
+            } else if (file.virus_scan_result === 'infected') {
+                scanIcon = '<i class="fas fa-shield-alt text-danger me-2" title="Virus detected: ' + escapeHtml(file.virus_signature || 'Unknown') + '"></i>';
+            } else if (file.virus_scan_result === 'error') {
+                scanIcon = '<i class="fas fa-shield-alt text-warning me-2" title="Virus scan: Error"></i>';
+            } else if (file.virus_scan_result === 'skipped') {
+                scanIcon = '<i class="fas fa-shield-alt text-muted me-2" title="Virus scan: Skipped"></i>';
+            }
+        }
+
         html += `
             <tr>
                 <td>
-                    <i class="fas fa-file me-2"></i>
+                    ${scanIcon}
                     <strong>${escapeHtml(file.filename)}</strong>
                 </td>
                 <td><small class="text-muted">${shortDesc}</small></td>
@@ -356,6 +375,25 @@ function showFileDetails(fileId) {
             $('#detailSize').text(formatBytes(file.filesize));
             $('#detailUploaded').text(formatDate(file.created_at));
             $('#detailFrom').text(file.uploaded_from_address || 'Unknown');
+
+            // Virus scan status
+            let scanStatus = 'Not scanned';
+            if (file.virus_scanned) {
+                if (file.virus_scan_result === 'clean') {
+                    scanStatus = '<span class="badge bg-success"><i class="fas fa-shield-alt"></i> Clean</span>';
+                } else if (file.virus_scan_result === 'infected') {
+                    scanStatus = '<span class="badge bg-danger"><i class="fas fa-shield-alt"></i> Infected: ' + escapeHtml(file.virus_signature || 'Unknown') + '</span>';
+                } else if (file.virus_scan_result === 'error') {
+                    scanStatus = '<span class="badge bg-warning"><i class="fas fa-shield-alt"></i> Scan Error</span>';
+                } else if (file.virus_scan_result === 'skipped') {
+                    scanStatus = '<span class="badge bg-secondary"><i class="fas fa-shield-alt"></i> Skipped</span>';
+                }
+                if (file.virus_scanned_at) {
+                    scanStatus += ' <small class="text-muted">(' + formatDate(file.virus_scanned_at) + ')</small>';
+                }
+            }
+            $('#detailVirusScan').html(scanStatus);
+
             $('#detailDescription').text(file.short_description || 'No description');
 
             if (file.long_description) {
