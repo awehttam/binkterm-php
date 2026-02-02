@@ -35,6 +35,7 @@
         </div>
     </div>
 
+    <!-- File Areas (mobile and desktop) -->
     <div class="col-lg-3 order-1 order-lg-2">
         <div class="card mb-3">
             <div class="card-header">
@@ -47,10 +48,9 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-lg-3 order-3 order-lg-2">
-        <div class="card">
+        <!-- Statistics (desktop only - directly under File Areas) -->
+        <div class="card d-none d-lg-block">
             <div class="card-header">
                 <h6 class="mb-0">Statistics</h6>
             </div>
@@ -64,6 +64,27 @@
 
                     <dt class="col-7">Total Size:</dt>
                     <dd class="col-5" id="totalSize">-</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics (mobile only - at bottom) -->
+    <div class="col-12 d-lg-none order-3">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-7">Total Areas:</dt>
+                    <dd class="col-5" id="totalAreas-mobile">-</dd>
+
+                    <dt class="col-7">Total Files:</dt>
+                    <dd class="col-5" id="totalFiles-mobile">-</dd>
+
+                    <dt class="col-7">Total Size:</dt>
+                    <dd class="col-5" id="totalSize-mobile">-</dd>
                 </dl>
             </div>
         </div>
@@ -235,11 +256,17 @@ function displayFileAreas(areas) {
         const fileCount = area.file_count || 0;
         const totalSize = formatBytes(area.total_size || 0);
 
+        // Display domain for non-local areas (e.g., "GENERAL_FILES@fidonet")
+        let displayTag = escapeHtml(area.tag);
+        if (!area.is_local && area.domain) {
+            displayTag += '<span class="text-muted">@' + escapeHtml(area.domain) + '</span>';
+        }
+
         html += `
-            <a href="#" class="list-group-item list-group-item-action" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}'); return false;">
+            <a href="#" class="list-group-item list-group-item-action" onclick="selectFileArea(${area.id}, '${escapeHtml(area.tag)}', ${area.is_local ? 'true' : 'false'}, '${escapeHtml(area.domain || '')}'); return false;">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        <strong>${escapeHtml(area.tag)}</strong>
+                        <strong>${displayTag}</strong>
                         <small class="d-block text-muted">${escapeHtml(area.description || '')}</small>
                     </div>
                     <div class="text-end ms-2">
@@ -254,9 +281,16 @@ function displayFileAreas(areas) {
     $('#fileAreasList').html(html);
 }
 
-function selectFileArea(areaId, areaTag) {
+function selectFileArea(areaId, areaTag, isLocal, domain) {
     currentAreaId = areaId;
-    $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${escapeHtml(areaTag)}`);
+
+    // Display domain for non-local areas
+    let displayTag = escapeHtml(areaTag);
+    if (!isLocal && domain) {
+        displayTag += '<span class="text-muted">@' + escapeHtml(domain) + '</span>';
+    }
+
+    $('#currentAreaTitle').html(`<i class="fas fa-folder"></i> ${displayTag}`);
     $('#searchFiles').val('');
     $('#uploadFileBtn').show();
 
@@ -418,9 +452,15 @@ function showFileDetails(fileId) {
 function loadStats() {
     $.get('/api/fileareas/stats')
         .done(function(data) {
+            // Update desktop stats
             $('#totalAreas').text(data.active_count);
             $('#totalFiles').text(data.total_files);
             $('#totalSize').text(formatBytes(data.total_size));
+
+            // Update mobile stats
+            $('#totalAreas-mobile').text(data.active_count);
+            $('#totalFiles-mobile').text(data.total_files);
+            $('#totalSize-mobile').text(formatBytes(data.total_size));
         });
 }
 
