@@ -1,6 +1,6 @@
 -- Add default echo area list preference setting
 
-ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS default_echo_list VARCHAR(20) DEFAULT 'echolist';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS default_echo_list VARCHAR(20) DEFAULT 'reader';
 
 -- Add check constraint to ensure only valid values
 ALTER TABLE user_settings DROP CONSTRAINT IF EXISTS user_settings_default_echo_list_check;
