@@ -236,9 +236,9 @@ class MessageHandler
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND ea.domain=?
                 ORDER BY CASE
-                    WHEN em.date_written > NOW() THEN 0
+                    WHEN em.date_received > NOW() THEN 0
                     ELSE 1
-                END, em.date_written DESC
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -280,9 +280,9 @@ class MessageHandler
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
                 ORDER BY CASE
-                    WHEN em.date_written > NOW() THEN 0
+                    WHEN em.date_received > NOW() THEN 0
                     ELSE 1
-                END, em.date_written DESC
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -2873,9 +2873,9 @@ class MessageHandler
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
                 ORDER BY CASE
-                    WHEN em.date_written > NOW() THEN 0
+                    WHEN em.date_received > NOW() THEN 0
                     ELSE 1
-                END, em.date_written DESC
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -2903,9 +2903,9 @@ class MessageHandler
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.reply_to_id IS NULL{$filterClause}
                 ORDER BY CASE
-                    WHEN em.date_written > NOW() THEN 0
+                    WHEN em.date_received > NOW() THEN 0
                     ELSE 1
-                END, em.date_written DESC
+                END, em.date_received DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
