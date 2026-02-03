@@ -18,7 +18,7 @@ let isSearchActive = false;
 
 // Date display configuration: 'written' or 'received'
 // TODO: Add user toggle in settings
-const USE_DATE_FIELD = 'written';   // related to ECHOMAIL_DATE_FIELD in backend
+const USE_DATE_FIELD = 'received';   // related to ECHOMAIL_DATE_FIELD in backend
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
