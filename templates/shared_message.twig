@@ -39,6 +39,9 @@
             <meta name="keywords" content="FidoNet, netmail, BBS, message">
         {% endif %}
     {% endif %}
+    <link href="/css/ansisys.css" rel="stylesheet">
+    <script src="/js/ansisys.js"></script>
+
 {% endblock %}
 
 {% block content %}
@@ -140,9 +143,8 @@
                         About This Message
                     </h6>
                     <p class="card-text">
-                        This message is from a <strong>FidoNet</strong> echomail system. FidoNet is a worldwide 
-                        bulletin board system network that allows users to send messages and participate in 
-                        discussion areas (echoareas) across different systems.
+                        This message is from an echomail system. Echomail is part of a worldwide bulletin board network that allows
+                        users to send messages and participate in discussion areas (echoareas) across different systems.
                     </p>
                     <div class="alert alert-primary" id="registrationPrompt" style="display: none;">
                         <div class="d-flex align-items-start">
@@ -170,7 +172,7 @@
                         <div class="col-md-6">
                             <small class="text-muted">
                                 <i class="fas fa-network-wired me-1"></i>
-                                <strong>Network:</strong> FidoNet Technology Network
+                                <strong>Network:</strong> <span id="networkName">Loading...</span>
                             </small>
                         </div>
                         <div class="col-md-6">
@@ -288,6 +290,10 @@ function displaySharedMessage(message, shareInfo) {
     if (!isLoggedIn) {
         $('#registrationPrompt').show();
     }
+
+    // Set network name
+    const networkName = message.echoarea_domain || 'Local Bulletin Board';
+    $('#networkName').text(networkName);
 }
 
 function showError(errorText) {

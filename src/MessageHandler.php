@@ -4,6 +4,10 @@ namespace BinktermPHP;
 
 class MessageHandler
 {
+    // Configuration: which date field to use for echomail sorting
+    // Options: 'date_received' or 'date_written'
+    private const ECHOMAIL_DATE_FIELD = 'date_received';    // Related to USE_DATE_FIELD in echomail.js
+
     private $db;
 
     public function __construct()
@@ -219,7 +223,8 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
-        
+        $dateField = self::ECHOMAIL_DATE_FIELD;
+
         if ($echoareaTag) {
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
@@ -236,9 +241,9 @@ class MessageHandler
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND ea.domain=?
                 ORDER BY CASE
-                    WHEN em.date_received > NOW() THEN 0
+                    WHEN em.{$dateField} > NOW() THEN 0
                     ELSE 1
-                END, em.date_received DESC
+                END, em.{$dateField} DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -279,10 +284,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
-                ORDER BY CASE
-                    WHEN em.date_received > NOW() THEN 0
-                    ELSE 1
-                END, em.date_received DESC
+                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -405,7 +407,8 @@ class MessageHandler
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
-        
+
+        $dateField = self::ECHOMAIL_DATE_FIELD;
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -420,7 +423,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY em.date_received DESC
+            ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
             LIMIT ? OFFSET ?
         ");
 
@@ -976,6 +979,7 @@ class MessageHandler
             ");
             $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
         } else {
+            $dateField = self::ECHOMAIL_DATE_FIELD;
             $isAdmin = false;
             if ($userId) {
                 $user = $this->getUserById($userId);
@@ -998,10 +1002,7 @@ class MessageHandler
                 $params[] = $echoarea;
             }
 
-            $sql .= " ORDER BY CASE
-                WHEN em.date_written > NOW() THEN 0
-                ELSE 1
-            END, em.date_written DESC";
+            $sql .= " ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
@@ -2677,6 +2678,7 @@ class MessageHandler
 
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
+        $dateField = self::ECHOMAIL_DATE_FIELD;
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -2691,7 +2693,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY em.date_received DESC
+            ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
             LIMIT ? OFFSET ?
         ");
 
@@ -2849,6 +2851,7 @@ class MessageHandler
 
         // Get root messages for the current page
         $rootOffset = ($page - 1) * $limit;
+        $dateField = self::ECHOMAIL_DATE_FIELD;
 
         if ($echoareaTag) {
             // Get root messages (threads) for the current page
@@ -2866,7 +2869,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
-                ORDER BY em.date_received DESC
+                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -2893,7 +2896,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.reply_to_id IS NULL{$filterClause}
-                ORDER BY em.date_received DESC
+                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];

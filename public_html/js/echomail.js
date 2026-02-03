@@ -16,6 +16,10 @@ let searchFilterCounts = null;
 let originalFilterCounts = null;
 let isSearchActive = false;
 
+// Date display configuration: 'written' or 'received'
+// TODO: Add user toggle in settings
+const USE_DATE_FIELD = 'received';   // related to ECHOMAIL_DATE_FIELD in backend
+
 $(document).ready(function() {
     loadEchomailSettings().then(function() {
         loadEchoareas();
@@ -471,7 +475,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
-                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="Written: ${formatFullDate(msg.date_written)}">${formatDate(msg.date_received)}</td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${USE_DATE_FIELD === 'written' ? 'Received: ' + formatFullDate(msg.date_received) : 'Written: ' + formatFullDate(msg.date_written)}">${formatDate(USE_DATE_FIELD === 'written' ? msg.date_written : msg.date_received)}</td>
                 </tr>
             `;
         });

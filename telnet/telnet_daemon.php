@@ -16,6 +16,7 @@ const SE = 240;
 const OPT_ECHO = 1;
 const OPT_SUPPRESS_GA = 3;
 const OPT_NAWS = 31;
+const OPT_LINEMODE = 34;
 
 // Arrow key escape sequences
 const KEY_UP = "\033[A";
@@ -216,6 +217,7 @@ function negotiateTelnet($conn): void
 {
     sendTelnetCommand($conn, TELNET_DO, OPT_NAWS);
     sendTelnetCommand($conn, WILL, OPT_SUPPRESS_GA);
+    sendTelnetCommand($conn, TELNET_DO, OPT_LINEMODE);
 }
 
 function readTelnetLine($conn, array &$state): ?string
@@ -335,13 +337,20 @@ function readTelnetLine($conn, array &$state): ?string
         }
 
         if ($byte === 13) {
-            $next = fread($conn, 1);
-            if ($next !== false && $next !== '') {
-                if (ord($next) !== 10) {
-                    // push back one byte by prepending to a buffer
+            // Check for following LF (CR+LF sequence) with non-blocking peek
+            // Use stream_select to check if data is available without blocking
+            $read = [$conn];
+            $write = $except = null;
+            $hasData = stream_select($read, $write, $except, 0, 50000); // 50ms timeout
+
+            if ($hasData > 0) {
+                $next = fread($conn, 1);
+                if ($next !== false && $next !== '' && ord($next) !== 10) {
+                    // Not LF, push back for next read
                     $state['pushback'] = ($state['pushback'] ?? '') . $next;
                 }
             }
+
             if (!empty($state['input_echo'])) {
                 safeWrite($conn, "\r\n");
             }
@@ -1693,7 +1702,8 @@ function showShoutbox($conn, array &$state, string $apiBase, string $session, in
     $messages = $response['data']['messages'] ?? [];
     $cols = (int)($state['cols'] ?? 80);
     $frameWidth = max(40, min($cols, 80));
-    $innerWidth = $frameWidth - 4;
+    // Account for: space before (1) + border "| " (2) + inner space (1) + content + inner space (1) + border " |" (2) + space after (1) = 8 chars
+    $innerWidth = $frameWidth - 8;
     $title = 'Recent Shoutbox';
 
     $lines = [];
@@ -1703,24 +1713,28 @@ function showShoutbox($conn, array &$state, string $apiBase, string $session, in
         foreach ($messages as $msg) {
             $user = $msg['username'] ?? 'Unknown';
             $text = $msg['message'] ?? '';
+            // Strip any newlines/carriage returns from message text
+            $text = str_replace(["\r\n", "\r", "\n"], ' ', $text);
             $date = $msg['created_at'] ?? '';
             $lines[] = sprintf('[%s] %s: %s', $date, $user, $text);
         }
     }
 
-    $borderTop = '+' . str_repeat('-', $frameWidth - 2) . '+';
-    $borderMid = '|' . str_repeat(' ', $frameWidth - 2) . '|';
-    $titleLine = '| ' . str_pad($title, $innerWidth, ' ', STR_PAD_BOTH) . ' |';
+    // Border with spaces on each side: ' ' + '+' + dashes + '+' + ' ' = 80 chars, so dashes = 76
+    $borderTop = ' ' . '+' . str_repeat('-', $frameWidth - 4) . '+' . ' ';
+    $borderMid = ' ' . '|' . str_repeat(' ', $frameWidth - 4) . '|' . ' ';
+    // Title line: ' ' + '| ' + title + ' |' + ' ' = 80 chars, so title area = 74
+    $titleLine = ' ' . '| ' . str_pad($title, $frameWidth - 6, ' ', STR_PAD_BOTH) . ' |' . ' ';
 
-    writeLine($conn, '');
     writeLine($conn, colorize($borderTop, ANSI_MAGENTA));
     writeLine($conn, colorize($titleLine, ANSI_MAGENTA));
-    writeLine($conn, colorize($borderMid, ANSI_MAGENTA));
+    writeLine($conn, colorize($borderTop, ANSI_MAGENTA));
 
     foreach ($lines as $line) {
         $wrapped = wordwrap($line, $innerWidth, "\n", true);
         foreach (explode("\n", $wrapped) as $part) {
-            $contentLine = '| ' . str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT) . ' |';
+            // Add space before frame, then frame with content, then space after frame
+            $contentLine = ' ' . '| ' . ' ' . str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT) . ' ' . ' |' . ' ';
             writeLine($conn, colorize($contentLine, ANSI_MAGENTA));
         }
     }

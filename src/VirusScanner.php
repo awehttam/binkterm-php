@@ -10,7 +10,7 @@ namespace BinktermPHP;
  */
 class VirusScanner
 {
-    private string $clamdscanPath;
+    private ?string $clamdscanPath;
     private bool $enabled;
 
     public function __construct()
@@ -111,9 +111,15 @@ class VirusScanner
     private function findClamdscan(): ?string
     {
         // Check environment variable first
-        $envPath = getenv('CLAMDSCAN');
-        if (!empty($envPath) && file_exists($envPath) && is_executable($envPath)) {
-            return $envPath;
+        $envPath = Config::env('CLAMDSCAN');
+        if (PHP_OS_FAMILY === 'Windows') {                  // is_executable is bogus on Windows
+            if (!empty($envPath) && file_exists($envPath)) {
+                return $envPath;
+            }
+        } else {
+            if (!empty($envPath) && file_exists($envPath) && is_executable($envPath)) {
+                return $envPath;
+            }
         }
 
         // Fall back to common locations

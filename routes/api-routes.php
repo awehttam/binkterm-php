@@ -1864,8 +1864,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         // Set headers for file download
+        // Properly encode filename for Content-Disposition header (RFC 6266 & RFC 5987)
+        $filename = basename($file['filename']);
+        $encodedFilename = rawurlencode($filename);
+
         header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . basename($file['filename']) . '"');
+        header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
         header('Content-Length: ' . filesize($storagePath));
         header('Cache-Control: no-cache, must-revalidate');
         header('Pragma: public');

@@ -427,7 +427,8 @@
         const isActive = state.active.type === thread.type && state.active.id === thread.id;
         if (isActive) {
             appendMessage(payload);
-        } else {
+        } else if (payload.from_user_id !== window.currentUserId) {
+            // Only increment unread count for messages from other users
             state.unreadCounts[key] = (state.unreadCounts[key] || 0) + 1;
             saveState();
             renderUnreadBadge();
