@@ -6,7 +6,7 @@ class MessageHandler
 {
     // Configuration: which date field to use for echomail sorting
     // Options: 'date_received' or 'date_written'
-    private const ECHOMAIL_DATE_FIELD = 'date_received';
+    private const ECHOMAIL_DATE_FIELD = 'date_received';    // Related to USE_DATE_FIELD in echomail.js
 
     private $db;
 
