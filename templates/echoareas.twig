@@ -373,12 +373,13 @@ function displayEchoareas(echoareas) {
                     <td class="text-center">${statusIcon}</td>
                     <td>${area.id}</td>
                     <td>
-                        <span class="badge" style="background-color: ${area.color || '#28a745'}; color: white;">
-                            ${escapeHtml(area.tag)}
-                        </span>
-                        ${area.domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
-                        ${area.is_local ? `<span class="badge bg-info ms-1" style="font-size: 0.7em;" title="Local only - not transmitted to uplinks">Local</span>` : ''}
-                        ${area.is_sysop_only ? `<span class="badge bg-warning text-dark ms-1" style="font-size: 0.7em;" title="Sysop access only">Sysop</span>` : ''}
+                        <div class="d-flex align-items-center">
+                            <span class="me-2" style="display: inline-block; width: 20px; height: 20px; min-width: 20px; min-height: 20px; background-color: ${area.color || '#28a745'}; border-radius: 3px; flex-shrink: 0;"></span>
+                            <span style="color: #ffc107;">${escapeHtml(area.tag)}</span>
+                            ${area.domain ? `<span class="badge bg-secondary ms-2" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
+                            ${area.is_local ? `<span class="badge bg-info ms-2" style="font-size: 0.7em;" title="Local only - not transmitted to uplinks">Local</span>` : ''}
+                            ${area.is_sysop_only ? `<span class="badge bg-warning text-dark ms-2" style="font-size: 0.7em;" title="Sysop access only">Sysop</span>` : ''}
+                        </div>
                     </td>
                     <td>
                         <strong>${escapeHtml(area.description)}</strong>
