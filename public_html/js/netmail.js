@@ -200,7 +200,7 @@ function displayMessages(messages, isThreaded = false) {
             const isUnread = !msg.is_read;
             const currentUserId = window.currentUser ? window.currentUser.id : null;
             const isSent = (msg.user_id && currentUserId && msg.user_id == currentUserId);
-            const rowClass = isUnread ? 'table-light' : '';
+            const rowClass = '';    //isUnread ? 'table-light' : '';
 
             // Threading support
             const threadLevel = msg.thread_level || 0;
