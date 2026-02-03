@@ -902,9 +902,9 @@ class BinkdProcessor
             VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
         ");
 
-        $this->log("Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
+        $this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
-        $this->log("dateWritten is $dateWritten");
+        $this->log("DEBUG: dateWritten is $dateWritten");
         //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.
         $kludgeText = implode("\n", $kludgeLines);
 
@@ -964,9 +964,9 @@ class BinkdProcessor
             $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain=?");
             $stmt->execute([$tag,$domain]);
             $echoarea = $stmt->fetch();
-            $this->log("getOrCreateEchoarea: Created new echomail area '$tag'@'$domain'");
+            $this->log("Auto-Creating new echomail area '$tag'@'$domain'");
         } else {
-            $this->log("getOrCreateEchoarea: Found echomail area tag $tag@$domain");
+            //$this->log("getOrCreateEchoarea: Found echomail area tag $tag@$domain");
         }
         
         return $echoarea;
@@ -1014,7 +1014,7 @@ class BinkdProcessor
             }
         }
 
-        $this->log(__FILE__.":".__LINE__." fall through");
+        //$this->log(__FILE__.":".__LINE__." fall through");
         // Handle incomplete date format (missing year only) - "Aug 29  11:05:00" 
         if (preg_match('/^(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})$/', $dateStr, $matches)) {
             //error_log("DEBUG: Incomplete date pattern matched for '$dateStr'");
@@ -1051,7 +1051,7 @@ class BinkdProcessor
                 return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
-        $this->log(__FILE__.":".__LINE__." fall through");
+        //$this->log(__FILE__.":".__LINE__." fall through");
         // Handle full date format: "01 Jan 70  02:34:56" or "24 Aug 25  17:37:38"
         if (preg_match('/(\d{1,2})\s+(\w{3})\s+(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})/', $dateStr, $matches)) {
             //error_log("DEBUG: Full date pattern matched for '$dateStr'");
@@ -1080,7 +1080,7 @@ class BinkdProcessor
                 return $this->applyTzutcOffset($parsedDate, $tzutcOffsetMinutes);
             }
         }
-        $this->log(__FILE__.":".__LINE__." fall through");
+        //$this->log(__FILE__.":".__LINE__." fall through");
         // Fallback to original parsing for non-standard formats
         $timestamp = strtotime($dateStr);
         if ($timestamp) {
@@ -1098,7 +1098,7 @@ class BinkdProcessor
         if ($tzutcOffsetMinutes === null) {
             return $dateString;
         }
-        $this->log(__FILE__.":".__LINE__." dateString=$dateString");
+//        $this->log(__FILE__.":".__LINE__." dateString=$dateString");
         try {
             // The raw date from the message is in the sender's local timezone
             // TZUTC tells us the offset from UTC (+0200 means sender is UTC+2, -0800 means UTC-8)
@@ -1115,7 +1115,7 @@ class BinkdProcessor
             $dt->setTimezone(new \DateTimeZone('UTC'));
             $result = $dt->format('Y-m-d H:i:s');
             $this->log("DEBUG: Converted from {$senderTzString} to UTC: '{$dateString}' -> '{$result}'");
-            $this->log(__FILE__.":".__LINE__." returning $result");
+            //$this->log(__FILE__.":".__LINE__." returning $result");
             return $result;
         } catch (\Exception $e) {
             $this->log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
