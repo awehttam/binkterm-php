@@ -1734,7 +1734,7 @@ function showShoutbox($conn, array &$state, string $apiBase, string $session, in
         $wrapped = wordwrap($line, $innerWidth, "\n", true);
         foreach (explode("\n", $wrapped) as $part) {
             // Add space before frame, then frame with content, then space after frame
-            $contentLine = ' ' . '| ' . ' ' . str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT) . ' ' . ' |' . ' ';
+            $contentLine = ' ' . '| ' . ' ' . str_pad($part, $innerWidth-2, ' ', STR_PAD_RIGHT) . ' ' . ' |' . ' ';
             writeLine($conn, colorize($contentLine, ANSI_MAGENTA));
         }
     }
