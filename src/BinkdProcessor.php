@@ -977,7 +977,6 @@ class BinkdProcessor
         // Parse Fidonet date format - can be incomplete like "Aug 25  17:42:39"
         $dateStr = trim($dateStr);
 
-        $this->log(__FILE__.":".__LINE__." dateStr is $dateStr");
         // Debug: Log the raw date string being parsed
         //error_log("DEBUG: Parsing Fidonet date: '$dateStr'");
         
