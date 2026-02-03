@@ -40,14 +40,13 @@
                                             </div>
                                             <div class="col-md-3">
                                                 <h6 class="mb-1 d-flex align-items-center">
-                                                    <span class="badge me-2" style="background-color: {{ echoarea.color }};">
-                                                        {{ echoarea.tag }}
-                                                    </span>
+                                                    <span class="me-2" style="display: inline-block; width: 20px; height: 20px; min-width: 20px; min-height: 20px; background-color: {{ echoarea.color }}; border-radius: 3px; flex-shrink: 0;"></span>
+                                                    <span style="color: #ffc107;">{{ echoarea.tag }}</span>
                                                     {% if echoarea.domain %}
-                                                        <span class="badge bg-secondary me-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
+                                                        <span class="badge bg-secondary ms-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
                                                     {% endif %}
                                                     {% if echoarea.is_default_subscription %}
-                                                        <i class="bi bi-star-fill text-warning" title="Default subscription"></i>
+                                                        <i class="bi bi-star-fill text-warning ms-2" title="Default subscription"></i>
                                                     {% endif %}
                                                 </h6>
                                             </div>

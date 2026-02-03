@@ -113,15 +113,16 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="badge me-2" style="background-color: {{ echoarea.color }};">
-                                            {{ echoarea.tag }}
-                                        </span>
-                                        {% if echoarea.domain %}
-                                            <span class="badge bg-secondary me-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
-                                        {% endif %}
-                                        {% if echoarea.is_default_subscription %}
-                                            <i class="fas fa-star text-warning" title="Default subscription"></i>
-                                        {% endif %}
+                                        <div class="d-flex align-items-center">
+                                            <span class="me-2" style="display: inline-block; width: 20px; height: 20px; min-width: 20px; min-height: 20px; background-color: {{ echoarea.color }}; border-radius: 3px; flex-shrink: 0;"></span>
+                                            <span style="color: #ffc107;">{{ echoarea.tag }}</span>
+                                            {% if echoarea.domain %}
+                                                <span class="badge bg-secondary ms-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
+                                            {% endif %}
+                                            {% if echoarea.is_default_subscription %}
+                                                <i class="fas fa-star text-warning ms-2" title="Default subscription"></i>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                     <td>{{ echoarea.description }}</td>
                                     <td class="text-center">
