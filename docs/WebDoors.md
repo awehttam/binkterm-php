@@ -59,6 +59,7 @@ Each WebDoor must include a `webdoor.json` manifest file in its root directory. 
     "enabled": false
   },
   "config": {
+    "comment": "This is a comment that is for informational use only",
     "custom_setting": "default_value"
   }
 }
@@ -107,6 +108,7 @@ Multiplayer capabilities (reserved for future use).
 Default configuration values. These serve as defaults and can be overridden by the sysop in `config/webdoors.json`.
 
 Common configuration keys:
+- `comment`: An informational comment for someone editing the JSON 
 - `display_name`: Override the game's display name
 - `display_description`: Override the game's description
 - Game-specific settings (varies by WebDoor)
