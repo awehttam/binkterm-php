@@ -378,6 +378,97 @@ function readTelnetLine($conn, array &$state): ?string
     }
 }
 
+/**
+ * Read telnet line with idle timeout handling
+ * Returns: [string|null line, bool timedOut, bool shouldDisconnect]
+ */
+function readTelnetLineWithTimeout($conn, array &$state): array
+{
+    $now = time();
+    $elapsed = $now - $state['last_activity'];
+    $warningTimeout = $state['idle_warning_timeout'];
+    $disconnectTimeout = $state['idle_disconnect_timeout'];
+
+    // Check if we've exceeded disconnect timeout
+    if ($elapsed >= $disconnectTimeout) {
+        writeLine($conn, '');
+        writeLine($conn, colorize('Idle timeout - disconnecting...', ANSI_YELLOW));
+        writeLine($conn, '');
+        return [null, true, true];
+    }
+
+    // Check if we need to show warning
+    if (!$state['idle_warned'] && $elapsed >= $warningTimeout) {
+        writeLine($conn, '');
+        writeLine($conn, colorize('Are you still there? (Press Enter to continue)', ANSI_YELLOW . ANSI_BOLD));
+        writeLine($conn, '');
+        $state['idle_warned'] = true;
+    }
+
+    // Calculate timeout for this read (time until next warning or disconnect)
+    $timeUntilDisconnect = $disconnectTimeout - $elapsed;
+    $timeUntilWarning = $warningTimeout - $elapsed;
+
+    if ($state['idle_warned']) {
+        $timeout = min($timeUntilDisconnect, 30); // Check every 30 seconds max
+    } else {
+        $timeout = min($timeUntilWarning, 30);
+    }
+
+    // Use stream_select to check for data with timeout
+    $read = [$conn];
+    $write = $except = null;
+    $seconds = (int)$timeout;
+    $microseconds = 0;
+
+    $hasData = @stream_select($read, $write, $except, $seconds, $microseconds);
+
+    if ($hasData === false) {
+        // Error occurred
+        return [null, false, true];
+    }
+
+    if ($hasData === 0) {
+        // Timeout - no data available, return empty to trigger re-check
+        return ['', true, false];
+    }
+
+    // Data is available, read it
+    $line = readTelnetLine($conn, $state);
+
+    if ($line !== null) {
+        // Reset activity tracking on successful input
+        $state['last_activity'] = time();
+        $state['idle_warned'] = false;
+    }
+
+    return [$line, false, false];
+}
+
+/**
+ * Simplified wrapper for readTelnetLineWithTimeout that handles timeouts in a loop
+ * Returns the line string or null on disconnect/idle timeout
+ */
+function readLineWithIdleCheck($conn, array &$state): ?string
+{
+    while (true) {
+        [$line, $timedOut, $shouldDisconnect] = readTelnetLineWithTimeout($conn, $state);
+
+        if ($shouldDisconnect) {
+            // Idle timeout or error
+            return null;
+        }
+
+        if ($timedOut) {
+            // No data yet, keep waiting
+            continue;
+        }
+
+        // Got data (or connection lost)
+        return $line;
+    }
+}
+
 function writeLine($conn, string $text = ''): void
 {
     safeWrite($conn, $text . "\r\n");
@@ -808,7 +899,7 @@ function readMultiline($conn, array &$state, int $cols, string $initialText = ''
 
     while (true) {
         safeWrite($conn, '> ');
-        $line = readTelnetLine($conn, $state);
+        $line = readLineWithIdleCheck($conn, $state);
         if ($line === null) {
             break;
         }
@@ -1150,11 +1241,11 @@ function prompt($conn, array &$state, string $label, bool $echo = true): ?string
     safeWrite($conn, $label);
 
     if ($echo) {
-        $value = readTelnetLine($conn, $state);
+        $value = readLineWithIdleCheck($conn, $state);
         return $value;
     }
 
-    $value = readTelnetLine($conn, $state);
+    $value = readLineWithIdleCheck($conn, $state);
     setEcho($conn, $state, true);
     return $value;
 }
@@ -1455,7 +1546,7 @@ function attemptRegistration($conn, array &$state, string $apiBase): bool
                 $reasonLines = [];
                 $cancelled = false;
                 while (count($reasonLines) < 10) {
-                    $line = readTelnetLine($conn, $state);
+                    $line = readLineWithIdleCheck($conn, $state);
                     if ($line === null) {
                         writeLine($conn, colorize('Registration cancelled.', ANSI_YELLOW));
                         return false;
@@ -1611,7 +1702,7 @@ function attemptRegistration($conn, array &$state, string $apiBase): bool
                     writeLine($conn, 'Enter reason (press Enter on blank line when done):');
                     $reasonLines = [];
                     while (count($reasonLines) < 10) {
-                        $line = readTelnetLine($conn, $state);
+                        $line = readLineWithIdleCheck($conn, $state);
                         if ($line === null) break;
                         $line = trim($line);
                         if ($line === '' && count($reasonLines) > 0) {
@@ -1779,7 +1870,7 @@ function showPolls($conn, array &$state, string $apiBase, string $session): void
     }
     writeLine($conn, '');
     writeLine($conn, 'Press Enter to return.');
-    readTelnetLine($conn, $state);
+    readLineWithIdleCheck($conn, $state);
 }
 
 function getMessagesPerPage(array &$state): int
@@ -1830,7 +1921,7 @@ function showNetmail($conn, array &$state, string $apiBase, string $session): vo
         }
         writeLine($conn, '');
         writeLine($conn, 'Enter #, n/p (next/prev), c (compose), q (quit)');
-        $input = trim((string)readTelnetLine($conn, $state));
+        $input = trim((string)readLineWithIdleCheck($conn, $state));
         if ($input === 'q' || $input === '') {
             return;
         }
@@ -1864,7 +1955,7 @@ function showNetmail($conn, array &$state, string $apiBase, string $session): vo
                 writeWrappedWithMore($conn, $body, $cols, $rows, $state);
                 writeLine($conn, '');
                 writeLine($conn, 'Press Enter to return, r to reply.');
-                $action = trim((string)readTelnetLine($conn, $state));
+                $action = trim((string)readLineWithIdleCheck($conn, $state));
                 if (strtolower($action) === 'r') {
                     $replyData = $detail['data'] ?? $msg;
                     composeNetmail($conn, $state, $apiBase, $session, $replyData);
@@ -1906,7 +1997,7 @@ function showEchoareas($conn, array &$state, string $apiBase, string $session): 
         }
         writeLine($conn, '');
         writeLine($conn, 'Enter #, n/p (next/prev), q (quit)');
-        $input = trim((string)readTelnetLine($conn, $state));
+        $input = trim((string)readLineWithIdleCheck($conn, $state));
 
         if ($input === 'q' || $input === '') {
             return;
@@ -1968,7 +2059,7 @@ function showEchomail($conn, array &$state, string $apiBase, string $session, st
         }
         writeLine($conn, '');
         writeLine($conn, 'Enter #, n/p (next/prev), c (compose), q (quit)');
-        $input = trim((string)readTelnetLine($conn, $state));
+        $input = trim((string)readLineWithIdleCheck($conn, $state));
         if ($input === 'q' || $input === '') {
             return;
         }
@@ -2002,7 +2093,7 @@ function showEchomail($conn, array &$state, string $apiBase, string $session, st
                 writeWrappedWithMore($conn, $body, $cols, $rows, $state);
                 writeLine($conn, '');
                 writeLine($conn, 'Press Enter to return, r to reply.');
-                $action = trim((string)readTelnetLine($conn, $state));
+                $action = trim((string)readLineWithIdleCheck($conn, $state));
                 if (strtolower($action) === 'r') {
                     $replyData = $detail['data'] ?? $msg;
                     composeEchomail($conn, $state, $apiBase, $session, $area, $replyData);
@@ -2153,7 +2244,11 @@ while (true) {
         'telnet_mode' => null,
         'input_echo' => true,
         'cols' => 80,
-        'rows' => 24
+        'rows' => 24,
+        'last_activity' => time(),
+        'idle_warned' => false,
+        'idle_warning_timeout' => 300,  // 5 minutes
+        'idle_disconnect_timeout' => 420  // 7 minutes (5 + 2)
     ];
 
     if ($debug) {
@@ -2207,7 +2302,7 @@ while (true) {
             $registered = attemptRegistration($conn, $state, $apiBase);
             if ($registered) {
                 writeLine($conn, 'Press Enter to disconnect.');
-                readTelnetLine($conn, $state);
+                readLineWithIdleCheck($conn, $state);
                 fclose($conn);
                 if ($forked) {
                     exit(0);
@@ -2335,18 +2430,48 @@ while (true) {
 
         writeLine($conn, colorize($border, ANSI_CYAN . ANSI_BOLD));
         writeLine($conn, '');
-        writeLine($conn, colorize('Select option:', ANSI_DIM));
-        $choice = trim((string)readTelnetLine($conn, $state));
-        if ($choice === null) {
-            // Connection lost
-            $duration = time() - $loginTime;
-            $minutes = floor($duration / 60);
-            $seconds = $duration % 60;
-            echo "[" . date('Y-m-d H:i:s') . "] Disconnected: {$username} (session duration: {$minutes}m {$seconds}s)\n";
-            break;
+
+        // Prompt loop - re-prompt on empty input without redisplaying menu
+        $choice = '';
+        $promptShown = false;
+        while ($choice === '') {
+            if (!$promptShown) {
+                writeLine($conn, colorize('Select option:', ANSI_DIM));
+                $promptShown = true;
+            }
+
+            [$line, $timedOut, $shouldDisconnect] = readTelnetLineWithTimeout($conn, $state);
+
+            if ($shouldDisconnect) {
+                // Idle timeout disconnect
+                $duration = time() - $loginTime;
+                $minutes = floor($duration / 60);
+                $seconds = $duration % 60;
+                echo "[" . date('Y-m-d H:i:s') . "] Idle timeout: {$username} (session duration: {$minutes}m {$seconds}s)\n";
+                break 2; // Break out of both loops
+            }
+
+            if ($line === null) {
+                // Connection lost
+                $duration = time() - $loginTime;
+                $minutes = floor($duration / 60);
+                $seconds = $duration % 60;
+                echo "[" . date('Y-m-d H:i:s') . "] Disconnected: {$username} (session duration: {$minutes}m {$seconds}s)\n";
+                break 2; // Break out of both loops
+            }
+
+            if ($timedOut) {
+                // Timeout occurred but not disconnect yet - loop will check again
+                continue;
+            }
+
+            $choice = trim((string)$line);
+            // If empty, loop will re-prompt without redisplaying menu
         }
-        if ($choice === '') {
-            continue;
+
+        // Check if we broke out due to connection loss or timeout
+        if ($choice === null || $choice === '') {
+            break;
         }
         if ($choice === '1') {
             showNetmail($conn, $state, $apiBase, $session);

@@ -21,5 +21,12 @@
   },
   "multiplayer": {
     "enabled": false
+  },
+  "config": {
+    "display_name": "Reverse Polarity BBS",
+    "display_description": "Connects to the Reverse Polarity BBS",
+    "host": "revpol.lovelybits.org",
+    "port": "22",
+    "proto": "ssh"
   }
 }

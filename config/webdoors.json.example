@@ -22,8 +22,14 @@
     "revpol": {
         "enabled": false,
         "host": "revpol.lovelybits.org",
-        "port": 22
-    },
+        "port": 22,
+        "comment": "You can customize this webdoor to match your own BBS systems information!",
+        "display_name": "Reverse Polarity BBS",
+        "display_description": "Connects to the Reverse Polarity BBS",
+        "host": "revpol.lovelybits.org",
+        "port": "22",
+        "proto": "ssh"
+     },
     "terminal": {
        "enabled": false,
        "comment": "Requires a terminal proxy server (e.g., terminalgateway) with telnet support enabled",
