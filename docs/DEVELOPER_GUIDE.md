@@ -132,7 +132,7 @@ When modifying `public_html/css/style.css`, also update theme files:
 ### Key Features
 
 - **Multi-Network Support**: Connect to multiple FTN networks simultaneously
-- **Webdoors**: Drop-in game/application API (see `docs/WebDoor_Proposal.md`)
+- **Webdoors**: Drop-in game/application API (see `docs/WebDoors.md`)
 - **Credits System**: Configurable in-world currency (detailed below)
 - **Webshare**: Share echomail messages via secure links with expiration
 - **Gateway Tokens**: SSO-like authentication for external services
@@ -141,7 +141,7 @@ When modifying `public_html/css/style.css`, also update theme files:
 ### Getting Help
 
 - **FAQ**: See `FAQ.md` for common questions and troubleshooting
-- **WebDoor API**: See `docs/WebDoor_Proposal.md` for game integration
+- **WebDoor API**: See `docs/WebDoors.md` for game integration
 - **Upgrade Guides**: Check `UPGRADING_x.x.x.md` files for version-specific changes
 
 ---

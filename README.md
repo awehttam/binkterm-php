@@ -1453,7 +1453,7 @@ Games interact with the BBS through REST endpoints:
 
 ### Documentation
 
-For the complete WebDoor specification including SDK examples, multiplayer protocol, and implementation details, see [docs/WebDoor_Proposal.md](docs/WebDoors_Proposal.md).
+For the complete WebDoor specification including SDK examples, multiplayer protocol, and implementation details, see [docs/WebDoors.md](docs/WebDoors_Proposal.md).
 
 ## Frequently Asked Questions
 

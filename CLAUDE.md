@@ -152,7 +152,8 @@ The system uses this priority order for credit values:
 ## Recent Features Added
 
 ### WebDoors System
-WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification is documented in `docs/WebDoor_Proposal.md`.
+WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification as used by BinktermPHP is documented in `docs/WebDoors.md`.
+A draft status proposed specification with ideas we can draw upon is in `docs/WebDoor_Proposal.md`
 
 **Current Implementation:**
 - **Game Manifest System**: Each WebDoor includes a `webdoor.json` manifest describing capabilities, requirements, and configuration
@@ -168,7 +169,7 @@ WebDoors is an evolving specification for embedding HTML5/JavaScript games into 
 - `WebDoorController` - Handles game session management and API endpoints
 
 **Important Notes:**
-- When adding WebDoor API functionality, update `docs/WebDoor_Proposal.md` to reflect new features
+- When adding WebDoor API functionality, update `docs/WebDoors.md` to reflect new features
 - WebDoor specification is evolving - keep documentation synchronized with implementation
 - All WebDoor games must include a valid `webdoor.json` manifest
 - Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
