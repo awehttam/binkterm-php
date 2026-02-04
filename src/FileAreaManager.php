@@ -157,7 +157,7 @@ class FileAreaManager
     {
         $tag = strtoupper(trim($data['tag'] ?? ''));
         $description = trim($data['description'] ?? '');
-        $domain = trim($data['domain'] ?? 'fidonet');
+        $domain = trim($data['domain'] ?? '');
         $maxFileSize = intval($data['max_file_size'] ?? 10485760);
         $allowedExtensions = trim($data['allowed_extensions'] ?? '');
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');
@@ -211,7 +211,7 @@ class FileAreaManager
     {
         $tag = strtoupper(trim($data['tag'] ?? ''));
         $description = trim($data['description'] ?? '');
-        $domain = trim($data['domain'] ?? 'fidonet');
+        $domain = trim($data['domain'] ?? '');
         $maxFileSize = intval($data['max_file_size'] ?? 10485760);
         $allowedExtensions = trim($data['allowed_extensions'] ?? '');
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');

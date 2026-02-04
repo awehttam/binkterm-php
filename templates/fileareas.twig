@@ -104,7 +104,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="fileareaDomain" class="form-label">Domain</label>
-                            <input type="text" class="form-control" id="fileareaDomain" name="domain" maxlength="255" value="fidonet">
+                            <input type="text" class="form-control" id="fileareaDomain" name="domain" maxlength="255">
                             <div class="form-text">Network domain</div>
                         </div>
                         <div class="col-md-6">
@@ -280,7 +280,7 @@ function displayFileareas(fileareas) {
         html += `
             <tr>
                 <td><strong>${escapeHtml(area.tag)}</strong></td>
-                <td>${escapeHtml(area.domain || 'fidonet')}</td>
+                <td>${escapeHtml(area.domain || '')}</td>
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
                 <td>${fileSize}</td>
@@ -306,7 +306,7 @@ function showAddFileareaModal() {
     $('#fileareaModalTitle').text('Add File Area');
     $('#fileareaForm')[0].reset();
     $('#fileareaIsActive').prop('checked', true);
-    $('#fileareaDomain').val('fidonet');
+    $('#fileareaDomain').val('');
     $('#fileareaMaxSize').val(10);
     new bootstrap.Modal('#fileareaModal').show();
 }
@@ -321,7 +321,7 @@ function editFilearea(id) {
             $('#fileareaId').val(area.id);
             $('#fileareaTag').val(area.tag);
             $('#fileareaDescription').val(area.description);
-            $('#fileareaDomain').val(area.domain || 'fidonet');
+            $('#fileareaDomain').val(area.domain || '');
             $('#fileareaMaxSize').val((area.max_file_size || 10485760) / 1048576);
             $('#fileareaAllowedExt').val(area.allowed_extensions || '');
             $('#fileareaBlockedExt').val(area.blocked_extensions || '');
@@ -345,7 +345,7 @@ function saveFilearea() {
     const data = {
         tag: $('#fileareaTag').val(),
         description: $('#fileareaDescription').val(),
-        domain: $('#fileareaDomain').val() || 'fidonet',
+        domain: $('#fileareaDomain').val().trim(),
         max_file_size: maxSizeBytes,
         allowed_extensions: $('#fileareaAllowedExt').val(),
         blocked_extensions: $('#fileareaBlockedExt').val(),
