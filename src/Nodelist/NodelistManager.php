@@ -263,10 +263,16 @@ class NodelistManager
     
     public function archiveOldNodelist($domain)
     {
+        // Mark old metadata as inactive
         $sql = "UPDATE nodelist_metadata SET is_active = FALSE WHERE is_active = TRUE AND domain=?";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$domain]);
-        
+
+        // Delete old nodelist entries for this domain
+        $sql = "DELETE FROM nodelist WHERE domain=?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$domain]);
+
         return $stmt->rowCount();
     }
     
