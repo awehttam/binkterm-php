@@ -64,7 +64,7 @@ Here are some screen shots showing various aspects of the interface with differe
    </Tr>
 <Tr>
    <td align="center"><B>Admin Menu</B><BR><img src="docs/screenshots/adminmenu.png" width="400">"</td>
-   
+   <td align="center"><B>Telnet Server</B><BR><img src="docs/screenshots/telnetserver.png" width="400">"</td>
    </Tr>
 <tr>
 </tr>
