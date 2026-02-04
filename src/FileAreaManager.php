@@ -62,7 +62,9 @@ class FileAreaManager
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        $areas = $stmt->fetchAll();
+
+        return $areas;
     }
 
     /**
@@ -1028,4 +1030,6 @@ class FileAreaManager
         $dirName = $id ? ($tag . '-' . $id) : $tag;
         return __DIR__ . '/../data/files/' . $dirName;
     }
+
+    // Lazy migration removed; directory changes should be handled explicitly.
 }

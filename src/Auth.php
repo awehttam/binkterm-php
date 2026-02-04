@@ -122,6 +122,7 @@ class Auth
                             error_log('[CREDITS] Daily processing failed: ' . $e->getMessage());
                         }
                     }
+
                 }
             }
             return $user;
