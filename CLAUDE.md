@@ -274,8 +274,7 @@ Commit your changes. Do NOT create a tag.
 ```bash
 git add src/Version.php composer.json templates/recent_updates.twig
 git commit -m "Bump version to 1.4.3"
-git tag -a v1.4.3 -m "Release version 1.4.3"
-git push origin main --tags
+git push origin main 
 ```
 
 #### 5. Update UPGRADING_x.x.x.md documentation

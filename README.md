@@ -62,6 +62,10 @@ Here are some screen shots showing various aspects of the interface with differe
    <td align="center"><B>Web Doors</B><BR><img src="docs/screenshots/webdoors.png" width="400">"</td>
    <td align="center"><B>User Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
    </Tr>
+<Tr>
+   <td align="center"><B>Admin Menu</B><BR><img src="docs/screenshots/adminmenu.png" width="400">"</td>
+   
+   </Tr>
 <tr>
 </tr>
 
@@ -81,14 +85,19 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
-- **WebDoors** - HTML5/JavaScript game integration with storage, leaderboards, and multiplayer support
+- **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
+- **File Areas** - Networked and local file areas
+- **ANSI Support** - Support for ANSI and ASCII art in message readers
+- **Credit System** - Support for credits and rewards 
+- **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
+- **Shoutbox** - Shoutbox support
+- **Nodelist Browsers** - Integrated nodelist updater and browser 
 
 ### Native Binkp Protocol Support
-- **FTS-1026 Compliant** - Full (really?)  binkp/1.0 protocol implementation
+- **FTS-1026 Compliant** - binkp/1.0 protocol implementation
 - **TCP/IP Connectivity** - Direct connections over internet (port 24554)
 - **Automated Scheduling** - Cron-style polling with configurable intervals
-- **File Transfer** - Reliable packet exchange with resume support (not FREQIT)
-- **Password Authentication** - Uplink authentication
+- **Password Authentication** - Plaintext and Crypt-MD5 Uplink authentication
 - **Connection Management** - Multiple concurrent connections with limits
 
 ### Command Line Tools
