@@ -92,6 +92,16 @@ class AdminDaemonClient
         return $this->sendCommand('activate_webdoors_config');
     }
 
+    public function getFileAreaRulesConfig(): array
+    {
+        return $this->sendCommand('get_filearea_rules');
+    }
+
+    public function saveFileAreaRulesConfig(string $json): array
+    {
+        return $this->sendCommand('save_filearea_rules', ['json' => $json]);
+    }
+
     public function listAds(): array
     {
         return $this->sendCommand('list_ads');

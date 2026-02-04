@@ -288,6 +288,23 @@ class AdminDaemonServer
                     $this->activateWebdoorsConfig();
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
                     break;
+                case 'get_filearea_rules':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getFileAreaRulesConfig()]);
+                    break;
+                case 'save_filearea_rules':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeFileAreaRulesConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getFileAreaRulesConfig()]);
+                    break;
                 case 'list_ads':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->listAds()]);
                     break;
@@ -500,6 +517,48 @@ class AdminDaemonServer
         $cmd = $signal === 9 ? 'kill -9 ' : 'kill ';
         @exec($cmd . $pid);
         return true;
+    }
+
+    private function getFileAreaRulesConfig(): array
+    {
+        $configPath = $this->getFileAreaRulesConfigPath();
+        $examplePath = $this->getFileAreaRulesExamplePath();
+
+        $active = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+        $exampleJson = file_exists($examplePath) ? file_get_contents($examplePath) : null;
+
+        return [
+            'active' => $active,
+            'config_json' => $configJson,
+            'example_json' => $exampleJson
+        ];
+    }
+
+    private function writeFileAreaRulesConfig(array $config): void
+    {
+        $configPath = $this->getFileAreaRulesConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode file area rules config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function getFileAreaRulesConfigPath(): string
+    {
+        return __DIR__ . '/../../config/filearea_rules.json';
+    }
+
+    private function getFileAreaRulesExamplePath(): string
+    {
+        return __DIR__ . '/../../config/filearea_rules.json.example';
     }
 
     private function getWebdoorsConfig(): array

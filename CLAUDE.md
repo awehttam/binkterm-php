@@ -36,7 +36,8 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
  - Leave the vendor directory alone. It's managed by composer only
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
- - Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
+- Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
+- Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). PHP migrations are executed by scripts/upgrade.php and receive a $db PDO connection.
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
@@ -70,6 +71,15 @@ The `getSiteUrl()` method:
 - `MessageHandler::buildShareUrl()` - share link generation
 - `routes/web-routes.php` - shared message page
 - `PasswordResetController` - password reset emails
+
+## Admin Daemon
+
+The admin daemon (scripts/admin_daemon.php) is a critical system management component.  It provides an API to the web interface
+for retrieving and setting configuration elements through various commands as well as polling and other tasks.
+
+When adding new configuration settings you'll be working with the configuration daemon that performs the actual work.  The web interface will make an API request.
+
+You may need to add new commands, or update existing ones depending on the context of the setting being added.  Be sure to clarify and confirm this.
 
 ## Changelog Workflow
  - **IMPORTANT**: When completing significant features, bug fixes, or improvements, ALWAYS update the changelog at `templates/recent_updates.twig` by adding entries to the top of the file with the current date

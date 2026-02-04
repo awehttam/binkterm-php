@@ -100,6 +100,7 @@ class DatabaseUpgrader
     private function getAvailableMigrations()
     {
         $migrations = [];
+        $versions = [];
         
         // Create migrations directory if it doesn't exist
         if (!is_dir($this->migrationsPath)) {
@@ -107,21 +108,30 @@ class DatabaseUpgrader
         }
         
         // Scan for migration files
-        $files = glob($this->migrationsPath . '*.sql');
+        $files = array_merge(
+            glob($this->migrationsPath . '*.sql') ?: [],
+            glob($this->migrationsPath . '*.php') ?: []
+        );
         
         foreach ($files as $file) {
-            $filename = basename($file, '.sql');
+            $extension = pathinfo($file, PATHINFO_EXTENSION);
+            $filename = basename($file, '.' . $extension);
             
             // Expected format: v1.1.0_description_here.sql (supports 3+ part versions)
             if (preg_match('/^v(\d+(?:\.\d+){2,})_(.+)$/', $filename, $matches)) {
                 $version = $matches[1];
                 $description = str_replace('_', ' ', $matches[2]);
-                
+                if (isset($versions[$version])) {
+                    throw new Exception("Duplicate migration version detected: {$version}");
+                }
+                $versions[$version] = true;
+
                 $migrations[] = [
                     'version' => $version,
                     'description' => ucfirst($description),
                     'file' => $file,
-                    'checksum' => md5_file($file)
+                    'checksum' => md5_file($file),
+                    'type' => $extension
                 ];
             }
         }
@@ -144,20 +154,30 @@ class DatabaseUpgrader
                 $this->db->beginTransaction();
                 
                 // Read and execute migration file
-                $sql = file_get_contents($migration['file']);
-                
-                // Split into individual statements
-                // Remove comments (both full line and inline)
-                $cleanSql = preg_replace('/--.*$/m', '', $sql); // Remove inline comments
-                $cleanSql = preg_replace('/^\s*$/m', '', $cleanSql); // Remove empty lines
-                $statements = array_filter(
-                    array_map('trim', preg_split('/;\s*(?:\r?\n|$)/', $cleanSql)),
-                    function($stmt) { return !empty($stmt); }
-                );
-                
-                foreach ($statements as $statement) {
-                    if (!empty(trim($statement))) {
-                        $this->db->exec($statement);
+                if (($migration['type'] ?? 'sql') === 'php') {
+                    $db = $this->db;
+                    $result = (function() use ($migration, $db) {
+                        return include $migration['file'];
+                    })();
+                    if ($result === false) {
+                        throw new Exception("PHP migration returned false");
+                    }
+                } else {
+                    $sql = file_get_contents($migration['file']);
+                    
+                    // Split into individual statements
+                    // Remove comments (both full line and inline)
+                    $cleanSql = preg_replace('/--.*$/m', '', $sql); // Remove inline comments
+                    $cleanSql = preg_replace('/^\s*$/m', '', $cleanSql); // Remove empty lines
+                    $statements = array_filter(
+                        array_map('trim', preg_split('/;\s*(?:\r?\n|$)/', $cleanSql)),
+                        function($stmt) { return !empty($stmt); }
+                    );
+                    
+                    foreach ($statements as $statement) {
+                        if (!empty(trim($statement))) {
+                            $this->db->exec($statement);
+                        }
                     }
                 }
                 

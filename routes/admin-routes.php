@@ -87,6 +87,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/webdoors_config.twig');
     });
 
+    // File area rules page
+    SimpleRouter::get('/filearea-rules', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/filearea_rules.twig');
+    });
+
     // Advertisements management page
     SimpleRouter::get('/ads', function() {
         $user = RouteHelper::requireAdmin();
@@ -795,6 +803,46 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->activateWebdoorsConfig();
+                echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::get('/filearea-rules', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $config = $client->getFileAreaRulesConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/filearea-rules', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $json = $payload['json'] ?? '';
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $updated = $client->saveFileAreaRulesConfig((string)$json);
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(400);

@@ -3,6 +3,7 @@
 namespace BinktermPHP;
 
 use PDO;
+use BinktermPHP\FileArea\FileAreaRuleProcessor;
 
 /**
  * TicFileProcessor - Process incoming TIC files from Fidonet
@@ -61,37 +62,62 @@ class TicFileProcessor
             }
 
             // Calculate hash before any storage operations
-            $fileHash = hash_file('sha256', $filePath);
+            $contentHash = hash_file('sha256', $filePath);
+            $fileHash = $contentHash;
 
             // Check for duplicates (same content in same area)
-            $existingFile = $this->checkDuplicate($fileArea['id'], $fileHash);
+            $allowDuplicate = !empty($fileArea['allow_duplicate_hash']);
+            if ($allowDuplicate) {
+                $fileHash = $this->makeUniqueHash($fileArea['id'], $fileHash);
+            } else {
+                $existingFile = $this->checkDuplicate($fileArea['id'], $fileHash);
 
-            if ($existingFile) {
-                // File already exists - skip it
-                error_log("TIC file already exists: {$ticData['File']} (file_id={$existingFile['id']})");
+                if ($existingFile) {
+                    // File already exists - skip it
+                    error_log("TIC file already exists: {$ticData['File']} (file_id={$existingFile['id']})");
 
-                // Clean up temp file since we're not storing it
-                if (file_exists($filePath)) {
-                    unlink($filePath);
+                    // Clean up temp file since we're not storing it
+                    if (file_exists($filePath)) {
+                        unlink($filePath);
+                    }
+
+                    return [
+                        'success' => true,
+                        'file_id' => $existingFile['id'],
+                        'area' => $ticData['Area'],
+                        'filename' => $existingFile['filename'],
+                        'duplicate' => true
+                    ];
                 }
-
-                return [
-                    'success' => true,
-                    'file_id' => $existingFile['id'],
-                    'area' => $ticData['Area'],
-                    'filename' => $existingFile['filename'],
-                    'duplicate' => true
-                ];
             }
 
             // Store file (will copy, not move)
-            $fileId = $this->storeFile($ticData, $filePath, $fileArea, $fileHash);
+            $stored = $this->storeFile($ticData, $filePath, $fileArea, $contentHash, $fileHash);
+            $fileId = $stored['id'];
+            $storagePath = $stored['storage_path'];
 
             // Scan for viruses if enabled for this file area
-            $this->scanFileForViruses($fileId, $fileArea);
+            $scanResult = $this->scanFileForViruses($fileId, $fileArea);
+            if (($scanResult['result'] ?? '') === 'infected') {
+                return [
+                    'success' => false,
+                    'error' => 'File rejected: virus detected.'
+                ];
+            }
 
             // Update file area statistics
             $this->updateFileAreaStats($fileArea['id']);
+
+            // Run file area automation rules (skip if infected)
+            try {
+                $ruleProcessor = new FileAreaRuleProcessor();
+                $ruleResult = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
+                if (!empty($ruleResult['output'])) {
+                    error_log("File area rules output for {$ticData['File']}: " . $ruleResult['output']);
+                }
+            } catch (\Exception $e) {
+                error_log("File area rules error for {$ticData['File']}: " . $e->getMessage());
+            }
 
             // Clean up temp file after successful storage
             if (file_exists($filePath)) {
@@ -227,7 +253,7 @@ class TicFileProcessor
     protected function getFileArea(string $tag): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus
+            SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash
             FROM file_areas
             WHERE tag = ? AND is_active = TRUE
             LIMIT 1
@@ -338,16 +364,19 @@ class TicFileProcessor
      * @param string $tempFilePath Path to temporary file
      * @param array $fileArea File area record
      * @param string $preCalculatedHash Pre-calculated SHA256 hash
-     * @return int File ID
+     * @param string|null $storedHash Hash to store (allows duplicates when needed)
+     * @return array File info with keys: id, storage_path, filename
      * @throws \Exception If storage fails
      */
-    protected function storeFile(array $ticData, string $tempFilePath, array $fileArea, string $preCalculatedHash): int
+    protected function storeFile(array $ticData, string $tempFilePath, array $fileArea, string $preCalculatedHash, ?string $storedHash = null): array
     {
         $filename = $ticData['File'];
         $areaTag = $fileArea['tag'];
+        $areaId = $fileArea['id'] ?? null;
+        $dirSuffix = $areaId ? ($areaTag . '-' . $areaId) : $areaTag;
 
         // Create area directory if needed
-        $areaDir = $this->filesBasePath . '/' . $areaTag;
+        $areaDir = $this->filesBasePath . '/' . $dirSuffix;
         if (!is_dir($areaDir)) {
             mkdir($areaDir, 0755, true);
         }
@@ -403,7 +432,7 @@ class TicFileProcessor
         $storagePath = realpath($storagePath);
 
         // Now that file is safely stored, get metadata
-        $fileHash = $preCalculatedHash;
+        $fileHash = $storedHash ?? $preCalculatedHash;
         $fileSize = filesize($storagePath);
 
         // Build descriptions
@@ -442,7 +471,11 @@ class TicFileProcessor
         ]);
 
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result['id'];
+        return [
+            'id' => (int)$result['id'],
+            'storage_path' => $storagePath,
+            'filename' => $filename
+        ];
     }
 
     /**
@@ -473,11 +506,16 @@ class TicFileProcessor
      * @param array $fileArea File area record
      * @return void
      */
-    protected function scanFileForViruses(int $fileId, array $fileArea): void
+    protected function scanFileForViruses(int $fileId, array $fileArea): array
     {
         // Check if virus scanning is enabled for this area
         if (empty($fileArea['scan_virus'])) {
-            return; // Scanning not enabled for this area
+            return [
+                'scanned' => false,
+                'result' => 'skipped',
+                'signature' => null,
+                'error' => 'Virus scanning not enabled'
+            ];
         }
 
         // Get file path from database
@@ -487,7 +525,12 @@ class TicFileProcessor
 
         if (!$fileRecord || !file_exists($fileRecord['storage_path'])) {
             error_log("Cannot scan file {$fileId}: file not found");
-            return;
+            return [
+                'scanned' => false,
+                'result' => 'error',
+                'signature' => null,
+                'error' => 'File not found'
+            ];
         }
 
         $filePath = $fileRecord['storage_path'];
@@ -523,11 +566,13 @@ class TicFileProcessor
                 error_log("Deleted infected TIC file: {$filePath}");
             }
 
-            // Mark file record as deleted
-            $stmt = $this->db->prepare("UPDATE files SET deleted = TRUE, status = 'rejected' WHERE id = ?");
+            // Mark file record as rejected
+            $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
             $stmt->execute([$fileId]);
         } elseif ($result['result'] === 'error') {
             error_log("Virus scan error for TIC file ID {$fileId}: {$result['error']}");
         }
+
+        return $result;
     }
 }
