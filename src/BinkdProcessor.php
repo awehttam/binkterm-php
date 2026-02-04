@@ -854,7 +854,7 @@ class BinkdProcessor
                         $totalMinutes = ($hours * 60) + $minutes;
                         // If matches[1] is '-', offset is negative; if empty string (no sign), offset is positive
                         $tzutcOffset = ($matches[1] === '-') ? -$totalMinutes : $totalMinutes;
-                        error_log("DEBUG: Found TZUTC offset: {$tzutcLine} = {$tzutcOffset} minutes");
+                        //error_log("DEBUG: Found TZUTC offset: {$tzutcLine} = {$tzutcOffset} minutes");
                     }
                 }
                 
@@ -1404,6 +1404,9 @@ class BinkdProcessor
         }
         
         $messageText = $areaLine . $kludgeLines . $messageText;
+
+        // Extract tagline from message body so we can place it between tearline and origin
+        [$messageText, $taglineLine] = $this->extractTaglineForPacket($messageText);
         
         // Add tearline and origin
         if (!empty($messageText) && !str_ends_with($messageText, "\r\n")) {
@@ -1411,6 +1414,10 @@ class BinkdProcessor
         }
         $messageText.="\r\n";
         $messageText .= Version::getTearline() . "\r\n";
+
+        if ($taglineLine !== '') {
+            $messageText .= $taglineLine . "\r\n";
+        }
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
@@ -1451,6 +1458,33 @@ class BinkdProcessor
         }
         
         fwrite($handle, $messageText . "\0");
+    }
+
+    private function extractTaglineForPacket(string $messageText): array
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $messageText);
+        $lines = explode("\n", $normalized);
+        $tagline = '';
+
+        for ($i = count($lines) - 1; $i >= 0; $i--) {
+            $current = $lines[$i];
+            if (trim($current) === '') {
+                unset($lines[$i]);
+                continue;
+            }
+
+            $trimmed = trim($current);
+            if (strpos($trimmed, '... ') === 0) {
+                $tagline = $trimmed;
+                unset($lines[$i]);
+            }
+            break;
+        }
+
+        $rebuilt = implode("\r\n", $lines);
+        $rebuilt = rtrim($rebuilt, "\r\n");
+
+        return [$rebuilt, $tagline];
     }
 
     private function logPacket($filename, $direction, $status)

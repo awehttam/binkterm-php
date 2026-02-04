@@ -305,6 +305,18 @@ class AdminDaemonServer
                     $this->writeFileAreaRulesConfig($decoded);
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getFileAreaRulesConfig()]);
                     break;
+                case 'get_taglines':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTaglinesConfig()]);
+                    break;
+                case 'save_taglines':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeTaglinesConfig($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getTaglinesConfig()]);
+                    break;
                 case 'list_ads':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->listAds()]);
                     break;
@@ -559,6 +571,37 @@ class AdminDaemonServer
     private function getFileAreaRulesExamplePath(): string
     {
         return __DIR__ . '/../../config/filearea_rules.json.example';
+    }
+
+    private function getTaglinesConfig(): array
+    {
+        $path = $this->getTaglinesPath();
+        $text = file_exists($path) ? file_get_contents($path) : '';
+
+        return [
+            'path' => $path,
+            'text' => $text === false ? '' : $text
+        ];
+    }
+
+    private function writeTaglinesConfig(string $text): void
+    {
+        $path = $this->getTaglinesPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $normalized = rtrim($normalized, "\n");
+        $content = $normalized === '' ? '' : $normalized . "\n";
+
+        file_put_contents($path, $content);
+    }
+
+    private function getTaglinesPath(): string
+    {
+        return __DIR__ . '/../../config/taglines.txt';
     }
 
     private function getWebdoorsConfig(): array

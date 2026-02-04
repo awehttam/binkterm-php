@@ -111,6 +111,12 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="signatureText" class="form-label">Message Signature</label>
+                        <textarea class="form-control" id="signatureText" name="signature_text" rows="4" maxlength="800" placeholder="Your signature (max 4 lines)"></textarea>
+                        <div class="form-text">Appended to outgoing netmail and echomail messages. Max 4 lines.</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Threading Preferences</label>
                         
                         <div class="form-check mb-2">
@@ -308,7 +314,19 @@ $(document).ready(function() {
         const newTheme = $(this).val();
         $('#theme-stylesheet').attr('href', newTheme + '?v=' + Date.now());
     });
+
+    $('#signatureText').on('input', function() {
+        enforceSignatureLineLimit(this);
+    });
 });
+
+function enforceSignatureLineLimit(textarea) {
+    const value = textarea.value || '';
+    const lines = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    if (lines.length > 4) {
+        textarea.value = lines.slice(0, 4).join('\n');
+    }
+}
 
 function loadSettings() {
     $.get('/api/user/settings')
@@ -322,6 +340,7 @@ function loadSettings() {
             if (data.default_echo_list) $('#defaultEchoList').val(data.default_echo_list);
             if (data.font_family) $('#fontFamily').val(data.font_family);
             if (data.font_size) $('#fontSize').val(data.font_size);
+            if (data.signature_text !== undefined) $('#signatureText').val(data.signature_text);
 
             // Threading preferences
             $('#threadedView').prop('checked', data.threaded_view === true);
@@ -361,6 +380,7 @@ function saveSettings() {
         default_echo_list: $('#defaultEchoList').val(),
         font_family: $('#fontFamily').val(),
         font_size: parseInt($('#fontSize').val()),
+        signature_text: $('#signatureText').val(),
         threaded_view: $('#threadedView').is(':checked'),
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),

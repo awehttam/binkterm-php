@@ -76,6 +76,64 @@ class MailUtils
     }
 
     /**
+     * Fetch the user's signature from settings (max 4 lines).
+     */
+    public static function getUserSignature(string $apiBase, string $session): string
+    {
+        $response = TelnetUtils::apiRequest($apiBase, 'GET', '/api/user/settings', null, $session);
+        if (($response['status'] ?? 0) !== 200) {
+            return '';
+        }
+
+        $settings = $response['data']['settings'] ?? $response['data'] ?? [];
+        if (!is_array($settings)) {
+            return '';
+        }
+
+        $signature = trim((string)($settings['signature_text'] ?? ''));
+        if ($signature === '') {
+            return '';
+        }
+
+        $signature = str_replace(["\r\n", "\r"], "\n", $signature);
+        $lines = preg_split('/\n/', $signature) ?: [];
+        $lines = array_slice($lines, 0, 4);
+        $lines = array_map('rtrim', $lines);
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Append signature to composed text if not already present.
+     */
+    public static function appendSignatureToCompose(string $text, string $signature): string
+    {
+        if ($signature === '') {
+            return $text;
+        }
+
+        $sigLines = preg_split('/\r\n|\r|\n/', $signature) ?: [];
+        $sigLines = array_map('rtrim', $sigLines);
+        if ($sigLines === []) {
+            return $text;
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', rtrim($text, "\r\n")) ?: [];
+        while (!empty($lines) && trim((string)end($lines)) === '') {
+            array_pop($lines);
+        }
+
+        $tail = array_slice($lines, -count($sigLines));
+        $alreadyHasSignature = ($tail === $sigLines);
+        if ($alreadyHasSignature) {
+            return $text;
+        }
+
+        $base = rtrim($text);
+        return $base === '' ? $signature : $base . "\n\n" . $signature;
+    }
+
+    /**
      * Calculate messages per page based on terminal height
      *
      * Accounts for headers, prompts, and UI elements to determine

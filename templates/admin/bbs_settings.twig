@@ -165,6 +165,22 @@
                 </div>
             </div>
         </div>
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">Taglines</h6>
+                </div>
+                <div class="card-body">
+                    <div id="bbsTaglinesAlert"></div>
+                    <div class="mb-3">
+                        <label class="form-label" for="bbsTaglinesText">Taglines (one per line)</label>
+                        <textarea class="form-control" id="bbsTaglinesText" rows="8" placeholder="One tagline per line."></textarea>
+                        <small class="text-muted">These appear as selectable taglines when users compose messages.</small>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsTaglines()">Save Taglines</button>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
@@ -178,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadBbsSettings();
     loadBbsSystem();
     loadAdminUsers('bbsSystemSysop');
+    loadBbsTaglines();
 });
 
 function loadBbsSettings() {
@@ -408,6 +425,39 @@ function saveBbsCredits() {
         });
 }
 
+function loadBbsTaglines() {
+    fetch('/admin/api/taglines')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load taglines');
+            }
+            document.getElementById('bbsTaglinesText').value = data.taglines || '';
+        })
+        .catch(error => {
+            showBbsTaglinesAlert(error.message || 'Failed to load taglines', 'danger');
+        });
+}
+
+function saveBbsTaglines() {
+    const text = document.getElementById('bbsTaglinesText').value || '';
+    fetch('/admin/api/taglines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taglines: text })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save taglines');
+        }
+        showBbsTaglinesAlert('Taglines saved successfully.', 'success');
+    })
+    .catch(error => {
+        showBbsTaglinesAlert(error.message || 'Failed to save taglines', 'danger');
+    });
+}
+
 function showBbsSettingsAlert(message, type) {
     const container = document.getElementById('bbsSettingsAlert');
     container.innerHTML = `
@@ -420,6 +470,16 @@ function showBbsSettingsAlert(message, type) {
 
 function showBbsCreditsAlert(message, type) {
     const container = document.getElementById('bbsCreditsAlert');
+    container.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showBbsTaglinesAlert(message, type) {
+    const container = document.getElementById('bbsTaglinesAlert');
     container.innerHTML = `
         <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             ${message}

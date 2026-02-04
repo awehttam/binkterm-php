@@ -646,6 +646,46 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::get('/taglines', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->getTaglines();
+                echo json_encode(['success' => true, 'taglines' => $result['text'] ?? '']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/taglines', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $text = (string)($payload['taglines'] ?? '');
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->saveTaglines($text);
+                echo json_encode(['success' => true, 'taglines' => $result['text'] ?? '']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
         SimpleRouter::get('/bbs-system', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();

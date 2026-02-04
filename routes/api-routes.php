@@ -2548,7 +2548,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['message_text'],
                     null, // fromName
                     $input['reply_to_id'] ?? null,
-                    $crashmailFlag
+                    $crashmailFlag,
+                    $input['tagline'] ?? null
                 );
             } elseif ($type === 'echomail') {
                 $foo=explode("@", $input['echoarea']);
@@ -2562,7 +2563,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['to_name'],
                     $input['subject'],
                     $input['message_text'],
-                    $input['reply_to_id']
+                    $input['reply_to_id'],
+                    $input['tagline'] ?? null
                 );
             } else {
                 http_response_code(400);
@@ -3721,6 +3723,31 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $handler = new MessageHandler();
             $shares = $handler->getUserShares($userId);
             echo json_encode(['success' => true, 'shares' => $shares]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::get('/taglines', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->getTaglines();
+            $raw = (string)($result['text'] ?? '');
+            $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+            $taglines = [];
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if ($trimmed === '') {
+                    continue;
+                }
+                $taglines[] = $trimmed;
+            }
+            echo json_encode(['success' => true, 'taglines' => $taglines]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);

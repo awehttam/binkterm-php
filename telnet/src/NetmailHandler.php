@@ -188,6 +188,8 @@ class NetmailHandler
                 $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor);
             }
         }
+        $signature = MailUtils::getUserSignature($this->apiBase, $session);
+        $initialText = MailUtils::appendSignatureToCompose($initialText, $signature);
 
         $messageText = $this->server->readMultiline($conn, $state, $cols, $initialText);
         if ($messageText === '') {

@@ -780,6 +780,39 @@ SimpleRouter::get('/compose/{type}', function($type) {
     // Add a safe processed version for template display
     $templateVars['to_name_value'] = $templateVars['reply_to_name'] ?: (($type === 'echomail') ? 'All' : '');
 
+    // Apply user signature to compose text (server-side to avoid late AJAX overwrites)
+    try {
+        $handler = new MessageHandler();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if ($userId) {
+            $settings = $handler->getUserSettings($userId);
+            $signatureText = trim((string)($settings['signature_text'] ?? ''));
+            if ($signatureText !== '') {
+                $sigLines = preg_split('/\r\n|\r|\n/', $signatureText) ?: [];
+                $sigLines = array_slice($sigLines, 0, 4);
+                $sigLines = array_map('rtrim', $sigLines);
+                $signaturePlain = implode("\n", $sigLines);
+
+                $replyText = (string)($templateVars['reply_text'] ?? '');
+                $replyLines = preg_split('/\r\n|\r|\n/', rtrim($replyText, "\r\n")) ?: [];
+                while (!empty($replyLines) && trim((string)end($replyLines)) === '') {
+                    array_pop($replyLines);
+                }
+                $tail = array_slice($replyLines, -count($sigLines));
+                $alreadyHasSignature = ($sigLines !== [] && $tail === $sigLines);
+
+                if (!$alreadyHasSignature) {
+                    $base = rtrim($replyText);
+                    $templateVars['reply_text'] = $base === ''
+                        ? "\n\n" . $signaturePlain
+                        : $base . "\n\n" . $signaturePlain;
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        // Ignore signature errors to keep compose functional
+    }
+
     $template = new Template();
     $template->renderResponse('compose.twig', $templateVars);
 });
