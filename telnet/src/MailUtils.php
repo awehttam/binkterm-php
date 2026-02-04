@@ -208,4 +208,21 @@ class MailUtils
             return $line !== '';
         }));
     }
+
+    /**
+     * Fetch the user's default tagline selection.
+     *
+     * @return string Default tagline or empty string
+     */
+    public static function getUserDefaultTagline(string $apiBase, string $session): string
+    {
+        $response = TelnetUtils::apiRequest($apiBase, 'GET', '/api/user/settings', null, $session);
+        if (($response['status'] ?? 0) !== 200) {
+            return '';
+        }
+
+        $settings = $response['data']['settings'] ?? [];
+        $defaultTagline = trim((string)($settings['default_tagline'] ?? ''));
+        return $defaultTagline;
+    }
 }

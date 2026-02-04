@@ -13,6 +13,7 @@ This upgrade note covers changes introduced in version 1.7.7.
 - WebDoors documentation and configuration cleanup.
 - README/FAQ updates and documentation reorganization.
 - User signatures (per-user, compose-only) and sysop-managed taglines for outbound messages.
+- User-selectable default tagline preference for message composition (web + telnet).
 
 ## Post upgrade steps
 
@@ -67,8 +68,13 @@ Run the standard upgrade process (`scripts/setup.php`) to apply database changes
 
 - Taglines are stored in `config/taglines.txt`, one per line.
 - Edit taglines from **Admin → BBS Settings → Taglines** (uses the admin daemon).
-- Taglines are selectable in the web compose screen; a random tagline is preselected by default.
+- Taglines are selectable in the web compose screen; users can optionally set a default tagline preference.
 - Outbound packets place the tagline between the tearline and origin line (FidoNet-style).
+
+### Default Tagline Preference
+
+- Users can pick a default tagline in **Settings** (defaults to none).
+- Compose screens (web and telnet) will preselect the user's default tagline when available.
 
 ### Admin Daemon Note
 

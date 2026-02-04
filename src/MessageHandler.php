@@ -1506,8 +1506,8 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format)
-                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US')
+                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format, default_tagline)
+                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US', NULL)
                 ON CONFLICT (user_id) DO UPDATE SET
                     messages_per_page = COALESCE(user_settings.messages_per_page, 25),
                     threaded_view = COALESCE(user_settings.threaded_view, FALSE),
@@ -1515,7 +1515,8 @@ class MessageHandler
                     default_sort = COALESCE(user_settings.default_sort, 'date_desc'),
                     font_family = COALESCE(user_settings.font_family, 'Courier New, Monaco, Consolas, monospace'),
                     font_size = COALESCE(user_settings.font_size, 16),
-                    date_format = COALESCE(user_settings.date_format, 'en-US')
+                    date_format = COALESCE(user_settings.date_format, 'en-US'),
+                    default_tagline = COALESCE(user_settings.default_tagline, NULL)
             ");
             $insertStmt->execute([$userId]);
 
@@ -1527,7 +1528,8 @@ class MessageHandler
                 'font_family' => 'Courier New, Monaco, Consolas, monospace',
                 'font_size' => 16,
                 'date_format' => 'en-US',
-                'signature_text' => ''
+                'signature_text' => '',
+                'default_tagline' => ''
             ];
         }
 
@@ -1558,11 +1560,13 @@ class MessageHandler
             'auto_refresh' => 'BOOLEAN',
             'quote_coloring' => 'BOOLEAN',
             'date_format' => 'STRING',
-            'signature_text' => 'SIGNATURE'
+            'signature_text' => 'SIGNATURE',
+            'default_tagline' => 'TAGLINE'
         ];
 
         $updates = [];
         $params = [];
+        $taglines = null;
 
         foreach ($settings as $key => $value) {
             if (!isset($allowedSettings[$key])) {
@@ -1586,6 +1590,18 @@ class MessageHandler
                     $lines = array_map('rtrim', $lines);
                     $params[] = implode("\n", $lines);
                     break;
+                case 'TAGLINE':
+                    $tagline = trim((string)$value);
+                    $tagline = str_replace(["\r\n", "\r", "\n"], ' ', $tagline);
+                    if ($tagline === '') {
+                        $params[] = null;
+                        break;
+                    }
+                    if ($taglines === null) {
+                        $taglines = $this->getTaglinesList();
+                    }
+                    $params[] = in_array($tagline, $taglines, true) ? $tagline : null;
+                    break;
                 default:
                     $params[] = $value;
                     break;
@@ -1602,6 +1618,33 @@ class MessageHandler
         $stmt = $this->db->prepare($sql);
         
         return $stmt->execute($params);
+    }
+
+    /**
+     * Load configured taglines from disk.
+     *
+     * @return array
+     */
+    private function getTaglinesList(): array
+    {
+        $path = __DIR__ . '/../config/taglines.txt';
+        if (!file_exists($path)) {
+            return [];
+        }
+        $raw = file_get_contents($path);
+        if ($raw === false) {
+            return [];
+        }
+        $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+        $taglines = [];
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                continue;
+            }
+            $taglines[] = $trimmed;
+        }
+        return $taglines;
     }
 
     /**

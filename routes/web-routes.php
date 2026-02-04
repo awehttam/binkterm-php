@@ -472,10 +472,39 @@ SimpleRouter::get('/settings', function() {
         $sysopName = 'Unknown';
     }
 
+    $taglines = [];
+    $defaultTagline = '';
+    try {
+        $taglinesPath = __DIR__ . '/../config/taglines.txt';
+        $raw = file_exists($taglinesPath) ? file_get_contents($taglinesPath) : '';
+        $lines = preg_split('/\r\n|\r|\n/', (string)$raw) ?: [];
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed !== '') {
+                $taglines[] = $trimmed;
+            }
+        }
+    } catch (\Exception $e) {
+        $taglines = [];
+    }
+
+    try {
+        $handler = new MessageHandler();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        if ($userId) {
+            $settings = $handler->getUserSettings($userId);
+            $defaultTagline = (string)($settings['default_tagline'] ?? '');
+        }
+    } catch (\Exception $e) {
+        $defaultTagline = '';
+    }
+
     $templateVars = [
         'system_name_display' => $systemName,
         'system_address_display' => $systemAddress,
-        'system_sysop' => $sysopName
+        'system_sysop' => $sysopName,
+        'taglines' => $taglines,
+        'default_tagline' => $defaultTagline
     ];
 
     $template = new Template();
@@ -672,6 +701,22 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $currencySymbol = \BinktermPHP\UserCredit::getCurrencySymbol();
     $creditsEnabled = \BinktermPHP\UserCredit::isEnabled();
 
+    $taglines = [];
+    $defaultTagline = '';
+    try {
+        $taglinesPath = __DIR__ . '/../config/taglines.txt';
+        $raw = file_exists($taglinesPath) ? file_get_contents($taglinesPath) : '';
+        $lines = preg_split('/\r\n|\r|\n/', (string)$raw) ?: [];
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed !== '') {
+                $taglines[] = $trimmed;
+            }
+        }
+    } catch (\Exception $e) {
+        $taglines = [];
+    }
+
     $templateVars = [
         'type' => $type,
         'current_user' => $user,
@@ -682,7 +727,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'netmail_cost' => $netmailCost,
         'crashmail_cost' => $crashmailCost,
         'currency_symbol' => $currencySymbol,
-        'credits_enabled' => $creditsEnabled
+        'credits_enabled' => $creditsEnabled,
+        'taglines' => $taglines,
+        'default_tagline' => $defaultTagline
     ];
 
     if ($replyId) {
@@ -787,6 +834,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         if ($userId) {
             $settings = $handler->getUserSettings($userId);
             $signatureText = trim((string)($settings['signature_text'] ?? ''));
+            $defaultTagline = (string)($settings['default_tagline'] ?? '');
+            $templateVars['default_tagline'] = $defaultTagline;
             if ($signatureText !== '') {
                 $sigLines = preg_split('/\r\n|\r|\n/', $signatureText) ?: [];
                 $sigLines = array_slice($sigLines, 0, 4);

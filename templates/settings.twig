@@ -117,6 +117,17 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="defaultTagline" class="form-label">Default Tagline</label>
+                        <select class="form-select" id="defaultTagline" name="default_tagline">
+                            <option value="">No tagline</option>
+                            {% for tagline in taglines %}
+                                <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Used as the default tagline when composing messages.</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Threading Preferences</label>
                         
                         <div class="form-check mb-2">
@@ -329,7 +340,7 @@ function enforceSignatureLineLimit(textarea) {
 }
 
 function loadSettings() {
-    $.get('/api/user/settings')
+    return $.get('/api/user/settings')
         .done(function(response) {
             const data = response.success ? response.settings : response;
 
@@ -341,6 +352,10 @@ function loadSettings() {
             if (data.font_family) $('#fontFamily').val(data.font_family);
             if (data.font_size) $('#fontSize').val(data.font_size);
             if (data.signature_text !== undefined) $('#signatureText').val(data.signature_text);
+            if (data.default_tagline !== undefined) $('#defaultTagline').val(data.default_tagline || '');
+            if (typeof window.userSettings !== 'undefined') {
+                Object.assign(window.userSettings, data);
+            }
 
             // Threading preferences
             $('#threadedView').prop('checked', data.threaded_view === true);
@@ -381,6 +396,7 @@ function saveSettings() {
         font_family: $('#fontFamily').val(),
         font_size: parseInt($('#fontSize').val()),
         signature_text: $('#signatureText').val(),
+        default_tagline: $('#defaultTagline').val(),
         threaded_view: $('#threadedView').is(':checked'),
         netmail_threaded_view: $('#netmailThreadedView').is(':checked'),
         quote_coloring: $('#quoteColoring').is(':checked'),
@@ -428,6 +444,16 @@ function saveSettings() {
             `);
         }
     });
+}
+
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function showActiveSessions() {
