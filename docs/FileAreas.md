@@ -56,7 +56,7 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
         "name": "Import FidoNet Nodelist",
         "domain": "fidonet",
         "pattern": "/^NODELIST\\.(Z|A|L|R|J)[0-9]{2}$/i",
-        "script": "%basedir%/scripts/import_nodelist.php %filepath% %domain% --force",
+        "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force",
         "success_action": "delete",
         "fail_action": "keep+notify",
         "enabled": true,
