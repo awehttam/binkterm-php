@@ -47,7 +47,7 @@ class EchomailHandler
     public function showEchoareas($conn, array &$state, string $session): void
     {
         $page = 1;
-        $perPage = TelnetUtils::getMessagesPerPage($state);
+        $perPage = MailUtils::getMessagesPerPage($state);
 
         while (true) {
             $response = TelnetUtils::apiRequest(
@@ -132,7 +132,7 @@ class EchomailHandler
     {
         $page = 1;
         $area = $tag . '@' . $domain;
-        $perPage = TelnetUtils::getMessagesPerPage($state);
+        $perPage = MailUtils::getMessagesPerPage($state);
 
         while (true) {
             $response = TelnetUtils::apiRequest(
@@ -219,7 +219,7 @@ class EchomailHandler
         TelnetUtils::writeLine($conn, '');
 
         $toNameDefault = $reply['from_name'] ?? 'All';
-        $subjectDefault = $reply ? 'Re: ' . TelnetUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        $subjectDefault = $reply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
 
         $toNamePrompt = TelnetUtils::colorize('To Name: ', TelnetUtils::ANSI_CYAN);
         if ($toNameDefault) {
@@ -256,7 +256,7 @@ class EchomailHandler
             $originalBody = $reply['message_text'] ?? '';
             $originalAuthor = $reply['from_name'] ?? 'Unknown';
             if ($originalBody !== '') {
-                $initialText = TelnetUtils::quoteMessage($originalBody, $originalAuthor);
+                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor);
             }
         }
 
@@ -280,7 +280,7 @@ class EchomailHandler
 
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize('Posting echomail...', TelnetUtils::ANSI_CYAN));
-        $result = TelnetUtils::sendMessage($this->apiBase, $session, $payload);
+        $result = MailUtils::sendMessage($this->apiBase, $session, $payload);
         if ($result['success']) {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize('✓ Echomail posted successfully!', TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {

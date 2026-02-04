@@ -6,7 +6,8 @@ namespace BinktermPHP\TelnetServer;
  * TelnetUtils - Shared utility functions for telnet daemon
  *
  * This class provides static utility methods used across multiple telnet handler classes.
- * Methods handle message sending, text formatting, quoting, and terminal output.
+ * Methods handle API requests, text formatting, terminal output, and ANSI screen display.
+ * Mail-specific utilities have been moved to MailUtils.
  */
 class TelnetUtils
 {
@@ -20,35 +21,6 @@ class TelnetUtils
     public const ANSI_YELLOW = "\033[33m";
     public const ANSI_MAGENTA = "\033[35m";
     public const ANSI_RED = "\033[31m";
-    /**
-     * Send a netmail or echomail message via API
-     *
-     * @param string $apiBase Base URL for API requests
-     * @param string $session Session token for authentication
-     * @param array $payload Message data to send (to, from, subject, body, etc.)
-     * @return array ['success' => bool, 'error' => string|null]
-     */
-    public static function sendMessage(string $apiBase, string $session, array $payload): array
-    {
-        $result = self::apiRequest($apiBase, 'POST', '/api/messages/send', $payload, $session);
-        $success = ($result['status'] ?? 0) === 200 && !empty($result['data']['success']);
-        $error = null;
-
-        if (!$success) {
-            // Try to get error message from API response
-            if (!empty($result['data']['error'])) {
-                $error = $result['data']['error'];
-            } elseif (!empty($result['data']['message'])) {
-                $error = $result['data']['message'];
-            } elseif (!empty($result['error'])) {
-                $error = 'Network error: ' . $result['error'];
-            } else {
-                $error = 'HTTP ' . ($result['status'] ?? 'unknown');
-            }
-        }
-
-        return ['success' => $success, 'error' => $error];
-    }
 
     /**
      * Make an API request to the BBS
@@ -128,65 +100,6 @@ class TelnetUtils
             'data' => [],
             'error' => 'Max retries exceeded'
         ];
-    }
-
-    /**
-     * Quote message text for replies
-     *
-     * Formats the original message body with quote markers (>) and attribution line.
-     *
-     * @param string $body Original message body to quote
-     * @param string $author Author of the original message
-     * @return string Quoted message text with attribution
-     */
-    public static function quoteMessage(string $body, string $author): string
-    {
-        $lines = explode("\n", $body);
-        $quoted = [];
-        $quoted[] = '';
-        $quoted[] = "On " . date('Y-m-d') . ", {$author} wrote:";
-        $quoted[] = '';
-        foreach ($lines as $line) {
-            $quoted[] = '> ' . $line;
-        }
-        $quoted[] = '';
-        $quoted[] = '';
-        return implode("\n", $quoted);
-    }
-
-    /**
-     * Normalize subject line by removing RE: prefixes
-     *
-     * @param string $subject Subject line to normalize
-     * @return string Subject with RE: prefix removed
-     */
-    public static function normalizeSubject(string $subject): string
-    {
-        return preg_replace('/^Re:\\s*/i', '', trim($subject));
-    }
-
-    /**
-     * Calculate messages per page based on terminal height
-     *
-     * Accounts for headers, prompts, and UI elements to determine
-     * how many messages can fit on screen at once.
-     *
-     * @param array $state Terminal state containing 'rows' key
-     * @return int Number of messages that fit per page (minimum 5)
-     */
-    public static function getMessagesPerPage(array &$state): int
-    {
-        $rows = $state['rows'] ?? 24;
-        // Be very conservative: header (1), messages (N), blank (1), prompt (1-2), input (1), safety (2) = N + 7
-        // So N = rows - 7
-        $perPage = max(5, $rows - 7);
-
-        // Log in debug mode
-        if (!empty($GLOBALS['telnet_debug'])) {
-            echo "[" . date('Y-m-d H:i:s') . "] List view: Screen rows={$rows}, messages per page={$perPage}\n";
-        }
-
-        return $perPage;
     }
 
     /**
@@ -343,5 +256,21 @@ class TelnetUtils
         }
 
         return $char;
+    }
+
+    public static function showScreenIfExists(string $screenFile, TelnetServer &$server, $conn)
+    {
+        $screenFile = __DIR__ . '/../screens/'.$screenFile;
+
+        if (is_file($screenFile)) {
+            $content = @file_get_contents($screenFile);
+            if ($content !== false && $content !== '') {
+                $content = str_replace("\r\n", "\n", $content);
+                $content = str_replace("\n", "\r\n", $content);
+                $server->safeWrite($conn, $content . "\r\n");
+                return true;
+            }
+        }
+        return false;
     }
 }

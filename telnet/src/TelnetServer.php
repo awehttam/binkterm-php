@@ -440,7 +440,7 @@ class TelnetServer
         $shoutboxHandler->show($conn, $state, $session, 5);
 
         // Get message counts once per session
-        $messageCounts = $this->getMessageCounts($session);
+        $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
 
         // Main menu loop
         while (true) {
@@ -549,17 +549,19 @@ class TelnetServer
             if ($choice === '1') {
                 $netmailHandler->show($conn, $state, $session);
                 // Refresh counts after viewing/composing messages
-                $messageCounts = $this->getMessageCounts($session);
+                $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
             } elseif ($choice === '2') {
                 $echomailHandler->showEchoareas($conn, $state, $session);
                 // Refresh counts after viewing/composing messages
-                $messageCounts = $this->getMessageCounts($session);
+                $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
             } elseif (!empty($shoutboxOption) && $choice === $shoutboxOption) {
                 $shoutboxHandler->show($conn, $state, $session, 20);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $pollsHandler->show($conn, $state, $session);
             } elseif ($choice === $quitOption || strtolower($choice) === 'q') {
                 // Display goodbye message
+                TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
+
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize('Thank you for visiting, have a great day!', self::ANSI_CYAN . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
@@ -615,7 +617,7 @@ class TelnetServer
     /**
      * Safe write with error suppression
      */
-    private function safeWrite($conn, string $data): void
+    public function safeWrite($conn, string $data): void
     {
         if (!is_resource($conn)) {
             return;
@@ -669,15 +671,13 @@ class TelnetServer
      */
     private function showLoginBanner($conn): void
     {
-        $loginAnsiPath = __DIR__ . '/../screens/login.ans';
-        if (is_file($loginAnsiPath)) {
-            $content = @file_get_contents($loginAnsiPath);
-            if ($content !== false && $content !== '') {
-                $content = str_replace("\r\n", "\n", $content);
-                $content = str_replace("\n", "\r\n", $content);
-                $this->safeWrite($conn, $content . "\r\n");
-                return;
-            }
+        // Print service name before showing login screen
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize('BinktermPHP Telnet Service', self::ANSI_MAGENTA . self::ANSI_BOLD));
+        $this->writeLine($conn, '');
+
+        if(TelnetUtils::showScreenIfExists("login.ans", $this, $conn)){
+            return;
         }
 
         $config = BinkpConfig::getInstance();
@@ -689,7 +689,6 @@ class TelnetServer
         }
 
         $rawLines = [
-            ['text' => 'BinktermPHP Telnet Service', 'color' => self::ANSI_MAGENTA . self::ANSI_BOLD, 'center' => true],
             ['text' => '', 'color' => self::ANSI_DIM, 'center' => false],
             ['text' => 'System: ' . $config->getSystemName(), 'color' => self::ANSI_CYAN, 'center' => false],
             ['text' => 'Location: ' . $config->getSystemLocation(), 'color' => self::ANSI_DIM, 'center' => false],
@@ -1221,29 +1220,6 @@ class TelnetServer
     }
 
     // ===== API REQUEST METHOD =====
-
-    /**
-     * Get message counts for netmail and echomail
-     */
-    private function getMessageCounts(string $session): array
-    {
-        $counts = ['netmail' => 0, 'echomail' => 0];
-
-        $netmailResponse = $this->apiRequest('GET', '/api/messages/netmail?page=1', null, $session);
-        if (!empty($netmailResponse['data']['pagination']['total'])) {
-            $counts['netmail'] = (int)$netmailResponse['data']['pagination']['total'];
-        }
-
-        $areasResponse = $this->apiRequest('GET', '/api/echoareas?subscribed_only=true', null, $session);
-        $areas = $areasResponse['data']['echoareas'] ?? [];
-        $totalEcho = 0;
-        foreach ($areas as $area) {
-            $totalEcho += (int)($area['message_count'] ?? 0);
-        }
-        $counts['echomail'] = $totalEcho;
-
-        return $counts;
-    }
 
     // ===== DAEMON METHODS =====
 

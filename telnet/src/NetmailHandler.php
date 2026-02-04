@@ -49,7 +49,7 @@ class NetmailHandler
     public function show($conn, array &$state, string $session): void
     {
         $page = 1;
-        $perPage = TelnetUtils::getMessagesPerPage($state);
+        $perPage = MailUtils::getMessagesPerPage($state);
 
         while (true) {
             $response = TelnetUtils::apiRequest(
@@ -136,7 +136,7 @@ class NetmailHandler
 
         $toNameDefault = $reply['replyto_name'] ?? $reply['from_name'] ?? '';
         $toAddressDefault = $reply['replyto_address'] ?? $reply['from_address'] ?? '';
-        $subjectDefault = $reply ? 'Re: ' . TelnetUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
+        $subjectDefault = $reply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
 
         $toNamePrompt = TelnetUtils::colorize('To Name: ', TelnetUtils::ANSI_CYAN);
         if ($toNameDefault) {
@@ -185,7 +185,7 @@ class NetmailHandler
             $originalBody = $reply['message_text'] ?? '';
             $originalAuthor = $reply['from_name'] ?? 'Unknown';
             if ($originalBody !== '') {
-                $initialText = TelnetUtils::quoteMessage($originalBody, $originalAuthor);
+                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor);
             }
         }
 
@@ -209,7 +209,7 @@ class NetmailHandler
 
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize('Sending netmail...', TelnetUtils::ANSI_CYAN));
-        $result = TelnetUtils::sendMessage($this->apiBase, $session, $payload);
+        $result = MailUtils::sendMessage($this->apiBase, $session, $payload);
         if ($result['success']) {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize('✓ Netmail sent successfully!', TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {
