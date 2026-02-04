@@ -804,8 +804,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 if (!$alreadyHasSignature) {
                     $base = rtrim($replyText);
                     $templateVars['reply_text'] = $base === ''
-                        ? "\n\n" . $signaturePlain
-                        : $base . "\n\n" . $signaturePlain;
+                        ? "\n\n\n" . $signaturePlain
+                        : $base . "\n\n\n" . $signaturePlain;
                 }
             }
         }

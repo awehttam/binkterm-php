@@ -6,7 +6,7 @@ function parseNetmailMessage(messageText, storedKludgeLines = null) {
         const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
         return {
             kludgeLines: kludgeLines,
-            messageBody: stripTrailingTagline(messageText.trim())
+            messageBody: messageText.trim()
         };
     }
     
@@ -41,7 +41,7 @@ function parseNetmailMessage(messageText, storedKludgeLines = null) {
     
     return {
         kludgeLines: kludgeLines,
-        messageBody: stripTrailingTagline(messageLines.join('\n').trim())
+        messageBody: messageLines.join('\n').trim()
     };
 }
 
@@ -51,7 +51,7 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
         const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
         return {
             kludgeLines: kludgeLines,
-            messageBody: stripTrailingTagline(messageText.replace(/\s+$/g, ''))
+            messageBody: messageText.replace(/\s+$/g, '')
         };
     }
     
@@ -87,25 +87,8 @@ function parseEchomailMessage(messageText, storedKludgeLines = null) {
     
     return {
         kludgeLines: kludgeLines,
-        messageBody: stripTrailingTagline(messageLines.join('\n').replace(/\s+$/g, ''))
+        messageBody: messageLines.join('\n').replace(/\s+$/g, '')
     };
-}
-
-function stripTrailingTagline(messageText) {
-    const normalized = messageText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const lines = normalized.split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-        const current = lines[i];
-        if (current.trim() === '') {
-            lines.splice(i, 1);
-            continue;
-        }
-        if (current.trim().startsWith('... ')) {
-            lines.splice(i, 1);
-        }
-        break;
-    }
-    return lines.join('\n');
 }
 
 // Smart text processing for mobile-friendly rendering

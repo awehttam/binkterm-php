@@ -2,6 +2,7 @@ composer.lock
 config/*.json
 !config/*.example
 config/*.json.*
+config/taglines.txt
 config/welcome.txt
 config/terminal_welcome.txt
 config/systemnews.twig

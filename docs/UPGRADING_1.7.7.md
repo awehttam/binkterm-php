@@ -11,6 +11,7 @@ This upgrade note covers changes introduced in version 1.7.7.
 - Telnet subsystem refactor and updates (including screenshots and goodbye screen).
 - WebDoors documentation and configuration cleanup.
 - README/FAQ updates and documentation reorganization.
+- User signatures (per-user, compose-only) and sysop-managed taglines for outbound messages.
 
 ## File Area Storage Directory Naming Change
 
@@ -41,3 +42,31 @@ Move the files, then verify permissions remain correct for your web server user.
 
 File area directories should be owned by the web server user (often `www-data` on Linux).
 Ensure ownership/permissions match your web server so uploads and downloads continue to work.
+
+## Signatures and Taglines
+
+This release adds per-user signatures and sysop-managed taglines for outbound netmail and echomail.
+
+### Database Migration
+
+Run the migration to add the signature field to user settings:
+
+- `database/migrations/v1.9.2_add_user_signature_tagline.sql`
+
+### User Signatures (Compose-Only)
+
+- Users configure their signature in **Settings**.
+- Limit: 4 lines.
+- Signatures are inserted into the compose window (web + telnet). They are **not** injected at send time.
+- If users compose via external tools, the signature must be included in the message body explicitly.
+
+### Taglines (Sysop-Managed)
+
+- Taglines are stored in `config/taglines.txt`, one per line.
+- Edit taglines from **Admin → BBS Settings → Taglines** (uses the admin daemon).
+- Taglines are selectable in the web compose screen; a random tagline is preselected by default.
+- Outbound packets place the tagline between the tearline and origin line (FidoNet-style).
+
+### Admin Daemon Note
+
+The taglines editor uses new admin daemon commands. Restart the admin daemon after deploying.
