@@ -133,7 +133,7 @@ class FileActionHandler
         $message .= "Action: " . ($context['action'] ?? '') . "
 ";
 
-        return SysopNotificationService::sendNoticeToSysop($subject, $message, 'FileAreaRules');
+        return SysopNotificationService::sendNoticeToSysop($subject, $message);
     }
 
     /**
