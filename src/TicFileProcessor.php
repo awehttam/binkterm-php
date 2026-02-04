@@ -4,6 +4,7 @@ namespace BinktermPHP;
 
 use PDO;
 use BinktermPHP\FileArea\FileAreaRuleProcessor;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 
 /**
  * TicFileProcessor - Process incoming TIC files from Fidonet
@@ -36,12 +37,15 @@ class TicFileProcessor
             // Parse TIC file
             $ticData = $this->parseTicFile($ticPath);
 
+            // Determine domain for this TIC (based on From address)
+            $domain = $this->getDomainFromTicData($ticData);
+
             // Check if we have this file area, auto-create if not
-            $fileArea = $this->getFileArea($ticData['Area']);
+            $fileArea = $this->getFileArea($ticData['Area'], $domain);
             if (!$fileArea) {
                 // Auto-create file area from TIC
-                $fileAreaId = $this->autoCreateFileArea($ticData['Area'], $ticData);
-                $fileArea = $this->getFileArea($ticData['Area']);
+                $fileAreaId = $this->autoCreateFileArea($ticData['Area'], $ticData, $domain);
+                $fileArea = $this->getFileArea($ticData['Area'], $domain);
 
                 if (!$fileArea) {
                     return [
@@ -250,15 +254,25 @@ class TicFileProcessor
      * @param string $tag File area tag
      * @return array|null File area record or null
      */
-    protected function getFileArea(string $tag): ?array
+    protected function getFileArea(string $tag, ?string $domain = null): ?array
     {
-        $stmt = $this->db->prepare("
-            SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash
-            FROM file_areas
-            WHERE tag = ? AND is_active = TRUE
-            LIMIT 1
-        ");
-        $stmt->execute([$tag]);
+        if ($domain === null || $domain === '') {
+            $stmt = $this->db->prepare("
+                SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash
+                FROM file_areas
+                WHERE tag = ? AND is_active = TRUE
+                LIMIT 1
+            ");
+            $stmt->execute([$tag]);
+        } else {
+            $stmt = $this->db->prepare("
+                SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash
+                FROM file_areas
+                WHERE tag = ? AND domain = ? AND is_active = TRUE
+                LIMIT 1
+            ");
+            $stmt->execute([$tag, $domain]);
+        }
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $result ?: null;
@@ -271,7 +285,7 @@ class TicFileProcessor
      * @param array $ticData TIC data for generating description
      * @return int File area ID
      */
-    protected function autoCreateFileArea(string $areaTag, array $ticData): int
+    protected function autoCreateFileArea(string $areaTag, array $ticData, ?string $domain = null): int
     {
         // Generate description from TIC data if available
         $description = "Auto-created from TIC file";
@@ -279,17 +293,7 @@ class TicFileProcessor
             $description = "Auto-created: " . $ticData['Desc'];
         }
 
-        // Detect domain from sender address if available
-        $domain = 'fidonet';
-        if (isset($ticData['From'])) {
-            // Try to extract domain from address (e.g., "21:1/100" = fsxnet zone 21)
-            if (preg_match('/^21:/', $ticData['From'])) {
-                $domain = 'fsxnet';
-            } elseif (preg_match('/^46:/', $ticData['From'])) {
-                $domain = 'agoranet';
-            }
-            // Default to fidonet for zone 1-6
-        }
+        $domain = $domain ?: $this->getDomainFromTicData($ticData);
 
         // Create file area with sensible defaults
         $stmt = $this->db->prepare("
@@ -308,6 +312,25 @@ class TicFileProcessor
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $result['id'];
+    }
+
+    /**
+     * Map TIC From address to domain using BinkpConfig.
+     *
+     * @param array $ticData
+     * @return string
+     */
+    protected function getDomainFromTicData(array $ticData): string
+    {
+        $from = $ticData['From'] ?? '';
+        if ($from === '') {
+            return 'unknownnet';
+        }
+
+        $binkpConfig = BinkpConfig::getInstance();
+        $domain = $binkpConfig->getDomainByAddress($from);
+
+        return $domain ?: 'unknownnet';
     }
 
     /**
