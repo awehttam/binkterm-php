@@ -9,9 +9,14 @@ This upgrade note covers changes introduced in version 1.7.7.
 - Virus scanner improvements.
 - Nodelist importer fixes (Zone/Net parsing) and archive cleanup.
 - Telnet subsystem refactor and updates (including screenshots and goodbye screen).
+- Telnet UX updates: hotkey-driven menus, list navigation/status bars, new Who's Online screen, and shoutbox display changes.
 - WebDoors documentation and configuration cleanup.
 - README/FAQ updates and documentation reorganization.
 - User signatures (per-user, compose-only) and sysop-managed taglines for outbound messages.
+
+## Post upgrade steps
+
+If upgrading from git, be sure to run setup.php after the upgrade.  This is to ensure all migrations have been applied.  If you upgraded through the installer, this step should have been performed for you.
 
 ## File Area Storage Directory Naming Change
 
@@ -49,9 +54,7 @@ This release adds per-user signatures and sysop-managed taglines for outbound ne
 
 ### Database Migration
 
-Run the migration to add the signature field to user settings:
-
-- `database/migrations/v1.9.2_add_user_signature_tagline.sql`
+Run the standard upgrade process (`scripts/setup.php`) to apply database changes.
 
 ### User Signatures (Compose-Only)
 
@@ -70,3 +73,13 @@ Run the migration to add the signature field to user settings:
 ### Admin Daemon Note
 
 The taglines editor uses new admin daemon commands. Restart the admin daemon after deploying.
+
+## Telnet UX Updates
+
+The telnet interface received several usability improvements:
+
+- Main menu now uses single-key hotkeys (`N/E/W/S/P/Q`) and includes a top status bar with system name and local time.
+- New `W) Who's Online` screen that calls `/api/whosonline` and shows online users.
+- Netmail/Echomail list screens use a bottom status bar and smoother row-only redraw when moving the selection.
+- Full-screen message reader uses `Q` to quit.
+- Shoutbox display now uses alternating colors (no border) and pauses with a “Press any key” prompt.

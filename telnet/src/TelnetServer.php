@@ -457,54 +457,67 @@ class TelnetServer
             $cols = $state['cols'] ?? 80;
             $menuWidth = min(60, $cols - 4);
             $innerWidth = $menuWidth - 4;
+            $menuLeft = max(0, (int)floor(($cols - $menuWidth) / 2));
+            $menuPad = str_repeat(' ', $menuLeft);
 
             $systemName = $config->getSystemName();
             $border = '+' . str_repeat('=', $menuWidth - 2) . '+';
             $divider = '+' . str_repeat('-', $menuWidth - 2) . '+';
 
+            // Clear screen before rendering menu
+            $this->safeWrite($conn, "\033[2J\033[H");
+            // Status bar with system name and local time
+            $timeStr = date('Y-m-d H:i');
+            $statusLine = TelnetUtils::buildStatusBar([
+                ['text' => $systemName . '  ', 'color' => self::ANSI_BLUE],
+                ['text' => str_repeat(' ', max(1, $cols - strlen($systemName) - strlen($timeStr) - 2)), 'color' => self::ANSI_BLUE],
+                ['text' => $timeStr, 'color' => self::ANSI_BLUE],
+            ], $cols);
+            $this->safeWrite($conn, "\033[1;1H");
+            $this->safeWrite($conn, $statusLine . "\r");
+            $this->safeWrite($conn, "\033[2;1H");
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-            $headerLine = '| ' . str_pad($systemName, $innerWidth, ' ', STR_PAD_BOTH) . ' |';
-            $this->writeLine($conn, $this->colorize($headerLine, self::ANSI_CYAN . self::ANSI_BOLD));
-            $this->writeLine($conn, $this->colorize($divider, self::ANSI_CYAN . self::ANSI_BOLD));
+            $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
             $titleLine = '| ' . str_pad('Main Menu', $innerWidth, ' ', STR_PAD_BOTH) . ' |';
-            $this->writeLine($conn, $this->colorize($titleLine, self::ANSI_BLUE . self::ANSI_BOLD));
-            $this->writeLine($conn, $this->colorize($divider, self::ANSI_CYAN));
+            $this->writeLine($conn, $menuPad . $this->colorize($titleLine, self::ANSI_BLUE . self::ANSI_BOLD));
+            $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_CYAN));
 
             // Menu options
             $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
             $showPolls = BbsConfig::isFeatureEnabled('voting_booth');
 
-            $option1 = '| 1) Netmail (' . $messageCounts['netmail'] . ' messages)';
-            $this->writeLine($conn, $this->colorize(str_pad($option1, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+            $option1 = '| N) Netmail (' . $messageCounts['netmail'] . ' messages)';
+            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option1, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
-            $option2 = '| 2) Echomail (' . $messageCounts['echomail'] . ' messages)';
-            $this->writeLine($conn, $this->colorize(str_pad($option2, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+            $option2 = '| E) Echomail (' . $messageCounts['echomail'] . ' messages)';
+            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option2, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
-            $option = 3;
+            $option = 1;
             $shoutboxOption = null;
             $pollsOption = null;
+            $whosOnlineOption = 'w';
+
+            $optionLine = "| W) Who's Online";
+            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
             if ($showShoutbox) {
-                $optionLine = "| {$option}) Shoutbox";
-                $this->writeLine($conn, $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-                $shoutboxOption = (string)$option;
-                $option++;
+                $optionLine = "| S) Shoutbox";
+                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                $shoutboxOption = 's';
             }
             if ($showPolls) {
-                $optionLine = "| {$option}) Polls";
-                $this->writeLine($conn, $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-                $pollsOption = (string)$option;
-                $option++;
+                $optionLine = "| P) Polls";
+                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                $pollsOption = 'p';
             }
-            $quitLine = "| {$option}) Quit";
-            $this->writeLine($conn, $this->colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
-            $quitOption = (string)$option;
+            $quitLine = "| Q) Quit";
+            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
+            $quitOption = 'q';
 
-            $this->writeLine($conn, $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
+            $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
             $this->writeLine($conn, '');
 
-            // Prompt loop - re-prompt on empty input without redisplaying menu
+            // Prompt loop - accept a single key immediately
             $choice = '';
             $promptShown = false;
             while ($choice === '') {
@@ -513,7 +526,7 @@ class TelnetServer
                     $promptShown = true;
                 }
 
-                [$line, $timedOut, $shouldDisconnect] = $this->readTelnetLineWithTimeout($conn, $state);
+                [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
 
                 if ($shouldDisconnect) {
                     // Idle timeout disconnect
@@ -524,7 +537,7 @@ class TelnetServer
                     break 2; // Break out of both loops
                 }
 
-                if ($line === null) {
+                if ($key === null) {
                     // Connection lost
                     $duration = time() - $loginTime;
                     $minutes = floor($duration / 60);
@@ -538,7 +551,14 @@ class TelnetServer
                     continue;
                 }
 
-                $choice = trim((string)$line);
+                if (str_starts_with($key, 'CHAR:')) {
+                    $char = strtolower(substr($key, 5));
+                    if ($char === 'n' || $char === 'e' || $char === 'q' || $char === 's' || $char === 'p' || $char === 'w') {
+                        $choice = $char;
+                    } elseif (ctype_digit($char)) {
+                        $choice = $char;
+                    }
+                }
             }
 
             // Check if we broke out due to connection loss or timeout
@@ -546,11 +566,11 @@ class TelnetServer
                 break;
             }
 
-            if ($choice === '1') {
+            if ($choice === 'n') {
                 $netmailHandler->show($conn, $state, $session);
                 // Refresh counts after viewing/composing messages
                 $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
-            } elseif ($choice === '2') {
+            } elseif ($choice === 'e') {
                 $echomailHandler->showEchoareas($conn, $state, $session);
                 // Refresh counts after viewing/composing messages
                 $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
@@ -558,6 +578,8 @@ class TelnetServer
                 $shoutboxHandler->show($conn, $state, $session, 20);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $pollsHandler->show($conn, $state, $session);
+            } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
+                $this->showWhosOnline($conn, $state, $session);
             } elseif ($choice === $quitOption || strtolower($choice) === 'q') {
                 // Display goodbye message
                 TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
@@ -584,6 +606,7 @@ class TelnetServer
                 $minutes = floor($duration / 60);
                 $seconds = $duration % 60;
                 echo "[" . date('Y-m-d H:i:s') . "] Logout: {$username} (session duration: {$minutes}m {$seconds}s)\n";
+                $this->setTerminalTitle($conn, '');
                 break;
             }
         }
@@ -592,6 +615,59 @@ class TelnetServer
         if ($forked) {
             exit(0);
         }
+    }
+
+    /**
+     * Display users currently online.
+     */
+    private function showWhosOnline($conn, array &$state, string $session): void
+    {
+        $response = $this->apiRequest('GET', '/api/whosonline', null, $session);
+        $users = $response['data']['users'] ?? [];
+        $minutes = $response['data']['online_minutes'] ?? 15;
+
+        $cols = $state['cols'] ?? 80;
+        $innerWidth = max(20, min($cols - 2, 78));
+
+        $this->safeWrite($conn, "\033[2J\033[H");
+        $this->writeLine($conn, $this->colorize("Who's Online (last {$minutes} minutes)", self::ANSI_CYAN . self::ANSI_BOLD));
+        $this->writeLine($conn, '');
+
+        if (!$users) {
+            $this->writeLine($conn, $this->colorize('No users online.', self::ANSI_YELLOW));
+        } else {
+            $lineIndex = 0;
+            foreach ($users as $user) {
+                $name = $user['username'] ?? 'Unknown';
+                $location = $user['location'] ?? '';
+                $activity = $user['activity'] ?? '';
+                $service = $user['service'] ?? '';
+                $parts = [$name];
+                if ($location !== '') {
+                    $parts[] = $location;
+                }
+                if ($activity !== '') {
+                    $parts[] = $activity;
+                }
+                if ($service !== '') {
+                    $parts[] = $service;
+                }
+                $line = implode(' | ', $parts);
+                $wrapped = wordwrap($line, $innerWidth, "\n", false);
+                foreach (explode("\n", $wrapped) as $part) {
+                    if (strlen($part) > $innerWidth) {
+                        $part = substr($part, 0, $innerWidth - 3) . '...';
+                    }
+                    $color = ($lineIndex % 2 === 0) ? self::ANSI_GREEN : self::ANSI_CYAN;
+                    $this->writeLine($conn, $this->colorize($part, $color));
+                    $lineIndex++;
+                }
+            }
+        }
+
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize('Press any key to return...', self::ANSI_YELLOW));
+        $this->readKeyWithIdleCheck($conn, $state);
     }
 
     /**
@@ -781,6 +857,27 @@ class TelnetServer
         }
     }
 
+    /**
+     * Read a single key with idle timeout handling
+     * Returns a normalized token: UP, DOWN, LEFT, RIGHT, ENTER, BACKSPACE, CHAR:<char>
+     */
+    public function readKeyWithIdleCheck($conn, array &$state): ?string
+    {
+        while (true) {
+            [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
+
+            if ($shouldDisconnect) {
+                return null;
+            }
+
+            if ($timedOut) {
+                continue;
+            }
+
+            return $key;
+        }
+    }
+
     // ===== AUTHENTICATION METHODS =====
 
     /**
@@ -848,6 +945,79 @@ class TelnetServer
         }
 
         return [$line, false, false];
+    }
+
+    /**
+     * Read a single key with idle timeout handling
+     * Returns: [string|null key, bool timedOut, bool shouldDisconnect]
+     */
+    private function readTelnetKeyWithTimeout($conn, array &$state): array
+    {
+        $now = time();
+        $elapsed = $now - $state['last_activity'];
+        $warningTimeout = $state['idle_warning_timeout'];
+        $disconnectTimeout = $state['idle_disconnect_timeout'];
+
+        if ($elapsed >= $disconnectTimeout) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize('Idle timeout - disconnecting...', self::ANSI_YELLOW));
+            $this->writeLine($conn, '');
+            return [null, true, true];
+        }
+
+        if (!$state['idle_warned'] && $elapsed >= $warningTimeout) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize('Are you still there? (Press any key to continue)', self::ANSI_YELLOW . self::ANSI_BOLD));
+            $this->writeLine($conn, '');
+            $state['idle_warned'] = true;
+        }
+
+        $timeUntilDisconnect = $disconnectTimeout - $elapsed;
+        $timeUntilWarning = $warningTimeout - $elapsed;
+        $timeout = $state['idle_warned'] ? min($timeUntilDisconnect, 30) : min($timeUntilWarning, 30);
+
+        $read = [$conn];
+        $write = $except = null;
+        $seconds = (int)$timeout;
+        $microseconds = 0;
+
+        $hasData = @stream_select($read, $write, $except, $seconds, $microseconds);
+
+        if ($hasData === false) {
+            return [null, false, true];
+        }
+
+        if ($hasData === 0) {
+            return ['', true, false];
+        }
+
+        $char = $this->readRawChar($conn, $state);
+        if ($char === null) {
+            return [null, false, true];
+        }
+
+        $state['last_activity'] = time();
+        $state['idle_warned'] = false;
+
+        if ($char === self::KEY_UP) return ['UP', false, false];
+        if ($char === self::KEY_DOWN) return ['DOWN', false, false];
+        if ($char === self::KEY_LEFT) return ['LEFT', false, false];
+        if ($char === self::KEY_RIGHT) return ['RIGHT', false, false];
+        if ($char === self::KEY_HOME) return ['HOME', false, false];
+        if ($char === self::KEY_END) return ['END', false, false];
+
+        $ord = ord($char[0]);
+        if ($ord === 13 || $ord === 10) {
+            return ['ENTER', false, false];
+        }
+        if ($ord === 8 || $ord === 127) {
+            return ['BACKSPACE', false, false];
+        }
+        if ($ord >= 32 && $ord < 127) {
+            return ['CHAR:' . $char, false, false];
+        }
+
+        return ['', false, false];
     }
 
     /**
@@ -1286,21 +1456,17 @@ class TelnetServer
 
         // Clear screen and move to top
         $this->safeWrite($conn, "\033[2J\033[H");
+        $this->safeWrite($conn, "\033[?25h");
 
         $width = min($cols - 2, 70);
         $separator = str_repeat('=', $width);
 
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize('MESSAGE EDITOR - FULL SCREEN MODE', self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize('Commands:', self::ANSI_YELLOW . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize('  Arrow Keys = Navigate cursor up/down/left/right', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('  Backspace/Delete = Edit text', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('  Ctrl+Y = Delete entire line', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('  Ctrl+Z = Save message and send', self::ANSI_GREEN));
-        $this->writeLine($conn, $this->colorize('  Ctrl+C = Cancel and discard message', self::ANSI_RED));
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, '');
+        $headerLines = 0;
+        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
+        $this->writeLine($conn, $this->colorize('MESSAGE EDITOR - FULL SCREEN MODE', self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
+        $this->writeLine($conn, $this->colorize('Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', self::ANSI_YELLOW)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
 
         // Initialize lines with initial text
         if ($initialText !== '') {
@@ -1312,26 +1478,39 @@ class TelnetServer
             $lines = [''];
         }
 
-        $cursorRow = count($lines) - 1;
-        $cursorCol = strlen($lines[$cursorRow]);
-        $startRow = 11;
+        $cursorRow = 0;
+        $cursorCol = 0;
+        $viewTop = 0;
+        $startRow = $headerLines + 1;
         $maxRows = max(10, $rows - $startRow - 2);
 
         $this->setEcho($conn, $state, false);
+        // Ensure cursor is visible for the editor
+        $this->safeWrite($conn, "\033[?25h");
 
         while (true) {
             // Display current text
             $this->safeWrite($conn, "\033[" . $startRow . ";1H");
             $this->safeWrite($conn, "\033[J");
 
-            $displayLines = array_slice($lines, 0, $maxRows);
+            $maxTop = max(0, count($lines) - $maxRows);
+            if ($viewTop > $maxTop) {
+                $viewTop = $maxTop;
+            }
+            if ($cursorRow < $viewTop) {
+                $viewTop = $cursorRow;
+            } elseif ($cursorRow >= $viewTop + $maxRows) {
+                $viewTop = $cursorRow - $maxRows + 1;
+            }
+
+            $displayLines = array_slice($lines, $viewTop, $maxRows);
             foreach ($displayLines as $idx => $line) {
                 $this->safeWrite($conn, "\033[" . ($startRow + $idx) . ";1H");
                 $this->safeWrite($conn, substr($line, 0, $cols - 1));
             }
 
             // Position cursor
-            $displayRow = $startRow + $cursorRow;
+            $displayRow = $startRow + ($cursorRow - $viewTop);
             $displayCol = $cursorCol + 1;
             $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H");
 
@@ -1369,6 +1548,24 @@ class TelnetServer
                     $lines[0] = '';
                     $cursorCol = 0;
                 }
+                continue;
+            }
+
+            // Ctrl+K - Help
+            if ($ord === 11) {
+                $this->showEditorHelp($conn, $state);
+                continue;
+            }
+
+            // Ctrl+A - Start of line
+            if ($ord === 1) {
+                $cursorCol = 0;
+                continue;
+            }
+
+            // Ctrl+E - End of line
+            if ($ord === 5) {
+                $cursorCol = strlen($lines[$cursorRow]);
                 continue;
             }
 
@@ -1573,5 +1770,24 @@ class TelnetServer
         }
 
         return chr($byte);
+    }
+
+    private function showEditorHelp($conn, array &$state): void
+    {
+        $this->safeWrite($conn, "\033[2J\033[H");
+        $this->writeLine($conn, $this->colorize('MESSAGE EDITOR HELP', self::ANSI_CYAN . self::ANSI_BOLD));
+        $this->writeLine($conn, $this->colorize('-------------------', self::ANSI_CYAN));
+        $this->writeLine($conn, $this->colorize('Arrow Keys = Navigate cursor', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize('Backspace/Delete = Edit text', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize('Ctrl+K = Help', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize('Ctrl+A = Start of line', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize('Ctrl+E = End of line', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize('Ctrl+Y = Delete entire line', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize('Ctrl+Z = Save message and send', self::ANSI_GREEN));
+        $this->writeLine($conn, $this->colorize('Ctrl+C = Cancel and discard message', self::ANSI_RED));
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize('Press any key to return...', self::ANSI_YELLOW));
+        $this->readRawChar($conn, $state);
+        $this->safeWrite($conn, "\033[?25h");
     }
 }

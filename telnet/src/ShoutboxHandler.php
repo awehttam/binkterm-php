@@ -32,9 +32,9 @@ class ShoutboxHandler
     }
 
     /**
-     * Display recent shoutbox messages with borders
+     * Display recent shoutbox messages
      *
-     * Shows a bordered frame containing recent shoutbox messages.
+     * Shows recent shoutbox messages in alternating colors.
      * If the shoutbox feature is disabled, returns silently.
      *
      * @param resource $conn Socket connection to client
@@ -58,10 +58,7 @@ class ShoutboxHandler
         );
         $messages = $response['data']['messages'] ?? [];
         $cols = (int)($state['cols'] ?? 80);
-        $frameWidth = max(40, min($cols, 80));
-        // Border: '+' (1) + dashes + '+' (1) = frameWidth
-        // Content: '|  ' (3) + content + '  |' (3) = frameWidth
-        $innerWidth = $frameWidth - 6;  // Subtract 3 for '|  ' and 3 for '  |'
+        $innerWidth = max(20, min($cols - 2, 78));
         $title = 'Recent Shoutbox';
 
         $lines = [];
@@ -74,30 +71,35 @@ class ShoutboxHandler
                 // Strip any newlines/carriage returns from message text
                 $text = str_replace(["\r\n", "\r", "\n"], ' ', $text);
                 $date = $msg['created_at'] ?? '';
+                if ($date !== '') {
+                    if (strpos($date, '.') !== false) {
+                        $date = explode('.', $date, 2)[0];
+                    }
+                    if (preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/', $date, $matches)) {
+                        $date = $matches[1];
+                    }
+                }
                 $lines[] = sprintf('[%s] %s: %s', $date, $user, $text);
             }
         }
 
-        // Create borders
-        $borderTop = '+' . str_repeat('-', $frameWidth - 2) . '+';
-        $titleLine = '| ' . str_pad($title, $frameWidth - 4, ' ', STR_PAD_BOTH) . ' |';
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($title, TelnetUtils::ANSI_MAGENTA . TelnetUtils::ANSI_BOLD));
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($borderTop, TelnetUtils::ANSI_MAGENTA));
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($titleLine, TelnetUtils::ANSI_MAGENTA));
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($borderTop, TelnetUtils::ANSI_MAGENTA));
-
+        $lineIndex = 0;
         foreach ($lines as $line) {
             $wrapped = wordwrap($line, $innerWidth, "\n", false);
             foreach (explode("\n", $wrapped) as $part) {
-                // Truncate if line is still too long (e.g., very long words)
                 if (strlen($part) > $innerWidth) {
                     $part = substr($part, 0, $innerWidth - 3) . '...';
                 }
-                $contentLine = '|  ' . str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT) . '  |';
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize($contentLine, TelnetUtils::ANSI_MAGENTA));
+                $color = ($lineIndex % 2 === 0) ? TelnetUtils::ANSI_GREEN : TelnetUtils::ANSI_CYAN;
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($part, $color));
+                $lineIndex++;
             }
         }
 
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($borderTop, TelnetUtils::ANSI_MAGENTA));
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to continue...', TelnetUtils::ANSI_YELLOW));
+        $this->server->readKeyWithIdleCheck($conn, $state);
     }
 }

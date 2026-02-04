@@ -16,6 +16,9 @@ class TelnetUtils
     public const ANSI_BOLD = "\033[1m";
     public const ANSI_DIM = "\033[2m";
     public const ANSI_BLUE = "\033[34m";
+    public const ANSI_BG_BLUE = "\033[44m";
+    public const ANSI_BG_RED = "\033[41m";
+    public const ANSI_BG_WHITE = "\033[47m";
     public const ANSI_CYAN = "\033[36m";
     public const ANSI_GREEN = "\033[32m";
     public const ANSI_YELLOW = "\033[33m";
@@ -168,10 +171,10 @@ class TelnetUtils
      * @param array $state Terminal state (passed by reference for readRawChar)
      * @return void
      */
-    public static function writeWrappedWithMore($conn, string $text, int $width, int $height, array &$state): void
+    public static function writeWrappedWithMore($conn, string $text, int $width, int $height, array &$state, int $reservedLines = 6): void
     {
         // Reserve lines for message header, separator, and prompt
-        $linesPerPage = max(10, $height - 6);
+        $linesPerPage = max(3, $height - $reservedLines);
         $currentLine = 0;
 
         $lines = preg_split("/\\r?\\n/", $text);
@@ -214,6 +217,179 @@ class TelnetUtils
             self::safeWrite($conn, $line . "\r\n");
             $currentLine++;
         }
+    }
+
+    /**
+     * Write wrapped text with pagination and a fixed header on each page
+     *
+     * Clears the screen for each page, renders header lines, and shows a "more" prompt.
+     *
+     * @param resource $conn Socket connection to write to
+     * @param string $text Text to write with pagination
+     * @param int $width Terminal width for wrapping
+     * @param int $height Terminal height for pagination
+     * @param array $state Terminal state (passed by reference for readRawChar)
+     * @param array $headerLines Array of header lines (already colorized if desired)
+     * @return void
+     */
+    public static function writeWrappedWithHeader($conn, string $text, int $width, int $height, array &$state, array $headerLines): void
+    {
+        $headerCount = count($headerLines);
+        $linesPerPage = max(3, $height - $headerCount - 1);
+
+        $lines = preg_split("/\\r?\\n/", $text);
+        $wrappedLines = [];
+
+        foreach ($lines as $line) {
+            if ($line === '') {
+                $wrappedLines[] = '';
+                continue;
+            }
+            $wrapped = wordwrap($line, max(20, $width), "\n", true);
+            $parts = explode("\n", $wrapped);
+            foreach ($parts as $part) {
+                $wrappedLines[] = $part;
+            }
+        }
+
+        $total = count($wrappedLines);
+        $offset = 0;
+        while ($offset < $total) {
+            // Clear screen and render header
+            self::safeWrite($conn, "\033[2J\033[H");
+            foreach ($headerLines as $line) {
+                self::safeWrite($conn, $line . "\r\n");
+            }
+
+            $pageLines = array_slice($wrappedLines, $offset, $linesPerPage);
+            foreach ($pageLines as $line) {
+                self::safeWrite($conn, $line . "\r\n");
+            }
+
+            $offset += $linesPerPage;
+            if ($offset >= $total) {
+                break;
+            }
+
+            self::safeWrite($conn, self::colorize("\r\n-- More -- (press any key to continue, q to quit) ", self::ANSI_YELLOW . self::ANSI_BOLD));
+            $char = self::readRawChar($conn, $state);
+            self::safeWrite($conn, "\r\033[K");
+            if ($char !== null && strtolower($char) === 'q') {
+                self::writeLine($conn, '');
+                self::writeLine($conn, self::colorize('[Message display interrupted]', self::ANSI_DIM));
+                return;
+            }
+        }
+    }
+
+    /**
+     * Wrap text into lines for display.
+     *
+     * @param string $text
+     * @param int $width
+     * @return array
+     */
+    public static function wrapTextLines(string $text, int $width): array
+    {
+        $lines = preg_split("/\\r?\\n/", $text);
+        $wrappedLines = [];
+        $wrapWidth = max(10, $width);
+
+        foreach ($lines as $line) {
+            if ($line === '') {
+                $wrappedLines[] = '';
+                continue;
+            }
+            $wrapped = wordwrap($line, $wrapWidth, "\n", true);
+            $parts = explode("\n", $wrapped);
+            foreach ($parts as $part) {
+                $wrappedLines[] = $part;
+            }
+        }
+
+        if ($wrappedLines === []) {
+            $wrappedLines[] = '';
+        }
+
+        return $wrappedLines;
+    }
+
+    /**
+     * Render a full-screen view with a fixed header and status bar.
+     *
+     * @param resource $conn
+     * @param array $headerLines
+     * @param array $bodyLines
+     * @param string $statusLine
+     * @param int $rows
+     * @return void
+     */
+    public static function renderFullScreen($conn, array $headerLines, array $bodyLines, string $statusLine, int $rows): void
+    {
+        $headerCount = count($headerLines);
+        $bodyHeight = max(1, $rows - $headerCount - 1);
+
+        self::safeWrite($conn, "\033[2J\033[H");
+        // Hide cursor while rendering to avoid scroll
+        self::safeWrite($conn, "\033[?25l");
+
+        foreach ($headerLines as $line) {
+            self::safeWrite($conn, $line . "\r\n");
+        }
+
+        for ($i = 0; $i < $bodyHeight; $i++) {
+            $line = $bodyLines[$i] ?? '';
+            self::safeWrite($conn, $line . "\r\n");
+        }
+
+        // Render status line without adding an extra line (avoid scroll)
+        self::safeWrite($conn, $statusLine . "\r");
+        // Park cursor at top-left
+        self::safeWrite($conn, "\033[H");
+    }
+
+    /**
+     * Show or hide the cursor.
+     *
+     * @param resource $conn
+     * @param bool $visible
+     * @return void
+     */
+    public static function setCursorVisible($conn, bool $visible): void
+    {
+        self::safeWrite($conn, $visible ? "\033[?25h" : "\033[?25l");
+    }
+
+    /**
+     * Build a colored status bar line with a white background.
+     *
+     * @param array $segments Array of ['text' => string, 'color' => string]
+     * @param int $width
+     * @return string
+     */
+    public static function buildStatusBar(array $segments, int $width): string
+    {
+        $bg = self::ANSI_BG_WHITE;
+        $blue = self::ANSI_BLUE;
+        $reset = self::ANSI_RESET;
+
+        $plain = '';
+        foreach ($segments as $segment) {
+            $plain .= $segment['text'] ?? '';
+        }
+        $pad = max(0, $width - strlen($plain));
+
+        $line = '';
+        foreach ($segments as $segment) {
+            $text = $segment['text'] ?? '';
+            $color = $segment['color'] ?? $blue;
+            $line .= $bg . $color . $text;
+        }
+        if ($pad > 0) {
+            $line .= $bg . $blue . str_repeat(' ', $pad);
+        }
+
+        return $line . $reset;
     }
 
     /**

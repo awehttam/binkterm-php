@@ -130,7 +130,7 @@ class MailUtils
         }
 
         $base = rtrim($text);
-        return $base === '' ? $signature : $base . "\n\n" . $signature;
+        return $base === '' ? "\n\n" . $signature : $base . "\n\n\n" . $signature;
     }
 
     /**
@@ -185,5 +185,27 @@ class MailUtils
         $counts['echomail'] = $totalEcho;
 
         return $counts;
+    }
+
+    /**
+     * Fetch available taglines.
+     *
+     * @return array List of taglines
+     */
+    public static function getTaglines(string $apiBase, string $session): array
+    {
+        $response = TelnetUtils::apiRequest($apiBase, 'GET', '/api/taglines', null, $session);
+        if (($response['status'] ?? 0) !== 200) {
+            return [];
+        }
+
+        $taglines = $response['data']['taglines'] ?? [];
+        if (!is_array($taglines)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', $taglines), function($line) {
+            return $line !== '';
+        }));
     }
 }
