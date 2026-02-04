@@ -243,6 +243,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if (\BinktermPHP\UserRestrictions::isRestrictedUsername($username)
+            || \BinktermPHP\UserRestrictions::isRestrictedRealName($realName)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'This username or real name is not allowed']);
+            return;
+        }
+
         // Validate password length
         if (strlen($password) < 8) {
             http_response_code(400);
@@ -4060,6 +4067,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Username must be 3-20 characters, letters, numbers, and underscores only']);
+                return;
+            }
+
+            if (\BinktermPHP\UserRestrictions::isRestrictedUsername($username)
+                || \BinktermPHP\UserRestrictions::isRestrictedRealName($realName)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'This username or real name is not allowed']);
                 return;
             }
 
