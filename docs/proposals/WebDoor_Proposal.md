@@ -6,7 +6,7 @@ Draft 1
 
 BinktermPHP **WebDoor** is a draft specification for embedding HTML5/JavaScript games ("web doors") into BBS software. It defines a secure API protocol between a host BBS and embedded games, enabling third-party game developers and BBS software authors to create interoperable experiences.
 
-This specification document is not necessarily what is implemented in BinktermPHP.  For the BinktermPHP WebDoors documentation see [WebDoors.md](WebDoors.md).  Some aspects of this specification may be present, but is not guaranteed.  This specification is present only for idea referencing.
+This specification document is not necessarily what is implemented in BinktermPHP.  For the BinktermPHP WebDoors documentation see [WebDoors.md](../WebDoors.md).  Some aspects of this specification may be present, but is not guaranteed.  This specification is present only for idea referencing.
 
 The name "WebDoor" references the traditional BBS "door game" concept while indicating its web-based nature.
 

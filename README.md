@@ -644,17 +644,32 @@ In general, you can follow these general steps when upgrading BinktermPHP howeve
 
 The general steps are:
 
+### From Git
 1. **Pull the latest code** - `git pull`
 2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
 3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
-4. **Restart daemons (admin_daemon, binkd_scheduler, binkd_server) ** - `bash scripts/restart_daemons.sh` or restart using your preferred system service tool
+4. **Restart daemons (admin_daemon, binkd_scheduler, binkd_server)** - `bash scripts/restart_daemons.sh` or restart using your preferred system service tool
 
+### Using the BinktermPHP installer
 
+If you previously installed BinktermPHP using the installer, re-run the installer to perform an upgrade.  
+
+```bash
+# Download the installer
+wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/binkterm-installer.phar
+
+# Run the installer
+php binkterm-installer.phar
+```
 ### Version-Specific Upgrade Guides
 
-- January 29 2026 - [UPGRADING_1.7.1.md](UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 28 2026 - [UPGRADING_1.7.0.md](UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
-- January 24 2026 - [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
+Individual versions with specific upgrade documentation:
+
+- February 2 2026 - [docs/UPGRADING_1.7.5.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
+- January 30 2026 - [docs/UPGRADING_1.7.2.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
+- January 29 2026 - [docs/UPGRADING_1.7.1.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
+- January 28 2026 - [docs/UPGRADING_1.7.0.md](docs/UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
+- January 24 2026 - [docs/UPGRADING_1.6.7.md](docs/UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
 
 ## Database Management
 
@@ -1453,7 +1468,7 @@ Games interact with the BBS through REST endpoints:
 
 ### Documentation
 
-For the complete WebDoor specification including SDK examples, multiplayer protocol, and implementation details, see [docs/WebDoors.md](docs/WebDoors_Proposal.md).
+For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
 
 ## Frequently Asked Questions
 

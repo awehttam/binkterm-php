@@ -153,7 +153,8 @@ The system uses this priority order for credit values:
 
 ### WebDoors System
 WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification as used by BinktermPHP is documented in `docs/WebDoors.md`.
-A draft status proposed specification with ideas we can draw upon is in `docs/WebDoor_Proposal.md`
+
+A draft status specification with ideas we can draw upon is in `docs/proposals/WebDoor_Proposal.md` however it does not reflect the current state of implementation.
 
 **Current Implementation:**
 - **Game Manifest System**: Each WebDoor includes a `webdoor.json` manifest describing capabilities, requirements, and configuration
@@ -169,7 +170,7 @@ A draft status proposed specification with ideas we can draw upon is in `docs/We
 - `WebDoorController` - Handles game session management and API endpoints
 
 **Important Notes:**
-- When adding WebDoor API functionality, update `docs/WebDoors.md` to reflect new features
+- When adding WebDoor API functionality or making changes to the WebDoor system (not individual webdoors themselves), update `docs/WebDoors.md` to reflect new features
 - WebDoor specification is evolving - keep documentation synchronized with implementation
 - All WebDoor games must include a valid `webdoor.json` manifest
 - Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
@@ -279,7 +280,7 @@ git push origin main --tags
 
 #### 5. Update UPGRADING_x.x.x.md documentation
 
-For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) with a summary of changes and important upgrade instructions
+For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) in the docs/ directory with a summary of changes and important upgrade instructions
 
 ### What Updates Automatically
 
