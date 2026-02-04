@@ -36,8 +36,9 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
  - Leave the vendor directory alone. It's managed by composer only
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
-- Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
-- Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). PHP migrations are executed by scripts/upgrade.php and receive a $db PDO connection.
+ - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks. 
+ - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). PHP migrations are executed by scripts/upgrade.php and receive a $db PDO connection.
+ - setup.php must be called when upgrading - this is to ensure certain things like file permissions are correct.
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
