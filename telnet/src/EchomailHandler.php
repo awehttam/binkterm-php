@@ -429,6 +429,7 @@ class EchomailHandler
 
         $selectedTagline = '';
         $taglines = MailUtils::getTaglines($this->apiBase, $session);
+        $defaultTagline = MailUtils::getUserDefaultTagline($this->apiBase, $session);
         if (!empty($taglines)) {
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize('Select a tagline:', TelnetUtils::ANSI_CYAN));
@@ -436,12 +437,28 @@ class EchomailHandler
             foreach ($taglines as $idx => $tagline) {
                 TelnetUtils::writeLine($conn, sprintf(' %d) %s', $idx + 1, $tagline));
             }
-            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize('Tagline # (Enter for None): ', TelnetUtils::ANSI_CYAN), true);
+            $defaultIndex = 0;
+            if ($defaultTagline !== '') {
+                foreach ($taglines as $idx => $tagline) {
+                    if (trim($tagline) === $defaultTagline) {
+                        $defaultIndex = $idx + 1;
+                        break;
+                    }
+                }
+            }
+            $prompt = $defaultIndex > 0
+                ? TelnetUtils::colorize("Tagline # [{$defaultIndex}] (Enter for Default): ", TelnetUtils::ANSI_CYAN)
+                : TelnetUtils::colorize('Tagline # (Enter for None): ', TelnetUtils::ANSI_CYAN);
+            $choice = $this->server->prompt($conn, $state, $prompt, true);
             if ($choice === null) {
                 return;
             }
             $choice = trim($choice);
-            if ($choice !== '' && ctype_digit($choice)) {
+            if ($choice === '') {
+                if ($defaultIndex > 0) {
+                    $selectedTagline = $taglines[$defaultIndex - 1];
+                }
+            } elseif (ctype_digit($choice)) {
                 $num = (int)$choice;
                 if ($num > 0 && $num <= count($taglines)) {
                     $selectedTagline = $taglines[$num - 1];

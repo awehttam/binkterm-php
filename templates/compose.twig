@@ -114,6 +114,9 @@
                     <label for="taglineSelect" class="form-label">Tagline</label>
                     <select class="form-select" id="taglineSelect" name="tagline">
                         <option value="">No tagline</option>
+                        {% for tagline in taglines %}
+                            <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
+                        {% endfor %}
                     </select>
                     <div class="form-text">Select a sysop-provided tagline to append below your signature.</div>
                 </div>
@@ -228,8 +231,6 @@ $(document).ready(function() {
             loadEchoareas();
         }
     }
-
-    loadTaglines();
 
     // Form submit handler
     $('#composeForm').on('submit', function(e) {
@@ -390,27 +391,6 @@ function sendMessage() {
             form.find('input, textarea, select, button').prop('disabled', false);
         }
     });
-}
-
-function loadTaglines() {
-    $.get('/api/taglines')
-        .done(function(data) {
-            const select = $('#taglineSelect');
-            if (!data || !data.taglines) {
-                return;
-            }
-            data.taglines.forEach(function(tagline) {
-                select.append(`<option value="${escapeHtml(tagline)}">${escapeHtml(tagline)}</option>`);
-            });
-            // Pick a random tagline by default (if any were added)
-            if (data.taglines.length > 0) {
-                const index = Math.floor(Math.random() * data.taglines.length);
-                select.val(data.taglines[index]);
-            }
-        })
-        .fail(function() {
-            // Taglines are optional; ignore failures
-        });
 }
 
 

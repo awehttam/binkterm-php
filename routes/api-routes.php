@@ -3735,10 +3735,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         try {
-            $client = new \BinktermPHP\Admin\AdminDaemonClient();
-            $result = $client->getTaglines();
-            $raw = (string)($result['text'] ?? '');
-            $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+            $path = __DIR__ . '/../config/taglines.txt';
+            $raw = file_exists($path) ? file_get_contents($path) : '';
+            if ($raw === false) {
+                $raw = '';
+            }
+            $lines = preg_split('/\r\n|\r|\n/', (string)$raw) ?: [];
             $taglines = [];
             foreach ($lines as $line) {
                 $trimmed = trim($line);
