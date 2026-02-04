@@ -14,6 +14,7 @@ BinktermPHP is built as a dual-component system:
 
 1. **Web Interface**: A PHP-based web application that users interact with via browser
 2. **Binkp Mailer**: Background daemon processes that handle FidoNet packet transmission
+3. **Telnet Daemon**: Background daemon process that provides a Telnet interface.
 
 #### Key Components
 
@@ -50,6 +51,11 @@ BinktermPHP is built as a dual-component system:
 - **Outbound**: Messages are bundled into packets and queued for transmission
 - **Polling**: Background process (`scripts/binkp_poll.php`) connects to uplinks on schedule
 - **Server**: Daemon (`scripts/binkp_server.php`) accepts incoming connections from other nodes
+
+#### Telnet Daemon
+- **Uses REST apis**: The Telnet daemon uses the REST apis for login, retrieving messages, etc.  It tries not to reinvent logic of sending and only focuses on Telnet UI.
+- **Feature Parity**: The Telnet daemon isn't expected to have full feature parity as with the web interface.  The web interface is considered "first class".
+- **Testing**: When testing the Telnet daemon be sure to use SyncTerm along with Putty and other telnet clients.  
 
 ### Directory Structure
 
