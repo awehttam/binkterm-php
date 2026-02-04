@@ -45,9 +45,12 @@ class FileAreaRuleProcessor
     {
         $filename = basename($filepath);
         $areaKey = strtoupper($areatag);
+        $areaDomain = $this->getDomainForFile($filepath, $areatag);
+        $domainKey = strtoupper($areatag . '@' . $areaDomain);
 
         $globalRules = $this->rules['global_rules'] ?? [];
-        $areaRules = $this->rules['area_rules'][$areaKey] ?? [];
+        $areaRules = $this->rules['area_rules'][$domainKey]
+            ?? ($this->rules['area_rules'][$areaKey] ?? []);
         $allRules = array_merge($globalRules, $areaRules);
 
         if (empty($allRules)) {
@@ -60,7 +63,6 @@ class FileAreaRuleProcessor
             ];
         }
 
-        $areaDomain = $this->getDomainForFile($filepath, $areatag);
         $matchedRules = $this->matchRules($filename, $allRules, $areaDomain);
         $executed = [];
 
