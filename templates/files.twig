@@ -258,8 +258,26 @@ function displayFileAreas(areas) {
         return;
     }
 
+    const sortedAreas = [...areas].sort((a, b) => {
+        const aDomainRaw = a.domain || '';
+        const bDomainRaw = b.domain || '';
+        const aDomain = aDomainRaw.toLowerCase();
+        const bDomain = bDomainRaw.toLowerCase();
+        const aHasDomain = aDomainRaw !== '';
+        const bHasDomain = bDomainRaw !== '';
+        if (aHasDomain !== bHasDomain) {
+            return aHasDomain ? 1 : -1;
+        }
+        if (aDomain !== bDomain) {
+            return aDomain.localeCompare(bDomain);
+        }
+        const aTag = (a.tag || '').toLowerCase();
+        const bTag = (b.tag || '').toLowerCase();
+        return aTag.localeCompare(bTag);
+    });
+
     let html = '';
-    areas.forEach(function(area) {
+    sortedAreas.forEach(function(area) {
         const fileCount = area.file_count || 0;
         const totalSize = formatBytes(area.total_size || 0);
 

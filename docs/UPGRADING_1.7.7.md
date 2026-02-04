@@ -36,3 +36,8 @@ If your file area tag is `NODELIST` and its database ID is `6`:
 - New directory: `data/files/NODELIST-6`
 
 Move the files, then verify permissions remain correct for your web server user.
+
+### Ownership Note
+
+File area directories should be owned by the web server user (often `www-data` on Linux).
+Ensure ownership/permissions match your web server so uploads and downloads continue to work.
