@@ -440,7 +440,7 @@ function showFileDetails(fileId) {
                 if (file.virus_scan_result === 'clean') {
                     scanStatus = '<span class="badge bg-success"><i class="fas fa-shield-alt"></i> Clean</span>';
                 } else if (file.virus_scan_result === 'infected') {
-                    scanStatus = '<span class="badge bg-danger"><i class="fas fa-shield-alt"></i> Infected: ' + escapeHtml(file.virus_signature || 'Unknown') + '</span>';
+                    scanStatus = '<span class="badge bg-danger"><i class="fas fa-shield-alt"></i> Infected </span>';
                 } else if (file.virus_scan_result === 'error') {
                     scanStatus = '<span class="badge bg-warning"><i class="fas fa-shield-alt"></i> Scan Error</span>';
                 } else if (file.virus_scan_result === 'skipped') {
