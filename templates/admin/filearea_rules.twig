@@ -1,0 +1,180 @@
+{% extends "base.twig" %}
+
+{% block title %}File Area Rules - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-filter"></i>
+        File Area Rules
+    </h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" id="resetRulesBtn" disabled>
+            <i class="fas fa-undo"></i>
+            Reset to Example
+        </button>
+        <button class="btn btn-fidonet" id="saveRulesBtn" disabled>
+            <i class="fas fa-save"></i>
+            Save Rules
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">filearea_rules.json</h6>
+                <small class="text-muted" id="rulesStatus">Loading...</small>
+            </div>
+            <div class="card-body">
+                <div id="rulesEditorAlert"></div>
+                <textarea id="rulesJsonEditor" class="form-control" rows="22" spellcheck="false"
+                          style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;"></textarea>
+                <small class="text-muted" id="rulesJsonHint">Editing requires valid JSON.</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Macros</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li><code>%basedir%</code> Application base directory</li>
+                    <li><code>%filepath%</code> Full path to file</li>
+                    <li><code>%filename%</code> File name only</li>
+                    <li><code>%filesize%</code> File size in bytes</li>
+                    <li><code>%domain%</code> File area domain</li>
+                    <li><code>%areatag%</code> File area tag</li>
+                    <li><code>%uploader%</code> Uploader name/address</li>
+                    <li><code>%ticfile%</code> TIC path (if available)</li>
+                    <li><code>%tempdir%</code> Temp directory</li>
+                </ul>
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Tips</h6>
+            </div>
+            <div class="card-body">
+                <small class="text-muted">
+                    Rules run in order: global rules first, then area-specific rules.
+                    Use <code>success_action</code> and <code>fail_action</code> with <code>+stop</code>
+                    to halt further processing.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let rulesState = {
+    configJson: null,
+    exampleJson: null,
+    dirty: false
+};
+
+function setAlert(message, type) {
+    const container = document.getElementById('rulesEditorAlert');
+    if (!message) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+}
+
+function setStatus(message) {
+    document.getElementById('rulesStatus').textContent = message;
+}
+
+function setButtons() {
+    document.getElementById('saveRulesBtn').disabled = !rulesState.dirty;
+    document.getElementById('resetRulesBtn').disabled = !rulesState.exampleJson;
+}
+
+function loadRulesConfig() {
+    setStatus('Loading...');
+    fetch('/admin/api/filearea-rules')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load rules');
+            }
+            const cfg = data.config || {};
+            rulesState.configJson = cfg.config_json || '{"global_rules": [], "area_rules": {}}';
+            rulesState.exampleJson = cfg.example_json || null;
+            document.getElementById('rulesJsonEditor').value = rulesState.configJson;
+            rulesState.dirty = false;
+            setButtons();
+            setStatus(cfg.active ? 'Active' : 'Missing config');
+        })
+        .catch(error => {
+            setAlert(error.message || 'Failed to load rules', 'danger');
+            setStatus('Error');
+        });
+}
+
+function saveRules() {
+    const editor = document.getElementById('rulesJsonEditor');
+    let parsed = null;
+    try {
+        parsed = JSON.parse(editor.value);
+    } catch (err) {
+        setAlert('Rules JSON is invalid. Please fix errors before saving.', 'danger');
+        return;
+    }
+
+    setAlert('', '');
+
+    fetch('/admin/api/filearea-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json: JSON.stringify(parsed) })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to save rules');
+            }
+            const cfg = data.config || {};
+            rulesState.configJson = cfg.config_json || editor.value;
+            document.getElementById('rulesJsonEditor').value = rulesState.configJson;
+            rulesState.dirty = false;
+            setButtons();
+            setAlert('Rules saved successfully.', 'success');
+        })
+        .catch(error => {
+            setAlert(error.message || 'Failed to save rules', 'danger');
+        });
+}
+
+function resetRules() {
+    if (!rulesState.exampleJson) {
+        return;
+    }
+    if (!confirm('Replace current rules with the example file?')) {
+        return;
+    }
+
+    document.getElementById('rulesJsonEditor').value = rulesState.exampleJson;
+    rulesState.dirty = true;
+    setButtons();
+    setAlert('Loaded example rules. Save to apply them.', 'info');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadRulesConfig();
+    const editor = document.getElementById('rulesJsonEditor');
+    editor.addEventListener('input', () => {
+        rulesState.dirty = editor.value !== (rulesState.configJson || '');
+        setButtons();
+    });
+    document.getElementById('saveRulesBtn').addEventListener('click', saveRules);
+    document.getElementById('resetRulesBtn').addEventListener('click', resetRules);
+});
+</script>
+{% endblock %}

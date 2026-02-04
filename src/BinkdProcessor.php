@@ -854,7 +854,7 @@ class BinkdProcessor
                         $totalMinutes = ($hours * 60) + $minutes;
                         // If matches[1] is '-', offset is negative; if empty string (no sign), offset is positive
                         $tzutcOffset = ($matches[1] === '-') ? -$totalMinutes : $totalMinutes;
-                        error_log("DEBUG: Found TZUTC offset: {$tzutcLine} = {$tzutcOffset} minutes");
+                        //error_log("DEBUG: Found TZUTC offset: {$tzutcLine} = {$tzutcOffset} minutes");
                     }
                 }
                 
@@ -902,9 +902,9 @@ class BinkdProcessor
             VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
         ");
 
-        $this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
+        //$this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
-        $this->log("DEBUG: dateWritten is $dateWritten");
+        //$this->log("DEBUG: dateWritten is $dateWritten");
         //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.
         $kludgeText = implode("\n", $kludgeLines);
 

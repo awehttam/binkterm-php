@@ -8,6 +8,7 @@ use BinktermPHP\Auth;
 use BinktermPHP\Template;
 use BinktermPHP\Database;
 use BinktermPHP\Config;
+use BinktermPHP\GameConfig;
 
 // Initialize database
 Database::getInstance();
@@ -21,19 +22,19 @@ if (!headers_sent()) {
 $auth = new Auth();
 $user = $auth->getCurrentUser();
 $username = $user['username'] ?? '';
-// Load terminal configuration
 
-//$terminalHost = Config::env('TERMINAL_HOST', 'revpol.lovelybits.org');
-//$terminalPort = Config::env('TERMINAL_PORT', '22');
+// Load revpol configuration from webdoors.json (config/webdoors.json uses flat structure)
+$revpolConfig = GameConfig::getGameConfig('revpol') ?? [];
 
-// TODO: Read these settings from webdoors.json
-$terminalHost = 'revpol.lovelybits.org';
-$terminalPort = 22;
+// Use config values with fallbacks
+$terminalHost = $revpolConfig['host'] ?? 'revpol.lovelybits.org';
+$terminalPort = $revpolConfig['port'] ?? 22;
+$terminalProto = $revpolConfig['proto'] ?? 'ssh';  // Default to SSH
+$terminalTitle = $revpolConfig['display_name'] ?? 'Reverse Polarity BBS';
 $terminalEnabled = Config::env('TERMINAL_ENABLED', 'false') === 'true';
 
 $terminalProxyHost = Config::env('TERMINAL_PROXY_HOST', 'terminal.lovelybits.org');
 $terminalProxyPort = Config::env('TERMINAL_PROXY_PORT', '443');
-$terminalTitle = 'Reverse Polarity BBS';
 
 // Check if terminal is enabled
 if (!$terminalEnabled) {
@@ -144,6 +145,14 @@ try {
             transform: translateY(-2px);
             box-shadow: 0 6px 25px rgba(59, 130, 246, 0.4);
         }
+        #auth-fields {
+            transition: opacity 0.3s ease, max-height 0.3s ease;
+            overflow: hidden;
+        }
+        #auth-fields[style*="display: none"] {
+            opacity: 0;
+            max-height: 0;
+        }
         .hidden {
             display: none;
         }
@@ -175,10 +184,11 @@ try {
             </div>
             
             <div id="login-form" class="login-form">
-
-                <h3>SSH Connection to <?php echo htmlspecialchars($terminalHost . ':' . $terminalPort); ?></h3>
-                <input type="text" id="username" placeholder="Username" value="<?php echo $username;?>">
-                <input type="password" id="password" placeholder="Password">
+                <h3><?php echo strtoupper($terminalProto); ?> Connection to <?php echo htmlspecialchars($terminalHost . ':' . $terminalPort); ?></h3>
+                <div id="auth-fields" <?php if ($terminalProto === 'telnet') echo 'style="display: none;"'; ?>>
+                    <input type="text" id="username" placeholder="Username" value="<?php echo $username;?>">
+                    <input type="password" id="password" placeholder="Password">
+                </div>
                 <button onclick="startConnection()">Connect</button>
             </div>
             <div id="terminal" class="hidden"></div>
@@ -191,12 +201,13 @@ try {
         // Pre-configured proxy server settings
         const PROXY_HOST = '<?php echo addslashes($terminalProxyHost); ?>';
         const PROXY_PORT = <?php echo intval($terminalProxyPort); ?>;
-        
-        // Remote SSH host settings
+
+        // Remote host settings
         const REMOTE_HOST = '<?php echo addslashes($terminalHost); ?>';
         const REMOTE_PORT = <?php echo intval($terminalPort); ?>;
-        
-        
+        const REMOTE_PROTO = '<?php echo addslashes($terminalProto); ?>';
+
+
         // Initialize xterm.js
         const terminal = new Terminal({
             cursorBlink: true,
@@ -223,25 +234,31 @@ try {
 
 
         function startConnection() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            
-            if (!username || !password) {
-                alert('Please enter both username and password');
-                return;
+            // For SSH, require username and password
+            let username = '';
+            let password = '';
+
+            if (REMOTE_PROTO === 'ssh') {
+                username = document.getElementById('username').value;
+                password = document.getElementById('password').value;
+
+                if (!username || !password) {
+                    alert('Please enter both username and password');
+                    return;
+                }
             }
-            
+
             // Hide login form and show terminal
             document.getElementById('login-form').classList.add('hidden');
             document.getElementById('terminal').classList.remove('hidden');
-            
+
             // Initialize terminal if not already done
             if (!terminalInitialized) {
                 terminal.open(document.getElementById('terminal'));
                 fitAddon.fit();
                 terminalInitialized = true;
             }
-            
+
             connect(username, password);
         }
         
@@ -253,14 +270,17 @@ try {
             socket.on('connect', function() {
                 console.log('Socket.IO connected successfully');
                 terminal.write('\r\n\x1b[32mConnected to terminal server\x1b[0m\r\n');
-                
-                // Initiate SSH connection
-                console.log('Sending connect-ssh request:', { host: REMOTE_HOST, port: REMOTE_PORT, username });
-                socket.emit('connect-ssh', {
+
+                // Initiate connection (SSH or Telnet based on protocol)
+                const connectionType = REMOTE_PROTO === 'telnet' ? 'connect-telnet' : 'connect-ssh';
+                console.log(`Sending ${connectionType} request:`, { host: REMOTE_HOST, port: REMOTE_PORT, username, proto: REMOTE_PROTO });
+
+                socket.emit(connectionType, {
                     host: REMOTE_HOST,
                     port: REMOTE_PORT,
                     username: username,
-                    password: password
+                    password: password,
+                    proto: REMOTE_PROTO
                 });
             });
             
@@ -269,10 +289,11 @@ try {
             });
             
             socket.on('connection-status', function(status) {
+                const protoName = REMOTE_PROTO.toUpperCase();
                 if (status.status === 'connected') {
-                    terminal.write('\r\n\x1b[32mSSH connection established\x1b[0m\r\n');
+                    terminal.write(`\r\n\x1b[32m${protoName} connection established\x1b[0m\r\n`);
                 } else if (status.status === 'disconnected') {
-                    terminal.write('\r\n\x1b[31mSSH connection closed\x1b[0m\r\n');
+                    terminal.write(`\r\n\x1b[31m${protoName} connection closed\x1b[0m\r\n`);
                 }
             });
             

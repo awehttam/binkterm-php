@@ -3,6 +3,7 @@
 namespace BinktermPHP;
 
 use PDO;
+use BinktermPHP\FileArea\FileAreaRuleProcessor;
 
 /**
  * FileAreaManager - Manages file areas and files
@@ -61,7 +62,9 @@ class FileAreaManager
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        $areas = $stmt->fetchAll();
+
+        return $areas;
     }
 
     /**
@@ -129,6 +132,21 @@ class FileAreaManager
     }
 
     /**
+     * Get the domain for a file area tag
+     *
+     * @param string $tag
+     * @return string
+     */
+    public function getDomainForArea(string $tag): string
+    {
+        $stmt = $this->db->prepare("SELECT domain FROM file_areas WHERE tag = ? LIMIT 1");
+        $stmt->execute([$tag]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row['domain'] ?? 'fidonet';
+    }
+
+    /**
      * Create a new file area
      *
      * @param array $data File area data
@@ -144,6 +162,7 @@ class FileAreaManager
         $allowedExtensions = trim($data['allowed_extensions'] ?? '');
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');
         $replaceExisting = (bool)($data['replace_existing'] ?? false);
+        $allowDuplicateHash = (bool)($data['allow_duplicate_hash'] ?? false);
         $isLocal = (bool)($data['is_local'] ?? false);
         $uploadPermission = intval($data['upload_permission'] ?? self::UPLOAD_USERS_ALLOWED);
         $scanVirus = (bool)($data['scan_virus'] ?? true);
@@ -162,15 +181,17 @@ class FileAreaManager
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
+                allow_duplicate_hash,
                 upload_permission, scan_virus,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
         $stmt->execute([
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
+            $allowDuplicateHash ? 1 : 0,
             $uploadPermission, $scanVirus ? 1 : 0
         ]);
 
@@ -195,6 +216,7 @@ class FileAreaManager
         $allowedExtensions = trim($data['allowed_extensions'] ?? '');
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');
         $replaceExisting = (bool)($data['replace_existing'] ?? false);
+        $allowDuplicateHash = (bool)($data['allow_duplicate_hash'] ?? false);
         $isLocal = (bool)($data['is_local'] ?? false);
         $uploadPermission = intval($data['upload_permission'] ?? self::UPLOAD_USERS_ALLOWED);
         $scanVirus = (bool)($data['scan_virus'] ?? true);
@@ -214,13 +236,14 @@ class FileAreaManager
             UPDATE file_areas
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
                 max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
-                replace_existing = ?, upload_permission = ?, scan_virus = ?, updated_at = NOW()
+                replace_existing = ?, allow_duplicate_hash = ?, upload_permission = ?, scan_virus = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
         $result = $stmt->execute([
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
+            $allowDuplicateHash ? 1 : 0,
             $uploadPermission, $scanVirus ? 1 : 0, $id
         ]);
 
@@ -374,15 +397,19 @@ class FileAreaManager
         // Calculate hash
         $fileHash = hash_file('sha256', $tmpPath);
 
-        // Check for duplicates
-        $existingFile = $this->checkDuplicate($fileAreaId, $fileHash);
-        if ($existingFile) {
-            throw new \Exception('This file already exists in this area');
+        // Check for duplicates (allow override per area)
+        $allowDuplicate = !empty($fileArea['allow_duplicate_hash']);
+        if ($allowDuplicate) {
+            $fileHash = $this->makeUniqueHash($fileAreaId, $fileHash);
+        } else {
+            $existingFile = $this->checkDuplicate($fileAreaId, $fileHash);
+            if ($existingFile) {
+                throw new \Exception('This file already exists in this area');
+            }
         }
 
         // Create area directory if needed
-        $filesBasePath = __DIR__ . '/../data/files';
-        $areaDir = $filesBasePath . '/' . $fileArea['tag'];
+        $areaDir = $this->getAreaStorageDir($fileArea);
         if (!is_dir($areaDir)) {
             mkdir($areaDir, 0755, true);
         }
@@ -459,22 +486,39 @@ class FileAreaManager
 
         // Scan for viruses if enabled for this file area
         if (!empty($fileArea['scan_virus'])) {
-            $this->scanFileForViruses($fileId, $storagePath);
+            $scanResult = $this->scanFileForViruses($fileId, $storagePath);
+            if (($scanResult['result'] ?? '') === 'infected') {
+                throw new \Exception('File rejected: virus detected.');
+            }
+        }
+
+        // Run file area automation rules
+        try {
+            $ruleProcessor = new FileAreaRuleProcessor();
+            $ruleResult = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
+            if (!empty($ruleResult['output'])) {
+                error_log("File area rules output for {$filename}: " . $ruleResult['output']);
+            }
+        } catch (\Exception $e) {
+            error_log("File area rules error for {$filename}: " . $e->getMessage());
+        }
+
+        // If rules deleted the file, skip TIC generation
+        $fileRecord = $this->getFileById($fileId);
+        if (!$fileRecord) {
+            return $fileId;
         }
 
         // Generate TIC files for distribution to uplinks (if not a local area)
         if (empty($fileArea['is_local']) && empty($fileArea['is_private'])) {
             try {
-                // Fetch the complete file record for TIC generation
-                $fileRecord = $this->getFileById($fileId);
-
                 $ticGenerator = new TicFileGenerator();
                 $createdTics = $ticGenerator->createTicFilesForUplinks($fileRecord, $fileArea);
 
                 if (count($createdTics) > 0) {
                     error_log("Generated " . count($createdTics) . " TIC file(s) for file: {$filename}");
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 // Log error but don't fail the upload
                 error_log("Failed to generate TIC files for uploaded file: " . $e->getMessage());
             }
@@ -490,7 +534,7 @@ class FileAreaManager
      * @param string $filePath Path to file to scan
      * @return void
      */
-    private function scanFileForViruses(int $fileId, string $filePath): void
+    private function scanFileForViruses(int $fileId, string $filePath): array
     {
         $scanner = new VirusScanner();
         $result = $scanner->scanFile($filePath);
@@ -522,12 +566,14 @@ class FileAreaManager
                 error_log("Deleted infected file: {$filePath}");
             }
 
-            // Mark file record as deleted/quarantined
-            $stmt = $this->db->prepare("UPDATE files SET deleted = TRUE WHERE id = ?");
+            // Mark file record as rejected
+            $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
             $stmt->execute([$fileId]);
         } elseif ($result['result'] === 'error') {
             error_log("Virus scan error for file ID {$fileId}: {$result['error']}");
         }
+
+        return $result;
     }
 
     /**
@@ -567,6 +613,170 @@ class FileAreaManager
         }
 
         throw new \Exception('Failed to delete file');
+    }
+
+    /**
+     * Delete a file by storage path (used by automation rules)
+     *
+     * @param string $filepath
+     * @return bool
+     */
+    public function deleteFileByPath(string $filepath): bool
+    {
+        $record = $this->getFileRecordByPath($filepath);
+        if ($record) {
+            if (file_exists($record['storage_path'])) {
+                unlink($record['storage_path']);
+            }
+            $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
+            $stmt->execute([$record['id']]);
+            $this->updateFileAreaStats((int)$record['file_area_id']);
+            return true;
+        }
+
+        if (file_exists($filepath)) {
+            unlink($filepath);
+        }
+
+        return true;
+    }
+
+    /**
+     * Move a file to another file area (used by automation rules)
+     *
+     * @param string $filepath
+     * @param string $targetArea
+     * @return bool
+     */
+    public function moveFileToArea(string $filepath, string $targetArea): bool
+    {
+        $record = $this->getFileRecordByPath($filepath);
+        if (!$record) {
+            return false;
+        }
+
+        $targetArea = strtoupper(trim($targetArea));
+        if ($targetArea === '') {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM file_areas WHERE tag = ? AND domain = ? AND is_active = TRUE LIMIT 1");
+        $stmt->execute([$targetArea, $record['domain'] ?? 'fidonet']);
+        $target = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$target) {
+            return false;
+        }
+
+        $targetDir = $this->getAreaStorageDir($target);
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0755, true);
+        }
+
+        $filename = $record['filename'];
+        $targetPath = $targetDir . '/' . $filename;
+
+        if (file_exists($targetPath)) {
+            if (!empty($target['replace_existing'])) {
+                $existing = $this->getFileByPath($targetPath);
+                if ($existing) {
+                    $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
+                    $stmt->execute([$existing['id']]);
+                }
+                unlink($targetPath);
+            } else {
+                $counter = 1;
+                while (file_exists($targetPath)) {
+                    $pathInfo = pathinfo($filename);
+                    $newFilename = $pathInfo['filename'] . '_' . $counter;
+                    if (!empty($pathInfo['extension'])) {
+                        $newFilename .= '.' . $pathInfo['extension'];
+                    }
+                    $filename = $newFilename;
+                    $targetPath = $targetDir . '/' . $filename;
+                    $counter++;
+                }
+            }
+        }
+
+        if (!rename($record['storage_path'], $targetPath)) {
+            return false;
+        }
+
+        chmod($targetPath, 0644);
+        $targetPath = realpath($targetPath) ?: $targetPath;
+
+        $stmt = $this->db->prepare("UPDATE files SET file_area_id = ?, filename = ?, storage_path = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([
+            $target['id'],
+            $filename,
+            $targetPath,
+            $record['id']
+        ]);
+
+        $this->updateFileAreaStats((int)$record['file_area_id']);
+        $this->updateFileAreaStats((int)$target['id']);
+
+        return true;
+    }
+
+    /**
+     * Archive a file (used by automation rules)
+     *
+     * @param string $filepath
+     * @param string $areatag
+     * @return bool
+     */
+    public function archiveFileByPath(string $filepath, string $areatag): bool
+    {
+        $record = $this->getFileRecordByPath($filepath);
+        $baseDir = realpath(__DIR__ . '/..');
+        $archiveDir = $baseDir . '/data/archive/' . $areatag;
+
+        if (!is_dir($archiveDir)) {
+            mkdir($archiveDir, 0755, true);
+        }
+
+        $filename = basename($filepath);
+        $timestamp = date('Ymd_His');
+        $targetPath = $archiveDir . '/' . $timestamp . '_' . $filename;
+
+        if (!rename($filepath, $targetPath)) {
+            return false;
+        }
+
+        if ($record) {
+            $stmt = $this->db->prepare("UPDATE files SET status = 'archived', storage_path = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$targetPath, $record['id']]);
+            $this->updateFileAreaStats((int)$record['file_area_id']);
+        }
+
+        return true;
+    }
+
+    /**
+     * Get file record by storage path (includes area details)
+     *
+     * @param string $filepath
+     * @return array|null
+     */
+    public function getFileRecordByPath(string $filepath): ?array
+    {
+        $realPath = realpath($filepath);
+        if (!$realPath) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT f.*, fa.tag as area_tag, fa.domain, fa.replace_existing
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE f.storage_path = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$realPath]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $result ?: null;
     }
 
     /**
@@ -613,6 +823,25 @@ class FileAreaManager
         $result = $stmt->fetch();
 
         return $result ?: null;
+    }
+
+    /**
+     * Generate a unique hash if duplicates are allowed in this area
+     *
+     * @param int $fileAreaId
+     * @param string $baseHash
+     * @return string
+     */
+    private function makeUniqueHash(int $fileAreaId, string $baseHash): string
+    {
+        $hash = $baseHash;
+        $counter = 1;
+        while ($this->checkDuplicate($fileAreaId, $hash)) {
+            $hash = hash('sha256', $baseHash . ':' . $counter);
+            $counter++;
+        }
+
+        return $hash;
     }
 
     /**
@@ -679,8 +908,7 @@ class FileAreaManager
         $fileHash = hash_file('sha256', $filePath);
 
         // Create area directory if needed
-        $filesBasePath = __DIR__ . '/../data/files';
-        $areaDir = $filesBasePath . '/' . $fileArea['tag'];
+        $areaDir = $this->getAreaStorageDir($fileArea);
         if (!is_dir($areaDir)) {
             mkdir($areaDir, 0755, true);
         }
@@ -788,4 +1016,20 @@ class FileAreaManager
         ");
         $stmt->execute([$fileAreaId, $fileAreaId, $fileAreaId]);
     }
+
+    /**
+     * Get storage directory for a file area
+     *
+     * @param array $fileArea
+     * @return string
+     */
+    private function getAreaStorageDir(array $fileArea): string
+    {
+        $tag = $fileArea['tag'] ?? 'AREA';
+        $id = $fileArea['id'] ?? null;
+        $dirName = $id ? ($tag . '-' . $id) : $tag;
+        return __DIR__ . '/../data/files/' . $dirName;
+    }
+
+    // Lazy migration removed; directory changes should be handled explicitly.
 }

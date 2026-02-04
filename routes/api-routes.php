@@ -243,6 +243,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if (\BinktermPHP\UserRestrictions::isRestrictedUsername($username)
+            || \BinktermPHP\UserRestrictions::isRestrictedRealName($realName)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'This username or real name is not allowed']);
+            return;
+        }
+
         // Validate password length
         if (strlen($password) < 8) {
             http_response_code(400);
@@ -2541,7 +2548,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['message_text'],
                     null, // fromName
                     $input['reply_to_id'] ?? null,
-                    $crashmailFlag
+                    $crashmailFlag,
+                    $input['tagline'] ?? null
                 );
             } elseif ($type === 'echomail') {
                 $foo=explode("@", $input['echoarea']);
@@ -2555,7 +2563,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['to_name'],
                     $input['subject'],
                     $input['message_text'],
-                    $input['reply_to_id']
+                    $input['reply_to_id'],
+                    $input['tagline'] ?? null
                 );
             } else {
                 http_response_code(400);
@@ -3720,6 +3729,31 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::get('/taglines', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->getTaglines();
+            $raw = (string)($result['text'] ?? '');
+            $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+            $taglines = [];
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if ($trimmed === '') {
+                    continue;
+                }
+                $taglines[] = $trimmed;
+            }
+            echo json_encode(['success' => true, 'taglines' => $taglines]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+
     // User settings API endpoints
     SimpleRouter::get('/user/settings', function() {
         $user = RouteHelper::requireAuth();
@@ -4060,6 +4094,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Username must be 3-20 characters, letters, numbers, and underscores only']);
+                return;
+            }
+
+            if (\BinktermPHP\UserRestrictions::isRestrictedUsername($username)
+                || \BinktermPHP\UserRestrictions::isRestrictedRealName($realName)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'This username or real name is not allowed']);
                 return;
             }
 

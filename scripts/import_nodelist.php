@@ -203,11 +203,12 @@ function main($argc, $argv) {
 
 
     $nodelistFile = $argv[1];
-    $domain=$argv[2];
+    $domain = $argv[2] ?? '';
+
 
     if(!$domain) {
         echo "You must specify the network domain, eg: fidonet, fsxnet, testnet, etc\n";
-        exit(-1);
+        exit(1);
     }
     $force = in_array('--force', $argv);
 

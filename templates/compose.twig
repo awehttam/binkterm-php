@@ -1,4 +1,4 @@
-{% extends "base.twig" %}
+﻿{% extends "base.twig" %}
 
 {% block title %}Compose {{ type|title }} - {{ parent() }}{% endblock %}
 
@@ -100,7 +100,7 @@
                     <input type="text" class="form-control" id="subject" name="subject" 
                            value="{{ reply_subject }}" required>
                 </div>
-                
+
                 <div class="mb-3">
                     <label for="messageText" class="form-label">Message *</label>
                     <textarea class="form-control" id="messageText" name="message_text" 
@@ -108,6 +108,14 @@
                     <div class="form-text">
                         Use plain text. Fidonet standard formatting applies.
                     </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="taglineSelect" class="form-label">Tagline</label>
+                    <select class="form-select" id="taglineSelect" name="tagline">
+                        <option value="">No tagline</option>
+                    </select>
+                    <div class="form-text">Select a sysop-provided tagline to append below your signature.</div>
                 </div>
                 
                 <div class="d-flex justify-content-between">
@@ -166,8 +174,7 @@
                 <h6 class="mt-3">Technical Notes:</h6>
                 <ul class="small">
                     <li>Plain text only (no HTML)</li>
-                    <li>Lines should be ≤ 79 characters</li>
-                    <li>Use --- for signature separator</li>
+                    <li>Lines should be â‰¤ 79 characters</li>
                     <li>Origin line added automatically</li>
                 </ul>
             </div>
@@ -221,6 +228,8 @@ $(document).ready(function() {
             loadEchoareas();
         }
     }
+
+    loadTaglines();
 
     // Form submit handler
     $('#composeForm').on('submit', function(e) {
@@ -331,7 +340,8 @@ function sendMessage() {
         subject: $('#subject').val(),
         message_text: $('#messageText').val(),
         reply_to_id: $('#replyToId').val() || null,
-        crashmail: $('#crashmail').is(':checked')
+        crashmail: $('#crashmail').is(':checked'),
+        tagline: $('#taglineSelect').val()
     };
     
     // Show sending status
@@ -381,6 +391,28 @@ function sendMessage() {
         }
     });
 }
+
+function loadTaglines() {
+    $.get('/api/taglines')
+        .done(function(data) {
+            const select = $('#taglineSelect');
+            if (!data || !data.taglines) {
+                return;
+            }
+            data.taglines.forEach(function(tagline) {
+                select.append(`<option value="${escapeHtml(tagline)}">${escapeHtml(tagline)}</option>`);
+            });
+            // Pick a random tagline by default (if any were added)
+            if (data.taglines.length > 0) {
+                const index = Math.floor(Math.random() * data.taglines.length);
+                select.val(data.taglines[index]);
+            }
+        })
+        .fail(function() {
+            // Taglines are optional; ignore failures
+        });
+}
+
 
 function saveDraft(silent = false) {
     const formData = {

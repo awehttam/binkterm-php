@@ -384,7 +384,8 @@ function loadUserSettings() {
                     default_sort: 'date_desc',
                     timezone: 'America/Los_Angeles',
                     font_family: 'Courier New, Monaco, Consolas, monospace',
-                    font_size: 16
+                    font_size: 16,
+                    signature_text: ''
                 };
                 
                 // Apply font settings after loading defaults

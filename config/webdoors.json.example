@@ -1,11 +1,5 @@
 {
-    "bbslink":
-    {
-        "comment": "BBSLink isn't fully functional and should be left disabled",
-        "enabled": false,
-        "proxy": "localhost",
-        "proxy_port": 3000
-    },
+
     "blackjack": {
         "enabled": true,
         "start_bet": 10
@@ -18,64 +12,6 @@
     },
     "wordle":{
         "enabled": true
-    },
-    "revpol": {
-        "enabled": false,
-        "host": "revpol.lovelybits.org",
-        "port": 22
-    },
-    "terminal": {
-       "enabled": false,
-       "comment": "Requires a terminal proxy server (e.g., terminalgateway) with telnet support enabled",
-       "hosts": [
-            {
-                "hostname": "nethack.alt.org",
-                "port": 23,
-                "proto": "telnet"
-            },
-            {
-                "hostname": "alt.org",
-                "port": 22,
-                "proto": "ssh"
-            },
-            {
-                "hostname": "telehack.com",
-                "port": 23,
-                "proto": "telnet"
-            },
-            {
-                "hostname": "bbs.dura-europos.org",
-                "port": 23,
-                "proto": "telnet"
-            },
-            {
-                "hostname": "cavebbs.com",
-                "port": 23,
-                "proto": "telnet"
-            },
-            {
-                "hostname": "aardmud.org",
-                "port": 4000,
-                "proto": "telnet"
-            },
-            {
-                "hostname": "batmud.bat.org",
-                "port": 23,
-                "proto": "telnet"
-            },
-
-            {
-                "hostname": "blackflag.acid.org",
-                "port": 23,
-                "proto": "telnet"
-            },
-            {
-                "hostname": "serionbbs.com",
-                "port": 23,
-                "proto": "telnet"
-            }
-       ]
-
     }
 
 }

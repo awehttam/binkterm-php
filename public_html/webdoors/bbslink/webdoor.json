@@ -21,5 +21,11 @@
   },
   "multiplayer": {
     "enabled": false
+  },    "config":
+  {
+    "comment": "BBSLink isn't fully functional and should be left disabled",
+    "enabled": false,
+    "proxy": "localhost",
+    "proxy_port": 3000
   }
 }

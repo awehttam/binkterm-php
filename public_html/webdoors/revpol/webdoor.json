@@ -5,7 +5,7 @@
     "name": "Reverse Polarity",
     "version": "1.0.0",
     "author": "awehttam",
-    "description": "Connects to the Reverse Polarity BBS",
+    "description": "Connect to BBS",
     "entry_point": "index.php",
     "icon": "icon.svg",
     "screenshots": []
@@ -21,5 +21,13 @@
   },
   "multiplayer": {
     "enabled": false
+  },
+  "config": {
+    "comment": "You can customize these settings to match your own BBS",
+    "display_name": "Reverse Polarity BBS",
+    "display_description": "Connects to the Reverse Polarity BBS",
+    "host": "revpol.lovelybits.org",
+    "port": "22",
+    "proto": "ssh"
   }
 }

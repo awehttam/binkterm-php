@@ -296,7 +296,7 @@ class BinkpSession
             $eobWaitStart = time();
             $eobTimeout = 60; // 60 second timeout for EOB exchange
             $lastActivity = time();
-            $activityTimeout = 30; // 30 seconds without any frames
+            $activityTimeout = 5; // 30 seconds without any frames
 
             $this->log("Waiting for session termination (state: {$this->state})", 'DEBUG');
 

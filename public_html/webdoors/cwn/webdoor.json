@@ -11,64 +11,6 @@
         "icon": "icon.svg",
         "entry_point": "index.html"
     },
-
-    "entrypoint": {
-        "type": "html",
-        "file": "index.html"
-    },
-
-    "runtime": {
-        "language": "javascript",
-        "framework": "vanilla",
-        "requires": {
-            "websocket": false,
-            "cookies": true,
-            "local_storage": true,
-            "geolocation": true
-        }
-    },
-
-    "session": {
-        "mode": "host",
-        "persistence": "server",
-        "max_duration_seconds": 86400
-    },
-
-    "capabilities": {
-        "singleplayer": true,
-        "multiplayer": false,
-        "leaderboards": false,
-        "achievements": false,
-        "spectators": false,
-        "credits": true,
-        "map_display": true
-    },
-
-    "api": {
-        "base_path": "/webdoors/cwn",
-        "endpoints": {
-            "list": "/api.php?action=list",
-            "get": "/api.php?action=get",
-            "submit": "/api.php?action=submit",
-            "update": "/api.php?action=update",
-            "delete": "/api.php?action=delete",
-            "search": "/api.php?action=search"
-        }
-    },
-
-    "ui": {
-        "preferred_width": 1280,
-        "preferred_height": 800,
-        "responsive": true,
-        "orientation": "any"
-    },
-
-    "security": {
-        "same_origin_only": true,
-        "csrf_protection": "host",
-        "content_sandbox": false
-    },
-
     "config": {
         "credits": {
             "submission_reward": 3,

@@ -2397,7 +2397,7 @@ protected function moveToStorage(string $tempPath, string $areaTag, string $file
     $filename = $this->sanitizeFilename($filename);
 
     // Build safe storage path
-    $storagePath = realpath(__DIR__ . '/../data/files') . '/' . $areaTag . '/' . $filename;
+    $storagePath = realpath(__DIR__ . '/../data/files') . '/' . $areaTag . 'FileAreas_Proposal.md/' . $filename;
 
     // Verify path is within allowed directory
     $allowedBase = realpath(__DIR__ . '/../data/files');

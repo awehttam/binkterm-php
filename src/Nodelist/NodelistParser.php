@@ -101,12 +101,18 @@ class NodelistParser
             case 'zone':
                 $this->currentZone = $nodeNumber;
                 $this->currentNet = $nodeNumber;
+                // Zone coordinators are always node 0
+                $nodeNumber = 0;
                 break;
             case 'region':
                 $this->currentNet = $nodeNumber;
+                // Region coordinators are always node 0
+                $nodeNumber = 0;
                 break;
             case 'host':
                 $this->currentNet = $nodeNumber;
+                // Network coordinators (hosts) are always node 0
+                $nodeNumber = 0;
                 break;
             case 'hub':
                 break;
@@ -120,14 +126,14 @@ class NodelistParser
                 }
                 break;
         }
-        
+
         $pointNumber = 0;
         if (strpos($nodeNumber, '.') !== false) {
             list($nodeNumber, $pointNumber) = explode('.', $nodeNumber, 2);
             $nodeNumber = (int)$nodeNumber;
             $pointNumber = (int)$pointNumber;
         }
-        
+
         return [
             'zone' => $this->currentZone,
             'net' => $this->currentNet,

@@ -95,14 +95,29 @@ SimpleRouter::get('/games', function() {
         $game['icon_url'] = "/webdoors/{$entry['path']}/" . ($game['icon'] ?? 'icon.png');
 
         if(GameConfig::isEnabled($entry['id'])){
+            // Check for display_name and display_description overrides in configuration
+            $gameConfig = GameConfig::getGameConfig($entry['id']);
+            if ($gameConfig) {
+                // Check top level first (config/webdoors.json uses flat structure)
+                $displayName = $gameConfig['display_name'] ?? null;
+                $displayDesc = $gameConfig['display_description'] ?? null;
+
+                if (!empty($displayName)) {
+                    $game['name'] = $displayName;
+                }
+                if (!empty($displayDesc)) {
+                    $game['description'] = $displayDesc;
+                }
+            }
             $games[] = $game;
         }
     }
 
+    // Build game lookup table for leaderboard (includes display_name overrides)
     $gameLookup = [];
     foreach ($games as $game) {
         $gameLookup[$game['id']] = [
-            'name' => $game['name'],
+            'name' => $game['name'],  // Already has display_name override applied if configured
             'path' => $game['path']
         ];
     }
@@ -129,7 +144,7 @@ SimpleRouter::get('/games', function() {
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         foreach ($rows as $index => $row) {
-            $displayName = $row['username'] ?: $row['real_name'];
+            $displayName = $row['username'];
             $gameInfo = $gameLookup[$row['game_id']] ?? null;
             $leaderboard[] = [
                 'rank' => $index + 1,
@@ -196,9 +211,25 @@ SimpleRouter::get('/games/{game}', function($game) {
     $entryPoint = $manifest['game']['entry_point'] ?? 'index.html';
     $gameUrl = "/webdoors/{$game}/{$entryPoint}";
 
+    // Apply display_name and display_description overrides if configured
+    $gameData = $manifest['game'];
+    $gameConfig = GameConfig::getGameConfig($game);
+    if ($gameConfig) {
+        // Check top level (config/webdoors.json uses flat structure)
+        $displayName = $gameConfig['display_name'] ?? null;
+        $displayDesc = $gameConfig['display_description'] ?? null;
+
+        if (!empty($displayName)) {
+            $gameData['name'] = $displayName;
+        }
+        if (!empty($displayDesc)) {
+            $gameData['description'] = $displayDesc;
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('webdoor_play.twig', [
-        'game' => $manifest['game'],
+        'game' => $gameData,
         'game_url' => $gameUrl,
         'game_id' => $game
     ]);

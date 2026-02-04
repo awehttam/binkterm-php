@@ -36,7 +36,9 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
  - Leave the vendor directory alone. It's managed by composer only
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
- - Database migrations are handled through scripts/setup.php (first time) or scripts/upgrade.php (upgrade)
+ - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks. 
+ - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). PHP migrations are executed by scripts/upgrade.php and receive a $db PDO connection.
+ - setup.php must be called when upgrading - this is to ensure certain things like file permissions are correct.
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
@@ -70,6 +72,15 @@ The `getSiteUrl()` method:
 - `MessageHandler::buildShareUrl()` - share link generation
 - `routes/web-routes.php` - shared message page
 - `PasswordResetController` - password reset emails
+
+## Admin Daemon
+
+The admin daemon (scripts/admin_daemon.php) is a critical system management component.  It provides an API to the web interface
+for retrieving and setting configuration elements through various commands as well as polling and other tasks.
+
+When adding new configuration settings you'll be working with the configuration daemon that performs the actual work.  The web interface will make an API request.
+
+You may need to add new commands, or update existing ones depending on the context of the setting being added.  Be sure to clarify and confirm this.
 
 ## Changelog Workflow
  - **IMPORTANT**: When completing significant features, bug fixes, or improvements, ALWAYS update the changelog at `templates/recent_updates.twig` by adding entries to the top of the file with the current date
@@ -152,7 +163,9 @@ The system uses this priority order for credit values:
 ## Recent Features Added
 
 ### WebDoors System
-WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification is documented in `docs/WebDoor_Proposal.md`.
+WebDoors is an evolving specification for embedding HTML5/JavaScript games into the BBS. The specification as used by BinktermPHP is documented in `docs/WebDoors.md`.
+
+A draft status specification with ideas we can draw upon is in `docs/proposals/WebDoor_Proposal.md` however it does not reflect the current state of implementation.
 
 **Current Implementation:**
 - **Game Manifest System**: Each WebDoor includes a `webdoor.json` manifest describing capabilities, requirements, and configuration
@@ -168,7 +181,7 @@ WebDoors is an evolving specification for embedding HTML5/JavaScript games into 
 - `WebDoorController` - Handles game session management and API endpoints
 
 **Important Notes:**
-- When adding WebDoor API functionality, update `docs/WebDoor_Proposal.md` to reflect new features
+- When adding WebDoor API functionality or making changes to the WebDoor system (not individual webdoors themselves), update `docs/WebDoors.md` to reflect new features
 - WebDoor specification is evolving - keep documentation synchronized with implementation
 - All WebDoor games must include a valid `webdoor.json` manifest
 - Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
@@ -272,13 +285,12 @@ Commit your changes. Do NOT create a tag.
 ```bash
 git add src/Version.php composer.json templates/recent_updates.twig
 git commit -m "Bump version to 1.4.3"
-git tag -a v1.4.3 -m "Release version 1.4.3"
-git push origin main --tags
+git push origin main 
 ```
 
 #### 5. Update UPGRADING_x.x.x.md documentation
 
-For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) with a summary of changes and important upgrade instructions
+For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) in the docs/ directory with a summary of changes and important upgrade instructions
 
 ### What Updates Automatically
 

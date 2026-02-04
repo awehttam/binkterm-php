@@ -135,6 +135,14 @@
                     </div>
 
                     <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="fileareaAllowDuplicateHash" name="allow_duplicate_hash">
+                        <label class="form-check-label" for="fileareaAllowDuplicateHash">
+                            Allow Duplicate Content
+                        </label>
+                        <div class="form-text">Allow same file content (hash) with different filenames</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="fileareaIsLocal" name="is_local">
                         <label class="form-check-label" for="fileareaIsLocal">
                             Local Only
@@ -170,6 +178,7 @@
                 </form>
             </div>
             <div class="modal-footer">
+                <a href="/admin/filearea-rules" class="btn btn-outline-secondary me-auto">Edit Rules</a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="saveFilearea()">Save</button>
             </div>
@@ -241,8 +250,9 @@ function displayFileareas(fileareas) {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th width="20%">Tag</th>
-                        <th width="35%">Description</th>
+                        <th width="18%">Tag</th>
+                        <th width="18%">Domain</th>
+                        <th width="29%">Description</th>
                         <th width="10%">Files</th>
                         <th width="10%">Size</th>
                         <th width="10%">Status</th>
@@ -270,6 +280,7 @@ function displayFileareas(fileareas) {
         html += `
             <tr>
                 <td><strong>${escapeHtml(area.tag)}</strong></td>
+                <td>${escapeHtml(area.domain || 'fidonet')}</td>
                 <td>${escapeHtml(area.description || '')}</td>
                 <td>${area.file_count || 0}</td>
                 <td>${fileSize}</td>
@@ -315,6 +326,7 @@ function editFilearea(id) {
             $('#fileareaAllowedExt').val(area.allowed_extensions || '');
             $('#fileareaBlockedExt').val(area.blocked_extensions || '');
             $('#fileareaReplaceExisting').prop('checked', area.replace_existing);
+            $('#fileareaAllowDuplicateHash').prop('checked', area.allow_duplicate_hash);
             $('#fileareaIsLocal').prop('checked', area.is_local);
             $('#fileareaUploadPermission').val(area.upload_permission !== undefined ? area.upload_permission : 1);
             $('#fileareaScanVirus').prop('checked', area.scan_virus !== false);
@@ -338,6 +350,7 @@ function saveFilearea() {
         allowed_extensions: $('#fileareaAllowedExt').val(),
         blocked_extensions: $('#fileareaBlockedExt').val(),
         replace_existing: $('#fileareaReplaceExisting').is(':checked'),
+        allow_duplicate_hash: $('#fileareaAllowDuplicateHash').is(':checked'),
         is_local: $('#fileareaIsLocal').is(':checked'),
         upload_permission: parseInt($('#fileareaUploadPermission').val()),
         scan_virus: $('#fileareaScanVirus').is(':checked'),

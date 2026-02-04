@@ -611,7 +611,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -633,13 +633,15 @@ class MessageHandler
             }
         }
 
+        $messageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline ?? null);
+
         // Special case: if sending to "sysop" at our local system, route to local sysop user
         if (!empty($toName) && strtolower($toName) === 'sysop') {
             try {
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                 // Only route locally if destination is one of our addresses (or no address specified)
                 if (empty($toAddress) || $binkpConfig->isMyAddress($toAddress)) {
-                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId);
+                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null);
                 }
             } catch (\Exception $e) {
                 // If we can't get config, fall through to normal send
@@ -755,7 +757,7 @@ class MessageHandler
         return $result;
     }
 
-    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null)
+    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null)
     {
         // Get sysop name from config
         try {
@@ -814,7 +816,7 @@ class MessageHandler
             $senderName,
             $sysopName,
             $subject,
-            $messageText,
+            $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
             $replyToId,
             $msgId,
             $kludgeLines
@@ -837,7 +839,7 @@ class MessageHandler
         return $result;
     }
 
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -889,7 +891,7 @@ class MessageHandler
             $fromName,
             $toName,
             $subject,
-            $messageText,
+            $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
             $replyToId,
             $msgId,
             null, // origin_line (will be added when packet is created) 
@@ -922,6 +924,36 @@ class MessageHandler
         }
 
         return $result;
+    }
+
+    private function applyUserSignatureAndTagline(string $messageText, int $userId, ?string $tagline = null): string
+    {
+        $body = rtrim($messageText, "\r\n");
+        $lines = preg_split('/\r\n|\r|\n/', $body) ?: [];
+
+        $taglineText = trim((string)($tagline ?? ''));
+        if ($taglineText !== '') {
+            $taglineText = str_replace(["\r\n", "\r", "\n"], ' ', $taglineText);
+            if (strpos($taglineText, '... ') !== 0) {
+                $taglineText = '... ' . $taglineText;
+            }
+            $lastLine = '';
+            for ($i = count($lines) - 1; $i >= 0; $i--) {
+                if (trim((string)$lines[$i]) !== '') {
+                    $lastLine = trim((string)$lines[$i]);
+                    break;
+                }
+            }
+            if ($lastLine !== $taglineText) {
+                if ($body !== '') {
+                    $body = rtrim($body, "\r\n") . "\n\n" . $taglineText;
+                } else {
+                    $body = $taglineText;
+                }
+            }
+        }
+
+        return $body;
     }
 
     private function getCreditsRules(): array
@@ -1494,7 +1526,8 @@ class MessageHandler
                 'default_sort' => 'date_desc',
                 'font_family' => 'Courier New, Monaco, Consolas, monospace',
                 'font_size' => 16,
-                'date_format' => 'en-US'
+                'date_format' => 'en-US',
+                'signature_text' => ''
             ];
         }
 
@@ -1524,7 +1557,8 @@ class MessageHandler
             'show_tearline' => 'BOOLEAN',
             'auto_refresh' => 'BOOLEAN',
             'quote_coloring' => 'BOOLEAN',
-            'date_format' => 'STRING'
+            'date_format' => 'STRING',
+            'signature_text' => 'SIGNATURE'
         ];
 
         $updates = [];
@@ -1544,6 +1578,13 @@ class MessageHandler
                     break;
                 case 'BOOLEAN':
                     $params[] = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'TRUE' : 'FALSE';
+                    break;
+                case 'SIGNATURE':
+                    $signature = str_replace(["\r\n", "\r"], "\n", (string)$value);
+                    $lines = preg_split('/\n/', $signature) ?: [];
+                    $lines = array_slice($lines, 0, 4);
+                    $lines = array_map('rtrim', $lines);
+                    $params[] = implode("\n", $lines);
                     break;
                 default:
                     $params[] = $value;

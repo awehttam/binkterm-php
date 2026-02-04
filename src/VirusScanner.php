@@ -156,7 +156,7 @@ class VirusScanner
         }
 
         // Try to ping clamd
-        $command = escapeshellarg($this->clamdscanPath) . ' --ping 2>&1';
+        $command = escapeshellarg($this->clamdscanPath) . ' --ping 1';
         $output = trim((string)shell_exec($command));
 
         // clamdscan --ping should return "PONG" if clamd is running

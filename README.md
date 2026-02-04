@@ -26,6 +26,8 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
+- [File Areas](#file-areas)
+  - [File Area Rules](#file-area-rules)
 - [WebDoors](#webdoors---web-based-door-games)
 - [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
@@ -62,6 +64,10 @@ Here are some screen shots showing various aspects of the interface with differe
    <td align="center"><B>Web Doors</B><BR><img src="docs/screenshots/webdoors.png" width="400">"</td>
    <td align="center"><B>User Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
    </Tr>
+<Tr>
+   <td align="center"><B>Admin Menu</B><BR><img src="docs/screenshots/adminmenu.png" width="400">"</td>
+   <td align="center"><B>Telnet Server</B><BR><img src="docs/screenshots/telnetserver.png" width="400">"</td>
+   </Tr>
 <tr>
 </tr>
 
@@ -81,14 +87,19 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
-- **WebDoors** - HTML5/JavaScript game integration with storage, leaderboards, and multiplayer support
+- **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
+- **File Areas** - Networked and local file areas with optional automation rules (see `docs/FileAreas.md`)
+- **ANSI Support** - Support for ANSI and ASCII art in message readers
+- **Credit System** - Support for credits and rewards 
+- **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
+- **Shoutbox** - Shoutbox support
+- **Nodelist Browsers** - Integrated nodelist updater and browser 
 
 ### Native Binkp Protocol Support
-- **FTS-1026 Compliant** - Full (really?)  binkp/1.0 protocol implementation
+- **FTS-1026 Compliant** - binkp/1.0 protocol implementation
 - **TCP/IP Connectivity** - Direct connections over internet (port 24554)
 - **Automated Scheduling** - Cron-style polling with configurable intervals
-- **File Transfer** - Reliable packet exchange with resume support (not FREQIT)
-- **Password Authentication** - Uplink authentication
+- **Password Authentication** - Plaintext and Crypt-MD5 Uplink authentication
 - **Connection Management** - Multiple concurrent connections with limits
 
 ### Command Line Tools
@@ -644,17 +655,32 @@ In general, you can follow these general steps when upgrading BinktermPHP howeve
 
 The general steps are:
 
+### From Git
 1. **Pull the latest code** - `git pull`
 2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
 3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
-4. **Restart daemons (admin_daemon, binkd_scheduler, binkd_server) ** - `bash scripts/restart_daemons.sh` or restart using your preferred system service tool
+4. **Restart daemons (admin_daemon, binkd_scheduler, binkd_server)** - `bash scripts/restart_daemons.sh` or restart using your preferred system service tool
 
+### Using the BinktermPHP installer
 
+If you previously installed BinktermPHP using the installer, re-run the installer to perform an upgrade.  
+
+```bash
+# Download the installer
+wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/binkterm-installer.phar
+
+# Run the installer
+php binkterm-installer.phar
+```
 ### Version-Specific Upgrade Guides
 
-- January 29 2026 - [UPGRADING_1.7.1.md](UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 28 2026 - [UPGRADING_1.7.0.md](UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
-- January 24 2026 - [UPGRADING_1.6.7.md](UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
+Individual versions with specific upgrade documentation:
+
+- February 2 2026 - [docs/UPGRADING_1.7.5.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
+- January 30 2026 - [docs/UPGRADING_1.7.2.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
+- January 29 2026 - [docs/UPGRADING_1.7.1.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
+- January 28 2026 - [docs/UPGRADING_1.7.0.md](docs/UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
+- January 24 2026 - [docs/UPGRADING_1.6.7.md](docs/UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
 
 ## Database Management
 
@@ -1256,6 +1282,16 @@ If you encounter issues not covered here:
 - Regular security updates of dependencies
 - Consider rate limiting for API endpoints
 
+## File Areas
+
+File areas are organized collections of downloadable files, similar to echo areas but for file distribution. Each area is identified by a `tag` and a `domain` (e.g., `NODELIST` in `fidonet` or `localnet`). File areas can be local‑only or networked for distribution to uplinks, and they support controls like maximum file size, upload permissions, and virus scanning.
+
+Files uploaded or received via TIC are stored under a directory specific to the file area, and the web UI at `/fileareas` lets sysops manage area settings and browse files. This makes it easy to distribute nodelists, archives, and other content across FTN networks while keeping local areas isolated when needed.
+
+## File Area Rules
+
+BinktermPHP supports file area automation rules to run scripts and apply post-processing actions after uploads or TIC imports. Rules are configured in `config/filearea_rules.json` and can be edited in the admin UI at `/admin/filearea-rules`. Each rule matches filenames with a regex, runs a script with macro substitutions, and then performs success/fail actions like delete, move, or notify. Rules can be scoped by area tag and domain and are applied in order (global rules first, then area-specific rules). For full configuration details, see [docs/FileAreas.md](docs/FileAreas.md).
+
 # Gateway Token Authentication
 
 The **Gateway Token** system allows remote components (such as Door servers, external modules, or automatic 
@@ -1453,7 +1489,7 @@ Games interact with the BBS through REST endpoints:
 
 ### Documentation
 
-For the complete WebDoor specification including SDK examples, multiplayer protocol, and implementation details, see [docs/WebDoor_Proposal.md](docs/WebDoors_Proposal.md).
+For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
 
 ## Frequently Asked Questions
 

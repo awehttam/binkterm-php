@@ -1,0 +1,117 @@
+<?php
+// Log rotation utility for data/logs
+// Usage: php scripts/logrotate.php [--keep=10] [--dry-run]
+
+$rootDir = dirname(__DIR__);
+$logsDir = $rootDir . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'logs';
+$oldDir = $logsDir . DIRECTORY_SEPARATOR . 'old';
+
+$options = getopt('', ['keep::', 'dry-run']);
+$keep = 10;
+if (isset($options['keep']) && is_numeric($options['keep'])) {
+    $keep = max(1, (int)$options['keep']);
+}
+$dryRun = array_key_exists('dry-run', $options);
+
+if (!is_dir($logsDir)) {
+    fwrite(STDERR, "Logs directory not found: $logsDir\n");
+    exit(1);
+}
+
+if (!is_dir($oldDir)) {
+    if ($dryRun) {
+        echo "[dry-run] mkdir $oldDir\n";
+    } else {
+        if (!mkdir($oldDir, 0775, true)) {
+            fwrite(STDERR, "Failed to create old logs directory: $oldDir\n");
+            exit(1);
+        }
+    }
+}
+
+$logFiles = glob($logsDir . DIRECTORY_SEPARATOR . '*.log');
+if ($logFiles === false) {
+    fwrite(STDERR, "Failed to read log files in $logsDir\n");
+    exit(1);
+}
+
+foreach ($logFiles as $logPath) {
+    if (!is_file($logPath)) {
+        continue;
+    }
+
+    $base = basename($logPath);
+    $oldBase = $oldDir . DIRECTORY_SEPARATOR . $base;
+
+    // Remove the oldest rotation if it exists
+    $oldest = $oldBase . '.' . ($keep - 1) . '.gz';
+    if (file_exists($oldest)) {
+        if ($dryRun) {
+            echo "[dry-run] delete $oldest\n";
+        } else {
+            unlink($oldest);
+        }
+    }
+
+    // Shift existing rotations up
+    for ($i = $keep - 2; $i >= 0; $i--) {
+        $src = $oldBase . '.' . $i . '.gz';
+        $dst = $oldBase . '.' . ($i + 1) . '.gz';
+        if (file_exists($src)) {
+            if ($dryRun) {
+                echo "[dry-run] move $src -> $dst\n";
+            } else {
+                rename($src, $dst);
+            }
+        }
+    }
+
+    // Copy + truncate current log to avoid issues with open handles
+    $rotated = $oldBase . '.0';
+    if ($dryRun) {
+        echo "[dry-run] copy $logPath -> $rotated\n";
+        echo "[dry-run] truncate $logPath\n";
+    } else {
+        if (!copy($logPath, $rotated)) {
+            fwrite(STDERR, "Failed to copy $logPath to $rotated\n");
+            continue;
+        }
+        // Truncate original log
+        $fh = fopen($logPath, 'c+');
+        if ($fh) {
+            ftruncate($fh, 0);
+            fclose($fh);
+        }
+    }
+
+    // Compress rotated file
+    $gzPath = $rotated . '.gz';
+    if ($dryRun) {
+        echo "[dry-run] gzip $rotated -> $gzPath\n";
+        echo "[dry-run] delete $rotated\n";
+    } else {
+        $in = fopen($rotated, 'rb');
+        if (!$in) {
+            fwrite(STDERR, "Failed to open $rotated for reading\n");
+            continue;
+        }
+        $out = gzopen($gzPath, 'wb9');
+        if (!$out) {
+            fclose($in);
+            fwrite(STDERR, "Failed to open $gzPath for writing\n");
+            continue;
+        }
+        while (!feof($in)) {
+            $buffer = fread($in, 1024 * 1024);
+            if ($buffer === false) {
+                break;
+            }
+            gzwrite($out, $buffer);
+        }
+        fclose($in);
+        gzclose($out);
+        unlink($rotated);
+    }
+
+    echo "Rotated $base -> " . basename($gzPath) . "\n";
+}
