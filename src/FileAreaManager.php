@@ -1041,8 +1041,8 @@ class FileAreaManager
     /**
      * Ensure directory exists with correct permissions for file areas
      *
-     * Creates directory with 0775 permissions (rwxrwxr-x) to allow both
-     * user and group read/write/execute access
+     * Creates directory with 02775 permissions (rwxrwsr-x) to allow both
+     * user and group read/write/execute access with setgid bit
      *
      * @param string $directory Directory path to create
      * @param bool $recursive Create parent directories if needed (default: true)
@@ -1055,8 +1055,16 @@ class FileAreaManager
             return;
         }
 
-        if (!mkdir($directory, self::DIR_PERM, $recursive)) {
-            throw new \Exception("Failed to create directory: {$directory}");
+        // Save current umask and set to 0000 to ensure permissions are applied correctly
+        $oldUmask = umask(0000);
+
+        try {
+            if (!mkdir($directory, self::DIR_PERM, $recursive)) {
+                throw new \Exception("Failed to create directory: {$directory}");
+            }
+        } finally {
+            // Always restore original umask
+            umask($oldUmask);
         }
     }
 
