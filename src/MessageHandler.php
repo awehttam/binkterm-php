@@ -79,9 +79,17 @@ class MessageHandler
             $params[] = $user['username'];
             $params[] = $user['real_name'];
         } elseif ($filter === 'sent') {
-            // Show only messages sent by this user (check from_name since user_id is unreliable for received messages)
-            $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
-            $params = [$user['username'], $user['real_name']];
+            // Show only messages sent by this user from this system (check from_name AND from_address)
+            if (!empty($myAddresses)) {
+                $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                // Fallback if no addresses configured - just check name
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
             // Show only messages received by this user (must match name AND to_address must be one of our addresses)
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
@@ -3345,9 +3353,17 @@ class MessageHandler
             $params[] = $user['username'];
             $params[] = $user['real_name'];
         } elseif ($filter === 'sent') {
-            // Show only messages sent by this user (check from_name since user_id is unreliable for received messages)
-            $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
-            $params = [$user['username'], $user['real_name']];
+            // Show only messages sent by this user from this system (check from_name AND from_address)
+            if (!empty($myAddresses)) {
+                $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                // Fallback if no addresses configured - just check name
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
             // Show only messages received by this user (must match name AND to_address must be one of our addresses)
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
