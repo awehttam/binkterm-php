@@ -30,7 +30,7 @@ class FileAreaManager
     public const UPLOAD_ADMIN_ONLY = 0;
     public const UPLOAD_USERS_ALLOWED = 1;
     public const UPLOAD_READ_ONLY = 2;
-    const DIR_PERM = 2775;      // Directory permissions use 2775 to ensure group sticky access between web server and local user
+    const DIR_PERM = 02775;      // Directory permissions use 02775 (octal) to ensure group sticky access between web server and local user
 
     private PDO $db;
 
