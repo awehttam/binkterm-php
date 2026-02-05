@@ -74,11 +74,14 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            $whereClause .= " AND mrs.read_at IS NULL";
-        } elseif ($filter === 'sent' && $systemAddress) {
-            // Show only messages sent by this user
-            $whereClause = "WHERE n.from_address IN ($addressPlaceholders) AND n.user_id = ?";
-            $params = array_merge($myAddresses, [$userId]);
+            // Show only unread messages TO this user (not FROM this user)
+            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
+        } elseif ($filter === 'sent') {
+            // Show only messages sent by this user (check from_name since user_id is unreliable for received messages)
+            $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
+            $params = [$user['username'], $user['real_name']];
         } elseif ($filter === 'received' && !empty($myAddresses)) {
             // Show only messages received by this user (must match name AND to_address must be one of our addresses)
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
@@ -3337,11 +3340,14 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            $whereClause .= " AND mrs.read_at IS NULL";
-        } elseif ($filter === 'sent' && $systemAddress) {
-            // Show only messages sent by this user
-            $whereClause = "WHERE n.from_address IN ($addressPlaceholders) AND n.user_id = ?";
-            $params = array_merge($myAddresses, [$userId]);
+            // Show only unread messages TO this user (not FROM this user)
+            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
+        } elseif ($filter === 'sent') {
+            // Show only messages sent by this user (check from_name since user_id is unreliable for received messages)
+            $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
+            $params = [$user['username'], $user['real_name']];
         } elseif ($filter === 'received' && !empty($myAddresses)) {
             // Show only messages received by this user (must match name AND to_address must be one of our addresses)
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
