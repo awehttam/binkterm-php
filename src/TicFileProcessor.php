@@ -31,11 +31,29 @@ class TicFileProcessor
 {
     private PDO $db;
     private string $filesBasePath;
+    private string $logFile;
 
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
         $this->filesBasePath = __DIR__ . '/../data/files';
+
+        // Set up logging to packets.log (same as BinkdProcessor)
+        $logDir = __DIR__ . '/../data/logs';
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        $this->logFile = $logDir . '/packets.log';
+    }
+
+    /**
+     * Log a message to the packets log file
+     */
+    private function log(string $message): void
+    {
+        $timestamp = date('Y-m-d H:i:s');
+        $logLine = "[$timestamp] [TIC] $message\n";
+        @file_put_contents($this->logFile, $logLine, FILE_APPEND | LOCK_EX);
     }
 
     /**
@@ -68,7 +86,7 @@ class TicFileProcessor
                     ];
                 }
 
-                error_log("Auto-created file area: {$ticData['Area']} (id={$fileArea['id']})");
+                $this->log("Auto-created file area: {$ticData['Area']} (id={$fileArea['id']})");
             }
 
             // Validate file
@@ -92,7 +110,7 @@ class TicFileProcessor
 
                 if ($existingFile) {
                     // File already exists - skip it
-                    error_log("TIC file already exists: {$ticData['File']} (file_id={$existingFile['id']})");
+                    $this->log("TIC file already exists: {$ticData['File']} (file_id={$existingFile['id']})");
 
                     // Clean up temp file since we're not storing it
                     if (file_exists($filePath)) {
@@ -131,16 +149,19 @@ class TicFileProcessor
                 $ruleProcessor = new FileAreaRuleProcessor();
                 $ruleResult = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
                 if (!empty($ruleResult['output'])) {
-                    error_log("File area rules output for {$ticData['File']}: " . $ruleResult['output']);
+                    $this->log("File area rules output for {$ticData['File']}: " . $ruleResult['output']);
                 }
             } catch (\Exception $e) {
-                error_log("File area rules error for {$ticData['File']}: " . $e->getMessage());
+                $this->log("File area rules error for {$ticData['File']}: " . $e->getMessage());
             }
 
             // Clean up temp file after successful storage
             if (file_exists($filePath)) {
                 unlink($filePath);
             }
+
+            // Log successful TIC processing
+            $this->log("TIC file processed successfully: {$ticData['File']} -> area {$ticData['Area']} (file_id={$fileId})");
 
             return [
                 'success' => true,
@@ -151,7 +172,7 @@ class TicFileProcessor
             ];
 
         } catch (\Exception $e) {
-            error_log("TIC processing error: " . $e->getMessage());
+            $this->log("TIC processing error: " . $e->getMessage());
             return [
                 'success' => false,
                 'error' => $e->getMessage()
@@ -224,7 +245,7 @@ class TicFileProcessor
     protected function validateFile(array $ticData, string $filePath): bool
     {
         if (!file_exists($filePath)) {
-            error_log("TIC validation failed: file not found: $filePath");
+            $this->log("TIC validation failed: file not found: $filePath");
             return false;
         }
 
@@ -233,7 +254,7 @@ class TicFileProcessor
             $actualSize = filesize($filePath);
             $expectedSize = intval($ticData['Size']);
             if ($actualSize !== $expectedSize) {
-                error_log("TIC size mismatch: expected $expectedSize, got $actualSize");
+                $this->log("TIC size mismatch: expected $expectedSize, got $actualSize");
                 return false;
             }
         }
@@ -242,7 +263,7 @@ class TicFileProcessor
         if (isset($ticData['Crc'])) {
             $actualCrc = $this->calculateCrc32($filePath);
             if (strtoupper($actualCrc) !== strtoupper($ticData['Crc'])) {
-                error_log("TIC CRC mismatch: expected {$ticData['Crc']}, got $actualCrc");
+                $this->log("TIC CRC mismatch: expected {$ticData['Crc']}, got $actualCrc");
                 return false;
             }
         }
@@ -428,7 +449,7 @@ class TicFileProcessor
                     // Delete database record
                     $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
                     $stmt->execute([$oldFile['id']]);
-                    error_log("Replaced existing file: {$filename} (old file_id={$oldFile['id']})");
+                    $this->log("Replaced existing file: {$filename} (old file_id={$oldFile['id']})");
                 }
                 // Delete old file from disk
                 unlink($storagePath);
@@ -474,6 +495,11 @@ class TicFileProcessor
         $shortDesc = $ticData['Desc'] ?? '';
         $longDesc = !empty($ticData['LDesc']) ? implode("\n", $ticData['LDesc']) : '';
 
+        // Truncate fields to fit database constraints (VARCHAR 255)
+        $filename = mb_substr($filename, 0, 255);
+        $shortDesc = mb_substr($shortDesc, 0, 255);
+        $fromAddress = mb_substr($ticData['From'] ?? '', 0, 255);
+
         // Store in database
         $stmt = $this->db->prepare("
             INSERT INTO files (
@@ -497,7 +523,7 @@ class TicFileProcessor
             $fileSize,
             $fileHash,
             $storagePath,
-            $ticData['From'] ?? '',
+            $fromAddress,
             $shortDesc,
             $longDesc,
             implode(' ', $ticData['Path'] ?? []),
@@ -559,7 +585,7 @@ class TicFileProcessor
         $fileRecord = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$fileRecord || !file_exists($fileRecord['storage_path'])) {
-            error_log("Cannot scan file {$fileId}: file not found");
+            $this->log("Cannot scan file {$fileId}: file not found");
             return [
                 'scanned' => false,
                 'result' => 'error',
@@ -593,19 +619,19 @@ class TicFileProcessor
 
         // Handle infected files
         if ($result['result'] === 'infected') {
-            error_log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}");
+            $this->log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}");
 
             // Delete infected file immediately
             if (file_exists($filePath)) {
                 unlink($filePath);
-                error_log("Deleted infected TIC file: {$filePath}");
+                $this->log("Deleted infected TIC file: {$filePath}");
             }
 
             // Mark file record as rejected
             $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
             $stmt->execute([$fileId]);
         } elseif ($result['result'] === 'error') {
-            error_log("Virus scan error for TIC file ID {$fileId}: {$result['error']}");
+            $this->log("Virus scan error for TIC file ID {$fileId}: {$result['error']}");
         }
 
         return $result;
