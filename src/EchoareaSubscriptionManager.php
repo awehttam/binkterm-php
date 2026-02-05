@@ -40,9 +40,15 @@ class EchoareaSubscriptionManager
               AND (COALESCE(e.is_sysop_only, FALSE) = FALSE OR EXISTS (
                     SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
                   ))
-            ORDER BY e.tag
+            ORDER BY
+                CASE
+                    WHEN COALESCE(e.is_local, FALSE) = TRUE THEN 0
+                    WHEN LOWER(e.domain) = 'lovlynet' THEN 1
+                    ELSE 2
+                END,
+                e.tag
         ";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$userId, $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -65,9 +71,15 @@ class EchoareaSubscriptionManager
               AND (COALESCE(e.is_sysop_only, FALSE) = FALSE OR EXISTS (
                     SELECT 1 FROM users u WHERE u.id = ? AND u.is_admin = TRUE
                   ))
-            ORDER BY LOWER(e.tag)
+            ORDER BY
+                CASE
+                    WHEN COALESCE(e.is_local, FALSE) = TRUE THEN 0
+                    WHEN LOWER(e.domain) = 'lovlynet' THEN 1
+                    ELSE 2
+                END,
+                LOWER(e.tag)
         ";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$userId, $userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

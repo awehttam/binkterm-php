@@ -994,13 +994,33 @@ class MessageHandler
             $user = $this->getUserById($userId);
             $isAdmin = $user && !empty($user['is_admin']);
             if (!$isAdmin) {
-                $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE is_active = TRUE AND COALESCE(is_sysop_only, FALSE) = FALSE ORDER BY tag");
+                $stmt = $this->db->prepare("
+                    SELECT * FROM echoareas
+                    WHERE is_active = TRUE AND COALESCE(is_sysop_only, FALSE) = FALSE
+                    ORDER BY
+                        CASE
+                            WHEN COALESCE(is_local, FALSE) = TRUE THEN 0
+                            WHEN LOWER(domain) = 'lovlynet' THEN 1
+                            ELSE 2
+                        END,
+                        tag
+                ");
                 $stmt->execute();
                 return $stmt->fetchAll();
             }
         }
 
-        $stmt = $this->db->query("SELECT * FROM echoareas WHERE is_active = TRUE ORDER BY tag");
+        $stmt = $this->db->query("
+            SELECT * FROM echoareas
+            WHERE is_active = TRUE
+            ORDER BY
+                CASE
+                    WHEN COALESCE(is_local, FALSE) = TRUE THEN 0
+                    WHEN LOWER(domain) = 'lovlynet' THEN 1
+                    ELSE 2
+                END,
+                tag
+        ");
         return $stmt->fetchAll();
     }
 

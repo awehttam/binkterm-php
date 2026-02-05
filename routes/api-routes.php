@@ -1481,7 +1481,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         // 'all' filter shows everything
 
-        $sql .= " ORDER BY e.tag";
+        // Order: Local first, then LovlyNet domain, then others, all sorted by tag
+        $sql .= " ORDER BY
+            CASE
+                WHEN COALESCE(e.is_local, FALSE) = TRUE THEN 0
+                WHEN LOWER(e.domain) = 'lovlynet' THEN 1
+                ELSE 2
+            END,
+            e.tag";
 
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
