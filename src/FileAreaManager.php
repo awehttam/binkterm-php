@@ -30,6 +30,7 @@ class FileAreaManager
     public const UPLOAD_ADMIN_ONLY = 0;
     public const UPLOAD_USERS_ALLOWED = 1;
     public const UPLOAD_READ_ONLY = 2;
+    const DIR_PERM = 2775;      // Directory permissions use 2775 to ensure group sticky access between web server and local user
 
     private PDO $db;
 
@@ -424,9 +425,7 @@ class FileAreaManager
 
         // Create area directory if needed
         $areaDir = $this->getAreaStorageDir($fileArea);
-        if (!is_dir($areaDir)) {
-            mkdir($areaDir, 0755, true);
-        }
+        self::ensureDirectoryExists($areaDir);
 
         // Determine storage path
         $storagePath = $areaDir . '/' . $filename;
@@ -462,7 +461,7 @@ class FileAreaManager
             throw new \Exception('Failed to save uploaded file');
         }
 
-        chmod($storagePath, 0644);
+        chmod($storagePath, 0664);
         $storagePath = realpath($storagePath);
 
         // Store in database
@@ -682,9 +681,7 @@ class FileAreaManager
         }
 
         $targetDir = $this->getAreaStorageDir($target);
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
-        }
+        self::ensureDirectoryExists($targetDir);
 
         $filename = $record['filename'];
         $targetPath = $targetDir . '/' . $filename;
@@ -716,7 +713,7 @@ class FileAreaManager
             return false;
         }
 
-        chmod($targetPath, 0644);
+        chmod($targetPath, 0664);
         $targetPath = realpath($targetPath) ?: $targetPath;
 
         $stmt = $this->db->prepare("UPDATE files SET file_area_id = ?, filename = ?, storage_path = ?, updated_at = NOW() WHERE id = ?");
@@ -746,9 +743,7 @@ class FileAreaManager
         $baseDir = realpath(__DIR__ . '/..');
         $archiveDir = $baseDir . '/data/archive/' . $areatag;
 
-        if (!is_dir($archiveDir)) {
-            mkdir($archiveDir, 0755, true);
-        }
+        self::ensureDirectoryExists($archiveDir);
 
         $filename = basename($filepath);
         $timestamp = date('Ymd_His');
@@ -923,9 +918,7 @@ class FileAreaManager
 
         // Create area directory if needed
         $areaDir = $this->getAreaStorageDir($fileArea);
-        if (!is_dir($areaDir)) {
-            mkdir($areaDir, 0755, true);
-        }
+        self::ensureDirectoryExists($areaDir);
 
         // Determine storage path (with versioning for duplicates)
         $storagePath = $areaDir . '/' . $filename;
@@ -946,7 +939,7 @@ class FileAreaManager
             throw new \Exception("Failed to move attachment file");
         }
 
-        chmod($storagePath, 0644);
+        chmod($storagePath, 0664);
         $storagePath = realpath($storagePath);
 
         // Store in database
@@ -1043,6 +1036,28 @@ class FileAreaManager
         $id = $fileArea['id'] ?? null;
         $dirName = $id ? ($tag . '-' . $id) : $tag;
         return __DIR__ . '/../data/files/' . $dirName;
+    }
+
+    /**
+     * Ensure directory exists with correct permissions for file areas
+     *
+     * Creates directory with 0775 permissions (rwxrwxr-x) to allow both
+     * user and group read/write/execute access
+     *
+     * @param string $directory Directory path to create
+     * @param bool $recursive Create parent directories if needed (default: true)
+     * @throws \Exception If directory creation fails
+     * @return void
+     */
+    public static function ensureDirectoryExists(string $directory, bool $recursive = true): void
+    {
+        if (is_dir($directory)) {
+            return;
+        }
+
+        if (!mkdir($directory, self::DIR_PERM, $recursive)) {
+            throw new \Exception("Failed to create directory: {$directory}");
+        }
     }
 
     // Lazy migration removed; directory changes should be handled explicitly.

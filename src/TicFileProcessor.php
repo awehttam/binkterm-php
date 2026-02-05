@@ -414,9 +414,7 @@ class TicFileProcessor
 
         // Create area directory if needed
         $areaDir = $this->filesBasePath . '/' . $dirSuffix;
-        if (!is_dir($areaDir)) {
-            mkdir($areaDir, 0755, true);
-        }
+        FileAreaManager::ensureDirectoryExists($areaDir);
 
         // Determine storage path
         $storagePath = $areaDir . '/' . $filename;
@@ -455,7 +453,7 @@ class TicFileProcessor
             throw new \Exception("Failed to copy file to storage: $storagePath");
         }
 
-        chmod($storagePath, 0644);
+        chmod($storagePath, 0664);
 
         // Verify the copy
         $copyHash = hash_file('sha256', $storagePath);
@@ -611,6 +609,25 @@ class TicFileProcessor
         }
 
         return $result;
+    }
+
+    /**
+     * Generate a unique hash if duplicates are allowed in this area
+     *
+     * @param int $fileAreaId
+     * @param string $baseHash
+     * @return string
+     */
+    private function makeUniqueHash(int $fileAreaId, string $baseHash): string
+    {
+        $hash = $baseHash;
+        $counter = 1;
+        while ($this->checkDuplicate($fileAreaId, $hash)) {
+            $hash = hash('sha256', $baseHash . ':' . $counter);
+            $counter++;
+        }
+
+        return $hash;
     }
 }
 
