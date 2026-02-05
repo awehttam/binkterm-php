@@ -562,17 +562,26 @@ class MessageHandler
                 $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
                 $stmt = $this->db->prepare("
                     SELECT * FROM netmail
-                    WHERE id = ? AND (user_id = ? OR ((LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)) AND to_address IN ($addressPlaceholders)))
+                    WHERE id = ? AND (
+                        user_id = ?
+                        OR ((LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)) AND to_address IN ($addressPlaceholders))
+                        OR ((LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addressPlaceholders))
+                    )
                 ");
                 $params = [$messageId, $userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
+                // Add from_name parameters
+                $params[] = $user['username'];
+                $params[] = $user['real_name'];
+                // Add from_address parameters (reuse myAddresses)
+                $params = array_merge($params, $myAddresses);
                 $stmt->execute($params);
             } else {
-                // Fallback if no addresses configured - only show sent messages
+                // Fallback if no addresses configured - check user_id or from_name
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail WHERE id = ? AND user_id = ?
+                    SELECT * FROM netmail WHERE id = ? AND (user_id = ? OR LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))
                 ");
-                $stmt->execute([$messageId, $userId]);
+                $stmt->execute([$messageId, $userId, $user['username'], $user['real_name']]);
             }
         } else {
             // Echomail is public, so no user restriction needed
