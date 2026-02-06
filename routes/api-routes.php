@@ -212,6 +212,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/register', function() {
         header('Content-Type: application/json');
 
+        // Start session for anti-spam checks
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
         // Accept both JSON and form data
         $data = [];
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -221,6 +226,69 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } else {
             $data = $_POST;
         }
+
+        // Anti-spam validation 1: Honeypot field
+        if (!empty($data['website'])) {
+            // Silent rejection - don't tell bots why they failed
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid submission']);
+            return;
+        }
+
+        // Anti-spam validation 2: Time-based check
+        $registrationTime = $_SESSION['registration_time'] ?? 0;
+        $currentTime = time();
+        $timeTaken = $currentTime - $registrationTime;
+
+        if ($timeTaken < 3) {
+            // Too fast - likely a bot
+            http_response_code(400);
+            echo json_encode(['error' => 'Please take your time filling out the form.']);
+            return;
+        }
+
+        if ($timeTaken > 1800) {
+            // 30 minutes - session likely expired
+            http_response_code(400);
+            echo json_encode(['error' => 'Session expired. Please refresh the page and try again.']);
+            return;
+        }
+
+        // Anti-spam validation 4: Rate limiting by IP
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Check registration attempts in last 24 hours
+            $rateLimitStmt = $db->prepare("
+                SELECT COUNT(*) as attempt_count
+                FROM registration_attempts
+                WHERE ip_address = ?
+                AND attempt_time > NOW() - INTERVAL '24 hours'
+            ");
+            $rateLimitStmt->execute([$ipAddress]);
+            $rateLimitResult = $rateLimitStmt->fetch();
+
+            if ($rateLimitResult && $rateLimitResult['attempt_count'] >= 3) {
+                http_response_code(429);
+                echo json_encode(['error' => 'Too many registration attempts. Please try again later.']);
+                return;
+            }
+
+            // Log this attempt
+            $logAttemptStmt = $db->prepare("
+                INSERT INTO registration_attempts (ip_address, attempt_time, success)
+                VALUES (?, NOW(), FALSE)
+            ");
+            $logAttemptStmt->execute([$ipAddress]);
+
+        } catch (Exception $e) {
+            error_log("Rate limit check failed: " . $e->getMessage());
+            // Continue with registration if rate limit check fails
+        }
+
+        // Clear the session timestamp
+        unset($_SESSION['registration_time']);
 
         $username = $data['username'] ?? '';
         $password = $data['password'] ?? '';
@@ -307,6 +375,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             } catch (Exception $e) {
                 // Log error but don't fail registration
                 error_log("Failed to send registration notification: " . $e->getMessage());
+            }
+
+            // Mark registration attempt as successful
+            try {
+                $updateAttemptStmt = $db->prepare("
+                    UPDATE registration_attempts
+                    SET success = TRUE
+                    WHERE ip_address = ?
+                    ORDER BY attempt_time DESC
+                    LIMIT 1
+                ");
+                $updateAttemptStmt->execute([$ipAddress]);
+            } catch (Exception $e) {
+                error_log("Failed to update registration attempt: " . $e->getMessage());
             }
 
             echo json_encode(['success' => true]);
@@ -1481,7 +1563,14 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
         // 'all' filter shows everything
 
-        $sql .= " ORDER BY e.tag";
+        // Order: Local first, then LovlyNet domain, then others, all sorted by tag
+        $sql .= " ORDER BY
+            CASE
+                WHEN COALESCE(e.is_local, FALSE) = TRUE THEN 0
+                WHEN LOWER(e.domain) = 'lovlynet' THEN 1
+                ELSE 2
+            END,
+            e.tag";
 
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
@@ -1536,7 +1625,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
-            $domain = trim($input['domain'] ?? '' ) ?: null;
+            $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -1592,7 +1681,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
-            $domain = trim($input['domain'] ?? '' ) ?: null;
+            $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -2139,6 +2228,36 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
+    SimpleRouter::post('/messages/netmail/bulk-delete', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['message_ids'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message IDs']);
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $deleted = 0;
+
+        foreach ($messageIds as $id) {
+            if ($handler->deleteNetmail($id, $user['user_id'])) {
+                $deleted++;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'deleted' => $deleted,
+            'total' => count($messageIds)
+        ]);
+    });
+
     SimpleRouter::get('/messages/echomail', function() {
         $user = RouteHelper::requireAuth();
 
@@ -2155,6 +2274,45 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Get messages from subscribed echoareas only
         $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded);
         echo json_encode($result);
+    });
+
+    // Echomail bulk delete endpoint - must come before parameterized routes
+    SimpleRouter::post('/messages/echomail/delete', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin privileges required']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['messageIds'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message IDs']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $deleted = 0;
+
+        foreach ($messageIds as $id) {
+            $stmt = $db->prepare("DELETE FROM echomail WHERE id = ?");
+            if ($stmt->execute([$id])) {
+                $deleted++;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => "Deleted $deleted message" . ($deleted !== 1 ? 's' : ''),
+            'deleted' => $deleted,
+            'total' => count($messageIds)
+        ]);
     });
 
     // Echomail statistics endpoints - must come before parameterized routes
@@ -2273,15 +2431,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echoarea = urldecode($echoarea);
         $foo=explode("@", $echoarea);
         $echoarea=$foo[0];
-        $domain=$foo[1];
+        $domain=$foo[1] ?? '';
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
 
         if (!$isAdmin && $userId) {
             $subscriptionManager = new \BinktermPHP\EchoareaSubscriptionManager();
-            $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
-            $echoareaStmt->execute([$echoarea, $domain]);
+            if (empty($domain)) {
+                $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND (domain IS NULL OR domain = '') AND is_active = TRUE");
+                $echoareaStmt->execute([$echoarea]);
+            } else {
+                $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+                $echoareaStmt->execute([$echoarea, $domain]);
+            }
             $echoareaRow = $echoareaStmt->fetch();
 
             if (!$echoareaRow || !$subscriptionManager->isUserSubscribed($userId, $echoareaRow['id'])) {
@@ -2292,14 +2455,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         // Statistics for specific echoarea
+        $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
         $stmt = $db->prepare("
-            SELECT COUNT(*) as total, 
+            SELECT COUNT(*) as total,
                    COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ? AND domain=?
+            WHERE ea.tag = ? AND {$domainCondition}
         ");
-        $stmt->execute([$echoarea, $domain]);
+        $params = [$echoarea];
+        if (!empty($domain)) {
+            $params[] = $domain;
+        }
+        $stmt->execute($params);
         $stats = $stmt->fetch();
 
         // Filter counts for this echoarea and user
@@ -2320,9 +2488,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND ea.domain = ? AND mrs.read_at IS NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL
             ");
-            $unreadStmt->execute([$userId, $echoarea, $domain]);
+            $unreadParams = [$userId, $echoarea];
+            if (!empty($domain)) $unreadParams[] = $domain;
+            $unreadStmt->execute($unreadParams);
             $unreadCount = $unreadStmt->fetch()['count'];
 
             // Read count
@@ -2330,9 +2500,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND ea.domain = ? AND mrs.read_at IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL
             ");
-            $readStmt->execute([$userId, $echoarea, $domain]);
+            $readParams = [$userId, $echoarea];
+            if (!empty($domain)) $readParams[] = $domain;
+            $readStmt->execute($readParams);
             $readCount = $readStmt->fetch()['count'];
 
             // To Me count
@@ -2340,9 +2512,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $toMeStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
-                    WHERE ea.tag = ? AND ea.domain = ? AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
                 ");
-                $toMeStmt->execute([$echoarea, $domain, $userInfo['username'], $userInfo['real_name']]);
+                $toMeParams = [$echoarea];
+                if (!empty($domain)) $toMeParams[] = $domain;
+                $toMeParams[] = $userInfo['username'];
+                $toMeParams[] = $userInfo['real_name'];
+                $toMeStmt->execute($toMeParams);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
 
@@ -2351,9 +2527,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ? AND ea.domain = ? AND sav.id IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL
             ");
-            $savedStmt->execute([$userId, $echoarea, $domain]);
+            $savedParams = [$userId, $echoarea];
+            if (!empty($domain)) $savedParams[] = $domain;
+            $savedStmt->execute($savedParams);
             $savedCount = $savedStmt->fetch()['count'];
         }
 
@@ -2471,7 +2649,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $foo=explode("@", $echoarea);
         $echoarea=$foo[0];
-        $domain=$foo[1];
+        $domain=$foo[1] ?? '';
 
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
@@ -2489,7 +2667,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echoarea = urldecode($echoarea);
         $foo=explode("@", $echoarea);
         $echoarea=$foo[0];
-        $domain=$foo[1];
+        $domain=$foo[1] ?? '';
 
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
@@ -2566,6 +2744,44 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['reply_to_id'],
                     $input['tagline'] ?? null
                 );
+
+                // Handle cross-posting to additional areas
+                $crossPostAreas = $input['cross_post_areas'] ?? [];
+                $crossPostCount = 0;
+                if ($result && is_array($crossPostAreas) && !empty($crossPostAreas) && empty($input['reply_to_id'])) {
+                    $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+                    $maxCrossPost = (int)($bbsConfig['max_cross_post_areas'] ?? 5);
+                    $crossPostAreas = array_slice($crossPostAreas, 0, $maxCrossPost);
+
+                    foreach ($crossPostAreas as $areaTag) {
+                        $parts = explode("@", $areaTag);
+                        if (count($parts) !== 2) {
+                            continue;
+                        }
+                        $xEchoarea = $parts[0];
+                        $xDomain = $parts[1];
+                        // Skip if same as primary area
+                        if ($xEchoarea === $echoarea && $xDomain === $domain) {
+                            continue;
+                        }
+                        try {
+                            $handler->postEchomail(
+                                $user['user_id'],
+                                $xEchoarea,
+                                $xDomain,
+                                $input['to_name'],
+                                $input['subject'],
+                                $input['message_text'],
+                                null,
+                                $input['tagline'] ?? null,
+                                true // skipCredits
+                            );
+                            $crossPostCount++;
+                        } catch (\Exception $e) {
+                            error_log("[CROSSPOST] Failed to cross-post to {$areaTag}: " . $e->getMessage());
+                        }
+                    }
+                }
             } else {
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid message type']);
@@ -2573,7 +2789,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
             if ($result) {
-                echo json_encode(['success' => true]);
+                $totalAreas = 1 + ($crossPostCount ?? 0);
+                echo json_encode(['success' => true, 'areas_posted' => $totalAreas]);
             } else {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to send message']);

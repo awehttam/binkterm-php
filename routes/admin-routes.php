@@ -632,6 +632,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                // Validate max_cross_post_areas if provided
+                if (array_key_exists('max_cross_post_areas', $config)) {
+                    $maxCrossPost = (int)$config['max_cross_post_areas'];
+                    if ($maxCrossPost < 2 || $maxCrossPost > 20) {
+                        throw new Exception('Max cross-post areas must be between 2 and 20');
+                    }
+                    $config['max_cross_post_areas'] = $maxCrossPost;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {
@@ -1402,6 +1411,291 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['error' => $e->getMessage()]);
             }
         });
+    });
+
+    // Auto Feed page
+    SimpleRouter::get('/auto-feed', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/auto_feed.twig');
+    });
+
+    // Auto Feed API - Get all feeds
+    SimpleRouter::get('/api/auto-feed/feeds', function() {
+        $user = RouteHelper::requireAdmin();
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        header('Content-Type: application/json');
+
+        $stmt = $db->query("
+            SELECT f.*, u.username, e.tag as echoarea_tag, e.domain as echoarea_domain
+            FROM auto_feed_sources f
+            LEFT JOIN users u ON u.id = f.post_as_user_id
+            LEFT JOIN echoareas e ON e.id = f.echoarea_id
+            ORDER BY f.id DESC
+        ");
+        $feeds = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode(['feeds' => $feeds]);
+    });
+
+    // Auto Feed API - Get single feed
+    SimpleRouter::get('/api/auto-feed/feeds/{id}', function($id) {
+        $user = RouteHelper::requireAdmin();
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        header('Content-Type: application/json');
+
+        $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
+        $stmt->execute([$id]);
+        $feed = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$feed) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feed not found']);
+            return;
+        }
+
+        echo json_encode(['feed' => $feed]);
+    });
+
+    // Auto Feed API - Create feed
+    SimpleRouter::post('/api/auto-feed/feeds', function() {
+        $user = RouteHelper::requireAdmin();
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        // Validate required fields
+        if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required fields']);
+            return;
+        }
+
+        // Validate URL
+        if (!filter_var($input['feed_url'], FILTER_VALIDATE_URL)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid feed URL']);
+            return;
+        }
+
+        // Validate echoarea exists
+        $stmt = $db->prepare("SELECT id FROM echoareas WHERE id = ?");
+        $stmt->execute([$input['echoarea_id']]);
+        if (!$stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid echo area']);
+            return;
+        }
+
+        // Validate user exists
+        $stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
+        $stmt->execute([$input['post_as_user_id']]);
+        if (!$stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid user ID']);
+            return;
+        }
+
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO auto_feed_sources
+                (feed_url, feed_name, echoarea_id, post_as_user_id,
+                 max_articles_per_check, active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            $stmt->execute([
+                $input['feed_url'],
+                $input['feed_name'] ?? null,
+                $input['echoarea_id'],
+                $input['post_as_user_id'],
+                $input['max_articles_per_check'] ?? 10,
+                $input['active'] ?? true
+            ]);
+
+            $feedId = $db->lastInsertId();
+
+            // Log action
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            AdminActionLogger::logAction($userId, 'auto_feed_created', [
+                'feed_id' => $feedId,
+                'feed_url' => $input['feed_url'],
+                'echoarea_id' => $input['echoarea_id']
+            ]);
+
+            echo json_encode(['success' => true, 'id' => $feedId]);
+        } catch (PDOException $e) {
+            http_response_code(400);
+            if (strpos($e->getMessage(), 'duplicate key') !== false) {
+                echo json_encode(['error' => 'This feed URL already exists']);
+            } else {
+                echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+            }
+        }
+    });
+
+    // Auto Feed API - Update feed
+    SimpleRouter::put('/api/auto-feed/feeds/{id}', function($id) {
+        $user = RouteHelper::requireAdmin();
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        // Validate feed exists
+        $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
+        $stmt->execute([$id]);
+        $existingFeed = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$existingFeed) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feed not found']);
+            return;
+        }
+
+        // Validate required fields
+        if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required fields']);
+            return;
+        }
+
+        try {
+            $stmt = $db->prepare("
+                UPDATE auto_feed_sources
+                SET feed_url = ?,
+                    feed_name = ?,
+                    echoarea_id = ?,
+                    post_as_user_id = ?,
+                    max_articles_per_check = ?,
+                    active = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $input['feed_url'],
+                $input['feed_name'] ?? null,
+                $input['echoarea_id'],
+                $input['post_as_user_id'],
+                $input['max_articles_per_check'] ?? 10,
+                $input['active'] ?? true,
+                $id
+            ]);
+
+            // Log action
+            $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            AdminActionLogger::logAction($userId, 'auto_feed_updated', [
+                'feed_id' => $id,
+                'feed_url' => $input['feed_url'],
+                'echoarea_id' => $input['echoarea_id']
+            ]);
+
+            echo json_encode(['success' => true]);
+        } catch (PDOException $e) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+    });
+
+    // Auto Feed API - Delete feed
+    SimpleRouter::delete('/api/auto-feed/feeds/{id}', function($id) {
+        $user = RouteHelper::requireAdmin();
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        header('Content-Type: application/json');
+
+        // Get feed info for logging
+        $stmt = $db->prepare("SELECT feed_url FROM auto_feed_sources WHERE id = ?");
+        $stmt->execute([$id]);
+        $feed = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$feed) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feed not found']);
+            return;
+        }
+
+        $stmt = $db->prepare("DELETE FROM auto_feed_sources WHERE id = ?");
+        $stmt->execute([$id]);
+
+        // Log action
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        AdminActionLogger::logAction($userId, 'auto_feed_deleted', [
+            'feed_id' => $id,
+            'feed_url' => $feed['feed_url']
+        ]);
+
+        echo json_encode(['success' => true]);
+    });
+
+    // Auto Feed API - Check feed now
+    SimpleRouter::post('/api/auto-feed/check/{id}', function($id) {
+        $user = RouteHelper::requireAdmin();
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        header('Content-Type: application/json');
+
+        // Verify feed exists and is active
+        $stmt = $db->prepare("SELECT * FROM auto_feed_sources WHERE id = ?");
+        $stmt->execute([$id]);
+        $feed = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$feed) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Feed not found']);
+            return;
+        }
+
+        // Execute rss_poster.php script for this feed
+        $scriptPath = __DIR__ . '/../scripts/rss_poster.php';
+        $command = PHP_BINARY . ' ' . escapeshellarg($scriptPath) . ' --feed-id=' . (int)$id . ' --verbose 2>&1';
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Feed check failed', 'output' => implode("\n", $output)]);
+            return;
+        }
+
+        // Reload feed to get updated stats
+        $stmt->execute([$id]);
+        $updatedFeed = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Count articles posted
+        $articlesPosted = $updatedFeed['articles_posted'] - $feed['articles_posted'];
+
+        echo json_encode([
+            'success' => true,
+            'articles_posted' => max(0, $articlesPosted),
+            'output' => implode("\n", $output)
+        ]);
+    });
+
+    // Auto Feed API - Get statistics
+    SimpleRouter::get('/api/auto-feed/stats', function() {
+        $user = RouteHelper::requireAdmin();
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        header('Content-Type: application/json');
+
+        $stmt = $db->query("
+            SELECT
+                COUNT(*) as total_feeds,
+                COUNT(CASE WHEN active THEN 1 END) as active_feeds,
+                COALESCE(SUM(articles_posted), 0) as total_articles
+            FROM auto_feed_sources
+        ");
+        $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        echo json_encode($stats);
     });
 });
 

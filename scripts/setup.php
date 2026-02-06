@@ -77,7 +77,7 @@ class SetupManager
             }
 
             // Set world writable with sticky bit
-            $result = chmod($dir, 01777);
+            $result = chmod($dir, 02777);
             if ($result) {
                 echo "✓ Set permissions on " . str_replace($baseDir . '/', 'data/', $dir) . " (a+rwxt)\n";
             } else {

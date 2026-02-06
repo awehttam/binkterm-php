@@ -1,5 +1,19 @@
 <?php
 
+/*
+ * Copright Matthew Asham and BinktermPHP Contributors
+ * 
+ * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the 
+ * following conditions are met:
+ * 
+ * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ * Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+ * 
+ */
+
+
 namespace BinktermPHP;
 
 class MessageHandler
@@ -60,17 +74,37 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            $whereClause .= " AND mrs.read_at IS NULL";
-        } elseif ($filter === 'sent' && $systemAddress) {
-            // Show only messages sent by this user
-            $whereClause = "WHERE n.from_address IN ($addressPlaceholders) AND n.user_id = ?";
-            $params = array_merge($myAddresses, [$userId]);
+            // Show only unread messages TO this user (not FROM this user)
+            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
+        } elseif ($filter === 'sent') {
+            // Show only messages sent by this user from this system (check from_name AND from_address)
+            if (!empty($myAddresses)) {
+                $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                // Fallback if no addresses configured - just check name
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
             // Show only messages received by this user (must match name AND to_address must be one of our addresses)
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
             $params = [$user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses, [$userId]);
         }
+
+        // Filter out soft-deleted messages
+        // If user is sender, exclude messages deleted by sender
+        // If user is recipient, exclude messages deleted by recipient
+        $whereClause .= " AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                                   ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))";
+        $params[] = $userId;
+        $params[] = $user['username'];
+        $params[] = $user['real_name'];
 
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
@@ -168,10 +202,15 @@ class MessageHandler
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
             $subscriptionManager = new EchoareaSubscriptionManager();
-            
+
             // Get echoarea ID from tag
-            $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
-            $stmt->execute([$echoareaTag, $domain]);
+            if (empty($domain)) {
+                $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND (domain IS NULL OR domain = '') AND is_active = TRUE");
+                $stmt->execute([$echoareaTag]);
+            } else {
+                $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+                $stmt->execute([$echoareaTag, $domain]);
+            }
             $echoarea = $stmt->fetch();
             
             if ($echoarea && !$subscriptionManager->isUserSubscribed($userId, $echoarea['id'])) {
@@ -226,6 +265,10 @@ class MessageHandler
         $dateField = self::ECHOMAIL_DATE_FIELD;
 
         if ($echoareaTag) {
+            // Build domain filter condition
+            $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
+            //error_log("DEBUG getEchomail: tag=$echoareaTag, domain='$domain', domainCondition=$domainCondition");
+
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -239,7 +282,7 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
                 ORDER BY CASE
                     WHEN em.{$dateField} > NOW() THEN 0
                     ELSE 1
@@ -250,7 +293,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
-            $params[] = $domain;
+            if (!empty($domain)) {
+                $params[] = $domain;
+            }
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -261,13 +306,15 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
             ");
             $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
-            $countParams[] = $domain;
+            if (!empty($domain)) {
+                $countParams[] = $domain;
+            }
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
@@ -315,13 +362,18 @@ class MessageHandler
         $unreadCount = 0;
         if ($userId) {
             if ($echoareaTag) {
+                $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
                 $unreadCountStmt = $this->db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE ea.tag = ? AND mrs.read_at IS NULL AND ea.domain=?
+                    WHERE ea.tag = ? AND mrs.read_at IS NULL AND {$domainCondition}
                 ");
-                $unreadCountStmt->execute([$userId, $echoareaTag, $domain]);
+                $unreadParams = [$userId, $echoareaTag];
+                if (!empty($domain)) {
+                    $unreadParams[] = $domain;
+                }
+                $unreadCountStmt->execute($unreadParams);
             } else {
                 $unreadCountStmt = $this->db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
@@ -537,17 +589,26 @@ class MessageHandler
                 $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
                 $stmt = $this->db->prepare("
                     SELECT * FROM netmail
-                    WHERE id = ? AND (user_id = ? OR ((LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)) AND to_address IN ($addressPlaceholders)))
+                    WHERE id = ? AND (
+                        user_id = ?
+                        OR ((LOWER(to_name) = LOWER(?) OR LOWER(to_name) = LOWER(?)) AND to_address IN ($addressPlaceholders))
+                        OR ((LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?)) AND from_address IN ($addressPlaceholders))
+                    )
                 ");
                 $params = [$messageId, $userId, $user['username'], $user['real_name']];
                 $params = array_merge($params, $myAddresses);
+                // Add from_name parameters
+                $params[] = $user['username'];
+                $params[] = $user['real_name'];
+                // Add from_address parameters (reuse myAddresses)
+                $params = array_merge($params, $myAddresses);
                 $stmt->execute($params);
             } else {
-                // Fallback if no addresses configured - only show sent messages
+                // Fallback if no addresses configured - check user_id or from_name
                 $stmt = $this->db->prepare("
-                    SELECT * FROM netmail WHERE id = ? AND user_id = ?
+                    SELECT * FROM netmail WHERE id = ? AND (user_id = ? OR LOWER(from_name) = LOWER(?) OR LOWER(from_name) = LOWER(?))
                 ");
-                $stmt->execute([$messageId, $userId]);
+                $stmt->execute([$messageId, $userId, $user['username'], $user['real_name']]);
             }
         } else {
             // Echomail is public, so no user restriction needed
@@ -839,7 +900,10 @@ class MessageHandler
         return $result;
     }
 
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null)
+    /**
+     * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
+     */
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -900,23 +964,25 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
-            $creditsRules = $this->getCreditsRules();
-            if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
-                // Award 2x credits for longer messages (over 1200 characters)
-                $messageLength = strlen($messageText);
-                $rewardAmount = $messageLength > 1200
-                    ? (int)$creditsRules['echomail_reward'] * 2
-                    : (int)$creditsRules['echomail_reward'];
+            if (!$skipCredits) {
+                $creditsRules = $this->getCreditsRules();
+                if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
+                    // Award 2x credits for longer messages (over 1200 characters)
+                    $messageLength = strlen($messageText);
+                    $rewardAmount = $messageLength > 1200
+                        ? (int)$creditsRules['echomail_reward'] * 2
+                        : (int)$creditsRules['echomail_reward'];
 
-                $rewarded = UserCredit::credit(
-                    $fromUserId,
-                    $rewardAmount,
-                    'Echomail posted',
-                    null,
-                    UserCredit::TYPE_SYSTEM_REWARD
-                );
-                if (!$rewarded) {
-                    error_log('[CREDITS] Echomail reward failed.');
+                    $rewarded = UserCredit::credit(
+                        $fromUserId,
+                        $rewardAmount,
+                        'Echomail posted',
+                        null,
+                        UserCredit::TYPE_SYSTEM_REWARD
+                    );
+                    if (!$rewarded) {
+                        error_log('[CREDITS] Echomail reward failed.');
+                    }
                 }
             }
             $this->incrementEchoareaCount($echoarea['id']);
@@ -980,13 +1046,33 @@ class MessageHandler
             $user = $this->getUserById($userId);
             $isAdmin = $user && !empty($user['is_admin']);
             if (!$isAdmin) {
-                $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE is_active = TRUE AND COALESCE(is_sysop_only, FALSE) = FALSE ORDER BY tag");
+                $stmt = $this->db->prepare("
+                    SELECT * FROM echoareas
+                    WHERE is_active = TRUE AND COALESCE(is_sysop_only, FALSE) = FALSE
+                    ORDER BY
+                        CASE
+                            WHEN COALESCE(is_local, FALSE) = TRUE THEN 0
+                            WHEN LOWER(domain) = 'lovlynet' THEN 1
+                            ELSE 2
+                        END,
+                        tag
+                ");
                 $stmt->execute();
                 return $stmt->fetchAll();
             }
         }
 
-        $stmt = $this->db->query("SELECT * FROM echoareas WHERE is_active = TRUE ORDER BY tag");
+        $stmt = $this->db->query("
+            SELECT * FROM echoareas
+            WHERE is_active = TRUE
+            ORDER BY
+                CASE
+                    WHEN COALESCE(is_local, FALSE) = TRUE THEN 0
+                    WHEN LOWER(domain) = 'lovlynet' THEN 1
+                    ELSE 2
+                END,
+                tag
+        ");
         return $stmt->fetchAll();
     }
 
@@ -1166,8 +1252,13 @@ class MessageHandler
 
     private function getEchoareaByTag($tag, $domain)
     {
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
-        $stmt->execute([$tag, $domain]);
+        if (empty($domain)) {
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND (domain IS NULL OR domain = '') AND is_active = TRUE");
+            $stmt->execute([$tag]);
+        } else {
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+            $stmt->execute([$tag, $domain]);
+        }
         return $stmt->fetch();
     }
 
@@ -1188,15 +1279,33 @@ class MessageHandler
         
         // Allow users to delete messages they sent OR received (same logic as getNetmail/getMessage)
         $isSender = ($message['user_id'] == $userId);
-        $isRecipient = (strtolower($message['to_name']) === strtolower($user['username']) || 
+        $isRecipient = (strtolower($message['to_name']) === strtolower($user['username']) ||
                        strtolower($message['to_name']) === strtolower($user['real_name']));
-        
+
         if (!$isSender && !$isRecipient) {
             return false;
         }
-        
-        $deleteStmt = $this->db->prepare("DELETE FROM netmail WHERE id = ?");
-        return $deleteStmt->execute([$messageId]);
+
+        // Soft delete: mark as deleted by sender or recipient
+        if ($isSender) {
+            $updateStmt = $this->db->prepare("UPDATE netmail SET deleted_by_sender = TRUE WHERE id = ?");
+            $updateStmt->execute([$messageId]);
+        } else {
+            $updateStmt = $this->db->prepare("UPDATE netmail SET deleted_by_recipient = TRUE WHERE id = ?");
+            $updateStmt->execute([$messageId]);
+        }
+
+        // If both parties have deleted it, permanently delete the record
+        $checkStmt = $this->db->prepare("SELECT deleted_by_sender, deleted_by_recipient FROM netmail WHERE id = ?");
+        $checkStmt->execute([$messageId]);
+        $flags = $checkStmt->fetch();
+
+        if ($flags && $flags['deleted_by_sender'] && $flags['deleted_by_recipient']) {
+            $deleteStmt = $this->db->prepare("DELETE FROM netmail WHERE id = ?");
+            $deleteStmt->execute([$messageId]);
+        }
+
+        return true;
     }
 
     private function markNetmailAsRead($messageId, $userId = null)
@@ -1370,7 +1479,12 @@ class MessageHandler
      */
     private function getEchoareaUplink($echoareaTag, $domain='')
     {
-        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
+        // Uplinks require a domain - return false if domain is blank/null
+        if (empty($domain)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
         $stmt->execute([$echoareaTag, $domain]);
         $result = $stmt->fetch();
         
@@ -1753,26 +1867,10 @@ class MessageHandler
         $messageText .= "Pending User ID: $pendingUserId\n\n";
         $messageText .= "This message was automatically generated by the BinktermPHP system.";
 
-        // Insert netmail notification
-        $insertStmt = $this->db->prepare("
-            INSERT INTO netmail (
-                user_id, from_address, to_address, from_name, to_name, 
-                subject, message_text, date_written, date_received, attributes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-
-        $insertStmt->execute([
-            $adminUserId,
-            'System',  // from_address  
-            $systemAddress,  // to_address
-            'Registration System',  // from_name
-            $sysopName,  // to_name
+        SysopNotificationService::sendNoticeToSysop(
             $subject,
-            $messageText,
-            date('Y-m-d H:i:s'),  // date_written
-            date('Y-m-d H:i:s'),  // date_received
-            0  // attributes
-        ]);
+            $messageText
+        );
 
         return true;
     }
@@ -2902,19 +3000,22 @@ class MessageHandler
         // First, get the total count of root messages (threads) for pagination
         $totalThreads = 0;
         if ($echoareaTag) {
+            $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
             $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition} AND em.reply_to_id IS NULL
             ");
             $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
-            $countParams[] = $domain;
+            if (!empty($domain)) {
+                $countParams[] = $domain;
+            }
             $countStmt->execute($countParams);
             $totalThreads = $countStmt->fetch()['total'];
         } else {
@@ -2952,7 +3053,7 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition} AND em.reply_to_id IS NULL
                 ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
                 LIMIT ? OFFSET ?
             ");
@@ -2960,7 +3061,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
-            $params[] = $domain;
+            if (!empty($domain)) {
+                $params[] = $domain;
+            }
             $params[] = $limit;
             $params[] = $rootOffset;
             $stmt->execute($params);
@@ -3303,17 +3406,37 @@ class MessageHandler
         }
 
         if ($filter === 'unread') {
-            $whereClause .= " AND mrs.read_at IS NULL";
-        } elseif ($filter === 'sent' && $systemAddress) {
-            // Show only messages sent by this user
-            $whereClause = "WHERE n.from_address IN ($addressPlaceholders) AND n.user_id = ?";
-            $params = array_merge($myAddresses, [$userId]);
+            // Show only unread messages TO this user (not FROM this user)
+            $whereClause .= " AND mrs.read_at IS NULL AND LOWER(n.from_name) != LOWER(?) AND LOWER(n.from_name) != LOWER(?)";
+            $params[] = $user['username'];
+            $params[] = $user['real_name'];
+        } elseif ($filter === 'sent') {
+            // Show only messages sent by this user from this system (check from_name AND from_address)
+            if (!empty($myAddresses)) {
+                $addressPlaceholders = implode(',', array_fill(0, count($myAddresses), '?'));
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?)) AND n.from_address IN ($addressPlaceholders)";
+                $params = [$user['username'], $user['real_name']];
+                $params = array_merge($params, $myAddresses);
+            } else {
+                // Fallback if no addresses configured - just check name
+                $whereClause = "WHERE (LOWER(n.from_name) = LOWER(?) OR LOWER(n.from_name) = LOWER(?))";
+                $params = [$user['username'], $user['real_name']];
+            }
         } elseif ($filter === 'received' && !empty($myAddresses)) {
             // Show only messages received by this user (must match name AND to_address must be one of our addresses)
             $whereClause = "WHERE (LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.to_address IN ($addressPlaceholders) AND n.user_id != ?";
             $params = [$user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses, [$userId]);
         }
+
+        // Filter out soft-deleted messages
+        // If user is sender, exclude messages deleted by sender
+        // If user is recipient, exclude messages deleted by recipient
+        $whereClause .= " AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                                   ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))";
+        $params[] = $userId;
+        $params[] = $user['username'];
+        $params[] = $user['real_name'];
 
         // Get all messages first
         $stmt = $this->db->prepare("
@@ -3870,3 +3993,4 @@ class MessageHandler
         }
     }
 }
+

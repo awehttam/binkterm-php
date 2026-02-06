@@ -1,5 +1,19 @@
 <?php
 
+/*
+ * Copright Matthew Asham and BinktermPHP Contributors
+ * 
+ * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the 
+ * following conditions are met:
+ * 
+ * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ * Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+ * 
+ */
+
+
 namespace BinktermPHP;
 
 use PDO;
@@ -16,6 +30,7 @@ class FileAreaManager
     public const UPLOAD_ADMIN_ONLY = 0;
     public const UPLOAD_USERS_ALLOWED = 1;
     public const UPLOAD_READ_ONLY = 2;
+    const DIR_PERM = 02775;      // Directory permissions use 02775 (octal) to ensure group sticky access between web server and local user
 
     private PDO $db;
 
@@ -157,7 +172,7 @@ class FileAreaManager
     {
         $tag = strtoupper(trim($data['tag'] ?? ''));
         $description = trim($data['description'] ?? '');
-        $domain = trim($data['domain'] ?? 'fidonet');
+        $domain = trim($data['domain'] ?? '');
         $maxFileSize = intval($data['max_file_size'] ?? 10485760);
         $allowedExtensions = trim($data['allowed_extensions'] ?? '');
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');
@@ -211,7 +226,7 @@ class FileAreaManager
     {
         $tag = strtoupper(trim($data['tag'] ?? ''));
         $description = trim($data['description'] ?? '');
-        $domain = trim($data['domain'] ?? 'fidonet');
+        $domain = trim($data['domain'] ?? '');
         $maxFileSize = intval($data['max_file_size'] ?? 10485760);
         $allowedExtensions = trim($data['allowed_extensions'] ?? '');
         $blockedExtensions = trim($data['blocked_extensions'] ?? '');
@@ -410,9 +425,7 @@ class FileAreaManager
 
         // Create area directory if needed
         $areaDir = $this->getAreaStorageDir($fileArea);
-        if (!is_dir($areaDir)) {
-            mkdir($areaDir, 0755, true);
-        }
+        self::ensureDirectoryExists($areaDir);
 
         // Determine storage path
         $storagePath = $areaDir . '/' . $filename;
@@ -448,7 +461,7 @@ class FileAreaManager
             throw new \Exception('Failed to save uploaded file');
         }
 
-        chmod($storagePath, 0644);
+        chmod($storagePath, 0664);
         $storagePath = realpath($storagePath);
 
         // Store in database
@@ -668,9 +681,7 @@ class FileAreaManager
         }
 
         $targetDir = $this->getAreaStorageDir($target);
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
-        }
+        self::ensureDirectoryExists($targetDir);
 
         $filename = $record['filename'];
         $targetPath = $targetDir . '/' . $filename;
@@ -702,7 +713,7 @@ class FileAreaManager
             return false;
         }
 
-        chmod($targetPath, 0644);
+        chmod($targetPath, 0664);
         $targetPath = realpath($targetPath) ?: $targetPath;
 
         $stmt = $this->db->prepare("UPDATE files SET file_area_id = ?, filename = ?, storage_path = ?, updated_at = NOW() WHERE id = ?");
@@ -732,9 +743,7 @@ class FileAreaManager
         $baseDir = realpath(__DIR__ . '/..');
         $archiveDir = $baseDir . '/data/archive/' . $areatag;
 
-        if (!is_dir($archiveDir)) {
-            mkdir($archiveDir, 0755, true);
-        }
+        self::ensureDirectoryExists($archiveDir);
 
         $filename = basename($filepath);
         $timestamp = date('Ymd_His');
@@ -909,9 +918,7 @@ class FileAreaManager
 
         // Create area directory if needed
         $areaDir = $this->getAreaStorageDir($fileArea);
-        if (!is_dir($areaDir)) {
-            mkdir($areaDir, 0755, true);
-        }
+        self::ensureDirectoryExists($areaDir);
 
         // Determine storage path (with versioning for duplicates)
         $storagePath = $areaDir . '/' . $filename;
@@ -932,7 +939,7 @@ class FileAreaManager
             throw new \Exception("Failed to move attachment file");
         }
 
-        chmod($storagePath, 0644);
+        chmod($storagePath, 0664);
         $storagePath = realpath($storagePath);
 
         // Store in database
@@ -1031,5 +1038,36 @@ class FileAreaManager
         return __DIR__ . '/../data/files/' . $dirName;
     }
 
+    /**
+     * Ensure directory exists with correct permissions for file areas
+     *
+     * Creates directory with 02775 permissions (rwxrwsr-x) to allow both
+     * user and group read/write/execute access with setgid bit
+     *
+     * @param string $directory Directory path to create
+     * @param bool $recursive Create parent directories if needed (default: true)
+     * @throws \Exception If directory creation fails
+     * @return void
+     */
+    public static function ensureDirectoryExists(string $directory, bool $recursive = true): void
+    {
+        if (is_dir($directory)) {
+            return;
+        }
+
+        // Save current umask and set to 0000 to ensure permissions are applied correctly
+        $oldUmask = umask(0000);
+
+        try {
+            if (!mkdir($directory, self::DIR_PERM, $recursive)) {
+                throw new \Exception("Failed to create directory: {$directory}");
+            }
+        } finally {
+            // Always restore original umask
+            umask($oldUmask);
+        }
+    }
+
     // Lazy migration removed; directory changes should be handled explicitly.
 }
+

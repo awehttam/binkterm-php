@@ -22,6 +22,12 @@
                 <div id="alert-container"></div>
 
                 <form id="registerForm">
+                    {# Anti-spam honeypot field - hidden from humans, visible to bots #}
+                    <div style="position: absolute; left: -9999px; top: -9999px;" aria-hidden="true">
+                        <label for="website">Website (leave blank)</label>
+                        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                    </div>
+
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" name="username" required
@@ -33,7 +39,14 @@
                         <label for="password" class="form-label">Password</label>
                         <input type="password" class="form-control" id="password" name="password" required
                                minlength="8">
-                        <div class="form-text">Minimum 8 characters</div>
+                        <div class="password-strength-meter mt-2" id="passwordStrengthMeter" style="display: none;">
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar" id="passwordStrengthBar" role="progressbar"
+                                     style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <small class="form-text" id="passwordStrengthText"></small>
+                        </div>
+                        <div class="form-text">Minimum 8 characters. Use a mix of letters, numbers, and symbols for better security.</div>
                     </div>
 
                     <div class="mb-3">
@@ -100,11 +113,99 @@ $(document).ready(function() {
         $('#alert-container').append(alert);
     }
 
+    // Password strength meter
+    function calculatePasswordStrength(password) {
+        if (!password) return { score: 0, text: '', color: '', width: 0 };
+
+        let score = 0;
+
+        // Length scoring
+        if (password.length >= 8) score += 20;
+        if (password.length >= 12) score += 20;
+        if (password.length >= 16) score += 10;
+
+        // Character variety
+        if (/[a-z]/.test(password)) score += 10;  // lowercase
+        if (/[A-Z]/.test(password)) score += 10;  // uppercase
+        if (/[0-9]/.test(password)) score += 10;  // numbers
+        if (/[^a-zA-Z0-9]/.test(password)) score += 20;  // special characters
+
+        // Bonus for good combinations
+        const hasLower = /[a-z]/.test(password);
+        const hasUpper = /[A-Z]/.test(password);
+        const hasNumber = /[0-9]/.test(password);
+        const hasSpecial = /[^a-zA-Z0-9]/.test(password);
+
+        const varietyCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
+        if (varietyCount >= 3) score += 10;
+
+        // Penalize common patterns
+        if (/^[a-z]+$/.test(password)) score -= 10;  // all lowercase
+        if (/^[A-Z]+$/.test(password)) score -= 10;  // all uppercase
+        if (/^[0-9]+$/.test(password)) score -= 10;  // all numbers
+        if (/(.)\1{2,}/.test(password)) score -= 10;  // repeated characters (aaa, 111)
+        if (/^(abc|123|qwerty|password|admin)/i.test(password)) score -= 20;  // common sequences
+
+        // Cap score at 100
+        score = Math.max(0, Math.min(100, score));
+
+        // Determine strength level
+        let text, color;
+        if (score < 30) {
+            text = 'Weak - Add more variety';
+            color = 'bg-danger';
+        } else if (score < 60) {
+            text = 'Fair - Could be stronger';
+            color = 'bg-warning';
+        } else if (score < 80) {
+            text = 'Good - Nice password!';
+            color = 'bg-info';
+        } else {
+            text = 'Strong - Excellent!';
+            color = 'bg-success';
+        }
+
+        return { score, text, color, width: score };
+    }
+
+    function updatePasswordStrength() {
+        const password = $('#password').val();
+        const meter = $('#passwordStrengthMeter');
+        const bar = $('#passwordStrengthBar');
+        const text = $('#passwordStrengthText');
+
+        if (!password) {
+            meter.hide();
+            return;
+        }
+
+        meter.show();
+        const strength = calculatePasswordStrength(password);
+
+        // Update progress bar
+        bar.removeClass('bg-danger bg-warning bg-info bg-success')
+           .addClass(strength.color)
+           .css('width', strength.width + '%')
+           .attr('aria-valuenow', strength.score);
+
+        // Update text
+        text.text(strength.text);
+    }
+
+    // Update strength meter on password input
+    $('#password').on('input', updatePasswordStrength);
+
     $('#registerForm').on('submit', function(e) {
         e.preventDefault();
 
         // Clear previous alerts
         $('#alert-container').empty();
+
+        // Anti-spam: Check honeypot field
+        if ($('#website').val() !== '') {
+            // Silent rejection - don't tell bots why they failed
+            return false;
+        }
 
         // Validate passwords match
         if ($('#password').val() !== $('#confirmPassword').val()) {
@@ -126,7 +227,15 @@ $(document).ready(function() {
             success: function(response) {
                 if (response.success) {
                     showAlert('Registration submitted successfully! You will be notified when your account is approved.', 'success');
-                    $('#registerForm')[0].reset();
+                    // Hide the form after successful registration
+                    $('#registerForm').hide();
+                    $('.card-body .alert-info').hide();
+                    // Show link to login
+                    $('#alert-container').append(
+                        '<div class="mt-3 text-center">' +
+                        '<a href="/login" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> Go to Login</a>' +
+                        '</div>'
+                    );
                 } else {
                     showAlert(response.error || 'Registration failed. Please try again.', 'danger');
                 }

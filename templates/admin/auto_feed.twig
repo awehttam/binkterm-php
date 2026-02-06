@@ -1,0 +1,423 @@
+{% extends "base.twig" %}
+
+{% block title %}Auto Feed - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-rss"></i>
+        Auto Feed
+    </h2>
+    <button class="btn btn-fidonet" onclick="showAddFeedModal()">
+        <i class="fas fa-plus"></i>
+        Add Feed
+    </button>
+</div>
+
+<div class="row">
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">RSS/Atom Feeds</h6>
+            </div>
+            <div class="card-body p-0">
+                <div id="feedsContainer">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading feeds...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Statistics</h6>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-8">Total Feeds:</dt>
+                    <dd class="col-4" id="totalFeeds">-</dd>
+
+                    <dt class="col-8">Active:</dt>
+                    <dd class="col-4" id="activeFeeds">-</dd>
+
+                    <dt class="col-8">Articles Posted:</dt>
+                    <dd class="col-4" id="totalArticles">-</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">About</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    Auto Feed monitors RSS/Atom feeds and automatically posts new articles to specified echoareas.
+                </p>
+                <p class="small text-muted mb-0">
+                    Run <code>php scripts/rss_poster.php</code> via cron to check feeds periodically.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Feed Modal -->
+<div class="modal fade" id="feedModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="feedModalTitle">Add Feed</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="feedForm">
+                    <input type="hidden" id="feedId">
+
+                    <div class="mb-3">
+                        <label for="feedName" class="form-label">Feed Name</label>
+                        <input type="text" class="form-control" id="feedName" name="feed_name" maxlength="100" placeholder="e.g., Tech News, BBC Headlines">
+                        <div class="form-text">Friendly name for this feed</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="feedUrl" class="form-label">Feed URL *</label>
+                        <input type="url" class="form-control" id="feedUrl" name="feed_url" required placeholder="https://example.com/feed.rss">
+                        <div class="form-text">RSS or Atom feed URL</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="feedEchoarea" class="form-label">Echo Area *</label>
+                        <select class="form-select" id="feedEchoarea" name="echoarea_id" required>
+                            <option value="">Loading echo areas...</option>
+                        </select>
+                        <div class="form-text">Echo area to post articles to</div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="feedUser" class="form-label">Post As User *</label>
+                            <select class="form-select" id="feedUser" name="post_as_user_id" required>
+                                <option value="">Loading users...</option>
+                            </select>
+                            <div class="form-text">User account to post messages as</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="feedMaxArticles" class="form-label">Max Articles</label>
+                            <input type="number" class="form-control" id="feedMaxArticles" name="max_articles_per_check" value="10" min="1" max="50">
+                            <div class="form-text">Per check</div>
+                        </div>
+                    </div>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="feedActive" name="active" checked>
+                        <label class="form-check-label" for="feedActive">
+                            Active
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-fidonet" onclick="saveFeed()">
+                    <i class="fas fa-save"></i>
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the feed <strong id="deleteFeedName"></strong>?</p>
+                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">
+                    <i class="fas fa-trash"></i>
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFeedId = null;
+let allFeeds = [];
+
+$(document).ready(function() {
+    loadFeeds();
+    loadStats();
+    loadUsers();
+    loadEchoareas();
+});
+
+function loadFeeds() {
+    $('#feedsContainer').html('<div class="loading-spinner"><i class="fas fa-spinner fa-spin me-2"></i>Loading feeds...</div>');
+
+    $.get('/admin/api/auto-feed/feeds')
+        .done(function(data) {
+            console.log('API response:', data);
+            if (!data || !data.feeds) {
+                console.error('Invalid response structure:', data);
+                $('#feedsContainer').html('<div class="text-center text-danger py-4">Invalid API response</div>');
+                return;
+            }
+            allFeeds = data.feeds;
+            displayFeeds(allFeeds);
+        })
+        .fail(function(xhr, status, error) {
+            console.error('API error:', status, error);
+            $('#feedsContainer').html('<div class="text-center text-danger py-4">Failed to load feeds: ' + error + '</div>');
+        });
+}
+
+function displayFeeds(feeds) {
+    const container = $('#feedsContainer');
+    let html = '';
+
+    if (feeds.length === 0) {
+        html = '<div class="text-center text-muted py-4">No feeds configured</div>';
+    } else {
+        html = `
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th width="5%"></th>
+                            <th width="20%">Name/URL</th>
+                            <th width="20%">Echo Area</th>
+                            <th width="15%">Post As</th>
+                            <th width="10%">Articles</th>
+                            <th width="15%">Last Check</th>
+                            <th width="15%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        feeds.forEach(function(feed) {
+            const isActive = feed.active;
+            const rowClass = isActive ? '' : 'table-secondary';
+            const statusIcon = isActive ?
+                '<i class="fas fa-check-circle text-success" title="Active"></i>' :
+                '<i class="fas fa-pause-circle text-warning" title="Inactive"></i>';
+
+            const lastCheck = feed.last_check ?
+                new Date(feed.last_check).toLocaleString() :
+                '<span class="text-muted">Never</span>';
+
+            const feedName = escapeHtml(feed.feed_name || 'Unnamed Feed');
+            const feedUrl = escapeHtml(feed.feed_url);
+            const truncatedUrl = feedUrl.length > 50 ? feedUrl.substring(0, 47) + '...' : feedUrl;
+
+            html += `
+                <tr class="${rowClass}">
+                    <td class="text-center">${statusIcon}</td>
+                    <td>
+                        <strong>${feedName}</strong><br>
+                        <small class="text-muted" title="${feedUrl}">${truncatedUrl}</small>
+                        ${feed.last_error ? '<br><small class="text-danger"><i class="fas fa-exclamation-triangle"></i> Error</small>' : ''}
+                    </td>
+                    <td>
+                        <span class="font-monospace">${escapeHtml(feed.echoarea_tag || 'Unknown')}</span><br>
+                        <small class="text-muted">@ ${escapeHtml(feed.echoarea_domain || 'Unknown')}</small>
+                    </td>
+                    <td>
+                        <small>${escapeHtml(feed.username || 'User #' + feed.post_as_user_id)}</small>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">${feed.articles_posted || 0}</span>
+                    </td>
+                    <td>
+                        <small>${lastCheck}</small>
+                    </td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-success" onclick="checkFeed(${feed.id})" title="Check now">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editFeed(${feed.id})" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${feed.id}, '${escapeHtml(feedName)}')" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    container.html(html);
+}
+
+function showAddFeedModal() {
+    currentFeedId = null;
+    $('#feedModalTitle').text('Add Feed');
+    $('#feedForm')[0].reset();
+    $('#feedId').val('');
+    $('#feedActive').prop('checked', true);
+    $('#feedMaxArticles').val(10);
+    $('#feedModal').modal('show');
+}
+
+function editFeed(id) {
+    currentFeedId = id;
+    $('#feedModalTitle').text('Edit Feed');
+
+    $.get(`/admin/api/auto-feed/feeds/${id}`)
+        .done(function(data) {
+            const feed = data.feed;
+
+            $('#feedName').val(feed.feed_name || '');
+            $('#feedUrl').val(feed.feed_url);
+            $('#feedEchoarea').val(feed.echoarea_id);
+            $('#feedUser').val(feed.post_as_user_id);
+            $('#feedMaxArticles').val(feed.max_articles_per_check || 10);
+            $('#feedActive').prop('checked', feed.active);
+            $('#feedModal').modal('show');
+        })
+        .fail(function() {
+            showError('Failed to load feed details');
+        });
+}
+
+function saveFeed() {
+    const form = $('#feedForm');
+    if (!form[0].checkValidity()) {
+        form[0].reportValidity();
+        return;
+    }
+
+    const formData = {
+        feed_name: $('#feedName').val() || null,
+        feed_url: $('#feedUrl').val(),
+        echoarea_id: parseInt($('#feedEchoarea').val()),
+        post_as_user_id: parseInt($('#feedUser').val()),
+        max_articles_per_check: parseInt($('#feedMaxArticles').val()),
+        active: $('#feedActive').is(':checked')
+    };
+
+    const url = currentFeedId ? `/admin/api/auto-feed/feeds/${currentFeedId}` : '/admin/api/auto-feed/feeds';
+    const method = currentFeedId ? 'PUT' : 'POST';
+
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function() {
+            $('#feedModal').modal('hide');
+            showSuccess(`Feed ${currentFeedId ? 'updated' : 'created'} successfully`);
+            loadFeeds();
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Operation failed';
+            showError(error);
+        }
+    });
+}
+
+function showDeleteModal(id, name) {
+    currentFeedId = id;
+    $('#deleteFeedName').text(name);
+    $('#deleteModal').modal('show');
+
+    $('#confirmDelete').off('click').on('click', function() {
+        deleteFeed();
+    });
+}
+
+function deleteFeed() {
+    $.ajax({
+        url: `/admin/api/auto-feed/feeds/${currentFeedId}`,
+        method: 'DELETE',
+        success: function() {
+            $('#deleteModal').modal('hide');
+            showSuccess('Feed deleted successfully');
+            loadFeeds();
+            loadStats();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Delete failed';
+            showError(error);
+        }
+    });
+}
+
+function checkFeed(id) {
+    showInfo('Checking feed...');
+
+    $.post(`/admin/api/auto-feed/check/${id}`)
+        .done(function(data) {
+            showSuccess(`Feed checked: ${data.articles_posted} new article(s) posted`);
+            loadFeeds();
+            loadStats();
+        })
+        .fail(function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Check failed';
+            showError(error);
+        });
+}
+
+function loadStats() {
+    $.get('/admin/api/auto-feed/stats')
+        .done(function(data) {
+            $('#totalFeeds').text(data.total_feeds || 0);
+            $('#activeFeeds').text(data.active_feeds || 0);
+            $('#totalArticles').text(data.total_articles || 0);
+        });
+}
+
+function loadUsers() {
+    $.get('/admin/api/users')
+        .done(function(data) {
+            const select = $('#feedUser');
+            select.empty();
+
+            data.users.forEach(function(user) {
+                select.append(`<option value="${user.id}">${escapeHtml(user.username)} (${escapeHtml(user.real_name)})</option>`);
+            });
+        });
+}
+
+function loadEchoareas() {
+    $.get('/api/echoareas')
+        .done(function(data) {
+            const select = $('#feedEchoarea');
+            select.empty();
+            select.append('<option value="">Select echo area...</option>');
+
+            data.echoareas.forEach(function(area) {
+                const label = `${area.tag} @ ${area.domain}${area.description ? ' - ' + area.description : ''}`;
+                select.append(`<option value="${area.id}">${escapeHtml(label)}</option>`);
+            });
+        });
+}
+</script>
+{% endblock %}

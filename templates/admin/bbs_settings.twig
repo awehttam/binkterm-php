@@ -89,6 +89,12 @@
                             <input class="form-check-input" type="checkbox" id="bbsFileAreas">
                             <label class="form-check-label" for="bbsFileAreas">Enable File Areas</label>
                         </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsMaxCrossPost">Max Cross-Post Areas</label>
+                            <input type="number" class="form-control" id="bbsMaxCrossPost" min="2" max="20" step="1" value="5">
+                            <small class="text-muted">Maximum number of additional areas a user can cross-post to (2-20).</small>
+                        </div>
                         <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
                     </form>
                 </div>
@@ -212,6 +218,8 @@ function loadBbsSettings() {
             document.getElementById('bbsVoting').checked = !!features.voting_booth;
             document.getElementById('bbsChat').checked = !!features.chat;
             document.getElementById('bbsFileAreas').checked = !!features.file_areas;
+            const maxCrossPost = parseInt(data.config?.max_cross_post_areas, 10);
+            document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
             document.getElementById('bbsCreditsSymbol').value = (credits.symbol ?? '$');
             const dailyAmountValue = parseInt(credits.daily_amount, 10);
@@ -239,6 +247,12 @@ function loadBbsSettings() {
 }
 
 function saveBbsSettings() {
+    const maxCrossPost = parseInt(document.getElementById('bbsMaxCrossPost').value, 10);
+    if (Number.isNaN(maxCrossPost) || maxCrossPost < 2 || maxCrossPost > 20) {
+        showBbsSettingsAlert('Max cross-post areas must be an integer between 2 and 20.', 'danger');
+        return;
+    }
+
     // Get current credits settings (don't change them)
     fetch('/admin/api/bbs-settings')
         .then(response => response.json())
@@ -254,7 +268,8 @@ function saveBbsSettings() {
                     chat: document.getElementById('bbsChat').checked,
                     file_areas: document.getElementById('bbsFileAreas').checked
                 },
-                credits: credits
+                credits: credits,
+                max_cross_post_areas: maxCrossPost
             };
 
             return fetch('/admin/api/bbs-settings', {

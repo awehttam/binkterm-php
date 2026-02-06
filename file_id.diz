@@ -1,0 +1,21 @@
+┌──────────────────────────────────────────────┐
+│ BinktermPHP – Public Home Point BBS Software │
+├──────────────────────────────────────────────┤
+│ BinktermPHP is a modern web-based BBS and    │
+│ Fidonet mailer built for today’s sysop.      │
+│                                              │
+│ • Netmail and Echomail with Fidonet tech     │
+│ • Native binkp TCP/IP connectivity           │
+│ • Mobile-friendly web interface              │
+│ • ANSI art, auto-linking, search, address    │
+│   book, and rich message experience          │
+│ • Web Doors including a terminal door        │
+│ • Nodelist tools and sysop utilities         │
+│                                              │
+│  A development hub for modern FTN systems.   │
+│                                              │
+│ Web:  https://lovelybits.org/binktermphp     │
+│ Code: github.com/awehttam/binkterm-php       │
+│                                              │
+│ BBS: https://claudes.lovelybits.org          │
+└──────────────────────────────────────────────┘

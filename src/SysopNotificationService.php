@@ -1,4 +1,18 @@
 <?php
+
+/*
+ * Copright Matthew Asham and BinktermPHP Contributors
+ * 
+ * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the 
+ * following conditions are met:
+ * 
+ * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ * Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+ * 
+ */
+
 /**
  * Sysop Notification Service
  *
@@ -37,7 +51,7 @@ class SysopNotificationService
      * @param string $fromName Sender name (defaults to 'System')
      * @return bool Success
      */
-    public static function sendNoticeToSysop(string $subject, string $message, string $fromName = 'System'): bool
+    public static function sendNoticeToSysop(string $subject, string $message, string $fromName = 'System', $email=true): bool
     {
         try {
             // Sanitize inputs to valid UTF-8
@@ -51,6 +65,7 @@ class SysopNotificationService
             $binkpConfig = BinkpConfig::getInstance();
             $systemAddress = $binkpConfig->getSystemAddress();
             $sysopName = $binkpConfig->getSystemSysop();
+            $systemName = $binkpConfig->getSystemName();
 
             if (empty($sysopName)) {
                 error_log("[SysopNotificationService] Sysop name not configured");
@@ -59,7 +74,7 @@ class SysopNotificationService
 
             // Find sysop user in database
             $stmt = $db->prepare("
-                SELECT id FROM users
+                SELECT id,email FROM users
                 WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
                 LIMIT 1
             ");
@@ -68,7 +83,7 @@ class SysopNotificationService
 
             if (!$sysopUser) {
                 // Fallback to first admin user
-                $stmt = $db->prepare("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
+                $stmt = $db->prepare("SELECT id,email FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
                 $stmt->execute();
                 $sysopUser = $stmt->fetch();
 
@@ -97,6 +112,24 @@ class SysopNotificationService
                 0
             ]);
 
+            if($email){
+                // Get sysop email address
+                $emailStmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+                $emailStmt->execute([$sysopUser['id']]);
+                $sysopEmail = $emailStmt->fetchColumn();
+
+                if (!empty($sysopEmail)) {
+                    $emailSubject = "[$systemName Notification] " . $subject;
+                    $plainBody = "From: " . $fromName . "\n\n" . $message;
+
+                    // Convert plain text to HTML
+                    $htmlBody = nl2br(htmlspecialchars($plainBody, ENT_QUOTES, 'UTF-8'));
+
+                    // Send email notification using Mail class
+                    $mailer = new Mail();
+                    $mailer->sendMail($sysopEmail, $emailSubject, $htmlBody, $plainBody);
+                }
+            }
             return $result;
 
         } catch (\Exception $e) {
@@ -105,3 +138,4 @@ class SysopNotificationService
         }
     }
 }
+

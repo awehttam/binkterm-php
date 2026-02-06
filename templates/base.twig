@@ -31,6 +31,39 @@
         .mail-menu-icon.unread {
             color: #ffc107 !important;
         }
+
+        /* Nested dropdown submenu styles */
+        .dropdown-submenu {
+            position: relative;
+        }
+
+        .dropdown-submenu > .dropdown-menu {
+            top: 0;
+            left: 100%;
+            margin-top: -1px;
+            margin-left: -1px;
+        }
+
+        .dropdown-submenu:hover > .dropdown-menu {
+            display: block;
+        }
+
+        .dropdown-submenu > .dropdown-toggle::after {
+            transform: rotate(-90deg);
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            margin-top: -3px;
+        }
+
+        /* Mobile responsive: stack submenu below on small screens */
+        @media (max-width: 768px) {
+            .dropdown-submenu > .dropdown-menu {
+                position: static !important;
+                margin-left: 1rem;
+                border-left: 2px solid rgba(0,0,0,0.1);
+            }
+        }
     </style>
     <script src="/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
     <script src="/vendor/jquery-3.7.1/jquery-3.7.1.min.js"></script>
@@ -140,17 +173,37 @@
                                 <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> Manage Users</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> Advertisements</a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> Area Management</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
+                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> File Areas</a></li>
+                                        <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                                    </ul>
+                                </li>
+                                <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> Auto Feed</a></li>
                                 <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
-                                <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
-                                <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> File Areas</a></li>
                                 <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> Polls</a></li>
                                 <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> Shoutbox</a></li>
-                                <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
                                 <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-gamepad"></i> Webdoors </a></li>
-                                <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> Template Editor</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a></li>
-                                <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> Binkp Configuration</a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> Binkp Configuration</a></li>
+                                        <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> Template Editor</a></li>
+                                    </ul>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-question-circle"></i> Help</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> README</a></li>
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                                        <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> Claude's BBS</a></li>
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> Report Issue</a></li>
+                                    </ul>
+                                </li>
 
                             </ul>
                         </li>
@@ -235,6 +288,51 @@
         window.currentUserId = {{ current_user.user_id ?? current_user.id }};
         window.currentUserIsAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
         {% endif %}
+
+        // Handle nested dropdown submenus
+        $(document).ready(function() {
+            // Show submenu on hover (desktop)
+            $('.dropdown-submenu').hover(
+                function() {
+                    $(this).find('> .dropdown-menu').show();
+                },
+                function() {
+                    $(this).find('> .dropdown-menu').hide();
+                }
+            );
+
+            // Handle click on submenu toggle
+            $('.dropdown-submenu > .dropdown-toggle').on('click', function(e) {
+                const href = $(this).attr('href');
+
+                // If it's a real link (not #), allow normal navigation on direct click
+                if (href && href !== '#') {
+                    // On mobile or if submenu is not visible, toggle submenu instead
+                    if ($(window).width() <= 768 || !$(this).next('.dropdown-menu').is(':visible')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const $submenu = $(this).next('.dropdown-menu');
+                        $('.dropdown-submenu .dropdown-menu').not($submenu).hide();
+                        $submenu.toggle();
+                    }
+                    // Otherwise let the link work normally
+                } else {
+                    // For # links, just toggle submenu
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const $submenu = $(this).next('.dropdown-menu');
+                    $('.dropdown-submenu .dropdown-menu').not($submenu).hide();
+                    $submenu.toggle();
+                }
+            });
+
+            // Hide submenu when parent dropdown closes
+            $('.dropdown').on('hide.bs.dropdown', function() {
+                $(this).find('.dropdown-submenu .dropdown-menu').hide();
+            });
+        });
     </script>
     <script>
         let swRegistration = null;

@@ -67,6 +67,32 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
 }
 ```
 
+### Area Tag Syntax
+
+Area rule keys should use the domain syntax to ensure rules target the correct file area:
+
+**Format:** `TAG@DOMAIN`
+
+Examples:
+- `"NODELIST@fidonet"` - FidoNet NODELIST area
+- `"FILES@lovlynet"` - LOVLYNET FILES area
+- `"INBOUND@fsxnet"` - fsxNet INBOUND area
+
+For local file areas without a network domain, use the tag alone:
+- `"LOCAL_FILES"` - Local area
+
+```json
+"area_rules": {
+  "NODELIST@fidonet": [
+    {
+      "name": "Import FidoNet Nodelist",
+      "pattern": "/^NODELIST\\.(Z|A)[0-9]{2}$/i",
+      "script": "php scripts/import_nodelist.php %filepath% fidonet"
+    }
+  ]
+}
+```
+
 ### Rule Fields
 
 - `name` (string): Human-friendly description.

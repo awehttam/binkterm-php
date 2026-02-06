@@ -5,7 +5,7 @@
 ### Q: Where can I get support?
 **A:** There are several ways to get help with BinktermPHP:
 
-- **Discussions**: For general questions, help, and community support, visit the [GitHub Discussions](https://github.com/awehttam/binkterm-php/discussions)
+- **Discussions**: For general questions, help, and community support, visit the [Claude's BBS](https://claudes.lovelybits.org) or [GitHub Discussions](https://github.com/awehttam/binkterm-php/discussions)
 - **Bug Reports**: If you've found a bug, please file an issue at [GitHub Issues](https://github.com/awehttam/binkterm-php/issues)
 - **Feature Requests**: Have an idea for a new feature? Submit it at [GitHub Issues](https://github.com/awehttam/binkterm-php/issues)
 
@@ -43,7 +43,7 @@ This allows the web server and CLI scripts to create and manage outbound packets
 ### Q: How do I run database migrations?
 **A:** Run the migration script:
 ```bash
-php scripts/upgrade.php
+php scripts/setup.php
 ```
 This will apply all pending migrations from the `database/migrations/` directory.
 
@@ -59,25 +59,46 @@ This will apply all pending migrations from the `database/migrations/` directory
 - Security settings
 
 ### Q: How do I add a new FTN network/uplink?
-**A:** Edit `data/binkp.json` and add an entry to the `uplinks` array:
-```json
-{
-  "address": "55:234/567",
-  "hostname": "hub.example.com",
-  "port": 24554,
-  "password": "your_session_password",
-  "domain": "somenet",
-  "me": "55:234/999",
-  "networks": ["55:*/*"]
-}
-```
-The `domain` field identifies which network this uplink belongs to.
 
-### Q: How do I configure nodelists?
-**A:** Edit `data/nodelists.json` to specify nodelist sources and import settings. See the README for detailed configuration options.
+**A:** Use the BBS Settings page from the Admin Menu
 
 ### Q: What is the SITE_URL setting for?
 **A:** `SITE_URL` in `.env` is used for generating full URLs (share links, password reset emails, etc.). This is important if your server is behind a reverse proxy or load balancer where `$_SERVER['HTTPS']` may not be set correctly.
+
+### Q: How do I enable additional themes?
+**A:** Copy the example themes configuration and customize it:
+
+```bash
+cp config/themes.json.example config/themes.json
+```
+
+Then edit `config/themes.json` to add or modify available themes:
+
+```json
+{
+    "Amber": "/css/amber.css",
+    "Cyberpunk": "/css/cyberpunk.css",
+    "Dark": "/css/dark.css",
+    "Green Term": "/css/greenterm.css",
+    "Regular": "/css/style.css",
+    "My Custom Theme": "/css/mycustom.css"
+}
+```
+
+**Key points:**
+- The key is the display name shown to users in their settings
+- The value is the path to the CSS file (relative to `public_html/`)
+- CSS files must be placed in `public_html/css/`
+- Users can select themes from their account settings page
+- The "Regular" theme should always point to `/css/style.css` (the base theme)
+
+**Creating a new theme:**
+1. Copy an existing theme CSS file (e.g., `public_html/css/style.css`)
+2. Rename it to your theme name (e.g., `mytheme.css`)
+3. Customize the colors and styles
+4. Add an entry to `config/themes.json`
+
+Users will see the new theme in their settings dropdown immediately after the config file is updated.
 
 ---
 
@@ -135,41 +156,6 @@ When sending netmail, check the "Crash" option to attempt direct delivery.
 
 ## Binkp Server & Polling
 
-### Q: How do I run the binkp server as a daemon?
-**A:** Create a systemd service file at `/etc/systemd/system/binkp.service`:
-```ini
-[Unit]
-Description=BinktermPHP Binkp Server
-After=network.target
-
-[Service]
-Type=simple
-User=someuser
-WorkingDirectory=/path/to/binktest
-ExecStart=/usr/bin/php scripts/binkp_server.php
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-Then enable and start it:
-```bash
-sudo systemctl enable binkp
-sudo systemctl start binkp
-```
-
-### Q: How often should I poll my uplink?
-**A:** This depends on your uplink's policies and your traffic volume. Common intervals:
-- High traffic: Every 15-30 minutes
-- Normal traffic: Every 1-2 hours
-- Low traffic: Every 4-6 hours
-
-Set up a cron job:
-```cron
-*/30 * * * * php /path/to/binktest/cli/binkp_poll.php --domain=fidonet
-```
-
 ### Q: How do I only connnect to my uplink if traffic available?
 **A:**
 
@@ -203,6 +189,7 @@ BBSLINK_GATEWAY_URL=https://gateway.example.com/
 BBSLINK_API_KEY=your-secret-api-key
 ```
 Note that BBSLINK support is experimental and not enabled in the code base.  The above is provided as an example for how gateway tokens work and the gateway token facility itself may be used and developed for.
+
 ### Q: How do I make a user an admin?
 **A:** Set the 'admin' flag when editing the user through the web interface
 **A:** Update the user's `is_admin` flag in the database:
@@ -216,7 +203,7 @@ UPDATE users SET is_admin = TRUE WHERE username = 'username';
 
 ### Q: Where are the log files?
 **A:**
-- Packet processing: `data/logs/packets.log`
+- System daemons and tools: `data/logs/`
 - PHP errors: Check your web server's error log
 - Binkp sessions: The session logs are always recorded by the binkp daemons.
 
@@ -237,10 +224,10 @@ UPDATE users SET is_admin = TRUE WHERE username = 'username';
 ### Q: How do I debug binkp connection issues?
 **A:**
 1. Enable verbose logging in your uplink's configuration
-2. Check `data/logs/packets.log` after a poll attempt
+2. Check `data/logs/binkp_poll.log` after a poll attempt and `data/logs/binkp_server.log` for incoming connections
 3. Try connecting manually: `telnet hub.example.com 24554`
 4. Verify your password matches what your uplink expects
-5. Check firewall rules for outbound port 24554
+5. Check firewall rules for accept policies for outbound and inbound port 24554
 
 ---
 
@@ -256,12 +243,6 @@ php cli/echomail_maintenance.php --domain=fidonet --max-age=365 --dry-run
 php cli/echomail_maintenance.php --domain=fidonet --max-age=365
 ```
 
-### Q: How do I rebuild message counts?
-**A:** Run:
-```bash
-php cli/echomail_maintenance.php --domain=fidonet --rebuild-counts
-```
-
 ### Q: How do I import a nodelist?
 **A:**
 ```bash
@@ -269,7 +250,48 @@ php cli/import_nodelist.php --domain=fidonet
 ```
 This reads the nodelist configuration from `data/nodelists.json` and imports entries.
 
+### Q: How do I automatically install nodelists when they arrive?
+**A:** Use file area rules to automatically process nodelist files. Edit `config/filearea_rules.json` and add a rule for your NODELIST file area:
+
+```json
+{
+  "area_rules": {
+    "NODELIST@fidonet": [
+      {
+        "name": "Auto-import FidoNet Nodelist",
+        "pattern": "/^NODELIST\\.(Z|A|L|R|J)[0-9]{2}$/i",
+        "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force",
+        "success_action": "delete",
+        "fail_action": "keep+notify",
+        "enabled": true,
+        "timeout": 300
+      }
+    ]
+  }
+}
+```
+
+**Key points:**
+- Use `TAG@DOMAIN` format for the area key (e.g., `NODELIST@fidonet`)
+- Pattern matches compressed nodelist formats (Z=arc, A=zip, L=lha, R=rar, J=7z)
+- `%basedir%` macro expands to your BinktermPHP root directory
+- `%filepath%` is the full path to the received file
+- `%domain%` is the file area's domain (e.g., "fidonet")
+- `--force` flag makes the import script overwrite existing nodelist data
+- `success_action: "delete"` removes the file after successful import
+- `fail_action: "keep+notify"` keeps the file and notifies sysop on failure
+- `timeout: 300` allows up to 5 minutes for large nodelists
+
+The rule runs automatically when a file matching the pattern is uploaded or received via TIC.
+
+For more details on file area rules, see `docs/FileAreas.md`.
+
 ---
+
+### Q: How do I configure web based nodelist downloading?
+**A:** Edit `data/nodelists.json` to specify nodelist sources and import settings. See the README for detailed configuration options.
+
+
 
 ## Multi-Network Support
 
@@ -284,7 +306,7 @@ This reads the nodelist configuration from `data/nodelists.json` and imports ent
 Each echo area is associated with a domain, and messages are routed to the appropriate uplink.
 
 ### Q: How do I move an echo area to a different network?
-**A:** Edit the echo area and change its domain. Note that existing messages will retain their original routing information.
+**A:** Edit the echo and file area and change its domain. Note that existing messages will retain their original routing information.
 
 ---
 

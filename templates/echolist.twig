@@ -26,6 +26,18 @@
 #echolist-page .echoarea-desc {
     font-size: 0.9rem;
     color: #6c757d;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+    display: block !important;
+}
+
+#echolist-page .list-group-item {
+    overflow: hidden !important;
+}
+
+#echolist-page .d-flex {
+    min-width: 0 !important;
 }
 
 #echolist-page .echoarea-mod {
@@ -179,14 +191,19 @@ function displayEchoAreas(areas) {
     html += '<i class="fas fa-envelope-open-text"></i> New Messages';
     html += '</a>';
     html += '</div>';
-    html += buildCategory('Local', 'Local Areas', groups['Local'], true);
-    // Local first with New Post button
-    if (groups['Local'].length > 0) {
-
+    // Local first
+    if (groups['Local'] && groups['Local'].length > 0) {
+        html += buildCategory('Local', 'Local Areas', groups['Local'], true);
         delete groups['Local'];
     }
 
-    // Other networks
+    // Lovlynet second
+    if (groups['lovlynet'] && groups['lovlynet'].length > 0) {
+        html += buildCategory('lovlynet', 'LOVLYNET Network', groups['lovlynet'], false);
+        delete groups['lovlynet'];
+    }
+
+    // Other networks alphabetically
     Object.keys(groups).sort().forEach(net => {
         if (groups[net].length > 0) {
             html += buildCategory(net, net.toUpperCase() + ' Network', groups[net], false);
@@ -226,9 +243,9 @@ function buildEchoAreaRow(area) {
     html += '</div>';
 
     // Info
-    html += '<div class="flex-grow-1 min-width-0">';
+    html += '<div class="flex-grow-1" style="min-width: 0; overflow: hidden;">';
     html += '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">';
-    html += '<div>';
+    html += '<div class="flex-grow-1" style="min-width: 0; width: 0;">';
     html += '<div class="echoarea-title">';
     html += escapeHtml(area.tag);
     if (area.is_sysop_only) {
@@ -242,7 +259,7 @@ function buildEchoAreaRow(area) {
     html += '</div>';
 
     // Stats and last post on the right
-    html += '<div class="text-end">';
+    html += '<div class="text-end flex-shrink-0">';
     const unreadCount = area.unread_count || 0;
     const totalCount = area.message_count || 0;
     if (unreadCount > 0) {
@@ -318,9 +335,22 @@ function loadStatistics() {
 
 function formatDate(dateStr) {
     if (!dateStr) return 'Never';
-    const date = new Date(dateStr);
+
+    // Parse the date - if no timezone info, assume UTC
+    let date = new Date(dateStr);
+
+    // If the date string doesn't contain 'Z' or timezone offset, treat it as UTC
+    if (!dateStr.includes('Z') && !dateStr.match(/[+-]\d{2}:\d{2}$/)) {
+        date = new Date(dateStr + 'Z');
+    }
+
     const now = new Date();
     const diff = Math.floor((now - date) / 1000);
+
+    // Handle negative differences (future dates or clock skew)
+    if (diff < 0) {
+        return 'Just now';
+    }
 
     if (diff < 60) return 'Just now';
     if (diff < 3600) return Math.floor(diff / 60) + 'm ago';

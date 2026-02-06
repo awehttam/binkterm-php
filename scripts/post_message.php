@@ -117,7 +117,18 @@ function listUsers()
 function listEchoAreas()
 {
     $db = Database::getInstance()->getPdo();
-    $stmt = $db->query("SELECT tag, description, message_count FROM echoareas WHERE is_active = TRUE ORDER BY tag");
+    $stmt = $db->query("
+        SELECT tag, description, message_count, domain, is_local
+        FROM echoareas
+        WHERE is_active = TRUE
+        ORDER BY
+            CASE
+                WHEN COALESCE(is_local, FALSE) = TRUE THEN 0
+                WHEN LOWER(domain) = 'lovlynet' THEN 1
+                ELSE 2
+            END,
+            tag
+    ");
     $areas = $stmt->fetchAll();
     
     echo "Available echo areas:\n";

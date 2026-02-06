@@ -231,19 +231,26 @@ class Installer
 
         echo "4. Setting directory permissions...\n";
 
-        $outboundDir = __DIR__ . '/../data/outbound';
+        $dirs = [
+            "Outbound queue" => [__DIR__ . '/../data/outbound', 01777],
+            'File Base' => [__DIR__ . '/../data/files', 02777],
+        ];
 
-        if (is_dir($outboundDir)) {
-            // chmod a+rwxt (1777) - world writable with sticky bit
-            $result = chmod($outboundDir, 01777);
-            if ($result) {
-                echo "   ✓ Set permissions on data/outbound (a+rwxt)\n";
+
+        foreach ($dirs as $label=>$dirparams) {
+
+            if (is_dir($dirparams[0])) {
+
+                $result = chmod($dirparams[0], $dirparams[1]);
+                if ($result) {
+                    echo "   ✓ Set permissions on ".$dirparams[0]." (".$dirparams[1].")\n";
+                } else {
+                    echo "   ⚠ Could not set permissions on ".$dirparams[0]."\n";
+                    echo "     Run manually: chmod ".$dirparams[1]." ".$dirparams[0]."\n";
+                }
             } else {
-                echo "   ⚠ Could not set permissions on data/outbound\n";
-                echo "     Run manually: chmod a+rwxt data/outbound\n";
+                echo "   ⚠ ".$dirparams[0]." (".$label.") directory not found\n";
             }
-        } else {
-            echo "   ⚠ data/outbound directory not found\n";
         }
     }
 }

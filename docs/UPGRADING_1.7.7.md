@@ -49,6 +49,16 @@ Move the files, then verify permissions remain correct for your web server user.
 File area directories should be owned by the web server user (often `www-data` on Linux).
 Ensure ownership/permissions match your web server so uploads and downloads continue to work.
 
+## File Area Rules: Domain-Scoped Keys
+
+File area rules can now be scoped by domain using `TAG@DOMAIN` keys inside `area_rules`.
+If a domain-scoped entry exists, it takes precedence over the plain `TAG` key.
+
+Example:
+
+- `area_rules.NEWS` applies to all `NEWS` areas by default.
+- `area_rules.NEWS@FIDONET` applies only to the `FIDONET` domain and overrides `NEWS` for that domain.
+
 ## Signatures and Taglines
 
 This release adds per-user signatures and sysop-managed taglines for outbound netmail and echomail.

@@ -79,6 +79,16 @@ class TelnetServer
     }
 
     /**
+     * Set PID file path for daemon mode
+     *
+     * @param string $pidFile Path to PID file
+     */
+    public function setPidFile(string $pidFile): void
+    {
+        $this->pidFile = $pidFile;
+    }
+
+    /**
      * Start the telnet server
      *
      * @param bool $daemonMode Run as background daemon
@@ -102,7 +112,6 @@ class TelnetServer
                 exit(1);
             }
 
-            $this->pidFile = __DIR__ . '/../../data/telnetd.pid';
             $this->log("Starting telnet daemon in background mode");
             $this->daemonize();
 
@@ -234,16 +243,6 @@ class TelnetServer
      */
     private function daemonize(): void
     {
-        // Check if already running
-        if (file_exists($this->pidFile)) {
-            $pid = (int)file_get_contents($this->pidFile);
-            if ($pid > 0 && posix_kill($pid, 0)) {
-                fwrite(STDERR, "Daemon already running with PID $pid\n");
-                exit(1);
-            }
-            @unlink($this->pidFile);
-        }
-
         // Fork the process
         $pid = pcntl_fork();
         if ($pid === -1) {
@@ -279,8 +278,14 @@ class TelnetServer
         $GLOBALS['STDOUT'] = fopen($devNull, 'w');
         $GLOBALS['STDERR'] = fopen($devNull, 'w');
 
-        // Write PID file
-        file_put_contents($this->pidFile, getmypid());
+        // Write PID file if configured
+        if ($this->pidFile) {
+            $pidDir = dirname($this->pidFile);
+            if (!is_dir($pidDir)) {
+                mkdir($pidDir, 0755, true);
+            }
+            file_put_contents($this->pidFile, getmypid());
+        }
     }
 
     /**

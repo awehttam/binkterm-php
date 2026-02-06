@@ -14,6 +14,7 @@ BinktermPHP is built as a dual-component system:
 
 1. **Web Interface**: A PHP-based web application that users interact with via browser
 2. **Binkp Mailer**: Background daemon processes that handle FidoNet packet transmission
+3. **Telnet Daemon**: Background daemon process that provides a Telnet interface.
 
 #### Key Components
 
@@ -50,6 +51,11 @@ BinktermPHP is built as a dual-component system:
 - **Outbound**: Messages are bundled into packets and queued for transmission
 - **Polling**: Background process (`scripts/binkp_poll.php`) connects to uplinks on schedule
 - **Server**: Daemon (`scripts/binkp_server.php`) accepts incoming connections from other nodes
+
+#### Telnet Daemon
+- **Uses REST apis**: The Telnet daemon uses the REST apis for login, retrieving messages, etc.  It tries not to reinvent logic of sending and only focuses on Telnet UI.
+- **Feature Parity**: The Telnet daemon isn't expected to have full feature parity as with the web interface.  The web interface is considered "first class".
+- **Testing**: When testing the Telnet daemon be sure to use SyncTerm along with Putty and other telnet clients.  
 
 ### Directory Structure
 
@@ -128,6 +134,52 @@ When modifying `public_html/css/style.css`, also update theme files:
 - `public_html/css/dark.css`
 - `public_html/css/greenterm.css`
 - `public_html/css/cyberpunk.css`
+
+### AI-Assisted Development
+
+BinktermPHP is actively developed with AI assistance using tools like Claude (Anthropic) and Codex (OpenAI).
+
+#### CLAUDE.md - Project Instructions
+
+The `CLAUDE.md` file in the project root contains comprehensive instructions for AI assistants working on this codebase. This file:
+
+- Documents project structure, tech stack, and conventions
+- Provides context about FidoNet protocols and BBS concepts
+- Outlines coding patterns and best practices
+- Explains critical workflows (database migrations, version management, credits system)
+- Lists recent features and known issues
+- Serves as a knowledge base for both AI tools and human developers
+
+**For AI Tools**: When using Claude Code, Claude.ai, or Codex with this project, ensure the AI has access to `CLAUDE.md` for proper context. This file is the single source of truth for development guidelines.
+
+**For Human Developers**: Review `CLAUDE.md` to understand the patterns and conventions used throughout the codebase. If you're working with AI tools, keep this file updated as the project evolves.
+
+#### Working with AI Assistants
+
+When using AI tools to develop BinktermPHP:
+
+1. **Provide Context**: Reference `CLAUDE.md` and relevant documentation files
+2. **Be Specific**: Clearly describe the feature, bug, or change needed
+3. **Review Thoroughly**: AI-generated code should be tested and reviewed before committing
+4. **Update Documentation**: Keep `CLAUDE.md`, this guide, and other docs in sync with changes
+5. **Follow Conventions**: Ensure AI-generated code adheres to project coding standards
+6. **Test First, Commit Later**: Per git workflow guidelines, test changes before staging/committing
+
+#### Common AI Development Patterns
+
+- **Feature Development**: Ask AI to read existing patterns first, then implement similarly
+- **Bug Fixes**: Provide error logs and relevant code context for accurate diagnosis
+- **Refactoring**: Specify the scope carefully to avoid over-engineering
+- **Documentation**: AI can help generate proposal documents (marked as AI-generated drafts)
+- **Code Review**: Use AI to explain unfamiliar code sections or suggest improvements
+
+#### Important Notes
+
+- AI-generated proposal documents should state they are drafts and AI-generated
+- Always verify AI suggestions against actual codebase behavior
+- The `vendor/` directory is managed by Composer - exclude from AI modifications
+- Database migrations require special care - review schema changes thoroughly
+- Security-sensitive code (authentication, packet processing) needs extra scrutiny
 
 ### Key Features
 
