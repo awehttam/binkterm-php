@@ -804,6 +804,35 @@ php scripts/echomail_maintenance.php --echo=SYNCDATA --max-age=90 --max-count=20
 
 The maintenance script provides flexible echomail cleanup with age-based deletion, count-based limits, dry-run preview mode, and per-echo or bulk processing. See [scripts/README_echomail_maintenance.md](scripts/README_echomail_maintenance.md) for detailed documentation, cron job examples, and best practices.
 
+### Subscribe Users to Echo Areas
+Forcefully subscribe users to echo areas for important announcements or required areas:
+
+```bash
+# List all echo areas with subscriber counts
+php scripts/subscribe_users.php list
+
+# Show detailed stats for a specific area
+php scripts/subscribe_users.php stats ANNOUNCE@lovlynet
+
+# Subscribe all active users to an area
+php scripts/subscribe_users.php all ANNOUNCE@lovlynet
+
+# Subscribe a specific user to an area
+php scripts/subscribe_users.php user john GENERAL@fidonet
+```
+
+The subscription tool allows administrators to:
+- Bulk subscribe all active users to important areas (announcements, general discussion, etc.)
+- Subscribe individual users to specific areas
+- View subscription statistics and current subscriber lists
+- Skip users who are already subscribed (idempotent)
+- Mark admin-forced subscriptions with `subscription_type = 'admin'`
+
+This is particularly useful for:
+- Ensuring all users see system announcements
+- Pre-subscribing new users to recommended areas
+- Managing default subscriptions for community areas
+
 ### Move Messages Between Echo Areas
 Move all messages from one echo area to another for reorganization or consolidation:
 
