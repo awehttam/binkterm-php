@@ -22,7 +22,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - src/ - main source code
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.)
    - **IMPORTANT**: All PHP scripts in scripts/ directory must include shebang line `#!/usr/bin/env php` at the top
-   - Scripts should be made executable with `chmod +x`
+   - Scripts should be made executable with `chmod +x` and marked as executable in git with `git update-index --chmod=+x scripts/filename.php`
  - templates/ - html templates
  - public_html/ - the web site files, static assets
  - tests/ - test scripts used in debugging and troubleshooting
