@@ -335,9 +335,22 @@ function loadStatistics() {
 
 function formatDate(dateStr) {
     if (!dateStr) return 'Never';
-    const date = new Date(dateStr);
+
+    // Parse the date - if no timezone info, assume UTC
+    let date = new Date(dateStr);
+
+    // If the date string doesn't contain 'Z' or timezone offset, treat it as UTC
+    if (!dateStr.includes('Z') && !dateStr.match(/[+-]\d{2}:\d{2}$/)) {
+        date = new Date(dateStr + 'Z');
+    }
+
     const now = new Date();
     const diff = Math.floor((now - date) / 1000);
+
+    // Handle negative differences (future dates or clock skew)
+    if (diff < 0) {
+        return 'Just now';
+    }
 
     if (diff < 60) return 'Just now';
     if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
