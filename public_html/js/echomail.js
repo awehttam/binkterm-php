@@ -1341,7 +1341,7 @@ function deleteSelectedMessages() {
     }
 
     const count = selectedMessages.size;
-    const confirmMessage = `Are you sure you want to delete ${count} selected message${count > 1 ? 's' : ''}?`;
+    const confirmMessage = `Are you sure you want to delete ${count} selected message${count > 1 ? 's' : ''} for everyone?`;
 
     if (!confirm(confirmMessage)) {
         return;

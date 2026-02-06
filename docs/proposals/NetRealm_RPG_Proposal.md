@@ -35,19 +35,19 @@ All PvP challenges (local or remote) use the same echomail-based flow:
 
 **Local PvP** (both players on same node):
 1. Alice challenges Bob (both local)
-2. Game posts PvP message to NETREALM_SYNC echomail
-3. Message saved to `echomail` table (from_address = local node)
-4. Batch processor runs (1-5 min later)
-5. Processes combat, updates both players' stats
-6. Players see result on next page load
+2. Game posts PvP message to NETREALM_SYNC via `MessageHandler::postEchomail()`
+3. Message saved to `echomail` table
+4. Game immediately queries and processes the message
+5. Updates both players' stats
+6. Players see result immediately
 
 **Remote PvP** (players on different nodes):
 1. Alice challenges Dave (on remote node)
-2. Game posts PvP message to NETREALM_SYNC echomail
+2. Game posts PvP message to NETREALM_SYNC via `MessageHandler::postEchomail()`
 3. Message saved to `echomail` table AND transmitted via binkp
-4. Both nodes' batch processors handle the message
-5. Updates local game state on both nodes
-6. Players see result on next page load
+4. When Dave opens NetRealm, game queries NETREALM_SYNC messages
+5. Processes PvP result, updates Dave's stats
+6. Dave sees he was challenged and the result
 
 **Incoming Remote Challenge**:
 1. Remote node posts PvP challenge
@@ -154,14 +154,14 @@ Level-appropriate monsters with scaling rewards:
 
 ### Echomail Area
 
-**NETREALM_SYNC_SYNC** - Game synchronization echo area (sysop-only) for:
+**NETREALM_SYNC** - Game synchronization echo area (sysop-only) for:
 - PvP combat results
 - Leaderboard updates (daily/weekly)
 - Rare item discoveries (legendary drops)
 - World events
 - Tournament announcements
 
-**Auto-Creation**: On first run, NetRealm automatically creates the NETREALM_SYNC_SYNC echo area if it doesn't exist:
+**Auto-Creation**: On first run, NetRealm automatically creates the NETREALM_SYNC echo area if it doesn't exist:
 - **Domain**: lovlynet
 - **Access**: Sysop only (read/write restricted)
 - **Description**: "NetRealm RPG game synchronization area"
@@ -283,7 +283,8 @@ From: Game System
 ```
 public_html/webdoors/netrealm/
 ├── webdoor.json              # Manifest
-├── index.php                 # Entry point - handles ALL routing and API endpoints
+├── game.html                 # Game interface (loaded by webdoor launcher)
+├── api.php                   # API endpoint handler
 ├── src/
 │   ├── NetRealmGame.php      # Main game class
 │   ├── Character.php         # Character management
@@ -291,8 +292,7 @@ public_html/webdoors/netrealm/
 │   ├── Inventory.php         # Inventory/equipment
 │   ├── Shop.php              # Shop system
 │   ├── Network.php           # Cross-node player registry
-│   ├── Leaderboard.php       # Leaderboard management
-│   └── NetRealmProcessor.php # Echomail processor (registered via config)
+│   └── Leaderboard.php       # Leaderboard management
 ├── game.html                 # Game interface (loaded by main BBS webdoor launcher)
 ├── css/
 │   ├── netrealm.css          # Game styles
@@ -386,42 +386,33 @@ CREATE TABLE netrealm_leaderboard (
     UNIQUE(player_name, node_address, rank_type)
 );
 
--- Echomail message tracking (prevent duplicates)
+-- Echomail message tracking (prevent duplicate processing)
 CREATE TABLE netrealm_processed_messages (
     id SERIAL PRIMARY KEY,
-    message_id VARCHAR(100) NOT NULL UNIQUE,
-    message_type VARCHAR(50) NOT NULL,
+    echomail_id INTEGER NOT NULL UNIQUE REFERENCES echomail(id) ON DELETE CASCADE,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_netrealm_processed ON netrealm_processed_messages(echomail_id);
 ```
 
-### How Routing Works
+### API Endpoint Handler
 
 **Request Flow**:
 1. User loads WebDoor: Browser requests `/webdoors/netrealm/game.html`
-2. JavaScript makes API call: `fetch('/webdoors/netrealm/api/character')`
-3. Web server routes to: `/webdoors/netrealm/index.php`
-4. `index.php` parses route, executes game logic, returns JSON
-5. JavaScript updates UI with response
+2. JavaScript makes API call: `fetch('/webdoors/netrealm/api.php?endpoint=character')`
+3. `api.php` handles request, executes game logic, returns JSON
+4. JavaScript updates UI with response
 
-**Web Server Configuration** (Apache `.htaccess` in WebDoor directory):
-```apache
-# Redirect all requests to index.php except static assets
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^api/(.*)$ index.php [QSA,L]
-```
+No `.htaccess` or URL rewriting needed - just simple GET parameters.
 
-This ensures all `/webdoors/netrealm/api/*` requests are handled by `index.php` without touching core routing.
+### api.php Structure
 
-### Entry Point: index.php
-
-The WebDoor's `index.php` handles ALL routing and API endpoints internally:
+The WebDoor's `api.php` handles ALL API endpoints using GET parameters:
 
 ```php
 <?php
-// public_html/webdoors/netrealm/index.php
+// public_html/webdoors/netrealm/api.php
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
@@ -441,17 +432,6 @@ if (!$auth->isLoggedIn()) {
 
 $userId = $auth->getUserId();
 
-// Simple routing based on REQUEST_URI
-$path = $_SERVER['REQUEST_URI'];
-$method = $_SERVER['REQUEST_METHOD'];
-
-// Extract the path after /webdoors/netrealm/
-preg_match('#/webdoors/netrealm/(.*)#', $path, $matches);
-$route = $matches[1] ?? '';
-
-// Remove query string
-$route = strtok($route, '?');
-
 // Load game classes
 require_once __DIR__ . '/src/NetRealmGame.php';
 require_once __DIR__ . '/src/Character.php';
@@ -463,13 +443,17 @@ require_once __DIR__ . '/src/Leaderboard.php';
 
 $game = new NetRealmGame($db, $userId);
 
+// Get endpoint from query string
+$endpoint = $_GET['endpoint'] ?? '';
+$method = $_SERVER['REQUEST_METHOD'];
+
 // API routing
 header('Content-Type: application/json');
 
 try {
-    switch ($route) {
+    switch ($endpoint) {
         // Character endpoints
-        case 'api/character':
+        case 'character':
             if ($method === 'GET') {
                 echo json_encode($game->getCharacter());
             } elseif ($method === 'POST') {
@@ -479,7 +463,7 @@ try {
             break;
 
         // Combat endpoints
-        case 'api/combat':
+        case 'combat':
             if ($method === 'GET') {
                 echo json_encode($game->getAvailableMonsters());
             } elseif ($method === 'POST') {
@@ -488,31 +472,31 @@ try {
             }
             break;
 
-        // Inventory endpoints
-        case 'api/inventory':
+        // Inventory
+        case 'inventory':
             echo json_encode($game->getInventory());
             break;
 
-        case 'api/equip':
+        case 'equip':
             if ($method === 'POST') {
                 $data = json_decode(file_get_contents('php://input'), true);
                 echo json_encode($game->equipItem($data['item_id']));
             }
             break;
 
-        // Shop endpoints
-        case 'api/shop':
+        // Shop
+        case 'shop':
             echo json_encode($game->getShopItems());
             break;
 
-        case 'api/shop/buy':
+        case 'shop-buy':
             if ($method === 'POST') {
                 $data = json_decode(file_get_contents('php://input'), true);
                 echo json_encode($game->buyItem($data['item_id']));
             }
             break;
 
-        case 'api/shop/sell':
+        case 'shop-sell':
             if ($method === 'POST') {
                 $data = json_decode(file_get_contents('php://input'), true);
                 echo json_encode($game->sellItem($data['inventory_id']));
@@ -520,16 +504,16 @@ try {
             break;
 
         // Rest/heal
-        case 'api/rest':
+        case 'rest':
             echo json_encode($game->rest());
             break;
 
-        // Network/PvP endpoints
-        case 'api/network':
+        // Network/PvP
+        case 'network':
             echo json_encode($game->getNetworkPlayers());
             break;
 
-        case 'api/pvp':
+        case 'pvp':
             if ($method === 'POST') {
                 $data = json_decode(file_get_contents('php://input'), true);
                 echo json_encode($game->challengePlayer($data['player_id']));
@@ -537,13 +521,13 @@ try {
             break;
 
         // Leaderboard
-        case 'api/leaderboard':
+        case 'leaderboard':
             $type = $_GET['type'] ?? 'overall';
             echo json_encode($game->getLeaderboard($type));
             break;
 
         // Credits integration
-        case 'api/buy-turns':
+        case 'buy-turns':
             if ($method === 'POST') {
                 $data = json_decode(file_get_contents('php://input'), true);
                 echo json_encode($game->buyTurns($data['amount']));
@@ -577,9 +561,7 @@ try {
   "entry_point": "game.html",
   "echomail_integration": {
     "echoarea": "NETREALM_SYNC",
-    "message_types": ["pvp_result", "leaderboard", "legendary_drop", "event"],
-    "processor_class": "NetRealmProcessor",
-    "auto_subscribe": true
+    "message_types": ["pvp_result", "leaderboard", "legendary_drop", "event"]
   },
   "config": {
     "daily_turns": 25,
@@ -598,7 +580,8 @@ try {
 2. BinktermPHP loads `game.html` (the `entry_point`) in an iframe/modal
 3. JavaScript in `game.html` makes API calls to `/webdoors/netrealm/api/*`
 4. All API calls are routed through `index.php` which handles game logic
-5. Echomail messages are processed by `NetRealmProcessor` (registered via config)
+5. Game queries NETREALM_SYNC messages via `MessageHandler` when players access it
+6. Game posts to NETREALM_SYNC via `MessageHandler::postEchomail()` for cross-node events
 
 **Zero Core Modifications**: The entire game is self-contained within the WebDoor directory.
 
@@ -629,7 +612,66 @@ POST /webdoors/netrealm/api/buy-turns     - Purchase extra turns with credits
 
 ### Echomail Processing
 
-NetRealm includes its own echomail processor that integrates with BinktermPHP's echomail processor architecture (see `Echomail_Processor_Architecture.md`).
+NetRealm uses BinktermPHP's `MessageHandler` class to post and query echomail messages. No custom processor needed - the game queries messages on-demand when players access it.
+
+**Posting Messages** (e.g., PvP results):
+```php
+use BinktermPHP\MessageHandler;
+
+$messageHandler = new MessageHandler();
+
+// Post PvP result to NETREALM_SYNC
+$pvpData = [
+    'type' => 'pvp_result',
+    'attacker' => ['name' => 'Alice', 'node' => '1:1/1', 'level' => 15],
+    'defender' => ['name' => 'Bob', 'node' => '1:2/3', 'level' => 14],
+    'result' => 'victory',
+    'xp_gained' => 150,
+    'gold_won' => 75,
+    'timestamp' => gmdate('c')  // UTC timestamp
+];
+
+$messageHandler->postEchomail(
+    $gameSystemUserId,       // System user ID for game messages
+    'NETREALM_SYNC',         // Echo area tag
+    'lovlynet',              // Domain
+    'All',                   // To name
+    '[NetRealm] PvP Result', // Subject
+    json_encode($pvpData),   // Message text as JSON
+    null,                    // Reply to ID
+    'NetRealm RPG'           // Tagline
+);
+```
+
+**Querying Messages** (check for new game events):
+```php
+// When player opens game, fetch recent NETREALM_SYNC messages
+$messages = $messageHandler->getEchomail(
+    'NETREALM_SYNC',    // Echo area tag
+    'lovlynet',         // Domain
+    1,                  // Page
+    100,                // Limit (last 100 messages)
+    null,               // User ID (null = all messages)
+    'all'               // Filter
+);
+
+// Process each message
+foreach ($messages['messages'] as $msg) {
+    $data = json_decode($msg['message_text'], true);
+
+    switch ($data['type'] ?? '') {
+        case 'pvp_result':
+            $this->processPvPResult($data);
+            break;
+        case 'leaderboard':
+            $this->processLeaderboard($data);
+            break;
+        case 'legendary_drop':
+            $this->processLegendaryDrop($data);
+            break;
+    }
+}
+```
 
 **Echo Area Auto-Creation**:
 
@@ -657,105 +699,93 @@ if (!$stmt->fetch()) {
 This ensures NETREALM_SYNC exists before any game messages are posted. Since it's sysop-only, regular users can't see it. The game posts/reads messages directly via SQL.
 
 **Processing Flow**:
-1. **Incoming echomail**: Packets arrive → messages saved to `echomail` table → queued for batch processing
-2. **Local PvP**: Player initiates challenge → message posted to NETREALM_SYNC echomail → saved to `echomail` table → queued
-3. **Batch daemon**: Runs every 1-5 minutes → processes queued messages → updates game state
-4. **Unified**: All PvP (local + remote) flows through echomail table → processor
+1. **Incoming echomail**: Packets arrive → messages saved to `echomail` table by BinktermPHP
+2. **Local PvP**: Player initiates challenge → game posts via `MessageHandler::postEchomail()` → saved to `echomail` table
+3. **On-demand processing**: When player opens game → query NETREALM_SYNC messages via `MessageHandler::getEchomail()` → process new messages → update game state
+4. **Unified**: All PvP (local + remote) flows through echomail table, processed when needed
 
-**Processor Registration** (`config/echomail_processors.json`):
+**Benefits of On-Demand Processing**:
+- No batch processor or daemon needed
+- No queue table needed
+- Simpler architecture
+- Game state updates when players actually play
+- Uses existing BinktermPHP MessageHandler methods
 
-Add this entry to register NetRealm's echomail processor:
+**Message Processing** (in game code):
 
-```json
-{
-  "processors": [
-    {
-      "enabled": true,
-      "class": "NetRealmProcessor",
-      "autoload": "public_html/webdoors/netrealm/src/NetRealmProcessor.php",
-      "comment": "NetRealm game - batch processor, runs on schedule",
-      "config": {
-        "validate_signatures": true,
-        "auto_sync_leaderboard": true,
-        "notify_players": true
-      }
-    }
-  ]
-}
-```
+When a player opens NetRealm, the game queries for new NETREALM_SYNC messages and processes them:
 
-**How It Works**:
-1. ProcessorRegistry reads the config
-2. Sees the `autoload` path and does `require_once` on it
-3. Instantiates `NetRealmProcessor` with database and config
-4. Processor runs in **batch mode** on a schedule (doesn't block packet processing)
-5. Processes messages from echomail table every 1-5 minutes
-
-**No core code changes** - just a config entry and the batch daemon runs the processor!
-
-**Processor Class** (`src/NetRealmProcessor.php`):
-
-The processor is a self-contained class within the WebDoor that:
-- Extends `BinktermPHP\Echomail\EchomailProcessor`
-- Subscribes to the NETREALM_SYNC echo area
-- Processes incoming messages (PvP results, leaderboards, legendary drops, events)
-- Updates local database tables
-- Operates in **real-time mode** for instant notifications
-
-**Class Definition**:
 ```php
-<?php
-// public_html/webdoors/netrealm/src/NetRealmProcessor.php
+// In NetRealmGame class or similar
 
-use BinktermPHP\Echomail\EchomailProcessor;
-
-class NetRealmProcessor extends EchomailProcessor
+public function syncFromNetwork()
 {
-    public function getEchoAreas()
-    {
-        return 'NETREALM_SYNC';
-    }
+    $messageHandler = new \BinktermPHP\MessageHandler();
 
-    public function getProcessingMode(): string
-    {
-        return 'batch'; // Process on schedule, don't block packet processing
-    }
+    // Get recent messages from NETREALM_SYNC
+    $result = $messageHandler->getEchomail(
+        'NETREALM_SYNC',
+        'lovlynet',
+        1,
+        100,  // Last 100 messages
+        null,
+        'all'
+    );
 
-    public function processMessage(array $message): bool
-    {
-        // Parse message JSON from message_text
-        $data = json_decode($message['message_text'], true);
-
-        // Route based on message type
-        switch ($data['type'] ?? '') {
-            case 'pvp_result':
-                return $this->processPvPResult($data, $message);
-            case 'leaderboard':
-                return $this->processLeaderboard($data, $message);
-            case 'legendary_drop':
-                return $this->processLegendaryDrop($data, $message);
-            case 'event':
-                return $this->processEvent($data, $message);
+    foreach ($result['messages'] as $msg) {
+        // Skip if already processed
+        if ($this->isMessageProcessed($msg['id'])) {
+            continue;
         }
 
-        return false;
+        $data = json_decode($msg['message_text'], true);
+
+        switch ($data['type'] ?? '') {
+            case 'pvp_result':
+                $this->processPvPResult($data);
+                break;
+            case 'leaderboard':
+                $this->processLeaderboard($data);
+                break;
+            case 'legendary_drop':
+                $this->processLegendaryDrop($data);
+                break;
+            case 'event':
+                $this->processEvent($data);
+                break;
+        }
+
+        // Mark message as processed
+        $this->markMessageProcessed($msg['id']);
     }
+}
+
+private function isMessageProcessed(int $messageId): bool
+{
+    $stmt = $this->db->prepare(
+        "SELECT 1 FROM netrealm_processed_messages WHERE echomail_id = ?"
+    );
+    $stmt->execute([$messageId]);
+    return $stmt->fetch() !== false;
+}
+
+private function markMessageProcessed(int $messageId): void
+{
+    $stmt = $this->db->prepare(
+        "INSERT INTO netrealm_processed_messages (echomail_id, processed_at)
+         VALUES (?, NOW())
+         ON CONFLICT (echomail_id) DO NOTHING"
+    );
+    $stmt->execute([$messageId]);
 }
 ```
 
-**Processing Schedule**:
-1. Echomail daemon (`echomail_processor_daemon.php`) runs every 1-5 minutes
-2. Checks `echomail_processing_queue` for pending NETREALM_SYNC messages
-3. For each queued message:
-   - Fetches message from `echomail` table
-   - Calls `NetRealmProcessor::processMessage()`
-   - Updates game tables (combat results, leaderboards, etc.)
-   - Removes from queue
-4. Players see updates on next page refresh or via notification
+**When Processing Runs**:
+- When player opens NetRealm
+- After player completes an action (combat, challenge, etc.)
+- Game always checks for new network messages before displaying state
 
-**No core changes required** - the processor is registered via configuration and processes messages on a schedule.
-
-See the full processor implementation in the `Echomail_Processor_Architecture.md` proposal, specifically the "Example: NetRealm Processor (Real-time)" section.
+**No daemon or processor registration needed** - just direct queries using MessageHandler.
 
 ## Game Balance
 
@@ -822,20 +852,20 @@ See the full processor implementation in the `Echomail_Processor_Architecture.md
 
 ### Phase 3: Echomail Integration
 **Week 5-6**:
-- Create `NetRealmProcessor.php` (echomail processor)
-- Register processor in `config/echomail_processors.json`
-- Create NETREALM_SYNC echoarea on LovlyNet
-- Implement echomail message generators (PvP results, leaderboards)
+- Create NETREALM_SYNC echoarea (auto-created on first run)
+- Implement message posting via `MessageHandler::postEchomail()`
+- Implement message querying via `MessageHandler::getEchomail()`
 - Cross-node player registry
-- PvP challenge system
+- PvP challenge system (posts to NETREALM_SYNC)
 - Global leaderboard sync
 - Network player discovery
+- Message processing on game load
 
 **Deliverables**:
 - Cross-node PvP functional
 - Leaderboards sync between nodes
 - Battle results broadcast via echomail
-- **Processor registered via config only - no core code changes**
+- **Uses existing MessageHandler - no core code changes**
 
 ### Phase 4: Advanced Features
 **Week 7-8**:
@@ -908,22 +938,15 @@ The phased approach allows for rapid MVP development while leaving room for rich
 4. Run database migration for NetRealm tables
 5. Build `index.php` routing and API endpoint handler
 6. Implement game classes and UI (Phase 1)
-7. Register `NetRealmProcessor` in `config/echomail_processors.json`
+7. Implement echomail integration using MessageHandler
 8. Beta test with small group of nodes
 9. Launch network-wide
 
 **Installation for Sysops**:
 1. Copy `/webdoors/netrealm/` directory to their BBS
 2. Run NetRealm database migration
-3. Add processor config entry to `config/echomail_processors.json`
-4. Ensure batch daemon is running (`scripts/echomail_processor_daemon.php`)
-   - Runs every 1-5 minutes to process game moves
-   - Can configure interval in daemon script
-5. Subscribe to NETREALM_SYNC echoarea
-6. Game appears automatically in WebDoors menu
+3. NETREALM_SYNC echo area auto-creates on first game access
+4. Game appears automatically in WebDoors menu
+5. Start playing!
 
-**Batch Processing Configuration**:
-- Default: Process queue every 60 seconds (1 minute)
-- For more responsive PvP: Set to 30 seconds
-- For lower resource usage: Set to 300 seconds (5 minutes)
-- Configure in `scripts/echomail_processor_daemon.php`: `sleep(60);`
+**No daemon or processor needed** - game processes messages on-demand when players access it.
