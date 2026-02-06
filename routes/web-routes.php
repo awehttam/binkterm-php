@@ -142,6 +142,12 @@ SimpleRouter::get('/register', function() {
         return SimpleRouter::response()->redirect('/');
     }
 
+    // Generate anti-spam timestamp
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    $_SESSION['registration_time'] = time();
+
     $template = new Template();
     $template->renderResponse('register.twig');
 });

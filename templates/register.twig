@@ -22,6 +22,12 @@
                 <div id="alert-container"></div>
 
                 <form id="registerForm">
+                    {# Anti-spam honeypot field - hidden from humans, visible to bots #}
+                    <div style="position: absolute; left: -9999px; top: -9999px;" aria-hidden="true">
+                        <label for="website">Website (leave blank)</label>
+                        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                    </div>
+
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" name="username" required
@@ -195,6 +201,12 @@ $(document).ready(function() {
         // Clear previous alerts
         $('#alert-container').empty();
 
+        // Anti-spam: Check honeypot field
+        if ($('#website').val() !== '') {
+            // Silent rejection - don't tell bots why they failed
+            return false;
+        }
+
         // Validate passwords match
         if ($('#password').val() !== $('#confirmPassword').val()) {
             showAlert('Passwords do not match.', 'danger');
@@ -215,7 +227,15 @@ $(document).ready(function() {
             success: function(response) {
                 if (response.success) {
                     showAlert('Registration submitted successfully! You will be notified when your account is approved.', 'success');
-                    $('#registerForm')[0].reset();
+                    // Hide the form after successful registration
+                    $('#registerForm').hide();
+                    $('.card-body .alert-info').hide();
+                    // Show link to login
+                    $('#alert-container').append(
+                        '<div class="mt-3 text-center">' +
+                        '<a href="/login" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> Go to Login</a>' +
+                        '</div>'
+                    );
                 } else {
                     showAlert(response.error || 'Registration failed. Please try again.', 'danger');
                 }

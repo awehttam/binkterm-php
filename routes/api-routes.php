@@ -212,6 +212,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     SimpleRouter::post('/register', function() {
         header('Content-Type: application/json');
 
+        // Start session for anti-spam checks
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
         // Accept both JSON and form data
         $data = [];
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -221,6 +226,69 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         } else {
             $data = $_POST;
         }
+
+        // Anti-spam validation 1: Honeypot field
+        if (!empty($data['website'])) {
+            // Silent rejection - don't tell bots why they failed
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid submission']);
+            return;
+        }
+
+        // Anti-spam validation 2: Time-based check
+        $registrationTime = $_SESSION['registration_time'] ?? 0;
+        $currentTime = time();
+        $timeTaken = $currentTime - $registrationTime;
+
+        if ($timeTaken < 3) {
+            // Too fast - likely a bot
+            http_response_code(400);
+            echo json_encode(['error' => 'Please take your time filling out the form.']);
+            return;
+        }
+
+        if ($timeTaken > 1800) {
+            // 30 minutes - session likely expired
+            http_response_code(400);
+            echo json_encode(['error' => 'Session expired. Please refresh the page and try again.']);
+            return;
+        }
+
+        // Anti-spam validation 4: Rate limiting by IP
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Check registration attempts in last 24 hours
+            $rateLimitStmt = $db->prepare("
+                SELECT COUNT(*) as attempt_count
+                FROM registration_attempts
+                WHERE ip_address = ?
+                AND attempt_time > NOW() - INTERVAL '24 hours'
+            ");
+            $rateLimitStmt->execute([$ipAddress]);
+            $rateLimitResult = $rateLimitStmt->fetch();
+
+            if ($rateLimitResult && $rateLimitResult['attempt_count'] >= 3) {
+                http_response_code(429);
+                echo json_encode(['error' => 'Too many registration attempts. Please try again later.']);
+                return;
+            }
+
+            // Log this attempt
+            $logAttemptStmt = $db->prepare("
+                INSERT INTO registration_attempts (ip_address, attempt_time, success)
+                VALUES (?, NOW(), FALSE)
+            ");
+            $logAttemptStmt->execute([$ipAddress]);
+
+        } catch (Exception $e) {
+            error_log("Rate limit check failed: " . $e->getMessage());
+            // Continue with registration if rate limit check fails
+        }
+
+        // Clear the session timestamp
+        unset($_SESSION['registration_time']);
 
         $username = $data['username'] ?? '';
         $password = $data['password'] ?? '';
@@ -307,6 +375,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             } catch (Exception $e) {
                 // Log error but don't fail registration
                 error_log("Failed to send registration notification: " . $e->getMessage());
+            }
+
+            // Mark registration attempt as successful
+            try {
+                $updateAttemptStmt = $db->prepare("
+                    UPDATE registration_attempts
+                    SET success = TRUE
+                    WHERE ip_address = ?
+                    ORDER BY attempt_time DESC
+                    LIMIT 1
+                ");
+                $updateAttemptStmt->execute([$ipAddress]);
+            } catch (Exception $e) {
+                error_log("Failed to update registration attempt: " . $e->getMessage());
             }
 
             echo json_encode(['success' => true]);
