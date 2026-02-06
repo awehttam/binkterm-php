@@ -191,14 +191,19 @@ function displayEchoAreas(areas) {
     html += '<i class="fas fa-envelope-open-text"></i> New Messages';
     html += '</a>';
     html += '</div>';
-    html += buildCategory('Local', 'Local Areas', groups['Local'], true);
-    // Local first with New Post button
-    if (groups['Local'].length > 0) {
-
+    // Local first
+    if (groups['Local'] && groups['Local'].length > 0) {
+        html += buildCategory('Local', 'Local Areas', groups['Local'], true);
         delete groups['Local'];
     }
 
-    // Other networks
+    // Lovlynet second
+    if (groups['lovlynet'] && groups['lovlynet'].length > 0) {
+        html += buildCategory('lovlynet', 'LOVLYNET Network', groups['lovlynet'], false);
+        delete groups['lovlynet'];
+    }
+
+    // Other networks alphabetically
     Object.keys(groups).sort().forEach(net => {
         if (groups[net].length > 0) {
             html += buildCategory(net, net.toUpperCase() + ' Network', groups[net], false);
