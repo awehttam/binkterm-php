@@ -134,6 +134,14 @@
     <div class="modal-dialog modal-lg modal-message-reader">
         <div class="modal-content">
             <div class="modal-header">
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="Previous message (←)">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="Next message (→)">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
                 <h5 class="modal-title" id="messageSubject">Message</h5>
                 <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
                     <i class="fas fa-expand"></i>
@@ -418,11 +426,49 @@ window.currentUser = {{ current_user|json_encode|raw }};
 
 .modal-title {
     flex: 1;
-    text-align: left;
+    text-align: center;
     margin: 0 1rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Message modal navigation buttons */
+.modal-header .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    min-width: 32px;
+}
+
+.modal-header .btn-sm:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.modal-header .btn-sm i {
+    font-size: 0.75rem;
+}
+
+.modal-header .d-flex {
+    flex-shrink: 0;
+}
+
+/* Mobile modal navigation adjustments */
+@media (max-width: 576px) {
+    .modal-header .btn-sm {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.8rem;
+        min-width: 28px;
+    }
+
+    .modal-header .btn-sm i {
+        font-size: 0.7rem;
+    }
+
+    .modal-title {
+        font-size: 1rem;
+        margin: 0 0.5rem;
+    }
 }
 </style>
 {% endblock %}

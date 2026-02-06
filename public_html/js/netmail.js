@@ -2,6 +2,8 @@ let currentPage = 1;
 let currentFilter = 'all';
 let currentSort = 'date_desc';
 let currentMessageId = null;
+let currentMessageIndex = -1;
+let currentMessages = [];
 let modalClosedByBackButton = false;
 let threadedView = false;
 let userSettings = {};
@@ -30,9 +32,20 @@ $(document).ready(function() {
     // Add keyboard navigation for message modal
     $(document).on('keydown', function(e) {
         if ($('#messageModal').hasClass('show')) {
-            if (e.key === 'f' || e.key === 'F') {
-                e.preventDefault();
-                toggleModalFullscreen();
+            switch(e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    navigateMessage(-1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    navigateMessage(1);
+                    break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    toggleModalFullscreen();
+                    break;
             }
         }
     });
@@ -176,6 +189,9 @@ function displayDrafts(drafts) {
 }
 
 function displayMessages(messages, isThreaded = false) {
+    // Store messages for navigation
+    currentMessages = messages;
+
     const container = $('#messagesContainer');
     let html = '';
 
@@ -321,6 +337,12 @@ function applyModalFullscreenPreference() {
 
 function viewMessage(messageId) {
     currentMessageId = messageId;
+
+    // Find and store current message index for navigation
+    currentMessageIndex = currentMessages.findIndex(msg => msg.id === messageId);
+
+    // Update navigation buttons
+    updateNavigationButtons();
 
     // Mark as read immediately
     markMessageAsRead(messageId);
@@ -972,4 +994,67 @@ function formatFileSize(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+function navigateMessage(direction) {
+    if (currentMessages.length === 0) return;
+
+    const newIndex = currentMessageIndex + direction;
+
+    // Check bounds
+    if (newIndex < 0 || newIndex >= currentMessages.length) {
+        return;
+    }
+
+    // Get the new message
+    const newMessage = currentMessages[newIndex];
+    if (!newMessage) return;
+
+    // Update current message info
+    currentMessageId = newMessage.id;
+    currentMessageIndex = newIndex;
+
+    // Update navigation buttons
+    updateNavigationButtons();
+
+    // Mark as read immediately
+    markMessageAsRead(newMessage.id);
+
+    // Show loading
+    $('#messageContent').html(`
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Loading message...
+        </div>
+    `);
+
+    // Load the new message
+    $.get(`/api/messages/netmail/${newMessage.id}`)
+        .done(function(data) {
+            displayMessageContent(data);
+            // Auto-scroll to top of modal content
+            $('#messageModal .modal-body').scrollTop(0);
+        })
+        .fail(function() {
+            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+        });
+}
+
+function updateNavigationButtons() {
+    const prevBtn = $('#prevMessageBtn');
+    const nextBtn = $('#nextMessageBtn');
+
+    // Disable/enable previous button
+    if (currentMessageIndex <= 0) {
+        prevBtn.prop('disabled', true);
+    } else {
+        prevBtn.prop('disabled', false);
+    }
+
+    // Disable/enable next button
+    if (currentMessageIndex >= currentMessages.length - 1) {
+        nextBtn.prop('disabled', true);
+    } else {
+        nextBtn.prop('disabled', false);
+    }
 }
