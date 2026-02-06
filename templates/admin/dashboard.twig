@@ -191,7 +191,8 @@
                     {% set services = {
                         'admin_daemon': 'Admin Daemon',
                         'binkp_scheduler': 'Binkp Scheduler',
-                        'binkp_server': 'Binkp Server'
+                        'binkp_server': 'Binkp Server',
+                        'telnetd': 'Telnet Server'
                     } %}
                     {% for key, label in services %}
                         {% set info = daemon_status[key] ?? null %}

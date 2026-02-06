@@ -66,6 +66,7 @@ if (!empty($args['help'])) {
     echo "  --api-base=URL    API base URL (default: SITE_URL or http://127.0.0.1)\n";
     echo "  --debug           Enable debug mode with verbose logging\n";
     echo "  --daemon          Run as background daemon\n";
+    echo "  --pid-file=FILE   Write process ID to file (default: data/run/telnetd.pid)\n";
     echo "  --insecure        Disable SSL certificate verification\n";
     exit(0);
 }
@@ -77,6 +78,21 @@ $apiBase = buildApiBase($args);
 $debug = !empty($args['debug']);
 $daemonMode = !empty($args['daemon']);
 $insecure = !empty($args['insecure']);
+$pidFile = $args['pid-file'] ?? __DIR__ . '/../data/run/telnetd.pid';
+
+// Write PID file
+$pidDir = dirname($pidFile);
+if (!is_dir($pidDir)) {
+    mkdir($pidDir, 0755, true);
+}
+file_put_contents($pidFile, getmypid());
+
+// Register shutdown function to clean up PID file
+register_shutdown_function(function() use ($pidFile) {
+    if (file_exists($pidFile)) {
+        unlink($pidFile);
+    }
+});
 
 // Create telnet server instance
 $server = new TelnetServer($host, $port, $apiBase, $debug, $insecure);
