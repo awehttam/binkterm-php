@@ -58,6 +58,7 @@ class TelnetServer
     private bool $insecure;
     private ?string $logFile = null;
     private bool $daemonMode = false;
+    private ?string $pidFile = null;
     private array $failedLoginAttempts = [];
 
     /**
@@ -75,6 +76,16 @@ class TelnetServer
         $this->apiBase = rtrim($apiBase, '/');
         $this->debug = $debug;
         $this->insecure = $insecure;
+    }
+
+    /**
+     * Set PID file path for daemon mode
+     *
+     * @param string $pidFile Path to PID file
+     */
+    public function setPidFile(string $pidFile): void
+    {
+        $this->pidFile = $pidFile;
     }
 
     /**
@@ -266,6 +277,15 @@ class TelnetServer
         $GLOBALS['STDIN'] = fopen($devNull, 'r');
         $GLOBALS['STDOUT'] = fopen($devNull, 'w');
         $GLOBALS['STDERR'] = fopen($devNull, 'w');
+
+        // Write PID file if configured
+        if ($this->pidFile) {
+            $pidDir = dirname($this->pidFile);
+            if (!is_dir($pidDir)) {
+                mkdir($pidDir, 0755, true);
+            }
+            file_put_contents($this->pidFile, getmypid());
+        }
     }
 
     /**
@@ -273,7 +293,9 @@ class TelnetServer
      */
     private function cleanupDaemon(): void
     {
-        // Cleanup handled by daemon script shutdown function
+        if ($this->pidFile && file_exists($this->pidFile)) {
+            @unlink($this->pidFile);
+        }
     }
 
     /**

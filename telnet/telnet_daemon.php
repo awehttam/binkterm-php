@@ -78,24 +78,12 @@ $apiBase = buildApiBase($args);
 $debug = !empty($args['debug']);
 $daemonMode = !empty($args['daemon']);
 $insecure = !empty($args['insecure']);
-$pidFile = $args['pid-file'] ?? dirname(__DIR__) . '/data/run/telnetd.pid';
-
-// Register shutdown function to clean up PID file
-register_shutdown_function(function() use ($pidFile) {
-    if (file_exists($pidFile)) {
-        unlink($pidFile);
-    }
-});
-
 // Create telnet server instance
 $server = new TelnetServer($host, $port, $apiBase, $debug, $insecure);
 
-// Start the server (this will daemonize if needed)
-$server->start($daemonMode);
+// Set PID file path for daemon mode
+$pidFile = $args['pid-file'] ?? dirname(__DIR__) . '/data/run/telnetd.pid';
+$server->setPidFile($pidFile);
 
-// Write PID file after daemonization (if we get here, we're the daemon process)
-$pidDir = dirname($pidFile);
-if (!is_dir($pidDir)) {
-    mkdir($pidDir, 0755, true);
-}
-file_put_contents($pidFile, getmypid());
+// Start the server (this will daemonize if needed and write PID file)
+$server->start($daemonMode);
