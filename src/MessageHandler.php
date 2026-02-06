@@ -97,6 +97,15 @@ class MessageHandler
             $params = array_merge($params, $myAddresses, [$userId]);
         }
 
+        // Filter out soft-deleted messages
+        // If user is sender, exclude messages deleted by sender
+        // If user is recipient, exclude messages deleted by recipient
+        $whereClause .= " AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                                   ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))";
+        $params[] = $userId;
+        $params[] = $user['username'];
+        $params[] = $user['real_name'];
+
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
@@ -1265,15 +1274,33 @@ class MessageHandler
         
         // Allow users to delete messages they sent OR received (same logic as getNetmail/getMessage)
         $isSender = ($message['user_id'] == $userId);
-        $isRecipient = (strtolower($message['to_name']) === strtolower($user['username']) || 
+        $isRecipient = (strtolower($message['to_name']) === strtolower($user['username']) ||
                        strtolower($message['to_name']) === strtolower($user['real_name']));
-        
+
         if (!$isSender && !$isRecipient) {
             return false;
         }
-        
-        $deleteStmt = $this->db->prepare("DELETE FROM netmail WHERE id = ?");
-        return $deleteStmt->execute([$messageId]);
+
+        // Soft delete: mark as deleted by sender or recipient
+        if ($isSender) {
+            $updateStmt = $this->db->prepare("UPDATE netmail SET deleted_by_sender = TRUE WHERE id = ?");
+            $updateStmt->execute([$messageId]);
+        } else {
+            $updateStmt = $this->db->prepare("UPDATE netmail SET deleted_by_recipient = TRUE WHERE id = ?");
+            $updateStmt->execute([$messageId]);
+        }
+
+        // If both parties have deleted it, permanently delete the record
+        $checkStmt = $this->db->prepare("SELECT deleted_by_sender, deleted_by_recipient FROM netmail WHERE id = ?");
+        $checkStmt->execute([$messageId]);
+        $flags = $checkStmt->fetch();
+
+        if ($flags && $flags['deleted_by_sender'] && $flags['deleted_by_recipient']) {
+            $deleteStmt = $this->db->prepare("DELETE FROM netmail WHERE id = ?");
+            $deleteStmt->execute([$messageId]);
+        }
+
+        return true;
     }
 
     private function markNetmailAsRead($messageId, $userId = null)
@@ -3412,6 +3439,15 @@ class MessageHandler
             $params = [$user['username'], $user['real_name']];
             $params = array_merge($params, $myAddresses, [$userId]);
         }
+
+        // Filter out soft-deleted messages
+        // If user is sender, exclude messages deleted by sender
+        // If user is recipient, exclude messages deleted by recipient
+        $whereClause .= " AND NOT ((n.user_id = ? AND n.deleted_by_sender = TRUE) OR
+                                   ((LOWER(n.to_name) = LOWER(?) OR LOWER(n.to_name) = LOWER(?)) AND n.deleted_by_recipient = TRUE))";
+        $params[] = $userId;
+        $params[] = $user['username'];
+        $params[] = $user['real_name'];
 
         // Get all messages first
         $stmt = $this->db->prepare("
