@@ -51,7 +51,7 @@ class SysopNotificationService
      * @param string $fromName Sender name (defaults to 'System')
      * @return bool Success
      */
-    public static function sendNoticeToSysop(string $subject, string $message, string $fromName = 'System'): bool
+    public static function sendNoticeToSysop(string $subject, string $message, string $fromName = 'System', $email=true): bool
     {
         try {
             // Sanitize inputs to valid UTF-8
@@ -65,6 +65,7 @@ class SysopNotificationService
             $binkpConfig = BinkpConfig::getInstance();
             $systemAddress = $binkpConfig->getSystemAddress();
             $sysopName = $binkpConfig->getSystemSysop();
+            $systemName = $binkpConfig->getSystemName();
 
             if (empty($sysopName)) {
                 error_log("[SysopNotificationService] Sysop name not configured");
@@ -73,7 +74,7 @@ class SysopNotificationService
 
             // Find sysop user in database
             $stmt = $db->prepare("
-                SELECT id FROM users
+                SELECT id,email FROM users
                 WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
                 LIMIT 1
             ");
@@ -82,7 +83,7 @@ class SysopNotificationService
 
             if (!$sysopUser) {
                 // Fallback to first admin user
-                $stmt = $db->prepare("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
+                $stmt = $db->prepare("SELECT id,email FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
                 $stmt->execute();
                 $sysopUser = $stmt->fetch();
 
@@ -111,6 +112,24 @@ class SysopNotificationService
                 0
             ]);
 
+            if($email){
+                // Get sysop email address
+                $emailStmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+                $emailStmt->execute([$sysopUser['id']]);
+                $sysopEmail = $emailStmt->fetchColumn();
+
+                if (!empty($sysopEmail)) {
+                    $emailSubject = "[$systemName Notification] " . $subject;
+                    $plainBody = "From: " . $fromName . "\n\n" . $message;
+
+                    // Convert plain text to HTML
+                    $htmlBody = nl2br(htmlspecialchars($plainBody, ENT_QUOTES, 'UTF-8'));
+
+                    // Send email notification using Mail class
+                    $mailer = new Mail();
+                    $mailer->sendMail($sysopEmail, $emailSubject, $htmlBody, $plainBody);
+                }
+            }
             return $result;
 
         } catch (\Exception $e) {

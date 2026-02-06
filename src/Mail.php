@@ -76,6 +76,7 @@ class Mail
             }
             
             $mail->send();
+            error_log("Sent Email to $to re: $subject");
             return true;
             
         } catch (Exception $e) {
@@ -83,7 +84,9 @@ class Mail
             try {
                 SysopNotificationService::sendNoticeToSysop(
                     'Email sending failure',
-                    'An error occurred sending Email to '.$to.' re: '.$subject.': '.$mail->ErrorInfo
+                    'An error occurred sending Email to '.$to.' re: '.$subject.': '.$mail->ErrorInfo,
+                    'System',
+                    false
                 );
             }catch (Exception $ex){
 
