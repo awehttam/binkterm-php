@@ -58,7 +58,6 @@ class TelnetServer
     private bool $insecure;
     private ?string $logFile = null;
     private bool $daemonMode = false;
-    private ?string $pidFile = null;
     private array $failedLoginAttempts = [];
 
     /**
@@ -102,7 +101,6 @@ class TelnetServer
                 exit(1);
             }
 
-            $this->pidFile = __DIR__ . '/../../data/telnetd.pid';
             $this->log("Starting telnet daemon in background mode");
             $this->daemonize();
 
@@ -234,16 +232,6 @@ class TelnetServer
      */
     private function daemonize(): void
     {
-        // Check if already running
-        if (file_exists($this->pidFile)) {
-            $pid = (int)file_get_contents($this->pidFile);
-            if ($pid > 0 && posix_kill($pid, 0)) {
-                fwrite(STDERR, "Daemon already running with PID $pid\n");
-                exit(1);
-            }
-            @unlink($this->pidFile);
-        }
-
         // Fork the process
         $pid = pcntl_fork();
         if ($pid === -1) {
@@ -278,9 +266,6 @@ class TelnetServer
         $GLOBALS['STDIN'] = fopen($devNull, 'r');
         $GLOBALS['STDOUT'] = fopen($devNull, 'w');
         $GLOBALS['STDERR'] = fopen($devNull, 'w');
-
-        // Write PID file
-        file_put_contents($this->pidFile, getmypid());
     }
 
     /**
@@ -288,9 +273,7 @@ class TelnetServer
      */
     private function cleanupDaemon(): void
     {
-        if ($this->pidFile && file_exists($this->pidFile)) {
-            @unlink($this->pidFile);
-        }
+        // Cleanup handled by daemon script shutdown function
     }
 
     /**

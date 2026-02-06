@@ -71,7 +71,7 @@ if (empty($feeds)) {
 }
 
 echo "Auto Feed - Checking " . count($feeds) . " feed(s)\n";
-echo str_repeat('-', 60) . "\n";
+echo str_repeat('=', 60) . "\n";
 
 $totalPosted = 0;
 $totalErrors = 0;
