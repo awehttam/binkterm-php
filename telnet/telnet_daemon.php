@@ -78,7 +78,7 @@ $apiBase = buildApiBase($args);
 $debug = !empty($args['debug']);
 $daemonMode = !empty($args['daemon']);
 $insecure = !empty($args['insecure']);
-$pidFile = $args['pid-file'] ?? __DIR__ . '/../data/run/telnetd.pid';
+$pidFile = $args['pid-file'] ?? dirname(__DIR__) . '/data/run/telnetd.pid';
 
 // Write PID file
 $pidDir = dirname($pidFile);
