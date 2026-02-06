@@ -193,10 +193,15 @@ class MessageHandler
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
             $subscriptionManager = new EchoareaSubscriptionManager();
-            
+
             // Get echoarea ID from tag
-            $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
-            $stmt->execute([$echoareaTag, $domain]);
+            if (empty($domain)) {
+                $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND (domain IS NULL OR domain = '') AND is_active = TRUE");
+                $stmt->execute([$echoareaTag]);
+            } else {
+                $stmt = $this->db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+                $stmt->execute([$echoareaTag, $domain]);
+            }
             $echoarea = $stmt->fetch();
             
             if ($echoarea && !$subscriptionManager->isUserSubscribed($userId, $echoarea['id'])) {
@@ -251,6 +256,10 @@ class MessageHandler
         $dateField = self::ECHOMAIL_DATE_FIELD;
 
         if ($echoareaTag) {
+            // Build domain filter condition
+            $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
+            //error_log("DEBUG getEchomail: tag=$echoareaTag, domain='$domain', domainCondition=$domainCondition");
+
             $stmt = $this->db->prepare("
                 SELECT em.id, em.from_name, em.from_address, em.to_name,
                        em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -264,7 +273,7 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
                 ORDER BY CASE
                     WHEN em.{$dateField} > NOW() THEN 0
                     ELSE 1
@@ -275,7 +284,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
-            $params[] = $domain;
+            if (!empty($domain)) {
+                $params[] = $domain;
+            }
             $params[] = $limit;
             $params[] = $offset;
             $stmt->execute($params);
@@ -286,13 +297,15 @@ class MessageHandler
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain=?
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
             ");
             $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
-            $countParams[] = $domain;
+            if (!empty($domain)) {
+                $countParams[] = $domain;
+            }
             $countStmt->execute($countParams);
         } else {
             $stmt = $this->db->prepare("
@@ -340,13 +353,18 @@ class MessageHandler
         $unreadCount = 0;
         if ($userId) {
             if ($echoareaTag) {
+                $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
                 $unreadCountStmt = $this->db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
                     LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                    WHERE ea.tag = ? AND mrs.read_at IS NULL AND ea.domain=?
+                    WHERE ea.tag = ? AND mrs.read_at IS NULL AND {$domainCondition}
                 ");
-                $unreadCountStmt->execute([$userId, $echoareaTag, $domain]);
+                $unreadParams = [$userId, $echoareaTag];
+                if (!empty($domain)) {
+                    $unreadParams[] = $domain;
+                }
+                $unreadCountStmt->execute($unreadParams);
             } else {
                 $unreadCountStmt = $this->db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
@@ -1220,8 +1238,13 @@ class MessageHandler
 
     private function getEchoareaByTag($tag, $domain)
     {
-        $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
-        $stmt->execute([$tag, $domain]);
+        if (empty($domain)) {
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND (domain IS NULL OR domain = '') AND is_active = TRUE");
+            $stmt->execute([$tag]);
+        } else {
+            $stmt = $this->db->prepare("SELECT * FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+            $stmt->execute([$tag, $domain]);
+        }
         return $stmt->fetch();
     }
 
@@ -1424,7 +1447,12 @@ class MessageHandler
      */
     private function getEchoareaUplink($echoareaTag, $domain='')
     {
-        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND domain=? AND is_active = TRUE");
+        // Uplinks require a domain - return false if domain is blank/null
+        if (empty($domain)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("SELECT uplink_address FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
         $stmt->execute([$echoareaTag, $domain]);
         $result = $stmt->fetch();
         
@@ -2956,19 +2984,22 @@ class MessageHandler
         // First, get the total count of root messages (threads) for pagination
         $totalThreads = 0;
         if ($echoareaTag) {
+            $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
             $countStmt = $this->db->prepare("
                 SELECT COUNT(*) as total
                 FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition} AND em.reply_to_id IS NULL
             ");
             $countParams = [$userId, $userId, $echoareaTag];
             foreach ($filterParams as $param) {
                 $countParams[] = $param;
             }
-            $countParams[] = $domain;
+            if (!empty($domain)) {
+                $countParams[] = $domain;
+            }
             $countStmt->execute($countParams);
             $totalThreads = $countStmt->fetch()['total'];
         } else {
@@ -3006,7 +3037,7 @@ class MessageHandler
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ?{$filterClause} AND ea.domain = ? AND em.reply_to_id IS NULL
+                WHERE ea.tag = ?{$filterClause} AND {$domainCondition} AND em.reply_to_id IS NULL
                 ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
                 LIMIT ? OFFSET ?
             ");
@@ -3014,7 +3045,9 @@ class MessageHandler
             foreach ($filterParams as $param) {
                 $params[] = $param;
             }
-            $params[] = $domain;
+            if (!empty($domain)) {
+                $params[] = $domain;
+            }
             $params[] = $limit;
             $params[] = $rootOffset;
             $stmt->execute($params);

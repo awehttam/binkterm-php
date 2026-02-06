@@ -26,6 +26,18 @@
 #echolist-page .echoarea-desc {
     font-size: 0.9rem;
     color: #6c757d;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+    display: block !important;
+}
+
+#echolist-page .list-group-item {
+    overflow: hidden !important;
+}
+
+#echolist-page .d-flex {
+    min-width: 0 !important;
 }
 
 #echolist-page .echoarea-mod {
@@ -226,9 +238,9 @@ function buildEchoAreaRow(area) {
     html += '</div>';
 
     // Info
-    html += '<div class="flex-grow-1 min-width-0">';
+    html += '<div class="flex-grow-1" style="min-width: 0; overflow: hidden;">';
     html += '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">';
-    html += '<div>';
+    html += '<div class="flex-grow-1" style="min-width: 0; width: 0;">';
     html += '<div class="echoarea-title">';
     html += escapeHtml(area.tag);
     if (area.is_sysop_only) {
@@ -242,7 +254,7 @@ function buildEchoAreaRow(area) {
     html += '</div>';
 
     // Stats and last post on the right
-    html += '<div class="text-end">';
+    html += '<div class="text-end flex-shrink-0">';
     const unreadCount = area.unread_count || 0;
     const totalCount = area.message_count || 0;
     if (unreadCount > 0) {

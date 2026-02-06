@@ -1543,7 +1543,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
-            $domain = trim($input['domain'] ?? '' ) ?: null;
+            $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -1599,7 +1599,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
-            $domain = trim($input['domain'] ?? '' ) ?: null;
+            $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -2280,15 +2280,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echoarea = urldecode($echoarea);
         $foo=explode("@", $echoarea);
         $echoarea=$foo[0];
-        $domain=$foo[1];
+        $domain=$foo[1] ?? '';
         $db = Database::getInstance()->getPdo();
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
 
         if (!$isAdmin && $userId) {
             $subscriptionManager = new \BinktermPHP\EchoareaSubscriptionManager();
-            $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
-            $echoareaStmt->execute([$echoarea, $domain]);
+            if (empty($domain)) {
+                $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND (domain IS NULL OR domain = '') AND is_active = TRUE");
+                $echoareaStmt->execute([$echoarea]);
+            } else {
+                $echoareaStmt = $db->prepare("SELECT id FROM echoareas WHERE tag = ? AND domain = ? AND is_active = TRUE");
+                $echoareaStmt->execute([$echoarea, $domain]);
+            }
             $echoareaRow = $echoareaStmt->fetch();
 
             if (!$echoareaRow || !$subscriptionManager->isUserSubscribed($userId, $echoareaRow['id'])) {
@@ -2299,14 +2304,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         // Statistics for specific echoarea
+        $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
         $stmt = $db->prepare("
-            SELECT COUNT(*) as total, 
+            SELECT COUNT(*) as total,
                    COUNT(CASE WHEN date_received > NOW() - INTERVAL '1 day' THEN 1 END) as recent
             FROM echomail em
             JOIN echoareas ea ON em.echoarea_id = ea.id
-            WHERE ea.tag = ? AND domain=?
+            WHERE ea.tag = ? AND {$domainCondition}
         ");
-        $stmt->execute([$echoarea, $domain]);
+        $params = [$echoarea];
+        if (!empty($domain)) {
+            $params[] = $domain;
+        }
+        $stmt->execute($params);
         $stats = $stmt->fetch();
 
         // Filter counts for this echoarea and user
@@ -2327,9 +2337,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND ea.domain = ? AND mrs.read_at IS NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NULL
             ");
-            $unreadStmt->execute([$userId, $echoarea, $domain]);
+            $unreadParams = [$userId, $echoarea];
+            if (!empty($domain)) $unreadParams[] = $domain;
+            $unreadStmt->execute($unreadParams);
             $unreadCount = $unreadStmt->fetch()['count'];
 
             // Read count
@@ -2337,9 +2349,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN message_read_status mrs ON (mrs.message_id = em.id AND mrs.message_type = 'echomail' AND mrs.user_id = ?)
-                WHERE ea.tag = ? AND ea.domain = ? AND mrs.read_at IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND mrs.read_at IS NOT NULL
             ");
-            $readStmt->execute([$userId, $echoarea, $domain]);
+            $readParams = [$userId, $echoarea];
+            if (!empty($domain)) $readParams[] = $domain;
+            $readStmt->execute($readParams);
             $readCount = $readStmt->fetch()['count'];
 
             // To Me count
@@ -2347,9 +2361,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $toMeStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM echomail em
                     JOIN echoareas ea ON em.echoarea_id = ea.id
-                    WHERE ea.tag = ? AND ea.domain = ? AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
+                    WHERE ea.tag = ? AND {$domainCondition} AND (LOWER(em.to_name) = LOWER(?) OR LOWER(em.to_name) = LOWER(?))
                 ");
-                $toMeStmt->execute([$echoarea, $domain, $userInfo['username'], $userInfo['real_name']]);
+                $toMeParams = [$echoarea];
+                if (!empty($domain)) $toMeParams[] = $domain;
+                $toMeParams[] = $userInfo['username'];
+                $toMeParams[] = $userInfo['real_name'];
+                $toMeStmt->execute($toMeParams);
                 $toMeCount = $toMeStmt->fetch()['count'];
             }
 
@@ -2358,9 +2376,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 SELECT COUNT(*) as count FROM echomail em
                 JOIN echoareas ea ON em.echoarea_id = ea.id
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
-                WHERE ea.tag = ? AND ea.domain = ? AND sav.id IS NOT NULL
+                WHERE ea.tag = ? AND {$domainCondition} AND sav.id IS NOT NULL
             ");
-            $savedStmt->execute([$userId, $echoarea, $domain]);
+            $savedParams = [$userId, $echoarea];
+            if (!empty($domain)) $savedParams[] = $domain;
+            $savedStmt->execute($savedParams);
             $savedCount = $savedStmt->fetch()['count'];
         }
 
@@ -2478,7 +2498,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $foo=explode("@", $echoarea);
         $echoarea=$foo[0];
-        $domain=$foo[1];
+        $domain=$foo[1] ?? '';
 
         $handler = new MessageHandler();
         $page = intval($_GET['page'] ?? 1);
@@ -2496,7 +2516,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echoarea = urldecode($echoarea);
         $foo=explode("@", $echoarea);
         $echoarea=$foo[0];
-        $domain=$foo[1];
+        $domain=$foo[1] ?? '';
 
         // Handle both 'user_id' and 'id' field names for compatibility
         $userId = $user['user_id'] ?? $user['id'] ?? null;
