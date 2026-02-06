@@ -723,6 +723,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $taglines = [];
     }
 
+    $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+    $maxCrossPost = (int)($bbsConfig['max_cross_post_areas'] ?? 5);
+
     $templateVars = [
         'type' => $type,
         'current_user' => $user,
@@ -735,7 +738,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'currency_symbol' => $currencySymbol,
         'credits_enabled' => $creditsEnabled,
         'taglines' => $taglines,
-        'default_tagline' => $defaultTagline
+        'default_tagline' => $defaultTagline,
+        'max_cross_post_areas' => $maxCrossPost
     ];
 
     if ($replyId) {

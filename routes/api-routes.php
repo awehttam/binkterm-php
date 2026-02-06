@@ -2744,6 +2744,44 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['reply_to_id'],
                     $input['tagline'] ?? null
                 );
+
+                // Handle cross-posting to additional areas
+                $crossPostAreas = $input['cross_post_areas'] ?? [];
+                $crossPostCount = 0;
+                if ($result && is_array($crossPostAreas) && !empty($crossPostAreas) && empty($input['reply_to_id'])) {
+                    $bbsConfig = \BinktermPHP\BbsConfig::getConfig();
+                    $maxCrossPost = (int)($bbsConfig['max_cross_post_areas'] ?? 5);
+                    $crossPostAreas = array_slice($crossPostAreas, 0, $maxCrossPost);
+
+                    foreach ($crossPostAreas as $areaTag) {
+                        $parts = explode("@", $areaTag);
+                        if (count($parts) !== 2) {
+                            continue;
+                        }
+                        $xEchoarea = $parts[0];
+                        $xDomain = $parts[1];
+                        // Skip if same as primary area
+                        if ($xEchoarea === $echoarea && $xDomain === $domain) {
+                            continue;
+                        }
+                        try {
+                            $handler->postEchomail(
+                                $user['user_id'],
+                                $xEchoarea,
+                                $xDomain,
+                                $input['to_name'],
+                                $input['subject'],
+                                $input['message_text'],
+                                null,
+                                $input['tagline'] ?? null,
+                                true // skipCredits
+                            );
+                            $crossPostCount++;
+                        } catch (\Exception $e) {
+                            error_log("[CROSSPOST] Failed to cross-post to {$areaTag}: " . $e->getMessage());
+                        }
+                    }
+                }
             } else {
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid message type']);
@@ -2751,7 +2789,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
 
             if ($result) {
-                echo json_encode(['success' => true]);
+                $totalAreas = 1 + ($crossPostCount ?? 0);
+                echo json_encode(['success' => true, 'areas_posted' => $totalAreas]);
             } else {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to send message']);

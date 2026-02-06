@@ -88,9 +88,20 @@
                         </div>
                         <div class="col-md-6">
                             <label for="toName" class="form-label">To Name</label>
-                            <input type="text" class="form-control" id="toName" name="to_name" 
+                            <input type="text" class="form-control" id="toName" name="to_name"
                                    value="{{ to_name_value }}" placeholder="All">
                             <div class="form-text">Leave as 'All' for public message</div>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="crossPostSection" style="display: none;">
+                        <a class="text-decoration-none" data-bs-toggle="collapse" href="#crossPostCollapse" role="button" aria-expanded="false" aria-controls="crossPostCollapse">
+                            <i class="fas fa-layer-group me-1"></i>Cross-post to other areas
+                            <span class="badge bg-secondary ms-1" id="crossPostBadge" style="display: none;">0/{{ max_cross_post_areas }}</span>
+                        </a>
+                        <div class="collapse mt-2" id="crossPostCollapse">
+                            <div class="card card-body p-2" style="max-height: 200px; overflow-y: auto;" id="crossPostList">
+                            </div>
+                            <div class="form-text">Select additional areas to post this message to (max {{ max_cross_post_areas }}). Each area receives an independent copy.</div>
                         </div>
                     </div>
                 {% endif %}
@@ -207,6 +218,9 @@
 
 {% block scripts %}
 <script>
+const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
+let allEchoareas = [];
+
 $(document).ready(function() {
     const messageType = $('#messageType').val();
     const replyToId = $('#replyToId').val();
@@ -257,20 +271,21 @@ function loadEchoareas() {
         .done(function(data) {
             const select = $('#echoarea');
             select.empty().append('<option value="">Select echo area...</option>');
-            
+
             if (data.echoareas) {
+                allEchoareas = data.echoareas;
                 data.echoareas.forEach(function(area) {
-                    const colorDot = `<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:${area.color || '#28a745'}; margin-right:8px; vertical-align:middle;"></span>`;
                     select.append(`<option value="${area.tag}@${area.domain}" data-color="${area.color || '#28a745'}">${area.tag} - ${area.description}</option>`);
                 });
-                
-                // Add color styling to select options
+
+                // Add color styling to select options and refresh cross-post list
                 select.on('change', function() {
                     const selectedOption = $(this).find('option:selected');
                     const color = selectedOption.data('color');
                     if (color) {
                         $(this).css('border-left', `4px solid ${color}`);
                     }
+                    populateCrossPostAreas();
                 });
             }
             // Pre-select if specified in URL or template, or from loaded draft
@@ -297,7 +312,57 @@ function loadEchoareas() {
             if (window.draftEchoarea) {
                 delete window.draftEchoarea;
             }
+
+            // Show cross-post section for new messages (not replies) with multiple areas
+            const replyToId = $('#replyToId').val();
+            if (!replyToId && allEchoareas.length > 1) {
+                $('#crossPostSection').show();
+                populateCrossPostAreas();
+            }
         });
+}
+
+function populateCrossPostAreas() {
+    const primaryVal = $('#echoarea').val();
+    const container = $('#crossPostList');
+    container.empty();
+
+    allEchoareas.forEach(function(area) {
+        const val = area.tag + '@' + area.domain;
+        if (val === primaryVal) return;
+
+        const id = 'crosspost_' + val.replace(/[@.]/g, '_');
+        const colorDot = `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${area.color || '#28a745'}; margin-right:6px; vertical-align:middle;"></span>`;
+        container.append(
+            `<div class="form-check">
+                <input class="form-check-input cross-post-check" type="checkbox" value="${escapeHtml(val)}" id="${id}">
+                <label class="form-check-label small" for="${id}">${colorDot}${escapeHtml(area.tag)} - ${escapeHtml(area.description)}</label>
+            </div>`
+        );
+    });
+
+    // Enforce max limit and update badge
+    container.off('change', '.cross-post-check').on('change', '.cross-post-check', function() {
+        enforceCrossPostLimit();
+    });
+    enforceCrossPostLimit();
+}
+
+function enforceCrossPostLimit() {
+    const checked = $('.cross-post-check:checked').length;
+    const badge = $('#crossPostBadge');
+
+    if (checked > 0) {
+        badge.text(checked + '/' + maxCrossPostAreas).show();
+    } else {
+        badge.hide();
+    }
+
+    if (checked >= maxCrossPostAreas) {
+        $('.cross-post-check:not(:checked)').prop('disabled', true);
+    } else {
+        $('.cross-post-check').prop('disabled', false);
+    }
 }
 
 
@@ -333,6 +398,12 @@ function sendMessage() {
         }
     }
 
+    // Collect cross-post areas
+    const crossPostAreas = [];
+    $('.cross-post-check:checked').each(function() {
+        crossPostAreas.push($(this).val());
+    });
+
     const formData = {
         type: messageType,
         to_address: $('#toAddress').val(),
@@ -342,7 +413,8 @@ function sendMessage() {
         message_text: $('#messageText').val(),
         reply_to_id: $('#replyToId').val() || null,
         crashmail: $('#crashmail').is(':checked'),
-        tagline: $('#taglineSelect').val()
+        tagline: $('#taglineSelect').val(),
+        cross_post_areas: crossPostAreas
     };
     
     // Show sending status
@@ -362,10 +434,12 @@ function sendMessage() {
         contentType: 'application/json',
         data: JSON.stringify(formData),
         success: function(response) {
+            const areasPosted = response.areas_posted || 1;
+            const crossPostMsg = areasPosted > 1 ? ` (posted to ${areasPosted} areas)` : '';
             $('#sendStatus').html(`
                 <div class="alert alert-success">
                     <i class="fas fa-check me-2"></i>
-                    ${messageType.charAt(0).toUpperCase() + messageType.slice(1)} sent successfully!
+                    ${messageType.charAt(0).toUpperCase() + messageType.slice(1)} sent successfully!${crossPostMsg}
                 </div>
             `);
 

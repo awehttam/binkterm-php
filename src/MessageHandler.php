@@ -900,7 +900,10 @@ class MessageHandler
         return $result;
     }
 
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null)
+    /**
+     * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
+     */
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -961,23 +964,25 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
-            $creditsRules = $this->getCreditsRules();
-            if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
-                // Award 2x credits for longer messages (over 1200 characters)
-                $messageLength = strlen($messageText);
-                $rewardAmount = $messageLength > 1200
-                    ? (int)$creditsRules['echomail_reward'] * 2
-                    : (int)$creditsRules['echomail_reward'];
+            if (!$skipCredits) {
+                $creditsRules = $this->getCreditsRules();
+                if ($creditsRules['enabled'] && $creditsRules['echomail_reward'] > 0) {
+                    // Award 2x credits for longer messages (over 1200 characters)
+                    $messageLength = strlen($messageText);
+                    $rewardAmount = $messageLength > 1200
+                        ? (int)$creditsRules['echomail_reward'] * 2
+                        : (int)$creditsRules['echomail_reward'];
 
-                $rewarded = UserCredit::credit(
-                    $fromUserId,
-                    $rewardAmount,
-                    'Echomail posted',
-                    null,
-                    UserCredit::TYPE_SYSTEM_REWARD
-                );
-                if (!$rewarded) {
-                    error_log('[CREDITS] Echomail reward failed.');
+                    $rewarded = UserCredit::credit(
+                        $fromUserId,
+                        $rewardAmount,
+                        'Echomail posted',
+                        null,
+                        UserCredit::TYPE_SYSTEM_REWARD
+                    );
+                    if (!$rewarded) {
+                        error_log('[CREDITS] Echomail reward failed.');
+                    }
                 }
             }
             $this->incrementEchoareaCount($echoarea['id']);

@@ -632,6 +632,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ];
                 }
 
+                // Validate max_cross_post_areas if provided
+                if (array_key_exists('max_cross_post_areas', $config)) {
+                    $maxCrossPost = (int)$config['max_cross_post_areas'];
+                    if ($maxCrossPost < 2 || $maxCrossPost > 20) {
+                        throw new Exception('Max cross-post areas must be between 2 and 20');
+                    }
+                    $config['max_cross_post_areas'] = $maxCrossPost;
+                }
+
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setBbsConfig($config);
                 if ($userId) {
