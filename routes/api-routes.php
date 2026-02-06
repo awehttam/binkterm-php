@@ -2146,6 +2146,36 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
+    SimpleRouter::post('/messages/netmail/bulk-delete', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['message_ids'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message IDs']);
+            return;
+        }
+
+        $handler = new MessageHandler();
+        $deleted = 0;
+
+        foreach ($messageIds as $id) {
+            if ($handler->deleteNetmail($id, $user['user_id'])) {
+                $deleted++;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'deleted' => $deleted,
+            'total' => count($messageIds)
+        ]);
+    });
+
     SimpleRouter::get('/messages/echomail', function() {
         $user = RouteHelper::requireAuth();
 
@@ -2162,6 +2192,45 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Get messages from subscribed echoareas only
         $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded);
         echo json_encode($result);
+    });
+
+    // Echomail bulk delete endpoint - must come before parameterized routes
+    SimpleRouter::post('/messages/echomail/delete', function() {
+        $user = RouteHelper::requireAuth();
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Admin privileges required']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['messageIds'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message IDs']);
+            return;
+        }
+
+        $db = Database::getInstance()->getPdo();
+        $deleted = 0;
+
+        foreach ($messageIds as $id) {
+            $stmt = $db->prepare("DELETE FROM echomail WHERE id = ?");
+            if ($stmt->execute([$id])) {
+                $deleted++;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => "Deleted $deleted message" . ($deleted !== 1 ? 's' : ''),
+            'deleted' => $deleted,
+            'total' => count($messageIds)
+        ]);
     });
 
     // Echomail statistics endpoints - must come before parameterized routes

@@ -96,15 +96,10 @@
                     <div class="d-flex align-items-center gap-2">
                         {% if current_user.is_admin %}
                         <div id="bulkActions" class="d-none">
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-danger" onclick="deleteSelectedMessages()">
-                                    <i class="fas fa-trash"></i>
-                                    Delete Selected (<span id="selectedCount">0</span>)
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="clearSelection()">
-                                    Cancel
-                                </button>
-                            </div>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteSelectedMessages()" disabled>
+                                <i class="fas fa-trash"></i>
+                                Delete Selected (<span id="selectedCount">0</span>)
+                            </button>
                         </div>
                         {% endif %}
                         <div class="btn-group btn-group-sm" role="group">

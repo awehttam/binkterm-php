@@ -8,6 +8,8 @@ let modalClosedByBackButton = false;
 let threadedView = false;
 let userSettings = {};
 let currentSearchTerms = [];
+let selectMode = false;
+let selectedMessages = new Set();
 
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
@@ -202,7 +204,12 @@ function displayMessages(messages, isThreaded = false) {
             <table class="table table-hover message-table mb-0">
                 <thead>
                     <tr>
-                        <th width="30%">From/To</th>
+                        <th style="width: 3%" id="selectAllColumn" class="d-none">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAllMessages" onchange="toggleSelectAll()">
+                            </div>
+                        </th>
+                        <th width="27%">From/To</th>
                         <th width="40%">Subject</th>
                         <th width="15%">Address</th>
                         <th width="10%">Received</th>
@@ -230,6 +237,11 @@ function displayMessages(messages, isThreaded = false) {
 
             html += `
                 <tr class="${rowClass} message-row" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                    <td class="message-checkbox d-none" onclick="event.stopPropagation()">
+                        <div class="form-check">
+                            <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
+                        </div>
+                    </td>
                     <td ${threadIndent}>
                         ${isUnread ? '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted me-1" title="Read"></i>'}${threadIcon}<strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
                         <br>
@@ -1057,4 +1069,123 @@ function updateNavigationButtons() {
     } else {
         nextBtn.prop('disabled', false);
     }
+}
+
+function toggleSelectMode() {
+    selectMode = !selectMode;
+    const btn = $('#selectModeBtn');
+    const checkboxColumn = $('#selectAllColumn');
+    const checkboxCells = $('.message-checkbox');
+    const bulkActions = $('#bulkActions');
+
+    if (selectMode) {
+        // Enable select mode
+        btn.html('<i class="fas fa-times"></i> Cancel');
+        btn.removeClass('btn-outline-secondary').addClass('btn-outline-warning');
+        checkboxColumn.removeClass('d-none');
+        checkboxCells.removeClass('d-none');
+        bulkActions.removeClass('d-none');
+    } else {
+        // Disable select mode
+        btn.html('<i class="fas fa-check-square"></i> Select');
+        btn.removeClass('btn-outline-warning').addClass('btn-outline-secondary');
+        checkboxColumn.addClass('d-none');
+        checkboxCells.addClass('d-none');
+        bulkActions.addClass('d-none');
+        clearSelection();
+    }
+}
+
+function toggleSelectAll() {
+    const selectAllCheckbox = $('#selectAllMessages');
+    const messageCheckboxes = $('.message-select');
+
+    if (selectAllCheckbox.prop('checked')) {
+        messageCheckboxes.prop('checked', true);
+        messageCheckboxes.each(function() {
+            selectedMessages.add(parseInt($(this).val()));
+        });
+    } else {
+        messageCheckboxes.prop('checked', false);
+        selectedMessages.clear();
+    }
+
+    updateSelectionDisplay();
+}
+
+function updateSelection() {
+    const messageCheckboxes = $('.message-select');
+    const checkedBoxes = $('.message-select:checked');
+
+    // Update selected messages set
+    selectedMessages.clear();
+    checkedBoxes.each(function() {
+        selectedMessages.add(parseInt($(this).val()));
+    });
+
+    // Update select all checkbox
+    const selectAllCheckbox = $('#selectAllMessages');
+    if (checkedBoxes.length === 0) {
+        selectAllCheckbox.prop('indeterminate', false);
+        selectAllCheckbox.prop('checked', false);
+    } else if (checkedBoxes.length === messageCheckboxes.length) {
+        selectAllCheckbox.prop('indeterminate', false);
+        selectAllCheckbox.prop('checked', true);
+    } else {
+        selectAllCheckbox.prop('indeterminate', true);
+        selectAllCheckbox.prop('checked', false);
+    }
+
+    updateSelectionDisplay();
+}
+
+function updateSelectionDisplay() {
+    const count = selectedMessages.size;
+    $('#selectedCount').text(count);
+
+    if (count === 0) {
+        $('#bulkActions .btn-outline-danger').prop('disabled', true);
+    } else {
+        $('#bulkActions .btn-outline-danger').prop('disabled', false);
+    }
+}
+
+function clearSelection() {
+    selectedMessages.clear();
+    $('.message-select').prop('checked', false);
+    $('#selectAllMessages').prop('checked', false).prop('indeterminate', false);
+    updateSelectionDisplay();
+
+    if (selectMode) {
+        toggleSelectMode();
+    }
+}
+
+function deleteSelectedMessages() {
+    if (selectedMessages.size === 0) {
+        showError('No messages selected');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedMessages.size} message(s)?`)) {
+        return;
+    }
+
+    const messageIds = Array.from(selectedMessages);
+
+    $.ajax({
+        url: '/api/messages/netmail/bulk-delete',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ message_ids: messageIds }),
+        success: function(data) {
+            showSuccess(`Deleted ${messageIds.length} message(s)`);
+            clearSelection();
+            loadMessages();
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to delete messages';
+            showError(error);
+        }
+    });
 }
