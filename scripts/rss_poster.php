@@ -134,10 +134,20 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
     }
 
     // Fetch RSS feed
+    if ($verbose) {
+        echo sprintf("[Feed #%d] Fetching feed from %s\n", $feed['id'], $feed['feed_url']);
+    }
     $xml = fetchRssFeed($feed['feed_url']);
 
     // Parse feed
+    if ($verbose) {
+        echo sprintf("[Feed #%d] Parsing feed XML\n", $feed['id']);
+    }
     $articles = parseRssFeed($xml);
+
+    if ($verbose) {
+        echo sprintf("[Feed #%d] Found %d articles in feed\n", $feed['id'], count($articles));
+    }
 
     if (empty($articles)) {
         if ($verbose) {
@@ -164,14 +174,24 @@ function processFeed($db, $messageHandler, $feed, $force, $verbose) {
 
     // Post new articles to echoarea
     $posted = 0;
+    $firstArticleGuid = null;
     foreach ($newArticles as $article) {
         try {
             postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose);
+            if ($firstArticleGuid === null) {
+                $firstArticleGuid = $article['guid'];
+            }
             $posted++;
         } catch (Exception $e) {
             echo sprintf("[Feed #%d] Failed to post article '%s': %s\n",
                 $feed['id'], substr($article['title'], 0, 50), $e->getMessage());
         }
+    }
+
+    // Update last article GUID to the first (newest) article posted
+    if ($firstArticleGuid !== null) {
+        $stmt = $db->prepare("UPDATE auto_feed_sources SET last_article_guid = ? WHERE id = ?");
+        $stmt->execute([$firstArticleGuid, $feed['id']]);
     }
 
     // Update last check time
@@ -191,7 +211,13 @@ function fetchRssFeed($url) {
     $context = stream_context_create([
         'http' => [
             'timeout' => 30,
-            'user_agent' => 'BinktermPHP RSS Poster/1.0'
+            'user_agent' => 'BinktermPHP RSS Poster/1.0',
+            'follow_location' => true,
+            'max_redirects' => 5
+        ],
+        'ssl' => [
+            'verify_peer' => false,
+            'verify_peer_name' => false
         ]
     ]);
 
@@ -222,9 +248,10 @@ function fetchRssFeed($url) {
 function parseRssFeed($xml) {
     $articles = [];
 
-    // Detect feed type (RSS 2.0, Atom, etc.)
+    // Detect feed type (RSS 2.0, RSS 1.0/RDF, Atom, etc.)
     if (isset($xml->channel->item)) {
         // RSS 2.0
+        error_log("Auto Feed: Parsing RSS 2.0 feed with " . count($xml->channel->item) . " items");
         foreach ($xml->channel->item as $item) {
             $articles[] = [
                 'guid' => (string)($item->guid ?? $item->link),
@@ -234,8 +261,21 @@ function parseRssFeed($xml) {
                 'pubDate' => (string)($item->pubDate ?? '')
             ];
         }
+    } elseif (isset($xml->item)) {
+        // RSS 1.0 (RDF) - items are direct children of root
+        error_log("Auto Feed: Parsing RSS 1.0 (RDF) feed with " . count($xml->item) . " items");
+        foreach ($xml->item as $item) {
+            $articles[] = [
+                'guid' => (string)($item->guid ?? $item->link),
+                'title' => (string)$item->title,
+                'link' => (string)$item->link,
+                'description' => (string)($item->description ?? ''),
+                'pubDate' => (string)($item->pubDate ?? $item->date ?? '')
+            ];
+        }
     } elseif (isset($xml->entry)) {
         // Atom
+        error_log("Auto Feed: Parsing Atom feed with " . count($xml->entry) . " entries");
         foreach ($xml->entry as $entry) {
             $link = '';
             if (isset($entry->link)) {
@@ -250,6 +290,9 @@ function parseRssFeed($xml) {
                 'pubDate' => (string)($entry->published ?? $entry->updated ?? '')
             ];
         }
+    } else {
+        error_log("Auto Feed: Unknown feed format - root element: " . $xml->getName());
+        error_log("Auto Feed: XML structure: " . print_r(array_keys((array)$xml), true));
     }
 
     return $articles;
@@ -334,15 +377,14 @@ function postArticleToEchoarea($db, $messageHandler, $feed, $article, $verbose) 
         'Auto Feed RSS'
     );
 
-    // Update last posted article GUID and increment counter
+    // Increment posted article counter
     $stmt = $db->prepare("
         UPDATE auto_feed_sources
-        SET last_article_guid = ?,
-            articles_posted = articles_posted + 1,
+        SET articles_posted = articles_posted + 1,
             updated_at = NOW()
         WHERE id = ?
     ");
-    $stmt->execute([$article['guid'], $feed['id']]);
+    $stmt->execute([$feed['id']]);
 }
 
 /**
