@@ -749,12 +749,15 @@ class MessageHandler
             }
         }
 
-        // Generate MSGID for storage (address + hash format)
-        $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $originAddress);
-        $msgId = $originAddress . ' ' . $msgIdHash;
-
         // Generate kludges for this netmail
         $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
+
+        // Extract MSGID from generated kludges to ensure consistency
+        // The kludges contain the authoritative MSGID that will be sent in packets
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
 
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
@@ -857,19 +860,21 @@ class MessageHandler
         $senderUser = $this->getUserById($fromUserId);
         $senderName = $fromName ?: ($senderUser['real_name'] ?: $senderUser['username']);
 
-        // Generate MSGID for local message
-        $msgIdHash = $this->generateMessageId($senderName, $sysopName, $subject, $systemAddress);
-        $msgId = $systemAddress . ' ' . $msgIdHash;
-
         // Generate kludges for this local netmail
         $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId);
+
+        // Extract MSGID from generated kludges to ensure consistency
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
 
         // Create local netmail message to sysop
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
             $sysopUser['id'],
             $systemAddress,
@@ -942,13 +947,19 @@ class MessageHandler
         $fromName = $user['real_name'] ?: $user['username'];
         $toName = $toName ?: 'All';
         $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
-        $msgId = $myAddress . ' ' . $this->generateMessageId($fromName, $toName, $subject, $myAddress);
-        
+
+        // Extract MSGID from generated kludges to ensure consistency
+        // The kludges contain the authoritative MSGID that will be sent in packets
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
             $echoarea['id'],
             $myAddress,
