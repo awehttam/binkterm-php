@@ -68,7 +68,7 @@ start_process "${PHP_BIN} scripts/binkp_server.php --daemon --pid-file=${SERVER_
 
 # Restart telnetd only if it was running
 if [[ "$TELNETD_WAS_RUNNING" == "true" ]]; then
-    start_process "${PHP_BIN} scripts/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
+    start_process "${PHP_BIN} telnet/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
 fi
 
 echo "Done."
