@@ -143,6 +143,17 @@ try {
             $logger->info("Received SIGINT, shutting down...");
             $server->stop();
         });
+
+        pcntl_signal(SIGHUP, function() use ($server, $logger) {
+            $logger->info("Received SIGHUP, reloading configuration...");
+            try {
+                // Force reload of config by getting a fresh instance
+                BinkpConfig::getInstance()->reloadConfig();
+                $logger->info("Configuration reloaded successfully");
+            } catch (Exception $e) {
+                $logger->error("Failed to reload configuration: " . $e->getMessage());
+            }
+        });
     }
     
     $server->start();
