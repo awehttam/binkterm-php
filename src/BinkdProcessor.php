@@ -926,19 +926,33 @@ class BinkdProcessor
         $replyToId = null;
         $replyMsgId = $this->extractReplyFromKludge($kludgeText);
         if ($replyMsgId) {
+            $this->log("[BINKD]: Looking up parent - REPLY: '" . $replyMsgId . "' (len: " . strlen($replyMsgId) . "), echoarea_id: " . $echoarea['id']);
+
             // Look up parent message by its message_id to get database ID
-            $parentStmt = $this->db->prepare("SELECT id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
+            $parentStmt = $this->db->prepare("SELECT id, message_id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
             $parentStmt->execute([$replyMsgId, $echoarea['id']]);
             $parent = $parentStmt->fetch();
             if ($parent) {
                 $replyToId = $parent['id'];
+                $this->log("[BINKD]: Found parent message ID: " . $replyToId . ", MSGID: '" . $parent['message_id'] . "'");
+            } else {
+                // Try without echoarea restriction to see if parent exists in different area
+                $debugStmt = $this->db->prepare("SELECT id, message_id, echoarea_id FROM echomail WHERE message_id = ? LIMIT 1");
+                $debugStmt->execute([$replyMsgId]);
+                $debugParent = $debugStmt->fetch();
+                if ($debugParent) {
+                    $this->log("[BINKD]: WARNING: Parent found in different echoarea (id: " . $debugParent['echoarea_id'] . ") - cross-area reply?");
+                } else {
+                    $this->log("[BINKD]: Parent message not found - may arrive later (out-of-order) or MSGID mismatch");
+                }
             }
         }
 
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
 
-        $this->log("[BINKD]: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') .
+        $this->log("[BINKD]: Storing echomail - MSGID: '" . ($messageId ?: 'none') . "' (len: " . strlen($messageId ?: '') . ")" .
+                  ", MSGID author: " . ($originalAuthorAddress ?: 'none') .
                   ", Packet sender: " . $message['origAddr'] .
                   ", Using: " . $fromAddress .
                   ($replyToId ? ", Reply to ID: " . $replyToId : ""));
