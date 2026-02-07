@@ -29,7 +29,6 @@ The script will guide you through registration and automatically configure your 
 - Your BBS is accessible from the internet
 - You have a static IP or domain name
 - You can accept inbound binkp connections on port 24554 (or custom port)
-- Your `/api/verify` endpoint is working
 
 **Benefits:**
 - Hub can deliver mail directly to you (faster delivery)
@@ -37,17 +36,18 @@ The script will guide you through registration and automatically configure your 
 - Full two-way connectivity
 
 **Requirements:**
-- Working `/api/verify` endpoint (automatically created by BinktermPHP)
+- Your BinktermPHP installation must be publicly accessible
 - Public hostname or IP address
 - Port forwarding configured (if behind NAT)
 - Firewall allows inbound on binkp port
+- Tunnel/proxy voodoo
 
 ### Passive Nodes
 
 **Choose passive node if:**
 - Behind NAT without port forwarding
 - Dynamic IP address
-- Community wireless network
+- Silo'd or garden network (ie: Community wireless networks)
 - Firewall restrictions prevent inbound connections
 - Development or testing system
 

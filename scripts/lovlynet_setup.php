@@ -249,7 +249,7 @@ function doRegistration($isUpdate = false) {
         echo "  - Dynamic IP addresses\n";
         echo "  - Development/testing systems\n\n";
 
-        $hostname = 'passive.lovlynet.org';
+        $hostname = 'passive.lovelybits.org';
         $binkpPort = 24554;
         $siteUrl = 'http://localhost';
 

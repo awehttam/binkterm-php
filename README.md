@@ -1232,15 +1232,13 @@ For detailed information including:
 
 See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's guide.
 
-For technical details about the registry protocol and architecture, see the [LovlyNet Registry Technical Documentation](https://github.com/awehttam/LovlyNet/blob/main/docs/Architecture.md).
-
 ### Quick Reference
 
 - **Network**: LovlyNet (Zone 227)
 - **Hub**: 227:1/1 at lovlynet.lovelybits.org:24554
 - **Registration**: Automated via `lovlynet_setup.php`
 - **Echo Areas**: BINKTERMPHP, ANNOUNCE, TEST (auto-subscribed)
-- **Support**: Post in BINKTERMPHP echo area or netmail to 227:1/1
+
 
 ## Troubleshooting
 
