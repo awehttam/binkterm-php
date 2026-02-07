@@ -429,10 +429,32 @@ class NetmailHandler
             $detail = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/netmail/' . $id, null, $session);
             $body = $detail['data']['message_text'] ?? '';
 
+            // Get user timezone from state (fetched at login)
+            $userTimezone = $state['user_timezone'] ?? 'UTC';
+
+            // Format from line with address
+            $fromName = $msg['from_name'] ?? 'Unknown';
+            $fromAddress = $msg['from_address'] ?? '';
+            $fromLine = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
+
+            // Format date in user's timezone
+            $dateWritten = $msg['date_written'] ?? '';
+            $dateFormatted = '';
+            if ($dateWritten) {
+                try {
+                    $dt = new \DateTime($dateWritten, new \DateTimeZone('UTC'));
+                    $dt->setTimezone(new \DateTimeZone($userTimezone));
+                    $dateFormatted = $dt->format('Y-m-d H:i:s T');
+                } catch (\Exception $e) {
+                    $dateFormatted = $dateWritten;
+                }
+            }
+
             $border = str_repeat('-', $width);
             $headerLines = [
                 $border,
-                TelnetUtils::colorize(substr('From: ' . ($msg['from_name'] ?? 'Unknown'), 0, $width), TelnetUtils::ANSI_DIM),
+                TelnetUtils::colorize(substr($fromLine, 0, $width), TelnetUtils::ANSI_DIM),
+                TelnetUtils::colorize(substr('Date: ' . $dateFormatted, 0, $width), TelnetUtils::ANSI_DIM),
                 TelnetUtils::colorize(substr('Subj: ' . ($msg['subject'] ?? 'Message'), 0, $width), TelnetUtils::ANSI_BOLD),
                 $border
             ];

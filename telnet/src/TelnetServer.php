@@ -425,6 +425,11 @@ class TelnetServer
         $username = $loginResult['username'];
         $loginTime = time();
 
+        // Fetch user data once at login and store in state
+        $userData = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user', null, $session);
+        $state['user_timezone'] = $userData['data']['timezone'] ?? 'UTC';
+        $state['username'] = $username;
+
         // Clear failed login attempts for this IP on successful login
         $this->clearFailedLogins($peerIp);
 
