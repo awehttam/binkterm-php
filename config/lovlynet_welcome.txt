@@ -11,9 +11,9 @@ Your Registration Details:
   Hub Address: 227:1/1 (lovlynet.lovelybits.org:24554)
 
 You have been automatically subscribed to these echo areas:
-  - BINKTERMPHP: General discussion about BinktermPHP and FTN systems
-  - ANNOUNCE:    Network announcements and sysop information
-  - TEST:        Testing and experiments
+  - LVLY_BINKTERMPHP: General discussion about BinktermPHP and FTN systems
+  - LVLY_ANNOUNCE:    Network announcements and sysop information
+  - LVLY_TEST:        Testing and experiments
 
 =============================================================================
                           AREAFIX COMMANDS
@@ -34,8 +34,8 @@ Include these commands in the message body:
   %RESCAN AREA  - Request full rescan of an area
 
 Examples:
-  +GENERAL    (subscribe to LOVLYNET_GENERAL)
-  -TEST                (unsubscribe from TEST)
+  +LVLY_GENERAL    (subscribe to LOVLYNET_GENERAL)
+  -LVLY_TEST                (unsubscribe from TEST)
   %QUERY               (show my subscriptions)
 
 =============================================================================
