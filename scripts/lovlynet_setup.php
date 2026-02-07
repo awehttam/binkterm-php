@@ -141,6 +141,26 @@ function doRegistration($isUpdate = false) {
     echo "  Zone 227 - Powered by BinktermPHP\n";
     echo "============================================\n\n";
 
+    // Check for existing LovlyNet uplink (manual configuration)
+    $requestedFtnNode = null;
+    if (!$existingConfig) {
+        $fullConfig = $binkpConfig->getFullConfig();
+        if (isset($fullConfig['uplinks'])) {
+            foreach ($fullConfig['uplinks'] as $uplink) {
+                if (isset($uplink['domain']) && $uplink['domain'] === LOVLYNET_DOMAIN) {
+                    // Found existing LovlyNet uplink - extract node number from 'me' field
+                    if (isset($uplink['me']) && preg_match('/227:1\/(\d+)/', $uplink['me'], $matches)) {
+                        $requestedFtnNode = (int)$matches[1];
+                        echo "Found existing LovlyNet uplink.\n";
+                        echo "Your address: {$uplink['me']}\n";
+                        echo "Will request node number {$requestedFtnNode} from registry.\n\n";
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     if ($existingConfig && !$isUpdate) {
         echo "You are already registered with LovlyNet.\n";
         echo "FTN Address: {$existingConfig['ftn_address']}\n\n";
@@ -270,6 +290,11 @@ function doRegistration($isUpdate = false) {
     // Include node_id for updates
     if ($isUpdate && $existingConfig && !empty($existingConfig['node_id'])) {
         $payload['node_id'] = $existingConfig['node_id'];
+    }
+
+    // Include requested FTN node number if found from existing uplink
+    if ($requestedFtnNode !== null) {
+        $payload['requested_ftn_node'] = $requestedFtnNode;
     }
 
     // Build HTTP headers
