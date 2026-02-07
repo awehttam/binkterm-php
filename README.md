@@ -23,6 +23,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Command Line Scripts](#command-line-scripts)
 - [Telnet Interface](#telnet-interface)
 - [Operation](#operation)
+- [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
@@ -1167,6 +1168,79 @@ The recommended approach is to start these services at boot (systemd or `@reboot
 # */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
 # */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php --all
 ```
+
+## Joining LovlyNet Network
+
+LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227 with automated registration and configuration. You can join the network and get an FTN address assigned automatically without manual coordination with a hub sysop.
+
+### Quick Start
+
+Join LovlyNet in minutes:
+
+```bash
+php scripts/lovlynet_setup.php
+```
+
+The setup script will:
+- Guide you through registration
+- Automatically assign you an FTN address (227:1/10 and up)
+- Configure your uplink connection
+- Subscribe you to default echo areas (BINKTERMPHP, ANNOUNCE, TEST)
+- Generate secure passwords for binkp and areafix
+
+### Public vs Passive Nodes
+
+**Choose Public Node if:**
+- Your BBS is accessible from the internet
+- You have a static IP or domain name
+- You can accept inbound binkp connections
+- Your `/api/verify` endpoint works (automatically provided by BinktermPHP)
+
+**Choose Passive Node if:**
+- Behind NAT without port forwarding
+- Dynamic IP address
+- Firewall restrictions
+- Development/testing system
+
+Passive nodes must poll the hub regularly (cron recommended every 15-30 minutes).
+
+### Setting Up Polling for Passive Nodes
+
+Add to crontab:
+```bash
+# Poll LovlyNet hub every 15 minutes
+*/15 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
+```
+
+### Updating Registration
+
+To change your hostname, switch between public/passive modes, or update other details:
+
+```bash
+php scripts/lovlynet_setup.php --update
+```
+
+### Complete Documentation
+
+For detailed information including:
+- Public vs passive node comparison
+- Step-by-step registration walkthrough
+- Verification endpoint testing
+- Echo area management with AreaFix
+- Troubleshooting common issues
+- Advanced usage scenarios
+
+See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's guide.
+
+For technical details about the registry protocol and architecture, see the [LovlyNet Registry Technical Documentation](https://github.com/awehttam/LovlyNet/blob/main/docs/Architecture.md).
+
+### Quick Reference
+
+- **Network**: LovlyNet (Zone 227)
+- **Hub**: 227:1/1 at lovlynet.lovelybits.org:24554
+- **Registration**: Automated via `lovlynet_setup.php`
+- **Echo Areas**: BINKTERMPHP, ANNOUNCE, TEST (auto-subscribed)
+- **Support**: Post in BINKTERMPHP echo area or netmail to 227:1/1
 
 ## Troubleshooting
 
