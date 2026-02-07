@@ -41,6 +41,22 @@ function sanitizeFilenameForWindows(string $name, string $fallback = 'message'):
 
 SimpleRouter::group(['prefix' => '/api'], function() {
 
+    /**
+     * Public verification endpoint for LovlyNet registry and other network registries.
+     * Returns the system name and software version to prove site ownership.
+     * No authentication required.
+     */
+    SimpleRouter::get('/verify', function() {
+        header('Content-Type: application/json');
+
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
+        echo json_encode([
+            'system_name' => $binkpConfig->getSystemName(),
+            'software' => \BinktermPHP\Version::getFullVersion()
+        ]);
+    });
+
     SimpleRouter::post('/auth/login', function() {
         header('Content-Type: application/json');
 
