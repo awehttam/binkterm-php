@@ -283,6 +283,7 @@ function doRegistration($isUpdate = false) {
         'site_url' => $siteUrl,
         'sysop_name' => $sysopName,
         'binkp_port' => $binkpPort,
+        'is_passive' => !$isPublic,
         'system_info' => [
             'software' => Version::getFullVersion(),
             'php_version' => PHP_VERSION
