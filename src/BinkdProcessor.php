@@ -74,6 +74,7 @@ class BinkdProcessor
         }
         
         // Process compressed bundles (various formats)
+        // Include both lowercase and uppercase patterns for case-sensitive filesystems
         $bundlePatterns = [
             '/*.zip',    // Standard ZIP
             '/*.su?',    // Sunday bundles: .su0, .su1, etc.
@@ -83,6 +84,13 @@ class BinkdProcessor
             '/*.th?',    // Thursday bundles: .th0, .th1, etc.
             '/*.fr?',    // Friday bundles: .fr0, .fr1, etc.
             '/*.sa?',    // Saturday bundles: .sa0, .sa1, etc.
+            '/*.SU?',    // Sunday bundles (uppercase)
+            '/*.MO?',    // Monday bundles (uppercase)
+            '/*.TU?',    // Tuesday bundles (uppercase)
+            '/*.WE?',    // Wednesday bundles (uppercase)
+            '/*.TH?',    // Thursday bundles (uppercase)
+            '/*.FR?',    // Friday bundles (uppercase)
+            '/*.SA?',    // Saturday bundles (uppercase)
             '/*.arc',    // ARC compressed
             '/*.arj',    // ARJ compressed
             '/*.lzh',    // LHA compressed
