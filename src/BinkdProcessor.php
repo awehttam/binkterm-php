@@ -60,8 +60,11 @@ class BinkdProcessor
         $processed = 0;
         $this->log("[BINKD] Starting packet processing - inbound path: " . $this->inboundPath);
 
-        // Process individual packet files
-        $pktFiles = glob($this->inboundPath . '/*.pkt');
+        // Process individual packet files (both lowercase and uppercase)
+        $pktFiles = array_merge(
+            glob($this->inboundPath . '/*.pkt') ?: [],
+            glob($this->inboundPath . '/*.PKT') ?: []
+        );
         foreach ($pktFiles as $file) {
             try {
                 if ($this->processPacket($file)) {
@@ -1751,10 +1754,17 @@ class BinkdProcessor
     {
         $processed = 0;
 
-        // Process all .pkt files in the extracted bundle
-        $extractedFiles = glob($tempDir . '/*.pkt');
+        // Process all .pkt files in the extracted bundle (both lowercase and uppercase)
+        $extractedFiles = array_merge(
+            glob($tempDir . '/*.pkt') ?: [],
+            glob($tempDir . '/*.PKT') ?: []
+        );
+
+        $this->log("[BINKD] Found " . count($extractedFiles) . " packet files in extracted bundle");
+
         foreach ($extractedFiles as $pktFile) {
             try {
+                $this->log("[BINKD] Processing extracted packet: " . basename($pktFile));
                 if ($this->processPacket($pktFile)) {
                     $processed++;
                 }
