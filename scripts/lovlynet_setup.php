@@ -202,11 +202,13 @@ function doRegistration($isUpdate = false) {
         $hostname = readInput("Public Hostname/IP (for binkp connections)", $hostname);
         $binkpPort = (int)readInput("Binkp Port", (string)$binkpPort);
 
-        // Try to get site URL - works in CLI context if SITE_URL env var is set
-        $defaultSiteUrl = '';
-        $siteUrl = getenv('SITE_URL');
-        if ($siteUrl) {
-            $defaultSiteUrl = rtrim($siteUrl, '/');
+        // Default site URL to https://<hostname>
+        $defaultSiteUrl = 'https://' . $hostname;
+
+        // Override with SITE_URL env var if set
+        $envSiteUrl = getenv('SITE_URL');
+        if ($envSiteUrl) {
+            $defaultSiteUrl = rtrim($envSiteUrl, '/');
         }
 
         $siteUrl = readInput("Site URL (public web address)", $defaultSiteUrl);
