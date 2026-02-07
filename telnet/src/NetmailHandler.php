@@ -80,10 +80,8 @@ class NetmailHandler
                 TelnetUtils::writeLine($conn, $line);
             }
             $inputRow = max(1, $rows - 1);
-            $statusRow = max(1, $rows);
-            $promptText = 'Select: ';
-            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-            TelnetUtils::safeWrite($conn, TelnetUtils::colorize($promptText, TelnetUtils::ANSI_DIM));
+
+            // Build status bar with menu options
             $statusLine = TelnetUtils::buildStatusBar([
                 ['text' => 'U/D', 'color' => TelnetUtils::ANSI_RED],
                 ['text' => ' Move  ', 'color' => TelnetUtils::ANSI_BLUE],
@@ -96,10 +94,10 @@ class NetmailHandler
                 ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED],
                 ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE],
             ], $cols);
-            TelnetUtils::safeWrite($conn, "\033[{$statusRow};1H");
+
+            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H\033[K");
             TelnetUtils::safeWrite($conn, $statusLine . "\r");
-            $inputColStart = strlen($promptText) + 1;
-            TelnetUtils::safeWrite($conn, "\033[{$inputRow};{$inputColStart}H");
+            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H");
 
             $buffer = '';
             while (true) {
