@@ -13,6 +13,7 @@
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
@@ -20,7 +21,7 @@ use BinktermPHP\Database;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\Version;
 
-define('LOVLYNET_REGISTRY_URL', 'https://lovlynet.lovelybits.org/api/register');
+define('LOVLYNET_REGISTRY_URL', 'https://lovlynet.lovelybits.org/api/register.php');
 define('LOVLYNET_CONFIG_PATH', __DIR__ . '/../config/lovlynet.json');
 define('LOVLYNET_DOMAIN', 'lovlynet');
 
@@ -162,64 +163,90 @@ function doRegistration($isUpdate = false) {
     $hostname = $binkpConfig->getSystemHostname();
     $binkpPort = $binkpConfig->getBinkpPort();
 
-    // Try to get site URL - works in CLI context if SITE_URL env var is set
-    $defaultSiteUrl = '';
-    $siteUrl = getenv('SITE_URL');
-    if ($siteUrl) {
-        $defaultSiteUrl = rtrim($siteUrl, '/');
-    }
-
     echo "Please verify the following information:\n\n";
 
     $systemName = readInput("System Name", $systemName);
     $sysopName = readInput("Sysop Name", $sysopName);
-    $hostname = readInput("Hostname (for binkp connections)", $hostname);
-    $binkpPort = (int)readInput("Binkp Port", (string)$binkpPort);
 
-    $siteUrl = readInput("Site URL (public web address of your BBS)", $defaultSiteUrl);
+    // Ask if the BBS is publicly accessible
+    echo "\n";
+    $isPublic = confirm("Is your BBS accessible from the public internet?", false);
+    echo "\n";
 
-    if (empty($siteUrl)) {
-        echo "\nError: Site URL is required for registration verification.\n";
-        echo "The LovlyNet registry will call {site_url}/api/verify to confirm ownership.\n";
-        echo "Set the SITE_URL environment variable or provide it here.\n";
-        return;
-    }
+    if ($isPublic) {
+        // Public node - will accept inbound connections
+        echo "Public Node Configuration\n";
+        echo str_repeat("-", 40) . "\n";
+        echo "Your node will be able to receive inbound binkp connections.\n\n";
 
-    // Verify the /api/verify endpoint is accessible locally before attempting registration
-    echo "\nVerifying local /api/verify endpoint... ";
-    $verifyUrl = rtrim($siteUrl, '/') . '/api/verify';
-    $context = stream_context_create([
-        'http' => ['method' => 'GET', 'timeout' => 10, 'ignore_errors' => true],
-        'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]
-    ]);
-    $response = @file_get_contents($verifyUrl, false, $context);
+        $hostname = readInput("Public Hostname/IP (for binkp connections)", $hostname);
+        $binkpPort = (int)readInput("Binkp Port", (string)$binkpPort);
 
-    if ($response === false) {
-        echo "FAILED\n\n";
-        echo "Could not reach {$verifyUrl}\n";
-        echo "Make sure your BBS web server is running and accessible.\n";
-        echo "The registry needs to verify your site to complete registration.\n\n";
+        // Try to get site URL - works in CLI context if SITE_URL env var is set
+        $defaultSiteUrl = '';
+        $siteUrl = getenv('SITE_URL');
+        if ($siteUrl) {
+            $defaultSiteUrl = rtrim($siteUrl, '/');
+        }
 
-        if (!confirm("Continue anyway?", false)) {
-            return;
+        $siteUrl = readInput("Site URL (public web address)", $defaultSiteUrl);
+
+        if (empty($siteUrl)) {
+            echo "\nWarning: No site URL provided. Verification will not be possible.\n";
+            $siteUrl = 'http://localhost';
+        }
+
+        // Verify the /api/verify endpoint is accessible locally
+        echo "\nVerifying local /api/verify endpoint... ";
+        $verifyUrl = rtrim($siteUrl, '/') . '/api/verify';
+        $context = stream_context_create([
+            'http' => ['method' => 'GET', 'timeout' => 10, 'ignore_errors' => true],
+            'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]
+        ]);
+        $response = @file_get_contents($verifyUrl, false, $context);
+
+        if ($response === false) {
+            echo "FAILED\n";
+            echo "Note: The registry will attempt verification, but it may fail.\n";
+        } else {
+            $verifyData = json_decode($response, true);
+            if (isset($verifyData['system_name'])) {
+                echo "OK ({$verifyData['system_name']})\n";
+            } else {
+                echo "WARNING: Unexpected response format\n";
+            }
         }
     } else {
-        $verifyData = json_decode($response, true);
-        if (isset($verifyData['system_name'])) {
-            echo "OK ({$verifyData['system_name']})\n";
-        } else {
-            echo "WARNING: Unexpected response format\n";
-        }
+        // Passive node - poll-only (community wireless, NAT, etc.)
+        echo "Passive Node Configuration\n";
+        echo str_repeat("-", 40) . "\n";
+        echo "Your node will poll the hub for mail but will NOT accept\n";
+        echo "inbound connections. This is suitable for:\n";
+        echo "  - Community wireless networks\n";
+        echo "  - Nodes behind NAT/firewall\n";
+        echo "  - Dynamic IP addresses\n";
+        echo "  - Development/testing systems\n\n";
+
+        $hostname = 'passive.lovlynet.org';
+        $binkpPort = 24554;
+        $siteUrl = 'http://localhost';
+
+        echo "Using passive node defaults:\n";
+        echo "  Hostname: {$hostname} (not used for inbound)\n";
+        echo "  Your node will poll the hub for mail\n";
     }
 
     echo "\n";
     echo "Registration Summary:\n";
+    echo str_repeat("=", 50) . "\n";
     echo "  System Name:  {$systemName}\n";
     echo "  Sysop:        {$sysopName}\n";
+    echo "  Node Type:    " . ($isPublic ? "Public (accepts inbound)" : "Passive (poll-only)") . "\n";
     echo "  Hostname:     {$hostname}\n";
     echo "  Binkp Port:   {$binkpPort}\n";
     echo "  Site URL:     {$siteUrl}\n";
     echo "  Software:     " . Version::getFullVersion() . "\n";
+    echo str_repeat("=", 50) . "\n";
     echo "\n";
 
     if (!confirm("Proceed with registration?")) {
@@ -239,6 +266,11 @@ function doRegistration($isUpdate = false) {
             'php_version' => PHP_VERSION
         ]
     ];
+
+    // Include node_id for updates
+    if ($isUpdate && $existingConfig && !empty($existingConfig['node_id'])) {
+        $payload['node_id'] = $existingConfig['node_id'];
+    }
 
     // Build HTTP headers
     $headers = ['Content-Type: application/json'];
@@ -287,25 +319,28 @@ function doRegistration($isUpdate = false) {
 
     echo "Registration successful!\n";
     echo str_repeat("=", 40) . "\n";
-    echo "FTN Address:     {$regData['ftn_address']}\n";
-    echo "Hub Address:     {$regData['hub_address']}\n";
-    echo "Hub Hostname:    {$regData['hub_hostname']}\n";
-    echo "Hub Port:        {$regData['hub_port']}\n";
-    echo "Binkp Password:  {$regData['binkp_password']}\n";
+    echo "FTN Address:      {$regData['ftn_address']}\n";
+    echo "Hub Address:      {$regData['hub_address']}\n";
+    echo "Hub Hostname:     {$regData['hub_hostname']}\n";
+    echo "Hub Port:         {$regData['hub_port']}\n";
+    echo "Binkp Password:   {$regData['binkp_password']}\n";
+    echo "Areafix Password: {$regData['areafix_password']}\n";
 
     if (!empty($regData['api_key'])) {
-        echo "API Key:         " . substr($regData['api_key'], 0, 8) . "...\n";
+        echo "API Key:          " . substr($regData['api_key'], 0, 8) . "...\n";
     }
     echo "\n";
 
     // Save registration config
     $lovlyNetConfig = [
+        'node_id' => $regData['node_id'] ?? ($existingConfig['node_id'] ?? null),
         'api_key' => $regData['api_key'] ?? ($existingConfig['api_key'] ?? ''),
         'ftn_address' => $regData['ftn_address'],
         'hub_address' => $regData['hub_address'],
         'hub_hostname' => $regData['hub_hostname'],
         'hub_port' => $regData['hub_port'],
         'binkp_password' => $regData['binkp_password'],
+        'areafix_password' => $regData['areafix_password'],
         'registered_at' => $existingConfig['registered_at'] ?? date('c'),
         'updated_at' => date('c')
     ];
@@ -431,11 +466,12 @@ function doRegistration($isUpdate = false) {
             echo "Create an admin user first, then send areafix manually.\n";
         } else {
             $messageHandler = new MessageHandler();
+            $areafixSubject = $regData['areafix_password'];
             $messageHandler->sendNetmail(
                 $sysopUser['id'],
                 $regData['hub_address'],
                 'AreaFix',
-                'LovlyNet Area Request',
+                $areafixSubject,
                 "%HELP\n",
                 $sysopName
             );
@@ -450,11 +486,24 @@ function doRegistration($isUpdate = false) {
     echo "\n";
     echo str_repeat("=", 50) . "\n";
     echo "LovlyNet setup complete!\n\n";
-    echo "Your FTN address is: {$regData['ftn_address']}\n\n";
-    echo "Next steps:\n";
+    echo "Your FTN address is: {$regData['ftn_address']}\n";
+
+    if (!$isPublic) {
+        echo "Node Type: Passive (poll-only)\n";
+    }
+
+    echo "\nNext steps:\n";
     echo "  1. Restart the admin daemon to pick up config changes\n";
     echo "  2. Run a poll to connect to the hub: php scripts/binkp_poll.php\n";
     echo "  3. Check the LovlyNet echo areas for messages\n";
+
+    if (!$isPublic) {
+        echo "\nNote: As a passive node, you will need to poll the hub\n";
+        echo "regularly to send and receive mail. The hub cannot connect\n";
+        echo "to you directly. Consider setting up a cron job to poll\n";
+        echo "every 15-30 minutes.\n";
+    }
+
     echo "\n";
 }
 
