@@ -243,31 +243,36 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $data = $_POST;
         }
 
-        // Anti-spam validation 1: Honeypot field
-        if (!empty($data['website'])) {
+        // Check if this is a telnet registration
+        $isTelnetRegistration = ($data['reason'] ?? '') === 'Telnet registration';
+
+        // Anti-spam validation 1: Honeypot field (skip for telnet)
+        if (!$isTelnetRegistration && !empty($data['website'])) {
             // Silent rejection - don't tell bots why they failed
             http_response_code(400);
             echo json_encode(['error' => 'Invalid submission']);
             return;
         }
 
-        // Anti-spam validation 2: Time-based check
-        $registrationTime = $_SESSION['registration_time'] ?? 0;
-        $currentTime = time();
-        $timeTaken = $currentTime - $registrationTime;
+        // Anti-spam validation 2: Time-based check (skip for telnet)
+        if (!$isTelnetRegistration) {
+            $registrationTime = $_SESSION['registration_time'] ?? 0;
+            $currentTime = time();
+            $timeTaken = $currentTime - $registrationTime;
 
-        if ($timeTaken < 3) {
-            // Too fast - likely a bot
-            http_response_code(400);
-            echo json_encode(['error' => 'Please take your time filling out the form.']);
-            return;
-        }
+            if ($timeTaken < 3) {
+                // Too fast - likely a bot
+                http_response_code(400);
+                echo json_encode(['error' => 'Please take your time filling out the form.']);
+                return;
+            }
 
-        if ($timeTaken > 1800) {
-            // 30 minutes - session likely expired
-            http_response_code(400);
-            echo json_encode(['error' => 'Session expired. Please refresh the page and try again.']);
-            return;
+            if ($timeTaken > 1800) {
+                // 30 minutes - session likely expired
+                http_response_code(400);
+                echo json_encode(['error' => 'Session expired. Please refresh the page and try again.']);
+                return;
+            }
         }
 
         // Anti-spam validation 4: Rate limiting by IP
@@ -3999,8 +4004,6 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $settings = $handler->getUserSettings($userId);
-            // Include timezone from user profile
-            $settings['timezone'] = $user['timezone'] ?? 'UTC';
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
             http_response_code(500);

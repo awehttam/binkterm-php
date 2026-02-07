@@ -412,16 +412,16 @@ class TelnetUtils
      */
     private static function localeToPhpDateFormat(string $locale): string
     {
-        // Map common locale codes to PHP date formats
+        // Map common locale codes to PHP date formats (without seconds)
         $formats = [
-            'en-US' => 'Y-m-d H:i:s',  // 2026-02-06 14:30:45
-            'en-GB' => 'd/m/Y H:i:s',  // 06/02/2026 14:30:45
-            'de-DE' => 'd.m.Y H:i:s',  // 06.02.2026 14:30:45
-            'fr-FR' => 'd/m/Y H:i:s',  // 06/02/2026 14:30:45
-            'ja-JP' => 'Y/m/d H:i:s',  // 2026/02/06 14:30:45
+            'en-US' => 'Y-m-d H:i',  // 2026-02-06 14:30
+            'en-GB' => 'd/m/Y H:i',  // 06/02/2026 14:30
+            'de-DE' => 'd.m.Y H:i',  // 06.02.2026 14:30
+            'fr-FR' => 'd/m/Y H:i',  // 06/02/2026 14:30
+            'ja-JP' => 'Y/m/d H:i',  // 2026/02/06 14:30
         ];
 
-        return $formats[$locale] ?? 'Y-m-d H:i:s';
+        return $formats[$locale] ?? 'Y-m-d H:i';
     }
 
     /**

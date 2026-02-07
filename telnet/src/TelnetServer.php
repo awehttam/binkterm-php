@@ -343,7 +343,7 @@ class TelnetServer
         }
 
         // Show login banner
-        $this->showLoginBanner($conn);
+        $this->showLoginBanner($conn, $state);
 
         // Login/Register loop
         $loginResult = null;
@@ -478,8 +478,9 @@ class TelnetServer
 
             // Clear screen before rendering menu
             $this->safeWrite($conn, "\033[2J\033[H");
-            // Status bar with system name and local time
-            $timeStr = date('Y-m-d H:i');
+            // Status bar with system name and user's local time
+            $currentUtc = gmdate('Y-m-d H:i:s');
+            $timeStr = TelnetUtils::formatUserDate($currentUtc, $state, false);
             $statusLine = TelnetUtils::buildStatusBar([
                 ['text' => $systemName . '  ', 'color' => self::ANSI_BLUE],
                 ['text' => str_repeat(' ', max(1, $cols - strlen($systemName) - strlen($timeStr) - 2)), 'color' => self::ANSI_BLUE],
@@ -757,7 +758,7 @@ class TelnetServer
     /**
      * Show login banner with system information
      */
-    private function showLoginBanner($conn): void
+    private function showLoginBanner($conn, array &$state): void
     {
         // Print service name before showing login screen
         $this->writeLine($conn, '');
@@ -795,8 +796,12 @@ class TelnetServer
         $innerWidth = $frameWidth - 4;
         $border = '+' . str_repeat('-', $frameWidth - 2) . '+';
 
+        // Calculate centering for the box
+        $cols = $state['cols'] ?? 80;
+        $leftPad = str_repeat(' ', max(0, (int)floor(($cols - $frameWidth) / 2)));
+
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize($border, self::ANSI_MAGENTA));
+        $this->writeLine($conn, $leftPad . $this->colorize($border, self::ANSI_MAGENTA));
 
         foreach ($rawLines as $entry) {
             $text = $entry['text'];
@@ -806,15 +811,17 @@ class TelnetServer
                     ? str_pad($part, $innerWidth, ' ', STR_PAD_BOTH)
                     : str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT);
                 $content = '| ' . $padded . ' |';
-                $this->writeLine($conn, $this->colorize($content, $entry['color']));
+                $this->writeLine($conn, $leftPad . $this->colorize($content, $entry['color']));
             }
         }
 
-        $this->writeLine($conn, $this->colorize($border, self::ANSI_MAGENTA));
+        $this->writeLine($conn, $leftPad . $this->colorize($border, self::ANSI_MAGENTA));
         $this->writeLine($conn, '');
 
         if ($siteUrl !== '') {
-            $this->writeLine($conn, $this->colorize('  For a good time visit us on the web @ ' . $siteUrl, self::ANSI_YELLOW));
+            $visitLine = 'For a good time visit us on the web @ ' . $siteUrl;
+            $visitPad = str_repeat(' ', max(0, (int)floor(($cols - strlen($visitLine)) / 2)));
+            $this->writeLine($conn, $visitPad . $this->colorize($visitLine, self::ANSI_YELLOW));
             $this->writeLine($conn, '');
         }
     }
@@ -1205,16 +1212,87 @@ class TelnetServer
         $this->writeLine($conn, $this->colorize('=== New User Registration ===', self::ANSI_CYAN . self::ANSI_BOLD));
         $this->writeLine($conn, '');
         $this->writeLine($conn, 'Please provide the following information to create your account.');
-        $this->writeLine($conn, 'All fields are required.');
         $this->writeLine($conn, $this->colorize('(Type "cancel" at any prompt to abort registration)', self::ANSI_DIM));
         $this->writeLine($conn, '');
 
-        // Note: Full registration logic would go here
-        // For now, this is a placeholder that needs to be implemented
-        $this->writeLine($conn, 'Registration feature coming soon...');
-        $this->writeLine($conn, 'Press Enter to continue.');
-        $this->readLineWithIdleCheck($conn, $state);
-        return false;
+        // Collect registration information
+        $username = $this->prompt($conn, $state, 'Username (3-20 chars, letters/numbers/underscore): ', true);
+        if ($username === null || strtolower(trim($username)) === 'cancel') {
+            return false;
+        }
+        $username = trim($username);
+
+        $password = $this->prompt($conn, $state, 'Password (min 8 characters): ', false);
+        $this->writeLine($conn, '');
+        if ($password === null || strtolower(trim($password)) === 'cancel') {
+            return false;
+        }
+
+        $passwordConfirm = $this->prompt($conn, $state, 'Confirm password: ', false);
+        $this->writeLine($conn, '');
+        if ($passwordConfirm === null || strtolower(trim($passwordConfirm)) === 'cancel') {
+            return false;
+        }
+
+        if ($password !== $passwordConfirm) {
+            $this->writeLine($conn, $this->colorize('Error: Passwords do not match.', self::ANSI_RED));
+            $this->writeLine($conn, '');
+            return false;
+        }
+
+        $realName = $this->prompt($conn, $state, 'Real Name: ', true);
+        if ($realName === null || strtolower(trim($realName)) === 'cancel') {
+            return false;
+        }
+        $realName = trim($realName);
+
+        $email = $this->prompt($conn, $state, 'Email (optional): ', true);
+        if ($email === null || strtolower(trim($email)) === 'cancel') {
+            return false;
+        }
+        $email = trim($email);
+
+        $location = $this->prompt($conn, $state, 'Location (optional): ', true);
+        if ($location === null || strtolower(trim($location)) === 'cancel') {
+            return false;
+        }
+        $location = trim($location);
+
+        // Submit registration
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, 'Submitting registration...');
+
+        try {
+            $result = $this->apiRequest('POST', '/api/register', [
+                'username' => $username,
+                'password' => $password,
+                'real_name' => $realName,
+                'email' => $email,
+                'location' => $location,
+                'reason' => 'Telnet registration'
+            ], null);
+
+            if ($result['status'] === 200 || $result['status'] === 201) {
+                $this->writeLine($conn, '');
+                $this->writeLine($conn, $this->colorize('Registration successful!', self::ANSI_GREEN . self::ANSI_BOLD));
+                $this->writeLine($conn, '');
+                $this->writeLine($conn, 'Your account has been created and is pending approval.');
+                $this->writeLine($conn, 'You will be notified once an administrator has reviewed your registration.');
+                $this->writeLine($conn, '');
+                return true;
+            } else {
+                $errorMsg = $result['data']['error'] ?? 'Registration failed';
+                $this->writeLine($conn, '');
+                $this->writeLine($conn, $this->colorize('Error: ' . $errorMsg, self::ANSI_RED));
+                $this->writeLine($conn, '');
+                return false;
+            }
+        } catch (\Throwable $e) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, $this->colorize('Error: ' . $e->getMessage(), self::ANSI_RED));
+            $this->writeLine($conn, '');
+            return false;
+        }
     }
 
     /**

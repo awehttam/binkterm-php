@@ -356,7 +356,7 @@ class NetmailHandler
             $originalBody = $reply['message_text'] ?? '';
             $originalAuthor = $reply['from_name'] ?? 'Unknown';
             if ($originalBody !== '') {
-                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor);
+                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
             }
         }
         $signature = MailUtils::getUserSignature($this->apiBase, $session);
