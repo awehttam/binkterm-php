@@ -428,6 +428,7 @@ class TelnetServer
         // Fetch user data once at login and store in state
         $userData = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user', null, $session);
         $state['user_timezone'] = $userData['data']['timezone'] ?? 'UTC';
+        $state['user_date_format'] = $userData['data']['date_format'] ?? 'Y-m-d H:i:s';
         $state['username'] = $username;
 
         // Clear failed login attempts for this IP on successful login

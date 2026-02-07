@@ -405,6 +405,42 @@ class TelnetUtils
     }
 
     /**
+     * Format date using user's timezone and date format preferences
+     *
+     * Converts UTC date to user's timezone and formats according to their preference.
+     * User timezone and format are stored in state during login.
+     *
+     * @param string $utcDate Date string in UTC (from database)
+     * @param array $state Terminal state containing user_timezone and user_date_format
+     * @param bool $includeTimezone Whether to append timezone abbreviation (default: true)
+     * @return string Formatted date string, or original date if formatting fails
+     */
+    public static function formatUserDate(string $utcDate, array $state, bool $includeTimezone = true): string
+    {
+        if (empty($utcDate)) {
+            return '';
+        }
+
+        $userTimezone = $state['user_timezone'] ?? 'UTC';
+        $dateFormat = $state['user_date_format'] ?? 'Y-m-d H:i:s';
+
+        try {
+            $dt = new \DateTime($utcDate, new \DateTimeZone('UTC'));
+            $dt->setTimezone(new \DateTimeZone($userTimezone));
+            $formatted = $dt->format($dateFormat);
+
+            if ($includeTimezone) {
+                $formatted .= ' ' . $dt->format('T');
+            }
+
+            return $formatted;
+        } catch (\Exception $e) {
+            // Return original date if formatting fails
+            return $utcDate;
+        }
+    }
+
+    /**
      * Read a single raw character from connection
      *
      * Handles pushback buffer and checks for connection validity.

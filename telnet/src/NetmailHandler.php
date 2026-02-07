@@ -71,8 +71,7 @@ class NetmailHandler
                 $num = $idx + 1;
                 $from = $msg['from_name'] ?? 'Unknown';
                 $subject = $msg['subject'] ?? '(no subject)';
-                $date = $msg['date_written'] ?? '';
-                $dateShort = substr($date, 0, 10);
+                $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
                 $line = sprintf(' %2d) %-20s %-35s %s', $num, substr($from, 0, 20), substr($subject, 0, 35), $dateShort);
                 if ($idx === $selectedIndex) {
                     $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
@@ -429,26 +428,13 @@ class NetmailHandler
             $detail = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/netmail/' . $id, null, $session);
             $body = $detail['data']['message_text'] ?? '';
 
-            // Get user timezone from state (fetched at login)
-            $userTimezone = $state['user_timezone'] ?? 'UTC';
-
             // Format from line with address
             $fromName = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
             $fromLine = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
 
-            // Format date in user's timezone
-            $dateWritten = $msg['date_written'] ?? '';
-            $dateFormatted = '';
-            if ($dateWritten) {
-                try {
-                    $dt = new \DateTime($dateWritten, new \DateTimeZone('UTC'));
-                    $dt->setTimezone(new \DateTimeZone($userTimezone));
-                    $dateFormatted = $dt->format('Y-m-d H:i:s T');
-                } catch (\Exception $e) {
-                    $dateFormatted = $dateWritten;
-                }
-            }
+            // Format date using user's timezone and date format preferences
+            $dateFormatted = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state);
 
             $border = str_repeat('-', $width);
             $headerLines = [
@@ -579,8 +565,7 @@ class NetmailHandler
         $num = $idx + 1;
         $from = $msg['from_name'] ?? 'Unknown';
         $subject = $msg['subject'] ?? '(no subject)';
-        $date = $msg['date_written'] ?? '';
-        $dateShort = substr($date, 0, 10);
+        $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
         $line = sprintf(' %2d) %-20s %-35s %s', $num, substr($from, 0, 20), substr($subject, 0, 35), $dateShort);
         if ($selected) {
             $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
