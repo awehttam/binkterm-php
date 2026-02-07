@@ -511,6 +511,69 @@ function doRegistration($isUpdate = false) {
         echo "You can send an areafix netmail manually later.\n";
     }
 
+    // Send welcome message from hub
+    echo "Sending welcome message... ";
+
+    try {
+        if (!isset($sysopUser) || !$sysopUser) {
+            // Try to find sysop user again if not already set
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT id, real_name FROM users
+                WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                LIMIT 1
+            ");
+            $stmt->execute([$sysopName, $sysopName]);
+            $sysopUser = $stmt->fetch();
+
+            if (!$sysopUser) {
+                $stmt = $db->prepare("SELECT id, real_name FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
+                $stmt->execute();
+                $sysopUser = $stmt->fetch();
+            }
+        }
+
+        if (!$sysopUser) {
+            echo "SKIPPED (no user found)\n";
+        } else {
+            // Read welcome template
+            $templatePath = __DIR__ . '/../config/lovlynet_welcome.txt';
+            if (!file_exists($templatePath)) {
+                echo "SKIPPED (template not found)\n";
+            } else {
+                $welcomeText = file_get_contents($templatePath);
+
+                // Replace placeholders
+                $nodeType = $isPublic ? "Public (accepts inbound connections)" : "Passive (poll-only)";
+                $pollingInfo = $isPublic
+                    ? "Your node accepts inbound connections. The hub will deliver mail directly.\nOptional: Set up polling as a fallback (every 30 minutes recommended)."
+                    : "Your node is passive (poll-only). You MUST poll the hub regularly.\nRecommended: Set up a cron job to poll every 15-30 minutes.";
+
+                $welcomeText = str_replace('{FTN_ADDRESS}', $regData['ftn_address'], $welcomeText);
+                $welcomeText = str_replace('{SYSTEM_NAME}', $systemName, $welcomeText);
+                $welcomeText = str_replace('{NODE_TYPE}', $nodeType, $welcomeText);
+                $welcomeText = str_replace('{AREAFIX_PASSWORD}', $regData['areafix_password'], $welcomeText);
+                $welcomeText = str_replace('{POLLING_INFO}', $pollingInfo, $welcomeText);
+
+                // Send welcome netmail (from sysop to themselves, appearing as from hub)
+                $messageHandler = new MessageHandler();
+                $messageHandler->sendNetmail(
+                    $sysopUser['id'],              // From user (sysop)
+                    $regData['ftn_address'],       // To address (sysop's new address)
+                    $sysopName,                    // To name
+                    'Welcome to LovlyNet!',        // Subject
+                    $welcomeText,                  // Body
+                    'LovlyNet Hub'                 // From name (appears as hub)
+                );
+
+                echo "OK\n";
+            }
+        }
+    } catch (\Exception $e) {
+        echo "SKIPPED\n";
+        echo "Note: " . $e->getMessage() . "\n";
+    }
+
     echo "\n";
     echo str_repeat("=", 50) . "\n";
     echo "LovlyNet setup complete!\n\n";
