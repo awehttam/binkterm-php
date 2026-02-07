@@ -1,0 +1,334 @@
+/* NetRealm RPG - Dark RPG Theme */
+
+body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+}
+
+/* Dark theme text overrides */
+.text-muted {
+    color: #8b949e !important;
+}
+
+p.text-muted, .card-body .text-muted {
+    color: #a0aab5 !important;
+}
+
+/* Header */
+.nr-header {
+    border-bottom: 1px solid #21262d;
+    margin-bottom: 0.5rem;
+}
+
+.nr-title {
+    font-size: 1.4rem;
+    color: #8b5cf6;
+    text-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+}
+
+/* Cards */
+.nr-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+}
+
+.card {
+    background: #161b22;
+    border-color: #30363d;
+    color: #c9d1d9;
+}
+
+/* Status Bar */
+.nr-status-bar {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+.nr-char-name {
+    color: #8b5cf6;
+    font-size: 1.1rem;
+}
+
+.nr-bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nr-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nr-bar-label {
+    font-size: 0.7rem;
+    min-width: 36px;
+    color: #8b949e;
+}
+
+.nr-progress {
+    height: 12px;
+    flex: 1;
+    background: #21262d;
+    border-radius: 3px;
+}
+
+.nr-progress .progress-bar {
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.nr-bar-value {
+    font-size: 0.7rem;
+    min-width: 60px;
+    text-align: right;
+    color: #8b949e;
+}
+
+.nr-stat {
+    font-size: 0.8rem;
+    color: #8b949e;
+    white-space: nowrap;
+}
+
+.nr-stat i {
+    color: #58a6ff;
+}
+
+/* Navigation */
+.nr-nav-btn {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+}
+
+/* Monster Cards */
+.nr-monster-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: default;
+}
+
+.nr-monster-card:hover {
+    border-color: #dc3545;
+    box-shadow: 0 0 8px rgba(220, 53, 69, 0.3);
+}
+
+.nr-monster-icon {
+    color: #dc3545;
+    margin-bottom: 0.3rem;
+}
+
+.nr-monster-stats {
+    font-size: 0.8rem;
+    margin: 0.2rem 0;
+}
+
+/* Item Cards */
+.nr-item-card {
+    background: #161b22;
+    border-width: 2px;
+    transition: box-shadow 0.2s;
+}
+
+.nr-item-card:hover {
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+}
+
+.nr-item-type {
+    font-size: 0.75rem;
+    color: #8b949e;
+    text-transform: uppercase;
+}
+
+.nr-item-bonuses {
+    font-size: 0.8rem;
+}
+
+/* PvP Items */
+.nr-pvp-item {
+    background: #161b22 !important;
+    border-color: #30363d !important;
+    color: #c9d1d9 !important;
+}
+
+.nr-pvp-item:hover {
+    background: #1c2129 !important;
+}
+
+/* Combat Result */
+.nr-rewards {
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.nr-level-up {
+    color: #ffd700;
+    font-size: 1.2rem;
+    font-weight: bold;
+    animation: levelUpPulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes levelUpPulse {
+    from { text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+    to { text-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+}
+
+.nr-combat-rounds {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+.nr-rounds-scroll {
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+}
+
+.nr-round {
+    padding: 2px 4px;
+    border-bottom: 1px solid #161b22;
+}
+
+/* Combat Log */
+.nr-log-item {
+    background: #161b22 !important;
+    border-color: #30363d !important;
+    color: #c9d1d9 !important;
+}
+
+/* Leaderboard Table */
+.nr-table {
+    font-size: 0.85rem;
+}
+
+.nr-table thead th {
+    border-color: #30363d;
+    color: #8b949e;
+}
+
+.nr-table td {
+    border-color: #21262d;
+}
+
+/* List group overrides for dark theme */
+.list-group-item {
+    background: #161b22;
+    border-color: #30363d;
+    color: #c9d1d9;
+}
+
+/* Form controls */
+.nr-input {
+    background: #0d1117;
+    border-color: #30363d;
+    color: #c9d1d9;
+}
+
+.nr-input:focus {
+    background: #0d1117;
+    border-color: #8b5cf6;
+    color: #c9d1d9;
+    box-shadow: 0 0 0 0.2rem rgba(139, 92, 246, 0.25);
+}
+
+.nr-input::placeholder {
+    color: #6e7681;
+}
+
+/* Ensure form-control matches dark theme */
+.form-control {
+    background: #0d1117;
+    border-color: #30363d;
+    color: #c9d1d9;
+}
+
+.form-control:focus {
+    background: #0d1117;
+    border-color: #8b5cf6;
+    color: #c9d1d9;
+    box-shadow: 0 0 0 0.2rem rgba(139, 92, 246, 0.25);
+}
+
+.form-control::placeholder {
+    color: #6e7681;
+}
+
+/* Toast overrides */
+.toast {
+    min-width: 200px;
+}
+
+/* Scrollbar */
+.nr-rounds-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nr-rounds-scroll::-webkit-scrollbar-track {
+    background: #0d1117;
+}
+
+.nr-rounds-scroll::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 3px;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .nr-title {
+        font-size: 1.1rem;
+    }
+
+    .nr-nav-btn {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.4rem;
+    }
+
+    .nr-bar-value {
+        min-width: 50px;
+        font-size: 0.65rem;
+    }
+
+    .nr-stat {
+        font-size: 0.7rem;
+    }
+}
+
+/* Button group overrides */
+.btn-group .btn-outline-primary {
+    color: #8b5cf6;
+    border-color: #30363d;
+}
+
+.btn-group .btn-outline-primary:hover,
+.btn-group .btn-outline-primary.active {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+    color: #fff;
+}
+
+/* Alert overrides for dark theme */
+.alert-info {
+    background: rgba(56, 139, 253, 0.1);
+    border-color: rgba(56, 139, 253, 0.3);
+    color: #58a6ff;
+}
+
+.alert-danger {
+    background: rgba(248, 81, 73, 0.1);
+    border-color: rgba(248, 81, 73, 0.3);
+    color: #f85149;
+}
+
+/* Badge overrides */
+.badge {
+    font-weight: 500;
+}
