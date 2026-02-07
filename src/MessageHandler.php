@@ -1371,7 +1371,7 @@ class MessageHandler
         $toAddr = $message['to_address'] ?? 'unknown';
         $subject = $message['subject'] ?? '(no subject)';
 
-        error_log("[SPOOL] Spooling netmail #{$messageId}: from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
+        //error_log("[SPOOL] Spooling netmail #{$messageId}: from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
 
         try {
             $binkdProcessor = new BinkdProcessor();
@@ -1387,11 +1387,11 @@ class MessageHandler
 
             if ($uplink) {
                 $routeAddress = $uplink['address'];
-                error_log("[SPOOL] Routing netmail through uplink {$routeAddress} for destination {$toAddr}");
+                //error_log("[SPOOL] Routing netmail through uplink {$routeAddress} for destination {$toAddr}");
             } else {
                 // No uplink found - try direct delivery (for local or crash mail)
                 $routeAddress = $toAddr;
-                error_log("[SPOOL] No uplink found for {$toAddr}, attempting direct delivery");
+                //error_log("[SPOOL] No uplink found for {$toAddr}, attempting direct delivery");
             }
 
             // Create outbound packet routed through the uplink (or direct if no uplink)
@@ -1402,7 +1402,7 @@ class MessageHandler
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
 
-            error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
+            //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
@@ -1428,7 +1428,7 @@ class MessageHandler
 
         // Check if this is a local-only echoarea
         if (!empty($message['is_local'])) {
-            error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
+            //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
             return true; // Success - message stored locally, no upstream transmission needed
         }
 
@@ -1438,7 +1438,7 @@ class MessageHandler
         $subject = $message['subject'] ?? '(no subject)';
         $areaTag = $message['echoarea_tag'] ?? $echoareaTag;
 
-        error_log("[SPOOL] Spooling echomail #{$messageId}: area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
+        //error_log("[SPOOL] Spooling echomail #{$messageId}: area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
 
         try {
             $binkdProcessor = new BinkdProcessor();
@@ -1458,7 +1458,7 @@ class MessageHandler
                 $message['to_address'] = $uplinkAddress;
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
-                error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
+                //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
                 error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
                 return false;
