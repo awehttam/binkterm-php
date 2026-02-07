@@ -49,7 +49,7 @@ class Auth
     public function validateSession($sessionId)
     {
         $stmt = $this->db->prepare('
-            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.password_hash, u.created_at, u.last_login, u.location, u.fidonet_address
+            SELECT s.user_id, u.username, u.real_name, u.email, u.is_admin, u.password_hash, u.created_at, u.last_login, u.location, u.fidonet_address, u.timezone
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.session_id = ? AND s.expires_at > NOW() AND u.is_active = TRUE

@@ -3999,6 +3999,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $settings = $handler->getUserSettings($userId);
+            // Include timezone from user profile
+            $settings['timezone'] = $user['timezone'] ?? 'UTC';
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
             http_response_code(500);

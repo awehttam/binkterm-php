@@ -72,7 +72,7 @@ class NetmailHandler
                 $from = $msg['from_name'] ?? 'Unknown';
                 $subject = $msg['subject'] ?? '(no subject)';
                 $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
-                $line = sprintf(' %2d) %-20s %-35s %s', $num, substr($from, 0, 20), substr($subject, 0, 35), $dateShort);
+                $line = TelnetUtils::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
                 if ($idx === $selectedIndex) {
                     $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
                 }
@@ -124,8 +124,8 @@ class NetmailHandler
                     if ($selectedIndex > 0) {
                         $prevIndex = $selectedIndex;
                         $selectedIndex--;
-                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols);
-                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols);
+                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols, $state);
+                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols, $state);
                     }
                     TelnetUtils::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                     continue;
@@ -134,8 +134,8 @@ class NetmailHandler
                     if ($selectedIndex < count($messages) - 1) {
                         $prevIndex = $selectedIndex;
                         $selectedIndex++;
-                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols);
-                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols);
+                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols, $state);
+                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols, $state);
                     }
                     TelnetUtils::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                     continue;
@@ -556,7 +556,7 @@ class NetmailHandler
     /**
      * Re-render a single message list line without redrawing the whole screen.
      */
-    private function renderMessageListLine($conn, array $messages, int $idx, bool $selected, int $listStartRow, int $cols): void
+    private function renderMessageListLine($conn, array $messages, int $idx, bool $selected, int $listStartRow, int $cols, array &$state): void
     {
         if (!isset($messages[$idx])) {
             return;
@@ -566,7 +566,7 @@ class NetmailHandler
         $from = $msg['from_name'] ?? 'Unknown';
         $subject = $msg['subject'] ?? '(no subject)';
         $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
-        $line = sprintf(' %2d) %-20s %-35s %s', $num, substr($from, 0, 20), substr($subject, 0, 35), $dateShort);
+        $line = TelnetUtils::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
         if ($selected) {
             $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
         }
