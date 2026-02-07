@@ -469,18 +469,25 @@ class TelnetServer
             }
 
             // Build the main menu
-            $cols = $state['cols'] ?? 80;
-            $menuWidth = min(60, $cols - 4);
-            $innerWidth = $menuWidth - 4;
-            $menuLeft = max(0, (int)floor(($cols - $menuWidth) / 2));
-            $menuPad = str_repeat(' ', $menuLeft);
+            // Check if custom main menu ANSI file exists
+            if (TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
+                // Custom menu displayed, show prompt
+                $this->writeLine($conn, '');
+                $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
+            } else {
+                // Display default menu
+                $cols = $state['cols'] ?? 80;
+                $menuWidth = min(60, $cols - 4);
+                $innerWidth = $menuWidth - 4;
+                $menuLeft = max(0, (int)floor(($cols - $menuWidth) / 2));
+                $menuPad = str_repeat(' ', $menuLeft);
 
-            $systemName = $config->getSystemName();
-            $border = '+' . str_repeat('=', $menuWidth - 2) . '+';
-            $divider = '+' . str_repeat('-', $menuWidth - 2) . '+';
+                $systemName = $config->getSystemName();
+                $border = '+' . str_repeat('=', $menuWidth - 2) . '+';
+                $divider = '+' . str_repeat('-', $menuWidth - 2) . '+';
 
-            // Clear screen before rendering menu
-            $this->safeWrite($conn, "\033[2J\033[H");
+                // Clear screen before rendering menu
+                $this->safeWrite($conn, "\033[2J\033[H");
             // Status bar with system name and user's local time
             $currentUtc = gmdate('Y-m-d H:i:s');
             $timeStr = TelnetUtils::formatUserDate($currentUtc, $state, false);
@@ -530,8 +537,9 @@ class TelnetServer
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
             $quitOption = 'q';
 
-            $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-            $this->writeLine($conn, '');
+                $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
+                $this->writeLine($conn, '');
+            }
 
             // Prompt loop - accept a single key immediately
             $choice = '';

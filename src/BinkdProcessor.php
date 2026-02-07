@@ -58,7 +58,7 @@ class BinkdProcessor
     public function processInboundPackets()
     {
         $processed = 0;
-        $this->log("[BINKD] Starting packet processing - inbound path: " . $this->inboundPath);
+        //$this->log("[BINKD] Starting packet processing - inbound path: " . $this->inboundPath);
 
         // Process individual packet files (both lowercase and uppercase)
         $pktFiles = array_merge(
