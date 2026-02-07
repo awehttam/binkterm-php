@@ -180,6 +180,9 @@
 
     <div class="mt-4">
         <button class="btn btn-primary" type="button" onclick="saveBinkpConfig()">Save Configuration</button>
+        <button class="btn btn-secondary ms-2" type="button" onclick="reloadBinkpConfig()" title="Reload configuration without restarting daemon">
+            <i class="fas fa-sync-alt"></i> Reload Config
+        </button>
     </div>
 </div>
 
@@ -397,6 +400,29 @@ function saveBinkpConfig() {
     })
     .catch(error => {
         showBinkpAlert(error.message || 'Failed to save config', 'danger');
+    });
+}
+
+function reloadBinkpConfig() {
+    if (!confirm('Reload binkp daemon configuration? This will send SIGHUP to the daemon.')) {
+        return;
+    }
+
+    showBinkpAlert('Reloading configuration...', 'info');
+
+    fetch('/admin/api/binkp-reload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to reload config');
+        }
+        showBinkpAlert('Configuration reloaded successfully. Daemon has picked up changes.', 'success');
+    })
+    .catch(error => {
+        showBinkpAlert(error.message || 'Failed to reload config', 'danger');
     });
 }
 

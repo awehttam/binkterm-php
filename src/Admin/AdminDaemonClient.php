@@ -91,6 +91,11 @@ class AdminDaemonClient
         return $this->sendCommand('set_full_binkp_config', ['config' => $config]);
     }
 
+    public function reloadBinkpConfig(): array
+    {
+        return $this->sendCommand('reload_binkp_config');
+    }
+
     public function getWebdoorsConfig(): array
     {
         return $this->sendCommand('get_webdoors_config');

@@ -775,6 +775,25 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/binkp-reload', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->reloadBinkpConfig();
+                echo json_encode(['success' => true, 'message' => $result]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
         SimpleRouter::get('/webdoors-config', function() {
             $auth = new Auth();
             $user = $auth->requireAuth();
