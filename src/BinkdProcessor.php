@@ -58,7 +58,8 @@ class BinkdProcessor
     public function processInboundPackets()
     {
         $processed = 0;
-        
+        $this->log("[BINKD] Starting packet processing - inbound path: " . $this->inboundPath);
+
         // Process individual packet files
         $pktFiles = glob($this->inboundPath . '/*.pkt');
         foreach ($pktFiles as $file) {
@@ -99,14 +100,22 @@ class BinkdProcessor
         
         foreach ($bundlePatterns as $pattern) {
             $bundleFiles = glob($this->inboundPath . $pattern);
+            if ($bundleFiles && count($bundleFiles) > 0) {
+                $this->log("[BINKD] Found " . count($bundleFiles) . " files matching pattern: " . $pattern);
+            }
             foreach ($bundleFiles as $file) {
                 try {
+                    $this->log("[BINKD] Processing bundle: " . basename($file));
                     $extractedCount = $this->processBundle($file);
                     if ($extractedCount > 0) {
+                        $this->log("[BINKD] Extracted $extractedCount packets from bundle");
                         $processed += $extractedCount;
                         $this->handleProcessedPacket($file);
+                    } else {
+                        $this->log("[BINKD] Bundle was empty or contained no processable packets");
                     }
                 } catch (\Exception $e) {
+                    $this->log("[BINKD] ERROR processing bundle: " . $e->getMessage());
                     $this->logPacketError($file, $e->getMessage());
                     $this->moveToErrorDir($file);
                 }
