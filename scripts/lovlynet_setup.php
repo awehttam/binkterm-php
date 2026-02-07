@@ -190,7 +190,7 @@ function doRegistration($isUpdate = false) {
 
     // Ask if the BBS is publicly accessible
     echo "\n";
-    $isPublic = confirm("Is your BBS accessible from the public internet?", false);
+    $isPublic = confirm("Is your BBS accessible from the public internet?", true);
     echo "\n";
 
     if ($isPublic) {
