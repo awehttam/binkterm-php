@@ -59,6 +59,7 @@ class TelnetServer
     private ?string $logFile = null;
     private bool $daemonMode = false;
     private ?string $pidFile = null;
+    private ?int $masterPid = null;
     private array $failedLoginAttempts = [];
 
     /**
@@ -278,13 +279,14 @@ class TelnetServer
         $GLOBALS['STDOUT'] = fopen($devNull, 'w');
         $GLOBALS['STDERR'] = fopen($devNull, 'w');
 
-        // Write PID file if configured
+        // Write PID file if configured and store master PID
         if ($this->pidFile) {
             $pidDir = dirname($this->pidFile);
             if (!is_dir($pidDir)) {
                 mkdir($pidDir, 0755, true);
             }
-            file_put_contents($this->pidFile, getmypid());
+            $this->masterPid = getmypid();
+            file_put_contents($this->pidFile, $this->masterPid);
         }
     }
 
@@ -293,7 +295,8 @@ class TelnetServer
      */
     private function cleanupDaemon(): void
     {
-        if ($this->pidFile && file_exists($this->pidFile)) {
+        // Only delete PID file from master process, not forked children
+        if ($this->pidFile && file_exists($this->pidFile) && getmypid() === $this->masterPid) {
             @unlink($this->pidFile);
         }
     }
