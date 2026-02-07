@@ -824,7 +824,7 @@ class BinkdProcessor
      */
     private function storeEchomail($message, $packetInfo = null, $domain)
     {
-        $this->log("[BINKD] storeEchomail called - packet sender address: " . $message['origAddr']);
+        //$this->log("[BINKD] storeEchomail called - packet sender address: " . $message['origAddr']);
 
         // Extract echo area from message text (should be first line)
         // Handle different line ending formats (FTN uses \r\n or \r)
@@ -995,7 +995,7 @@ class BinkdProcessor
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")
                  ->execute([$echoarea['id']]);
 
-        $this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
+        //$this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
     }
 
     private function getOrCreateEchoarea($tag,$domain)
@@ -1161,7 +1161,7 @@ class BinkdProcessor
             // Convert to UTC
             $dt->setTimezone(new \DateTimeZone('UTC'));
             $result = $dt->format('Y-m-d H:i:s');
-            $this->log("DEBUG: Converted from {$senderTzString} to UTC: '{$dateString}' -> '{$result}'");
+            //$this->log("DEBUG: Converted from {$senderTzString} to UTC: '{$dateString}' -> '{$result}'");
             //$this->log(__FILE__.":".__LINE__." returning $result");
             return $result;
         } catch (\Exception $e) {
