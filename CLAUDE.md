@@ -22,6 +22,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - src/ - main source code
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.)
    - **IMPORTANT**: All PHP scripts in scripts/ directory must include shebang line `#!/usr/bin/env php` at the top
+   - **IMPORTANT**: CLI scripts must include `src/functions.php` after autoload to access global functions like `generateTzutc()`: `require_once __DIR__ . '/../src/functions.php';`
    - Scripts should be made executable with `chmod +x` and marked as executable in git with `git update-index --chmod=+x scripts/filename.php`
  - templates/ - html templates
  - public_html/ - the web site files, static assets
@@ -134,8 +135,7 @@ When adding new UserCredit credit/reward types or debit types, you must update c
    - Add validation for the new credit field (check if numeric, non-negative, etc.)
    - Add the field to the `$config['credits']` array that gets saved
    - Ensure proper type casting (int for costs/rewards, float for percentages)
-   - **CRITICAL**: The admin daemon must be restarted after code changes to pick up the new validation
-   - Without this step, the admin interface will send the field but it won't be saved to config
+   - After code changes, restart services using `scripts/restart_daemons.sh` or just restart binkp_server
 
 5. **Update README.md**: Document the new credit type in the README
    - Add the new credit type to the credits system documentation section
@@ -225,7 +225,7 @@ A draft status specification with ideas we can draw upon is in `docs/proposals/W
 ## Known Issues
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
- - PostgreSQL is picky about boolean values - ensure they are properly cast
+ - **PostgreSQL boolean handling:** PostgreSQL is strict about boolean types. When binding boolean values to prepared statements, convert them to strings `'true'` or `'false'` instead of using PHP boolean values. Example: `$isActive ? 'true' : 'false'`
 
 ## Future Plans
  - More BBS-like features such as multi-user interaction, messaging, games, etc.
