@@ -234,6 +234,7 @@ class BinkdProcessor
                 }
             }
         } else {
+            $this->log("FUNKY!  ".__FILE__.":".__LINE__);
             echo __FILE__.":".__LINE__;
             echo "funky";exit;
         }
@@ -1343,7 +1344,7 @@ class BinkdProcessor
         //$this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
         //$this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
         //$this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
-        
+
         // For echomail, keep the actual destination address in message header
         
         // Write message type (2 bytes)
