@@ -109,7 +109,9 @@ function formatAnsiLine(string $text, string $colorCode, int $width): string
         $padded = substr($padded, 0, $width - 2);
     }
     $padded = str_pad($padded, $width - 2);
-    return "\x1b[1;34m|\x1b[0m" . $colorCode . $padded . "\x1b[0m\x1b[1;34m|\x1b[0m";
+    $left = $GLOBALS['borderStyle']['left'] ?? "\x1b[1;34m|\x1b[0m";
+    $right = $GLOBALS['borderStyle']['right'] ?? "\x1b[1;34m|\x1b[0m";
+    return $left . $colorCode . $padded . "\x1b[0m" . $right;
 }
 
 /**
@@ -120,7 +122,9 @@ function formatAnsiLineRaw(string $content, int $width): string
     $padded = ' ' . $content;
     $padded = truncateAnsi($padded, $width - 2);
     $padded = padAnsi($padded, $width - 2);
-    return "\x1b[1;34m|\x1b[0m" . $padded . "\x1b[1;34m|\x1b[0m";
+    $left = $GLOBALS['borderStyle']['left'] ?? "\x1b[1;34m|\x1b[0m";
+    $right = $GLOBALS['borderStyle']['right'] ?? "\x1b[1;34m|\x1b[0m";
+    return $left . $padded . $right;
 }
 
 function randChoice(array $items)
@@ -131,6 +135,30 @@ function randChoice(array $items)
 function randInt(int $min, int $max): int
 {
     return mt_rand($min, $max);
+}
+
+/**
+ * Build a simple ASCII border with color shading.
+ *
+ * @return array{top:string,bottom:string,left:string,right:string}
+ */
+function buildBorderStyle(int $width): array
+{
+    $edgeLen = $width - 2;
+    $color = "\x1b[36m";
+    $reset = "\x1b[0m";
+    $edge = str_repeat('-', $edgeLen);
+    $left = $color . '|' . $reset;
+    $right = $color . '|' . $reset;
+    $top = $color . '+' . $edge . '+' . $reset;
+    $bottom = $color . '+' . $edge . '+' . $reset;
+
+    return [
+        'top' => $top,
+        'bottom' => $bottom,
+        'left' => $left,
+        'right' => $right,
+    ];
 }
 
 /**
@@ -297,7 +325,8 @@ function buildAnsiAd(
     string $extraText = ''
 ): string {
     $width = 72;
-    $border = "\x1b[1;34m+" . str_repeat('-', $width - 2) . "+\x1b[0m";
+    $GLOBALS['borderStyle'] = buildBorderStyle($width);
+    $border = $GLOBALS['borderStyle']['top'];
 
     $palettes = [
         ['40', '44', '46', '47', '100'],
@@ -407,7 +436,7 @@ function buildAnsiAd(
         }
     }
 
-    $lines[] = $border;
+    $lines[] = $GLOBALS['borderStyle']['bottom'];
 
     return implode("\r\n", $lines) . "\r\n";
 }
