@@ -425,18 +425,17 @@ function slugify(string $value): string
 
 function showUsage(): void
 {
-    echo "Usage: php scripts/generate_ad.php [--output=PATH] [--stdout] [--seed=SEED] [--variant=N] [--extra=TEXT]\n";
+    echo "Usage: php scripts/generate_ad.php [--output=PATH] [--seed=SEED] [--variant=N] [--extra=TEXT]\n";
     echo "\n";
     echo "Options:\n";
     echo "  --output=PATH  Write the ANSI ad to a specific file path.\n";
-    echo "  --stdout       Print the ANSI ad to stdout.\n";
     echo "  --seed=SEED    Seed the random generator (int or string).\n";
     echo "  --variant=N    Force layout variant (1-5).\n";
     echo "  --extra=TEXT   Extra line centered near the bottom of the ad.\n";
     echo "  --help         Show this help message.\n";
     echo "\n";
     echo "Default behavior:\n";
-    echo "  Writes the ad to bbs_ads/auto_<system>_<timestamp>.ans and prints the path.\n";
+    echo "  Prints the ANSI ad to stdout.\n";
 }
 
 $args = [];
@@ -494,13 +493,6 @@ if ($variant < 1 || $variant > 5) {
 
 $ansi = buildAnsiAd($systemName, $sysopName, $location, $domains, $siteUrl, $variant, $extraText);
 
-$didOutput = false;
-
-if (isset($args['stdout'])) {
-    echo $ansi;
-    $didOutput = true;
-}
-
 if (isset($args['output'])) {
     $outputPath = $args['output'];
     $outputDir = dirname($outputPath);
@@ -509,18 +501,6 @@ if (isset($args['output'])) {
     }
     file_put_contents($outputPath, $ansi);
     echo "Wrote ANSI ad to: {$outputPath}\n";
-    $didOutput = true;
-}
-
-if (!$didOutput) {
-    $adsDir = __DIR__ . '/../bbs_ads';
-    if (!is_dir($adsDir)) {
-        mkdir($adsDir, 0755, true);
-    }
-
-    $timestamp = date('Ymd_His');
-    $safeName = slugify($systemName);
-    $outputPath = $adsDir . DIRECTORY_SEPARATOR . "auto_{$safeName}_{$timestamp}.ans";
-    file_put_contents($outputPath, $ansi);
-    echo "Wrote ANSI ad to: {$outputPath}\n";
+} else {
+    echo $ansi;
 }
