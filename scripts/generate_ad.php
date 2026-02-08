@@ -187,13 +187,36 @@ function buildBorderStyle(int $width, string $accentLevel = 'none'): array
 }
 
 /**
- * Build 5x5 block font lines for a string.
+ * Build a star border style for ASCII art variant.
  *
- * @return string[]|null Returns 5 lines or null if too wide or empty.
+ * @return array{top:string,bottom:string,left:string,right:string}
  */
-function buildBlockTextLines(string $text, int $width): ?array
+function buildStarBorderStyle(int $width, string $colorCode = "\x1b[1;35m"): array
 {
-    $font = [
+    $edgeLen = $width - 2;
+    $reset = "\x1b[0m";
+    $edge = str_repeat('*', $edgeLen);
+    $top = $colorCode . '*' . $edge . '*' . $reset;
+    $bottom = $colorCode . '*' . $edge . '*' . $reset;
+    $left = $colorCode . '*' . $reset;
+    $right = $colorCode . '*' . $reset;
+
+    return [
+        'top' => $top,
+        'bottom' => $bottom,
+        'left' => $left,
+        'right' => $right,
+    ];
+}
+
+/**
+ * Return the base 5x5 block font map.
+ *
+ * @return array<string, array<int, string>>
+ */
+function getBlockFont(): array
+{
+    return [
         'A' => [" ### ", "#   #", "#####", "#   #", "#   #"],
         'B' => ["#### ", "#   #", "#### ", "#   #", "#### "],
         'C' => [" ####", "#    ", "#    ", "#    ", " ####"],
@@ -233,6 +256,16 @@ function buildBlockTextLines(string $text, int $width): ?array
         ' ' => ["  ", "  ", "  ", "  ", "  "],
         '-' => ["     ", "     ", "#####", "     ", "     "],
     ];
+}
+
+/**
+ * Build 5x5 block font lines for a string.
+ *
+ * @return string[]|null Returns 5 lines or null if too wide or empty.
+ */
+function buildBlockTextLines(string $text, int $width): ?array
+{
+    $font = getBlockFont();
 
     $text = strtoupper(trim($text));
     if ($text === '') {
@@ -259,6 +292,256 @@ function buildBlockTextLines(string $text, int $width): ?array
     return $lines;
 }
 
+/**
+ * Build a scaled outline font from the 5x5 block map.
+ *
+ * @return string[]|null Returns scaled lines or null if too wide or empty.
+ */
+function buildOutlineTextLines(string $text, int $width, int $scale = 2): ?array
+{
+    $font = getBlockFont();
+    $text = strtoupper(trim($text));
+    if ($text === '' || $scale < 1) {
+        return null;
+    }
+
+    $glyphs = [];
+    foreach (str_split($text) as $ch) {
+        $glyphs[] = $font[$ch] ?? $font[' '];
+    }
+
+    $outlineGlyphs = [];
+    foreach ($glyphs as $glyph) {
+        $h = count($glyph);
+        $w = strlen($glyph[0]);
+        $outline = array_fill(0, $h, str_repeat(' ', $w));
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                if ($glyph[$y][$x] !== '#') {
+                    continue;
+                }
+                $isEdge = false;
+                for ($dy = -1; $dy <= 1; $dy++) {
+                    for ($dx = -1; $dx <= 1; $dx++) {
+                        if ($dy === 0 && $dx === 0) {
+                            continue;
+                        }
+                        $ny = $y + $dy;
+                        $nx = $x + $dx;
+                        if ($ny < 0 || $ny >= $h || $nx < 0 || $nx >= $w) {
+                            $isEdge = true;
+                            continue;
+                        }
+                        if ($glyph[$ny][$nx] === ' ') {
+                            $isEdge = true;
+                        }
+                    }
+                }
+                if ($isEdge) {
+                    $row = $outline[$y];
+                    $row[$x] = '#';
+                    $outline[$y] = $row;
+                }
+            }
+        }
+        $outlineGlyphs[] = $outline;
+    }
+
+    $lines = [];
+    $scaledHeight = count($outlineGlyphs[0]) * $scale;
+    for ($y = 0; $y < $scaledHeight; $y++) {
+        $lines[] = '';
+    }
+
+    foreach ($outlineGlyphs as $glyph) {
+        $h = count($glyph);
+        $w = strlen($glyph[0]);
+        for ($y = 0; $y < $h; $y++) {
+            $row = $glyph[$y];
+            $scaledRow = '';
+            for ($x = 0; $x < $w; $x++) {
+                $ch = $row[$x] === '#' ? '#' : ' ';
+                $scaledRow .= str_repeat($ch, $scale);
+            }
+            for ($sy = 0; $sy < $scale; $sy++) {
+                $lines[$y * $scale + $sy] .= $scaledRow . str_repeat(' ', $scale);
+            }
+        }
+    }
+
+    $maxLen = 0;
+    foreach ($lines as $line) {
+        $maxLen = max($maxLen, strlen($line));
+    }
+    if ($maxLen > ($width - 2)) {
+        return null;
+    }
+
+    return $lines;
+}
+
+/**
+ * Build a filled, scaled block font (ASCII '#').
+ *
+ * @return string[]|null
+ */
+function buildFilledTextLines(string $text, int $width, int $scale = 2): ?array
+{
+    $font = getBlockFont();
+    $text = strtoupper(trim($text));
+    if ($text === '' || $scale < 1) {
+        return null;
+    }
+
+    $glyphs = [];
+    foreach (str_split($text) as $ch) {
+        $glyphs[] = $font[$ch] ?? $font[' '];
+    }
+
+    $lines = [];
+    $scaledHeight = count($glyphs[0]) * $scale;
+    for ($y = 0; $y < $scaledHeight; $y++) {
+        $lines[] = '';
+    }
+
+    foreach ($glyphs as $glyph) {
+        $h = count($glyph);
+        $w = strlen($glyph[0]);
+        for ($y = 0; $y < $h; $y++) {
+            $row = $glyph[$y];
+            $scaledRow = '';
+            for ($x = 0; $x < $w; $x++) {
+                $ch = $row[$x] === '#' ? '#' : ' ';
+                $scaledRow .= str_repeat($ch, $scale);
+            }
+            for ($sy = 0; $sy < $scale; $sy++) {
+                $lines[$y * $scale + $sy] .= $scaledRow . str_repeat(' ', $scale);
+            }
+        }
+    }
+
+    $maxLen = 0;
+    foreach ($lines as $line) {
+        $maxLen = max($maxLen, strlen($line));
+    }
+    if ($maxLen > ($width - 2)) {
+        return null;
+    }
+
+    return $lines;
+}
+
+/**
+ * Build a slanted font using the 5x5 block map.
+ *
+ * @return string[]|null
+ */
+function buildSlantTextLines(string $text, int $width): ?array
+{
+    $base = buildBlockTextLines($text, $width);
+    if (!$base) {
+        return null;
+    }
+
+    $lines = [];
+    $slant = 0;
+    foreach ($base as $line) {
+        $lines[] = str_repeat(' ', $slant) . $line;
+        $slant++;
+    }
+
+    $maxLen = 0;
+    foreach ($lines as $line) {
+        $maxLen = max($maxLen, strlen($line));
+    }
+    if ($maxLen > ($width - 2)) {
+        return null;
+    }
+
+    return $lines;
+}
+
+/**
+ * Build title lines using selected font, splitting into multiple lines if needed.
+ *
+ * @return string[]|null
+ */
+function buildTitleLines(string $text, int $width, string $titleFont): ?array
+{
+    $builders = [];
+    if ($titleFont === 'banner') {
+        $builders[] = function (string $lineText) use ($width): ?array {
+            return buildFilledTextLines($lineText, $width, 2);
+        };
+        $builders[] = function (string $lineText) use ($width): ?array {
+            return buildFilledTextLines($lineText, $width, 1);
+        };
+    } elseif ($titleFont === 'outline') {
+        $builders[] = function (string $lineText) use ($width): ?array {
+            return buildOutlineTextLines($lineText, $width, 2);
+        };
+        $builders[] = function (string $lineText) use ($width): ?array {
+            return buildOutlineTextLines($lineText, $width, 1);
+        };
+    } elseif ($titleFont === 'slant') {
+        $builders[] = function (string $lineText) use ($width): ?array {
+            return buildSlantTextLines($lineText, $width);
+        };
+    }
+    $builders[] = function (string $lineText) use ($width): ?array {
+        return buildBlockTextLines($lineText, $width);
+    };
+
+    $text = trim($text);
+    if ($text === '') {
+        return null;
+    }
+
+    $words = preg_split('/\s+/', $text);
+    foreach ($builders as $buildLine) {
+        $linesText = [];
+        $current = '';
+        $ok = true;
+        foreach ($words as $word) {
+            $candidate = $current === '' ? $word : $current . ' ' . $word;
+            $candidateLines = $buildLine($candidate);
+            if ($candidateLines) {
+                $current = $candidate;
+                continue;
+            }
+            if ($current !== '') {
+                $linesText[] = $current;
+                $current = $word;
+            } else {
+                $ok = false;
+                break;
+            }
+        }
+        if (!$ok) {
+            continue;
+        }
+        if ($current !== '') {
+            $linesText[] = $current;
+        }
+
+        $finalLines = [];
+        foreach ($linesText as $lineText) {
+            $lineArt = $buildLine($lineText);
+            if (!$lineArt) {
+                $ok = false;
+                break;
+            }
+            foreach ($lineArt as $line) {
+                $finalLines[] = $line;
+            }
+        }
+        if ($ok && !empty($finalLines)) {
+            return $finalLines;
+        }
+    }
+
+    return null;
+}
 /**
  * Generate a row of ANSI shaded blocks using background colors.
  */
@@ -345,10 +628,13 @@ function buildAnsiAd(
     string $sysopName,
     string $location,
     array $domains,
+    array $webdoors,
     string $siteUrl,
     int $variant,
     string $extraText = '',
-    string $borderAccent = 'none'
+    string $borderAccent = 'none',
+    string $tagline = '',
+    string $titleFont = 'block'
 ): string {
     $width = 72;
     $GLOBALS['borderStyle'] = buildBorderStyle($width, $borderAccent);
@@ -364,40 +650,63 @@ function buildAnsiAd(
     $palette = randChoice($palettes);
 
     $domainText = 'Networks: ' . (empty($domains) ? 'None' : implode(', ', $domains));
+    $webdoorsText = 'WebDoors: ' . (empty($webdoors) ? 'None' : implode(', ', $webdoors));
     $siteText = "Website: {$siteUrl}";
 
     $lines = [];
+    if ($variant === 6) {
+        $GLOBALS['borderStyle'] = buildStarBorderStyle($width);
+        $border = $GLOBALS['borderStyle']['top'];
+    }
+
     $lines[] = $border;
 
     if ($variant === 1) {
-        $blockText = buildBlockTextLines($systemName, $width);
-        if ($blockText) {
-            foreach ($blockText as $line) {
-                $lines[] = formatAnsiLine(centerText($line, $width), "\x1b[1;36m", $width);
-            }
-        } else {
-            $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;36m", $width);
+        // Split panel: left column stats, right column title + website
+        $leftWidth = 26;
+        $rightWidth = ($width - 2) - $leftWidth;
+        $leftLines = [];
+        $leftLines[] = "Sysop: {$sysopName}";
+        $leftLines[] = "Location: {$location}";
+        foreach (wrapText($domainText, $leftWidth) as $line) {
+            $leftLines[] = $line;
         }
-        $lines[] = formatAnsiLine("Sysop: {$sysopName}", "\x1b[1;33m", $width);
-        $lines[] = formatAnsiLine("Location: {$location}", "\x1b[0;37m", $width);
-        foreach (wrapText($domainText, $width - 2) as $domainLine) {
-            $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
+        foreach (wrapText($webdoorsText, $leftWidth) as $line) {
+            $leftLines[] = $line;
         }
-        foreach (wrapText($siteText, $width - 2) as $siteLine) {
-            $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
+
+        $rightLines = [];
+        $rightLines[] = strtoupper($systemName);
+        foreach (wrapText($siteText, $rightWidth) as $line) {
+            $rightLines[] = $line;
         }
         if ($extraText !== '') {
-            $lines[] = formatAnsiLine('', "\x1b[0;37m", $width);
-            foreach (wrapText($extraText, $width - 2) as $extraLine) {
-                $lines[] = formatAnsiLine(centerText($extraLine, $width), "\x1b[1;35m", $width);
+            $rightLines[] = '';
+            foreach (wrapText($extraText, $rightWidth) as $line) {
+                $rightLines[] = $line;
             }
         }
+
+        $rows = max(count($leftLines), count($rightLines));
+        for ($i = 0; $i < $rows; $i++) {
+            $leftText = $leftLines[$i] ?? '';
+            $rightText = $rightLines[$i] ?? '';
+            $leftPart = "\x1b[1;33m" . str_pad($leftText, $leftWidth) . "\x1b[0m";
+            $rightPart = "\x1b[1;36m" . str_pad($rightText, $rightWidth) . "\x1b[0m";
+            $lines[] = formatAnsiLineRaw($leftPart . $rightPart, $width);
+        }
     } elseif ($variant === 2) {
-        $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;36m", $width);
+        // Badge header: framed title banner then details
+        $title = strtoupper($systemName);
+        $badge = "[ " . $title . " ]";
+        $lines[] = formatAnsiLine(centerText($badge, $width), "\x1b[1;36m", $width);
         $lines[] = formatAnsiLine("Sysop: {$sysopName}", "\x1b[1;33m", $width);
         $lines[] = formatAnsiLine("Location: {$location}", "\x1b[0;37m", $width);
         foreach (wrapText($domainText, $width - 2) as $domainLine) {
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
+        }
+        foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -417,6 +726,9 @@ function buildAnsiAd(
         foreach (wrapText($domainText, $width - 2) as $domainLine) {
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
+        foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+        }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
         }
@@ -428,12 +740,19 @@ function buildAnsiAd(
         }
         $lines[] = formatAnsiLineRaw(makeStarRow($width, 0.02), $width);
     } elseif ($variant === 4) {
-        $lines[] = formatAnsiLine(centerText('WELCOME TO', $width), "\x1b[1;33m", $width);
+        // Signal strip with pattern
+        $pattern = str_repeat('-=-', intdiv(($width - 2), 3) + 1);
+        $pattern = substr($pattern, 0, $width - 2);
+        $lines[] = formatAnsiLine($pattern, "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;36m", $width);
+        $lines[] = formatAnsiLine($pattern, "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine("Sysop: {$sysopName}", "\x1b[1;33m", $width);
         $lines[] = formatAnsiLine("Location: {$location}", "\x1b[0;37m", $width);
         foreach (wrapText($domainText, $width - 2) as $domainLine) {
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
+        }
+        foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -444,12 +763,188 @@ function buildAnsiAd(
                 $lines[] = formatAnsiLine(centerText($extraLine, $width), "\x1b[1;35m", $width);
             }
         }
-    } else {
+    } elseif ($variant === 6) {
+        // Star border ANSI ad (ACiD-style layout)
+        $titleLines = buildTitleLines($systemName, $width, $titleFont);
+        if (!$titleLines) {
+            $titleLines = buildBlockTextLines($systemName, $width);
+        }
+        $lines[] = formatAnsiLine('', "\x1b[1;35m", $width);
+        if ($titleLines) {
+            foreach ($titleLines as $line) {
+                $lines[] = formatAnsiLine(centerText($line, $width), "\x1b[1;35m", $width);
+            }
+        } else {
+            $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;35m", $width);
+        }
+        $lines[] = formatAnsiLine('', "\x1b[1;35m", $width);
+        $lines[] = formatAnsiLine("Message Nets: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[1;35m", $width);
+        $lines[] = formatAnsiLine("Door Games: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[1;35m", $width);
+        if ($extraText !== '') {
+            $lines[] = formatAnsiLine($extraText, "\x1b[1;35m", $width);
+        } else {
+            $lines[] = formatAnsiLine("Website: {$siteUrl}", "\x1b[1;35m", $width);
+        }
+    } elseif ($variant === 7) {
+        // Showcase layout with 3 columns
+        $blockText = buildTitleLines($systemName, $width, $titleFont);
+        if (!$blockText) {
+            $blockText = buildBlockTextLines($systemName, $width);
+        }
+        $lines[] = formatAnsiLine('', "\x1b[1;35m", $width);
+        if ($blockText) {
+            foreach ($blockText as $line) {
+                $lines[] = formatAnsiLine(centerText($line, $width), "\x1b[1;35m", $width);
+            }
+        } else {
+            $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;35m", $width);
+        }
+
+        if ($tagline !== '') {
+            $lines[] = formatAnsiLine(centerText($tagline, $width), "\x1b[1;36m", $width);
+        }
+        if ($extraText !== '') {
+            foreach (wrapText($extraText, $width - 2) as $extraLine) {
+                $lines[] = formatAnsiLine(centerText($extraLine, $width), "\x1b[0;37m", $width);
+            }
+        }
+
+        $lines[] = formatAnsiLine('', "\x1b[0;37m", $width);
+
+        $colWidth = intdiv(($width - 2), 3);
+        $leftTitle = 'Active Echomail Nets:';
+        $midTitle = 'Doors:';
+        $rightTitle = 'Contact:';
+
+        $leftLines = [$leftTitle];
+        foreach ($domains as $domain) {
+            $leftLines[] = $domain;
+        }
+
+        $midLines = [$midTitle];
+        foreach ($webdoors as $door) {
+            $midLines[] = $door;
+        }
+
+        $rightLines = [$rightTitle];
+        foreach (wrapText($siteUrl, $colWidth) as $line) {
+            $rightLines[] = $line;
+        }
+
+        $rows = max(count($leftLines), count($midLines), count($rightLines));
+        for ($i = 0; $i < $rows; $i++) {
+            $l = $leftLines[$i] ?? '';
+            $m = $midLines[$i] ?? '';
+            $r = $rightLines[$i] ?? '';
+
+            $l = str_pad($l, $colWidth);
+            $m = str_pad($m, $colWidth);
+            $r = str_pad($r, $colWidth);
+
+            $line = "\x1b[1;33m" . $l . "\x1b[0m"
+                . "\x1b[1;31m" . $m . "\x1b[0m"
+                . "\x1b[1;32m" . $r . "\x1b[0m";
+            $lines[] = formatAnsiLineRaw($line, $width);
+        }
+    } elseif ($variant === 8) {
+        // Matrix/terminal vibe
+        $lines[] = formatAnsiLineRaw(makeStarRow($width, 0.12), $width);
+        $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;32m", $width);
+        if ($tagline !== '') {
+            $lines[] = formatAnsiLine(centerText($tagline, $width), "\x1b[0;32m", $width);
+        }
+        foreach (wrapText($extraText !== '' ? $extraText : 'SYSTEM ONLINE', $width - 2) as $extraLine) {
+            $lines[] = formatAnsiLine(centerText($extraLine, $width), "\x1b[0;32m", $width);
+        }
+        $lines[] = formatAnsiLine("Nets: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine("Doors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine("Web: {$siteUrl}", "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLineRaw(makeStarRow($width, 0.04), $width);
+    } elseif ($variant === 9) {
+        // Retro neon
+        $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;35m", $width);
+        if ($tagline !== '') {
+            $lines[] = formatAnsiLine(centerText($tagline, $width), "\x1b[1;36m", $width);
+        }
+        $lines[] = formatAnsiLine('', "\x1b[0;37m", $width);
+        $lines[] = formatAnsiLine("Website: {$siteUrl}", "\x1b[1;36m", $width);
+        $lines[] = formatAnsiLine("Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[1;35m", $width);
+        $lines[] = formatAnsiLine("WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[1;35m", $width);
+        if ($extraText !== '') {
+            foreach (wrapText($extraText, $width - 2) as $extraLine) {
+                $lines[] = formatAnsiLine($extraLine, "\x1b[0;37m", $width);
+            }
+        }
+    } elseif ($variant === 10) {
+        // Classic BBS menu
         $lines[] = formatAnsiLine(centerText(strtoupper($systemName), $width), "\x1b[1;36m", $width);
+        $lines[] = formatAnsiLine("1) Website: {$siteUrl}", "\x1b[0;37m", $width);
+        $lines[] = formatAnsiLine("2) Sysop: {$sysopName}", "\x1b[0;37m", $width);
+        $lines[] = formatAnsiLine("3) Location: {$location}", "\x1b[0;37m", $width);
+        $lines[] = formatAnsiLine("4) Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine("5) WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[0;32m", $width);
+        if ($extraText !== '') {
+            $lines[] = formatAnsiLine("6) Note: {$extraText}", "\x1b[0;37m", $width);
+        }
+    } elseif ($variant === 11) {
+        // Centered badge + stacked blocks
+        $badge = "[ " . strtoupper($systemName) . " ]";
+        $lines[] = formatAnsiLine(centerText($badge, $width), "\x1b[1;36m", $width);
+        $lines[] = formatAnsiLine(centerText("Sysop: {$sysopName}", $width), "\x1b[1;33m", $width);
+        $lines[] = formatAnsiLine(centerText("Location: {$location}", $width), "\x1b[0;37m", $width);
+        $lines[] = formatAnsiLine(centerText("Website: {$siteUrl}", $width), "\x1b[1;37m", $width);
+        $lines[] = formatAnsiLine(centerText("Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), $width), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine(centerText("WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), $width), "\x1b[0;32m", $width);
+        if ($extraText !== '') {
+            $lines[] = formatAnsiLine(centerText($extraText, $width), "\x1b[1;35m", $width);
+        }
+    } elseif ($variant === 12) {
+        // Dual-panel: left contact, right nets/doors
+        $leftWidth = 30;
+        $rightWidth = ($width - 2) - $leftWidth;
+        $leftLines = [];
+        $leftLines[] = strtoupper($systemName);
+        if ($tagline !== '') {
+            $leftLines[] = $tagline;
+        }
+        $leftLines[] = "Website: {$siteUrl}";
+        $leftLines[] = "Sysop: {$sysopName}";
+        $leftLines[] = "Location: {$location}";
+        if ($extraText !== '') {
+            foreach (wrapText($extraText, $leftWidth) as $line) {
+                $leftLines[] = $line;
+            }
+        }
+
+        $rightLines = [];
+        $rightLines[] = "Networks:";
+        foreach ($domains as $domain) {
+            $rightLines[] = $domain;
+        }
+        $rightLines[] = "WebDoors:";
+        foreach ($webdoors as $door) {
+            $rightLines[] = $door;
+        }
+
+        $rows = max(count($leftLines), count($rightLines));
+        for ($i = 0; $i < $rows; $i++) {
+            $l = $leftLines[$i] ?? '';
+            $r = $rightLines[$i] ?? '';
+            $leftPart = "\x1b[1;36m" . str_pad($l, $leftWidth) . "\x1b[0m";
+            $rightPart = "\x1b[0;32m" . str_pad($r, $rightWidth) . "\x1b[0m";
+            $lines[] = formatAnsiLineRaw($leftPart . $rightPart, $width);
+        }
+    } else {
+        // Echo banner with chevrons
+        $banner = '<< ' . strtoupper($systemName) . ' >>';
+        $lines[] = formatAnsiLine(centerText($banner, $width), "\x1b[1;36m", $width);
         $lines[] = formatAnsiLine("Sysop: {$sysopName}", "\x1b[1;33m", $width);
         $lines[] = formatAnsiLine("Location: {$location}", "\x1b[0;37m", $width);
         foreach (wrapText($domainText, $width - 2) as $domainLine) {
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
+        }
+        foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -480,13 +975,15 @@ function slugify(string $value): string
 
 function showUsage(): void
 {
-    echo "Usage: php scripts/generate_ad.php [--output=PATH] [--seed=SEED] [--variant=N] [--extra=TEXT]\n";
+    echo "Usage: php scripts/generate_ad.php [--output=PATH] [--seed=SEED] [--variant=N] [--extra=TEXT] [--tagline=TEXT] [--title-font=STYLE]\n";
     echo "\n";
     echo "Options:\n";
     echo "  --output=PATH  Write the ANSI ad to a specific file path.\n";
     echo "  --seed=SEED    Seed the random generator (int or string).\n";
-    echo "  --variant=N    Force layout variant (1-5).\n";
-    echo "  --extra=TEXT   Extra line centered near the bottom of the ad.\n";
+    echo "  --variant=N    Force layout variant (1-12).\n";
+    echo "  --extra=TEXT   Extra line centered near the bottom of the ad (or blurb for variant 7).\n";
+    echo "  --tagline=TEXT Tagline line (used by variant 7).\n";
+    echo "  --title-font=STYLE  Title font: block, outline, slant, banner.\n";
     echo "  --border-accent=LEVEL  Border accent level: none, rare, subtle, noticeable.\n";
     echo "  --help         Show this help message.\n";
     echo "\n";
@@ -537,9 +1034,37 @@ foreach ($config->getEnabledUplinks() as $uplink) {
 $domains = array_values(array_unique($domains));
 sort($domains, SORT_NATURAL | SORT_FLAG_CASE);
 
+$webdoors = [];
+$webdoorsPath = __DIR__ . '/../config/webdoors.json';
+if (file_exists($webdoorsPath)) {
+    $webdoorsJson = json_decode((string)file_get_contents($webdoorsPath), true);
+    if (is_array($webdoorsJson)) {
+        foreach ($webdoorsJson as $doorId => $doorConfig) {
+            if (is_array($doorConfig) && ($doorConfig['enabled'] ?? false) === true) {
+                $webdoors[] = toCamelCase((string)$doorId);
+            }
+        }
+    }
+}
+$webdoors = array_values(array_unique($webdoors));
+sort($webdoors, SORT_NATURAL | SORT_FLAG_CASE);
+
 $extraText = '';
 if (isset($args['extra'])) {
     $extraText = trim((string)$args['extra']);
+}
+
+$tagline = '';
+if (isset($args['tagline'])) {
+    $tagline = trim((string)$args['tagline']);
+}
+
+$titleFont = 'block';
+if (isset($args['title-font'])) {
+    $candidate = strtolower(trim((string)$args['title-font']));
+    if (in_array($candidate, ['block', 'outline', 'slant', 'banner'], true)) {
+        $titleFont = $candidate;
+    }
 }
 
 $borderAccent = 'none';
@@ -551,11 +1076,11 @@ if (isset($args['border-accent'])) {
 }
 
 $variant = isset($args['variant']) ? (int)$args['variant'] : 3;
-if ($variant < 1 || $variant > 5) {
+if ($variant < 1 || $variant > 12) {
     $variant = 3;
 }
 
-$ansi = buildAnsiAd($systemName, $sysopName, $location, $domains, $siteUrl, $variant, $extraText, $borderAccent);
+$ansi = buildAnsiAd($systemName, $sysopName, $location, $domains, $webdoors, $siteUrl, $variant, $extraText, $borderAccent, $tagline, $titleFont);
 
 if (isset($args['output'])) {
     $outputPath = $args['output'];

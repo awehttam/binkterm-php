@@ -1145,6 +1145,14 @@ Weekly cron example (every Tuesday at 6:00 AM):
 0 6 * * 2 /usr/bin/php /path/to/binkterm/scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
 ```
 
+Generate ANSI ads from current system settings:
+
+```bash
+php scripts/generate_ad.php --stdout
+```
+
+For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
+
 ### Cron Job Setup
 The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
