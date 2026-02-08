@@ -1169,7 +1169,7 @@ class BinkdProcessor
             return $result;
         } catch (\Exception $e) {
             $this->log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
-            $this->log(__FILE__.":".__LINE__." returning $result");
+            $this->log(__FILE__.":".__LINE__." returning $dateString");
             return $dateString; // Return original date if offset application fails
         }
     }
