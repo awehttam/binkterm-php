@@ -418,14 +418,19 @@ class BinkpSession
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
 
                 if ($this->state === self::STATE_INIT) {
+                    // Answerer hasn't sent ADR yet (rare path)
                     $this->sendAddress();
-                    $this->sendPassword();
-                    $this->state = self::STATE_PWD_SENT;
-                } elseif ($this->state === self::STATE_ADDR_SENT) {
-                    $this->sendPassword();
-                    $this->state = self::STATE_PWD_SENT;
-                } else {
                     $this->state = self::STATE_ADDR_RECEIVED;
+                } elseif ($this->state === self::STATE_ADDR_SENT) {
+                    if ($this->isOriginator) {
+                        // Originator sends M_PWD after receiving answerer's ADR
+                        // (NUL frames with CRAM challenge have been processed by now)
+                        $this->sendPassword();
+                        $this->state = self::STATE_PWD_SENT;
+                    } else {
+                        // Answerer waits for originator's M_PWD
+                        $this->state = self::STATE_ADDR_RECEIVED;
+                    }
                 }
                 break;
 
@@ -433,10 +438,6 @@ class BinkpSession
                 $this->log("M_PWD received", 'DEBUG');
                 if (!$this->validatePassword($frame->getData())) {
                     throw new \Exception('Authentication failed');
-                }
-
-                if ($this->state === self::STATE_ADDR_RECEIVED) {
-                    $this->sendPassword();
                 }
 
                 // Only answerer should send M_OK; originator waits for M_OK
@@ -452,8 +453,32 @@ class BinkpSession
                 break;
 
             case BinkpFrame::M_OK:
-                $this->log("M_OK received", 'DEBUG');
+                $okData = $frame->getData();
+                $this->log("M_OK received: {$okData}", 'DEBUG');
+
                 if ($this->state === self::STATE_PWD_SENT) {
+                    // Parse session type from M_OK response
+                    $okLower = strtolower(trim($okData));
+                    $isSecureResponse = (strpos($okLower, 'non-secure') === false
+                        && strpos($okLower, 'insecure') === false);
+
+                    if ($isSecureResponse) {
+                        $this->sessionType = 'secure';
+                    } else {
+                        $this->sessionType = 'non-secure';
+                    }
+
+                    // If we sent a password but server accepted as non-secure,
+                    // the password was not recognized by the remote
+                    if ($this->isOriginator && !empty($this->uplinkPassword)
+                        && $this->sessionType === 'non-secure') {
+                        throw new \Exception(
+                            'Password rejected: sent password but remote accepted as non-secure. '
+                            . 'Verify password configuration on both ends for node '
+                            . $this->remoteAddress
+                        );
+                    }
+
                     $this->state = self::STATE_AUTHENTICATED;
                 }
                 break;
@@ -469,8 +494,9 @@ class BinkpSession
                     $this->remoteCramSupported = true;
                     $this->log("Received CRAM-MD5 challenge from remote", 'DEBUG');
 
-                    // As originator, decide whether to use CRAM based on uplink config
-                    if ($this->isOriginator && $this->isCramEnabledForUplink()) {
+                    // As originator, always use CRAM-MD5 when the remote offers it
+                    // (crypt config only controls whether WE offer CRAM as answerer)
+                    if ($this->isOriginator) {
                         $this->useCramAuth = true;
                         $this->log("Will use CRAM-MD5 authentication", 'DEBUG');
                     }
