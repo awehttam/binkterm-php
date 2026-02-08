@@ -142,16 +142,41 @@ function randInt(int $min, int $max): int
  *
  * @return array{top:string,bottom:string,left:string,right:string}
  */
-function buildBorderStyle(int $width): array
+function buildBorderStyle(int $width, string $accentLevel = 'none'): array
 {
     $edgeLen = $width - 2;
-    $color = "\x1b[36m";
     $reset = "\x1b[0m";
-    $edge = str_repeat('-', $edgeLen);
-    $left = $color . '|' . $reset;
-    $right = $color . '|' . $reset;
-    $top = $color . '+' . $edge . '+' . $reset;
-    $bottom = $color . '+' . $edge . '+' . $reset;
+    $base = "34";   // dark blue
+    $accentLight = "90"; // light gray
+    $accentWhite = "37"; // white
+
+    $accentRoll = null;
+    if ($accentLevel === 'rare') {
+        $accentRoll = 60;
+    } elseif ($accentLevel === 'subtle') {
+        $accentRoll = 30;
+    } elseif ($accentLevel === 'noticeable') {
+        $accentRoll = 15;
+    }
+
+    $edge = '';
+    for ($i = 0; $i < $edgeLen; $i++) {
+        $color = $base;
+        if ($accentRoll !== null) {
+            $roll = mt_rand(0, $accentRoll - 1);
+            if ($roll === 0) {
+                $color = $accentWhite;
+            } elseif ($roll === 1) {
+                $color = $accentLight;
+            }
+        }
+        $edge .= "\x1b[" . $color . "m-\x1b[0m";
+    }
+
+    $left = "\x1b[" . $base . "m|\x1b[0m";
+    $right = "\x1b[" . $base . "m|\x1b[0m";
+    $top = "\x1b[" . $base . "m+\x1b[0m" . $edge . "\x1b[" . $base . "m+\x1b[0m";
+    $bottom = "\x1b[" . $base . "m+\x1b[0m" . $edge . "\x1b[" . $base . "m+\x1b[0m";
 
     return [
         'top' => $top,
@@ -322,10 +347,11 @@ function buildAnsiAd(
     array $domains,
     string $siteUrl,
     int $variant,
-    string $extraText = ''
+    string $extraText = '',
+    string $borderAccent = 'none'
 ): string {
     $width = 72;
-    $GLOBALS['borderStyle'] = buildBorderStyle($width);
+    $GLOBALS['borderStyle'] = buildBorderStyle($width, $borderAccent);
     $border = $GLOBALS['borderStyle']['top'];
 
     $palettes = [
@@ -461,6 +487,7 @@ function showUsage(): void
     echo "  --seed=SEED    Seed the random generator (int or string).\n";
     echo "  --variant=N    Force layout variant (1-5).\n";
     echo "  --extra=TEXT   Extra line centered near the bottom of the ad.\n";
+    echo "  --border-accent=LEVEL  Border accent level: none, rare, subtle, noticeable.\n";
     echo "  --help         Show this help message.\n";
     echo "\n";
     echo "Default behavior:\n";
@@ -515,12 +542,20 @@ if (isset($args['extra'])) {
     $extraText = trim((string)$args['extra']);
 }
 
+$borderAccent = 'none';
+if (isset($args['border-accent'])) {
+    $candidate = strtolower(trim((string)$args['border-accent']));
+    if (in_array($candidate, ['none', 'rare', 'subtle', 'noticeable'], true)) {
+        $borderAccent = $candidate;
+    }
+}
+
 $variant = isset($args['variant']) ? (int)$args['variant'] : 3;
 if ($variant < 1 || $variant > 5) {
     $variant = 3;
 }
 
-$ansi = buildAnsiAd($systemName, $sysopName, $location, $domains, $siteUrl, $variant, $extraText);
+$ansi = buildAnsiAd($systemName, $sysopName, $location, $domains, $siteUrl, $variant, $extraText, $borderAccent);
 
 if (isset($args['output'])) {
     $outputPath = $args['output'];
