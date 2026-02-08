@@ -33,7 +33,6 @@
             "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
             "password": "xyzzy",
-            "file_password": "",
             "poll_schedule": "*/15 * * * *",
             "enabled": true,
             "compression": false,
