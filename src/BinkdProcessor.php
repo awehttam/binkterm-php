@@ -1314,7 +1314,7 @@ class BinkdProcessor
         $toAddress = trim($message['to_address']);
         
         // Debug logging
-        $this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
+        //$this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
         
         list($origZone, $origNetNode) = explode(':', $fromAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
@@ -1339,10 +1339,10 @@ class BinkdProcessor
         $isEchomail = !$isNetmail && isset($message['is_echomail']) && $message['is_echomail'];
         
         // Debug logging
-        $this->log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
-        $this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
-        $this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
-        $this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
+        //$this->log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
+        //$this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
+        //$this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
+        //$this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
         
         // For echomail, keep the actual destination address in message header
         
