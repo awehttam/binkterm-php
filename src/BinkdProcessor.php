@@ -511,7 +511,7 @@ class BinkdProcessor
                 ];
                 
                 $encoding = $encodingMap[$charset] ?? $charset;
-                $this->log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
+                //$this->log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
                 return $encoding;
             }
         }
@@ -871,7 +871,7 @@ class BinkdProcessor
                     // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
                     if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        $this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
+                        //$this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
                     } else {
                         $this->log("[BINKD] WARNING: Could not extract address from echomail MSGID: " . $messageId);
                     }
@@ -912,7 +912,7 @@ class BinkdProcessor
                 if(!$originalAuthorAddress){
                     if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        $this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
+                        //$this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
                     } else {
                         $this->log("[BINKD] WARNING: Could not extract address from Origin line: " . $line);
                     }
@@ -975,7 +975,9 @@ class BinkdProcessor
                   ", MSGID author: " . ($originalAuthorAddress ?: 'none') .
                   ", Packet sender: " . $message['origAddr'] .
                   ", Using: " . $fromAddress .
-                  ($replyToId ? ", Reply to ID: " . $replyToId : ""));
+                  ($replyToId ? ", Reply to ID: " . $replyToId : "").
+                    ', Subject: '.$message['subject']
+        );
 
         $stmt->execute([
             $echoarea['id'],
