@@ -310,6 +310,61 @@ Each echo area is associated with a domain, and messages are routed to the appro
 
 ---
 
+## LovlyNet Network
+
+### Q: What is LovlyNet?
+**A:** LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227 that provides automated registration and configuration. You can join the network and get an FTN address assigned automatically without manual coordination with a hub sysop.
+
+For complete details, see **[docs/LovlyNet.md](docs/LovlyNet.md)**
+
+### Q: How do I join LovlyNet?
+**A:** Run the setup script:
+```bash
+php scripts/lovlynet_setup.php
+```
+
+The script will guide you through registration, automatically configure your uplink, and subscribe you to default echo areas. See **[docs/LovlyNet.md](docs/LovlyNet.md)** for detailed instructions.
+
+### Q: What's the difference between public and passive nodes?
+**A:**
+- **Public nodes**: Accept inbound connections from the hub. Requires publicly accessible hostname/IP and working `/api/verify` endpoint. Hub can deliver mail directly to you.
+- **Passive nodes**: Poll-only mode for systems behind NAT, firewalls, or with dynamic IPs. No inbound connections accepted. Must poll the hub regularly.
+
+See the "Public vs Passive Nodes" section in **[docs/LovlyNet.md](docs/LovlyNet.md)** for more details.
+
+### Q: How do I update my LovlyNet registration?
+**A:** Run:
+```bash
+php scripts/lovlynet_setup.php --update
+```
+
+This allows you to change your hostname, switch between public/passive modes, or update other registration details while keeping your FTN address.
+
+### Q: Why does LovlyNet verification fail?
+**A:** Public nodes must have a working `/api/verify` endpoint. Test it:
+```bash
+curl https://yourbbs.example.com/api/verify
+```
+
+If this fails, check:
+- Web server is accessible from the internet
+- HTTPS certificate is valid
+- Firewall allows HTTP/HTTPS traffic
+- If unavailable publicly, register as a passive node instead
+
+See the "Troubleshooting" section in **[docs/LovlyNet.md](docs/LovlyNet.md)** for more help.
+
+### Q: How do I set up polling for LovlyNet?
+**A:** For passive nodes, set up a cron job:
+```bash
+# Poll every 15 minutes
+*/15 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
+```
+
+Public nodes can also poll as a fallback, though the hub will deliver mail directly via inbound connections.
+
+---
+
 ## WebDoors
 
 ### Q: How do I add a connection to my text-based BBS?

@@ -280,6 +280,35 @@ class AdminDaemonServer
                     $binkpConfig->setFullConfig($merged);
                     $this->writeResponse($client, ['ok' => true, 'result' => $binkpConfig->getFullConfig()]);
                     break;
+                case 'reload_binkp_config':
+                    $defaultPidFile = __DIR__ . '/../../data/run/binkp_server.pid';
+                    $pidFile = \BinktermPHP\Config::env('BINKP_SERVER_PID_FILE') ?: $defaultPidFile;
+
+                    if (!file_exists($pidFile)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'binkp_server_not_running']);
+                        break;
+                    }
+
+                    $pid = (int)trim(file_get_contents($pidFile));
+                    if ($pid <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_pid']);
+                        break;
+                    }
+
+                    // Check if process exists
+                    if (!posix_kill($pid, 0)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'process_not_found']);
+                        break;
+                    }
+
+                    // Send SIGHUP to reload config
+                    if (posix_kill($pid, SIGHUP)) {
+                        $this->logger->info("Sent SIGHUP to binkp_server (PID: $pid)");
+                        $this->writeResponse($client, ['ok' => true, 'result' => 'Configuration reload signal sent']);
+                    } else {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'failed_to_send_signal']);
+                    }
+                    break;
                 case 'get_webdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getWebdoorsConfig()]);
                     break;

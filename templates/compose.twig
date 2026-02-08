@@ -275,7 +275,8 @@ function loadEchoareas() {
             if (data.echoareas) {
                 allEchoareas = data.echoareas;
                 data.echoareas.forEach(function(area) {
-                    select.append(`<option value="${area.tag}@${area.domain}" data-color="${area.color || '#28a745'}">${area.tag} - ${area.description}</option>`);
+                    const label = area.domain ? area.tag + '@' + area.domain : area.tag;
+                    select.append(`<option value="${area.tag}@${area.domain}" data-color="${area.color || '#28a745'}">${label}</option>`);
                 });
 
                 // Add color styling to select options and refresh cross-post list
@@ -332,11 +333,12 @@ function populateCrossPostAreas() {
         if (val === primaryVal) return;
 
         const id = 'crosspost_' + val.replace(/[@.]/g, '_');
+        const areaLabel = area.domain ? area.tag + '@' + area.domain : area.tag;
         const colorDot = `<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${area.color || '#28a745'}; margin-right:6px; vertical-align:middle;"></span>`;
         container.append(
             `<div class="form-check">
                 <input class="form-check-input cross-post-check" type="checkbox" value="${escapeHtml(val)}" id="${id}">
-                <label class="form-check-label small" for="${id}">${colorDot}${escapeHtml(area.tag)} - ${escapeHtml(area.description)}</label>
+                <label class="form-check-label small" for="${id}">${colorDot}${escapeHtml(areaLabel)}</label>
             </div>`
         );
     });

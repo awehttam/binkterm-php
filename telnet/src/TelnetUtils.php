@@ -405,6 +405,65 @@ class TelnetUtils
     }
 
     /**
+     * Convert locale code to PHP date format string
+     *
+     * @param string $locale Locale code (e.g., 'en-US', 'en-GB')
+     * @return string PHP date format string
+     */
+    private static function localeToPhpDateFormat(string $locale): string
+    {
+        // Map common locale codes to PHP date formats (without seconds)
+        $formats = [
+            'en-US' => 'Y-m-d H:i',  // 2026-02-06 14:30
+            'en-GB' => 'd/m/Y H:i',  // 06/02/2026 14:30
+            'de-DE' => 'd.m.Y H:i',  // 06.02.2026 14:30
+            'fr-FR' => 'd/m/Y H:i',  // 06/02/2026 14:30
+            'ja-JP' => 'Y/m/d H:i',  // 2026/02/06 14:30
+        ];
+
+        return $formats[$locale] ?? 'Y-m-d H:i';
+    }
+
+    /**
+     * Format date using user's timezone and date format preferences
+     *
+     * Converts UTC date to user's timezone and formats according to their preference.
+     * User timezone and format are stored in state during login.
+     *
+     * @param string $utcDate Date string in UTC (from database)
+     * @param array $state Terminal state containing user_timezone and user_date_format
+     * @param bool $includeTimezone Whether to append timezone abbreviation (default: true)
+     * @return string Formatted date string, or original date if formatting fails
+     */
+    public static function formatUserDate(string $utcDate, array $state, bool $includeTimezone = true): string
+    {
+        if (empty($utcDate)) {
+            return '';
+        }
+
+        $userTimezone = $state['user_timezone'] ?? 'UTC';
+        $localeCode = $state['user_date_format'] ?? 'en-US';
+
+        // Convert locale code to PHP date format
+        $dateFormat = self::localeToPhpDateFormat($localeCode);
+
+        try {
+            $dt = new \DateTime($utcDate, new \DateTimeZone('UTC'));
+            $dt->setTimezone(new \DateTimeZone($userTimezone));
+            $formatted = $dt->format($dateFormat);
+
+            if ($includeTimezone) {
+                $formatted .= ' ' . $dt->format('T');
+            }
+
+            return $formatted;
+        } catch (\Exception $e) {
+            // Return original date if formatting fails
+            return $utcDate;
+        }
+    }
+
+    /**
      * Read a single raw character from connection
      *
      * Handles pushback buffer and checks for connection validity.
@@ -432,6 +491,51 @@ class TelnetUtils
         }
 
         return $char;
+    }
+
+    /**
+     * Format a message list line with proper column width calculations
+     *
+     * Calculates column widths based on terminal width to ensure the entire line
+     * fits without wrapping or truncation.
+     *
+     * @param int $num Message number
+     * @param string $from From name
+     * @param string $subject Subject line
+     * @param string $date Formatted date string
+     * @param int $cols Terminal width
+     * @return string Formatted line that fits within terminal width
+     */
+    public static function formatMessageListLine(int $num, string $from, string $subject, string $date, int $cols): string
+    {
+        // Reserve space for number and separators
+        $numWidth = strlen(" {$num}) ");
+
+        // Date column has fixed width based on formatted date
+        $dateWidth = strlen($date);
+
+        // Calculate remaining space for from and subject
+        $remaining = $cols - $numWidth - $dateWidth - 2; // 2 for padding
+
+        // Allocate proportionally: from gets ~30%, subject gets ~70% of remaining space
+        $fromWidth = max(10, (int)($remaining * 0.3));
+        $subjectWidth = max(10, $remaining - $fromWidth - 1); // 1 for space between columns
+
+        // Truncate columns to fit
+        $fromTrunc = substr($from, 0, $fromWidth);
+        $subjectTrunc = substr($subject, 0, $subjectWidth);
+        $dateTrunc = substr($date, 0, $dateWidth);
+
+        // Build the line
+        $line = sprintf(' %d) %-' . $fromWidth . 's %-' . $subjectWidth . 's %s',
+            $num,
+            $fromTrunc,
+            $subjectTrunc,
+            $dateTrunc
+        );
+
+        // Ensure final line doesn't exceed terminal width
+        return substr($line, 0, $cols - 1);
     }
 
     public static function showScreenIfExists(string $screenFile, TelnetServer &$server, $conn)

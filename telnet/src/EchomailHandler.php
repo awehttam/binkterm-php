@@ -195,19 +195,16 @@ class EchomailHandler
                 $num = $idx + 1;
                 $from = $msg['from_name'] ?? 'Unknown';
                 $subject = $msg['subject'] ?? '(no subject)';
-                $date = $msg['date_written'] ?? '';
-                $dateShort = substr($date, 0, 10);
-                $line = sprintf(' %2d) %-20s %-35s %s', $num, substr($from, 0, 20), substr($subject, 0, 35), $dateShort);
+                $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
+                $line = TelnetUtils::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
                 if ($idx === $selectedIndex) {
                     $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
                 }
                 TelnetUtils::writeLine($conn, $line);
             }
             $inputRow = max(1, $rows - 1);
-            $statusRow = max(1, $rows);
-            $promptText = 'Select: ';
-            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H\033[K");
-            TelnetUtils::safeWrite($conn, TelnetUtils::colorize($promptText, TelnetUtils::ANSI_DIM));
+
+            // Build status bar with menu options
             $statusLine = TelnetUtils::buildStatusBar([
                 ['text' => 'U/D', 'color' => TelnetUtils::ANSI_RED],
                 ['text' => ' Move  ', 'color' => TelnetUtils::ANSI_BLUE],
@@ -220,10 +217,10 @@ class EchomailHandler
                 ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED],
                 ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE],
             ], $cols);
-            TelnetUtils::safeWrite($conn, "\033[{$statusRow};1H");
+
+            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H\033[K");
             TelnetUtils::safeWrite($conn, $statusLine . "\r");
-            $inputColStart = strlen($promptText) + 1;
-            TelnetUtils::safeWrite($conn, "\033[{$inputRow};{$inputColStart}H");
+            TelnetUtils::safeWrite($conn, "\033[{$inputRow};1H");
 
             $buffer = '';
             while (true) {
@@ -251,8 +248,8 @@ class EchomailHandler
                     if ($selectedIndex > 0) {
                         $prevIndex = $selectedIndex;
                         $selectedIndex--;
-                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols);
-                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols);
+                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols, $state);
+                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols, $state);
                     }
                     TelnetUtils::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                     continue;
@@ -261,8 +258,8 @@ class EchomailHandler
                     if ($selectedIndex < count($messages) - 1) {
                         $prevIndex = $selectedIndex;
                         $selectedIndex++;
-                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols);
-                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols);
+                        $this->renderMessageListLine($conn, $messages, $prevIndex, false, $listStartRow, $cols, $state);
+                        $this->renderMessageListLine($conn, $messages, $selectedIndex, true, $listStartRow, $cols, $state);
                     }
                     TelnetUtils::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                     continue;
@@ -472,7 +469,7 @@ class EchomailHandler
             $originalBody = $reply['message_text'] ?? '';
             $originalAuthor = $reply['from_name'] ?? 'Unknown';
             if ($originalBody !== '') {
-                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor);
+                $initialText = MailUtils::quoteMessage($originalBody, $originalAuthor, $state);
             }
         }
         $signature = MailUtils::getUserSignature($this->apiBase, $session);
@@ -551,14 +548,22 @@ class EchomailHandler
             );
             $body = $detail['data']['message_text'] ?? '';
 
+            // Format from line with address
+            $fromName = $msg['from_name'] ?? 'Unknown';
+            $fromAddress = $msg['from_address'] ?? '';
+            $fromLine = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
+
+            // Format date using user's timezone and date format preferences
+            $dateFormatted = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state);
+
             $border = str_repeat('-', $width);
             $headerLines = [
                 $border,
-                TelnetUtils::colorize(substr('From: ' . ($msg['from_name'] ?? 'Unknown'), 0, $width), TelnetUtils::ANSI_DIM),
+                TelnetUtils::colorize(substr($fromLine, 0, $width), TelnetUtils::ANSI_DIM),
                 TelnetUtils::colorize(substr('Subj: ' . ($msg['subject'] ?? 'Message'), 0, $width), TelnetUtils::ANSI_BOLD),
                 TelnetUtils::colorize(substr('To: ' . ($msg['to_name'] ?? 'All'), 0, $width), TelnetUtils::ANSI_DIM),
                 TelnetUtils::colorize(substr('Area: ' . $area, 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Date: ' . ($msg['date_written'] ?? ''), 0, $width), TelnetUtils::ANSI_DIM),
+                TelnetUtils::colorize(substr('Date: ' . $dateFormatted, 0, $width), TelnetUtils::ANSI_DIM),
                 $border
             ];
 
@@ -673,7 +678,7 @@ class EchomailHandler
     /**
      * Re-render a single message list line without redrawing the whole screen.
      */
-    private function renderMessageListLine($conn, array $messages, int $idx, bool $selected, int $listStartRow, int $cols): void
+    private function renderMessageListLine($conn, array $messages, int $idx, bool $selected, int $listStartRow, int $cols, array &$state): void
     {
         if (!isset($messages[$idx])) {
             return;
@@ -682,9 +687,8 @@ class EchomailHandler
         $num = $idx + 1;
         $from = $msg['from_name'] ?? 'Unknown';
         $subject = $msg['subject'] ?? '(no subject)';
-        $date = $msg['date_written'] ?? '';
-        $dateShort = substr($date, 0, 10);
-        $line = sprintf(' %2d) %-20s %-35s %s', $num, substr($from, 0, 20), substr($subject, 0, 35), $dateShort);
+        $dateShort = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state, false);
+        $line = TelnetUtils::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
         if ($selected) {
             $line = TelnetUtils::colorize($line, TelnetUtils::ANSI_BG_BLUE . TelnetUtils::ANSI_BOLD);
         }

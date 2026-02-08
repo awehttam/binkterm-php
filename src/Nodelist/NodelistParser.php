@@ -114,8 +114,13 @@ class NodelistParser
         switch (strtolower($keywordType)) {
             case 'zone':
                 $this->currentZone = $nodeNumber;
-                $this->currentNet = $nodeNumber;
+                // Don't set currentNet here - wait for Net/Host/Region line
                 // Zone coordinators are always node 0
+                $nodeNumber = 0;
+                break;
+            case 'net':
+                $this->currentNet = $nodeNumber;
+                // Network coordinators are always node 0
                 $nodeNumber = 0;
                 break;
             case 'region':

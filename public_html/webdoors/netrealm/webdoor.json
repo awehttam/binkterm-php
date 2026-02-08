@@ -1,0 +1,35 @@
+{
+    "webdoor_version": "1.0",
+    "game": {
+        "id": "netrealm",
+        "name": "NetRealm RPG",
+        "version": "1.0.0",
+        "author": "Claude Opus 4.6",
+        "description": "Turn-based RPG where players fight monsters, level up, collect loot, and battle other players in PvP combat.",
+        "entry_point": "index.php",
+        "icon": "icon.svg"
+    },
+    "requirements": {
+        "min_host_version": "1.0",
+        "features": [
+            "credits"
+        ],
+        "permissions": [
+            "user_display_name"
+        ]
+    },
+    "config": {
+        "daily_turns": 25,
+        "starting_gold": 100,
+        "starting_level": 1,
+        "pvp_enabled": true,
+        "credits_per_extra_turn": 5,
+        "max_extra_turns_per_day": 10,
+        "max_inventory_size": 20,
+        "max_rest_uses_per_day": 3,
+        "rest_heal_percent": 50,
+        "pvp_turn_cost": 3,
+        "pvp_level_range": 5,
+        "sell_price_percent": 50
+    }
+}

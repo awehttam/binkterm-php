@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="blade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c0c0c0"/>
+      <stop offset="100%" stop-color="#808080"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a0a2e"/>
+      <stop offset="100%" stop-color="#0d1b2a"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="8" fill="url(#bg)"/>
+  <!-- Shield -->
+  <path d="M32 12 L44 20 L44 36 Q44 48 32 54 Q20 48 20 36 L20 20 Z" fill="#2a1a4e" stroke="#8b5cf6" stroke-width="1.5"/>
+  <path d="M32 16 L41 22 L41 35 Q41 45 32 50 Q23 45 23 35 L23 22 Z" fill="#3b1f6e" opacity="0.5"/>
+  <!-- Sword -->
+  <line x1="32" y1="18" x2="32" y2="42" stroke="url(#blade)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="26" y1="30" x2="38" y2="30" stroke="#d4a017" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="32" cy="30" r="2" fill="#d4a017"/>
+  <rect x="30" y="42" width="4" height="6" rx="1" fill="#8b4513"/>
+  <!-- Stars -->
+  <circle cx="12" cy="12" r="1.5" fill="#ffd700" opacity="0.8"/>
+  <circle cx="52" cy="8" r="1" fill="#ffd700" opacity="0.6"/>
+  <circle cx="8" cy="48" r="1" fill="#ffd700" opacity="0.5"/>
+  <circle cx="56" cy="52" r="1.5" fill="#ffd700" opacity="0.7"/>
+</svg>

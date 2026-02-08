@@ -399,7 +399,7 @@ function formatArticleMessage($article) {
     // Add title (if not already in subject)
     if (!empty($article['title'])) {
         $body .= wordwrap($article['title'], 79) . "\n";
-        $body .= str_repeat('-', min(strlen($article['title']), 79)) . "\n\n";
+        $body .= str_repeat('=', min(strlen($article['title']), 79)) . "\n\n";
     }
 
     // Add description/summary

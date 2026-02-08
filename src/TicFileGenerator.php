@@ -148,7 +148,7 @@ class TicFileGenerator
         $myAddress = $uplink['me'] ?? $this->config->getSystemAddress();
 
         // Build TIC content
-        $ticContent = $this->buildTicContent($file, $fileArea, $filename, $myAddress);
+        $ticContent = $this->buildTicContent($file, $fileArea, $filename, $myAddress, $uplinkAddress, $uplink);
 
         // Write TIC file
         if (file_put_contents($ticPath, $ticContent) === false) {
@@ -163,23 +163,29 @@ class TicFileGenerator
     }
 
     /**
-     * Build TIC file content
+     * Build TIC file content according to FSC-87 specification
      *
      * @param array $file File record
      * @param array $fileArea File area record
      * @param string $filename Original filename (what the file should be named when received)
      * @param string $fromAddress Our FidoNet address
+     * @param string $toAddress Destination uplink address
+     * @param array $uplink Uplink configuration
      * @return string TIC file content
      */
-    private function buildTicContent(array $file, array $fileArea, string $filename, string $fromAddress): string
+    private function buildTicContent(array $file, array $fileArea, string $filename, string $fromAddress, string $toAddress, array $uplink): string
     {
         $lines = [];
 
-        // Area tag (required)
+        // Area tag (required by FSC-87)
         $lines[] = 'Area ' . strtoupper($fileArea['tag']);
 
-        // File name (required) - original filename, not the randomized outbound name
+        // File name (required by FSC-87) - original filename, not the randomized outbound name
         $lines[] = 'File ' . $filename;
+
+        // File size in bytes (required by FSC-87)
+        $fileSize = filesize($file['storage_path']);
+        $lines[] = 'Size ' . $fileSize;
 
         // Short description
         if (!empty($file['short_description'])) {
@@ -197,15 +203,36 @@ class TicFileGenerator
             }
         }
 
-        // Origin address (required)
+        // Upload date/time (optional)
+        if (!empty($file['uploaded_at'])) {
+            $timestamp = strtotime($file['uploaded_at']);
+            $lines[] = 'Date ' . $timestamp;
+        }
+
+        // Origin address (required by FSC-87) - where file originated
+        $lines[] = 'Origin ' . $fromAddress;
+
+        // From address (immediate sender, same as origin for files we create)
         $lines[] = 'From ' . $fromAddress;
 
-        // CRC32 checksum (required)
+        // To address (required by FSC-87) - destination
+        $lines[] = 'To ' . $toAddress;
+
+        // CRC32 checksum (required by FSC-87)
         $crc = $this->calculateCrc32($file['storage_path']);
         $lines[] = 'Crc ' . strtoupper(dechex($crc));
 
         // Path line (shows routing path)
         $lines[] = 'Path ' . $fromAddress;
+
+        // Seenby (required by FSC-87) - at least our address
+        $lines[] = 'Seenby ' . $fromAddress;
+
+        // Password (required by FSC-87) - file area password, not session password
+        // For files we originate, use the area's password if configured, otherwise empty
+        // NOTE: This is the file echo area password, NOT the binkp session password
+        $password = $fileArea['password'] ?? '';
+        $lines[] = 'Pw ' . $password;
 
         // Created by
         $lines[] = 'Created BinktermPHP ' . \BinktermPHP\Version::getVersion();

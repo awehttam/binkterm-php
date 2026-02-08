@@ -49,12 +49,21 @@ class MailUtils
      * @param string $author Author of the original message
      * @return string Quoted message text with attribution
      */
-    public static function quoteMessage(string $body, string $author): string
+    public static function quoteMessage(string $body, string $author, ?array $state = null): string
     {
         $lines = explode("\n", $body);
         $quoted = [];
         $quoted[] = '';
-        $quoted[] = "On " . date('Y-m-d') . ", {$author} wrote:";
+
+        // Use user's date format if state is provided
+        if ($state) {
+            $currentUtc = gmdate('Y-m-d H:i:s');
+            $dateStr = TelnetUtils::formatUserDate($currentUtc, $state, false);
+        } else {
+            $dateStr = date('Y-m-d');
+        }
+
+        $quoted[] = "On {$dateStr}, {$author} wrote:";
         $quoted[] = '';
         foreach ($lines as $line) {
             $quoted[] = '> ' . $line;

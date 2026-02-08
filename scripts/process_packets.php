@@ -21,9 +21,12 @@ function processInboundTicFiles($ticProcessor) {
     $inboundPath = __DIR__ . '/../data/inbound';
     $processedCount = 0;
 
-    // Find all .tic files
-    $ticFiles = glob($inboundPath . '/*.tic');
-    if (!$ticFiles) {
+    // Find all .tic files (both lowercase and uppercase)
+    $ticFiles = array_merge(
+        glob($inboundPath . '/*.tic') ?: [],
+        glob($inboundPath . '/*.TIC') ?: []
+    );
+    if (!$ticFiles || count($ticFiles) === 0) {
         return 0;
     }
 
