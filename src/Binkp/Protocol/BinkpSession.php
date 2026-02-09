@@ -495,9 +495,9 @@ class BinkpSession
                     $this->remoteCramSupported = true;
                     $this->log("Received CRAM-MD5 challenge from remote", 'DEBUG');
 
-                    // As originator, always use CRAM-MD5 when the remote offers it
-                    // (crypt config only controls whether WE offer CRAM as answerer)
-                    if ($this->isOriginator) {
+                    // As originator, use CRAM-MD5 only if uplink config enables it
+                    // (allows plaintext fallback when crypt is disabled)
+                    if ($this->isOriginator && $this->isCramEnabledForUplink()) {
                         $this->useCramAuth = true;
                         $this->log("Will use CRAM-MD5 authentication", 'DEBUG');
                     }
