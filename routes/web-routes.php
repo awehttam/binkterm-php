@@ -148,6 +148,11 @@ SimpleRouter::get('/register', function() {
     }
     $_SESSION['registration_time'] = time();
 
+    // Capture referral code from URL parameter
+    if (isset($_GET['ref']) && !empty($_GET['ref'])) {
+        $_SESSION['referral_code'] = preg_replace('/[^A-Za-z0-9]/', '', $_GET['ref']);
+    }
+
     $template = new Template();
     $template->renderResponse('register.twig');
 });

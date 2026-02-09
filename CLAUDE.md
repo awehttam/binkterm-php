@@ -40,9 +40,86 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - Leave the vendor directory alone. It's managed by composer only
  - **Composer Dependencies**: When adding a new required package to composer.json, the UPGRADING_x.x.x.md document for that version MUST include instructions to run `composer install` before `php scripts/setup.php`. Without this, the upgrade will fail because `vendor/autoload.php` is loaded before setup.php runs.
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
- - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks. 
- - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). PHP migrations are executed by scripts/upgrade.php and receive a $db PDO connection.
+ - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks.
+ - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php).
  - setup.php must be called when upgrading - this is to ensure certain things like file permissions are correct.
+
+### PHP Migration Patterns
+
+PHP migrations support two patterns, both are valid and the upgrade script handles both automatically:
+
+**Pattern 1: Direct Execution** (for simple migrations)
+- Migration executes immediately when included
+- Uses `$db` PDO variable available in scope
+- Returns `true` on success or throws exception on failure
+- Example use case: Creating tables, simple data operations
+
+```php
+<?php
+/**
+ * Migration: 1.9.3 - Create example table
+ */
+
+// $db is available in scope when this file is included
+$db->exec("
+    CREATE TABLE IF NOT EXISTS example_table (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL
+    )
+");
+
+$db->exec("CREATE INDEX IF NOT EXISTS idx_example_name ON example_table(name)");
+
+return true;
+```
+
+**Pattern 2: Callable Function** (for complex migrations with logic)
+- Migration returns a closure/function
+- Function receives `$db` as parameter
+- Better for migrations with loops, conditionals, or complex logic
+- Example use case: Data transformations, backfilling, complex updates
+
+```php
+<?php
+/**
+ * Migration: 1.9.3.3 - Generate referral codes for existing users
+ */
+
+function generateReferralCode(): string {
+    $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    $code = '';
+    for ($i = 0; $i < 8; $i++) {
+        $code .= $characters[random_int(0, strlen($characters) - 1)];
+    }
+    return $code;
+}
+
+// Return a callable that receives $db as parameter
+return function($db) {
+    $stmt = $db->query("SELECT id FROM users WHERE referral_code IS NULL");
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $updateStmt = $db->prepare("UPDATE users SET referral_code = ? WHERE id = ?");
+
+    foreach ($users as $user) {
+        $code = generateReferralCode();
+        $updateStmt->execute([$code, $user['id']]);
+    }
+
+    echo "Generated referral codes for " . count($users) . " users\n";
+    return true;
+};
+```
+
+**How the upgrade script handles both patterns:**
+1. Includes the migration file with `$db` in scope
+2. If the result is callable, calls it with `$db` as parameter
+3. If the result is not callable, uses it directly (Pattern 1 already executed)
+4. Validates that result is not `false` (anything else passes)
+
+**When to use each pattern:**
+- Use **Pattern 1** (direct execution) for simple SQL operations
+- Use **Pattern 2** (callable) for migrations needing helper functions, loops, or complex logic
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.

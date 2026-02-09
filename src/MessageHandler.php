@@ -1903,10 +1903,13 @@ class MessageHandler
                 throw new \Exception("Pending user not found or already processed");
             }
             
+            // Generate referral code based on username
+            $referralCode = $this->generateReferralCodeFromUsername($pendingUser['username']);
+
             // Create actual user account
             $userStmt = $this->db->prepare("
-                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active)
-                VALUES (?, ?, ?, ?, ?, NOW(), TRUE)
+                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active, referral_code, referred_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), TRUE, ?, ?)
             ");
 
             $userStmt->execute([
@@ -1914,9 +1917,11 @@ class MessageHandler
                 $pendingUser['password_hash'],
                 $pendingUser['email'],
                 $pendingUser['real_name'],
-                $pendingUser['location'] ?? null
+                $pendingUser['location'] ?? null,
+                $referralCode,
+                $pendingUser['referrer_id'] ?? null
             ]);
-            
+
             $newUserId = $this->db->lastInsertId();
             
             // Create default user settings
@@ -1935,7 +1940,7 @@ class MessageHandler
             $deleteStmt->execute([$pendingUserId]);
 
             $this->db->commit();
-            
+
             // Send welcome netmail to new user
             $this->sendWelcomeMessage($newUserId, $pendingUser['username'], $pendingUser['real_name']);
 
@@ -1954,6 +1959,29 @@ class MessageHandler
             } catch (\Throwable $e) {
                 error_log('[CREDITS] Failed to grant approval bonus: ' . $e->getMessage());
             }
+
+            // Award referral bonus if applicable
+            if ($pendingUser['referrer_id']) {
+                try {
+                    $creditsConfig = UserCredit::getCreditsConfig();
+
+                    if (($creditsConfig['referral_enabled'] ?? false)
+                        && ($creditsConfig['referral_bonus'] ?? 0) > 0) {
+
+                        $referralBonus = (int)$creditsConfig['referral_bonus'];
+
+                        UserCredit::transact(
+                            (int)$pendingUser['referrer_id'],
+                            $referralBonus,
+                            "Referral bonus for new user: " . $pendingUser['username'],
+                            (int)$newUserId,
+                            UserCredit::TYPE_REFERRAL_BONUS
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    error_log('[CREDITS] Failed to grant referral bonus: ' . $e->getMessage());
+                }
+            }
             
             return $newUserId;
             
@@ -1961,6 +1989,20 @@ class MessageHandler
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Generate referral code based on username
+     * Since usernames are unique, we can use them directly as referral codes
+     *
+     * @param string $username
+     * @return string
+     */
+    private function generateReferralCodeFromUsername(string $username): string
+    {
+        // Username is already validated as alphanumeric + underscores, which is URL-safe
+        // and guaranteed unique by database constraint
+        return $username;
     }
 
     /**

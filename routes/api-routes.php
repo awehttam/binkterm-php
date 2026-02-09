@@ -370,10 +370,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
             $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
+            // Check for referral code in session
+            $referralCode = $_SESSION['referral_code'] ?? null;
+            $referrerId = null;
+
+            if ($referralCode) {
+                // Look up referrer by code (only active users can refer)
+                $referrerStmt = $db->prepare("SELECT id FROM users WHERE referral_code = ? AND is_active = TRUE");
+                $referrerStmt->execute([$referralCode]);
+                $referrer = $referrerStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($referrer) {
+                    $referrerId = (int)$referrer['id'];
+
+                    // Prevent self-referral (in case user is logged in)
+                    if (isset($_SESSION['user']['id']) && $_SESSION['user']['id'] == $referrerId) {
+                        $referrerId = null;
+                    }
+                }
+
+                // Clear referral code from session
+                unset($_SESSION['referral_code']);
+            }
+
             // Insert pending user
             $insertStmt = $db->prepare("
-                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $insertStmt->execute([
@@ -384,7 +407,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $location ?: null,
                 $reason ?: null,
                 $ipAddress,
-                $userAgent
+                $userAgent,
+                $referralCode,
+                $referrerId
             ]);
 
             $pendingUserId = $db->lastInsertId();
@@ -4086,7 +4111,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT * FROM pending_users WHERE id = ?");
+            $stmt = $db->prepare("
+                SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name
+                FROM pending_users p
+                LEFT JOIN users u ON p.referrer_id = u.id
+                WHERE p.id = ?
+            ");
             $stmt->execute([$id]);
             $pendingUser = $stmt->fetch();
 
@@ -4721,5 +4751,133 @@ SimpleRouter::group(['prefix' => '/api/subscriptions'], function() {
     SimpleRouter::post('/admin', function() {
         $controller = new BinktermPHP\SubscriptionController();
         $controller->handleAdminSubscriptions();
+    });
+});
+
+/**
+ * Referral System API Endpoints
+ */
+SimpleRouter::group(['prefix' => '/api/referrals'], function() {
+
+    /**
+     * Get current user's referral statistics
+     * Returns referral code, URL, list of referred users, and total earnings
+     */
+    SimpleRouter::get('/my-stats', function() {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Get user's referral code
+            $stmt = $db->prepare("SELECT referral_code FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user || !$user['referral_code']) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Referral code not found']);
+                return;
+            }
+
+            // Get list of referred users
+            $stmt = $db->prepare("
+                SELECT username, real_name, created_at
+                FROM users
+                WHERE referred_by = ?
+                ORDER BY created_at DESC
+            ");
+            $stmt->execute([$userId]);
+            $referrals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get total credits earned from referrals
+            $stmt = $db->prepare("
+                SELECT COALESCE(SUM(amount), 0) as total_earned
+                FROM user_transactions
+                WHERE user_id = ? AND transaction_type = ?
+            ");
+            $stmt->execute([$userId, UserCredit::TYPE_REFERRAL_BONUS]);
+            $earnings = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Get referral bonus amount for display
+            $creditsConfig = UserCredit::getCreditsConfig();
+            $referralBonus = $creditsConfig['referral_bonus'] ?? 25;
+
+            echo json_encode([
+                'referral_code' => $user['referral_code'],
+                'referral_url' => Config::getSiteUrl() . '/register?ref=' . $user['referral_code'],
+                'referrals' => $referrals,
+                'total_count' => count($referrals),
+                'total_earned' => (int)$earnings['total_earned'],
+                'referral_bonus' => $referralBonus
+            ]);
+
+        } catch (Exception $e) {
+            error_log("Referral stats error: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to retrieve referral statistics']);
+        }
+    });
+
+    /**
+     * Admin endpoint: Get system-wide referral statistics
+     * Requires admin authentication
+     */
+    SimpleRouter::get('/admin/stats', function() {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAdmin();
+
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Total referrals
+            $stmt = $db->query("SELECT COUNT(*) as count FROM users WHERE referred_by IS NOT NULL");
+            $totalReferrals = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+            // Top referrers
+            $stmt = $db->query("
+                SELECT u.username, u.real_name, COUNT(r.id) as referral_count
+                FROM users u
+                INNER JOIN users r ON r.referred_by = u.id
+                GROUP BY u.id, u.username, u.real_name
+                ORDER BY referral_count DESC
+                LIMIT 10
+            ");
+            $topReferrers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Recent referrals
+            $stmt = $db->query("
+                SELECT u.username, u.created_at, r.username as referrer
+                FROM users u
+                INNER JOIN users r ON u.referred_by = r.id
+                ORDER BY u.created_at DESC
+                LIMIT 10
+            ");
+            $recentReferrals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Total credits awarded
+            $stmt = $db->query("
+                SELECT COALESCE(SUM(amount), 0) as total_awarded
+                FROM user_transactions
+                WHERE transaction_type = '" . UserCredit::TYPE_REFERRAL_BONUS . "'
+            ");
+            $totalCreditsAwarded = $stmt->fetch(PDO::FETCH_ASSOC)['total_awarded'];
+
+            echo json_encode([
+                'total_referrals' => (int)$totalReferrals,
+                'top_referrers' => $topReferrers,
+                'recent_referrals' => $recentReferrals,
+                'total_credits_awarded' => (int)$totalCreditsAwarded
+            ]);
+
+        } catch (Exception $e) {
+            error_log("Admin referral stats error: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to retrieve referral statistics']);
+        }
     });
 });

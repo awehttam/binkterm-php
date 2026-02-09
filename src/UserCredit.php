@@ -26,6 +26,7 @@ class UserCredit
     public const TYPE_ADMIN_ADJUSTMENT = 'admin_adjustment';
     public const TYPE_NPC_TRANSACTION = 'npc_transaction';
     public const TYPE_REFUND = 'refund';
+    public const TYPE_REFERRAL_BONUS = 'referral_bonus';
 
     /**
      * Credit a user's balance.
@@ -131,7 +132,8 @@ class UserCredit
             self::TYPE_SYSTEM_REWARD,
             self::TYPE_ADMIN_ADJUSTMENT,
             self::TYPE_NPC_TRANSACTION,
-            self::TYPE_REFUND
+            self::TYPE_REFUND,
+            self::TYPE_REFERRAL_BONUS
         ];
         if (!in_array($type, $validTypes, true)) {
             throw new \Exception('Invalid transaction type');
@@ -333,7 +335,7 @@ class UserCredit
         return $stmt->fetchAll();
     }
 
-    private static function getCreditsConfig(): array
+    public static function getCreditsConfig(): array
     {
         $config = BbsConfig::getConfig();
         $credits = is_array($config['credits'] ?? null) ? $config['credits'] : [];
@@ -349,7 +351,9 @@ class UserCredit
             'crashmail_cost' => 10,
             'poll_creation_cost' => 15,
             'return_14days' => 50,
-            'transfer_fee_percent' => 0.05
+            'transfer_fee_percent' => 0.05,
+            'referral_enabled' => false,
+            'referral_bonus' => 25
         ];
 
         $merged = array_merge($defaults, $credits);
@@ -368,6 +372,8 @@ class UserCredit
         $merged['poll_creation_cost'] = max(0, (int)$merged['poll_creation_cost']);
         $merged['return_14days'] = max(0, (int)$merged['return_14days']);
         $merged['transfer_fee_percent'] = max(0, min(1, (float)$merged['transfer_fee_percent']));
+        $merged['referral_enabled'] = !empty($merged['referral_enabled']);
+        $merged['referral_bonus'] = max(0, (int)$merged['referral_bonus']);
 
         return $merged;
     }

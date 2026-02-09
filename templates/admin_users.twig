@@ -516,6 +516,11 @@ function viewUser(userId) {
                 const user = response.user;
                 const requestedDate = new Date(user.requested_at).toLocaleString();
                 
+                let referrerInfo = '';
+                if (user.referrer_username) {
+                    referrerInfo = `<tr><th>Referred By:</th><td><strong>${escapeHtml(user.referrer_username)}</strong> (${escapeHtml(user.referrer_real_name || '')})</td></tr>`;
+                }
+
                 let details = `
                     <div class="row">
                         <div class="col-md-6">
@@ -527,6 +532,7 @@ function viewUser(userId) {
                                 <tr><th>Location:</th><td>${escapeHtml(user.location || 'Not provided')}</td></tr>
                                 <tr><th>Requested:</th><td>${requestedDate}</td></tr>
                                 <tr><th>IP Address:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
+                                ${referrerInfo}
                             </table>
                         </div>
                         <div class="col-md-6">

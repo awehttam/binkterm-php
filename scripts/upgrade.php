@@ -156,9 +156,15 @@ class DatabaseUpgrader
                 // Read and execute migration file
                 if (($migration['type'] ?? 'sql') === 'php') {
                     $db = $this->db;
-                    $result = (function() use ($migration, $db) {
-                        return include $migration['file'];
-                    })();
+                    $migrationFunction = include $migration['file'];
+
+                    // If the migration returns a callable, execute it with $db
+                    if (is_callable($migrationFunction)) {
+                        $result = $migrationFunction($db);
+                    } else {
+                        $result = $migrationFunction;
+                    }
+
                     if ($result === false) {
                         throw new Exception("PHP migration returned false");
                     }

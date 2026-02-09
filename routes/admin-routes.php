@@ -617,6 +617,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['transfer_fee_percent'] ?? null) || (float)$credits['transfer_fee_percent'] < 0 || (float)$credits['transfer_fee_percent'] > 1) {
                         throw new Exception('Transfer fee must be between 0 and 1 (0% to 100%)');
                     }
+                    if (isset($credits['referral_bonus']) && (!is_numeric($credits['referral_bonus']) || (int)$credits['referral_bonus'] < 0)) {
+                        throw new Exception('Referral bonus must be a non-negative integer');
+                    }
                     $config['credits'] = [
                         'enabled' => !empty($credits['enabled']),
                         'symbol' => $symbol,
@@ -628,7 +631,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'crashmail_cost' => (int)$credits['crashmail_cost'],
                         'poll_creation_cost' => (int)$credits['poll_creation_cost'],
                         'return_14days' => (int)$credits['return_14days'],
-                        'transfer_fee_percent' => (float)$credits['transfer_fee_percent']
+                        'transfer_fee_percent' => (float)$credits['transfer_fee_percent'],
+                        'referral_enabled' => !empty($credits['referral_enabled']),
+                        'referral_bonus' => isset($credits['referral_bonus']) ? (int)$credits['referral_bonus'] : 25
                     ];
                 }
 
