@@ -150,7 +150,10 @@ SimpleRouter::get('/register', function() {
 
     // Capture referral code from URL parameter
     if (isset($_GET['ref']) && !empty($_GET['ref'])) {
-        $_SESSION['referral_code'] = preg_replace('/[^A-Za-z0-9]/', '', $_GET['ref']);
+        $sanitized = preg_replace('/[^A-Za-z0-9_]/', '', $_GET['ref']);
+        if (!empty($sanitized)) {
+            $_SESSION['referral_code'] = $sanitized;
+        }
     }
 
     $template = new Template();
