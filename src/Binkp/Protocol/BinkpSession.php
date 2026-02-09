@@ -1059,9 +1059,25 @@ class BinkpSession
             if ($match) {
                 $this->authMethod = 'cram-md5';
                 $this->sessionType = 'secure';
+                return true;
             }
 
-            return $match;
+            // Check if they're trying to authenticate with "-" (insecure session request)
+            // Compute what the digest would be if password was "-"
+            $dashDigest = $this->computeCramDigest($this->cramChallenge, '-');
+            if (hash_equals($dashDigest, $receivedDigest)) {
+                $this->log("CRAM-MD5 with '-' password detected - checking insecure policy", 'DEBUG');
+                return $this->handleInsecureAuth();
+            }
+
+            // Also check for empty password
+            $emptyDigest = $this->computeCramDigest($this->cramChallenge, '');
+            if (hash_equals($emptyDigest, $receivedDigest)) {
+                $this->log("CRAM-MD5 with empty password detected - checking insecure policy", 'DEBUG');
+                return $this->handleInsecureAuth();
+            }
+
+            return false;
         }
 
         // Plain text password validation
