@@ -214,7 +214,7 @@ fetch('/api/webdoor/netrealm/buy-turns', {
         window.parent.postMessage({
             type: 'binkterm:updateCredits',
             credits: data.balance  // From server, not calculated by JS
-        }, '*');
+        }, window.location.origin);
     }
 });
 ```

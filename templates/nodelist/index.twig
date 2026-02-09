@@ -273,8 +273,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Helper function to strip port number from hostname
     function stripPort(hostname) {
-        // Remove port number if present (e.g., "example.com:24554" -> "example.com")
-        return hostname.split(':')[0];
+        // Handle bracketed IPv6 addresses: [::1]:24554 -> [::1]
+        if (hostname.startsWith('[')) {
+            const closeBracketIndex = hostname.indexOf(']');
+            if (closeBracketIndex !== -1) {
+                // Check if there's a :port after the ]
+                const afterBracket = hostname.substring(closeBracketIndex + 1);
+                if (afterBracket.match(/^:\d+$/)) {
+                    return hostname.substring(0, closeBracketIndex + 1);
+                }
+            }
+            return hostname;
+        }
+
+        // Handle regular hostnames with port: example.com:24554 -> example.com
+        // Only strip if there's exactly one colon followed by digits (not IPv6)
+        const colonCount = (hostname.match(/:/g) || []).length;
+        if (colonCount === 1 && hostname.match(/:\d+$/)) {
+            return hostname.substring(0, hostname.lastIndexOf(':'));
+        }
+
+        // Return unchanged for IPv6 without brackets or hostnames without ports
+        return hostname;
     }
 
     // Handle menu item clicks
