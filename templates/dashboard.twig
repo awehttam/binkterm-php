@@ -138,7 +138,7 @@
 
                 <div class="input-group mb-3">
                     <input type="text" class="form-control form-control-sm" id="referralUrl" readonly>
-                    <button class="btn btn-primary btn-sm" type="button" onclick="copyReferralLink()">
+                    <button class="btn btn-primary btn-sm" type="button" onclick="copyReferralLink(this, event)">
                         <i class="fas fa-copy"></i>
                     </button>
                 </div>
@@ -537,7 +537,7 @@ function loadReferralStats() {
         });
 }
 
-function copyReferralLink() {
+function copyReferralLink(button, evt) {
     const input = document.getElementById('referralUrl');
     input.select();
     input.setSelectionRange(0, 99999); // For mobile devices
@@ -545,12 +545,14 @@ function copyReferralLink() {
     try {
         document.execCommand('copy');
         // Show temporary success feedback
-        const btn = event.target.closest('button');
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i>';
-        setTimeout(() => {
-            btn.innerHTML = originalHTML;
-        }, 2000);
+        const btn = button || (evt && evt.target.closest('button'));
+        if (btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+            }, 2000);
+        }
     } catch (err) {
         console.error('Failed to copy:', err);
     }
