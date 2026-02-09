@@ -271,22 +271,28 @@ document.addEventListener('DOMContentLoaded', function() {
         contextMenu.style.display = 'none';
     });
 
+    // Helper function to strip port number from hostname
+    function stripPort(hostname) {
+        // Remove port number if present (e.g., "example.com:24554" -> "example.com")
+        return hostname.split(':')[0];
+    }
+
     // Handle menu item clicks
     menuHttp.addEventListener('click', function(e) {
         e.preventDefault();
-        window.open('http://' + currentHostname, '_blank');
+        window.open('http://' + stripPort(currentHostname), '_blank');
         contextMenu.style.display = 'none';
     });
 
     menuTelnet.addEventListener('click', function(e) {
         e.preventDefault();
-        window.location.href = 'telnet://' + currentHostname;
+        window.location.href = 'telnet://' + stripPort(currentHostname);
         contextMenu.style.display = 'none';
     });
 
     menuSsh.addEventListener('click', function(e) {
         e.preventDefault();
-        window.location.href = 'ssh://' + currentHostname;
+        window.location.href = 'ssh://' + stripPort(currentHostname);
         contextMenu.style.display = 'none';
     });
 });
