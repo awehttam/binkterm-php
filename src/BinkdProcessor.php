@@ -58,9 +58,13 @@ class BinkdProcessor
     public function processInboundPackets()
     {
         $processed = 0;
-        
-        // Process individual packet files
-        $pktFiles = glob($this->inboundPath . '/*.pkt');
+        //$this->log("[BINKD] Starting packet processing - inbound path: " . $this->inboundPath);
+
+        // Process individual packet files (both lowercase and uppercase)
+        $pktFiles = array_merge(
+            glob($this->inboundPath . '/*.pkt') ?: [],
+            glob($this->inboundPath . '/*.PKT') ?: []
+        );
         foreach ($pktFiles as $file) {
             try {
                 if ($this->processPacket($file)) {
@@ -74,6 +78,7 @@ class BinkdProcessor
         }
         
         // Process compressed bundles (various formats)
+        // Include both lowercase and uppercase patterns for case-sensitive filesystems
         $bundlePatterns = [
             '/*.zip',    // Standard ZIP
             '/*.su?',    // Sunday bundles: .su0, .su1, etc.
@@ -83,6 +88,13 @@ class BinkdProcessor
             '/*.th?',    // Thursday bundles: .th0, .th1, etc.
             '/*.fr?',    // Friday bundles: .fr0, .fr1, etc.
             '/*.sa?',    // Saturday bundles: .sa0, .sa1, etc.
+            '/*.SU?',    // Sunday bundles (uppercase)
+            '/*.MO?',    // Monday bundles (uppercase)
+            '/*.TU?',    // Tuesday bundles (uppercase)
+            '/*.WE?',    // Wednesday bundles (uppercase)
+            '/*.TH?',    // Thursday bundles (uppercase)
+            '/*.FR?',    // Friday bundles (uppercase)
+            '/*.SA?',    // Saturday bundles (uppercase)
             '/*.arc',    // ARC compressed
             '/*.arj',    // ARJ compressed
             '/*.lzh',    // LHA compressed
@@ -91,14 +103,22 @@ class BinkdProcessor
         
         foreach ($bundlePatterns as $pattern) {
             $bundleFiles = glob($this->inboundPath . $pattern);
+            if ($bundleFiles && count($bundleFiles) > 0) {
+                $this->log("[BINKD] Found " . count($bundleFiles) . " files matching pattern: " . $pattern);
+            }
             foreach ($bundleFiles as $file) {
                 try {
+                    $this->log("[BINKD] Processing bundle: " . basename($file));
                     $extractedCount = $this->processBundle($file);
                     if ($extractedCount > 0) {
+                        $this->log("[BINKD] Extracted $extractedCount packets from bundle");
                         $processed += $extractedCount;
                         $this->handleProcessedPacket($file);
+                    } else {
+                        $this->log("[BINKD] Bundle was empty or contained no processable packets");
                     }
                 } catch (\Exception $e) {
+                    $this->log("[BINKD] ERROR processing bundle: " . $e->getMessage());
                     $this->logPacketError($file, $e->getMessage());
                     $this->moveToErrorDir($file);
                 }
@@ -214,6 +234,7 @@ class BinkdProcessor
                 }
             }
         } else {
+            $this->log("FUNKY!  ".__FILE__.":".__LINE__);
             echo __FILE__.":".__LINE__;
             echo "funky";exit;
         }
@@ -491,7 +512,7 @@ class BinkdProcessor
                 ];
                 
                 $encoding = $encodingMap[$charset] ?? $charset;
-                $this->log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
+                //$this->log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
                 return $encoding;
             }
         }
@@ -804,7 +825,7 @@ class BinkdProcessor
      */
     private function storeEchomail($message, $packetInfo = null, $domain)
     {
-        $this->log("[BINKD] storeEchomail called - packet sender address: " . $message['origAddr']);
+        //$this->log("[BINKD] storeEchomail called - packet sender address: " . $message['origAddr']);
 
         // Extract echo area from message text (should be first line)
         // Handle different line ending formats (FTN uses \r\n or \r)
@@ -851,7 +872,7 @@ class BinkdProcessor
                     // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
                     if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        $this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
+                        //$this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
                     } else {
                         $this->log("[BINKD] WARNING: Could not extract address from echomail MSGID: " . $messageId);
                     }
@@ -892,7 +913,7 @@ class BinkdProcessor
                 if(!$originalAuthorAddress){
                     if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        $this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
+                        //$this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
                     } else {
                         $this->log("[BINKD] WARNING: Could not extract address from Origin line: " . $line);
                     }
@@ -926,22 +947,38 @@ class BinkdProcessor
         $replyToId = null;
         $replyMsgId = $this->extractReplyFromKludge($kludgeText);
         if ($replyMsgId) {
+            $this->log("[BINKD]: Looking up parent - REPLY: '" . $replyMsgId . "' (len: " . strlen($replyMsgId) . "), echoarea_id: " . $echoarea['id']);
+
             // Look up parent message by its message_id to get database ID
-            $parentStmt = $this->db->prepare("SELECT id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
+            $parentStmt = $this->db->prepare("SELECT id, message_id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
             $parentStmt->execute([$replyMsgId, $echoarea['id']]);
             $parent = $parentStmt->fetch();
             if ($parent) {
                 $replyToId = $parent['id'];
+                $this->log("[BINKD]: Found parent message ID: " . $replyToId . ", MSGID: '" . $parent['message_id'] . "'");
+            } else {
+                // Try without echoarea restriction to see if parent exists in different area
+                $debugStmt = $this->db->prepare("SELECT id, message_id, echoarea_id FROM echomail WHERE message_id = ? LIMIT 1");
+                $debugStmt->execute([$replyMsgId]);
+                $debugParent = $debugStmt->fetch();
+                if ($debugParent) {
+                    $this->log("[BINKD]: WARNING: Parent found in different echoarea (id: " . $debugParent['echoarea_id'] . ") - cross-area reply?");
+                } else {
+                    $this->log("[BINKD]: Parent message not found - may arrive later (out-of-order) or MSGID mismatch");
+                }
             }
         }
 
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
 
-        $this->log("[BINKD]: Storing echomail - MSGID author: " . ($originalAuthorAddress ?: 'none') .
+        $this->log("[BINKD]: Storing echomail - MSGID: '" . ($messageId ?: 'none') . "' (len: " . strlen($messageId ?: '') . ")" .
+                  ", MSGID author: " . ($originalAuthorAddress ?: 'none') .
                   ", Packet sender: " . $message['origAddr'] .
                   ", Using: " . $fromAddress .
-                  ($replyToId ? ", Reply to ID: " . $replyToId : ""));
+                  ($replyToId ? ", Reply to ID: " . $replyToId : "").
+                    ', Subject: '.$message['subject']
+        );
 
         $stmt->execute([
             $echoarea['id'],
@@ -961,7 +998,7 @@ class BinkdProcessor
         $this->db->prepare("UPDATE echoareas SET message_count = message_count + 1 WHERE id = ?")
                  ->execute([$echoarea['id']]);
 
-        $this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
+        //$this->log("[BINKD] Stored echomail in echoarea id ".$echoarea['id']." from=".$fromAddress." messageId=".$messageId."  subject=".$message['subject']);
     }
 
     private function getOrCreateEchoarea($tag,$domain)
@@ -1127,12 +1164,12 @@ class BinkdProcessor
             // Convert to UTC
             $dt->setTimezone(new \DateTimeZone('UTC'));
             $result = $dt->format('Y-m-d H:i:s');
-            $this->log("DEBUG: Converted from {$senderTzString} to UTC: '{$dateString}' -> '{$result}'");
+            //$this->log("DEBUG: Converted from {$senderTzString} to UTC: '{$dateString}' -> '{$result}'");
             //$this->log(__FILE__.":".__LINE__." returning $result");
             return $result;
         } catch (\Exception $e) {
             $this->log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
-            $this->log(__FILE__.":".__LINE__." returning $result");
+            $this->log(__FILE__.":".__LINE__." returning $dateString");
             return $dateString; // Return original date if offset application fails
         }
     }
@@ -1278,7 +1315,7 @@ class BinkdProcessor
         $toAddress = trim($message['to_address']);
         
         // Debug logging
-        $this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
+        //$this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
         
         list($origZone, $origNetNode) = explode(':', $fromAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
@@ -1303,11 +1340,11 @@ class BinkdProcessor
         $isEchomail = !$isNetmail && isset($message['is_echomail']) && $message['is_echomail'];
         
         // Debug logging
-        $this->log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
-        $this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
-        $this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
-        $this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
-        
+        //$this->log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
+        //$this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
+        //$this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
+        //$this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
+
         // For echomail, keep the actual destination address in message header
         
         // Write message type (2 bytes)
@@ -1720,10 +1757,17 @@ class BinkdProcessor
     {
         $processed = 0;
 
-        // Process all .pkt files in the extracted bundle
-        $extractedFiles = glob($tempDir . '/*.pkt');
+        // Process all .pkt files in the extracted bundle (both lowercase and uppercase)
+        $extractedFiles = array_merge(
+            glob($tempDir . '/*.pkt') ?: [],
+            glob($tempDir . '/*.PKT') ?: []
+        );
+
+        $this->log("[BINKD] Found " . count($extractedFiles) . " packet files in extracted bundle");
+
         foreach ($extractedFiles as $pktFile) {
             try {
+                $this->log("[BINKD] Processing extracted packet: " . basename($pktFile));
                 if ($this->processPacket($pktFile)) {
                     $processed++;
                 }

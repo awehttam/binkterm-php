@@ -418,14 +418,19 @@ class BinkpSession
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
 
                 if ($this->state === self::STATE_INIT) {
+                    // Answerer hasn't sent ADR yet (rare path)
                     $this->sendAddress();
-                    $this->sendPassword();
-                    $this->state = self::STATE_PWD_SENT;
-                } elseif ($this->state === self::STATE_ADDR_SENT) {
-                    $this->sendPassword();
-                    $this->state = self::STATE_PWD_SENT;
-                } else {
                     $this->state = self::STATE_ADDR_RECEIVED;
+                } elseif ($this->state === self::STATE_ADDR_SENT) {
+                    if ($this->isOriginator) {
+                        // Originator sends M_PWD after receiving answerer's ADR
+                        // (NUL frames with CRAM challenge have been processed by now)
+                        $this->sendPassword();
+                        $this->state = self::STATE_PWD_SENT;
+                    } else {
+                        // Answerer waits for originator's M_PWD
+                        $this->state = self::STATE_ADDR_RECEIVED;
+                    }
                 }
                 break;
 
@@ -433,10 +438,6 @@ class BinkpSession
                 $this->log("M_PWD received", 'DEBUG');
                 if (!$this->validatePassword($frame->getData())) {
                     throw new \Exception('Authentication failed');
-                }
-
-                if ($this->state === self::STATE_ADDR_RECEIVED) {
-                    $this->sendPassword();
                 }
 
                 // Only answerer should send M_OK; originator waits for M_OK
@@ -452,8 +453,32 @@ class BinkpSession
                 break;
 
             case BinkpFrame::M_OK:
-                $this->log("M_OK received", 'DEBUG');
+                $okData = $frame->getData();
+                $this->log("M_OK received: {$okData}", 'DEBUG');
+
                 if ($this->state === self::STATE_PWD_SENT) {
+                    // Parse session type from M_OK response
+                    $okLower = strtolower(trim($okData));
+                    $isSecureResponse = (strpos($okLower, 'non-secure') === false
+                        && strpos($okLower, 'insecure') === false);
+
+                    if ($isSecureResponse) {
+                        $this->sessionType = 'secure';
+                    } else {
+                        $this->sessionType = 'non-secure';
+                    }
+
+                    // If we sent a password but server accepted as non-secure,
+                    // the password was not recognized by the remote
+                    if ($this->isOriginator && !empty($this->uplinkPassword)
+                        && $this->sessionType === 'non-secure') {
+                        throw new \Exception(
+                            'Password rejected: sent password but remote accepted as non-secure. '
+                            . 'Verify password configuration on both ends for node '
+                            . $this->remoteAddress
+                        );
+                    }
+
                     $this->state = self::STATE_AUTHENTICATED;
                 }
                 break;
@@ -469,8 +494,9 @@ class BinkpSession
                     $this->remoteCramSupported = true;
                     $this->log("Received CRAM-MD5 challenge from remote", 'DEBUG');
 
-                    // As originator, decide whether to use CRAM based on uplink config
-                    if ($this->isOriginator && $this->isCramEnabledForUplink()) {
+                    // As originator, always use CRAM-MD5 when the remote offers it
+                    // (crypt config only controls whether WE offer CRAM as answerer)
+                    if ($this->isOriginator) {
                         $this->useCramAuth = true;
                         $this->log("Will use CRAM-MD5 authentication", 'DEBUG');
                     }
@@ -680,15 +706,35 @@ class BinkpSession
 
         // Filter TIC pairs for current uplink if applicable
         $ticPairsToSend = [];
+        $ticPairsSkipped = 0;
         if ($this->currentUplink !== null) {
             foreach ($ticPairs as $pair) {
-                // TIC files don't have destination addresses like packets
-                // Send all TIC files for this uplink's domain
-                // This is a simplified approach - could be improved with area subscriptions
+                // Parse TIC file to get destination address
+                $destAddr = $this->getTicDestination($pair['tic']);
+                if ($destAddr === null) {
+                    $this->log("Could not determine destination for TIC: " . basename($pair['tic']) . ", skipping", 'WARNING');
+                    $ticPairsSkipped++;
+                    continue;
+                }
+
+                // Check if this TIC's destination should be routed through the current uplink
+                if (!$this->config->isDestinationForUplink($destAddr, $this->currentUplink)) {
+                    $this->log("TIC " . basename($pair['tic']) . " destined for {$destAddr} not routed through this uplink (" .
+                        ($this->currentUplink['domain'] ?? 'unknown') . "), skipping");
+                    $ticPairsSkipped++;
+                    continue;
+                }
+
+                $this->log("TIC " . basename($pair['tic']) . " destined for {$destAddr} matches uplink " .
+                    ($this->currentUplink['domain'] ?? $this->currentUplink['address']));
                 $ticPairsToSend[] = $pair;
             }
         } else {
             $ticPairsToSend = $ticPairs;
+        }
+
+        if ($ticPairsSkipped > 0) {
+            $this->log("Skipped {$ticPairsSkipped} TIC pairs not for this uplink", 'DEBUG');
         }
 
         $totalFiles = count($filesToSend) + count($ticPairsToSend);
@@ -798,15 +844,46 @@ class BinkpSession
         return null;
     }
 
+    /**
+     * Extract the destination address from a TIC file
+     *
+     * @param string $ticPath Path to TIC file
+     * @return string|null Destination address in zone:net/node format, or null if not found
+     */
+    private function getTicDestination(string $ticPath): ?string
+    {
+        $ticContent = @file_get_contents($ticPath);
+        if ($ticContent === false) {
+            return null;
+        }
+
+        // Parse TIC file to find the "To" field
+        $lines = explode("\n", $ticContent);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match('/^To\s+(.+)$/i', $line, $matches)) {
+                $destAddr = trim($matches[1]);
+                return $destAddr;
+            }
+        }
+
+        return null;
+    }
+
     private function sendFile($filePath)
     {
         $filename = basename($filePath);
         $fileSize = filesize($filePath);
         $timestamp = filemtime($filePath);
 
-        // Get packet destination for logging
-        $destAddr = $this->getPacketDestination($filePath);
+        // Get packet destination for logging (only for .pkt files, not TIC or data files)
         $uplinkAddr = $this->currentUplink['address'] ?? 'unknown';
+        $destAddr = null;
+
+        // Only try to parse packet destination for actual FidoNet packet files
+        if (preg_match('/\.pkt$/i', $filename)) {
+            $destAddr = $this->getPacketDestination($filePath);
+        }
 
         // Format: filename size timestamp [offset]
         // According to binkp spec, format should be: filename size time [offset]
@@ -814,7 +891,11 @@ class BinkpSession
         $frame = BinkpFrame::createCommand(BinkpFrame::M_FILE, $fileInfo);
         $frame->writeToSocket($this->socket);
 
-        $this->log("Sending packet {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+        if ($destAddr) {
+            $this->log("Sending packet {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+        } else {
+            $this->log("Sending file {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
+        }
 
         $handle = fopen($filePath, 'rb');
         if (!$handle) {

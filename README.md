@@ -23,6 +23,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Command Line Scripts](#command-line-scripts)
 - [Telnet Interface](#telnet-interface)
 - [Operation](#operation)
+- [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
@@ -804,6 +805,35 @@ php scripts/echomail_maintenance.php --echo=SYNCDATA --max-age=90 --max-count=20
 
 The maintenance script provides flexible echomail cleanup with age-based deletion, count-based limits, dry-run preview mode, and per-echo or bulk processing. See [scripts/README_echomail_maintenance.md](scripts/README_echomail_maintenance.md) for detailed documentation, cron job examples, and best practices.
 
+### Subscribe Users to Echo Areas
+Forcefully subscribe users to echo areas for important announcements or required areas:
+
+```bash
+# List all echo areas with subscriber counts
+php scripts/subscribe_users.php list
+
+# Show detailed stats for a specific area
+php scripts/subscribe_users.php stats ANNOUNCE@lovlynet
+
+# Subscribe all active users to an area
+php scripts/subscribe_users.php all ANNOUNCE@lovlynet
+
+# Subscribe a specific user to an area
+php scripts/subscribe_users.php user john GENERAL@fidonet
+```
+
+The subscription tool allows administrators to:
+- Bulk subscribe all active users to important areas (announcements, general discussion, etc.)
+- Subscribe individual users to specific areas
+- View subscription statistics and current subscriber lists
+- Skip users who are already subscribed (idempotent)
+- Mark admin-forced subscriptions with `subscription_type = 'admin'`
+
+This is particularly useful for:
+- Ensuring all users see system announcements
+- Pre-subscribing new users to recommended areas
+- Managing default subscriptions for community areas
+
 ### Move Messages Between Echo Areas
 Move all messages from one echo area to another for reorganization or consolidation:
 
@@ -1115,6 +1145,14 @@ Weekly cron example (every Tuesday at 6:00 AM):
 0 6 * * 2 /usr/bin/php /path/to/binkterm/scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
 ```
 
+Generate ANSI ads from current system settings:
+
+```bash
+php scripts/generate_ad.php --stdout
+```
+
+For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
+
 ### Cron Job Setup
 The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
@@ -1138,6 +1176,77 @@ The recommended approach is to start these services at boot (systemd or `@reboot
 # */3 * * * * /usr/bin/php /path/to/binktest/scripts/process_packets.php
 # */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php --all
 ```
+
+## Joining LovlyNet Network
+
+LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227 with automated registration and configuration. You can join the network and get an FTN address assigned automatically without manual coordination with a hub sysop.
+
+### Quick Start
+
+Join LovlyNet in minutes:
+
+```bash
+php scripts/lovlynet_setup.php
+```
+
+The setup script will:
+- Guide you through registration
+- Automatically assign you an FTN address (227:1/10 and up)
+- Configure your uplink connection
+- Subscribe you to default echo areas (BINKTERMPHP, ANNOUNCE, TEST)
+- Generate secure passwords for binkp and areafix
+
+### Public vs Passive Nodes
+
+**Choose Public Node if:**
+- Your BBS is accessible from the internet
+- You have a static IP or domain name
+- You can accept inbound binkp connections
+- Your `/api/verify` endpoint works (automatically provided by BinktermPHP)
+
+**Choose Passive Node if:**
+- Behind NAT without port forwarding
+- Dynamic IP address
+- Firewall restrictions
+- Development/testing system
+
+Passive nodes must poll the hub regularly (cron recommended every 15-30 minutes).
+
+### Setting Up Polling for Passive Nodes
+
+Add to crontab:
+```bash
+# Poll LovlyNet hub every 15 minutes
+*/15 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
+```
+
+### Updating Registration
+
+To change your hostname, switch between public/passive modes, or update other details:
+
+```bash
+php scripts/lovlynet_setup.php --update
+```
+
+### Complete Documentation
+
+For detailed information including:
+- Public vs passive node comparison
+- Step-by-step registration walkthrough
+- Verification endpoint testing
+- Echo area management with AreaFix
+- Troubleshooting common issues
+- Advanced usage scenarios
+
+See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's guide.
+
+### Quick Reference
+
+- **Network**: LovlyNet (Zone 227)
+- **Hub**: 227:1/1 at lovlynet.lovelybits.org:24554
+- **Registration**: Automated via `lovlynet_setup.php`
+- **Echo Areas**: BINKTERMPHP, ANNOUNCE, TEST (auto-subscribed)
+
 
 ## Troubleshooting
 

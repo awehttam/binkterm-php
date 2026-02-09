@@ -331,19 +331,20 @@ class TicFileProcessor
         $domain = $domain ?: $this->getDomainFromTicData($ticData);
 
         // Create file area with sensible defaults
+        // Set upload_permission to READ_ONLY (2) since this is an auto-created file area from TIC
         $stmt = $this->db->prepare("
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
-                max_file_size, replace_existing,
+                max_file_size, replace_existing, upload_permission,
                 created_at, updated_at
             ) VALUES (
                 ?, ?, ?, FALSE, TRUE,
-                10485760, FALSE,
+                10485760, FALSE, ?,
                 NOW(), NOW()
             ) RETURNING id
         ");
 
-        $stmt->execute([$areaTag, $description, $domain]);
+        $stmt->execute([$areaTag, $description, $domain, FileAreaManager::UPLOAD_READ_ONLY]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $result['id'];

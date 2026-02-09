@@ -70,15 +70,8 @@ class ShoutboxHandler
                 $text = $msg['message'] ?? '';
                 // Strip any newlines/carriage returns from message text
                 $text = str_replace(["\r\n", "\r", "\n"], ' ', $text);
-                $date = $msg['created_at'] ?? '';
-                if ($date !== '') {
-                    if (strpos($date, '.') !== false) {
-                        $date = explode('.', $date, 2)[0];
-                    }
-                    if (preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/', $date, $matches)) {
-                        $date = $matches[1];
-                    }
-                }
+                // Format date using user's timezone and date format preferences
+                $date = TelnetUtils::formatUserDate($msg['created_at'] ?? '', $state, false);
                 $lines[] = sprintf('[%s] %s: %s', $date, $user, $text);
             }
         }

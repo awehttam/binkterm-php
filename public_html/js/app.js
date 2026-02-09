@@ -213,34 +213,70 @@ function formatMessageText(messageText, searchTerms = []) {
 }
 
 // Helper function to highlight search terms in escaped HTML text
+// Only highlights text content, not text inside HTML tags or attributes
 function highlightSearchTerms(htmlText, searchTerms) {
     if (!searchTerms || searchTerms.length === 0 || !htmlText) {
         return htmlText;
     }
 
-    let highlightedText = htmlText;
-
     // Sort search terms by length (longest first) to avoid partial matches inside longer terms
     const sortedTerms = searchTerms.slice().sort((a, b) => b.length - a.length);
 
-    for (const term of sortedTerms) {
-        if (term.length < 2) continue; // Skip single character terms
+    // Split HTML into text and tag parts to avoid highlighting inside tags/attributes
+    // This regex matches HTML tags (including their attributes)
+    const htmlTagPattern = /<[^>]+>/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
 
-        // Create a case-insensitive regex that matches the term
-        const escapedTerm = escapeRegex(term);
-        const regex = new RegExp(escapedTerm, 'gi');
-
-        highlightedText = highlightedText.replace(regex, function(match) {
-            // Avoid double-highlighting by checking if we're already inside a highlight span
-            return `<span class="search-highlight">${match}</span>`;
+    // Split the HTML into alternating text and tag segments
+    while ((match = htmlTagPattern.exec(htmlText)) !== null) {
+        // Add text before this tag
+        if (match.index > lastIndex) {
+            parts.push({
+                type: 'text',
+                content: htmlText.substring(lastIndex, match.index)
+            });
+        }
+        // Add the tag itself
+        parts.push({
+            type: 'tag',
+            content: match[0]
+        });
+        lastIndex = htmlTagPattern.lastIndex;
+    }
+    // Add remaining text after last tag
+    if (lastIndex < htmlText.length) {
+        parts.push({
+            type: 'text',
+            content: htmlText.substring(lastIndex)
         });
     }
 
+    // Now highlight search terms only in text parts
+    for (const term of sortedTerms) {
+        if (term.length < 2) continue; // Skip single character terms
+
+        const escapedTerm = escapeRegex(term);
+        const regex = new RegExp(escapedTerm, 'gi');
+
+        for (let i = 0; i < parts.length; i++) {
+            if (parts[i].type === 'text') {
+                parts[i].content = parts[i].content.replace(regex, function(match) {
+                    return `<span class="search-highlight">${match}</span>`;
+                });
+            }
+        }
+    }
+
+    // Reconstruct the HTML
+    let result = parts.map(p => p.content).join('');
+
     // Clean up nested highlighting that might occur
-    highlightedText = highlightedText.replace(/<span class="search-highlight">([^<]*)<span class="search-highlight">([^<]*)<\/span>([^<]*)<\/span>/gi,
+    result = result.replace(/<span class="search-highlight">([^<]*)<span class="search-highlight">([^<]*)<\/span>([^<]*)<\/span>/gi,
         '<span class="search-highlight">$1$2$3</span>');
 
-    return highlightedText;
+    return result;
 }
 
 // Helper function to escape special regex characters

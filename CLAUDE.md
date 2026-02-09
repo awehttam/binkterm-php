@@ -21,6 +21,9 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
 
  - src/ - main source code
  - scripts/ - CLI tools (binkp_server, binkp_poll, maintenance scripts, etc.)
+   - **IMPORTANT**: All PHP scripts in scripts/ directory must include shebang line `#!/usr/bin/env php` at the top
+   - **IMPORTANT**: CLI scripts must include `src/functions.php` after autoload to access global functions like `generateTzutc()`: `require_once __DIR__ . '/../src/functions.php';`
+   - Scripts should be made executable with `chmod +x` and marked as executable in git with `git update-index --chmod=+x scripts/filename.php`
  - templates/ - html templates
  - public_html/ - the web site files, static assets
  - tests/ - test scripts used in debugging and troubleshooting
@@ -35,6 +38,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - Always write out schema changes. A database will need to be created from scratch and schema/migrations are how it needs to be done. Migration scripts follow the naming convention v<VERSION>_<description>.sql, eg: v1.7.5_description.sql
  - When adding features to netmail and echomail, keep in mind feature parity. Ask for clarification about whether a feature is appropriate to both
  - Leave the vendor directory alone. It's managed by composer only
+ - **Composer Dependencies**: When adding a new required package to composer.json, the UPGRADING_x.x.x.md document for that version MUST include instructions to run `composer install` before `php scripts/setup.php`. Without this, the upgrade will fail because `vendor/autoload.php` is loaded before setup.php runs.
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
  - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks. 
  - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). PHP migrations are executed by scripts/upgrade.php and receive a $db PDO connection.
@@ -131,8 +135,7 @@ When adding new UserCredit credit/reward types or debit types, you must update c
    - Add validation for the new credit field (check if numeric, non-negative, etc.)
    - Add the field to the `$config['credits']` array that gets saved
    - Ensure proper type casting (int for costs/rewards, float for percentages)
-   - **CRITICAL**: The admin daemon must be restarted after code changes to pick up the new validation
-   - Without this step, the admin interface will send the field but it won't be saved to config
+   - After code changes, restart services using `scripts/restart_daemons.sh` or just restart binkp_server
 
 5. **Update README.md**: Document the new credit type in the README
    - Add the new credit type to the credits system documentation section
@@ -222,7 +225,7 @@ A draft status specification with ideas we can draw upon is in `docs/proposals/W
 ## Known Issues
  - Some technical information on the protocols used by 'binkp' are old and may be difficult to find
  - Date parsing occasionally has edge cases with malformed timestamps from various FTN software
- - PostgreSQL is picky about boolean values - ensure they are properly cast
+ - **PostgreSQL boolean handling:** PostgreSQL is strict about boolean types. When binding boolean values to prepared statements, convert them to strings `'true'` or `'false'` instead of using PHP boolean values. Example: `$isActive ? 'true' : 'false'`
 
 ## Future Plans
  - More BBS-like features such as multi-user interaction, messaging, games, etc.

@@ -749,12 +749,15 @@ class MessageHandler
             }
         }
 
-        // Generate MSGID for storage (address + hash format)
-        $msgIdHash = $this->generateMessageId($senderName, $toName, $subject, $originAddress);
-        $msgId = $originAddress . ' ' . $msgIdHash;
-
         // Generate kludges for this netmail
         $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
+
+        // Extract MSGID from generated kludges to ensure consistency
+        // The kludges contain the authoritative MSGID that will be sent in packets
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
 
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
@@ -857,19 +860,21 @@ class MessageHandler
         $senderUser = $this->getUserById($fromUserId);
         $senderName = $fromName ?: ($senderUser['real_name'] ?: $senderUser['username']);
 
-        // Generate MSGID for local message
-        $msgIdHash = $this->generateMessageId($senderName, $sysopName, $subject, $systemAddress);
-        $msgId = $systemAddress . ' ' . $msgIdHash;
-
         // Generate kludges for this local netmail
         $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId);
+
+        // Extract MSGID from generated kludges to ensure consistency
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
 
         // Create local netmail message to sysop
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
             $sysopUser['id'],
             $systemAddress,
@@ -942,13 +947,19 @@ class MessageHandler
         $fromName = $user['real_name'] ?: $user['username'];
         $toName = $toName ?: 'All';
         $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
-        $msgId = $myAddress . ' ' . $this->generateMessageId($fromName, $toName, $subject, $myAddress);
-        
+
+        // Extract MSGID from generated kludges to ensure consistency
+        // The kludges contain the authoritative MSGID that will be sent in packets
+        $msgId = null;
+        if (preg_match('/\x01MSGID:\s*(.+?)$/m', $kludgeLines, $matches)) {
+            $msgId = trim($matches[1]);
+        }
+
         $stmt = $this->db->prepare("
             INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
             $echoarea['id'],
             $myAddress,
@@ -1371,7 +1382,7 @@ class MessageHandler
         $toAddr = $message['to_address'] ?? 'unknown';
         $subject = $message['subject'] ?? '(no subject)';
 
-        error_log("[SPOOL] Spooling netmail #{$messageId}: from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
+        //error_log("[SPOOL] Spooling netmail #{$messageId}: from=\"{$fromName}\" <{$fromAddr}> to=\"{$toName}\" <{$toAddr}>, subject=\"{$subject}\"");
 
         try {
             $binkdProcessor = new BinkdProcessor();
@@ -1387,11 +1398,11 @@ class MessageHandler
 
             if ($uplink) {
                 $routeAddress = $uplink['address'];
-                error_log("[SPOOL] Routing netmail through uplink {$routeAddress} for destination {$toAddr}");
+                //error_log("[SPOOL] Routing netmail through uplink {$routeAddress} for destination {$toAddr}");
             } else {
                 // No uplink found - try direct delivery (for local or crash mail)
                 $routeAddress = $toAddr;
-                error_log("[SPOOL] No uplink found for {$toAddr}, attempting direct delivery");
+                //error_log("[SPOOL] No uplink found for {$toAddr}, attempting direct delivery");
             }
 
             // Create outbound packet routed through the uplink (or direct if no uplink)
@@ -1402,7 +1413,7 @@ class MessageHandler
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
 
-            error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
+            //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
             // Log error but don't fail the message creation
@@ -1428,7 +1439,7 @@ class MessageHandler
 
         // Check if this is a local-only echoarea
         if (!empty($message['is_local'])) {
-            error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
+            //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
             return true; // Success - message stored locally, no upstream transmission needed
         }
 
@@ -1438,7 +1449,7 @@ class MessageHandler
         $subject = $message['subject'] ?? '(no subject)';
         $areaTag = $message['echoarea_tag'] ?? $echoareaTag;
 
-        error_log("[SPOOL] Spooling echomail #{$messageId}: area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
+        //error_log("[SPOOL] Spooling echomail #{$messageId}: area={$areaTag}, from=\"{$fromName}\" <{$fromAddr}>, subject=\"{$subject}\"");
 
         try {
             $binkdProcessor = new BinkdProcessor();
@@ -1458,7 +1469,7 @@ class MessageHandler
                 $message['to_address'] = $uplinkAddress;
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
-                error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
+                //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
                 error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
                 return false;
