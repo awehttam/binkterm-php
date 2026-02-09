@@ -158,7 +158,8 @@ class SourceServerQuery
 header('Content-Type: application/json');
 
 // Get server list from config
-require_once __DIR__ . '/../../../vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\GameConfig;
 

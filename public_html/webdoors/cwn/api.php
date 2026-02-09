@@ -6,7 +6,8 @@
  * Handles all CRUD operations, validation, and credit integration
  */
 
-require_once __DIR__ . '/../../../vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\Auth;
 use BinktermPHP\Database;
@@ -413,15 +414,17 @@ function handleSearch($db, $userId)
 function searchByRadius($db, float $lat, float $lon, float $radiusKm, array $filters): array
 {
     $sql = "
-        SELECT *,
-            (6371 * acos(
-                cos(radians(?)) * cos(radians(latitude)) *
-                cos(radians(longitude) - radians(?)) +
-                sin(radians(?)) * sin(radians(latitude))
-            )) AS distance_km
-        FROM cwn_networks
-        WHERE is_active = TRUE
-        HAVING distance_km <= ?
+        SELECT * FROM (
+            SELECT *,
+                (6371 * acos(
+                    cos(radians(?)) * cos(radians(latitude)) *
+                    cos(radians(longitude) - radians(?)) +
+                    sin(radians(?)) * sin(radians(latitude))
+                )) AS distance_km
+            FROM cwn_networks
+            WHERE is_active = TRUE
+        ) AS networks_with_distance
+        WHERE distance_km <= ?
         ORDER BY distance_km
         LIMIT 100
     ";

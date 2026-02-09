@@ -163,6 +163,71 @@ The system uses this priority order for credit values:
 - Test both new installations (using defaults) and existing installations (manual config) when adding new credit types
 - When updating a template to add information about user credits use the credits_enabled variable in the twig template to determine whether to show the information
 
+### Credit Transaction Security
+**CRITICAL SECURITY REQUIREMENT**: Credit balance modifications must ONLY occur server-side in PHP. Client-side JavaScript can never initiate, request, or perform credit transactions.
+
+**Core Principle:**
+JavaScript requests **business actions** (play game, buy item, send message). The server decides if those actions involve credits and handles all credit operations internally. JavaScript never explicitly requests credit modifications.
+
+**What JavaScript CAN do:**
+- Request business actions: `POST /api/webdoor/netrealm/buy-turns`
+- Update credit display with balance returned by server
+- Communicate display updates to parent window via `postMessage`
+
+**What JavaScript CANNOT do:**
+- Request credit operations (no endpoints like `/api/credits/deduct` or `/api/credits/add`)
+- Tell server to modify credit balances in any way
+- Perform any credit calculations or transactions
+
+**Secure Server-Side Pattern:**
+```php
+// WebDoor API endpoint - /api/webdoor/netrealm/buy-turns
+// JavaScript requests a business action, server handles credits internally
+$userCredit = new UserCredit($userId);
+if ($userCredit->deductCredits($cost, 'netrealm_extra_turns')) {
+    // Perform the business action
+    $game->addTurns(5);
+    // Return new balance for display only
+    return ['success' => true, 'balance' => $userCredit->getBalance()];
+}
+```
+
+**WebDoors and Credits:**
+- WebDoors run in iframes and communicate via `postMessage` API
+- WebDoor JavaScript calls business action endpoints (not credit endpoints)
+- Server validates, performs credit transaction if needed, returns new balance
+- WebDoor updates its display and notifies parent to update header display
+- Parent window only updates display with server-provided values
+
+**Example - Correct Flow:**
+```javascript
+// WebDoor requests business action (buying turns)
+fetch('/api/webdoor/netrealm/buy-turns', {
+    method: 'POST',
+    body: JSON.stringify({turns: 5})
+})
+.then(response => response.json())
+.then(data => {
+    if (data.success) {
+        // Server decided cost, performed transaction, returned new balance
+        // Update parent window display with server's balance
+        window.parent.postMessage({
+            type: 'binkterm:updateCredits',
+            credits: data.balance  // From server, not calculated by JS
+        }, '*');
+    }
+});
+```
+
+**Never expose credit-specific endpoints to JavaScript:**
+```
+❌ POST /api/credits/deduct
+❌ POST /api/credits/add
+❌ POST /api/credits/set
+✅ POST /api/webdoor/game/buy-item (server handles credits internally)
+✅ POST /api/games/play-turn (server handles credits internally)
+```
+
 ## Recent Features Added
 
 ### WebDoors System
@@ -183,12 +248,29 @@ A draft status specification with ideas we can draw upon is in `docs/proposals/W
 - `GameConfig` - Manages per-door configuration from config/webdoors.json
 - `WebDoorController` - Handles game session management and API endpoints
 
+**WebDoor SDK (`public_html/webdoors/_doorsdk/`):**
+- The `_doorsdk` directory contains common reusable functions (SDK) for WebDoors to use
+- **JavaScript SDK**: Shared client-side utilities for API calls, postMessage communication, credit display, etc.
+- **PHP SDK**: Server-side helper functions and bootstrap code that WebDoors should include
+  - **Bootstrap**: The PHP SDK (`php/helpers.php`) automatically handles BinktermPHP initialization:
+    - Defines `BINKTERMPHP_BASEDIR` constant
+    - Loads `vendor/autoload.php`
+    - Initializes database connection
+    - Starts PHP session
+  - **Usage**: WebDoors should include the SDK as the first require: `require_once __DIR__ . '/../_doorsdk/php/helpers.php';`
+  - **Important**: WebDoors should NOT directly require `vendor/autoload.php` - use the SDK instead
+- WebDoors should use SDK functions instead of duplicating common logic
+- The SDK provides standardized interfaces for BBS integration (credits, user info, messaging, etc.)
+- When adding new common functionality that multiple WebDoors might use, consider adding it to the SDK
+- The underscore prefix (`_doorsdk`) indicates this is a system directory, not a game
+
 **Important Notes:**
 - When adding WebDoor API functionality or making changes to the WebDoor system (not individual webdoors themselves), update `docs/WebDoors.md` to reflect new features
 - WebDoor specification is evolving - keep documentation synchronized with implementation
 - All WebDoor games must include a valid `webdoor.json` manifest
 - Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
 - Games access BBS functionality through REST API endpoints at `/api/webdoor/*`
+- **WebDoor API Independence**: Each WebDoor must implement its own API routes and backend logic. Do NOT modify `routes/api-routes.php`, `routes/web-routes.php`, or other core BBS APIs to add WebDoor functionality unless explicitly instructed. WebDoor APIs should be self-contained within the WebDoor's own route files (e.g., `routes/webdoor-netrealm-routes.php`) or handled by `WebDoorController`. This keeps WebDoors modular and prevents pollution of core application routes.
 
 ### Multi-Network Support
 - **Multiple Networks**: The system supports multiple FTN networks through individual uplinks with domain-based routing

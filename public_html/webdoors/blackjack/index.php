@@ -1,23 +1,13 @@
 <?php
 
-if (!defined('BINKTERMPHP_BASEDIR')) {
-    define('BINKTERMPHP_BASEDIR', dirname(__DIR__, 3));
-}
-
-require_once BINKTERMPHP_BASEDIR . '/vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\Auth;
 use BinktermPHP\BbsConfig;
-use BinktermPHP\Database;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\UserCredit;
-
-Database::getInstance();
-
-if (!headers_sent() && session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
 
 $auth = new Auth();
 $user = $auth->getCurrentUser();
@@ -447,6 +437,12 @@ try {
   <h2>Leaderboard</h2>
   <ul id="leaderboard"></ul>
 
+  <!-- WebDoor SDK -->
+  <script src="../_doorsdk/js/api.js"></script>
+  <script src="../_doorsdk/js/credits.js"></script>
+  <script src="../_doorsdk/js/messaging.js"></script>
+
+  <!-- Game Scripts -->
   <script src="js/webdoor.js"></script>
   <script src="js/blackjack.js"></script>
 </body>

@@ -647,13 +647,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
         $chatBadge = $chatTotal > $lastChatCount ? $chatTotal : 0;
 
+        // Get user's credit balance
+        $creditBalance = 0;
+        if (\BinktermPHP\UserCredit::isEnabled()) {
+            try {
+                $creditBalance = \BinktermPHP\UserCredit::getBalance($userId);
+            } catch (\Exception $e) {
+                $creditBalance = 0;
+            }
+        }
+
         echo json_encode([
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
             'chat_total' => (int)$chatBadge,
             'total_netmail' => $unreadNetmail,
             'total_echomail' => $unreadEchomail,
-            'total_chat' => $chatTotal
+            'total_chat' => $chatTotal,
+            'credit_balance' => $creditBalance
         ]);
     });
 

@@ -134,6 +134,8 @@ async function apiAction(action, payload = {}) {
 
 function applyServerState(data) {
   if (!data || !data.state) return;
+
+  const oldBankroll = state.bankroll;
   state = { ...state, ...data.state };
   if (Number.isFinite(data.balance)) state.bankroll = data.balance;
   if (data.symbol) state.symbol = data.symbol;
@@ -154,6 +156,13 @@ function applyServerState(data) {
     lastRoundProcessed = state.roundId;
     autosaveAndMaybeScore(state.lastOutcome);
     refreshLeaderboardBestEffort();
+
+    // Update parent window credit display if balance changed
+    if (oldBankroll !== state.bankroll && Number.isFinite(state.bankroll)) {
+      if (typeof WebDoorCredits !== 'undefined') {
+        WebDoorCredits.updateDisplay(state.bankroll);
+      }
+    }
   }
 }
 

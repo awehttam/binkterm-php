@@ -7,24 +7,16 @@
  * POST: JSON API routing via 'action' field.
  */
 
-if (!defined('BINKTERMPHP_BASEDIR')) {
-    define('BINKTERMPHP_BASEDIR', dirname(__DIR__, 3));
-}
-
-require_once BINKTERMPHP_BASEDIR . '/vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\Auth;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Database;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\UserCredit;
-
-Database::getInstance();
-
-if (!headers_sent() && session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
 
 $auth = new Auth();
 $user = $auth->getCurrentUser();
@@ -65,7 +57,7 @@ $symbol = $creditsConfig['symbol'] ?? '$';
 // Get node address for PvP sync
 $nodeAddress = '0:0/0';
 try {
-    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $binkpConfig = BinkpConfig::getInstance();
     $nodeAddress = $binkpConfig->getSystemAddress() ?: '0:0/0';
 } catch (\Throwable $e) {
     // Non-fatal

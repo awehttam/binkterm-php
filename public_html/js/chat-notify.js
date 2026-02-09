@@ -25,6 +25,19 @@
         updateMessagingIcon();
     }
 
+    function updateCreditBalance(stats) {
+        const creditBalanceElement = document.getElementById('headerCreditBalance');
+        if (creditBalanceElement && stats?.credit_balance !== undefined) {
+            // Extract the credit symbol from the existing text (everything before the number)
+            const currentText = creditBalanceElement.textContent || '';
+            const symbolMatch = currentText.match(/^([^\d]*)/);
+            const symbol = symbolMatch ? symbolMatch[1] : '';
+
+            // Update with new balance
+            creditBalanceElement.textContent = symbol + stats.credit_balance;
+        }
+    }
+
     function updateMailIcons(stats, clearTarget = null) {
         const netmailIcon = document.getElementById('netmailMenuIcon');
         const echomailIcon = document.getElementById('echomailMenuIcon');
@@ -59,6 +72,7 @@
         }
 
         updateMessagingIcon();
+        updateCreditBalance(stats);
     }
 
     async function refreshMailState(clearTarget = null) {
@@ -119,6 +133,23 @@
         }
         setInterval(refreshMailState, 30000);
     }
+
+    // Listen for postMessage events from WebDoors (credit updates, etc.)
+    window.addEventListener('message', (event) => {
+        // Handle credit balance updates from WebDoors
+        if (event.data && event.data.type === 'binkterm:updateCredits') {
+            const creditBalanceElement = document.getElementById('headerCreditBalance');
+            if (creditBalanceElement && event.data.credits !== undefined) {
+                // Extract the credit symbol from the existing text
+                const currentText = creditBalanceElement.textContent || '';
+                const symbolMatch = currentText.match(/^([^\d]*)/);
+                const symbol = symbolMatch ? symbolMatch[1] : '';
+
+                // Update with new balance from WebDoor
+                creditBalanceElement.textContent = symbol + event.data.credits;
+            }
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', init);
 })();
