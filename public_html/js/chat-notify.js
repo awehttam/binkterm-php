@@ -3,6 +3,8 @@
     let mailUnreadTotal = 0;
     let chatUnread = false;
     let mailUnread = { netmail: false, echomail: false };
+    let initialized = false;
+    let pollInterval = null;
 
     function updateMessagingIcon() {
         const messagingIcon = document.getElementById('messagingMenuIcon');
@@ -110,6 +112,12 @@
     }
 
     async function init() {
+        // Prevent multiple initializations
+        if (initialized) {
+            return;
+        }
+        initialized = true;
+
         // Get current stats first, then mark as seen with the current count
         const stats = await fetch('/api/dashboard/stats').then(r => r.json()).catch(() => ({}));
 
@@ -131,7 +139,12 @@
         if (!isPathMatch('/netmail') && !isPathMatch('/echomail')) {
             refreshMailState();
         }
-        setInterval(refreshMailState, 30000);
+
+        // Clear any existing interval and create new one
+        if (pollInterval) {
+            clearInterval(pollInterval);
+        }
+        pollInterval = setInterval(refreshMailState, 30000);
     }
 
     // Listen for postMessage events from WebDoors (credit updates, etc.)
