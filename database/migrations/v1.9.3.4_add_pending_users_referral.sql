@@ -1,4 +1,4 @@
--- Migration: 1.9.2.6 - Add referral tracking to pending users
+-- Migration: 1.9.3.4 - Add referral tracking to pending users
 ALTER TABLE pending_users
 ADD COLUMN IF NOT EXISTS referral_code VARCHAR(50),
 ADD COLUMN IF NOT EXISTS referrer_id INT REFERENCES users(id) ON DELETE SET NULL;
