@@ -244,14 +244,16 @@ try {
 
                 // Send M_PWD after receiving M_ADR
                 if (!$sentPwd) {
+                    $digest = null;
                     if ($cramChallenge) {
                         $digest = computeCramDigest($cramChallenge, $password);
                         $pwdData = "CRAM-MD5-{$digest}";
+                        log_msg("  Sending M_PWD (challenge={$cramChallenge}, digest={$digest})...");
                     } else {
                         $pwdData = $password;
+                        log_msg("  Sending M_PWD (plain text, password_len=" . strlen($password) . ")...");
                     }
 
-                    log_msg("  Sending M_PWD (challenge={$cramChallenge}, password_len=" . strlen($password) . ", digest={$digest})...");
                     sendFrame($stream, true, 2, $pwdData, true); // M_PWD with debug
                     $sentPwd = true;
                 }

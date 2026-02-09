@@ -4808,7 +4808,7 @@ SimpleRouter::group(['prefix' => '/api/referrals'], function() {
 
             echo json_encode([
                 'referral_code' => $user['referral_code'],
-                'referral_url' => Config::getSiteUrl() . '/register?ref=' . $user['referral_code'],
+                'referral_url' => Config::getSiteUrl() . '/register?ref=' . rawurlencode($user['referral_code']),
                 'referrals' => $referrals,
                 'total_count' => count($referrals),
                 'total_earned' => (int)$earnings['total_earned'],

@@ -139,12 +139,18 @@ class BinkdProcessor
         $remoteAddress = null;
 
         if (file_exists($metadataFile)) {
-            $metadata = json_decode(file_get_contents($metadataFile), true);
-            $isInsecureSession = $metadata['insecure_session'] ?? false;
-            $remoteAddress = $metadata['remote_address'] ?? null;
+            $raw = file_get_contents($metadataFile);
+            $metadata = $raw !== false ? json_decode($raw, true) : null;
 
-            if ($isInsecureSession) {
-                $this->log("[BINKD] Packet $packetName received via INSECURE session from $remoteAddress");
+            if (is_array($metadata) && json_last_error() === JSON_ERROR_NONE) {
+                $isInsecureSession = $metadata['insecure_session'] ?? false;
+                $remoteAddress = $metadata['remote_address'] ?? null;
+
+                if ($isInsecureSession) {
+                    $this->log("[BINKD] Packet $packetName received via INSECURE session from $remoteAddress");
+                }
+            } else {
+                $this->log("[BINKD] Metadata parse failed for $packetName");
             }
 
             // Clean up metadata file

@@ -996,8 +996,21 @@ class BinkpSession
                         'remote_address' => $this->remoteAddress ?? 'unknown',
                         'received_at' => time()
                     ];
-                    file_put_contents($metadataFile, json_encode($metadata, JSON_PRETTY_PRINT));
-                    $this->log("Created metadata file for insecure packet: " . $this->currentFile['name'], 'DEBUG');
+
+                    $jsonData = json_encode($metadata, JSON_PRETTY_PRINT);
+                    if ($jsonData === false) {
+                        $jsonError = json_last_error_msg();
+                        $this->log("ERROR: Failed to encode metadata for packet '{$this->currentFile['name']}': {$jsonError}", 'ERROR');
+                    } else {
+                        $result = file_put_contents($metadataFile, $jsonData);
+                        if ($result === false) {
+                            $lastError = error_get_last();
+                            $errorMsg = $lastError ? $lastError['message'] : 'unknown error';
+                            $this->log("ERROR: Failed to write metadata file '{$metadataFile}' for packet '{$this->currentFile['name']}': {$errorMsg}", 'ERROR');
+                        } else {
+                            $this->log("Created metadata file for insecure packet: " . $this->currentFile['name'], 'DEBUG');
+                        }
+                    }
                 }
 
                 // Send M_GOT
