@@ -220,7 +220,7 @@ fetch('/api/webdoor/netrealm/buy-turns', {
 ```
 
 **Never expose credit-specific endpoints to JavaScript:**
-```
+```text
 ❌ POST /api/credits/deduct
 ❌ POST /api/credits/add
 ❌ POST /api/credits/set

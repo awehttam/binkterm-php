@@ -10,6 +10,14 @@ const WebDoorMessaging = (function() {
     const listeners = new Map();
 
     /**
+     * Get the target origin for postMessage
+     * Uses same origin as current window for security
+     */
+    function getTargetOrigin() {
+        return window.location.origin;
+    }
+
+    /**
      * Send a message to the parent BBS window
      *
      * @param {string} type - Message type (should be prefixed with 'binkterm:')
@@ -30,7 +38,7 @@ const WebDoorMessaging = (function() {
         window.parent.postMessage({
             type: type,
             ...data
-        }, '*');
+        }, getTargetOrigin());
     }
 
     /**
@@ -89,12 +97,27 @@ const WebDoorMessaging = (function() {
      */
     function init() {
         window.addEventListener('message', (event) => {
-            // Basic origin validation (you may want to make this stricter)
-            // For now, we accept messages from same origin
+            // Validate origin - only accept messages from same origin
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+
+            // Validate source - must be parent window
+            if (event.source !== window.parent) {
+                return;
+            }
+
+            // Validate event.data is an object before destructuring
+            if (!event.data || typeof event.data !== 'object' || Array.isArray(event.data)) {
+                return;
+            }
 
             const { type, ...data } = event.data;
 
-            if (!type) return;
+            // Validate type is a non-empty string
+            if (!type || typeof type !== 'string') {
+                return;
+            }
 
             const callbacks = listeners.get(type);
             if (callbacks) {

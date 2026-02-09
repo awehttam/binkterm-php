@@ -210,12 +210,22 @@ function sanitize(string $input): string
  */
 function log(string $doorId, string $message, string $level = 'INFO'): void
 {
+    // Sanitize doorId to prevent path traversal attacks
+    // Only allow alphanumerics, dots, underscores, and dashes
+    $safeDoorId = preg_replace('/[^a-zA-Z0-9._-]/', '', $doorId);
+
+    // If sanitization removed all characters or doorId is empty, use fallback
+    if ($safeDoorId === '' || $safeDoorId !== $doorId) {
+        // Use hash of original doorId as fallback for invalid names
+        $safeDoorId = 'invalid_' . substr(hash('sha256', $doorId), 0, 16);
+    }
+
     $logDir = __DIR__ . '/../../../../data/logs';
     if (!is_dir($logDir)) {
         mkdir($logDir, 0755, true);
     }
 
-    $logFile = $logDir . '/webdoor_' . $doorId . '.log';
+    $logFile = $logDir . '/webdoor_' . $safeDoorId . '.log';
     $timestamp = date('Y-m-d H:i:s');
     $logMessage = "[{$timestamp}] [{$level}] {$message}\n";
 

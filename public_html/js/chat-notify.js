@@ -30,13 +30,19 @@
     function updateCreditBalance(stats) {
         const creditBalanceElement = document.getElementById('headerCreditBalance');
         if (creditBalanceElement && stats?.credit_balance !== undefined) {
+            // Validate credit_balance is a finite number
+            const creditValue = Number(stats.credit_balance);
+            if (!Number.isFinite(creditValue)) {
+                return; // Leave existing text unchanged if invalid
+            }
+
             // Extract the credit symbol from the existing text (everything before the number)
             const currentText = creditBalanceElement.textContent || '';
             const symbolMatch = currentText.match(/^([^\d]*)/);
             const symbol = symbolMatch ? symbolMatch[1] : '';
 
             // Update with new balance
-            creditBalanceElement.textContent = symbol + stats.credit_balance;
+            creditBalanceElement.textContent = symbol + Math.floor(creditValue);
         }
     }
 
@@ -149,18 +155,32 @@
 
     // Listen for postMessage events from WebDoors (credit updates, etc.)
     window.addEventListener('message', (event) => {
+        // Validate origin - only accept messages from same origin
+        if (event.origin !== window.location.origin) {
+            return;
+        }
+
         // Handle credit balance updates from WebDoors
         if (event.data && event.data.type === 'binkterm:updateCredits') {
             const creditBalanceElement = document.getElementById('headerCreditBalance');
-            if (creditBalanceElement && event.data.credits !== undefined) {
-                // Extract the credit symbol from the existing text
-                const currentText = creditBalanceElement.textContent || '';
-                const symbolMatch = currentText.match(/^([^\d]*)/);
-                const symbol = symbolMatch ? symbolMatch[1] : '';
-
-                // Update with new balance from WebDoor
-                creditBalanceElement.textContent = symbol + event.data.credits;
+            if (!creditBalanceElement) {
+                return;
             }
+
+            // Validate credits value is numeric and non-negative
+            const credits = event.data.credits;
+            if (typeof credits !== 'number' || !isFinite(credits) || credits < 0) {
+                console.warn('Invalid credits value received:', credits);
+                return;
+            }
+
+            // Extract the credit symbol from the existing text
+            const currentText = creditBalanceElement.textContent || '';
+            const symbolMatch = currentText.match(/^([^\d]*)/);
+            const symbol = symbolMatch ? symbolMatch[1] : '';
+
+            // Update with validated balance from WebDoor
+            creditBalanceElement.textContent = symbol + Math.floor(credits);
         }
     });
 

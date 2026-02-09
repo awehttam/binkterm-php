@@ -52,7 +52,13 @@ $terminalPort = Config::env('TERMINAL_PORT', '22');
 $terminalHosts[] = ["hostname" => $terminalHost, "port" => $terminalPort, "proto" => "ssh"];
 $gameConfig = GameConfig::getGameConfig("terminal");
 
-$terminalHosts =array_merge($terminalHosts, $gameConfig['hosts']);
+// Guard against null GameConfig or missing 'hosts' key
+$configHosts = [];
+if (is_array($gameConfig) && isset($gameConfig['hosts']) && is_array($gameConfig['hosts'])) {
+    $configHosts = $gameConfig['hosts'];
+}
+
+$terminalHosts = array_merge($terminalHosts, $configHosts);
 
 // Check if terminal is enabled.
 if (!$terminalEnabled) {

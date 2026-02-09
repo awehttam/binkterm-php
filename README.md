@@ -613,7 +613,7 @@ You can customize the welcome messages displayed to users in various parts of th
 Create `config/terminal_welcome.txt` to display a custom message on the terminal login page. If this file exists, it replaces the default "SSH Connection to host:port" message. The content supports multiple lines and will be displayed exactly as written.
 
 Example `config/terminal_welcome.txt`:
-```
+```text
 Welcome to MyBBS Terminal Gateway!
 
 Connect to our shell server to access:
@@ -1009,7 +1009,7 @@ php scripts/process_packets.php
 Fidonet day bundles (e.g., `.su0`, `.mo1`, `.we1`) and legacy archives like `.arc`, `.arj`, `.lzh`, `.rar` may contain `.pkt` files. BinktermPHP will try ZIP first, then fall back to external extractors.
 
 Configure extractors via `.env`:
-```
+```bash
 ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
 ```
 
@@ -1459,7 +1459,7 @@ The server accepts either `userid` or `user_id` as the key.
 ### Remote verification example
 
 
-```json
+```php
 <?php
 
 /**

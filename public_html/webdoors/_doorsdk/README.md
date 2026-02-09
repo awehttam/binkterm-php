@@ -71,7 +71,17 @@ session_start();
 - SDK functions handle authentication and authorization automatically
 - Always validate user input even when using SDK helpers
 - SDK enforces server-side credit transactions (client cannot directly modify credits)
-- PostMessage APIs validate message origins for security
+- **PostMessage Security**:
+  - All messages are restricted to same-origin (window.location.origin)
+  - Source validation ensures messages only come from parent window
+  - Payload structure validated before processing (type safety)
+  - Invalid messages are silently rejected to prevent errors
+  - No wildcard (*) targetOrigin - uses specific origin for security
+- **Path Traversal Protection**:
+  - `log()` function sanitizes doorId to prevent path traversal attacks
+  - Only allows alphanumerics, dots, underscores, and dashes in filenames
+  - Invalid characters result in hashed fallback filename
+  - Prevents arbitrary file write vulnerabilities
 
 ## Contributing to SDK
 
