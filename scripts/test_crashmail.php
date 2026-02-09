@@ -66,6 +66,84 @@ for ($i = 3; $i < $argc; $i++) {
     }
 }
 
+// Helper functions for manual binkp file sending
+function sendPacketFile($stream, $filePath, $logger) {
+    $filename = basename($filePath);
+    $fileSize = filesize($filePath);
+    $timestamp = filemtime($filePath);
+
+    $logger->log('INFO', "Sending file: {$filename} ({$fileSize} bytes)");
+
+    // Send M_FILE frame (opcode 3)
+    $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+    $frame = chr(0x80 | 0x03) . pack('n', strlen($fileInfo)) . $fileInfo; // M_FILE = 3
+    fwrite($stream, $frame);
+    fflush($stream);
+
+    // Send file data in chunks
+    $handle = fopen($filePath, 'rb');
+    $offset = 0;
+    while (!feof($handle)) {
+        $chunk = fread($handle, 4096);
+        $chunkLen = strlen($chunk);
+        if ($chunkLen > 0) {
+            // Send M_DATA frame (opcode = 0x00, no high bit)
+            $dataFrame = chr(0x00) . pack('n', $chunkLen) . $chunk;
+            fwrite($stream, $dataFrame);
+            fflush($stream);
+            $offset += $chunkLen;
+        }
+    }
+    fclose($handle);
+
+    $logger->log('INFO', "File sent: {$filename}");
+}
+
+function sendEOB($stream, $logger) {
+    // Send M_EOB (End of Batch) - opcode 0x05
+    $logger->log('INFO', "Sending EOB");
+    $frame = chr(0x80 | 0x05) . pack('n', 0);
+    fwrite($stream, $frame);
+    fflush($stream);
+}
+
+function waitForConfirmation($stream, $filename, $logger) {
+    $logger->log('INFO', "Waiting for confirmation...");
+    $timeout = time() + 30;
+
+    while (time() < $timeout) {
+        $header = fread($stream, 3);
+        if ($header === false || strlen($header) < 3) {
+            usleep(100000); // 100ms
+            continue;
+        }
+
+        $opcode = ord($header[0]) & 0x7F;
+        $dataLen = unpack('n', substr($header, 1, 2))[1];
+
+        $data = '';
+        if ($dataLen > 0) {
+            $data = fread($stream, $dataLen);
+        }
+
+        // M_GOT = 6
+        if ($opcode == 6) {
+            $logger->log('INFO', "Received M_GOT: {$data}");
+            if (strpos($data, $filename) !== false) {
+                return true;
+            }
+        }
+
+        // M_EOB = 5
+        if ($opcode == 5) {
+            $logger->log('INFO', "Received EOB from remote");
+            break;
+        }
+    }
+
+    return false;
+}
+
 echo "=== BinktermPHP Crashmail Test ===\n";
 echo "Remote: {$remoteIp}:{$options['port']}\n";
 echo "To: {$toAddress}\n";
@@ -167,22 +245,40 @@ try {
 
     $logger->log('INFO', "Connected! Starting binkp session...");
 
+    // Convert socket to stream (BinkpSession expects a stream resource)
+    $stream = socket_export_stream($socket);
+    if (!$stream) {
+        throw new Exception("Failed to convert socket to stream");
+    }
+
     // Create BinkpSession
-    $session = new \BinktermPHP\Binkp\Protocol\BinkpSession($socket, true, $config);
+    $session = new \BinktermPHP\Binkp\Protocol\BinkpSession($stream, true, $config);
     $session->setLogger($logger);
     $session->setSessionType('crash_outbound');
-    $session->setUplinkPassword($options['password']);
 
-    // Add packet to send
-    $session->addFileToSend($packetFile, basename($packetFile));
+    // Only set password if not insecure (not '-' or empty)
+    if ($options['password'] !== '-' && $options['password'] !== '') {
+        $session->setUplinkPassword($options['password']);
+    } else {
+        // For insecure sessions, set empty password
+        $session->setUplinkPassword('');
+    }
 
     // Perform handshake
     $session->handshake();
     $logger->log('INFO', "Handshake completed");
 
-    // Process session (send/receive files)
-    if (!$session->processSession()) {
-        throw new Exception('Session processing failed');
+    // Send the packet file manually (like CrashmailService does)
+    sendPacketFile($stream, $packetFile, $logger);
+
+    // Send EOB to indicate we're done
+    sendEOB($stream, $logger);
+
+    // Wait for confirmation
+    $confirmed = waitForConfirmation($stream, basename($packetFile), $logger);
+
+    if (!$confirmed) {
+        throw new Exception('Remote did not confirm receipt of packet');
     }
 
     echo "\n";

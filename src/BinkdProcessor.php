@@ -132,7 +132,25 @@ class BinkdProcessor
     {
         $packetName = basename($filename);
         $this->logPacket($filename, 'IN', 'pending');
-        
+
+        // Check for metadata file indicating insecure session
+        $metadataFile = $filename . '.meta';
+        $isInsecureSession = false;
+        $remoteAddress = null;
+
+        if (file_exists($metadataFile)) {
+            $metadata = json_decode(file_get_contents($metadataFile), true);
+            $isInsecureSession = $metadata['insecure_session'] ?? false;
+            $remoteAddress = $metadata['remote_address'] ?? null;
+
+            if ($isInsecureSession) {
+                $this->log("[BINKD] Packet $packetName received via INSECURE session from $remoteAddress");
+            }
+
+            // Clean up metadata file
+            @unlink($metadataFile);
+        }
+
         try {
             $handle = fopen($filename, 'rb');
             if (!$handle) {
@@ -167,12 +185,21 @@ class BinkdProcessor
             // Process messages in packet
             $messageCount = 0;
             $failedMessages = 0;
+            $echomailRejected = false;
+
             while (!feof($handle)) {
                 try {
                     $message = $this->readMessage($handle, $packetInfo);
 
                     if ($message) {
-                        $this->storeMessage($message, $packetInfo);
+                        // Security check: reject echomail from insecure sessions
+                        if ($isInsecureSession && !$this->isNetmailMessage($message)) {
+                            $echomailRejected = true;
+                            $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName");
+                            break; // Stop processing this packet
+                        }
+
+                        $this->storeMessage($message, $packetInfo, $isInsecureSession);
                         $messageCount++;
                     }
                 } catch (\Exception $e) {
@@ -181,8 +208,16 @@ class BinkdProcessor
                     // Continue processing other messages
                 }
             }
-            
+
             fclose($handle);
+
+            // If echomail was rejected, throw error to move packet to error dir
+            if ($echomailRejected) {
+                $error = "Packet $packetName rejected: echomail not allowed from insecure sessions";
+                $this->log("[BINKD] $error");
+                $this->logPacket($filename, 'IN', 'error');
+                throw new \Exception($error);
+            }
             
             $this->log("[BINKD] Packet $packetName processed: $messageCount messages stored, $failedMessages failed");
             $this->logPacket($filename, 'IN', 'processed');
@@ -520,14 +555,14 @@ class BinkdProcessor
         return null; // No CHRS kludge found
     }
 
-    private function storeMessage($message, $packetInfo = null)
+    private function storeMessage($message, $packetInfo = null, $isInsecureSession = false)
     {
         // Determine if this is netmail or echomail based on FidoNet standards
         // Use comprehensive detection that works with raw message text
         $isNetmail = $this->isNetmailMessage($message);
-        
+
         if ($isNetmail) {
-            $this->storeNetmail($message, $packetInfo);
+            $this->storeNetmail($message, $packetInfo, $isInsecureSession);
         } else {
             $this->storeEchomail($message, $packetInfo, $message['domain']);
         }
@@ -615,7 +650,7 @@ class BinkdProcessor
         return strpos($firstLine, 'AREA:') === 0;
     }
 
-    private function storeNetmail($message, $packetInfo = null)
+    private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false)
     {
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
@@ -708,8 +743,8 @@ class BinkdProcessor
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, reply_to_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, reply_to_id, received_insecure)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -728,7 +763,8 @@ class BinkdProcessor
             $originalAuthorAddress,
             $replyAddress,
             $kludgeText, // Store kludges separately
-            $replyToId
+            $replyToId,
+            $isInsecureSession ? 'true' : 'false' // PostgreSQL boolean
         ]);
 
         $netmailId = $this->db->lastInsertId();

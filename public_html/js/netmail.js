@@ -252,6 +252,7 @@ function displayMessages(messages, isThreaded = false) {
                         <small class="text-muted">
                             <span class="badge bg-secondary">NETMAIL</span>
                             ${isUnread ? '<span class="badge bg-primary ms-1">NEW</span>' : ''}
+                            ${msg.received_insecure ? '<span class="badge bg-warning text-dark ms-1" title="Received via insecure session"><i class="fas fa-exclamation-triangle"></i></span>' : ''}
                         </small>
                     </td>
                     <td>
@@ -461,6 +462,16 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                     <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
                 </div>
             </div>
+            ${message.received_insecure ? `
+            <div class="row mt-2">
+                <div class="col-12">
+                    <span class="badge bg-warning text-dark" title="This message was received via an insecure/unauthenticated binkp session">
+                        <i class="fas fa-exclamation-triangle"></i> Received Insecurely
+                    </span>
+                    <small class="text-muted ms-2">This message was not authenticated</small>
+                </div>
+            </div>
+            ` : ''}
         </div>
 
         ${parsedMessage.kludgeLines.length > 0 ? `
