@@ -14,7 +14,7 @@ The WebDoor SDK provides standardized interfaces and helper functions for:
 
 ## Structure
 
-```
+```text
 _doorsdk/
 ├── js/           # JavaScript SDK files
 │   ├── api.js         # API communication helpers
