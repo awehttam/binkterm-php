@@ -195,7 +195,6 @@ function buildBorderStyle(int $width, string $accentLevel = 'none'): array
 function buildGradientBorderStyle(int $width): array
 {
     $edgeLen = $width - 2;
-    $reset = "\x1b[0m";
 
     // Gradient colors from bright cyan to purple/magenta
     // 96 = bright cyan, 94 = bright blue, 95 = bright magenta, 35 = magenta
