@@ -2,6 +2,8 @@
 
 This upgrade note covers changes introduced in version 1.8.0:
 
+ * Conversion to UTC - the database now uses TIMESTAMPTZ and a default connection timezone of UTC for recording time stamps
+ * Pipecode color support converts pipecodes to ANSI sequences for fuller color coding support in messages  
  * Fixed node list handling of entries with a custom bink port.  Now, the right menu pop up will use standard https/telnet/ssh ports instead of providing the custom bink port
  * IPv6 addresses in the node list should parse properly
  * Added Webdoor SDK.  Doors like Blackjack and CWN should now update the credit balance displayed in the top menu automatically
@@ -13,7 +15,11 @@ This upgrade note covers changes introduced in version 1.8.0:
  * Revert change in 1.7.9 where CRYPT-MD5 would be enforced even when plaintext was specified in configuration.  Plaintext sessions should work again now
  * Add MSGID checks when parsing incoming echomail to prevent duplicate entries (necessary for %rescan)
  * Changed the default echomail landing page to the "forum style" echo list.  Sysops can now set the system wide setting to either the reader interface or echo list interface, and users can (re)set their own personal preference
+ * Miscellaneous fixes and improvements
 
+# Conversion to UTC
+
+This release makes normalizes timestamps in the postgres database as "UTC".  Previously the system would use either the Postgres or PHP default time zone when inserting or updating data.  Now, the system will use UTC for dates and times.
 
 # BEFORE UPGRADING
 

@@ -9,6 +9,8 @@ class DatabaseUpgrader
 {
     private $db;
     private $migrationsPath;
+    private $useUtcTimezone = true;
+    private $migrationTimezone = null;
     
     public function __construct()
     {
@@ -22,7 +24,7 @@ class DatabaseUpgrader
         
         try {
             // Initialize database connection
-            $this->db = Database::getInstance()->getPdo();
+            $this->db = Database::getInstance(true)->getPdo();
             
             // Create migrations table if it doesn't exist
             $this->createMigrationsTable();
@@ -150,6 +152,8 @@ class DatabaseUpgrader
             echo "Applying migration {$migration['version']}: {$migration['description']}...\n";
             
             try {
+                $this->ensureTimezoneForMigration($migration['version']);
+
                 // Begin transaction
                 $this->db->beginTransaction();
                 
@@ -210,6 +214,28 @@ class DatabaseUpgrader
             }
         }
     }
+
+    private function ensureTimezoneForMigration(string $version): void
+    {
+        $shouldUseUtc = $version !== '1.8.0' && $version !== '1.9.3.9';
+        $desiredMigrationTimezone = null;
+
+        if ($version === '1.9.3.9') {
+            $desiredMigrationTimezone = date_default_timezone_get();
+        }
+
+        if ($this->useUtcTimezone === $shouldUseUtc && $this->migrationTimezone === $desiredMigrationTimezone) {
+            return;
+        }
+
+        $this->useUtcTimezone = $shouldUseUtc;
+        $this->db = Database::reconnect($shouldUseUtc)->getPdo();
+
+        $this->migrationTimezone = $desiredMigrationTimezone;
+        if ($this->migrationTimezone !== null) {
+            $this->db->exec("SET TIME ZONE '" . str_replace("'", "''", $this->migrationTimezone) . "'");
+        }
+    }
     
     public function createMigration($version, $description)
     {
@@ -256,7 +282,7 @@ class DatabaseUpgrader
         }
         
         try {
-            $this->db = Database::getInstance()->getPdo();
+            $this->db = Database::getInstance(true)->getPdo();
             
             $currentVersion = $this->getCurrentVersion();
             echo "Current database version: $currentVersion\n";
@@ -296,7 +322,7 @@ class DatabaseUpgrader
         echo "===========================\n\n";
         
         try {
-            $this->db = Database::getInstance()->getPdo();
+            $this->db = Database::getInstance(true)->getPdo();
             $this->createMigrationsTable();
             
             echo "Current version: " . $this->getCurrentVersion() . "\n\n";

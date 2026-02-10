@@ -90,7 +90,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
 - **File Areas** - Networked and local file areas with optional automation rules (see `docs/FileAreas.md`)
-- **ANSI Support** - Support for ANSI and ASCII art in message readers
+- **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards 
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support

@@ -89,7 +89,7 @@ class SetupManager
     private function isDatabaseInitialized()
     {
         try {
-            $db = Database::getInstance()->getPdo();
+            $db = Database::getInstance(true)->getPdo();
             
             // Check if users table exists and has data
             $stmt = $db->query("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')");
@@ -158,7 +158,7 @@ class SetupManager
             echo "---------\n";
             
             if ($this->isDatabaseInitialized()) {
-                $db = Database::getInstance()->getPdo();
+                $db = Database::getInstance(true)->getPdo();
                 
                 echo "✓ Database initialized\n";
                 echo "  PostgreSQL connection established\n";
