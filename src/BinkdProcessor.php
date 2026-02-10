@@ -1011,6 +1011,18 @@ class BinkdProcessor
             }
         }
 
+        // Check for duplicate MSGID to prevent duplicate messages during rescans
+        if (!empty($messageId)) {
+            $dupCheckStmt = $this->db->prepare("SELECT id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
+            $dupCheckStmt->execute([$messageId, $echoarea['id']]);
+            $existingMessage = $dupCheckStmt->fetch();
+
+            if ($existingMessage) {
+                $this->log("[BINKD]: Skipping duplicate message - MSGID '" . $messageId . "' already exists in echoarea '" . $echoareaTag . "' (id: " . $existingMessage['id'] . ")");
+                return; // Skip this message
+            }
+        }
+
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
 
