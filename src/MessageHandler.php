@@ -760,8 +760,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -871,8 +871,8 @@ class MessageHandler
 
         // Create local netmail message to sysop
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -956,8 +956,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -969,7 +969,7 @@ class MessageHandler
             $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
             $replyToId,
             $msgId,
-            null, // origin_line (will be added when packet is created) 
+            null, // origin_line (will be added when packet is created)
             $kludgeLines  // Store generated kludges
         ]);
 

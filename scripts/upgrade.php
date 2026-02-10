@@ -90,9 +90,11 @@ class DatabaseUpgrader
     
     private function getCurrentVersion()
     {
+        // Order by ID (insertion order) instead of version string to avoid
+        // string comparison issues (e.g., "1.9.3.9" > "1.9.3.10" as strings)
         $stmt = $this->db->query("
-            SELECT version FROM database_migrations 
-            ORDER BY version DESC 
+            SELECT version FROM database_migrations
+            ORDER BY id DESC
             LIMIT 1
         ");
         $result = $stmt->fetch();

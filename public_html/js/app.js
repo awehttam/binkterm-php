@@ -1,11 +1,14 @@
 // BinkTest JavaScript Application
 // Message parsing and formatting functions
-function parseNetmailMessage(messageText, storedKludgeLines = null) {
+function parseNetmailMessage(messageText, storedKludgeLines = null, storedBottomKludges = null) {
     // If we have stored kludge lines, use them instead of trying to parse from message text
     if (storedKludgeLines && storedKludgeLines.trim()) {
-        const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const topKludges = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const bottomKludges = storedBottomKludges ? storedBottomKludges.split('\n').filter(line => line.trim() !== '') : [];
         return {
-            kludgeLines: kludgeLines,
+            topKludges: topKludges,
+            bottomKludges: bottomKludges,
+            kludgeLines: [...topKludges, ...bottomKludges], // Combined for backward compatibility
             messageBody: messageText.trim()
         };
     }
@@ -45,12 +48,15 @@ function parseNetmailMessage(messageText, storedKludgeLines = null) {
     };
 }
 
-function parseEchomailMessage(messageText, storedKludgeLines = null) {
+function parseEchomailMessage(messageText, storedKludgeLines = null, storedBottomKludges = null) {
     // If we have stored kludge lines, use them instead of trying to parse from message text
     if (storedKludgeLines && storedKludgeLines.trim()) {
-        const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const topKludges = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const bottomKludges = storedBottomKludges ? storedBottomKludges.split('\n').filter(line => line.trim() !== '') : [];
         return {
-            kludgeLines: kludgeLines,
+            topKludges: topKludges,
+            bottomKludges: bottomKludges,
+            kludgeLines: [...topKludges, ...bottomKludges], // Combined for backward compatibility
             messageBody: messageText.replace(/\s+$/g, '')
         };
     }
@@ -322,37 +328,60 @@ function linkifyUrls(text) {
     });
 }
 
+function formatSingleKludgeLine(line) {
+    // Clean up control characters completely
+    let cleanLine = line.replace(/\x01/g, ''); // Remove SOH characters
+    cleanLine = cleanLine.replace(/[\x00-\x1F\x7F-\x9F]/g, ''); // Remove other control characters
+    const escapedLine = escapeHtml(cleanLine);
+
+    // Color code different types of kludge lines
+    if (line.startsWith('\x01MSGID:')) {
+        return `<span style="color: #28a745;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01REPLY:')) {
+        return `<span style="color: #17a2b8;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01INTL')) {
+        return `<span style="color: #ffc107;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01TOPT') || line.startsWith('\x01FMPT')) {
+        return `<span style="color: #fd7e14;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01PID:')) {
+        return `<span style="color: #e83e8c;">${escapedLine}</span>`;
+    } else if (line.startsWith('SEEN-BY:')) {
+        return `<span style="color: #6f42c1;">${escapedLine}</span>`;
+    } else if (line.startsWith('PATH:')) {
+        return `<span style="color: #20c997;">${escapedLine}</span>`;
+    } else if (line.startsWith('AREA:')) {
+        return `<span style="color: #007bff;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01Via')) {
+        return `<span style="color: #ff69b4;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01')) {
+        // Generic kludge line
+        return `<span style="color: #dc3545;">${escapedLine}</span>`;
+    } else {
+        return `<span style="color: #6c757d;">${escapedLine}</span>`;
+    }
+}
+
 function formatKludgeLines(kludgeLines) {
-    return kludgeLines.map(line => {
-        // Clean up control characters completely
-        let cleanLine = line.replace(/\x01/g, ''); // Remove SOH characters
-        cleanLine = cleanLine.replace(/[\x00-\x1F\x7F-\x9F]/g, ''); // Remove other control characters
-        const escapedLine = escapeHtml(cleanLine);
-        
-        // Color code different types of kludge lines
-        if (line.startsWith('\x01MSGID:')) {
-            return `<span style="color: #28a745;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01REPLY:')) {
-            return `<span style="color: #17a2b8;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01INTL')) {
-            return `<span style="color: #ffc107;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01TOPT') || line.startsWith('\x01FMPT')) {
-            return `<span style="color: #fd7e14;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01PID:')) {
-            return `<span style="color: #e83e8c;">${escapedLine}</span>`;
-        } else if (line.startsWith('SEEN-BY:')) {
-            return `<span style="color: #6f42c1;">${escapedLine}</span>`;
-        } else if (line.startsWith('PATH:')) {
-            return `<span style="color: #20c997;">${escapedLine}</span>`;
-        } else if (line.startsWith('AREA:')) {
-            return `<span style="color: #007bff;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01')) {
-            // Generic kludge line
-            return `<span style="color: #dc3545;">${escapedLine}</span>`;
-        } else {
-            return `<span style="color: #6c757d;">${escapedLine}</span>`;
+    return kludgeLines.map(line => formatSingleKludgeLine(line)).join('\n');
+}
+
+function formatKludgeLinesWithSeparator(topKludges, bottomKludges) {
+    let output = '';
+
+    // Format top kludges
+    if (topKludges && topKludges.length > 0) {
+        output += topKludges.map(line => formatSingleKludgeLine(line)).join('\n');
+    }
+
+    // Add bottom kludges without separator
+    if (bottomKludges && bottomKludges.length > 0) {
+        if (output) {
+            output += '\n';
         }
-    }).join('\n');
+        output += bottomKludges.map(line => formatSingleKludgeLine(line)).join('\n');
+    }
+
+    return output || 'No kludge lines found';
 }
 
 function toggleKludgeLines() {
@@ -363,11 +392,11 @@ function toggleKludgeLines() {
     if (container.is(':visible')) {
         container.slideUp();
         icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
-        text.text('Show Headers');
+        text.text('Show Kludge Lines');
     } else {
         container.slideDown();
         icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
-        text.text('Hide Headers');
+        text.text('Hide Kludge Lines');
     }
 }
 

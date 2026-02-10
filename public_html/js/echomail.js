@@ -709,7 +709,7 @@ function displayMessageContent(message) {
     updateModalTitle(message.subject);
 
     // Parse message to separate kludge lines from body
-    const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
+    const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '', message.bottom_kludges || null);
     currentMessageData = message;
 
     // Check if sender is already in address book before rendering
@@ -806,14 +806,14 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
 
         <div class="message-headers mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">Message Headers</h6>
+                <h6 class="mb-0 text-muted">Kludge Lines</h6>
                 <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
                     <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">Show Headers</span>
+                    <span id="toggleText">Show Kludge Lines</span>
                 </button>
             </div>
             <div id="kludgeContainer" class="kludge-lines" style="display: none;">
-                <pre class="bg-dark text-light p-3 rounded small">${parsedMessage.kludgeLines.length > 0 ? formatKludgeLines(parsedMessage.kludgeLines) : 'No headers found'}</pre>
+                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
             </div>
         </div>
 

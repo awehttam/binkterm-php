@@ -2323,6 +2323,56 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
+    SimpleRouter::get('/messages/netmail/{id}/download', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $message = $handler->getMessage($id, 'netmail', $userId);
+
+        if (!$message) {
+            http_response_code(404);
+            echo 'Message not found';
+            return;
+        }
+
+        $subject = $message['subject'] ?? 'message';
+        $filename = sanitizeFilenameForWindows((string)$subject) . '.txt';
+
+        $fromName = $message['from_name'] ?? 'Unknown';
+        $fromAddress = $message['from_address'] ?? '';
+        $fromLine = $fromAddress ? "$fromName <$fromAddress>" : $fromName;
+
+        $toName = $message['to_name'] ?? 'Unknown';
+        $toAddress = $message['to_address'] ?? '';
+        $toLine = $toAddress ? "$toName <$toAddress>" : $toName;
+
+        $headerLines = [
+            'From: ' . $fromLine,
+            'To: ' . $toLine,
+            'Subject: ' . ($message['subject'] ?? '(No Subject)'),
+            'Date: ' . ($message['date_written'] ?? '')
+        ];
+
+        $headerText = implode("\r\n", $headerLines) . "\r\n\r\n";
+        $bodyText = (string)($message['message_text'] ?? '');
+        $bodyText = str_replace(["\r\n", "\r"], "\n", $bodyText);
+        $bodyText = str_replace("\n", "\r\n", $bodyText);
+        $content = $headerText . $bodyText;
+
+        $charset = 'utf-8';
+        $encodedFilename = rawurlencode($filename);
+
+        header('Content-Type: text/plain; charset=' . $charset);
+        header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
+        header('Content-Length: ' . strlen($content));
+        header('Cache-Control: no-cache, must-revalidate');
+        header('Pragma: public');
+
+        echo $content;
+        exit;
+    })->where(['id' => '[0-9]+']);
+
     SimpleRouter::post('/messages/netmail/bulk-delete', function() {
         $user = RouteHelper::requireAuth();
 
@@ -2700,8 +2750,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $domain = $message['domain'] ?? '';
         $areaLabel = $area !== '' ? $area . ($domain !== '' ? '@' . $domain : '') : '';
 
+        $fromName = $message['from_name'] ?? 'Unknown';
+        $fromAddress = $message['from_address'] ?? '';
+        $fromLine = $fromAddress ? "$fromName <$fromAddress>" : $fromName;
+
         $headerLines = [
-            'From: ' . ($message['from_name'] ?? 'Unknown'),
+            'From: ' . $fromLine,
             'To: ' . ($message['to_name'] ?? 'All'),
             'Subject: ' . ($message['subject'] ?? '(No Subject)'),
             'Date: ' . ($message['date_written'] ?? ''),
