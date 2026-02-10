@@ -3564,6 +3564,48 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // Get echolist filter preference
+    SimpleRouter::get('/user/echolist-preference', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT echolist_subscribed_only
+            FROM user_settings
+            WHERE user_id = ?
+        ");
+        $stmt->execute([$user['user_id']]);
+        $pref = $stmt->fetch();
+
+        // Default to false if no settings row exists
+        $value = $pref ? ($pref['echolist_subscribed_only'] ? 'true' : 'false') : 'false';
+
+        echo json_encode(['value' => $value]);
+    });
+
+    // Set echolist filter preference
+    SimpleRouter::post('/user/echolist-preference', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $value = ($input['value'] ?? 'false') === 'true';
+
+        $db = Database::getInstance()->getPdo();
+
+        // Insert or update user settings
+        $stmt = $db->prepare("
+            INSERT INTO user_settings (user_id, echolist_subscribed_only)
+            VALUES (?, ?)
+            ON CONFLICT (user_id)
+            DO UPDATE SET echolist_subscribed_only = EXCLUDED.echolist_subscribed_only
+        ");
+        $stmt->execute([$user['user_id'], $value ? 'true' : 'false']);
+
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/whosonline', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();

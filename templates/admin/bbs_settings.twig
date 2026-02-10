@@ -89,6 +89,14 @@
                             <input class="form-check-input" type="checkbox" id="bbsFileAreas">
                             <label class="form-check-label" for="bbsFileAreas">Enable File Areas</label>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsDefaultEchoInterface">Default Echo Interface</label>
+                            <select class="form-select" id="bbsDefaultEchoInterface">
+                                <option value="echolist">Echo List (Forum view)</option>
+                                <option value="reader">Reader (Message list)</option>
+                            </select>
+                            <small class="text-muted">Default interface for viewing echomail. Users can override this in their settings.</small>
+                        </div>
                         <hr>
                         <div class="mb-3">
                             <label class="form-label" for="bbsMaxCrossPost">Max Cross-Post Areas</label>
@@ -229,6 +237,7 @@ function loadBbsSettings() {
             document.getElementById('bbsVoting').checked = !!features.voting_booth;
             document.getElementById('bbsChat').checked = !!features.chat;
             document.getElementById('bbsFileAreas').checked = !!features.file_areas;
+            document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
             const maxCrossPost = parseInt(data.config?.max_cross_post_areas, 10);
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
@@ -284,7 +293,8 @@ function saveBbsSettings() {
                     file_areas: document.getElementById('bbsFileAreas').checked
                 },
                 credits: credits,
-                max_cross_post_areas: maxCrossPost
+                max_cross_post_areas: maxCrossPost,
+                default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value
             };
 
             return fetch('/admin/api/bbs-settings', {

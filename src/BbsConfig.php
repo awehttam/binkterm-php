@@ -126,6 +126,20 @@ class BbsConfig
         return !empty($features[$feature]);
     }
 
+    /**
+     * Get a feature setting value with optional default
+     *
+     * @param string $feature Feature key to retrieve
+     * @param mixed $default Default value if feature not set
+     * @return mixed Feature value or default
+     */
+    public static function getFeatureSetting(string $feature, $default = null)
+    {
+        self::load();
+        $features = self::$config['features'] ?? [];
+        return $features[$feature] ?? $default;
+    }
+
     public static function saveConfig(array $config): bool
     {
         $defaults = self::getDefaults();

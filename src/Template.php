@@ -118,7 +118,12 @@ class Template
 
         // Determine stylesheet to use - check user's theme preference if logged in
         $stylesheet = Config::getStylesheet();
-        $defaultEchoList = 'reader'; // Default value
+
+        // Get BBS-wide default echo interface (default to 'echolist')
+        $bbsConfig = BbsConfig::getConfig();
+        $systemDefaultEchoInterface = $bbsConfig['default_echo_interface'] ?? 'echolist';
+        $defaultEchoList = $systemDefaultEchoInterface;
+
         if ($currentUser && !empty($currentUser['user_id'])) {
             try {
                 $handler = new MessageHandler();
@@ -131,10 +136,16 @@ class Template
                 }
                 // Get default echo list preference
                 if (!empty($settings['default_echo_list'])) {
-                    $defaultEchoList = $settings['default_echo_list'];
+                    // If user chose 'system_choice', use BBS-wide default
+                    // Otherwise, use their explicit choice
+                    if ($settings['default_echo_list'] === 'system_choice') {
+                        $defaultEchoList = $systemDefaultEchoInterface;
+                    } else {
+                        $defaultEchoList = $settings['default_echo_list'];
+                    }
                 }
             } catch (\Exception $e) {
-                // Fall back to default stylesheet on error
+                // Fall back to defaults on error
             }
         }
         $this->twig->addGlobal('stylesheet', $stylesheet);

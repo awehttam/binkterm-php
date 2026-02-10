@@ -77,6 +77,12 @@
                     <h6 class="mb-0"><i class="fas fa-filter me-2"></i>Filter Echo Areas</h6>
                 </div>
                 <div class="card-body">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="subscribedOnlyCheck" onchange="toggleSubscribedFilter()">
+                        <label class="form-check-label" for="subscribedOnlyCheck">
+                            Show only subscribed areas
+                        </label>
+                    </div>
                     <input type="text" class="form-control" id="areaSearch" placeholder="Type to filter by name or description..." onkeyup="searchEchoAreas(this.value)">
                     <small class="text-muted d-block mt-1">Filters the list below in real-time</small>
                 </div>
@@ -142,8 +148,20 @@ let allEchoAreas = [];
 let searchQuery = '';
 
 $(document).ready(function() {
-    loadEchoAreas();
-    loadStatistics();
+    // Load saved preference from database
+    $.get('/api/user/echolist-preference')
+        .done(function(data) {
+            if (data.value === 'true') {
+                $('#subscribedOnlyCheck').prop('checked', true);
+            }
+            loadEchoAreas();
+            loadStatistics();
+        })
+        .fail(function() {
+            // If preference doesn't exist or fails, use default (false/unchecked)
+            loadEchoAreas();
+            loadStatistics();
+        });
 
     // Auto refresh every 2 minutes
     setInterval(function() {
@@ -153,7 +171,10 @@ $(document).ready(function() {
 });
 
 function loadEchoAreas() {
-    $.get('/api/echoareas?subscribed_only=true')
+    const subscribedOnly = $('#subscribedOnlyCheck').is(':checked');
+    const url = '/api/echoareas?subscribed_only=' + subscribedOnly;
+
+    $.get(url)
         .done(function(data) {
             allEchoAreas = data.echoareas || [];
             displayEchoAreas(allEchoAreas);
@@ -161,6 +182,24 @@ function loadEchoAreas() {
         .fail(function() {
             $('#forumsContainer').html('<div class="alert alert-danger">Failed to load echo areas</div>');
         });
+}
+
+function toggleSubscribedFilter() {
+    const subscribedOnly = $('#subscribedOnlyCheck').is(':checked');
+
+    // Save preference to database
+    $.ajax({
+        url: '/api/user/echolist-preference',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            value: subscribedOnly ? 'true' : 'false'
+        })
+    });
+
+    // Reload echo areas with new filter
+    loadEchoAreas();
+    loadStatistics();
 }
 
 function displayEchoAreas(areas) {
