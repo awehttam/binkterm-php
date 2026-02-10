@@ -432,6 +432,7 @@ class AnsiTerminal {
 /**
  * Render ANSI text using terminal emulation
  * Falls back to simple parsing for non-ANSI text
+ * Also handles pipe codes (BBS color codes)
  */
 function renderAnsiTerminal(text, cols = 80, rows = 500) {
     if (!text) return '';
@@ -439,6 +440,12 @@ function renderAnsiTerminal(text, cols = 80, rows = 500) {
     // Check if ANSI parsing is enabled
     if (window.userSettings?.ansi_parsing === false) {
         return escapeHtml(text);
+    }
+
+    // Check for pipe codes first - convert them to ANSI then process
+    if (hasPipeCodes(text)) {
+        // Convert pipe codes to ANSI, then process ANSI
+        text = convertPipeCodesToAnsi(text);
     }
 
     // Check if text contains cursor positioning sequences
@@ -458,6 +465,7 @@ function renderAnsiTerminal(text, cols = 80, rows = 500) {
  * Parse ANSI escape codes and convert to HTML spans with CSS classes
  * Supports SGR (Select Graphic Rendition) codes for colors and styles
  * Strips cursor control and other non-display sequences
+ * Also handles pipe codes (BBS color codes)
  *
  * Must be called BEFORE escapeHtml since it processes raw escape sequences
  * Text content is escaped within this function for XSS safety
@@ -468,6 +476,11 @@ function parseAnsi(text) {
     // Check if ANSI parsing is enabled in user settings (default: true)
     if (window.userSettings?.ansi_parsing === false) {
         return escapeHtml(text);
+    }
+
+    // Convert pipe codes to ANSI first if present
+    if (hasPipeCodes(text)) {
+        text = convertPipeCodesToAnsi(text);
     }
 
     // First, strip all non-SGR escape sequences (cursor movement, clear screen, etc.)
@@ -642,4 +655,223 @@ function parseAnsi(text) {
  */
 function hasAnsiCodes(text) {
     return /\x1b[\[\]PX^_][^\x1b]*|(\x1b.)/.test(text);
+}
+
+/**
+ * Check if text contains pipe codes (BBS color codes like |15, |04, etc. or special codes like |CL)
+ */
+function hasPipeCodes(text) {
+    // Match either hex color codes (|00-|FF) or special letter codes (|CL, |PA, etc.)
+    return /\|[0-9A-Fa-f]{2}|\|[A-Z]{2}/i.test(text);
+}
+
+/**
+ * Convert pipe codes to ANSI escape sequences
+ * This allows pipe codes to be processed through the existing ANSI parser
+ * Also strips special pipe codes (|CL, |PA, etc.) that don't make sense in web context
+ */
+function convertPipeCodesToAnsi(text) {
+    if (!text) return text;
+
+    // Strip special pipe codes (clear screen, pause, etc.) - not relevant for message viewing
+    // Common special codes: |CL (clear), |PA (pause), |DE (delete), |RD (read), |CR (carriage return), |LF (line feed)
+    // Use explicit whitelist of known special codes (case-insensitive)
+    text = text.replace(/\|(CL|PA|DE|RD|CR|LF)/gi, '');
+
+    // Pipe code to ANSI color mapping
+    const pipeToAnsiFg = {
+        0: 30,   // Black
+        1: 34,   // Blue
+        2: 32,   // Green
+        3: 36,   // Cyan
+        4: 31,   // Red
+        5: 35,   // Magenta
+        6: 33,   // Yellow
+        7: 37,   // White
+        8: 90,   // Bright Black (Gray)
+        9: 94,   // Bright Blue
+        10: 92,  // Bright Green
+        11: 96,  // Bright Cyan
+        12: 91,  // Bright Red
+        13: 95,  // Bright Magenta
+        14: 93,  // Bright Yellow
+        15: 97   // Bright White
+    };
+
+    const pipeToAnsiBg = {
+        0: 40,   // Black
+        1: 44,   // Blue
+        2: 42,   // Green
+        3: 46,   // Cyan
+        4: 41,   // Red
+        5: 45,   // Magenta
+        6: 43,   // Yellow
+        7: 47,   // White
+        8: 100,  // Bright Black
+        9: 104,  // Bright Blue
+        10: 102, // Bright Green
+        11: 106, // Bright Cyan
+        12: 101, // Bright Red
+        13: 105, // Bright Magenta
+        14: 103, // Bright Yellow
+        15: 107  // Bright White
+    };
+
+    // Replace pipe codes with ANSI escape sequences
+    return text.replace(/\|([0-9A-Fa-f]{2})/g, (match, codeHex) => {
+        const code = parseInt(codeHex, 16);
+
+        if (code <= 15) {
+            // Single digit codes 00-0F: Set foreground color only
+            const ansiFg = pipeToAnsiFg[code] || 37;
+            return `\x1b[${ansiFg}m`;
+        } else if (code >= 16 && code <= 23) {
+            // Codes 16-23: Foreground colors 0-7 with blink
+            const fg = code - 16;
+            const ansiFg = pipeToAnsiFg[fg] || 37;
+            return `\x1b[${ansiFg};5m`; // Add blink attribute
+        } else {
+            // Extended codes: background + foreground
+            // Upper nibble = background (0-15), lower nibble = foreground (0-15)
+            const bgCode = (code >> 4) & 0x0F;
+            const fgCode = code & 0x0F;
+            const ansiFg = pipeToAnsiFg[fgCode] || 37;
+            const ansiBg = pipeToAnsiBg[bgCode] || 40;
+            return `\x1b[${ansiFg};${ansiBg}m`;
+        }
+    });
+}
+
+/**
+ * Parse pipe codes (Synchronet/Mystic/Renegade style) and convert to HTML
+ * Pipe codes: |XX where XX is a two-digit hex code representing color
+ *
+ * Standard 16-color mapping:
+ * 0-7: Normal colors (Black, Red, Green, Yellow, Blue, Magenta, Cyan, White)
+ * 8-15: Bright colors
+ *
+ * Format: |FG|BG where FG is foreground color, BG is background color
+ * Examples:
+ *   |15 = Bright white on black
+ *   |0C = Bright red on black
+ *   |1E = Yellow on blue
+ */
+function parsePipeCodes(text) {
+    if (!text) return text;
+
+    // Check if pipe code parsing is enabled (default: true)
+    if (window.userSettings?.pipe_parsing === false) {
+        return escapeHtml(text);
+    }
+
+    // Pipe code color mapping (0-15 standard colors)
+    const pipeColors = [
+        'black',        // 0
+        'blue',         // 1
+        'green',        // 2
+        'cyan',         // 3
+        'red',          // 4
+        'magenta',      // 5
+        'yellow',       // 6 (brown in some systems)
+        'white',        // 7
+        'bright-black', // 8 (gray)
+        'bright-blue',  // 9
+        'bright-green', // 10 (A)
+        'bright-cyan',  // 11 (B)
+        'bright-red',   // 12 (C)
+        'bright-magenta', // 13 (D)
+        'bright-yellow',  // 14 (E)
+        'bright-white'    // 15 (F)
+    ];
+
+    // Current state
+    let currentFg = 7;  // Default white
+    let currentBg = 0;  // Default black
+    let result = '';
+    let spanOpen = false;
+
+    // Pipe code pattern: |XX where XX is hex digits
+    const pipePattern = /\|([0-9A-Fa-f]{2})/g;
+
+    let lastIndex = 0;
+    let match;
+
+    function updateSpan() {
+        if (spanOpen) {
+            result += '</span>';
+            spanOpen = false;
+        }
+
+        const classes = [];
+        if (currentFg !== 7) {
+            classes.push('ansi-' + pipeColors[currentFg]);
+        }
+        if (currentBg !== 0) {
+            classes.push('ansi-bg-' + pipeColors[currentBg]);
+        }
+
+        if (classes.length > 0) {
+            result += `<span class="${classes.join(' ')}">`;
+            spanOpen = true;
+        }
+    }
+
+    while ((match = pipePattern.exec(text)) !== null) {
+        // Add text before this pipe code (escaped for XSS safety)
+        if (match.index > lastIndex) {
+            const textBefore = text.substring(lastIndex, match.index);
+            result += escapeHtml(textBefore);
+        }
+
+        // Parse the pipe code
+        const code = parseInt(match[1], 16);
+
+        if (code <= 15) {
+            // Single digit codes 00-0F: Set foreground color only
+            currentFg = code;
+        } else if (code >= 16 && code <= 23) {
+            // Codes 16-23 (10-17 hex): Foreground colors with blink attribute
+            // These map to colors 0-7 with blink
+            currentFg = code - 16;
+            // Note: Blink not implemented in this version
+        } else if (code >= 128) {
+            // High bit set: background color in upper nibble, foreground in lower nibble
+            // Format: BBBBFFFF where B=background, F=foreground
+            currentBg = (code >> 4) & 0x0F;
+            currentFg = code & 0x0F;
+        } else {
+            // Extended codes: treat as background + foreground
+            // Upper nibble = background (0-7), lower nibble = foreground (0-15)
+            currentBg = (code >> 4) & 0x07;
+            currentFg = code & 0x0F;
+        }
+
+        // Ensure colors are in valid range
+        currentFg = currentFg & 0x0F;
+        currentBg = currentBg & 0x0F;
+
+        updateSpan();
+        lastIndex = pipePattern.lastIndex;
+    }
+
+    // Add remaining text after last pipe code
+    if (lastIndex < text.length) {
+        result += escapeHtml(text.substring(lastIndex));
+    }
+
+    // Close any remaining open span
+    if (spanOpen) {
+        result += '</span>';
+    }
+
+    return result;
+}
+
+/**
+ * Auto-detect and parse both ANSI and pipe codes
+ * Tries to intelligently detect which format is used
+ * This is an alias for renderAnsiTerminal which now handles both formats
+ */
+function parseColorCodes(text) {
+    return renderAnsiTerminal(text);
 }

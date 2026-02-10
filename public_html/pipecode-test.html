@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipe Code Test - BinktermPHP</title>
+    <link rel="stylesheet" href="/css/ansisys.css">
+    <style>
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #ccc;
+            padding: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #fff;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+        .example {
+            margin: 20px 0;
+            padding: 15px;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .example h3 {
+            color: #6cf;
+            margin-top: 0;
+        }
+        .code {
+            background: #222;
+            padding: 10px;
+            border-left: 3px solid #4a4;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .output {
+            background: #000;
+            padding: 15px;
+            border: 1px solid #444;
+            margin: 10px 0;
+            min-height: 30px;
+            font-family: 'Courier New', monospace;
+            line-height: 1.5;
+        }
+        .note {
+            color: #fc6;
+            font-style: italic;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pipe Code Parsing Test</h1>
+    <p>This page demonstrates pipe code parsing support (Synchronet/Mystic/Renegade style BBS color codes).</p>
+
+    <div class="example">
+        <h3>Basic Foreground Colors (|00 to |0F)</h3>
+        <div class="code">|00Black |01Blue |02Green |03Cyan |04Red |05Magenta |06Yellow |07White</div>
+        <div class="output" id="output1"></div>
+    </div>
+
+    <div class="example">
+        <h3>Bright Foreground Colors (|08 to |0F)</h3>
+        <div class="code">|08Gray |09Bright Blue |0ABright Green |0BBright Cyan |0CBright Red |0DMagenta |0EYellow |0FWhite</div>
+        <div class="output" id="output2"></div>
+    </div>
+
+    <div class="example">
+        <h3>Background + Foreground (|XY format)</h3>
+        <div class="code">|1F Blue bg, white text |4E Red bg, yellow text |2C Green bg, bright red text</div>
+        <div class="output" id="output3"></div>
+        <div class="note">Format: |XY where X = background (0-F), Y = foreground (0-F)</div>
+    </div>
+
+    <div class="example">
+        <h3>Mixed Pipe and ANSI Codes</h3>
+        <div class="code">|0CThis is pipe red [33mThis is ANSI yellow[0m |0ABack to pipe green</div>
+        <div class="output" id="output4"></div>
+        <div class="note">Both formats can be mixed in the same message</div>
+    </div>
+
+    <div class="example">
+        <h3>Realistic BBS Message Example</h3>
+        <div class="code">|0F        |0B******************************************
+|0F        |0B*        |0FWELCOME TO THE BBS!        |0B*
+|0F        |0B******************************************
+
+|0E[System] |07Welcome back, |0FSYSOP|07!
+
+|0AYou have |0F5 |0Anew messages in your inbox.
+
+|0CMenu: |0F1|07) Messages  |0F2|07) Files  |0F3|07) Chat  |0F4|07) Logoff</div>
+        <div class="output" id="output5"></div>
+    </div>
+
+    <div class="example">
+        <h3>Color Palette Reference</h3>
+        <div class="code">
+Foreground Codes:
+|00 Black      |01 Blue       |02 Green      |03 Cyan
+|04 Red        |05 Magenta    |06 Yellow     |07 White
+|08 Gray       |09 Brt Blue   |0A Brt Green  |0B Brt Cyan
+|0C Brt Red    |0D Brt Mag    |0E Brt Yellow |0F Brt White
+
+Background + Foreground (|XY where X=bg, Y=fg):
+|10 Blue bg    |20 Green bg   |30 Cyan bg    |40 Red bg
+|50 Mag bg     |60 Yellow bg  |70 White bg
+        </div>
+        <div class="output" id="output6"></div>
+    </div>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/ansisys.js"></script>
+    <script>
+        // Process all examples
+        document.getElementById('output1').innerHTML = renderAnsiTerminal('|00Black |01Blue |02Green |03Cyan |04Red |05Magenta |06Yellow |07White');
+        document.getElementById('output2').innerHTML = renderAnsiTerminal('|08Gray |09Bright Blue |0ABright Green |0BBright Cyan |0CBright Red |0DMagenta |0EYellow |0FWhite');
+        document.getElementById('output3').innerHTML = renderAnsiTerminal('|1F Blue bg, white text  |4E Red bg, yellow text  |2C Green bg, bright red text');
+        document.getElementById('output4').innerHTML = renderAnsiTerminal('|0CThis is pipe red \x1b[33mThis is ANSI yellow\x1b[0m |0ABack to pipe green');
+        document.getElementById('output5').innerHTML = renderAnsiTerminal(`|0F        |0B******************************************
+|0F        |0B*        |0FWELCOME TO THE BBS!        |0B*
+|0F        |0B******************************************
+
+|0E[System] |07Welcome back, |0FSYSOP|07!
+
+|0AYou have |0F5 |0Anew messages in your inbox.
+
+|0CMenu: |0F1|07) Messages  |0F2|07) Files  |0F3|07) Chat  |0F4|07) Logoff`);
+        document.getElementById('output6').innerHTML = renderAnsiTerminal(`Foreground Codes:
+|00Black      |01Blue       |02Green      |03Cyan
+|04Red        |05Magenta    |06Yellow     |07White
+|08Gray       |09Bright Blue   |0ABright Green  |0BBright Cyan
+|0CBright Red    |0DBright Magenta    |0EBright Yellow |0FBright White
+
+Background + Foreground (|XY where X=bg, Y=fg):
+|10Blue bg    |20Green bg   |30Cyan bg    |40Red bg
+|50Magenta bg     |60Yellow bg  |70White bg`);
+    </script>
+</body>
+</html>

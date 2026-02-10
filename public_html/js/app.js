@@ -104,6 +104,8 @@ function formatMessageText(messageText, searchTerms = []) {
 
     const hasAnsi = /\x1b\[[0-9;]*m/.test(messageText);
     const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(messageText);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(messageText);
+    const hasColorCodes = hasAnsi || hasPipes;
     const lines = messageText.split(/\r?\n/);
     const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -112,8 +114,8 @@ function formatMessageText(messageText, searchTerms = []) {
     const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
 
-    const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
-    const ansiLineStyle = hasAnsi ? ' style="white-space: pre;"' : '';
+    const shouldRenderAnsiArt = hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
+    const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : '';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
     // If so, use the full terminal renderer instead of line-by-line processing
