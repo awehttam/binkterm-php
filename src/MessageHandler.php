@@ -2012,13 +2012,12 @@ class MessageHandler
     {
         $updateStmt = $this->db->prepare("
             UPDATE pending_users 
-            SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, admin_notes = ?
+            SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW(), admin_notes = ?
             WHERE id = ? AND status = 'pending'
         ");
         
         $result = $updateStmt->execute([
             $adminUserId,      // reviewed_by
-            date('Y-m-d H:i:s'), // reviewed_at
             $reason,           // admin_notes
             $pendingUserId     // WHERE id = ?
         ]);
@@ -2269,23 +2268,30 @@ class MessageHandler
         // Generate unique share key
         $shareKey = $this->generateShareKey();
         
-        $expiresAt = null;
+        // Simplify by using conditional SQL instead of CASE with bound parameters
         if ($expiresHours) {
-            $expiresAt = date('Y-m-d H:i:s', time() + ($expiresHours * 3600));
+            $expiresHoursValue = (int)$expiresHours;
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
+                VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?)
+            ");
+            $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
+            $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
+            $stmt->bindValue(5, $expiresHoursValue, \PDO::PARAM_INT);
+            $stmt->bindValue(6, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
+                VALUES (?, ?, ?, ?, NULL, ?)
+            ");
+            $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
+            $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
+            $stmt->bindValue(5, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
         }
-
-        $stmt = $this->db->prepare("
-            INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-
-        // Bind parameters explicitly with proper types
-        $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
-        $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
-        $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
-        $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
-        $stmt->bindValue(5, $expiresAt, \PDO::PARAM_STR);
-        $stmt->bindValue(6, (bool)$isPublic, \PDO::PARAM_BOOL);
         
         //error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
         

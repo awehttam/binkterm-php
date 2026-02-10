@@ -1305,23 +1305,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
-            $expiresAt = null;
+            // Use conditional SQL to avoid TIMESTAMPTZ type inference issues
             if ($action === 'kick') {
-                $utcNow = new DateTime('now', new DateTimeZone('UTC'));
-                $utcNow->modify('+10 minutes');
-                $expiresAt = $utcNow->format('Y-m-d H:i:s');
+                // Kick = temporary 10 minute ban
+                $stmt = $db->prepare("
+                    INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                    VALUES (?, ?, ?, ?, NOW() + INTERVAL '10 minutes')
+                    ON CONFLICT (room_id, user_id)
+                    DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                                  reason = EXCLUDED.reason,
+                                  expires_at = EXCLUDED.expires_at,
+                                  created_at = NOW()
+                ");
+                $stmt->execute([
+                    $roomId,
+                    (int)$targetUser['id'],
+                    $user['user_id'] ?? $user['id'],
+                    null
+                ]);
+            } else {
+                // Ban = permanent (NULL expiry)
+                $stmt = $db->prepare("
+                    INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                    VALUES (?, ?, ?, ?, NULL)
+                    ON CONFLICT (room_id, user_id)
+                    DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                                  reason = EXCLUDED.reason,
+                                  expires_at = EXCLUDED.expires_at,
+                                  created_at = NOW()
+                ");
+                $stmt->execute([
+                    $roomId,
+                    (int)$targetUser['id'],
+                    $user['user_id'] ?? $user['id'],
+                    null
+                ]);
             }
-
-            $stmt = $db->prepare("
-                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT (room_id, user_id)
-                DO UPDATE SET banned_by = EXCLUDED.banned_by,
-                              reason = EXCLUDED.reason,
-                              expires_at = EXCLUDED.expires_at,
-                              created_at = NOW()
-            ");
-            $stmt->execute([$roomId, (int)$targetUser['id'], $user['user_id'] ?? $user['id'], null, $expiresAt]);
 
             $actionLabel = $action === 'ban' ? 'banned' : 'kicked';
             echo json_encode([
@@ -1452,23 +1471,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $expiresAt = null;
+        // Use conditional SQL to avoid TIMESTAMPTZ type inference issues
         if ($action === 'kick') {
-            $utcNow = new DateTime('now', new DateTimeZone('UTC'));
-            $utcNow->modify('+10 minutes');
-            $expiresAt = $utcNow->format('Y-m-d H:i:s');
+            // Kick = temporary 10 minute ban
+            $stmt = $db->prepare("
+                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                VALUES (?, ?, ?, ?, NOW() + INTERVAL '10 minutes')
+                ON CONFLICT (room_id, user_id)
+                DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                              reason = EXCLUDED.reason,
+                              expires_at = EXCLUDED.expires_at,
+                              created_at = NOW()
+            ");
+            $stmt->execute([
+                $roomId,
+                $targetUserId,
+                $user['user_id'] ?? $user['id'],
+                null
+            ]);
+        } else {
+            // Ban = permanent (NULL expiry)
+            $stmt = $db->prepare("
+                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                VALUES (?, ?, ?, ?, NULL)
+                ON CONFLICT (room_id, user_id)
+                DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                              reason = EXCLUDED.reason,
+                              expires_at = EXCLUDED.expires_at,
+                              created_at = NOW()
+            ");
+            $stmt->execute([
+                $roomId,
+                $targetUserId,
+                $user['user_id'] ?? $user['id'],
+                null
+            ]);
         }
-
-        $stmt = $db->prepare("
-            INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (room_id, user_id)
-            DO UPDATE SET banned_by = EXCLUDED.banned_by,
-                          reason = EXCLUDED.reason,
-                          expires_at = EXCLUDED.expires_at,
-                          created_at = NOW()
-        ");
-        $stmt->execute([$roomId, $targetUserId, $user['user_id'] ?? $user['id'], null, $expiresAt]);
 
         echo json_encode(['success' => true]);
     });
@@ -4452,7 +4490,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // Create user
             $insertStmt = $db->prepare("
                 INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $insertStmt->execute([
@@ -4461,8 +4499,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $realName,
                 $email ?: null,
                 $isActive,
-                $isAdmin,
-                date('Y-m-d H:i:s')
+                $isAdmin
             ]);
 
             $newUserId = $db->lastInsertId();
