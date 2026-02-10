@@ -3,6 +3,10 @@
 This upgrade note covers changes introduced in version 1.8.0:
 
  * Conversion to UTC - the database now uses TIMESTAMPTZ and a default connection timezone of UTC for recording time stamps
+ * "Bottom" kludge lines (PATH, SEEN-BY, VIA) are now stored separately in the bottom_kludges table of echomail and netmail
+ * Via is now placed in the bottom kludge line block during outbound message transmission.
+ * Netmail now supports 'd' to download the currently displayed message
+ * The new echo list (forum style) page now allows filtering the list by subscribed areas only, as well as areas with unread messages
  * Pipecode color support converts pipecodes to ANSI sequences for fuller color coding support in messages  
  * Fixed node list handling of entries with a custom bink port.  Now, the right menu pop up will use standard https/telnet/ssh ports instead of providing the custom bink port
  * IPv6 addresses in the node list should parse properly

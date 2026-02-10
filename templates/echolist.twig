@@ -77,10 +77,16 @@
                     <h6 class="mb-0"><i class="fas fa-filter me-2"></i>Filter Echo Areas</h6>
                 </div>
                 <div class="card-body">
-                    <div class="form-check mb-3">
+                    <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="subscribedOnlyCheck" onchange="toggleSubscribedFilter()">
                         <label class="form-check-label" for="subscribedOnlyCheck">
                             Show only subscribed areas
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="unreadOnlyCheck" onchange="toggleUnreadFilter()">
+                        <label class="form-check-label" for="unreadOnlyCheck">
+                            Show only areas with unread messages
                         </label>
                     </div>
                     <input type="text" class="form-control" id="areaSearch" placeholder="Type to filter by name or description..." onkeyup="searchEchoAreas(this.value)">
@@ -146,6 +152,7 @@
 <script>
 let allEchoAreas = [];
 let searchQuery = '';
+let unreadOnly = false;
 
 $(document).ready(function() {
     // Load saved preference from database
@@ -177,7 +184,8 @@ function loadEchoAreas() {
     $.get(url)
         .done(function(data) {
             allEchoAreas = data.echoareas || [];
-            displayEchoAreas(allEchoAreas);
+            // Apply all filters (unread + search)
+            searchEchoAreas(searchQuery);
         })
         .fail(function() {
             $('#forumsContainer').html('<div class="alert alert-danger">Failed to load echo areas</div>');
@@ -200,6 +208,12 @@ function toggleSubscribedFilter() {
     // Reload echo areas with new filter
     loadEchoAreas();
     loadStatistics();
+}
+
+function toggleUnreadFilter() {
+    unreadOnly = $('#unreadOnlyCheck').is(':checked');
+    // Apply the filter to currently loaded areas
+    searchEchoAreas(searchQuery);
 }
 
 function displayEchoAreas(areas) {
@@ -331,16 +345,21 @@ function navigateToEchoArea(tag, domain) {
 function searchEchoAreas(query) {
     searchQuery = query.toLowerCase().trim();
 
-    if (searchQuery === '') {
-        displayEchoAreas(allEchoAreas);
-        return;
+    let filtered = allEchoAreas;
+
+    // Apply unread filter first
+    if (unreadOnly) {
+        filtered = filtered.filter(f => (f.unread_count || 0) > 0);
     }
 
-    const filtered = allEchoAreas.filter(f => {
-        return f.tag.toLowerCase().includes(searchQuery) ||
-               (f.description && f.description.toLowerCase().includes(searchQuery)) ||
-               (f.moderator && f.moderator.toLowerCase().includes(searchQuery));
-    });
+    // Apply search query
+    if (searchQuery !== '') {
+        filtered = filtered.filter(f => {
+            return f.tag.toLowerCase().includes(searchQuery) ||
+                   (f.description && f.description.toLowerCase().includes(searchQuery)) ||
+                   (f.moderator && f.moderator.toLowerCase().includes(searchQuery));
+        });
+    }
 
     displayEchoAreas(filtered);
 }
