@@ -436,7 +436,7 @@ function loadShoutbox() {
                 html += `
                     <div class="mb-2">
                         <strong>${escapeHtml(msg.username)}</strong>
-                        <span class="text-muted small ms-2">${escapeHtml(msg.created_at)}</span>
+                        <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         <div>${escapeHtml(msg.message)}</div>
                     </div>
                 `;
@@ -468,7 +468,7 @@ function loadMoreShouts() {
                 html += `
                     <div class="mb-2">
                         <strong>${escapeHtml(msg.username)}</strong>
-                        <span class="text-muted small ms-2">${escapeHtml(msg.created_at)}</span>
+                        <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         <div>${escapeHtml(msg.message)}</div>
                     </div>
                 `;
