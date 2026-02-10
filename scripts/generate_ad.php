@@ -1144,9 +1144,18 @@ $webdoorsPath = __DIR__ . '/../config/webdoors.json';
 if (file_exists($webdoorsPath)) {
     $webdoorsJson = json_decode((string)file_get_contents($webdoorsPath), true);
     if (is_array($webdoorsJson)) {
+        // Load manifests to get proper display names
+        $manifests = \BinktermPHP\WebDoorManifest::listManifests();
+        $manifestMap = [];
+        foreach ($manifests as $manifestData) {
+            $manifestMap[$manifestData['id']] = $manifestData['manifest']['game']['name'] ?? $manifestData['id'];
+        }
+
         foreach ($webdoorsJson as $doorId => $doorConfig) {
             if (is_array($doorConfig) && ($doorConfig['enabled'] ?? false) === true) {
-                $webdoors[] = toCamelCase((string)$doorId);
+                // Use display name from manifest if available, otherwise use ID
+                $displayName = $manifestMap[$doorId] ?? toCamelCase((string)$doorId);
+                $webdoors[] = $displayName;
             }
         }
     }
