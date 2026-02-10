@@ -652,7 +652,7 @@ The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebS
 
 In general, you can follow these general steps when upgrading BinktermPHP however individual versions may have their own requirements.
 
-**Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path **BEFORE** upgrading.
+**Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path **BEFORE** upgrading as there may be specific steps you must take.  This applies to both git and installer methods of upgrading!
 
 The general steps are:
 
@@ -673,12 +673,17 @@ wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/bink
 # Run the installer
 php binkterm-installer.phar
 ```
+
+
 ### Version-Specific Upgrade Guides
 
 Individual versions with specific upgrade documentation:
-
-- February 2 2026 - [docs/UPGRADING_1.7.5.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 30 2026 - [docs/UPGRADING_1.7.2.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
+- February 2026 [docs/UPGRADING_1.8.0.md](docs/UPGRADING_1.8.0.md) - Forum style echoarea list is now the default echoarea page.  Binkp insecure session fixes, various enhancements
+- February 8 2026 [docs/UPGRADING_1.7.9.md](docs/UPGRADING_1.7.9.md) - LovlyNet, Telnet user registration, ANSI AD generator, Misc updates 
+- February 6 2026 [docs/UPGRADING_1.7.8.md](docs/UPGRADING_1.7.8.md) - NetMail enhancements, Auto Feed RSS poster, Sysop Notifications to Email, echomail cross posting and more
+- February 4 2026 [docs/UPGRADING_1.7.7.md](docs/UPGRADING_1.7.7.md) - Nodelist import fix for ZC/NC, Webdoor updates, signatures and tag lines, file area action processing, misc fixes
+- February 2 2026 - [docs/UPGRADING_1.7.5.md](docs/UPGRADING_1.7.1.md) - Optimizations to echomail message loader for memory reduction, Bink fixes, file areas, new forum style echoarea list,  various enhancements 
+- January 30 2026 - [docs/UPGRADING_1.7.2.md](docs/UPGRADING_1.7.1.md)  - Maintenance release/pre-release
 - January 29 2026 - [docs/UPGRADING_1.7.1.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
 - January 28 2026 - [docs/UPGRADING_1.7.0.md](docs/UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
 - January 24 2026 - [docs/UPGRADING_1.6.7.md](docs/UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
