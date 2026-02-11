@@ -37,7 +37,7 @@ start_bridge() {
     echo "Starting Bridge Server..."
     echo "Press Ctrl+C to stop"
     echo ""
-    node scripts/door-bridge-server.js 5000 5001 test-session
+    node scripts/dosbox-bridge/server.js 5000 5001 test-session
 }
 
 start_dosbox() {

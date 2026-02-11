@@ -2,9 +2,10 @@
   "name": "binkterm-dosbox-bridge",
   "version": "1.0.0",
   "description": "DOSBox door game bridge for BinktermPHP",
-  "main": "scripts/door-bridge-server.js",
+  "main": "server.js",
   "scripts": {
-    "test-bridge": "node scripts/door-bridge-server.js 5000 5001 test-session"
+    "start": "node server.js 5000 5001 test-session",
+    "test": "node server.js 5000 5001 test-session"
   },
   "dependencies": {
     "iconv-lite": "^0.6.3",

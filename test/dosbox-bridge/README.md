@@ -22,7 +22,8 @@ This test demonstrates:
 
 2. **Node.js packages**
    ```bash
-   npm install ws@^8.16.0 iconv-lite@^0.6.3
+   cd scripts/dosbox-bridge
+   npm install
    ```
 
 3. **DOSBox or DOSBox-X**
@@ -42,7 +43,7 @@ Open a terminal and run:
 
 ```bash
 cd /path/to/binkterm
-node scripts/door-bridge-server.js 5000 5001 test-session
+node scripts/dosbox-bridge/server.js 5000 5001 test-session
 ```
 
 You should see:
@@ -108,7 +109,8 @@ You should see the output appear in the web terminal.
 **Error: "Module not found"**
 ```bash
 # Install required packages
-npm install ws@^8.16.0 iconv-lite@^0.6.3
+cd scripts/dosbox-bridge
+npm install
 ```
 
 **Error: "Address already in use"**
@@ -223,7 +225,8 @@ test/dosbox-bridge/
 ```
 
 **Related Files:**
-- **`../../scripts/door-bridge-server.js`** - Bridge server (production)
+- **`../../scripts/dosbox-bridge/server.js`** - Bridge server (production)
+- **`../../scripts/dosbox-bridge/package.json`** - Node.js dependencies
 
 ## Phase 1 Results
 
