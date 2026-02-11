@@ -29,6 +29,7 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Security Considerations](#security-considerations)
 - [File Areas](#file-areas)
   - [File Area Rules](#file-area-rules)
+- [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
 - [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
@@ -1517,6 +1518,43 @@ if ($userIdFromUrl && $tokenFromUrl) {
     }
 }
 ```
+
+## DOS Doors - Classic BBS Door Games
+
+BinktermPHP supports running classic DOS door games through DOSBox-X emulation. This brings authentic retro BBS door games like Legend of the Red Dragon (LORD), Trade Wars, and other DOS classics to your web-based BBS.
+
+### How It Works
+
+The DOS door system uses a multiplexing bridge architecture that connects browser terminals to DOSBox-X instances via WebSockets:
+
+- **Browser Terminal** - xterm.js terminal in the web browser
+- **Multiplexing Bridge** - Node.js server managing WebSocket connections and DOSBox instances
+- **DOSBox-X** - Emulator running the actual DOS door game with FOSSIL driver support
+- **Node-Specific Drop Files** - DOOR.SYS generated per-session for proper multi-user support
+
+### Key Features
+
+- **Multi-Node Support** - Multiple users can play simultaneously with isolated sessions
+- **Automatic Session Management** - Bridge handles entire lifecycle (config generation, DOSBox launch, cleanup)
+- **Carrier Detection** - Realistic BBS behavior with graceful shutdown on disconnect
+- **Drop File Generation** - DOOR.SYS files generated from user data for proper door game integration
+- **Configurable Caching** - DOSBox-X directory cache settings for multi-node file visibility
+
+### Requirements
+
+- **DOSBox-X** - Required for DOS emulation
+- **Node.js** - Required for the multiplexing bridge server
+- **FOSSIL Driver Support** - Built into DOSBox-X serial port configuration
+- **Door Games** - Classic DOS door game files (LORD, Trade Wars, etc.)
+
+### Getting Started
+
+See **[docs/DOSDoors.md](docs/DOSDoors.md)** for complete documentation including:
+- Installation and configuration
+- Adding door games
+- Multi-node setup
+- WebSocket configuration (SSL/proxy support)
+- Troubleshooting and debugging
 
 ## WebDoors - Web-Based Door Games
 

@@ -145,6 +145,30 @@ if (empty($doorId)) {
             max-width: 80%;
             text-align: center;
         }
+
+        /* Xterm helpers: keep off-screen, but do not break measurement logic */
+        .xterm-helpers {
+            position: absolute !important;
+            left: -9999em !important;
+            top: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        .xterm-helpers .xterm-helper-textarea {
+            position: absolute !important;
+            left: -9999em !important;
+            top: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        .xterm-char-measure-element {
+            position: absolute !important;
+            left: -9999em !important;
+            top: 0 !important;
+            visibility: hidden !important;
+        }
     </style>
 </head>
 <body>
