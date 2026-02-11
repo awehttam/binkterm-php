@@ -326,6 +326,25 @@ sudo systemctl status dosdoor-bridge
 sudo journalctl -u dosdoor-bridge -f  # Follow logs
 ```
 
+### Production (Linux with cron)
+
+Alternatively, you can start the bridge via cron using `@reboot`:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add line to start bridge on boot
+@reboot cd /path/to/binkterm && /usr/bin/node scripts/dosbox-bridge/multiplexing-server.js >> data/logs/dosdoor-bridge.log 2>&1
+```
+
+**Notes:**
+- The bridge runs in the background and logs to `data/logs/dosdoor-bridge.log`
+- Make sure the log directory exists: `mkdir -p /path/to/binkterm/data/logs`
+- Verify the bridge started after reboot: `ps aux | grep multiplexing-server`
+- To stop: `pkill -f multiplexing-server.js`
+- For better process management, consider using systemd (above) or a process supervisor like PM2
+
 ### Production (Windows)
 
 On Windows, run the bridge as a service using [NSSM](https://nssm.cc/) or similar:

@@ -443,17 +443,41 @@ class SessionManager {
         }
 
         const headless = process.env.DOSDOOR_HEADLESS !== 'false';
-        const args = headless
-            ? ['-nogui', '-conf', configPath, '-exit']
-            : ['-conf', configPath, '-exit'];
+        const isLinux = process.platform !== 'win32';
 
-        console.log(`[DOSBOX] Spawning: ${dosboxExe} ${args.join(' ')}`);
+        // Build arguments based on platform and headless mode
+        let args;
+        if (headless) {
+            if (isLinux) {
+                // Linux: Use -noconsole for true headless
+                args = ['-noconsole', '-conf', configPath, '-exit'];
+            } else {
+                // Windows: Use -nogui
+                args = ['-nogui', '-conf', configPath, '-exit'];
+            }
+        } else {
+            args = ['-conf', configPath, '-exit'];
+        }
 
-        const dosboxProcess = spawn(dosboxExe, args, {
+        // Set up spawn options
+        const spawnOptions = {
             cwd: BASE_PATH,
             detached: false,
             stdio: 'ignore'
-        });
+        };
+
+        // Linux: Set SDL_VIDEODRIVER=dummy for true headless operation
+        if (isLinux && headless) {
+            spawnOptions.env = {
+                ...process.env,
+                SDL_VIDEODRIVER: 'dummy'
+            };
+            console.log(`[DOSBOX] Linux headless mode: SDL_VIDEODRIVER=dummy`);
+        }
+
+        console.log(`[DOSBOX] Spawning: ${dosboxExe} ${args.join(' ')}`);
+
+        const dosboxProcess = spawn(dosboxExe, args, spawnOptions);
 
         session.dosboxProcess = dosboxProcess;
 
