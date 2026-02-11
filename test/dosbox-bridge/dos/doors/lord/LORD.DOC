@@ -1,0 +1,1546 @@
+              ณ
+Û฿Û           ณ
+ฐฒฐ           ณ
+ฑฑฑ    egend  ณ
+ฒฐฒ ÜÜÜ       ณ
+ÛÜÛÜÛÜÛ       ณ
+              ณ
+Û฿Û฿Û฿Û       ณ
+ฐฒฐ ฐฒฐ       ณ
+ฑฑฑ ฑฑฑ       ณ
+ฒฐฒ ฒฐฒ       ณ
+ÛÜÛÜÛÜÛ       ณ
+              ณ
+Û฿Û฿Û฿Ü       ณ LORD (Legend of the Red Dragon) is a multi-player battle game
+ฐฒฐ ฐฒฐ       ณ           created for Bulletin Board Systems (BBS).
+ฑฑฑ฿฿ฑÜ ed    ณ
+ฒฐฒ  ฒฐฒ      ณ         (c) Copyright 1992-1997 Robinson Technologies
+ÛÜÛ  ÛÜÛ      ณ           (c) Copyright 1998,1999 Metropolis, Inc.
+              ณ                  Developed by Michael Preslar
+Û฿Û฿฿ÛÜ       ณ                      All rights reserved.
+ฐฒฐ  ฐฒฐ      ณ       
+ฑฑฑ  ฑฑฑragon ณ                      The Originals:
+ฒฐฒ  ฒฐฒ      ณ               Written By: Seth Able Robinson
+ÛÜÛÜÜÛ฿       ณ             Documentation By: Brandon Whitten
+              ณ
+              ณ                       Michael Preslar  
+              ณ                        1218 Hwy 54E
+              ณ                     Covington, TN, 38019   
+              ณ
+              ณ                  web:   lord.darktech.org
+  V4.02       ณ                  email: e_maus@covingtononline.com
+              ณ                                          
+              ณ
+              ณ      This archive may be shared with all, in its unmodified
+              ณ                        shareware format.
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+              ณ
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Table of Contents ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+Disclaimer . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1
+
+Contents of the Legend of the Red Dragon archive . . . . . . . . . . 2
+
+Registration Information . . . . . . . . . . . . . . . . . . . . . . 3
+   Registration Special. . . . . . . . . . . . . . . . . . . . . . . 4
+   How can I get my codes fast?. . . . . . . . . . . . . . . . . . . 4
+   Get your code in 5 Minutes. Guaranteed! . . . . . . . . . . . . . 4
+
+Legend of the Red Dragon Introduction. . . . . . . . . . . . . . . . 5
+
+Quick Installation . . . . . . . . . . . . . . . . . . . . . . . . . 7
+
+Troubleshooting. . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+
+What is RIP? and Why?. . . . . . . . . . . . . . . . . . . . . . . .11 
+
+Hints & Tips . . . . . . . . . . . . . . . . . . . . . . . . . . . .13
+
+LORDCFG.EXE Explained. . . . . . . . . . . . . . . . . . . . . . . .15
+   Node Setup. . . . . . . . . . . . . . . . . . . . . . . . . . . .16
+   Game Options. . . . . . . . . . . . . . . . . . . . . . . . . . .19
+   Player Editor . . . . . . . . . . . . . . . . . . . . . . . . . .20
+
+Credits. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .23
+
+HOW TO CONTACT THE AUTHOR. . . . . . . . . . . . . . . . . . . . . .24
+
+Acknowledgements . . . . . . . . . . . . . . . . . . . . . . . . . .25
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Disclaimer ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+Use this software at your own risk. Many hours of BETA testing was spent testing
+this software, and as far as we know it's safe and stable. Even so, we cannot be 
+responsible for any weird thing it does!
+
+Legend of the Red Dragon 4.02                                  Page 1
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Contents of the LORD Archive ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+   When you received the Legend of the Red Dragon archive, the following files
+*SHOULD* be present. If any are missing, please call The Darkside BBS and
+download a fresh copy.
+
+LORD.DOC     : This is what you are reading now.... duh..!
+REGISTER.DOC : The registration form. You can print this out with LORDCFG. You
+               can also fill it out and still print it out with LORDCFG.
+SUPPORT.DOC  : A list of Seth Able Support BBS's.
+START.BAT    : This is ALWAYS used to start Legend of the Red Dragon. There are
+               *no* exceptions to this one.
+LOCAL.BAT    : Use this to play Legend of the Red Dragon locally.
+DOATTRIB.BAT : Puts the READ ONLY attribute on four of Legend of the Red
+               Dragon's files. This is included for compatibility on Lantastic
+               systems. Since not all systems need this, is was put in to make
+               the SysOp's life a little bit easier.
+NOATTRIB.BAT : Removes the READ ONLY attribute from four of Legend of the Red
+               Dragon's files. You need to run this if you are installing a new
+               version, or updating an older version of Legend of the Red
+               Dragon.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 2
+
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Registration Information ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+   Is this product crippled or what?
+
+   Yep, this is Shareware. This allows you, the consumer to try out this
+product, before you decide to plunk down some cold hard cash for it. As a matter
+of fact, nearly half of the registrations we have received have been paid for by
+USERS!
+
+   But, this is a fully operational to the users until they hit level 6. They
+will not be able to continue until the game is registered.
+
+If I register, What do I get?
+
+   When you register Legend of the Red Dragon, you will get a unique
+registration code with your name on it, printed JUST for you!
+
+   This code can be easily entered with LORDCFG.EXE. Just use "(E)nter
+Registration Code". Once entered, the entire game will be functional.
+
+   What this gets you:
+
+   Twice as many levels and enemies.
+
+   The game can be finished. (Players can go beyond level 6).
+
+   (V)isit the Hall of Honor option in (T)urgon's Warrior Training will actually
+   be useful. This ranks heros, depending on how many heroic deeds they have
+   done.
+
+   The Player Editor in LORDCFG will allow you to save changes.
+
+   You can change the number of forest fights and player fights a player is
+   allowed to have.
+
+   By supporting quality shareware such as this, you are making Legend of the
+   Red Dragon a bigger and better game.
+
+   FREE UPDATES! All future versions of Legend of the Red Dragon will work with
+   your registration code. Actually getting the updates will be left up to you.
+
+Wow! I love this game! HOW do I register?
+
+   First, remember the wonderful thing about shareware - you get to "Try before
+you buy" this game. What this means is that you know *exactly* what you are
+getting before you pay for it.
+
+   If you are unhappy with ANY part of the operation, DO NOT send cash expecting
+it to work better. Registering Legend of the Red Dragon simply lets you play the
+second half of the game, and defeat the infamous Red Dragon.
+
+Legend of the Red Dragon 4.02                                  Page 3
+   If you are having problems, call us for technical support BEFORE registering.
+We offer support to users whether or not they have registered Legend of the Red
+Dragon.
+ 
+   If you DO NOT operate a BBS, you can still register the game for home use.
+Many people have done this already.
+   
+   Use the (*) Print Registration Form" option in LORDCFG. It will print the
+REGISTER.DOC file. It's ok to edit REGISTER.DOC and fill it out with your
+information before you print out the file. Or, just fill it out with pen after
+it's printed. (You can print REGISTER.DOC with any program you want!).
+
+   If you do not have a printer, try to basically send us the same information,
+and if we can find a return address, we will send you a registration code for
+Legend of the Red Dragon.
+
+ฺฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฟ
+ณ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Special Offer ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ ณ
+ภฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤู
+
+   If you are registering two or more Seth Able products with us in the same
+order, you are eligible for a BIG discount!
+
+              EACH REGISTRATION DROPS DOWN TO $10 INSTEAD OF $15!!
+
+   Many people use this option to register Planets: TEOS and Legend of the Red
+Dragon together for a whopping $20!
+
+   Or, if you know someone who wants to register Legend of the Red Dragon at the
+same time, go ahead and send both of your registrations and get the two Legend
+of the Red Dragon registrations for $20!
+
+   Any combination works. Eight registrations would still be $80.
+
+   If you have any questions about this, contact Seth Able at one of the
+addresses listed in the beginning of this document.
+
+ฺฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฟ
+ณ ฐฐฐฐฐฐฐฐฐฐฐฐฐ How can I get my Registration Codes the Quickest? ฐฐฐฐฐฐฐฐฐฐฐฐ ณ
+ภฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤู
+
+   Average mailing time for us to receive your registration is about a week.
+When it is received, we usually mail within 48 hours of receiving it.
+
+   Every time we register another user, we put them into our custom database
+system. You can call The Darkside BBS and pick up your codes on your first call
+*if* we have received your check. (Just use "R" from the Main Menu).
+
+                       ***WE ACCEPT MOST CREDIT CARDS!!***
+
+   Want to get your registration codes in 5 minutes? Here's how:
+
+   For ease and speed, you can't beat calling The Darkside BBS and using our
+Credit Card door. You will be able to pick up your codes ONLINE!
+
+   To reach our BBS, dial via modem at: 503-838-6171, 28.8bps on all lines.
+
+   You can only register by yourself on our system with plastic. Our "Register
+with a Friend" deal is only valid through U. S. Mail (Snailmail), thanks to our
+limited registration software. (Even though we wrote it!)
+
+Legend of the Red Dragon                                       Page 4
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Introduction to Legend of the Red Dragon ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+   Legend of the Red Dragon (LORD) is a multi-player battle game created for
+Bulletin Board Systems (BBS's). Legend of the Red Dragon can also be played
+locally by running the LOCAL.BAT from the DOS prompt.
+
+   Legend of the Red Dragon supports:
+
+   * DesqView, Windows, and OS/2.
+
+   * Support for most dropfile types: DORINFOx.DEF, PCBOARD.SYS, CHAIN.TXT,
+   INFO.BBS, CALLINFO.BBS, DOOR.SYS, SFDOORS.DAT, JUMPER.DAT, and TRIBBS.SYS.
+
+   * IRQ 0-15 and selectable COM port address supported for nonstandard COM 
+   ports.
+
+   * CTS/RTS flow handshaking, locked baud rates, and support up to 115,200 baud
+   rates.
+
+   * Internal communications routines supported.
+
+   * FOSSIL driver support.
+
+   * Locked FOSSIL driver support.
+
+   * True multi-node support. (Send online message, battles, and such!).
+
+   * Lock out any player you don't like by putting their name in the LOCKOUT.DAT
+   file. Legend of the Red Dragon will display LOCKOUT.TXT when the user tries
+   to enter the game. You can edit this file if you wish.
+
+   * Automatic RIP detection and support.
+
+   * Optionally will create ANSI/ASCII score files with any path and name in
+   LORDCFG. Great option if you wish to display the Legend of the Red Dragon
+   scores as a bulletin on your BBS.
+
+   * In-game downloading of LORDICON.ZIP, which is the file RIP users need to
+   plat Legend of the Red Dragon. It contains all the icons needed to use RIP
+   graphics. Legend of the Red Dragon will auto detect if the user is using RIP,
+   what version, and if they do not have the Legend of the Red Dragon icons. If
+   they do not have the icons, Legend of the Red Dragon will give them the
+   option of downloading them. *NOTE* You will need to obtain a copy of an
+   external protocol driver such as GSZ.EXE if you wish the in-game downloading
+   of the Legend of the Red Dragon icons to work. Also, you must set this path
+   in LORDCFG.
+
+   * Auto Maintenance as the first person of the day plays Legend of the Red
+   Dragon. Entire maintenance process takes less than 4 seconds on most systems.
+
+   * Auto deletion of inactive players. This is set via LORDCFG.
+
+   * "Smart Deletes" of users. If your BBS is down for an extended period of
+   time, Legend of the Red Dragon will not count those days against the player.
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 5
+   * Ultra easy to run. You don't have to do anything, ever. On the other hand,
+   LORDCFG will allow the SysOp to become as involved with Legend of the Red
+   Dragon as he wants to be. Define many rules and enable/disable certain
+   options. *NOTE* Not all options are available in the unregistered version.)
+
+   * Powerful player editor. *NOTE* Can only save if the game is registered.
+
+   * Inactivity timeout at 3 minutes. If a player does not touch the keyboard in
+   over 3 minutes, he will be removed from the game. No matter of security
+   level.
+
+   * SysOp can chat with the user in Legend of the Red Dragon. Use ALT-C to
+   chat, and ESCape to finish.
+
+   * Players play an average of 10 minutes per day (at standard settings). The
+   perfect game to compliment an active message base. In fact, that's why it was
+   written. Keeps 'em coming back for more EACH DAY!
+
+   * Lots of professional RIP graphics. You gotta play to believe it!
+
+   * Special Skills! Players can take their pick of being a "Death Knight",
+   "Mystical Skills User", or a student of the "Thieving Skills." Or, become the
+   ultimate warrior and learn them all!
+
+   * "Never Reset" game play. New approach to gaming! When a player successfully
+   beats the Red Dragon, only *he* is reset. He does keep his special skills he
+   has acquired, as well as his charm, children, and status in "The Old Man's
+   Rankings."
+
+   * Much more text. Log "lementings" can be easily edited for a personalized
+   game!
+   
+   * Smart Mode: Users are automatically informed when another player enters the
+   realm while they are online. Or leaves. Or sends a message. (Via messenger on
+   horseback!)
+
+   * More interactive forest events. Many "secrets" to discover.
+
+   * Hundreds of ways for players to interact.
+
+   * Players can get married and have kids!
+
+   * DarkCloak Tavern. Hard to find, but VERY interesting when you do.
+
+   * Powerful mail writing routines. Unlimited message length!
+
+   * Tastefully lewd, and sort of tastefully gory!
+   
+   * A *FREE* upgrade to previously registered users! (As all upgrades are FREE
+   for Seth Able Products.)
+
+   * Reach new heights of conversation with "Characters" from the game.
+
+   * Still only $15 bucks to register, the best value in doors today!
+
+   * Single node systems that can multi-task can use the local option from DOS
+   to play along with someone on the BBS. Just run LOCAL.BAT from the Legend of
+   the Red Dragon directory.
+
+
+
+Legend of the Red Dragon 4.02                                  Page 6
+
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Quick Installation ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+   Here's a step-by-step quick installation of Legend of the Red Dragon:
+
+STEP ONE:
+
+   Uncompress the LORD.ZIP archive into a directory of your choice.
+
+STEP TWO:
+
+   Edit the START.BAT with your favorite text editor. Change the top line to
+   reflect the directory where you uncompressed Legend of the Red Dragon into.
+   It will need to change to the Legend of the Red Dragon directory before
+   executing anything else in the batch file.
+
+STEP THREE:
+
+   Run LORDCFG.EXE.
+
+   In LORDCFG, go to (S)etup Nodes. This will allow you to configure baud rates,
+   locked baud rates, COM ports, special port addresses (if needed)m the
+   dropfile type your BBS makes, and where to find it.
+
+   If you run a multi-node BBS, set up EACH dial in/remote node.
+
+   Lazy Folks: Every time you set up a node that does not exist in LORDCFG, the
+   new node configuration will be created with the defaults of the first node
+   installed. So, if you have 200 nodes, it won't be a huge pain in the ass to
+   set up all 200 of them.
+
+STEP FOUR:
+
+   Have your BBS execute the START.BAT. If you run just one node (A single line
+   BBS), you need to have your BBS call START.BAT 1. The 1 is the node number.
+
+   If you have a multi-node BBS, use a node parameter (in RemoteAccess, it's *N)
+   so your BBS will substitute the appropriate node number.
+
+TO PLAY LOCALLY:
+
+   If you want to just play Legend of the Red Dragon locally, just start it with
+   the LOCAL.BAT file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 7
+
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Troubleshooting ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+   This part is included if you are having problems with Legend of the Red
+Dragon.
+
+Q: Uh... My network is simply not letting other nodes play when someone is    
+   already in the game.
+
+A: No one has ever asked that - BUT, if it does happen, it's possible you can
+   fix it by typing "ATTRIB +R START.BAT" at the DOS prompt to make the
+   START.BAT read only.
+
+   Your network could be locking it away from the other users when someone is in
+   Legend of the Red Dragon.
+
+   But, since I don't use CALL in the batch file, it should be done with it
+   completely when it changed to the LSS(node number).BAT automatically. So this
+   scenario may never happen.
+
+Q: Hey! It ain't making score bulletins like it should! Instead I'm getting a
+   runtime error when someone quits. How can I fix this?
+
+A: The Fix: When you entered the path of your ASCII and ANSI files in LORDCFG,
+   did you forget to enter the NAME of the score files you want created?
+
+   GO FIX IT!
+
+Q: The game is saying someone else is playing the game, even though that user
+   isn't on. What's up?
+
+A: This is caused by the game turning off unexpectedly. For instance, a lock up,
+   or a power failure. A carrier loss will not do this, Legend of the Red Dragon
+   knows how to handle that, and will save all the players data before it
+   returns to the BBS.
+
+   The game will automatically fix it at maintenance the next morning, but you
+   can also use the "(T)urn "On Now" Stat off for all players" option in
+   LORDCFG.
+
+Q: When a user enters the door, nothing happens, and he is returned back to the
+   BBS! How can I get around this?
+
+A: Check your BBS's execution string. It's probably not finding the file. It
+   should look something like this:
+
+   C:\BBS\DOORS\LORD\START.BAT 1
+
+   ** OR **
+
+   The problem could be Legend of the Red Dragon isn't getting enough memory.
+   LORD requires 350k of CONVENTIONAL memory.
+
+   You may need to tell your BBS to Swap to Disk instead of memory to get
+   enough. WWIV SysOps: Use the Shrink BBS option.
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 8
+   If you are not sure how much memory your BBS is giving Legend of the Red
+   Dragon, run MEM in a batch file somewhere and see how much CONVENTIONAL
+   memory it shows. Legend of the Red Dragon will automatically load some of its
+   files into EMS if you have it available.
+
+Q: I am a multi-node system, but I can't figure out how to get my BBS to pass
+   the node number for the node switch. What do I do?
+
+
+A:  Check your BBS package manual/documentation. Most multi-node systems have a
+   symbol you enter in the batch file which tells the BBS to substitute the node
+   number. Something like: C:\BBS\DOORS\LORD\START.BAT %N or *N or something!
+
+Q: Man, I'm multi-node, and I'm using the DORINFO1.DEF dropfile. But, when
+   someone on node two plays, Legend of the Red Dragon says it "CANNOT FIND
+   DORINFO2.DEF" My BBS uses the DORINFO1.DEF for all nodes. What do I do now?
+
+A: No problems. Use "(S)etup Nodes with BBS" option in LORDCFG, and change your
+   dropfile type to a DORINFO1.DEF dropfile type. Right after you do this, it
+   will give you an option of reading a DORINFO1.DEF for ALL nodes, or the other
+   way.
+
+Q: The door just locks up on the intro ANSI! How do I fix this?
+
+A: Lock ups are NOT a part of Legend of the Red Dragon. Most likely you can fix
+   the problem by changing your setup. Choose "(S)etup Nodes with BBS" option in
+   LORDCFG and try a different setup. With 4.02 , it's now very easy to change
+   settings, like locked baud rate.
+
+   PERHAPS you are using a FOSSIL driver, but have Legend of the Red Dragon set
+   to use Internal COM Routines? Change it to "Regular Fossil" and see what
+   happens.
+
+   If that don't do it, try this:
+
+   Try using a fossil driver. Some high speed modems will not function correctly
+   with Legend of the Red Dragon's internal COM routines, and using a FOSSIL
+   driver is the only way to run the game. DON'T GET SCARED! This does not have
+   to interfere with your BBS in any way. You can download a FOSSIL driver from
+   most BBS's. A couple of suggested drivers are: X00.SYS by Raymond Gwinn or
+   BNU by David Nugent. Consult the FOSSIL driver documentation for information
+   on how to install it.
+
+   If your BBS ALREADY runs with a FOSSIL, skip the fossil installation stuff!
+
+Q: I am multi-node, and I am running Legend of the Red Dragon with no problems -
+   But every time I  see a <MORE> prompt, it stops the game for a second or
+   more! Why?
+
+A: This is file access. This is how players in Legend of the Red Dragon can list
+   other players, and see other players scores going up WHILE they play.
+
+   The game communicates entirely by your hard drive. This way, as long as two
+   games or more are running from the same DIRECTORY, it will work with the 
+   multi-node functions (Online battles, sending mail and such).
+
+   The fix: You could try a disk cache program. I personally use SMARTDRV that
+   comes with MS-DOS. I run it like this from my AUTOEXEC.BAT:
+
+   SMARTDRV 2000
+
+Legend of the Red Dragon 4.02                                  Page 9
+   This allocates almost 2 megs of RAM for caching. You could use more or less. 
+   I highly recommend a disk cache! The <MORE> prompts on my system are
+   instantaneous.
+
+   Be careful about "Delayed Writes." If you are having trouble, you may want to
+   set the delay time to 0.
+
+A: These are the options Legend of the Red Dragon can be run with in LORDx.BAT
+(Where x = the node 
+   number) : 
+
+   (You can use them in any order).
+
+    COMMAND LINE PARAMETERS
+    -=-=-=-=-=-=-=-=-=-=-=-
+   
+/L Local mode    
+    
+/Bxxx - Specify locked baud rate (i.e. /B38400)    
+   
+<number with no forward slash>   - Specify node number    
+   
+/R - Force RIP graphics (This will get you past the first detection phase
+automatically. To manually pass the second, type RIP99999999  when you see the
+Legend of the Red Dragon screen waiting for something)
+
+/Pyyy - Specify path to drop file (i.e. /Pc:\bbs, this isn't used any more
+because the drop file path can be set in LORDCFG, for each node. This option
+will override what is in LORDCFG.EXE though)
+
+More parms:  These do NOT use the / slash in front.
+
+NOEMS - Forces LORD to NOT use EMS at all.  Helpfull if Desqview or something
+        is crashing from EMM386 errors.
+
+NORIP - Disabled the RIP detect entirely.
+
+ANSI - Forces ANSI, regardless of what it reads from the drop file.
+
+A line like this is accetable:
+
+CALL START 1 ANSI NOEMS /L
+
+And such.
+
+Legend of the Red Dragon 4.02                                  Page 10
+
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ What is RIP? And Why? ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+                          by Seth Able (Not an expert).
+
+If a user with RIPterm 2.0 tries to play Legend of the Red Dragon, it will work,
+but RIPterm will convert the icons incorrectly. (It uses the standard palette
+only)
+
+BUT.. We have a solution. Let interested users download LORDRIP2.ZIP, a file
+that is NOT included in this archive, (only the 1.54 version is, because at this
+time 2.0 is not very popular) but you can download it from my system, or check
+major online services. 
+
+LORDRIP2.ZIP contains BMP's of the original artwork correctly converted.  
+Nothing is new, just compatible with 2.0.  (And of course, the BMP version is
+not compatible with pre 2.0 Ripterm)
+
+What is RIP? Well, it's a terminal emulation sort of like ANSI, except it uses a
+VGA mode with 16 colors.  (A 256 color version of Legend of the Red Dragon could
+be in your future, but only if RIP 256 is standardized.)
+
+RIP stands for (R)emote (I)maging (P)rotocol.
+
+To view ANSI, you need an ANSI capable terminal program, right?  Well, same 
+with RIP - Legend of the Red Dragon v4.02  was tested with RIPterm V1.54.02.  
+
+Telix For Windows was also tested successfully.
+
+If your Terminal program supports RIP emulation and does not work with Legend of
+the Red Dragon,  take it up with them. Legend of the Red Dragon's RIP uses no
+"illegal" or nonstandard commands - Write them a letter with your complaints and
+perhaps they will update their  program to FULLY support RIP.
+
+Anyway, it allows users to use a mouse with the game, and view some nice
+graphics in spots. The non-graphic menus are about the same length as the ANSI 
+ones, so speed isn't a problem - EXCEPT for the larger ones that hold a lot of 
+information - The graphics.  
+
+Legend of the Red Dragon lets users DOWNLOAD a file, (LORDICON.ZIP) which
+contains all the hand drawn icons. They then put it in their ICONS directory,
+(If they are using RIP, they have one!) and RIP then recalls screens when Legend
+of the Red Dragon asks it to.
+
+So the large graphic screens don't slow the game down any - Even your 300 baud
+users will see the INTRO.RIP file at full speed. 
+
+When a user calls using RIPterm, the game will automatically notice that. It
+will also check to see if the user has the correct files on his HD. If he
+DOESN'T, it will let him download the LORDICON.ZIP file IN THE GAME, providing 
+you have GSZ.EXE or DSZ.EXE, and told Legend of the Red Dragon where it was in
+LORDCFG.EXE.
+
+Playing the game without downloading the icons (LORDICON.ZIP) is NOT
+RECOMMENDED!
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 11
+It doesn't matter if your BBS supports RIP or not, Legend of the Red Dragon
+will. You will see strange symbols on your screen, instead of menus. These are
+the RIP codes, do not re-boot your computer! This is normal, as of yet, there is
+no RIP.SYS like ANSI.SYS that will automatically display the VGA RIP, but then
+again, it would  surely slow down your system - and no one wants that.
+
+Is RIP going to become a new standard? I don't know. I just implement what
+people ask for most.
+
+If a user complains it's not working, it's probably because they don't have the
+latest version of RIPterm, (It will actually tell them that though when they 
+play) or they have not UNZIPPED the LORDICON.ZIP file into the ICONS directory  
+on their HD.
+
+If the download LORDICON.ZIP option IN Legend of the Red Dragon does not work on
+your system, you may have to put up LORDICON.ZIP in your file bases, so they can
+download it from there.  
+
+Well, if you didn't know anything about RIP before, hopefully you do now.
+
+                                  -Seth Able
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Legend of the Red Dragon                                       Page 12
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Hints & Tips ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+   This door will be an instant HIT on your system, and probably increase 
+   activity in your message and file bases. *IF* it's given the chance.
+
+   I used to run an Amiga BBS that had virtually no doors. I knew I needed a 
+   hook, something to get people to call EVERY day and to catch up on the
+   message bases and such, and keep the place busy and fun.
+
+   That's when I created Legend of the Red Dragon, for that purpose alone. Here
+   are some tips on getting a lot of people playing it, which makes it MORE fun:
+
+   > Don't run too many doors. I know it sounds good to say "I've got over 100
+   doors online!" But, you could have a more popular BBS if you only had about 5
+   or 6 doors, so people would be literally FORCED to play with each other. One
+   person playing each of your 100 doors a day is no fun.
+
+   (** Wow! You're actually reading the docs? Here's a hint: Try hitting "1"
+   from the Main Menu **)
+
+   > I know lots of popular systems that run Legend of the Red Dragon alone,
+   (Like mine... well, I run Planets: TEOS too of course!) and my system rings
+   off the hook, not just long distance callers looking for the files, but local
+   PLAYERS that come here because they KNOW that's all I have, so, of course
+   they find a lot of competition. We have 150 players in our Legend of the
+   Red Dragon game!
+
+   > Make it easy to get to. I have my "Play Legend of the Red Dragon 4.02 "
+   option on my Main Menu, so it's very visible. It's better than say, having to
+   type "DOORS" then "1" for "RPG Doors" and finally ANOTHER key to actually
+   play.
+
+   > Announce that you have it. Especially if you are just installing it.
+
+   > Don't get too crazy with turns. When you register the door, you have the 
+   option of setting the "Fights per day" and such to a higher and lower value.
+   But, don't overdo it. Remember that you want people to spend about 5-20
+   minutes a day, not an hour. Too much time gets people burned out, and the fun
+   of fighting with real people is calling DAILY to send messages back and forth
+   and such.
+
+   > Announce that Legend of the Red Dragon has RIP support, and put the newest
+   version of RIPTERM up for downloading on your BBS.
+
+   > Don't play. SysOps that play their own games are hard to beat, and players
+   know this. If they find out YOU are the one they are competing with, chances
+   are they will quit.
+
+   If you are WINNING, (even playing fair) all hell will break loose!
+
+   > Encourage Team Play. Although Legend of the Red Dragon has no special team
+   menus, it does have something much more powerful, the ability for any player
+   to send mail. With this, players make friends and enemies... I have a group
+   on my system that call themselves "Black Knights" and they all have the
+   letters BK in front of their names in Legend of the Red Dragon. Good idea!
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 13
+                             ** FOR SOME REAL FUN **
+
+   > Sometimes your players will get smart with chatting in the tavern, after a
+   character from the game says something (because they know they can't really
+   answer). You can blow their minds by editing your BAR.TXT file:
+
+   Just *cut* the FIRST TWO lines, and *paste* them at the bottom of the file.
+   Edit the name and text, and make sure the color is right for an NPC (looks
+   like this: `0) and help the character answer back!
+
+   > Now that Legend of the Red Dragon supports IGM's (In Game Modules), don't
+   over populate your game with too many of them. Pick three to five of the best
+   ones, and leave them alone. If you have too many of them, they tend to repeat
+   themselves with the same features.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 14
+
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ LORDCFG.EXE Explained ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+   Now, let's configure Legend of the Red Dragon!
+
+   Change to the directory where you installed Legend of the Red Dragon, and at
+the DOS prompt, type:
+
+   LORDCFG
+
+   You really don't need to put the .EXE on it, but if you feel safer doing it,
+by all means, go ahead. You ain't gonna hurt anything!
+
+   When LORDCFG is started initially, It has no LORD.DAT file. So, LORDCFG
+presents you with a question:
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ
+
+  ** ERROR READING THE LORD.DAT FILE **
+
+  This is either because you still have 3.03 data files, and have
+  not run the 303TO315.EXE, or you really have a corrupted LORD.DAT file.
+
+  (If this is simply the first time you've run LORD, hit A!)
+
+  Here are your choices:
+
+๛ (A) Create a NEW LORD.DAT file with defaults
+  (C) Drop to Dos, and forget the whole thing
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ
+
+   Here, you have two choices. You can either hit:
+
+   (A) Create a NEW LORD.DAT file with defaults, or
+   (B) Drop to Dos, and forget the whole thing.
+
+   Since we are installing Legend of the Red Dragon for the first time, we need
+to hit A or ENTER. See the little checkmark? When it is beside a choice you
+would like to make, hit ENTER. It's kinda the default thing. You can also move
+it with the arrow keys and select the option by hitting ENTER.
+
+   Now, we've selected option A, and Legend of the Red Dragon will present us
+with another neat little screen:
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ
+
+                            ** LORD CONFIGURE 4.02 **
+
+๛ (G)ame Options
+  (S)etup Nodes With BBS <= DO THIS FIRST!
+  (P)layer Editor
+  (E)nter Registration Code
+  (T)urn 'On Now' stat off for all players
+  (F)ix Marriage Problems
+  (I)ntro Ansi's are ENABLED!
+  (Q)uit & Save
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ
+
+Legend of the Red Dragon 4.02                                  Page 15
+
+   Here's a more detailed explanation of each option:
+
+   (G)ame Options - Allows you to change most of the settings for the game.
+
+   (S)etup Nodes - Allows you to set up your BBS package with Legend of the Red
+   Dragon. Here, you define dropfiles, port information, etc.
+
+   (P)layer Editor - Here you can edit almost anything in the players accounts
+   in the game. {*} Registered Only.
+
+   (E)nter Registration Code - When you register Legend of the Red Dragon, you
+   will get a unique registration code. Here is where you enter it.
+
+   (T)urn "On Now" stat off for all players - If the game says that a player is
+   still in the game, and you know he is not, this will toggle the ON flag for
+   all players. Useful if the game locks up and says it still has players in
+   there.
+
+   (F)ix Marriage Problems - Some systems have everyone married to player 0 when
+   they upgrade from 3.20a to 4.02 . Use this option only ONCE! It will unmarry
+   everyone in the game and correct the problem.
+
+   (I)ntro ANSIs are - Allows you to enable/disable the opening ANSI screens
+   when someone goes into the game.
+
+   (Q)uit and Save - This option will save any changes that you have made in
+   LORDCFG and return you to a DOS prompt.
+
+ฺฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฟ
+ณ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Node Setup ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ ณ
+ภฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤู
+
+   Well, you see the hint there. So, move the checkmark down with the arrow keys
+and hit ENTER on (S)etup Nodes with BBS. When you hit ENTER, you should see:
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ
+
+                             EDITING NODE SETUP
+
+๛ (1) Node Number      : 1
+  (2) BBS Name         : A Pretty Cool BBS
+  (3) BBS Software     : QBBS
+  (4) Path To Drop File: C:\BBS
+  (5) Fossil/Internal  : Internal Com Routines
+  (6) Locked Port Speed: Port Not Locked
+  (7) Comport          : Read From Drop File
+  (8) Send Open Comports Command?  : Yes!
+  (9) Send Reset Comports Command? : Yes!
+  (A) Use Special ANSI Settings?   : No!
+  (B) Use direct screen writes?    : Yes!
+  (Q) Quit To Main
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ
+
+   Here's each option explained:
+
+   (1) Node Number - This is the current node being edited for the BBS. If you
+   have a multi-node system, set up one node, and just keep changing this number
+   for each node. Legend of the Red Dragon will use the defaults you set up on
+   node 1 for all of the subsequent nodes.
+
+Legend of the Red Dragon 4.02                                  Page 16
+   (2) BBS Name - Put the name of your BBS here.... (Well, duuh!)
+
+   (3) BBS Software - This does not necessarily mean *what* software you run,
+   this is the type of dropfile Legend of the Red Dragon will be looking for.
+   When you hit ENTER on it, LORDCFG will present you with a list of the
+   dropfiles it can accept:
+
+                    (1) QBBS (Using DORINFOx.DEF)
+                    (2) PCBoard12 (Using PCBOARD.SYS)
+                    (3) WWIV (Using CHAIN.TXT)
+                    (4) PCBoard15 (Using PCBOARD.SYS)
+                    (5) RBBS16+ (Using DORINFOx.DEF)
+                    (6) Phoenix (Using INFO.BBS)
+                    (7) Wildcat (Using CALLINFO.BBS)
+                    (8) PCBoard14 (Using PCBOARD.SYS)
+                    (9) DOORSYS (Using DOOR.SYS)
+                    (A) Spitfire (Using SFDOORS.DAT)
+                    (B) 2am-bbs (Using JUMPER.DAT)
+                    (C) TriBBS (Using TRIBBS.SYS)
+                    (D) Local (Does not use drop file)
+
+   If you don't see your BBS type listed here, consult the documentation that
+   came with your BBS package.
+
+   NOTE FOR WILDCAT 3 & 4 SYSOPS: Wildcat now uses the standard 52-line DOOR.SYS
+   dropfile now. It *does not* use CALLINFO.BBS any more.
+
+   If you have a local node set up for your personal use only, you can choose
+   (D) Local. But, since most BBS packages create dropfiles for all nodes, go
+   ahead and choose one that your BBS uses anyway.
+
+   (4) Path to Drop File - Set this to the path where your BBS will create its
+   dropfile. If you are unsure where your BBS creates the dropfile at, consult
+   your documentation. *MOST* BBS packages will put the dropfiles in the main
+   BBS directory.
+
+   (5) Fossil Internal - This tells Legend of the Red Dragon how it will handle
+   the communications with your modem. You have three choices here:
+
+               Internal Com Routines
+               Using Extended Fossil Driver
+               Using Regular Fossil Driver
+
+        Internal Com Routines - Legend of the Red Dragon will attempt to use the
+        internal communications routines written into the game.
+
+        Using Extended Fossil Driver - Legend of the Red Dragon will attempt to
+        use an extended fossil driver for communications support.
+
+        Using Regular Fossil Driver - This is a plain-jane FOSSIL driver like
+        BNU or X00. If Legend of the Red Dragon keeps booting the player, try
+        this one first. BUT, you *must* make sure you have a FOSSIL driver
+        loaded before you run the game.
+
+   (6) Locked Port Speed - If you have the communications port locked on your
+   BBS, then, you need to lock it here as well. If you do not, users could get
+   booted, or lose some of the screens in the game. When you select this,
+   LORDCFG asks you what baud rate. Supported bauds are:
+
+
+
+Legend of the Red Dragon 4.02                                  Page 17
+                  (1) Port Not Locked
+                  (2) 2400
+                  (3) 9600
+                  (4) 14400
+                  (5) 19200
+                  (6) 38400
+                  (7) 57600
+                  (8) 64000
+                  (9) 115200
+
+   (7) Comport - This is where Legend of the Red Dragon needs to know where to
+   look for your communications port. Most BBS packages write the COM port in
+   the dropfile, but if Legend of the Red Dragon can't find it, you'll have to
+   set it here. When you select this option, LORDCFG will ask:
+
+                  (1) Set Com Port Number
+                  (2) Nonstandard Comport (lets you set port, irq and hex        
+                      address)
+                  (3) Read Standard Com Port From The Drop File (Default)
+
+        (1) Set Com Port Number - Legend of the Red Dragon will ask for a COM
+        port number.
+        (2) Nonstandard Comport - If you run a multi-node BBS with nonstandard
+        COM ports and IRQ's, or you use a DigiBoard, you can set them here.
+        (3) Read Standard Com Port from the Drop File - Legend of the Red Dragon
+        will look in the dropfile for the COM port.
+
+   (8) Send Open Comport Commands - Try changing this if you are having problems
+   with Legend of the Red Dragon, or you just want to experiment.
+
+   (9) Send Reset Comport Commands - Try changing this if you are having
+   problems with Legend of the Red Dragon, or you just want to experiment.
+
+   (A) Use Special ANSI Settings - Change this if players have ASCII set as
+   their default terminal emulation, and they are still getting ANSI screens.
+
+   (B) Use Direct Screen Writes - Change this if you are having "bleeding"
+   problems with the screen-refreshing.
+
+   (Q)uit to Main - No explanation necessary. Quits and Saves, and returns you
+   to the Main Menu of LORDCFG.
+
+   Now, Quit and Save your information, and let's get the game options
+configured!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 18
+ฺฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฟ
+ณ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Game Options ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ ณ
+ภฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤู
+
+   When you select Game Options from the Main Menu in LORDCFG, you are presented
+with a screen:
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ
+
+  (D)eletion Grace Period Is Currently 15 days.
+  (G) GSZ Path & Name :NONE **SET THIS**
+  (3) Giving credit to NO ONE! for registering.
+  (4) Multinode Support is On.
+  (F)orest Fights Per Day Is 15.
+  (H)uman Fights Per Day Is 3.
+  (C)lean Mode Is Off.
+  (B)ank Option "Transfer Funds" Is On.
+  (M)ax Bank Transfer Amount is 100000
+  (P)er Day, How Many Bank Transfers Is 3
+  (R)eset EVERYTHING.
+  (E)nter Registration Code
+  (*) PRINT REGISTRATION FORM
+  (X) .TXT & .ANS Score Paths
+  (Q)uit
+
+ฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤ 
+
+   Here's a more detailed explanation of each Game Option:
+
+   (D)eletion Grace Period is Currently 15 days - This option allows you to set
+   the MAXIMUM number of days that a player can miss before he is deleted out of
+   the game.
+
+   (G)SZ Path and Name - This option allows you to set a path for an external
+   protocol driver so that in-game downloading of LORDICONS.ZIP is possible.
+   This needs to be set if you know some players will be using RIPTerm. If you
+   cannot get the in-game downloading of LORDICONS.ZIP to work, add the file
+   somewhere on your BBS so your users can download it from there.
+
+   (3) Giving credit to NO ONE! for registering - You an optionally add your
+   name, or if a user registered Legend of the Red Dragon, you can put his name
+   here as well. Leaving it blank will just show "REGISTERED!" in the title
+   screen.
+   {*} Registered Only
+
+   (4) Multinode Support - This option allows you to toggle multi-node support
+   for Legend of the Red Dragon. If you run a multi-node BBS, then you would
+   most likely want this option set to YES.
+
+   (F)orest Fights Per Day - This option allows you to increase the number of
+   forest fights per day that a player is allowed to have. It is recommended
+   that you do not set this higher than 30. Giving a player more than 30 forest
+   fights per day means that they will advance through the game rather rapidly.
+   Lowering it to a number lower than 15 will make the game move real slow! 
+   {*} Registered Only
+
+   (H)uman Fights per Day - This option determines how many user battles, or
+   player fights he is allowed per day. Setting this to a number greater than 3
+   means that everybody in the game gets slaughtered. {* Registered Only}
+
+
+Legend of the Red Dragon 4.02                                  Page 19
+   (C)lean Mode - If you run a good wholesome family BBS, turn this on. This
+   option toggles whether or not if players can get laid by Violet or Seth Able
+   the Bard. Legend of the Red Dragon will announce proudly when someone got
+   laid.
+
+   (B)ank Options, Transfer Funds - This option determines whether or not
+   players are allowed to transfer gold from their bank account into another
+   player's bank account.
+
+   (M)ax Bank Transfer Amount - This determines the maximum amount of gold a
+   player is allowed to transfer to another player's bank account.
+
+   (P)er Day, How many Bank Transfers - This option sets the maximum number of
+   gold transfers a player is allowed in one day. You can also set this to "No
+   Limit" if you choose.
+
+   (R)eset EVERYTHING - Use this only in extreme cases! When you choose this,
+   Legend of the Red Dragon will empty out all player records, and everything
+   else. Note: Legend of the Red Dragon will not reset itself when a player
+   finishes the game. He will only be reset back to level 1.
+
+   (*) PRINT REGISTRATION FORM - This option allows you to print out a
+   registration form for Legend of the Red Dragon. Make sure your printer is
+   ready to print before selecting this. Also, see Chapter 1, Registering Legend
+   of the Red Dragon.
+
+   (X) TXT & ANS Paths - If you would like Legend of the Red Dragon to keep an
+   updated score file available for viewing through your BBS, be sure to define
+   your paths AND filenames here.
+
+   (Q)uit - Quits to the Main Menu.
+
+ฺฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฟ
+ณ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Player Editor ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ ณ
+ภฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤู
+   When you select the Player Editor off the Main Menu, LORDCFG will show you:
+
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+O You will not be able to SAVE ANYTHING in the player editor until Legend  C
+T of the Red Dragon is REGISTERED. See Chapter 1 for registration          I
+I information.                                                             T
+C                                                                          O
+E ECITON ECITON ECITON ECITON ECITON ECITON ECITON ECITON ECITON ECITON ECIM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 20
+                       ** PLAYER EDITOR 4.02  **
+                         Account Number:0
+  (1) Name          :                         (2) Level     :
+  (3) Real Name     :                         (4) Hit Points:
+  (5) Experience    :                         (6) Hit Max   :
+  (7) Weapon        :                         (8) Weapon Num:
+  (9) Seen Master   :                         (0) Fights Day:
+  (A) Fights Human  :                         (B) Sex       :
+  (C) Defence       :                         (D) Gems      :
+  (E) Strength      :                         (F) Charm     :
+  (G) Seen Dragon?  :                         (H) SeenViolet:
+  (I) Class?        :                         (J) Times Won :
+  (K) Armour        :                         (L) Armour Num:
+  (M) Player Dead?  :                         (N) StayingInn:
+  (O) Gold          :                         (P) Seen Bard?:
+  (R) Gold In Bank  :                         (S) Times Laid:
+  (T) Player Kills  :                         (U) Flirted Player?:
+  (Z) Married to    :                         (,) Horse     :
+  (!) High spirits? :                         (@) Kids      :
+      Last Time On  :                             Last Resurrection :0
+  (X) Delete 'em     (W) Search By Name   ($) Edit Skills
+  (]) Advance One    ([) Back Up One      (*) New Day For User
+  Input key to change, or Q to quit and save.
+
+   Here's a more detailed explanation of every option:
+
+   (1) Name - This is the players name in LORD.
+
+   (2) Level - The players level in the game.
+
+   (3) Real Name - The players real name as set by the BBS.
+
+   (4) Hit Points - This is the maximum hit points a player can take before he
+   is killed.
+
+   (5) Experience - This is the amount of experience the player has in the game.
+
+   (6) Hit Max - This is the maximum hit points a player has. The formula for
+   this is: HITPOINTS / MAX HITPOINTS. I.E. If a player had 520 hit points, and
+   his maximum hit points were 1000, he would have XX Max Hits.
+
+   (7) Weapon - Allows you to change the name of the weapon the player has.
+
+   (8) Weapon Num - Allows you to change the weapon number the player has. Here
+   is a list of the weapons:
+
+   (9) Seen Master - Toggles whether or not if the player has seen his master in
+   Turgons Warrior Training.
+
+   (0) Fights Day - Toggles how many forest fights a player has left for today.
+
+   (A) Fights Human - Toggles how many player fights (fighting other players) a
+   player has left for the day.
+
+   (B) Sex - Player's Sex (Male/Female).
+
+   (C) Defense - Toggles the amount of player defense the player has left.
+
+   (D) Gems - How many gems the player has.
+
+
+Legend of the Red Dragon 4.02                                  Page 21
+
+   (E) Strength - How much attack strength a player has.
+
+   (F) Charm - The amount of charm points a player has.
+
+   (G) Seen Dragon - Tells whether or not if the player has done battle with the
+   infamous Red Dragon yet today.
+
+   (H) SeenVoilet - Tells whether or not if the player has flirted with Violet.
+
+   (I) Class - The players class. Either Deathknight, Mystical, or Thieving.
+
+   (J) Times Won - Displays how many times the player has defeated the Red
+   Dragon. This will also sow up in the Hall of Fame in Turgons Warrior
+   Training.
+
+   (K) Armour - The name of the current players armour.
+
+   (L) Armour Num - The current number of the player's armour. Here's a list of
+   the valid armour numbers:
+
+   (M) Player Dead? - Is the player dead or alive?
+
+   (N) StayingInn - Tells whether or not if the player is staying in the Inn.
+
+   (O) Gold - The amount of gold the player has on hand.
+
+   (P) Seen Bard - Tells whether or not if the player has asked Seth Able the
+   Bard to sing.
+
+   (R) Gold in Bank - The amount of gold the player has in the bank.
+
+   (S) Times Laid - Tells how many times the player has gotten laid by either
+   Violet (male), Seth Able (female) or other players (total).
+
+   (T) Player Kills - Tells how many times the player has killed other players.
+
+   (U) Flirted Player? - Tells whether or not if the player has flirted with
+   another player yet today.
+
+   (X) Delete 'em - Deletes the current player from the game.
+
+   (W) Search by Name - Allows you to search through all the players by a name
+   or a partial name. 
+
+   ($) Edit Skills - Toggles how many uses of each skill a player has per day.
+   Either Deathknight, Mystical, or Thieving.
+
+   (]) Advance One - Advances to the next player record.
+
+   ([) Back Up One - Backs up to the previous player record.
+
+   (*) New Day for User - Resents the current players stats for today. This will
+   make them alive again, flirts for today will be set to No, will get their
+   daily forest and player fights per day back, and will earn 10% interest of
+   their total gold in the bank.
+
+   (Q) Quit and Save - Quits and saves any changes made to the current player
+   record.
+
+
+
+Legend of the Red Dragon 4.02                                  Page 22
+
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Credits ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+This game would not have been possible without the following help:
+
+(Robinson Technologies Staff)
+
+Seth A. Robinson 
+Shawn Teal 
+
+(Spell Checking)
+
+Kay Mastin Mallory  <- English teacher with an attitude!  <G>  Thanks Kay!
+
+Danica <-  Can't remember last name, but just be glad I remembered your first
+           this time!
+
+(BETA Testing)
+
+Mike Mcgahee  ฤฤฤฟ
+Brent Mason      ณ 
+Brad Dameron     ณ <- Thanks guy!
+Rod Reed         ณ   
+Helen Helverson  รฤ Thanks a mill, guys and gals!
+Patti McMann     ณ
+Dave Ferber      ณ
+Robert Strange   ณ 
+Eric Newbury     ณ  
+Joseph Masters ฤฤู
+
+Rich Winkler <-- Nothing escapes his eyes!
+Bob Dacastello <-- Genius!
+Steve Newman <-- Last minute 4.00 beta testing, special thanks (and possible
+                 blame) to Steve! <G>
+
+Derek Doda <-- Most of the new ANSI's in 3.53+
+Shawn Berry <-- Re-wrote these docs, and added the info on LORDCFG - Thanks!
+Daniel Sheiner <-- Cool ideas and bug detector
+Scott M. Baker (Door Driver)
+Steve Lorenz (Door driver modifications and lots of other help)
+Jack Ridgway (Mulaware)
+Borys Smolaga (Lead RIP artist from The Dead RIPpers' Society)
+Neilscott Tozier (ANSI Artist: INTRO2.ANS and another new one)
+David Nicholson (ANSI Artist: INTRO1.ANS)
+Jennie Garth (inspiration)
+Ina Stricklen (RIP Artist, did *ALL* of v3.15+'s new art) (she's great!)
+Some RIP screens for LORD v4.00  were made by members of
+Dead RIPpers' Society (dRs).
+
+If you are looking for custom RIPs for your board, or would like to get your
+door game RIPped call...
+
+Ina Strickland -- You can call her voice at (706) 733-0515 or mail her
+                  at 1722 Forest Creek Crt. Augusta, GA  30909.
+
+                                 *OR*
+
+PAULAND BBS    -- the Grave of Dead RIPpers' Society
+                  (504)383-2864
+                  FIDO -- 1:3800/34
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 23
+
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Finding Seth Robinson ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+   
+Seth has sold all his bbs software to Metropolis, Inc.
+
+For registration information, please refer to register.doc
+
+To send feedback to the developer..
+
+ Michael Preslar               email: e_maus@covingtononline.com
+ 1218 hwy 54e                    web: http://lord.darktech.org
+ Covington, tn, 38019
+
+Fidonet: 1:123/10.1
+Sysops Tech Net: 111:6650/1.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                             
+
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 24
+ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+บ ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ Acknowledgements ฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐฐ บ
+ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+Mulaware; Copyright 1992, ABSoft - ALL RIGHTS RESERVED
+Turbo Pascal is a registered trademark of Borland International
+Windows is a registered trademark of Microsoft Corporation
+OS/2 is a registered trademark of IBM Corporation
+MS-DOS is a registered trademark of Microsoft Corporation
+RIPterm, RIPscrip, RIPaint, the RIPterm logo, TeleGrafix Communications.
+
+All other programs are copyright and/or trademarked by their respective author
+unless otherwise noted.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Legend of the Red Dragon 4.02                                  Page 25

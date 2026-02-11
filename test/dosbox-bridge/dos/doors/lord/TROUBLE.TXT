@@ -1,0 +1,47 @@
+                      FOR THOSE HAVING TROUBLE...
+
+
+Problem:  It locks up at 'Returning to the Mundane Realm'.  HELP!
+
+Solution: Use a locked fossil driver at 19200, 38400 or 57600.  This will
+          fix com routine freeze problems.                          
+
+Problem:  Seems weird under Win 95 - Why?
+
+Solution: Set idle sensitivity to LOW - You can do this by editting the
+          PROPERTIES setting for you dos window.  You know you have it set
+          right when the status screen on the bottom alternates between
+          "Legend Of The Red Dragon" and "Press Alt-H for help" WITHOUT a
+          key being pressed.
+
+Problem:  I set it to DIGI, but it don't work with my digiboard.
+
+Solution: DIGI support was taken out.  LORDCFG has not been updated, so
+          it doesn't know this.  Use another fossil setting, using DIGI
+          fossil emulators, it will work with "Regular Fossil" setting.
+
+
+Problem:  LORD always runs the same IGM, no matter what the user picks!
+          (and other misc IGM problems)
+
+Solution:  You didn't overwrite your 3.26a game with the *NEW* START.BAT file
+           that was included with 3.53.  It has dramatically changed, and
+           needs to be upgraded.
+
+           Be sure to edit it, and change the top part to your LORD path
+           where it shows.  
+
+Problem:  I have a bug report, or problem not addressed anywhere in the
+          LORD.DOC file!  I want to bug you about it!
+
+
+Solution: Great, we love to get feedback!  But please fill out BUGRPT.FRM
+          and send/e-mail that.  That way, we know more about your system
+          ect, and don't have to prod you for that info later.
+
+          If you do NOT use this medium, and instead say: "LORD ain't working
+          right, fix it", don't expect a helpful answer!!! <G>
+
+Problem:  I sometimes have erotic dreams about Violet and/or Seth Able.
+
+Solution: Have not a clue.  If you find out, lemmie know.

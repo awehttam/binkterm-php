@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOSBox Bridge Test</title>
+
+    <!-- xterm.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #00ff00;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        label {
+            min-width: 100px;
+            color: #cccccc;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            flex: 1;
+            padding: 5px 10px;
+            background-color: #1e1e1e;
+            border: 1px solid #555555;
+            color: #ffffff;
+            border-radius: 3px;
+        }
+
+        button {
+            padding: 8px 20px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background-color: #0052a3;
+        }
+
+        button:disabled {
+            background-color: #555555;
+            cursor: not-allowed;
+        }
+
+        button.disconnect {
+            background-color: #cc0000;
+        }
+
+        button.disconnect:hover {
+            background-color: #a30000;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .status.disconnected {
+            background-color: #663333;
+            border-left: 4px solid #cc0000;
+        }
+
+        .status.connecting {
+            background-color: #665533;
+            border-left: 4px solid #ccaa00;
+        }
+
+        .status.connected {
+            background-color: #336633;
+            border-left: 4px solid #00cc00;
+        }
+
+        #terminal-container {
+            background-color: #000000;
+            border: 2px solid #333333;
+            border-radius: 5px;
+            padding: 10px;
+            min-height: 500px;
+        }
+
+        .info {
+            background-color: #2d2d2d;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #cccccc;
+        }
+
+        .info h3 {
+            color: #00ff00;
+            margin-top: 0;
+        }
+
+        .info pre {
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 DOSBox Bridge Test Client</h1>
+
+        <div class="controls">
+            <div class="control-row">
+                <label for="wsHost">WebSocket Host:</label>
+                <input type="text" id="wsHost" value="localhost">
+            </div>
+            <div class="control-row">
+                <label for="wsPort">WebSocket Port:</label>
+                <input type="number" id="wsPort" value="5001">
+            </div>
+            <div class="control-row">
+                <button id="connectBtn" onclick="connect()">Connect</button>
+                <button id="disconnectBtn" onclick="disconnect()" disabled class="disconnect">Disconnect</button>
+            </div>
+        </div>
+
+        <div id="status" class="status disconnected">
+            Status: Disconnected
+        </div>
+
+        <div id="terminal-container"></div>
+
+        <div class="info">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Start the bridge server:
+                    <pre>node scripts/door-bridge-server.js 5000 5001 test-session</pre>
+                </li>
+                <li>Start DOSBox with TCP serial port:
+                    <pre>dosbox -conf dosbox-test.conf</pre>
+                </li>
+                <li>Click "Connect" above to connect the terminal</li>
+                <li>In DOSBox, run a DOS program that uses COM1</li>
+            </ol>
+
+            <h3>Keyboard Shortcuts:</h3>
+            <ul>
+                <li><kbd>Ctrl+C</kbd> - Send interrupt to DOS program</li>
+                <li><kbd>Ctrl+L</kbd> - Clear terminal (client side only)</li>
+            </ul>
+
+            <h3>DOSBox Config Example (dosbox-test.conf):</h3>
+            <pre>[serial]
+serial1=nullmodem server:127.0.0.1 port:5000
+
+[autoexec]
+# Type commands here or launch DOS program
+# Example: EDIT.COM, TYPE filename.txt, etc.</pre>
+        </div>
+    </div>
+
+    <!-- xterm.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+    <script>
+        let term = null;
+        let fitAddon = null;
+        let socket = null;
+
+        // Initialize terminal
+        function initTerminal() {
+            if (term) {
+                term.dispose();
+            }
+
+            term = new Terminal({
+                cursorBlink: true,
+                cols: 80,
+                rows: 25,
+                fontSize: 16,
+                fontFamily: 'IBM VGA, Perfect DOS VGA 437, Courier New, monospace',
+                theme: {
+                    background: '#000000',
+                    foreground: '#AAAAAA',
+                    cursor: '#00FF00',
+                    black: '#000000',
+                    red: '#AA0000',
+                    green: '#00AA00',
+                    yellow: '#AA5500',
+                    blue: '#0000AA',
+                    magenta: '#AA00AA',
+                    cyan: '#00AAAA',
+                    white: '#AAAAAA',
+                    brightBlack: '#555555',
+                    brightRed: '#FF5555',
+                    brightGreen: '#55FF55',
+                    brightYellow: '#FFFF55',
+                    brightBlue: '#5555FF',
+                    brightMagenta: '#FF55FF',
+                    brightCyan: '#55FFFF',
+                    brightWhite: '#FFFFFF'
+                },
+                convertEol: false
+            });
+
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+
+            term.open(document.getElementById('terminal-container'));
+            fitAddon.fit();
+
+            // Handle terminal input
+            term.onData((data) => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(data);
+                }
+            });
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                if (fitAddon) {
+                    fitAddon.fit();
+                }
+            });
+
+            // Handle Ctrl+L to clear
+            term.attachCustomKeyEventHandler((e) => {
+                if (e.ctrlKey && e.key === 'l') {
+                    term.clear();
+                    return false;
+                }
+                return true;
+            });
+
+            term.writeln('\x1b[1;36mDOSBox Bridge Test Terminal\x1b[0m');
+            term.writeln('Waiting for connection...');
+            term.writeln('');
+        }
+
+        function updateStatus(message, state) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = 'Status: ' + message;
+            statusDiv.className = 'status ' + state;
+        }
+
+        function connect() {
+            const host = document.getElementById('wsHost').value;
+            const port = document.getElementById('wsPort').value;
+
+            if (!term) {
+                initTerminal();
+            }
+
+            updateStatus('Connecting...', 'connecting');
+            term.writeln('\x1b[1;33mConnecting to ws://' + host + ':' + port + '...\x1b[0m');
+
+            try {
+                socket = new WebSocket('ws://' + host + ':' + port);
+
+                socket.onopen = () => {
+                    updateStatus('Connected', 'connected');
+                    term.writeln('\x1b[1;32mConnected to bridge!\x1b[0m');
+                    term.writeln('');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    term.focus();
+                };
+
+                socket.onmessage = (event) => {
+                    term.write(event.data);
+                };
+
+                socket.onclose = (event) => {
+                    updateStatus('Disconnected', 'disconnected');
+                    term.writeln('');
+                    term.writeln('\x1b[1;31m[Connection closed: ' + event.code + ' ' + event.reason + ']\x1b[0m');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    socket = null;
+                };
+
+                socket.onerror = (error) => {
+                    updateStatus('Connection error', 'disconnected');
+                    term.writeln('\x1b[1;31m[Connection error]\x1b[0m');
+                    console.error('WebSocket error:', error);
+                };
+
+            } catch (error) {
+                updateStatus('Connection failed', 'disconnected');
+                term.writeln('\x1b[1;31m[Failed to connect: ' + error.message + ']\x1b[0m');
+                console.error('Connection error:', error);
+            }
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.close(1000, 'User disconnected');
+                socket = null;
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            initTerminal();
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            disconnect();
+        });
+    </script>
+</body>
+</html>

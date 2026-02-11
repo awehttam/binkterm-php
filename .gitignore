@@ -33,3 +33,4 @@ bbs_ads/*
 
 # Windows utility scripts
 delnul.cmd
+node_modules/
