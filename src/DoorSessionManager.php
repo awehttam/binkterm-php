@@ -16,7 +16,7 @@ use PDO;
 class DoorSessionManager
 {
     private $basePath;
-    private $bridgePath;
+    private $bridgePath; // Legacy - no longer used (multiplexing bridge runs separately)
     private $dosboxPath;
     private $configPath;
     private $db;
@@ -38,9 +38,9 @@ class DoorSessionManager
     {
         $this->basePath = $basePath ?? (defined('BINKTERMPHP_BASEDIR')
             ? BINKTERMPHP_BASEDIR
-            : __DIR__ . '/..');
+            : realpath(__DIR__ . '/..'));
 
-        $this->bridgePath = $this->basePath . '/scripts/dosbox-bridge/server.js';
+        $this->bridgePath = $this->basePath . '/scripts/dosbox-bridge/multiplexing-server.js';
         $this->dosboxPath = $this->basePath . '/dosbox-bridge';
         $this->headlessMode = $headless;
 
@@ -84,55 +84,42 @@ class DoorSessionManager
         $doorDisplayName = $doorInfo['name'] ?? $doorName;
         error_log("DOSDOOR: [StartSession] Door display name: $doorDisplayName");
 
-        // Find available node number and ports
+        // Find available node number
         $node = $this->findAvailableNode();
         if ($node === null) {
             error_log("DOSDOOR: [StartSession] ERROR - No available nodes");
             throw new Exception('No available door nodes (max ' . self::MAX_SESSIONS . ' sessions)');
         }
 
-        $tcpPort = self::TCP_PORT_BASE + $node;
-        $wsPort = self::WS_PORT_BASE + $node;
-        error_log("DOSDOOR: [StartSession] Ports assigned - TCP: $tcpPort, WS: $wsPort");
-
         // Generate session ID
         $sessionId = DoorDropFile::generateSessionId($userId, $node);
         error_log("DOSDOOR: [StartSession] Session ID: $sessionId");
 
-        // Generate drop file
-        error_log("DOSDOOR: [StartSession] Generating drop file...");
-        $dropFile = new DoorDropFile();
-        $sessionData = [
-            'com_port' => 'COM1:',
-            'node' => $node,
-            'baud_rate' => 115200,
-            'time_remaining' => 7200, // 2 hours
-        ];
+        // Prepare user data for drop file generation (bridge will create DOOR.SYS)
+        // Add session-specific data to user data
+        $userData['com_port'] = 'COM1:';
+        $userData['node'] = $node;
+        $userData['baud_rate'] = 115200;
+        $userData['time_remaining'] = 7200; // 2 hours
 
-        $dropFilePath = $dropFile->generateDoorSys($userData, $sessionData, $sessionId);
-        $sessionPath = $dropFile->getSessionPath($sessionId);
-        error_log("DOSDOOR: [StartSession] Drop file created at: $dropFilePath");
+        error_log("DOSDOOR: [StartSession] User data prepared for bridge");
 
-        // Start bridge server
-        error_log("DOSDOOR: [StartSession] Starting bridge server...");
-        $bridgePid = $this->startBridge($tcpPort, $wsPort, $sessionId);
-        error_log("DOSDOOR: [StartSession] Bridge started with PID: $bridgePid");
+        // Generate WebSocket authentication token
+        $wsToken = bin2hex(random_bytes(32)); // 64 character hex string
+        error_log("DOSDOOR: [StartSession] Generated WebSocket token");
 
-        // Start DOSBox
-        error_log("DOSDOOR: [StartSession] Starting DOSBox...");
-        $dosboxPid = $this->startDosBox($sessionId, $sessionPath, $doorName, $node);
-        error_log("DOSDOOR: [StartSession] DOSBox started with PID: $dosboxPid");
+        // WebSocket port is shared (single multiplexing bridge for all sessions)
+        $wsPort = (int)Config::env('DOSDOOR_WS_PORT', '6001');
 
         // Calculate expiration time (default 2 hours)
         $expiresAt = date('Y-m-d H:i:s', time() + 7200);
 
-        // Save session to database
+        // Save session to database (bridge will create session_path, tcp_port, dosbox_pid, DOOR.SYS)
         $stmt = $this->db->prepare("
             INSERT INTO door_sessions (
                 session_id, user_id, door_id, node_number,
-                tcp_port, ws_port, dosbox_pid, bridge_pid,
-                session_path, expires_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ws_port, expires_at, ws_token, user_data
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $stmt->execute([
@@ -140,35 +127,29 @@ class DoorSessionManager
             $userId,
             $doorName,
             $node,
-            $tcpPort,
             $wsPort,
-            $dosboxPid,
-            $bridgePid,
-            $sessionPath,
-            $expiresAt
+            $expiresAt,
+            $wsToken,
+            json_encode($userData)
         ]);
 
-        // Log session launch
-        $this->logSessionEvent($sessionId, 'launched', [
+        // Log session creation
+        $this->logSessionEvent($sessionId, 'created', [
             'door' => $doorName,
             'node' => $node,
-            'tcp_port' => $tcpPort,
-            'ws_port' => $wsPort
         ]);
 
-        // Return session info
+        error_log("DOSDOOR: [StartSession] Session created, bridge will create directory and launch DOSBox");
+
+        // Return session info (bridge will create session_path, allocate tcp_port, launch DOSBox)
         $session = [
             'session_id' => $sessionId,
             'user_id' => $userId,
-            'door_id' => $doorName,  // Keep door ID for internal use
-            'door_name' => $doorDisplayName,  // Human-readable name for display
+            'door_id' => $doorName,
+            'door_name' => $doorDisplayName,
             'node' => $node,
-            'tcp_port' => $tcpPort,
             'ws_port' => $wsPort,
-            'bridge_pid' => $bridgePid,
-            'dosbox_pid' => $dosboxPid,
-            'session_path' => $sessionPath,
-            'drop_file' => $dropFilePath,
+            'ws_token' => $wsToken,
             'started_at' => time(),
             'expires_at' => $expiresAt,
         ];
@@ -214,15 +195,11 @@ class DoorSessionManager
             unset($this->processHandles[$sessionId]);
         }
 
-        // Kill bridge process
+        // Note: Bridge is shared multiplexing server - don't kill it
         if ($bridgePid) {
-            error_log("DOSDOOR: [EndSession] Killing bridge PID: $bridgePid");
-            $killed = $this->killProcess($bridgePid);
-            if ($killed) {
-                error_log("DOSDOOR: [EndSession] Bridge killed successfully");
-            } else {
-                error_log("DOSDOOR: [EndSession] WARNING - Failed to kill bridge PID: $bridgePid (may already be dead)");
-            }
+            error_log("DOSDOOR: [EndSession] Note: Bridge PID $bridgePid (legacy - multiplexing bridge is shared)");
+        } else {
+            error_log("DOSDOOR: [EndSession] Using shared multiplexing bridge (no per-session bridge)");
         }
 
         // Cleanup drop files
@@ -291,6 +268,7 @@ class DoorSessionManager
             'node' => $session['node_number'],
             'tcp_port' => $session['tcp_port'],
             'ws_port' => $session['ws_port'],
+            'ws_token' => $session['ws_token'] ?? null,
             'bridge_pid' => $session['bridge_pid'],
             'dosbox_pid' => $session['dosbox_pid'],
             'session_path' => $session['session_path'],
@@ -322,6 +300,7 @@ class DoorSessionManager
                 'node' => $row['node_number'],
                 'tcp_port' => $row['tcp_port'],
                 'ws_port' => $row['ws_port'],
+                'ws_token' => $row['ws_token'] ?? null,
                 'bridge_pid' => $row['bridge_pid'],
                 'dosbox_pid' => $row['dosbox_pid'],
                 'session_path' => $row['session_path'],
@@ -362,6 +341,7 @@ class DoorSessionManager
             'node' => $session['node_number'],
             'tcp_port' => $session['tcp_port'],
             'ws_port' => $session['ws_port'],
+            'ws_token' => $session['ws_token'] ?? null,
             'bridge_pid' => $session['bridge_pid'],
             'dosbox_pid' => $session['dosbox_pid'],
             'session_path' => $session['session_path'],
@@ -376,10 +356,11 @@ class DoorSessionManager
      * @param int $tcpPort TCP port for DOSBox connection
      * @param int $wsPort WebSocket port for browser
      * @param string $sessionId Session identifier
+     * @param string $wsToken WebSocket authentication token
      * @return int Process ID
      * @throws Exception If bridge cannot be started
      */
-    private function startBridge(int $tcpPort, int $wsPort, string $sessionId): int
+    private function startBridge(int $tcpPort, int $wsPort, string $sessionId, string $wsToken): int
     {
         $nodeExe = $this->findNodeExecutable();
         if (!$nodeExe) {
@@ -393,16 +374,20 @@ class DoorSessionManager
         // Get disconnect timeout from environment (0 = immediate, default)
         $disconnectTimeout = (int)Config::env('DOSDOOR_DISCONNECT_TIMEOUT', '0');
 
-        // Build command
+        // Build command with authentication token
+        // Note: On Windows, don't use escapeshellarg() - it adds single quotes that cmd.exe doesn't handle
+        // Instead, wrap in double quotes for arguments with spaces
         $cmd = sprintf(
-            '%s "%s" %d %d %s %d',
+            '%s "%s" %d %d "%s" %d "%s"',
             $nodeExe,
             $this->bridgePath,
             $tcpPort,
             $wsPort,
-            escapeshellarg($sessionId),
-            $disconnectTimeout
+            $sessionId,
+            $disconnectTimeout,
+            $wsToken
         );
+        error_log("DOSDOOR: [Bridge] Full command: $cmd");
 
         // Start bridge in background
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
@@ -501,6 +486,7 @@ class DoorSessionManager
         $launchCmd = str_replace('{dropfile}', $dropFileName, $launchCmd);
 
         // Build the door-specific autoexec commands
+        // DOSBox connects to bridge before autoexec runs, so carrier is detected
         $doorCommands = "cd $dosPath\n";
         $doorCommands .= $launchCmd;
 
@@ -795,7 +781,13 @@ class DoorSessionManager
      */
     private function findProcessByPort(int $port): ?int
     {
-        $output = shell_exec("netstat -ano | findstr :$port");
+        // Use cmd.exe explicitly on Windows to avoid Git Bash issues
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            $output = shell_exec("cmd /c \"netstat -ano | findstr :$port\"");
+        } else {
+            $output = shell_exec("netstat -ano | grep :$port");
+        }
+
         if ($output && preg_match('/\s+(\d+)\s*$/', $output, $matches)) {
             return (int)$matches[1];
         }

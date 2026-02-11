@@ -30,27 +30,66 @@ BinktermPHP supports classic DOS door games through a DOSBox-X bridge system. Th
 
 ## System Architecture
 
-The DOS door system consists of several components working together:
+The DOS door system uses a **multiplexing bridge** architecture where a single long-running bridge process manages the entire session lifecycle:
 
 ```
-[User's Browser] <--WebSocket--> [Bridge Server] <--TCP--> [DOSBox-X] --> [DOS Door Game]
-      (Terminal)                   (Node.js)           (Serial Port)         (LORD, etc.)
+[Browser 1] ─┐
+[Browser 2] ─┼─→ wss://bbs.com:6001 ─→ [Multiplexing Bridge] ─┬─→ 127.0.0.1:5000 ←─ DOSBox 1 → LORD
+[Browser 3] ─┘      (WebSocket)           (Node.js Process)     ├─→ 127.0.0.1:5001 ←─ DOSBox 2 → TW2002
+                                                                 └─→ 127.0.0.1:5002 ←─ DOSBox 3 → LORD
 ```
 
 **Components:**
 
-1. **DOSBox-X**: Runs the actual DOS door game in headless mode
-2. **Bridge Server** (`scripts/dosbox-bridge/server.js`): Translates between WebSocket (browser) and TCP (DOSBox serial port)
-3. **Session Manager** (`src/DoorSessionManager.php`): Manages processes, nodes, and sessions
+1. **Multiplexing Bridge** (`scripts/dosbox-bridge/multiplexing-server.js`):
+   - Single long-running Node.js process
+   - Listens on one WebSocket port (default: 6001)
+   - Authenticates clients using tokens
+   - **Dynamically allocates TCP ports** from pool (5000-5100)
+   - **Generates DOSBox configs** with session-specific settings
+   - **Launches DOSBox processes** when WebSocket connects
+   - Creates TCP listeners for DOSBox connections
+   - Multiplexes data between WebSocket clients and DOSBox TCP ports
+   - Handles up to 100 concurrent sessions efficiently
+
+2. **DOSBox-X**: Runs the actual DOS door game in headless mode
+   - Each session gets its own DOSBox process (launched by bridge)
+   - Connects TO bridge via TCP on dynamically allocated port
+   - Built-in FOSSIL emulation for door compatibility
+
+3. **Session Manager** (`src/DoorSessionManager.php`):
+   - Allocates nodes (1-100)
+   - Generates authentication tokens
+   - Creates drop files (DOOR.SYS)
+   - Creates session record in database
+   - **Bridge handles everything else** (port allocation, config generation, DOSBox launch)
+
 4. **Drop File Generator** (`src/DoorDropFile.php`): Creates DOOR.SYS files for each session
 
 **Data Flow:**
 1. User clicks door game link
-2. PHP allocates node (1-100), generates drop file, starts bridge and DOSBox
-3. Browser connects to bridge via WebSocket
-4. User input flows: Browser → WebSocket → Bridge → TCP → DOSBox → Door Game
-5. Game output flows: Door Game → DOSBox → TCP → Bridge → WebSocket → Browser
-6. When done, processes are terminated and node is freed
+2. PHP allocates node, generates unique token, creates drop file and session directory
+3. PHP creates database record with session info (token, node, door_id)
+4. PHP returns session data with WebSocket URL and token to browser
+5. Browser connects to multiplexing bridge with token: `wss://bbs.com:6001?token=abc123...`
+6. Bridge validates token against database, retrieves session details
+7. **Bridge allocates dynamic TCP port** from available pool (no port conflicts!)
+8. **Bridge generates DOSBox config** with allocated port and door-specific settings
+9. **Bridge creates TCP listener** on allocated port
+10. **Bridge launches DOSBox** which connects back to bridge's TCP listener
+11. **Bridge updates database** with allocated port and DOSBox PID
+12. User input flows: Browser → WebSocket → Bridge → TCP → DOSBox → Door Game
+13. Game output flows: Door Game → DOSBox → TCP → Bridge → WebSocket → Browser
+14. When done, DOSBox exits, bridge detects disconnect and cleans up
+
+**Advantages of This Architecture:**
+- **No Port Conflicts**: Dynamic allocation from pool, only binds ports for active sessions
+- **Efficient**: One Node.js process manages all sessions
+- **Scalable**: Handles many concurrent sessions with minimal overhead
+- **Easy SSL**: Works seamlessly behind reverse proxy (Caddy, nginx)
+- **Centralized**: All WebSocket connections through single port
+- **Reliable**: Long-running daemon with full lifecycle control
+- **Simple**: PHP just creates database record, bridge does the heavy lifting
 
 ---
 
@@ -68,10 +107,15 @@ The DOS door system consists of several components working together:
    - Download from https://nodejs.org/
    - Required for the bridge server
 
-3. **Node.js Dependencies** (in project root):
+3. **Node.js Dependencies** (in bridge directory):
    ```bash
-   npm install ws@^8.16.0 iconv-lite@^0.6.3
+   cd scripts/dosbox-bridge
+   npm install ws iconv-lite pg dotenv
    ```
+   - `ws` - WebSocket library
+   - `iconv-lite` - Character encoding (CP437 ↔ UTF-8)
+   - `pg` - PostgreSQL client (for authentication)
+   - `dotenv` - Load environment variables from .env
 
 ### File Structure
 
@@ -153,6 +197,24 @@ DOSBOX_EXECUTABLE=C:\DOSBox-X\dosbox-x.exe
 # 0 = Exit door immediately when user disconnects (traditional BBS "lost carrier")
 # >0 = Wait X minutes for reconnection
 DOSDOOR_DISCONNECT_TIMEOUT=0
+
+# WebSocket port for multiplexing bridge (default: 6001)
+DOSDOOR_WS_PORT=6001
+
+# WebSocket bind address (default: 127.0.0.1 for reverse proxy)
+# 127.0.0.1 = Localhost only (production behind SSL proxy)
+# 0.0.0.0 = All interfaces (development/direct access)
+DOSDOOR_WS_BIND_HOST=127.0.0.1
+
+# WebSocket URL for browser (optional, auto-detected if not set)
+# If behind SSL proxy, configure proxy to forward /dosdoor or use separate port
+# DOSDOOR_WS_URL=wss://bbs.example.com:6001
+# DOSDOOR_WS_URL=wss://bbs.example.com/dosdoor
+
+# Headless mode for DOSBox (default: true)
+# true = Run DOSBox headless (production)
+# false = Show DOSBox window (debugging)
+# DOSDOOR_HEADLESS=true
 ```
 
 ### 4. Verify Database Schema
@@ -168,25 +230,121 @@ php scripts/setup.php
 
 ### 5. Test the System
 
-Start a test bridge server manually:
+Start the multiplexing bridge manually:
 ```bash
-node scripts/dosbox-bridge/server.js 5001 6001 test-session 0
+node scripts/dosbox-bridge/multiplexing-server.js
 ```
 
 You should see:
 ```
-=== DOSBox Door Bridge Server ===
-Session ID: test-session
-TCP Port (DOSBox): 5001
-WebSocket Port (Client): 6001
-Disconnect Timeout: 0 minutes (immediate)
+=== DOSBox Door Bridge - Multiplexing Server ===
+WebSocket Port: 6001
+Bind Address: 127.0.0.1
+TCP Port Range: 5000-5100
+Disconnect Timeout: 0 minutes
+Base Path: C:\devel\binktest
+Database: binktest@localhost:5432/binktest
 
-[WS] WebSocket server listening on port 6001
-[TCP] Listening on 127.0.0.1:5001
-Bridge running. Press Ctrl+C to stop.
+[WS] Server listening on 127.0.0.1:6001
+[WS] Waiting for connections...
+
+Bridge server started successfully!
+Press Ctrl+C to stop.
 ```
 
-Press Ctrl+C to stop the test server.
+Then visit your BBS and try launching a door game. The bridge will:
+1. Authenticate your WebSocket connection
+2. Allocate a TCP port dynamically (e.g., 5000)
+3. Generate a DOSBox config for your session
+4. Launch DOSBox which connects back to the bridge
+5. Multiplex data between your browser and the door game
+
+Press Ctrl+C to stop the bridge.
+
+---
+
+## Starting the Multiplexing Bridge
+
+The bridge is a long-running process that should be started before users can play door games.
+
+### Development / Testing
+
+**Windows:**
+```cmd
+start-door-bridge.cmd
+```
+
+**Linux:**
+```bash
+./start-door-bridge.sh
+```
+
+The bridge will output:
+```
+=== DOSBox Door Bridge - Multiplexing Server ===
+WebSocket Port: 6001
+Bind Address: 127.0.0.1
+Disconnect Timeout: 0 minutes
+Database: binktest@localhost:5432/binktest
+
+[WS] Server listening on 127.0.0.1:6001
+[WS] Waiting for connections...
+
+Bridge server started successfully!
+Press Ctrl+C to stop.
+```
+
+### Production (Linux with systemd)
+
+For production, run the bridge as a systemd service:
+
+1. **Copy service file:**
+```bash
+sudo cp docs/dosdoor-bridge.service.example /etc/systemd/system/dosdoor-bridge.service
+```
+
+2. **Edit service file:**
+```bash
+sudo nano /etc/systemd/system/dosdoor-bridge.service
+```
+
+Update these fields:
+- `User=` - Your application user (e.g., `binkterm`)
+- `WorkingDirectory=` - Full path to binktest directory
+- `ExecStart=` - Full path to multiplexing-server.js
+
+3. **Enable and start:**
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable dosdoor-bridge
+sudo systemctl start dosdoor-bridge
+```
+
+4. **Check status:**
+```bash
+sudo systemctl status dosdoor-bridge
+sudo journalctl -u dosdoor-bridge -f  # Follow logs
+```
+
+### Production (Windows)
+
+On Windows, run the bridge as a service using [NSSM](https://nssm.cc/) or similar:
+
+```cmd
+nssm install DOSBoxBridge "C:\Program Files\nodejs\node.exe" "C:\path\to\binktest\scripts\dosbox-bridge\multiplexing-server.js"
+nssm set DOSBoxBridge AppDirectory "C:\path\to\binktest"
+nssm start DOSBoxBridge
+```
+
+### Monitoring
+
+The bridge logs status every 60 seconds:
+```
+[STATUS] Active sessions: 3
+  - door_1_node1_123: 45s, WS:true, DOS:true
+  - door_2_node2_456: 120s, WS:true, DOS:true
+  - door_3_node3_789: 30s, WS:false, DOS:true
+```
 
 ---
 
@@ -222,16 +380,20 @@ In your config file:
 windowposition=-2000,-2000
 
 [serial]
-# Serial port 1 connected to TCP (matches bridge)
-serial1=nullmodem port:5001 transparent:1 telnet:1
+# DOSBox connects TO bridge on dynamically allocated port
+# Port number will be replaced by bridge with actual allocated port
+# transparent:1 = Pass through control signals (required for FOSSIL)
+# serial1_fossil=true = Enable built-in FOSSIL emulation
+serial1=nullmodem server:127.0.0.1 port:5000 transparent:1
+serial1_fossil=true
 
 [autoexec]
 # Mount DOS drive
 mount c dosbox-bridge/dos
 c:
 
-# Door-specific commands will be appended here by PHP
-# Example:
+# Door-specific commands will be appended here by the bridge
+# The bridge reads the door manifest and generates:
 # cd \doors\lord
 # call start.bat 1
 ```
@@ -533,10 +695,11 @@ tail -f data/logs/php-errors.log | grep DOSDOOR
 **Symptoms:** Clicking door does nothing, or shows "Connecting..." forever
 
 **Check:**
-1. Is Node.js installed? `node --version`
-2. Are npm dependencies installed? Check `node_modules/ws` and `node_modules/iconv-lite`
-3. Is DOSBox-X installed? Check `DOSBOX_EXECUTABLE` in `.env`
-4. Are ports available? Check for conflicts on ports 5001-5100 and 6001-6100
+1. Is the multiplexing bridge running? `ps aux | grep multiplexing-server` or check Task Manager
+2. Is Node.js installed? `node --version`
+3. Are npm dependencies installed? Check `node_modules/ws` and `node_modules/iconv-lite`
+4. Is DOSBox-X installed? Check `DOSBOX_EXECUTABLE` in `.env`
+5. Is WebSocket port available? Check for conflicts on port 6001 (TCP ports 5000-5100 are allocated dynamically)
 
 **Debug:**
 ```bash
@@ -746,6 +909,129 @@ Configure credit costs in Admin Panel → BBS Settings → Credits System.
 
 ---
 
+## SSL/TLS and Reverse Proxy Configuration
+
+For production deployments with HTTPS, use a reverse proxy (Caddy or nginx) to handle SSL termination.
+
+### Architecture
+
+```
+Browser → HTTPS (wss://bbs.com:443) → [Caddy] → WebSocket (ws://127.0.0.1:6001) → [Bridge]
+```
+
+The multiplexing bridge binds to `127.0.0.1:6001` (localhost only). Caddy handles:
+- SSL/TLS termination
+- WebSocket upgrade
+- Proxying to local bridge
+
+### Configuration
+
+**1. Set bind address to localhost:**
+
+In `.env`:
+```bash
+DOSDOOR_WS_BIND_HOST=127.0.0.1  # Localhost only (DEFAULT)
+```
+
+**2. Configure WebSocket URL for browsers:**
+
+In `.env`:
+```bash
+# Let browsers know where to connect
+DOSDOOR_WS_URL=wss://bbs.example.com/dosdoor
+```
+
+If not set, auto-detects based on page protocol and hostname.
+
+**3. Configure Caddy:**
+
+Add to your Caddyfile:
+
+```caddyfile
+bbs.example.com {
+    # DOS Door WebSocket endpoint
+    handle /dosdoor {
+        reverse_proxy 127.0.0.1:6001
+    }
+
+    # Main BBS traffic
+    reverse_proxy 127.0.0.1:1244
+}
+```
+
+Or use a separate port:
+
+```caddyfile
+bbs.example.com {
+    reverse_proxy 127.0.0.1:1244
+}
+
+bbs.example.com:6001 {
+    reverse_proxy 127.0.0.1:6001
+}
+```
+
+**4. Configure nginx (alternative to Caddy):**
+
+```nginx
+upstream dosdoor_bridge {
+    server 127.0.0.1:6001;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name bbs.example.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    # DOS Door WebSocket
+    location /dosdoor {
+        proxy_pass http://dosdoor_bridge;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    # Main BBS
+    location / {
+        proxy_pass http://127.0.0.1:1244;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Testing SSL Configuration
+
+1. **Start bridge:**
+```bash
+sudo systemctl start dosdoor-bridge
+```
+
+2. **Reload Caddy:**
+```bash
+sudo systemctl reload caddy
+```
+
+3. **Test WebSocket connection:**
+```bash
+# Install wscat if needed: npm install -g wscat
+wscat -c "wss://bbs.example.com/dosdoor?token=test123"
+```
+
+You should see authentication error (expected - test token invalid) but connection should establish.
+
+---
+
 ## Best Practices
 
 ### Security
@@ -777,7 +1063,6 @@ Configure credit costs in Admin Panel → BBS Settings → Credits System.
 
 ### Getting Help
 
-- Check logs: `data/logs/php-errors.log` (filter with `grep DOSDOOR`)
 - Review this documentation thoroughly
 - Check door game documentation for specific requirements
 
@@ -796,14 +1081,14 @@ php scripts/cleanup_expired_dosdoor_sessions.php
 # Kill all door processes
 kill-all-door-procs.cmd
 
-# Test bridge server
-node scripts/dosbox-bridge/server.js 5001 6001 test 0
+# Start multiplexing bridge
+node scripts/dosbox-bridge/multiplexing-server.js
 
-# Watch logs
-tail -f data/logs/php-errors.log | grep DOSDOOR
-
-# Check ports in use
+# Check WebSocket port in use
 netstat -ano | findstr :6001
+
+# Check dynamically allocated TCP ports
+netstat -ano | findstr :500
 ```
 
 ---

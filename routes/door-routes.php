@@ -45,33 +45,46 @@ SimpleRouter::post('/api/door/launch', function() {
         // Check if user already has an active session
         $existingSession = $sessionManager->getUserSession($userId);
         if ($existingSession) {
-            // Validate that the processes are still running
-            $bridgePid = $existingSession['bridge_pid'];
-            $dosboxPid = $existingSession['dosbox_pid'];
+            // User already has an active session - return it
+            // Bridge v3 owns the lifecycle, so if it's in DB, it's active
+            error_log("DOSDOOR: [API] Resuming existing session: {$existingSession['session_id']}");
 
-            $bridgeRunning = $sessionManager->isProcessRunning($bridgePid);
-            $dosboxRunning = $sessionManager->isProcessRunning($dosboxPid);
-
-            error_log("DOSDOOR: [API] Existing session found - Bridge running: " . ($bridgeRunning ? 'yes' : 'no') . ", DOSBox running: " . ($dosboxRunning ? 'yes' : 'no'));
-
-            if ($bridgeRunning && $dosboxRunning) {
-                // Processes are alive, resume existing session
-                echo json_encode([
-                    'success' => true,
-                    'session' => $existingSession,
-                    'message' => 'Resuming existing session'
-                ]);
-                return;
-            } else {
-                // Processes are dead, clean up stale session
-                error_log("DOSDOOR: [API] Cleaning up stale session: {$existingSession['session_id']}");
-                $sessionManager->endSession($existingSession['session_id']);
-                // Continue to create new session below
+            // Build WebSocket URL
+            $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');
+            if (empty($wsUrl)) {
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'wss' : 'ws';
+                $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
+                $port = $existingSession['ws_port'];
+                $wsUrl = "{$protocol}://{$host}:{$port}";
             }
+
+            echo json_encode([
+                'success' => true,
+                'session' => [
+                    'session_id' => $existingSession['session_id'],
+                    'door_name' => $existingSession['door_name'],
+                    'node' => $existingSession['node'],
+                    'ws_port' => $existingSession['ws_port'],
+                    'ws_token' => $existingSession['ws_token'],
+                    'ws_url' => $wsUrl,
+                ],
+                'message' => 'Resuming existing session'
+            ]);
+            return;
         }
 
         // Start new session
         $session = $sessionManager->startSession($userId, $doorName, $userData);
+
+        // Build WebSocket URL for browser
+        $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');
+        if (empty($wsUrl)) {
+            // Auto-detect: use current request protocol and hostname (without port)
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'wss' : 'ws';
+            $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
+            $port = $session['ws_port'];
+            $wsUrl = "{$protocol}://{$host}:{$port}";
+        }
 
         echo json_encode([
             'success' => true,
@@ -80,7 +93,8 @@ SimpleRouter::post('/api/door/launch', function() {
                 'door_name' => $session['door_name'],
                 'node' => $session['node'],
                 'ws_port' => $session['ws_port'],
-                'tcp_port' => $session['tcp_port'],
+                'ws_token' => $session['ws_token'],
+                'ws_url' => $wsUrl,
             ]
         ]);
 
@@ -151,28 +165,23 @@ SimpleRouter::get('/api/door/session', function() {
         $session = $sessionManager->getUserSession($userId);
 
         if ($session) {
-            error_log("DOSDOOR: [GetSession] Found session: {$session['session_id']} for user $userId, session user_id: {$session['user_id']}");
-
-            // Validate that processes are still running
-            $bridgePid = $session['bridge_pid'];
-            $dosboxPid = $session['dosbox_pid'];
-
-            $bridgeRunning = $sessionManager->isProcessRunning($bridgePid);
-            $dosboxRunning = $sessionManager->isProcessRunning($dosboxPid);
-
-            error_log("DOSDOOR: [GetSession] Validation - Bridge: " . ($bridgeRunning ? 'alive' : 'dead') . ", DOSBox: " . ($dosboxRunning ? 'alive' : 'dead'));
-
-            if (!$bridgeRunning || !$dosboxRunning) {
-                // Processes are dead, clean up stale session
-                error_log("DOSDOOR: [GetSession] Cleaning up stale session: {$session['session_id']}");
-                $sessionManager->endSession($session['session_id']);
-                $session = null; // Treat as no session
-            }
+            error_log("DOSDOOR: [GetSession] Found session: {$session['session_id']} for user $userId");
+            // Bridge v3 owns the entire lifecycle - no need to validate processes here
         } else {
             error_log("DOSDOOR: [GetSession] No session found for user $userId");
         }
 
         if ($session) {
+            // Build WebSocket URL for browser
+            $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');
+            if (empty($wsUrl)) {
+                // Auto-detect: use current request protocol and hostname (without port)
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'wss' : 'ws';
+                $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
+                $port = $session['ws_port'];
+                $wsUrl = "{$protocol}://{$host}:{$port}";
+            }
+
             echo json_encode([
                 'success' => true,
                 'session' => [
@@ -180,7 +189,8 @@ SimpleRouter::get('/api/door/session', function() {
                     'door_name' => $session['door_name'],
                     'node' => $session['node'],
                     'ws_port' => $session['ws_port'],
-                    'tcp_port' => $session['tcp_port'],
+                    'ws_token' => $session['ws_token'],
+                    'ws_url' => $wsUrl,
                     'started_at' => $session['started_at'],
                 ]
             ]);
