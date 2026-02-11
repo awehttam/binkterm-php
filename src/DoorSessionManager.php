@@ -70,29 +70,37 @@ class DoorSessionManager
      */
     public function startSession(int $userId, string $doorName, array $userData): array
     {
+        error_log("DOSDOOR: [StartSession] BEGIN - User: $userId, Door: $doorName");
+
         // Get door information from manifest to get the display name
         $doorManager = new DoorManager();
         $doorInfo = $doorManager->getDoor($doorName);
 
         if (!$doorInfo) {
+            error_log("DOSDOOR: [StartSession] ERROR - Door not found: $doorName");
             throw new Exception("Door not found: $doorName");
         }
 
         $doorDisplayName = $doorInfo['name'] ?? $doorName;
+        error_log("DOSDOOR: [StartSession] Door display name: $doorDisplayName");
 
         // Find available node number and ports
         $node = $this->findAvailableNode();
         if ($node === null) {
+            error_log("DOSDOOR: [StartSession] ERROR - No available nodes");
             throw new Exception('No available door nodes (max ' . self::MAX_SESSIONS . ' sessions)');
         }
 
         $tcpPort = self::TCP_PORT_BASE + $node;
         $wsPort = self::WS_PORT_BASE + $node;
+        error_log("DOSDOOR: [StartSession] Ports assigned - TCP: $tcpPort, WS: $wsPort");
 
         // Generate session ID
         $sessionId = DoorDropFile::generateSessionId($userId, $node);
+        error_log("DOSDOOR: [StartSession] Session ID: $sessionId");
 
         // Generate drop file
+        error_log("DOSDOOR: [StartSession] Generating drop file...");
         $dropFile = new DoorDropFile();
         $sessionData = [
             'com_port' => 'COM1:',
@@ -103,12 +111,17 @@ class DoorSessionManager
 
         $dropFilePath = $dropFile->generateDoorSys($userData, $sessionData, $sessionId);
         $sessionPath = $dropFile->getSessionPath($sessionId);
+        error_log("DOSDOOR: [StartSession] Drop file created at: $dropFilePath");
 
         // Start bridge server
+        error_log("DOSDOOR: [StartSession] Starting bridge server...");
         $bridgePid = $this->startBridge($tcpPort, $wsPort, $sessionId);
+        error_log("DOSDOOR: [StartSession] Bridge started with PID: $bridgePid");
 
         // Start DOSBox
+        error_log("DOSDOOR: [StartSession] Starting DOSBox...");
         $dosboxPid = $this->startDosBox($sessionId, $sessionPath, $doorName, $node);
+        error_log("DOSDOOR: [StartSession] DOSBox started with PID: $dosboxPid");
 
         // Calculate expiration time (default 2 hours)
         $expiresAt = date('Y-m-d H:i:s', time() + 7200);
@@ -171,33 +184,54 @@ class DoorSessionManager
      */
     public function endSession(string $sessionId): bool
     {
+        error_log("DOSDOOR: [EndSession] BEGIN - Session: $sessionId");
+
         // Get session from database
         $session = $this->getSession($sessionId);
         if (!$session) {
+            error_log("DOSDOOR: [EndSession] Session not found: $sessionId");
             return false;
         }
 
+        $dosboxPid = $session['dosbox_pid'] ?? null;
+        $bridgePid = $session['bridge_pid'] ?? null;
+
         // Kill DOSBox process using PID (taskkill works, proc_terminate doesn't)
-        if (isset($session['dosbox_pid'])) {
-            $this->killProcess($session['dosbox_pid']);
+        if ($dosboxPid) {
+            error_log("DOSDOOR: [EndSession] Killing DOSBox PID: $dosboxPid");
+            $killed = $this->killProcess($dosboxPid);
+            if ($killed) {
+                error_log("DOSDOOR: [EndSession] DOSBox killed successfully");
+            } else {
+                error_log("DOSDOOR: [EndSession] WARNING - Failed to kill DOSBox PID: $dosboxPid (may already be dead)");
+            }
         }
 
         // Clean up process handle if it exists
         if (isset($this->processHandles[$sessionId])) {
+            error_log("DOSDOOR: [EndSession] Closing process handle");
             proc_close($this->processHandles[$sessionId]);
             unset($this->processHandles[$sessionId]);
         }
 
         // Kill bridge process
-        if (isset($session['bridge_pid'])) {
-            $this->killProcess($session['bridge_pid']);
+        if ($bridgePid) {
+            error_log("DOSDOOR: [EndSession] Killing bridge PID: $bridgePid");
+            $killed = $this->killProcess($bridgePid);
+            if ($killed) {
+                error_log("DOSDOOR: [EndSession] Bridge killed successfully");
+            } else {
+                error_log("DOSDOOR: [EndSession] WARNING - Failed to kill bridge PID: $bridgePid (may already be dead)");
+            }
         }
 
         // Cleanup drop files
+        error_log("DOSDOOR: [EndSession] Cleaning up drop files");
         $dropFile = new DoorDropFile();
         $dropFile->cleanupSession($sessionId);
 
         // Update database - mark session as ended
+        error_log("DOSDOOR: [EndSession] Updating database");
         $stmt = $this->db->prepare("
             UPDATE door_sessions
             SET ended_at = NOW(), exit_status = ?
@@ -208,6 +242,7 @@ class DoorSessionManager
         // Log session termination
         $this->logSessionEvent($sessionId, 'terminated', ['exit_status' => 'normal']);
 
+        error_log("DOSDOOR: [EndSession] COMPLETE - Session: $sessionId");
         return true;
     }
 
@@ -355,14 +390,18 @@ class DoorSessionManager
             throw new Exception('Bridge server not found at: ' . $this->bridgePath);
         }
 
+        // Get disconnect timeout from environment (0 = immediate, default)
+        $disconnectTimeout = (int)Config::env('DOSDOOR_DISCONNECT_TIMEOUT', '0');
+
         // Build command
         $cmd = sprintf(
-            '%s "%s" %d %d %s',
+            '%s "%s" %d %d %s %d',
             $nodeExe,
             $this->bridgePath,
             $tcpPort,
             $wsPort,
-            escapeshellarg($sessionId)
+            escapeshellarg($sessionId),
+            $disconnectTimeout
         );
 
         // Start bridge in background
@@ -734,9 +773,15 @@ class DoorSessionManager
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
             // Windows
             exec("taskkill /F /PID $pid 2>&1", $output, $returnCode);
+            if ($returnCode !== 0) {
+                error_log("DOSDOOR: [KillProcess] taskkill failed for PID $pid - Return code: $returnCode, Output: " . implode(' ', $output));
+            }
         } else {
             // Linux/Mac
             exec("kill -9 $pid 2>&1", $output, $returnCode);
+            if ($returnCode !== 0) {
+                error_log("DOSDOOR: [KillProcess] kill failed for PID $pid - Return code: $returnCode, Output: " . implode(' ', $output));
+            }
         }
 
         return $returnCode === 0;

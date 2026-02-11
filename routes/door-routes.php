@@ -152,6 +152,22 @@ SimpleRouter::get('/api/door/session', function() {
 
         if ($session) {
             error_log("DOSDOOR: [GetSession] Found session: {$session['session_id']} for user $userId, session user_id: {$session['user_id']}");
+
+            // Validate that processes are still running
+            $bridgePid = $session['bridge_pid'];
+            $dosboxPid = $session['dosbox_pid'];
+
+            $bridgeRunning = $sessionManager->isProcessRunning($bridgePid);
+            $dosboxRunning = $sessionManager->isProcessRunning($dosboxPid);
+
+            error_log("DOSDOOR: [GetSession] Validation - Bridge: " . ($bridgeRunning ? 'alive' : 'dead') . ", DOSBox: " . ($dosboxRunning ? 'alive' : 'dead'));
+
+            if (!$bridgeRunning || !$dosboxRunning) {
+                // Processes are dead, clean up stale session
+                error_log("DOSDOOR: [GetSession] Cleaning up stale session: {$session['session_id']}");
+                $sessionManager->endSession($session['session_id']);
+                $session = null; // Treat as no session
+            }
         } else {
             error_log("DOSDOOR: [GetSession] No session found for user $userId");
         }

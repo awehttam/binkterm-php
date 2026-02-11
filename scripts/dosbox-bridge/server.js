@@ -4,8 +4,8 @@
  *
  * Bridges TCP connections (DOSBox serial port) to WebSocket clients (browser)
  *
- * Usage: node door-bridge-server.js <tcp_port> <ws_port> [session_id]
- * Example: node door-bridge-server.js 5000 5001 test-session
+ * Usage: node door-bridge-server.js <tcp_port> <ws_port> [session_id] [disconnect_timeout]
+ * Example: node door-bridge-server.js 5000 5001 test-session 0
  */
 
 const net = require('net');
@@ -17,15 +17,17 @@ const args = process.argv.slice(2);
 const tcpPort = parseInt(args[0]) || 5000;
 const wsPort = parseInt(args[1]) || 5001;
 const sessionId = args[2] || 'unknown';
+const disconnectTimeout = parseInt(args[3]) || 0; // 0 = immediate (default)
 
 console.log('=== DOSBox Door Bridge Server ===');
 console.log(`Session ID: ${sessionId}`);
 console.log(`TCP Port (DOSBox): ${tcpPort}`);
 console.log(`WebSocket Port (Client): ${wsPort}`);
+console.log(`Disconnect Timeout: ${disconnectTimeout} minutes ${disconnectTimeout === 0 ? '(immediate)' : ''}`);
 console.log('');
 
 class DoorBridge {
-    constructor(tcpPort, wsPort, sessionId) {
+    constructor(tcpPort, wsPort, sessionId, disconnectTimeoutMinutes = 0) {
         this.tcpPort = tcpPort;
         this.wsPort = wsPort;
         this.sessionId = sessionId;
@@ -34,6 +36,8 @@ class DoorBridge {
         this.startTime = Date.now();
         this.bytesFromDosbox = 0;
         this.bytesToDosbox = 0;
+        this.idleTimeout = null;
+        this.idleTimeoutMinutes = disconnectTimeoutMinutes; // 0 = immediate exit (default)
 
         // TCP server for DOSBox connection
         this.tcpServer = net.createServer((socket) => {
@@ -99,6 +103,9 @@ class DoorBridge {
 
             this.wsClient = ws;
 
+            // Clear idle timeout - client is connected
+            this.clearIdleTimeout();
+
             ws.on('message', (data) => {
                 this.bytesToDosbox += data.length;
 
@@ -126,8 +133,18 @@ class DoorBridge {
                 console.log(`[WS] Web client disconnected: ${code} ${reason}`);
                 this.wsClient = null;
 
-                // Don't close DOSBox connection - user might reconnect
-                // DOSBox will close when it exits
+                if (this.idleTimeoutMinutes === 0) {
+                    // Immediate disconnect mode (traditional BBS "lost carrier" behavior)
+                    console.log('[WS] Immediate disconnect mode - shutting down bridge...');
+                    this.stop();
+                    setTimeout(() => {
+                        process.exit(0);
+                    }, 1000);
+                } else {
+                    // Wait mode - user might reconnect
+                    console.log(`[WS] Starting ${this.idleTimeoutMinutes} minute idle timeout...`);
+                    this.startIdleTimeout();
+                }
             });
 
             ws.on('error', (err) => {
@@ -199,6 +216,38 @@ class DoorBridge {
             bytesToDosbox: this.bytesToDosbox
         };
     }
+
+    startIdleTimeout() {
+        // Don't set timeout if immediate mode (0 minutes)
+        if (this.idleTimeoutMinutes === 0) {
+            console.log('[IDLE] Immediate disconnect mode - no timeout needed');
+            return;
+        }
+
+        // Clear any existing timeout
+        this.clearIdleTimeout();
+
+        // Set new timeout
+        const timeoutMs = this.idleTimeoutMinutes * 60 * 1000;
+        this.idleTimeout = setTimeout(() => {
+            console.log(`[IDLE] No WebSocket connection for ${this.idleTimeoutMinutes} minutes`);
+            console.log('[IDLE] Shutting down bridge due to inactivity...');
+            this.stop();
+            setTimeout(() => {
+                process.exit(0);
+            }, 1000);
+        }, timeoutMs);
+
+        console.log(`[IDLE] Timeout set for ${this.idleTimeoutMinutes} minutes`);
+    }
+
+    clearIdleTimeout() {
+        if (this.idleTimeout) {
+            clearTimeout(this.idleTimeout);
+            this.idleTimeout = null;
+            console.log('[IDLE] Timeout cleared - client connected');
+        }
+    }
 }
 
 // Check Node.js version
@@ -221,7 +270,7 @@ try {
 }
 
 // Create and start bridge
-const bridge = new DoorBridge(tcpPort, wsPort, sessionId);
+const bridge = new DoorBridge(tcpPort, wsPort, sessionId, disconnectTimeout);
 bridge.start();
 
 // Status reporting (every 30 seconds)

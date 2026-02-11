@@ -1,0 +1,811 @@
+# DOS Door Games - Sysop Documentation
+
+## Table of Contents
+- [Overview](#overview)
+- [System Architecture](#system-architecture)
+- [Prerequisites](#prerequisites)
+- [Initial Setup](#initial-setup)
+- [Configuration](#configuration)
+- [Adding New Door Games](#adding-new-door-games)
+- [Door Manifest Format](#door-manifest-format)
+- [Maintenance](#maintenance)
+- [Troubleshooting](#troubleshooting)
+- [Advanced Configuration](#advanced-configuration)
+
+---
+
+## Overview
+
+BinktermPHP supports classic DOS door games through a DOSBox-X bridge system. This allows users to play traditional BBS door games like Legend of the Red Dragon (LORD), Trade Wars 2002, and others directly in their web browser.
+
+**Key Features:**
+- Multi-user support (up to 100 concurrent sessions)
+- Automatic node allocation
+- Session management with expiration
+- Configurable disconnect behavior
+- Drop file generation (DOOR.SYS format)
+- ANSI/CP437 encoding support
+
+---
+
+## System Architecture
+
+The DOS door system consists of several components working together:
+
+```
+[User's Browser] <--WebSocket--> [Bridge Server] <--TCP--> [DOSBox-X] --> [DOS Door Game]
+      (Terminal)                   (Node.js)           (Serial Port)         (LORD, etc.)
+```
+
+**Components:**
+
+1. **DOSBox-X**: Runs the actual DOS door game in headless mode
+2. **Bridge Server** (`scripts/dosbox-bridge/server.js`): Translates between WebSocket (browser) and TCP (DOSBox serial port)
+3. **Session Manager** (`src/DoorSessionManager.php`): Manages processes, nodes, and sessions
+4. **Drop File Generator** (`src/DoorDropFile.php`): Creates DOOR.SYS files for each session
+
+**Data Flow:**
+1. User clicks door game link
+2. PHP allocates node (1-100), generates drop file, starts bridge and DOSBox
+3. Browser connects to bridge via WebSocket
+4. User input flows: Browser → WebSocket → Bridge → TCP → DOSBox → Door Game
+5. Game output flows: Door Game → DOSBox → TCP → Bridge → WebSocket → Browser
+6. When done, processes are terminated and node is freed
+
+---
+
+## Prerequisites
+
+### Required Software
+
+1. **DOSBox-X** (recommended) or DOSBox
+   - Windows: Download from https://dosbox-x.com/
+   - Default install location: `C:\DOSBox-X\dosbox-x.exe`
+   - Linux: `sudo apt install dosbox-x` or compile from source (see below)
+   - macOS: `brew install dosbox-x` or compile from source (see below)
+
+2. **Node.js** 18.x or newer
+   - Download from https://nodejs.org/
+   - Required for the bridge server
+
+3. **Node.js Dependencies** (in project root):
+   ```bash
+   npm install ws@^8.16.0 iconv-lite@^0.6.3
+   ```
+
+### File Structure
+
+```
+binktest/
+├── dosbox-bridge/                          # DOSBox configuration and DOS files
+│   ├── dosbox-bridge-production.conf       # Headless config (default)
+│   ├── dosbox-bridge-test.conf             # Visible window config (testing)
+│   └── dos/                                # DOS drive (mounted as C:)
+│       └── doors/                          # Door game installations
+│           └── lord/                       # Example: Legend of the Red Dragon
+│               ├── dosdoor.json            # Door manifest (required)
+│               ├── START.BAT               # Launch script
+│               └── ... (game files)
+├── scripts/
+│   ├── dosbox-bridge/
+│   │   └── server.js                       # WebSocket-to-TCP bridge
+│   └── cleanup_expired_dosdoor_sessions.php # Cleanup script
+└── data/
+    └── doorsessions/                       # Per-session temp directories
+        └── door_<user>_node<N>_<timestamp>/ # Session folder
+            ├── DOOR.SYS                    # Drop file for this session
+            └── dosbox.conf                 # Session-specific DOSBox config
+```
+
+---
+
+## Initial Setup
+
+### 1. Install DOSBox-X
+
+**Windows:**
+1. Download DOSBox-X from https://dosbox-x.com/
+2. Install to `C:\DOSBox-X\` (recommended)
+3. Verify installation: Open Start Menu → DOSBox-X
+
+**Linux (Debian/Ubuntu):**
+```bash
+# Option 1: Package manager (if available)
+sudo apt install dosbox-x
+
+# Option 2: Compile from source
+# Install build dependencies
+sudo apt update
+sudo apt install -y automake gcc g++ make libncurses-dev nasm \
+    libsdl2-dev libsdl2-net-dev libpcap-dev libslirp-dev fluidsynth \
+    libfluidsynth-dev libavformat-dev libavcodec-dev libswscale-dev \
+    libfreetype-dev libxkbfile-dev libxrandr-dev libglu1-mesa-dev git
+
+# Clone and build
+git clone https://github.com/joncampbell123/dosbox-x.git
+cd dosbox-x
+./build
+sudo make install
+
+# Verify installation
+dosbox-x --version
+```
+
+### 2. Install Node.js Dependencies
+
+From your BinktermPHP root directory:
+```bash
+npm install ws@^8.16.0 iconv-lite@^0.6.3
+```
+
+### 3. Configure Environment Variables
+
+Edit `.env` and add/verify:
+
+```bash
+# DOSBox executable path (auto-detected on Windows if in default location)
+DOSBOX_EXECUTABLE=C:\DOSBox-X\dosbox-x.exe
+
+# DOSBox config file (default: dosbox-bridge-production.conf)
+# DOSDOOR_CONFIG=dosbox-bridge-production.conf
+
+# Disconnect behavior (default: 0 = immediate)
+# 0 = Exit door immediately when user disconnects (traditional BBS "lost carrier")
+# >0 = Wait X minutes for reconnection
+DOSDOOR_DISCONNECT_TIMEOUT=0
+```
+
+### 4. Verify Database Schema
+
+The door system requires these tables (created by `scripts/setup.php`):
+- `door_sessions` - Active session tracking
+- `door_session_logs` - Session event logging
+
+Run setup if needed:
+```bash
+php scripts/setup.php
+```
+
+### 5. Test the System
+
+Start a test bridge server manually:
+```bash
+node scripts/dosbox-bridge/server.js 5001 6001 test-session 0
+```
+
+You should see:
+```
+=== DOSBox Door Bridge Server ===
+Session ID: test-session
+TCP Port (DOSBox): 5001
+WebSocket Port (Client): 6001
+Disconnect Timeout: 0 minutes (immediate)
+
+[WS] WebSocket server listening on port 6001
+[TCP] Listening on 127.0.0.1:5001
+Bridge running. Press Ctrl+C to stop.
+```
+
+Press Ctrl+C to stop the test server.
+
+---
+
+## Configuration
+
+### DOSBox Configuration Files
+
+**Production Config** (`dosbox-bridge-production.conf`):
+- Headless mode (window positioned off-screen)
+- Serial port configured for TCP connection
+- Auto-exit when door closes
+- Used by default for live BBS
+
+**Test Config** (`dosbox-bridge-test.conf`):
+- Visible window for debugging
+- Same serial port settings
+- Useful for testing door installations
+
+**Custom Config:**
+Create `dosbox-bridge-custom.conf` for your own settings:
+```bash
+# In .env:
+DOSDOOR_CONFIG=dosbox-bridge-custom.conf
+```
+
+### Key DOSBox Settings
+
+In your config file:
+
+```ini
+[sdl]
+# Production: Window off-screen (Windows only)
+windowposition=-2000,-2000
+
+[serial]
+# Serial port 1 connected to TCP (matches bridge)
+serial1=nullmodem port:5001 transparent:1 telnet:1
+
+[autoexec]
+# Mount DOS drive
+mount c dosbox-bridge/dos
+c:
+
+# Door-specific commands will be appended here by PHP
+# Example:
+# cd \doors\lord
+# call start.bat 1
+```
+
+### Session Settings
+
+Sessions are configured in `src/DoorSessionManager.php`:
+
+```php
+private const TCP_PORT_BASE = 5000;  // DOSBox serial ports: 5001-5100
+private const WS_PORT_BASE = 6000;   // WebSocket ports: 6001-6100
+private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
+```
+
+**Session Expiration:**
+- Default: 2 hours per session
+- Configurable in `startSession()` method (line 101)
+- Enforced by cleanup script
+
+---
+
+## Adding New Door Games
+
+### Step 1: Prepare the Door Game
+
+1. **Obtain the door game files**
+   - Download from archives (e.g., https://www.bbsdoorarchive.com/)
+   - Must be DOS-compatible (16-bit DOS executable or batch file)
+
+2. **Test locally first**
+   - Extract to a test folder
+   - Run in DOSBox manually to verify it works
+   - Note the executable name and any configuration needed
+
+### Step 2: Install to BinktermPHP
+
+1. **Create door directory:**
+   ```bash
+   mkdir dosbox-bridge/dos/doors/yourdoor
+   ```
+
+2. **Copy door files:**
+   ```bash
+   cp -r /path/to/door/files/* dosbox-bridge/dos/doors/yourdoor/
+   ```
+
+3. **Create launch script** (optional but recommended):
+
+   Create `dosbox-bridge/dos/doors/yourdoor/START.BAT`:
+   ```batch
+   @ECHO OFF
+   REM %1 is the node number passed by BinktermPHP
+   YOURDOOR.EXE DOOR%1.SYS
+   ```
+
+   Some doors may need different syntax:
+   ```batch
+   @ECHO OFF
+   CALL YOURDOOR.BAT %1
+   ```
+
+### Step 3: Create Door Manifest
+
+Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.json`:
+
+```json
+{
+    "version": "1.0",
+    "id": "yourdoor",
+    "name": "Your Door Game",
+    "author": "Author Name",
+    "description": "A classic BBS door game",
+    "executable": "START.BAT",
+    "launch_command": "call start.bat {node}",
+    "drop_file_format": "DOOR.SYS",
+    "max_nodes": 10,
+    "require_ansi": true,
+    "category": "game"
+}
+```
+
+**Manifest Field Reference:**
+- `id`: Unique identifier (must match directory name)
+- `name`: Display name shown to users
+- `executable`: Main executable or batch file
+- `launch_command`: Full command with {node} and {dropfile} macros
+- `drop_file_format`: Currently only "DOOR.SYS" is supported
+- `max_nodes`: Maximum concurrent players (1-100)
+- `require_ansi`: Whether door requires ANSI support
+
+### Step 4: Enable the Door
+
+1. **Scan for new doors:**
+   The system automatically scans `dosbox-bridge/dos/doors/` for `dosdoor.json` files
+
+2. **Enable via admin panel:**
+   - Login as admin
+   - Navigate to Games → DOS Doors
+   - Find your door in the list
+   - Click "Enable"
+   - Adjust settings if needed
+
+3. **Or enable manually:**
+
+   Edit `config/dosdoors.json`:
+   ```json
+   {
+       "yourdoor": {
+           "enabled": true,
+           "name": "Your Door Game",
+           "max_nodes": 10
+       }
+   }
+   ```
+
+### Step 5: Test the Door
+
+1. **Launch the door** from the games menu
+2. **Check for issues:**
+   - Does it display properly?
+   - Does input work correctly?
+   - Does it save game state?
+   - Does it exit cleanly?
+
+3. **Review logs:**
+   ```bash
+   # Filter for DOSDOOR-prefixed logs
+   tail -f data/logs/php-errors.log | grep DOSDOOR
+   ```
+
+### Example: Installing LORD
+
+```bash
+# 1. Create directory
+mkdir dosbox-bridge/dos/doors/lord
+
+# 2. Copy LORD files (from archive or existing installation)
+cp -r /path/to/lord/* dosbox-bridge/dos/doors/lord/
+
+# 3. Create START.BAT
+cat > dosbox-bridge/dos/doors/lord/START.BAT << 'EOF'
+@ECHO OFF
+REM Launch Legend of the Red Dragon
+REM %1 = node number from BinktermPHP
+LORD.EXE DOOR%1.SYS
+EOF
+
+# 4. Create manifest
+cat > dosbox-bridge/dos/doors/lord/dosdoor.json << 'EOF'
+{
+    "version": "1.0",
+    "id": "lord",
+    "name": "Legend of the Red Dragon",
+    "author": "Seth Able Robinson",
+    "description": "Classic fantasy adventure door game",
+    "executable": "START.BAT",
+    "launch_command": "call start.bat {node}",
+    "drop_file_format": "DOOR.SYS",
+    "max_nodes": 10,
+    "require_ansi": true,
+    "category": "game"
+}
+EOF
+
+# 5. Enable via admin panel or config file
+# 6. Test by launching from games menu
+```
+
+---
+
+## Door Manifest Format
+
+### Complete Manifest Specification
+
+```json
+{
+    "version": "1.0",
+    "id": "doorid",
+    "name": "Display Name",
+    "author": "Author Name",
+    "description": "Description shown to users",
+    "executable": "FILENAME.EXE or FILENAME.BAT",
+    "launch_command": "call start.bat {node}",
+    "drop_file_format": "DOOR.SYS",
+    "max_nodes": 10,
+    "require_ansi": true,
+    "category": "game",
+    "version_info": "v4.08",
+    "release_date": "1996-01-01",
+    "credits_cost": 0
+}
+```
+
+### Macro Replacements in launch_command
+
+- `{node}`: Replaced with node number (1-100)
+- `{dropfile}`: Replaced with drop file name (e.g., "DOOR1.SYS")
+
+### Examples
+
+**Simple executable:**
+```json
+{
+    "launch_command": "doorgame.exe {dropfile}"
+}
+```
+
+**Batch file with node:**
+```json
+{
+    "launch_command": "call start.bat {node}"
+}
+```
+
+**Direct executable with node:**
+```json
+{
+    "launch_command": "lord.exe DOOR{node}.SYS"
+}
+```
+
+---
+
+## Maintenance
+
+### Automatic Session Cleanup
+
+Sessions expire after 2 hours by default. Run the cleanup script periodically to terminate expired sessions.
+
+**Manual Cleanup:**
+```bash
+php scripts/cleanup_expired_dosdoor_sessions.php
+```
+
+**Automated Cleanup (Windows Task Scheduler):**
+1. Open Task Scheduler
+2. Create Basic Task
+3. Name: "BinktermPHP - Clean Expired Door Sessions"
+4. Trigger: Daily, repeat every 10 minutes
+5. Action: Start a program
+   - Program: `C:\devel\binktest\cleanup_expired_dosdoor_sessions.cmd`
+6. Finish and test
+
+**Automated Cleanup (Linux Cron):**
+```bash
+# Edit crontab
+crontab -e
+
+# Add line to run every 10 minutes
+*/10 * * * * /path/to/binktest/scripts/cleanup_expired_dosdoor_sessions.php
+```
+
+### Manual Process Management
+
+**Check active sessions:**
+```bash
+php test/check-db-sessions.php
+```
+
+**Verify processes are running:**
+```bash
+php test/verify-session-procs.php
+```
+
+**Kill all door processes (emergency):**
+```bash
+# Windows
+kill-all-door-procs.cmd
+
+# Linux
+killall dosbox-x
+killall node
+```
+
+### Log Monitoring
+
+Door activity is logged with `DOSDOOR:` prefix:
+
+```bash
+# Watch door logs in real-time
+tail -f data/logs/php-errors.log | grep DOSDOOR
+
+# Common log patterns:
+# [API] - API endpoint calls
+# [NodeAlloc] - Node allocation
+# [StartSession] - Session startup
+# [Launch] - DOSBox launch
+# [Bridge] - Bridge server startup
+# [EndSession] - Session termination
+# [KillProcess] - Process termination
+```
+
+---
+
+## Troubleshooting
+
+### Door Won't Launch
+
+**Symptoms:** Clicking door does nothing, or shows "Connecting..." forever
+
+**Check:**
+1. Is Node.js installed? `node --version`
+2. Are npm dependencies installed? Check `node_modules/ws` and `node_modules/iconv-lite`
+3. Is DOSBox-X installed? Check `DOSBOX_EXECUTABLE` in `.env`
+4. Are ports available? Check for conflicts on ports 5001-5100 and 6001-6100
+
+**Debug:**
+```bash
+# Check logs for errors
+tail -f data/logs/php-errors.log | grep DOSDOOR
+
+# Common errors:
+# "Node.js executable not found" - Install Node.js
+# "DOSBox-X executable not found" - Check DOSBOX_EXECUTABLE path
+# "Failed to start bridge server" - Port conflict or npm dependencies missing
+# "Failed to detect DOSBox-X process" - DOSBox not starting (check config)
+```
+
+### Door Launches But Nothing Displays
+
+**Symptoms:** Terminal connects but shows blank screen
+
+**Check:**
+1. Is the door executable correct in `dosdoor.json`?
+2. Does the door exist in `dosbox-bridge/dos/doors/`?
+3. Is the launch command correct?
+
+**Debug:**
+```bash
+# Test DOSBox manually
+# Edit dosbox-bridge-test.conf to add:
+cd \doors\yourdoor
+call start.bat 1
+
+# Run DOSBox with visible window:
+"C:\DOSBox-X\dosbox-x.exe" -conf dosbox-bridge-test.conf
+
+# Watch for errors in DOSBox window
+```
+
+### Stale Sessions / Orphaned Processes
+
+**Symptoms:** Users can't launch doors, "No available nodes" error, or processes running after logout
+
+**Fix:**
+```bash
+# 1. Check for orphaned processes
+php test/verify-session-procs.php
+
+# 2. Clean up expired sessions
+php scripts/cleanup_expired_dosdoor_sessions.php
+
+# 3. If cleanup fails, force kill all door processes
+kill-all-door-procs.cmd  # Windows
+
+# 4. Check for port conflicts
+netstat -ano | findstr :6001  # Windows
+netstat -tuln | grep 6001     # Linux
+
+# 5. Kill specific process
+taskkill /F /PID <pid>  # Windows
+kill -9 <pid>           # Linux
+```
+
+### Door Doesn't Save Game State
+
+**Symptoms:** Player progress is lost between sessions
+
+**Check:**
+1. Does the door directory have write permissions?
+   ```bash
+   # Windows - Right click folder → Properties → Security
+   # Linux
+   chmod -R 775 dosbox-bridge/dos/doors/yourdoor
+   ```
+
+2. Is the door configured for multi-node operation?
+   - Some doors need separate data files per node
+   - Check door documentation for multi-node setup
+
+3. Are drop files being generated correctly?
+   ```bash
+   # After launching, check:
+   ls data/doorsessions/door_*/DOOR.SYS
+   ```
+
+### WebSocket Disconnects Immediately
+
+**Symptoms:** "Connection closed" right after connecting
+
+**Check:**
+1. Disconnect timeout setting:
+   ```bash
+   # In .env:
+   DOSDOOR_DISCONNECT_TIMEOUT=0  # Change to 5 for 5-minute grace period
+   ```
+
+2. Bridge server logs:
+   ```bash
+   # Bridge logs to console - check for errors
+   # Look for [WS] messages
+   ```
+
+3. Firewall blocking WebSocket ports (6001-6100)
+
+---
+
+## Advanced Configuration
+
+### Custom DOSBox Configurations
+
+Create a custom config to preserve your changes across upgrades:
+
+```bash
+# 1. Copy production config
+cp dosbox-bridge/dosbox-bridge-production.conf dosbox-bridge/dosbox-bridge-custom.conf
+
+# 2. Edit your custom config
+nano dosbox-bridge/dosbox-bridge-custom.conf
+
+# 3. Set in .env
+DOSDOOR_CONFIG=dosbox-bridge-custom.conf
+```
+
+**Common customizations:**
+
+```ini
+[cpu]
+# Increase cycles for faster doors
+cycles=20000
+
+[serial]
+# Adjust serial port settings if needed
+serial1=nullmodem port:5001 transparent:1 telnet:1 rxdelay:0
+
+[dos]
+# Set XMS/EMS memory for doors that need it
+xms=true
+ems=true
+
+[autoexec]
+# Set DOS environment variables
+set TEMP=C:\TEMP
+set FOSSIL=ENABLED
+```
+
+### Disconnect Behavior Modes
+
+**Immediate Mode (Default):**
+```bash
+DOSDOOR_DISCONNECT_TIMEOUT=0
+```
+- User closes browser → Door exits immediately
+- Traditional BBS "lost carrier" behavior
+- Clean state, no confusion
+
+**Grace Period Mode:**
+```bash
+DOSDOOR_DISCONNECT_TIMEOUT=5
+```
+- User closes browser → Bridge waits 5 minutes
+- User can reconnect and resume game
+- Good for users with unstable connections
+- Uses more resources (processes keep running)
+
+### Session Duration
+
+Edit `src/DoorSessionManager.php`:
+
+```php
+// Line ~101 in startSession()
+'time_remaining' => 7200,  // 2 hours in seconds
+
+// Line ~114
+$expiresAt = date('Y-m-d H:i:s', time() + 7200);  // 2 hours
+```
+
+Change `7200` to your desired duration in seconds:
+- 1800 = 30 minutes
+- 3600 = 1 hour
+- 7200 = 2 hours (default)
+- 14400 = 4 hours
+
+### Port Ranges
+
+Edit `src/DoorSessionManager.php`:
+
+```php
+// Lines ~27-29
+private const TCP_PORT_BASE = 5000;  // DOSBox ports: 5001-5100
+private const WS_PORT_BASE = 6000;   // WebSocket ports: 6001-6100
+private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
+```
+
+**Note:** After changing ports, update firewall rules if needed.
+
+### Credits System Integration
+
+To charge credits for playing doors, edit the door manifest:
+
+```json
+{
+    "id": "yourdoor",
+    "name": "Your Door Game",
+    "credits_cost": 10
+}
+```
+
+Users will be charged 10 credits each time they launch the door.
+
+Configure credit costs in Admin Panel → BBS Settings → Credits System.
+
+---
+
+## Best Practices
+
+### Security
+
+1. **Validate door files** before installing - only install doors from trusted sources
+2. **Limit door execution** to the `dosbox-bridge/dos/doors/` directory
+3. **Review door configs** for potentially dangerous DOS commands
+4. **Monitor logs** for suspicious activity
+5. **Keep DOSBox-X updated** for security patches
+
+### Performance
+
+1. **Run cleanup script regularly** (every 10 minutes recommended)
+2. **Monitor active sessions** - adjust `MAX_SESSIONS` based on server capacity
+3. **Set reasonable session timeouts** (2 hours default)
+4. **Use immediate disconnect mode** (`DOSDOOR_DISCONNECT_TIMEOUT=0`) to free resources quickly
+
+### Reliability
+
+1. **Test doors before making them public**
+2. **Document door-specific requirements** (memory, special configs)
+3. **Keep backups** of working door installations
+4. **Monitor bridge server** for crashes or errors
+5. **Set up automated cleanup** via Task Scheduler or cron
+
+---
+
+## Support & Resources
+
+### Getting Help
+
+- Check logs: `data/logs/php-errors.log` (filter with `grep DOSDOOR`)
+- Review this documentation thoroughly
+- Check door game documentation for specific requirements
+
+### Useful Commands Reference
+
+```bash
+# Check active sessions
+php test/check-db-sessions.php
+
+# Verify processes
+php test/verify-session-procs.php
+
+# Clean up expired sessions
+php scripts/cleanup_expired_dosdoor_sessions.php
+
+# Kill all door processes
+kill-all-door-procs.cmd
+
+# Test bridge server
+node scripts/dosbox-bridge/server.js 5001 6001 test 0
+
+# Watch logs
+tail -f data/logs/php-errors.log | grep DOSDOOR
+
+# Check ports in use
+netstat -ano | findstr :6001
+```
+
+---
+
+*Last updated: February 2026*
