@@ -23,9 +23,11 @@ class DoorDropFile
      */
     public function __construct($basePath = null)
     {
-        $this->basePath = $basePath ?? (defined('BINKTERMPHP_BASEDIR')
-            ? BINKTERMPHP_BASEDIR . '/data/run/door_sessions'
-            : __DIR__ . '/../data/run/door_sessions');
+        $base = $basePath ?? (defined('BINKTERMPHP_BASEDIR')
+            ? BINKTERMPHP_BASEDIR
+            : realpath(__DIR__ . '/..'));
+
+        $this->basePath = $base . '/data/run/door_sessions';
 
         $this->bbsName = getenv('BBS_NAME') ?: 'BinktermPHP BBS';
         $this->sysopName = getenv('SYSOP_NAME') ?: 'Sysop';

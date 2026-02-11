@@ -165,6 +165,7 @@ if (empty($doorId)) {
         let socket = null;
         let sessionId = null;
         let wsPort = null;
+        let wsToken = null;
         const doorId = <?php echo json_encode($doorId); ?>;
 
         // Initialize terminal
@@ -285,6 +286,9 @@ if (empty($doorId)) {
 
                     sessionId = data.session.session_id;
                     wsPort = data.session.ws_port;
+                    wsToken = data.session.ws_token;
+                    console.log('[TOKEN] Received token:', wsToken ? wsToken.substring(0, 16) + '...' : 'MISSING!');
+
                     const doorTitle = document.getElementById('doorTitle');
                     if (doorTitle && data.session.door_name) {
                         doorTitle.textContent = data.session.door_name;
@@ -295,11 +299,15 @@ if (empty($doorId)) {
                     console.log('[CONNECT] Clearing terminal');
                     term.clear();
 
-                    // Connect to WebSocket
+                    // Connect to WebSocket with authentication token
                     updateStatus('Connecting...', 'connecting');
                     term.writeln('\x1b[1;33mConnecting to ' + data.session.door_name + '...\x1b[0m');
 
-                    socket = new WebSocket('ws://localhost:' + wsPort);
+                    // Use WebSocket URL from server (configured or auto-detected)
+                    const wsBaseUrl = data.session.ws_url || ('ws://' + window.location.hostname + ':' + wsPort);
+                    const wsUrl = wsBaseUrl + (wsToken ? '?token=' + encodeURIComponent(wsToken) : '');
+                    console.log('[CONNECT] Connecting to WebSocket:', wsBaseUrl + ' (token present:', !!wsToken, ')');
+                    socket = new WebSocket(wsUrl);
 
                     socket.onopen = () => {
                         updateStatus('Connected', 'connected');
