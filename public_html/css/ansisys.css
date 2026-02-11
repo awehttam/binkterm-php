@@ -105,6 +105,30 @@
 .ansi-blink { animation: ansi-blink 1s step-end infinite; }
 .ansi-reverse { filter: invert(1); }
 .ansi-hidden { visibility: hidden; }
+
+/* Xterm helpers: keep off-screen, but do not break measurement logic */
+.xterm-helpers {
+    position: absolute !important;
+    left: -9999em !important;
+    top: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.xterm-helpers .xterm-helper-textarea {
+    position: absolute !important;
+    left: -9999em !important;
+    top: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.xterm-char-measure-element {
+    position: absolute !important;
+    left: -9999em !important;
+    top: 0 !important;
+    visibility: hidden !important;
+}
 .ansi-strike { text-decoration: line-through; }
 
 @keyframes ansi-blink {

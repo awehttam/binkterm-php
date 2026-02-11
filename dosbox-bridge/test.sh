@@ -47,9 +47,9 @@ start_dosbox() {
 
     # Try dosbox-x first, then dosbox
     if command -v dosbox-x &> /dev/null; then
-        dosbox-x -conf test/dosbox-bridge/dosbox-bridge-test.conf
+        dosbox-x -conf dosbox-bridge/dosbox-bridge-test.conf
     elif command -v dosbox &> /dev/null; then
-        dosbox -conf test/dosbox-bridge/dosbox-bridge-test.conf
+        dosbox -conf dosbox-bridge/dosbox-bridge-test.conf
     else
         echo "Error: DOSBox not found"
         echo "Install with: sudo apt install dosbox"
@@ -61,7 +61,7 @@ open_client() {
     echo ""
     echo "Opening test client in browser..."
 
-    CLIENT_PATH="$(pwd)/test/dosbox-bridge/test-client.html"
+    CLIENT_PATH="$(pwd)/dosbox-bridge/test-client.html"
 
     # Try different browser commands
     if command -v xdg-open &> /dev/null; then

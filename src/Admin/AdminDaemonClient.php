@@ -111,6 +111,16 @@ class AdminDaemonClient
         return $this->sendCommand('activate_webdoors_config');
     }
 
+    public function getDosdoorsConfig(): array
+    {
+        return $this->sendCommand('get_dosdoors_config');
+    }
+
+    public function saveDosdoorsConfig(string $json): array
+    {
+        return $this->sendCommand('save_dosdoors_config', ['json' => $json]);
+    }
+
     public function getFileAreaRulesConfig(): array
     {
         return $this->sendCommand('get_filearea_rules');

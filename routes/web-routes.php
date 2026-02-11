@@ -917,6 +917,16 @@ SimpleRouter::get('/polls/create', function() {
     ]);
 });
 
+// Door game terminal
+SimpleRouter::get('/door/play', function() {
+    $user = RouteHelper::requireAuth();
+
+    $template = new Template();
+    $template->renderResponse('door-terminal.twig', [
+        'door_name' => 'Door Game'
+    ]);
+});
+
 // Include local/custom routes if they exist
 $localRoutes = __DIR__ . '/web-routes.local.php';
 if (file_exists($localRoutes)) {

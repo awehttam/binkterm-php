@@ -1,6 +1,6 @@
-**Seth Able's Node Data System, for node 2
+**Seth Able's Node Data System, for node 3
 BBSNAME eXoDOS
-BBSTYPE QBBS
+BBSTYPE DOORSYS
 ;COMPORT 0
 XFOSSIL
 LOCKBAUD 0
@@ -10,7 +10,7 @@ STATBACK 7
 ;COLOR1
 ;NODIRECT
 ;UNUSED
-BBSDROP c:\drop
+BBSDROP c:\doors\lord
 ;UNUSED
 ;UNUSED
 ;UNUSED

@@ -1,14 +1,14 @@
 {% extends "base.twig" %}
 
-{% block title %}Web Doors - {{ system_name }}{% endblock %}
+{% block title %}Doors and Games - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="fas fa-gamepad"></i> Web Doors</h1>
+        <h1><i class="fas fa-gamepad"></i> Doors and Games</h1>
     </div>
 
-    <p class="text-muted mb-4">Access new door ways to games, apps, and more directly in your browser. Your progress and high scores are saved automatically.</p>
+    <p class="text-muted mb-4">Access classic DOS door games and modern web-based games. Your progress and high scores are saved automatically.</p>
     {% if leaderboard|length > 0 %}
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -63,10 +63,24 @@
                              onerror="this.src='/favicon.svg'">
                     </div>
                     <div class="flex-grow-1">
-                        <h5 class="card-title mb-1">{{ game.name }}</h5>
+                        <h5 class="card-title mb-1">
+                            {{ game.name }}
+                            {% if game.type == 'dosdoor' %}
+                                <span class="badge bg-info text-white" style="font-size: 0.65rem;">DOS</span>
+                            {% else %}
+                                <span class="badge bg-success text-white" style="font-size: 0.65rem;">WEB</span>
+                            {% endif %}
+                        </h5>
                         <p class="card-text text-muted small mb-2">{{ game.description }}</p>
                         <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">v{{ game.version }} by {{ game.author }}</small>
+                            <small class="text-muted">
+                                {% if game.type == 'dosdoor' %}
+                                    {% if game.players %}Players: {{ game.players }}{% endif %}
+                                    {% if game.author %} • {{ game.author }}{% endif %}
+                                {% else %}
+                                    v{{ game.version }} by {{ game.author }}
+                                {% endif %}
+                            </small>
                             <a href="/games/{{ game.path }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-play"></i> Launch
                             </a>

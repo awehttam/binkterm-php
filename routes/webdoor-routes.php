@@ -8,6 +8,7 @@
 
 use BinktermPHP\Auth;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\DoorManager;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\WebDoorController;
@@ -79,6 +80,8 @@ SimpleRouter::get('/games', function() {
      }
 
     $games = [];
+
+    // Get Web Doors
     foreach (WebDoorManifest::listManifests() as $entry) {
         $manifest = $entry['manifest'];
         if (!isset($manifest['game'])) {
@@ -93,6 +96,7 @@ SimpleRouter::get('/games', function() {
         $game = $manifest['game'];
         $game['path'] = $entry['path'];
         $game['icon_url'] = "/webdoors/{$entry['path']}/" . ($game['icon'] ?? 'icon.png');
+        $game['type'] = 'webdoor';
 
         if(GameConfig::isEnabled($entry['id'])){
             // Check for display_name and display_description overrides in configuration
@@ -112,6 +116,28 @@ SimpleRouter::get('/games', function() {
             $games[] = $game;
         }
     }
+
+    // Get DOS Doors
+    $doorManager = new DoorManager();
+    $dosDoors = $doorManager->getEnabledDoors();
+    foreach ($dosDoors as $doorId => $door) {
+        $games[] = [
+            'id' => $doorId,
+            'name' => $door['name'],
+            'description' => $door['description'] ?? '',
+            'author' => $door['author'] ?? 'Unknown',
+            'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
+            'icon_url' => '/images/dos-door-icon.png', // Default icon for DOS doors
+            'type' => 'dosdoor',
+            'genre' => $door['genre'] ?? [],
+            'players' => $door['players'] ?? 'Unknown'
+        ];
+    }
+
+    // Sort all games by name
+    usort($games, function($a, $b) {
+        return strcasecmp($a['name'], $b['name']);
+    });
 
     // Build game lookup table for leaderboard (includes display_name overrides)
     $gameLookup = [];
@@ -168,7 +194,41 @@ SimpleRouter::get('/games', function() {
     ]);
 });
 
-// GET /games/{game} - Play a specific game
+// GET /games/dosdoors/{doorid} - Play a DOS door game
+SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+    if(GameConfig::isGameSystemEnabled()==false){
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error' => 'Sorry, the game system is not enabled.'
+        ]);
+        exit;
+    }
+
+    // Verify door exists and is enabled
+    $doorManager = new DoorManager();
+    $door = $doorManager->getDoor($doorid);
+
+    if (!$door || empty($door['config']['enabled'])) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig', [
+            'requested_url' => "/games/dosdoors/{$doorid}"
+        ]);
+        return;
+    }
+
+    // Include the DOS door player
+    $doorId = $doorid; // For the player script
+    require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
+});
+
+// GET /games/{game} - Play a specific game (DOS door or web door)
 SimpleRouter::get('/games/{game}', function($game) {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -184,7 +244,21 @@ SimpleRouter::get('/games/{game}', function($game) {
         exit;
     }
 
-    // Validate game exists
+    // Check if this is a DOS door first
+    $doorManager = new DoorManager();
+    $door = $doorManager->getDoor($game);
+
+    if ($door && !empty($door['config']['enabled'])) {
+        // This is a DOS door - render with embedded player
+        $template = new Template();
+        $template->renderResponse('dosdoor_play.twig', [
+            'door' => $door,
+            'door_id' => $game
+        ]);
+        return;
+    }
+
+    // Check if this is a web door
     $gameDir = __DIR__ . '/../public_html/webdoors/' . basename($game);
     $manifestPath = $gameDir . '/webdoor.json';
 

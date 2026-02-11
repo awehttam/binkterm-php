@@ -67,7 +67,7 @@ In a **new terminal**, run:
 
 ```bash
 cd /path/to/binkterm
-dosbox -conf test/dosbox-bridge/dosbox-bridge-test.conf
+dosbox -conf dosbox-bridge/dosbox-bridge-test.conf
 ```
 
 DOSBox should start and connect to the bridge. You'll see in the bridge terminal:
@@ -78,10 +78,10 @@ DOSBox should start and connect to the bridge. You'll see in the bridge terminal
 ### Step 3: Open the Web Client
 
 1. Open your web browser
-2. Navigate to: `file:///path/to/binkterm/test/dosbox-bridge/test-client.html`
+2. Navigate to: `file:///path/to/binkterm/dosbox-bridge/test-client.html`
 
    Or if you have a web server running:
-   `http://localhost:1244/test/dosbox-bridge/test-client.html`
+   `http://localhost:1244/dosbox-bridge/test-client.html`
 
 3. Click the **"Connect"** button
 
@@ -216,7 +216,7 @@ node scripts/door-bridge-server.js 6000 6001 test
 ## Files in This Directory
 
 ```
-test/dosbox-bridge/
+dosbox-bridge/
 ├── README.md                       # This file
 ├── test-client.html               # Web terminal test client
 ├── dosbox-bridge-test.conf        # DOSBox config (visible console for testing)

@@ -1,0 +1,389 @@
+{% extends "base.twig" %}
+
+{% block title %}DOS Doors Config{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">DOS Doors Configuration</h1>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        DOS doors are classic BBS door games that run in DOSBox. Configuration is stored in <code>config/dosdoors.json</code>.
+        Doors are discovered by scanning <code>dosbox-bridge/dos/doors/</code> for <code>dosdoor.json</code> manifests.
+    </div>
+
+    <div id="statusAlert"></div>
+
+    <div class="row g-4">
+        <!-- Available Doors List -->
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">Installed Doors</h6>
+                </div>
+                <div class="card-body" id="doorsList">
+                    <div class="text-center text-muted">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading doors...
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="enableAllDoors()">
+                        <i class="fas fa-check-circle"></i> Enable All Doors
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary w-100" onclick="disableAllDoors()">
+                        <i class="fas fa-times-circle"></i> Disable All Doors
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Editor -->
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">dosdoors.json</h6>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="formatJson()">
+                            <i class="fas fa-align-left"></i> Format
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="saveConfig()" id="saveBtn">
+                            <i class="fas fa-save"></i> Save
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="editorAlert"></div>
+                    <textarea id="configEditor" class="form-control font-monospace" rows="20" spellcheck="false"></textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="jsonStatus">Loading config...</small>
+                        <small class="text-muted">JSON validation runs before saving</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Door Configuration Help -->
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Configuration Options</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-nowrap"><code>enabled</code></td>
+                            <td>Whether the door is available to users</td>
+                        </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>credit_cost</code></td>
+                            <td>Credits required to play (0 = free)</td>
+                        </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>max_time_minutes</code></td>
+                            <td>Maximum play time per session</td>
+                        </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>cpu_cycles</code></td>
+                            <td>DOSBox CPU speed (10000 = typical)</td>
+                        </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>max_concurrent_sessions</code></td>
+                            <td>Maximum simultaneous players</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let doorsState = {
+    config: {},
+    availableDoors: [],
+    configExists: false
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadConfig();
+    loadAvailableDoors();
+
+    document.getElementById('configEditor').addEventListener('input', () => {
+        updateJsonStatus();
+        renderDoorsList();
+    });
+});
+
+function loadConfig() {
+    fetch('/admin/api/dosdoors-config')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load config');
+            }
+
+            doorsState.config = data.config || {};
+            doorsState.configExists = data.exists;
+
+            const editor = document.getElementById('configEditor');
+            editor.value = JSON.stringify(doorsState.config, null, 4);
+
+            updateJsonStatus();
+            renderDoorsList();
+        })
+        .catch(error => {
+            showAlert('danger', 'Error loading config: ' + error.message);
+        });
+}
+
+function loadAvailableDoors() {
+    fetch('/admin/api/dosdoors-available')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load doors');
+            }
+
+            doorsState.availableDoors = data.doors || [];
+            renderDoorsList();
+        })
+        .catch(error => {
+            showAlert('danger', 'Error loading available doors: ' + error.message);
+        });
+}
+
+function renderDoorsList() {
+    const container = document.getElementById('doorsList');
+
+    if (doorsState.availableDoors.length === 0) {
+        container.innerHTML = '<div class="text-muted">No doors found. Install doors in <code>dosbox-bridge/dos/doors/</code></div>';
+        return;
+    }
+
+    // Parse current editor config
+    let currentConfig = {};
+    try {
+        const editorValue = document.getElementById('configEditor').value.trim();
+        if (editorValue) {
+            currentConfig = JSON.parse(editorValue);
+        }
+    } catch (e) {
+        currentConfig = doorsState.config;
+    }
+
+    let html = '<div class="list-group list-group-flush">';
+
+    doorsState.availableDoors.forEach(door => {
+        const doorConfig = currentConfig[door.id] || {};
+        const enabled = doorConfig.enabled || false;
+        const cost = doorConfig.credit_cost || 0;
+
+        const statusClass = enabled ? 'success' : 'secondary';
+        const statusIcon = enabled ? 'fa-check-circle' : 'fa-circle';
+
+        html += `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="fas ${statusIcon} text-${statusClass}"></i>
+                            <strong>${door.name}</strong>
+                        </div>
+                        <div class="small text-muted">${door.description || 'No description'}</div>
+                        <div class="small mt-1">
+                            <span class="badge bg-secondary">${door.id}</span>
+                            ${cost > 0 ? `<span class="badge bg-info">${cost} credits</span>` : '<span class="badge bg-success">Free</span>'}
+                        </div>
+                    </div>
+                    <div class="btn-group-vertical btn-group-sm">
+                        <button class="btn btn-outline-${enabled ? 'success' : 'secondary'}"
+                                onclick="toggleDoor('${door.id}', ${!enabled})"
+                                title="${enabled ? 'Disable' : 'Enable'}">
+                            <i class="fas fa-power-off"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function toggleDoor(doorId, enable) {
+    try {
+        const editor = document.getElementById('configEditor');
+        let config = JSON.parse(editor.value || '{}');
+
+        if (!config[doorId]) {
+            // Initialize with defaults if not exists
+            config[doorId] = {
+                enabled: enable,
+                credit_cost: 0,
+                max_time_minutes: 30,
+                cpu_cycles: 10000,
+                max_concurrent_sessions: 10
+            };
+        } else {
+            config[doorId].enabled = enable;
+        }
+
+        editor.value = JSON.stringify(config, null, 4);
+        updateJsonStatus();
+        renderDoorsList();
+    } catch (e) {
+        showEditorAlert('danger', 'Invalid JSON - cannot toggle door');
+    }
+}
+
+function enableAllDoors() {
+    try {
+        const editor = document.getElementById('configEditor');
+        let config = JSON.parse(editor.value || '{}');
+
+        doorsState.availableDoors.forEach(door => {
+            if (!config[door.id]) {
+                config[door.id] = {
+                    enabled: true,
+                    credit_cost: 0,
+                    max_time_minutes: 30,
+                    cpu_cycles: 10000,
+                    max_concurrent_sessions: 10
+                };
+            } else {
+                config[door.id].enabled = true;
+            }
+        });
+
+        editor.value = JSON.stringify(config, null, 4);
+        updateJsonStatus();
+        renderDoorsList();
+        showEditorAlert('success', 'All doors enabled in editor. Click Save to apply.');
+    } catch (e) {
+        showEditorAlert('danger', 'Invalid JSON - cannot enable all');
+    }
+}
+
+function disableAllDoors() {
+    try {
+        const editor = document.getElementById('configEditor');
+        let config = JSON.parse(editor.value || '{}');
+
+        Object.keys(config).forEach(doorId => {
+            config[doorId].enabled = false;
+        });
+
+        editor.value = JSON.stringify(config, null, 4);
+        updateJsonStatus();
+        renderDoorsList();
+        showEditorAlert('warning', 'All doors disabled in editor. Click Save to apply.');
+    } catch (e) {
+        showEditorAlert('danger', 'Invalid JSON - cannot disable all');
+    }
+}
+
+function formatJson() {
+    try {
+        const editor = document.getElementById('configEditor');
+        const config = JSON.parse(editor.value);
+        editor.value = JSON.stringify(config, null, 4);
+        updateJsonStatus();
+        showEditorAlert('success', 'JSON formatted successfully');
+    } catch (e) {
+        showEditorAlert('danger', 'Cannot format - invalid JSON: ' + e.message);
+    }
+}
+
+function updateJsonStatus() {
+    const editor = document.getElementById('configEditor');
+    const status = document.getElementById('jsonStatus');
+
+    try {
+        const value = editor.value.trim();
+        if (!value) {
+            status.textContent = 'Empty configuration';
+            status.className = 'text-warning';
+            return;
+        }
+
+        JSON.parse(value);
+        status.textContent = 'Valid JSON ✓';
+        status.className = 'text-success';
+    } catch (e) {
+        status.textContent = 'Invalid JSON: ' + e.message;
+        status.className = 'text-danger';
+    }
+}
+
+function saveConfig() {
+    const editor = document.getElementById('configEditor');
+
+    try {
+        const config = JSON.parse(editor.value);
+
+        document.getElementById('saveBtn').disabled = true;
+
+        fetch('/admin/api/dosdoors-config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ config: config })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Save failed');
+            }
+
+            doorsState.config = data.config;
+            showAlert('success', 'Configuration saved successfully!');
+            renderDoorsList();
+        })
+        .catch(error => {
+            showAlert('danger', 'Error saving config: ' + error.message);
+        })
+        .finally(() => {
+            document.getElementById('saveBtn').disabled = false;
+        });
+    } catch (e) {
+        showEditorAlert('danger', 'Cannot save - invalid JSON: ' + e.message);
+    }
+}
+
+function showAlert(type, message) {
+    const alert = document.getElementById('statusAlert');
+    alert.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+function showEditorAlert(type, message) {
+    const alert = document.getElementById('editorAlert');
+    alert.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    setTimeout(() => {
+        alert.innerHTML = '';
+    }, 5000);
+}
+</script>
+{% endblock %}
