@@ -34,3 +34,6 @@ bbs_ads/*
 # Windows utility scripts
 delnul.cmd
 node_modules/
+
+# DOS Door runtime files
+dosbox-bridge/dos/drops/
