@@ -26,6 +26,7 @@ require('dotenv').config({ path: __dirname + '/../../.env' });
 const WS_PORT = parseInt(process.env.DOSDOOR_WS_PORT) || 6001;
 const WS_BIND_HOST = process.env.DOSDOOR_WS_BIND_HOST || '127.0.0.1';
 const DISCONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
+const DEBUG_KEEP_FILES = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true'; // Set to 'true' to disable cleanup
 const TCP_PORT_BASE = 5000;
 const TCP_PORT_MAX = 5100;
 const BASE_PATH = path.resolve(__dirname, '../..');
@@ -45,6 +46,7 @@ console.log(`WebSocket Port: ${WS_PORT}`);
 console.log(`Bind Address: ${WS_BIND_HOST}`);
 console.log(`TCP Port Range: ${TCP_PORT_BASE}-${TCP_PORT_MAX}`);
 console.log(`Disconnect Timeout: ${DISCONNECT_TIMEOUT} minutes`);
+console.log(`Debug Keep Files: ${DEBUG_KEEP_FILES ? 'YES (cleanup disabled)' : 'NO (cleanup enabled)'}`);
 console.log(`Base Path: ${BASE_PATH}`);
 console.log(`Database: ${DB_CONFIG.user}@${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}`);
 console.log('');
@@ -674,14 +676,19 @@ class SessionManager {
         const sessionPath = sessionData.session_path;
 
         try {
-            // TEMPORARILY DISABLED - Not removing drop directory for inspection
+            // Skip cleanup if debug mode is enabled
+            if (DEBUG_KEEP_FILES) {
+                console.log(`[CLEANUP] Debug mode - keeping files for session ${sessionId}`);
+                return;
+            }
+
             // Remove DOOR.SYS file from drop directory
-            // const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
-            // const doorSysPath = path.join(dropPath, 'DOOR.SYS');
-            // if (fs.existsSync(doorSysPath)) {
-            //     fs.unlinkSync(doorSysPath);
-            //     console.log(`[CLEANUP] Removed DOOR.SYS from drop directory for session ${sessionId}`);
-            // }
+            const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+            const doorSysPath = path.join(dropPath, 'DOOR.SYS');
+            if (fs.existsSync(doorSysPath)) {
+                fs.unlinkSync(doorSysPath);
+                console.log(`[CLEANUP] Removed DOOR.SYS from drop directory for session ${sessionId}`);
+            }
 
             // Check if session directory exists
             if (!fs.existsSync(sessionPath)) {
@@ -689,28 +696,27 @@ class SessionManager {
                 return;
             }
 
-            // TEMPORARILY DISABLED - Not removing session directory for inspection
             // Remove DOSBox config
-            // const configPath = path.join(sessionPath, 'dosbox.conf');
-            // if (fs.existsSync(configPath)) {
-            //     fs.unlinkSync(configPath);
-            //     console.log(`[CLEANUP] Removed dosbox.conf for session ${sessionId}`);
-            // }
+            const configPath = path.join(sessionPath, 'dosbox.conf');
+            if (fs.existsSync(configPath)) {
+                fs.unlinkSync(configPath);
+                console.log(`[CLEANUP] Removed dosbox.conf for session ${sessionId}`);
+            }
 
             // Remove session directory (if empty or force remove all contents)
-            // const files = fs.readdirSync(sessionPath);
-            // if (files.length === 0) {
-            //     fs.rmdirSync(sessionPath);
-            //     console.log(`[CLEANUP] Removed session directory ${sessionId}`);
-            // } else {
-            //     // Directory has other files - remove them all and the directory
-            //     for (const file of files) {
-            //         const filePath = path.join(sessionPath, file);
-            //         fs.unlinkSync(filePath);
-            //     }
-            //     fs.rmdirSync(sessionPath);
-            //     console.log(`[CLEANUP] Removed session directory ${sessionId} and ${files.length} remaining files`);
-            // }
+            const files = fs.readdirSync(sessionPath);
+            if (files.length === 0) {
+                fs.rmdirSync(sessionPath);
+                console.log(`[CLEANUP] Removed session directory ${sessionId}`);
+            } else {
+                // Directory has other files - remove them all and the directory
+                for (const file of files) {
+                    const filePath = path.join(sessionPath, file);
+                    fs.unlinkSync(filePath);
+                }
+                fs.rmdirSync(sessionPath);
+                console.log(`[CLEANUP] Removed session directory ${sessionId} and ${files.length} remaining files`);
+            }
 
         } catch (err) {
             console.error(`[CLEANUP] Error cleaning up session ${sessionId}:`, err.message);

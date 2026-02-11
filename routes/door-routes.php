@@ -28,6 +28,16 @@ SimpleRouter::post('/api/door/launch', function() {
     }
 
     try {
+        // Get BBS configuration for system name and sysop
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $systemName = $binkpConfig->getSystemName();
+        $sysopName = $binkpConfig->getSystemSysop();
+
+        // Split sysop name into first/last for DOOR.SYS format
+        $sysopParts = explode(' ', $sysopName, 2);
+        $sysopFirst = $sysopParts[0] ?? 'Sysop';
+        $sysopLast = $sysopParts[1] ?? '';
+
         // Prepare user data for drop file (using actual schema columns)
         $userData = [
             'id' => $userId,
@@ -37,6 +47,10 @@ SimpleRouter::post('/api/door/launch', function() {
             'total_logins' => 1, // Default
             'last_login' => date('Y-m-d H:i:s'),
             'ansi_enabled' => true, // Default to ANSI
+            'bbs_name' => $systemName,
+            'sysop_name' => $sysopName,
+            'sysop_first' => $sysopFirst,
+            'sysop_last' => $sysopLast,
         ];
 
         // Create session manager in headless (production) mode and start session
