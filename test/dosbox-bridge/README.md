@@ -217,12 +217,27 @@ node scripts/door-bridge-server.js 6000 6001 test
 
 ```
 test/dosbox-bridge/
-├── README.md                  # This file
-├── test-client.html          # Web terminal test client
-├── dosbox-bridge-test.conf   # DOSBox configuration
-├── test.sh                   # Quick test script (Linux/Mac)
-└── test.bat                  # Quick test script (Windows)
+├── README.md                       # This file
+├── test-client.html               # Web terminal test client
+├── dosbox-bridge-test.conf        # DOSBox config (visible console for testing)
+├── dosbox-bridge-production.conf  # DOSBox config (headless for production)
+├── test.sh                        # Quick test script (Linux/Mac)
+└── test.bat                       # Quick test script (Windows)
 ```
+
+## Configuration Files
+
+**`dosbox-bridge-test.conf`** - Development/Testing
+- Shows DOSBox-X window for debugging
+- Use this when testing and debugging door games
+- Allows you to see DOS console output directly
+- Default for test launcher scripts
+
+**`dosbox-bridge-production.conf`** - Production/Headless
+- Runs DOSBox-X in headless mode (minimal video output)
+- Use this for server deployment
+- All I/O goes through COM1/bridge only
+- Reduces resource usage on server
 
 **Related Files:**
 - **`../../scripts/dosbox-bridge/server.js`** - Bridge server (production)
