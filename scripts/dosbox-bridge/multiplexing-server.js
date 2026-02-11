@@ -571,6 +571,12 @@ class SessionManager {
     handleDosBoxExit(session) {
         console.log(`[SESSION] DOSBox exited for session ${session.sessionId}`);
 
+        // Clear kill timeout since process exited gracefully
+        if (session.killTimeout) {
+            clearTimeout(session.killTimeout);
+            session.killTimeout = null;
+        }
+
         // Notify WebSocket client
         if (session.ws && session.ws.readyState === WebSocket.OPEN) {
             session.ws.close(1000, 'DOSBox session ended');
@@ -618,19 +624,28 @@ class SessionManager {
             clearTimeout(session.disconnectTimer);
         }
 
-        // Kill DOSBox process if still running
-        if (session.dosboxProcess && !session.dosboxProcess.killed) {
-            console.log(`[DOSBOX] Killing process PID ${session.dosboxPid}`);
-            try {
-                session.dosboxProcess.kill('SIGTERM');
-            } catch (err) {
-                console.warn(`[DOSBOX] Failed to kill process:`, err.message);
-            }
+        // Close DOSBox socket to simulate carrier loss (door should detect and exit gracefully)
+        if (session.dosboxSocket && !session.dosboxSocket.destroyed) {
+            console.log(`[DOSBOX] Closing socket to simulate carrier loss for session ${session.sessionId}`);
+            session.dosboxSocket.destroy();
         }
 
-        // Close DOSBox socket
-        if (session.dosboxSocket && !session.dosboxSocket.destroyed) {
-            session.dosboxSocket.destroy();
+        // DOSBox process should exit on its own when it detects carrier loss
+        // If it doesn't exit within a reasonable time, force kill it
+        if (session.dosboxProcess && !session.dosboxProcess.killed) {
+            const killTimeout = setTimeout(() => {
+                if (session.dosboxProcess && !session.dosboxProcess.killed) {
+                    console.warn(`[DOSBOX] Process PID ${session.dosboxPid} did not exit gracefully, forcing kill`);
+                    try {
+                        session.dosboxProcess.kill('SIGTERM');
+                    } catch (err) {
+                        console.warn(`[DOSBOX] Failed to kill process:`, err.message);
+                    }
+                }
+            }, 5000); // Wait 5 seconds for graceful exit
+
+            // Store timeout so we can clear it if process exits normally
+            session.killTimeout = killTimeout;
         }
 
         // Close TCP server

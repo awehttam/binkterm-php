@@ -35,5 +35,8 @@ bbs_ads/*
 delnul.cmd
 node_modules/
 
-# DOS Door runtime files
+# DOS Door files - only track manifests
+dosbox-bridge/dos/doors/*
+!dosbox-bridge/dos/doors/*/
+!dosbox-bridge/dos/doors/*/dosdoor.json
 dosbox-bridge/dos/drops/
