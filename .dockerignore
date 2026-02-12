@@ -1,8 +1,72 @@
+# Git files
 .git
 .gitignore
-.idea
-.vscode
-data/logs
-data/run
-node_modules
-vendor
+.gitattributes
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env.docker.example
+
+# Documentation
+*.md
+docs/
+FAQ.md
+UPGRADING_*.md
+
+# Development and testing
+test/
+tests/
+.vscode/
+.idea/
+
+# Runtime data (will be created in container)
+data/logs/*
+data/run/*
+data/inbound/*
+data/outbound/*
+data/filebase/*
+data/*.json
+data/*.db
+
+# Session directories for DOS doors
+scripts/dosbox-bridge/dos/drops/
+scripts/dosbox-bridge/dos/doors/*/DOOR*.SYS
+scripts/dosbox-bridge/dos/doors/*/NODE*.DAT
+scripts/dosbox-bridge/dos/doors/*/*.json
+!scripts/dosbox-bridge/dos/doors/*/dosdoor.json
+
+# Temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+nul
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node modules (will be installed during build)
+node_modules/
+
+# Vendor (will be installed during build)
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.cache
+
+# IDE files
+*.sublime-project
+*.sublime-workspace
+
+# Proposal documents (not needed in production)
+docs/proposals/

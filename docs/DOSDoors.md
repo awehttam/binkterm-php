@@ -586,7 +586,9 @@ cat > dosbox-bridge/dos/doors/lord/dosdoor.json << 'EOF'
     "drop_file_format": "DOOR.SYS",
     "max_nodes": 10,
     "require_ansi": true,
-    "category": "game"
+    "fossil_required": false,
+    "category": "game",
+    "notes": "LORD uses internal comm routines - FOSSIL not required (faster performance)"
 }
 EOF
 
@@ -612,12 +614,25 @@ EOF
     "drop_file_format": "DOOR.SYS",
     "max_nodes": 10,
     "require_ansi": true,
+    "fossil_required": true,
     "category": "game",
     "version_info": "v4.08",
     "release_date": "1996-01-01",
     "credits_cost": 0
 }
 ```
+
+### Field Descriptions
+
+**fossil_required** (boolean, default: `true`):
+- Controls whether the FOSSIL driver (BNU.COM) is loaded before launching the door
+- `true`: Load FOSSIL driver (required for most DOS doors)
+- `false`: Skip FOSSIL loading (for doors with internal comm routines)
+- **Performance impact**:
+  - FOSSIL loading adds ~100-200ms startup delay
+  - Doors with internal routines (e.g., LORD) are noticeably faster without FOSSIL
+  - Set to `false` only if you've verified the door works with internal comm routines
+- **Memory impact**: FOSSIL driver uses ~30-50KB RAM per session
 
 ### Macro Replacements in launch_command
 
@@ -1077,9 +1092,14 @@ You should see authentication error (expected - test token invalid) but connecti
 ### Performance
 
 1. **Run cleanup script regularly** (every 10 minutes recommended)
-2. **Monitor active sessions** - adjust `MAX_SESSIONS` based on server capacity
+2. **Monitor active sessions** - adjust `DOSDOOR_MAX_SESSIONS` in `.env` based on server capacity
 3. **Set reasonable session timeouts** (2 hours default)
 4. **Use immediate disconnect mode** (`DOSDOOR_DISCONNECT_TIMEOUT=0`) to free resources quickly
+5. **Optimize FOSSIL loading** for faster door response:
+   - Test if doors work without FOSSIL (internal comm routines)
+   - Set `fossil_required: false` in manifest for doors that support it
+   - Example: LORD performs significantly faster without FOSSIL
+   - Result: Faster startup, lower memory usage, better user experience
 
 ### Reliability
 
