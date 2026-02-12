@@ -296,7 +296,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
         const doorScript = this.generateDoorScript(session_id, door_id, node_number, session_path);
 
         const args = [
-            '-t',  // Terminal mode for PTY
+            '-dumb',  // Dumb terminal (no console, use serial only)
             '-f', configPath,  // Use our config file
             '-E', doorScript  // Execute script
         ];
@@ -363,8 +363,8 @@ $_internal_charset = "cp437"
 # Allow lredir to access our directory
 $_lredir_paths = [ "${dosDir}" ]
 
-# Serial port configuration
-$_com1 = "virtual"
+# Serial port configuration - use stdio for COM1 (PTY will be stdin/stdout)
+$_com1 = "stdio"
 
 # Video settings
 $_console = "0"
