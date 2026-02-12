@@ -277,9 +277,9 @@ class DOSEMUAdapter extends EmulatorAdapter {
     }
 
     async launch(session, sessionData) {
-        const { sessionId, node_number, door_id, session_path } = sessionData;
+        const { session_id, node_number, door_id, session_path } = sessionData;
 
-        console.log(`[${this.getName()}] Launching for session ${sessionId}`);
+        console.log(`[${this.getName()}] Launching for session ${session_id}`);
 
         // Generate DOSEMU config
         const configPath = this.generateConfig(sessionData, session_path);
@@ -293,7 +293,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
 
         // Build DOSEMU command
         // DOSEMU will execute the door launch script
-        const doorScript = this.generateDoorScript(sessionData, session_path);
+        const doorScript = this.generateDoorScript(session_id, door_id, node_number, session_path);
 
         const args = [
             '-t',  // Terminal mode for PTY
@@ -373,8 +373,9 @@ $_X = "0"
         return configPath;
     }
 
-    generateDoorScript(sessionData, sessionPath) {
-        const { door_id, node_number } = sessionData;
+    generateDoorScript(sessionId, doorId, nodeNumber, sessionPath) {
+        const door_id = doorId;
+        const node_number = nodeNumber;
 
         // Get door manifest
         const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'doors', door_id, 'dosdoor.json');
@@ -396,11 +397,11 @@ ${launchCmd}
 `;
 
         // Put script in dosbox-bridge/dos so DOSEMU finds it as C:\launch.bat
-        const scriptPath = path.join(this.basePath, 'dosbox-bridge', 'dos', `launch-${sessionData.session_id || 'door'}.bat`);
+        const scriptPath = path.join(this.basePath, 'dosbox-bridge', 'dos', `launch-${sessionId}.bat`);
         fs.writeFileSync(scriptPath, scriptContent);
 
         // Return DOS path for DOSEMU
-        return `C:\\launch-${sessionData.session_id || 'door'}.bat`;
+        return `C:\\launch-${sessionId}.bat`;
     }
 
     findExecutable() {
