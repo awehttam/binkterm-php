@@ -159,8 +159,7 @@ async function testDOSEMU() {
 
     // Launch DOSEMU with PTY
     const dosemuProcess = pty.spawn(dosemuExe, [
-        '-n',  // No banner
-        '-I', `dosdebug { -D+M }`,  // Minimal debug
+        '-dumb',  // Dumb terminal mode
         '-E', 'C:\\launch-lord.bat'  // Execute our launch script
     ], {
         name: 'xterm-color',
