@@ -418,6 +418,13 @@ class SessionManager {
         try {
             fs.writeFileSync(doorSysPath, content, 'ascii');
             console.log(`[DROPFILE] Wrote ${content.length} bytes to ${doorSysPath}`);
+
+            // Verify the write by reading back immediately
+            const stats = fs.statSync(doorSysPath);
+            console.log(`[DROPFILE] Verification: file size is ${stats.size} bytes`);
+            if (stats.size !== content.length) {
+                console.error(`[DROPFILE] WARNING: Size mismatch! Expected ${content.length}, got ${stats.size}`);
+            }
         } catch (err) {
             console.error(`[DROPFILE] Failed to write DOOR.SYS: ${err.message}`);
             throw err;
