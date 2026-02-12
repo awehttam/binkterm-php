@@ -216,7 +216,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
         launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
 
         // Build autoexec commands
-        const autoexecCommands = `copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\ncd ${doorDir}\n${launchCmd}`;
+        const autoexecCommands = `copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\ncd ${doorDir}\n${launchCmd}\nexit`;
 
         // Replace autoexec placeholder
         config = config.replace('# Door-specific commands will be appended here', autoexecCommands);
