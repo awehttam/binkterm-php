@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * DOSBox Door Bridge - Multiplexing Server v3
+ * DOSBox Door Bridge - Multiplexing Server v4
  *
  * Architecture:
  * - PHP creates session record in database (with ws_token, session_path, etc.)
  * - Browser connects to WebSocket with auth token
- * - Bridge authenticates, allocates port, creates listener, generates config, launches DOSBox
- * - DOSBox connects to bridge's allocated port
- * - Bridge multiplexes data between WebSocket and DOSBox
+ * - Bridge authenticates, launches emulator (DOSBox or DOSEMU), generates config
+ * - Emulator connects to bridge (TCP for DOSBox, PTY for DOSEMU)
+ * - Bridge multiplexes data between WebSocket and emulator
  *
- * This gives bridge full control over lifecycle and eliminates port conflicts.
+ * Supports multiple emulators via adapter pattern for optimal memory usage.
  */
 
 const net = require('net');
@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { Client } = require('pg');
+const { createEmulatorAdapter } = require('./emulator-adapters');
 require('dotenv').config({ path: __dirname + '/../../.env' });
 
 // Configuration from environment
@@ -215,13 +216,14 @@ class SessionManager {
             sessionId,
             sessionData,
             ws,
-            dosboxSocket: null,
-            tcpPort: null,
-            tcpServer: null,
-            dosboxProcess: null,
-            dosboxPid: null,
-            bytesFromDosbox: 0,
-            bytesToDosbox: 0,
+            emulator: null,          // Emulator adapter instance
+            emulatorSocket: null,    // Connection to emulator (TCP socket or PTY)
+            tcpPort: null,           // TCP port (DOSBox only)
+            tcpServer: null,         // TCP server (DOSBox only)
+            emulatorProcess: null,   // Emulator process
+            emulatorPid: null,       // Emulator PID
+            bytesFromEmulator: 0,
+            bytesToEmulator: 0,
             startTime: Date.now(),
             disconnectTimer: null,
             isRemoving: false
@@ -232,11 +234,11 @@ class SessionManager {
         // Set up WebSocket handlers
         this.setupWebSocketHandlers(session);
 
-        // Allocate port and launch DOSBox
+        // Launch emulator (DOSBox or DOSEMU)
         try {
-            await this.allocatePortAndLaunchDosBox(session);
+            await this.launchEmulator(session);
         } catch (err) {
-            console.error(`[SESSION] Failed to launch DOSBox for ${sessionId}:`, err.message);
+            console.error(`[SESSION] Failed to launch emulator for ${sessionId}:`, err.message);
             ws.close(1011, 'Failed to start door session');
             this.removeSession(session);
         }
