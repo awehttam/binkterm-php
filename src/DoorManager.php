@@ -168,4 +168,83 @@ class DoorManager
 
         return DoorConfig::setDoorConfig($doorId, $config);
     }
+
+    /**
+     * Sync enabled doors to database
+     *
+     * Reads enabled doors from config and ensures they exist in dosbox_doors table.
+     * Called after config changes to keep database in sync.
+     *
+     * @return array ['synced' => count, 'errors' => [...]]
+     */
+    public function syncDoorsToDatabase(): array
+    {
+        $db = Database::getInstance()->getPdo();
+        $allDoors = $this->getAllDoors();
+
+        $synced = 0;
+        $errors = [];
+
+        foreach ($allDoors as $doorId => $door) {
+            // Only sync enabled doors
+            if (empty($door['config']['enabled'])) {
+                continue;
+            }
+
+            try {
+                // Check if door exists in database
+                $stmt = $db->prepare("SELECT id FROM dosbox_doors WHERE door_id = ?");
+                $stmt->execute([$doorId]);
+                $exists = $stmt->fetch();
+
+                $config = $door['config'];
+
+                if ($exists) {
+                    // Update existing door
+                    $stmt = $db->prepare("
+                        UPDATE dosbox_doors
+                        SET name = ?,
+                            description = ?,
+                            executable = ?,
+                            path = ?,
+                            config = ?,
+                            enabled = ?,
+                            updated_at = NOW()
+                        WHERE door_id = ?
+                    ");
+                    $stmt->execute([
+                        $door['name'],
+                        $door['description'] ?? '',
+                        $door['executable'],
+                        $door['directory'],
+                        json_encode($config),
+                        true,
+                        $doorId
+                    ]);
+                } else {
+                    // Insert new door
+                    $stmt = $db->prepare("
+                        INSERT INTO dosbox_doors
+                        (door_id, name, description, executable, path, config, enabled)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    $stmt->execute([
+                        $doorId,
+                        $door['name'],
+                        $door['description'] ?? '',
+                        $door['executable'],
+                        $door['directory'],
+                        json_encode($config),
+                        true
+                    ]);
+                }
+
+                $synced++;
+            } catch (\Exception $e) {
+                $errors[] = "Failed to sync door '$doorId': " . $e->getMessage();
+            }
+        }
+
+        return ['synced' => $synced, 'errors' => $errors];
+    }
 }

@@ -963,7 +963,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 // Reload config class cache
                 DoorConfig::reload();
 
-                echo json_encode(['success' => true, 'config' => $config]);
+                // Sync enabled doors to database
+                $doorManager = new DoorManager();
+                $syncResult = $doorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $config,
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);

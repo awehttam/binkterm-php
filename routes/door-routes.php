@@ -87,6 +87,24 @@ SimpleRouter::post('/api/door/launch', function() {
             return;
         }
 
+        // Ensure door exists in database (fallback sync)
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("SELECT id FROM dosbox_doors WHERE door_id = ?");
+        $stmt->execute([$doorName]);
+        if (!$stmt->fetch()) {
+            // Door not in database - try to sync it
+            error_log("DOSDOOR: [API] Door '$doorName' not in database, attempting sync...");
+            $doorManager = new \BinktermPHP\DoorManager();
+            $syncResult = $doorManager->syncDoorsToDatabase();
+            error_log("DOSDOOR: [API] Sync result: synced={$syncResult['synced']}, errors=" . json_encode($syncResult['errors']));
+
+            // Check again after sync
+            $stmt->execute([$doorName]);
+            if (!$stmt->fetch()) {
+                throw new \Exception("Door '$doorName' is not available or not enabled. Please contact the sysop.");
+            }
+        }
+
         // Start new session
         $session = $sessionManager->startSession($userId, $doorName, $userData);
 
