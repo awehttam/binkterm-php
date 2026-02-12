@@ -749,13 +749,16 @@ class SessionManager {
             session.killTimeout = null;
         }
 
-        // Notify WebSocket client
-        if (session.ws && session.ws.readyState === WebSocket.OPEN) {
-            session.ws.close(1000, 'DOSBox session ended');
-        }
+        // Mark that DOSBox has exited (so WebSocket handler knows to clean up immediately)
+        session.dosboxExited = true;
 
-        // Clean up session
-        this.removeSession(session);
+        // Close WebSocket - this will trigger handleWebSocketDisconnect which does cleanup
+        if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+            session.ws.close(1000, 'Door session ended');
+        } else {
+            // WebSocket already closed, do cleanup directly
+            this.removeSession(session);
+        }
     }
 
     handleDosBoxDisconnect(session) {
@@ -783,12 +786,20 @@ class SessionManager {
     }
 
     handleWebSocketDisconnect(session) {
+        // If DOSBox already exited, clean up immediately (no grace period)
+        if (session.dosboxExited) {
+            console.log(`[WS] DOSBox exited, cleaning up session ${session.sessionId}`);
+            this.removeSession(session);
+            return;
+        }
+
+        // User closed browser but DOSBox still running
         if (DISCONNECT_TIMEOUT === 0) {
-            // Immediate disconnect mode
+            // Immediate disconnect mode - kill DOSBox and clean up
             console.log(`[WS] Immediate disconnect mode - removing session ${session.sessionId}`);
             this.removeSession(session);
         } else {
-            // Grace period mode
+            // Grace period mode - keep DOSBox running, allow reconnect
             console.log(`[WS] Disconnect grace period: ${DISCONNECT_TIMEOUT} minutes for session ${session.sessionId}`);
 
             session.disconnectTimer = setTimeout(() => {
