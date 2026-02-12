@@ -111,7 +111,8 @@ function generateTestDoorSys() {
 
 // Generate DOS batch file to launch LORD
 function generateLaunchScript() {
-    const scriptPath = path.join(BASE_PATH, 'test', 'launch-lord.bat');
+    // Put script in dosbox-bridge/dos so DOSEMU finds it as C:\launch-lord.bat
+    const scriptPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'launch-lord.bat');
 
     const script = `@echo off
 echo.
