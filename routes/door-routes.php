@@ -143,6 +143,37 @@ SimpleRouter::post('/api/door/launch', function() {
             }
         }
 
+        // Check door's max_nodes limit (per-door concurrency limit)
+        $doorManifest = $doorManager->getDoor($doorName);
+        if ($doorManifest && isset($doorManifest['max_nodes'])) {
+            $maxNodes = (int)$doorManifest['max_nodes'];
+
+            // Count active sessions for this specific door
+            $stmt = $db->prepare("
+                SELECT COUNT(*) as count
+                FROM door_sessions
+                WHERE door_id = ? AND ended_at IS NULL
+            ");
+            $stmt->execute([$doorName]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            $activeSessions = (int)$result['count'];
+
+            if ($activeSessions >= $maxNodes) {
+                error_log("DOSDOOR: [API] Door '$doorName' at max capacity - Active: $activeSessions, Max: $maxNodes");
+                http_response_code(503); // Service Unavailable
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Door at capacity',
+                    'message' => "This door is currently in use. Only $maxNodes player(s) allowed at a time. Please try again later.",
+                    'active_sessions' => $activeSessions,
+                    'max_nodes' => $maxNodes
+                ]);
+                return;
+            }
+
+            error_log("DOSDOOR: [API] Door '$doorName' capacity check passed - Active: $activeSessions, Max: $maxNodes");
+        }
+
         // Start new session
         $session = $sessionManager->startSession($userId, $doorName, $userData);
 
