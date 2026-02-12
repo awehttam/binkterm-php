@@ -22,11 +22,11 @@ class DoorSessionManager
     private $db;
     private $processHandles = []; // Store process resources (not serialized)
     private $headlessMode = true; // Use production headless config by default
+    private $maxSessions; // Maximum simultaneous sessions (configurable via DOSDOOR_MAX_SESSIONS)
 
     // Port ranges for multi-user support
     private const TCP_PORT_BASE = 5000;
     private const WS_PORT_BASE = 6000;
-    private const MAX_SESSIONS = 100;
 
     /**
      * Constructor
@@ -43,6 +43,9 @@ class DoorSessionManager
         $this->bridgePath = $this->basePath . '/scripts/dosbox-bridge/multiplexing-server.js';
         $this->dosboxPath = $this->basePath . '/dosbox-bridge';
         $this->headlessMode = $headless;
+
+        // Load max sessions from environment (default: 100)
+        $this->maxSessions = (int)Config::env('DOSDOOR_MAX_SESSIONS', '100');
 
         // Choose config file
         // 1. Check environment variable (allows custom config files)
@@ -88,7 +91,7 @@ class DoorSessionManager
         $node = $this->findAvailableNode();
         if ($node === null) {
             error_log("DOSDOOR: [StartSession] ERROR - No available nodes");
-            throw new Exception('No available door nodes (max ' . self::MAX_SESSIONS . ' sessions)');
+            throw new Exception('No available door nodes (max ' . $this->maxSessions . ' sessions)');
         }
 
         // Generate session ID
@@ -632,14 +635,14 @@ class DoorSessionManager
         error_log("DOSDOOR: [NodeAlloc] Used nodes: " . implode(', ', $usedNodes));
 
         // Find first available node
-        for ($i = 1; $i <= self::MAX_SESSIONS; $i++) {
+        for ($i = 1; $i <= $this->maxSessions; $i++) {
             if (!in_array($i, $usedNodes)) {
                 error_log("DOSDOOR: [NodeAlloc] Assigned node: $i");
                 return $i;
             }
         }
 
-        error_log("DOSDOOR: [NodeAlloc] No available nodes (max " . self::MAX_SESSIONS . ")");
+        error_log("DOSDOOR: [NodeAlloc] No available nodes (max " . $this->maxSessions . ")");
         return null;
     }
 

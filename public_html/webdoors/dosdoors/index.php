@@ -395,7 +395,7 @@ if (empty($doorId)) {
                     if (socket) {
                         socket.close();
                     }
-                    window.location.href = '/games';
+                    window.top.location.href = '/games';
                 } else {
                     alert('Failed to end session');
                 }
