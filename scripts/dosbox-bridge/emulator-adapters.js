@@ -303,11 +303,14 @@ class DOSEMUAdapter extends EmulatorAdapter {
         console.log(`[${this.getName()}] Spawning: ${dosemuExe} ${args.join(' ')}`);
 
         // Spawn DOSEMU with PTY
+        // Set cwd to dosbox-bridge/dos so it maps as DOSEMU's C: drive
+        const dosemuCwd = path.join(this.basePath, 'dosbox-bridge', 'dos');
+
         this.pty = pty.spawn(dosemuExe, args, {
             name: 'xterm-color',
             cols: 80,
             rows: 25,
-            cwd: this.basePath,
+            cwd: dosemuCwd,
             env: process.env
         });
 
@@ -392,11 +395,12 @@ cd ${doorDir}
 ${launchCmd}
 `;
 
-        const scriptPath = path.join(sessionPath, 'launch.bat');
+        // Put script in dosbox-bridge/dos so DOSEMU finds it as C:\launch.bat
+        const scriptPath = path.join(this.basePath, 'dosbox-bridge', 'dos', `launch-${sessionData.session_id || 'door'}.bat`);
         fs.writeFileSync(scriptPath, scriptContent);
 
         // Return DOS path for DOSEMU
-        return 'C:\\launch.bat';
+        return `C:\\launch-${sessionData.session_id || 'door'}.bat`;
     }
 
     findExecutable() {
