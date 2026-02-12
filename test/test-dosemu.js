@@ -158,21 +158,16 @@ async function testDOSEMU() {
     // Set up DOSEMU environment
     const dosemuDir = path.join(BASE_PATH, 'dosbox-bridge', 'dos');
 
-    // Launch DOSEMU with PTY
+    // Launch DOSEMU interactively (no auto-exec for now)
+    // We'll manually test if DOSEMU even works first
     const dosemuProcess = pty.spawn(dosemuExe, [
-        '-dumb',  // Dumb terminal mode
-        '-E', 'C:\\launch-lord.bat'  // Execute our launch script
+        '-dumb'  // Dumb terminal mode for PTY
     ], {
         name: 'xterm-color',
         cols: 80,
         rows: 25,
-        cwd: dosemuDir,
-        env: {
-            ...process.env,
-            HOME: dosemuDir,
-            DOSEMU_LIB_DIR: '/usr/share/dosemu',
-            DOSEMU_CONF_DIR: dosemuDir
-        }
+        cwd: BASE_PATH,
+        env: process.env
     });
 
     console.log(`DOSEMU PID: ${dosemuProcess.pid}`);
