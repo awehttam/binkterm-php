@@ -158,14 +158,9 @@ async function testDOSEMU() {
     // Set up DOSEMU environment
     const dosemuDir = path.join(BASE_PATH, 'dosbox-bridge', 'dos');
 
-    // Create DOSEMU config to allow access to dosbox-bridge
-    const configPath = path.join(__dirname, 'dosemu.conf');
-    console.log(`Using config: ${configPath}`);
-
-    // Launch DOSEMU interactively
+    // Launch DOSEMU interactively (no config for now to test)
     const dosemuProcess = pty.spawn(dosemuExe, [
-        '-dumb',  // Dumb terminal mode for PTY
-        '-f', configPath  // Use our config file
+        '-t'  // Terminal mode
     ], {
         name: 'xterm-color',
         cols: 80,
