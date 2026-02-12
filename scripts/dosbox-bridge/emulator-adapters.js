@@ -515,17 +515,19 @@ function createEmulatorAdapter(basePath) {
     }
 
     // Linux: check preference
-    if (preferredEmulator === 'dosemu' || preferredEmulator === 'auto') {
-        // Check if DOSEMU exists
+    if (preferredEmulator === 'dosemu') {
+        // DOSEMU explicitly requested
         const dosemuAdapter = new DOSEMUAdapter(basePath);
         if (dosemuAdapter.findExecutable()) {
-            console.log('[EMULATOR] Using DOSEMU (preferred)');
+            console.log('[EMULATOR] Using DOSEMU (explicitly requested)');
             return dosemuAdapter;
+        } else {
+            console.log('[EMULATOR] DOSEMU requested but not found, falling back to DOSBox');
         }
     }
 
-    // Fallback to DOSBox
-    console.log('[EMULATOR] Using DOSBox (fallback)');
+    // Default to DOSBox (reliable, proven)
+    console.log('[EMULATOR] Using DOSBox (default)');
     return new DOSBoxAdapter(basePath);
 }
 
