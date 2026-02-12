@@ -275,7 +275,7 @@ if (empty($doorId)) {
             .then(data => {
                 console.log('[LAUNCH] Launch response:', data);
                 if (!data.success) {
-                    throw new Error(data.error || data.message || 'Failed to launch door');
+                    throw new Error(data.message || data.error || 'Failed to launch door');
                 }
                 return data.session;
             });
