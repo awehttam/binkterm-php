@@ -1,23 +1,30 @@
 #!/bin/bash
 # DOSBox Door Maintenance Launcher
-# Launches DOSBox-X with mounted door environment for configuration
+# Launches DOSBox with mounted door environment for configuration
 
-echo "Starting DOSBox-X in maintenance mode..."
+echo "Starting DOSBox in maintenance mode..."
 echo
 
-# Try to find dosbox-x executable
-DOSBOX_EXE="${DOSBOX_EXECUTABLE:-/usr/bin/dosbox-x}"
+# Try to find dosbox executable (prefer vanilla dosbox over dosbox-x)
+DOSBOX_EXE="$DOSBOX_EXECUTABLE"
 
-if [ ! -f "$DOSBOX_EXE" ]; then
-    # Try 'which' to find it
-    DOSBOX_EXE=$(which dosbox-x 2>/dev/null)
+if [ -z "$DOSBOX_EXE" ]; then
+    # Try dosbox first (lighter weight)
+    DOSBOX_EXE=$(which dosbox 2>/dev/null)
     if [ -z "$DOSBOX_EXE" ]; then
-        echo "Error: DOSBox-X not found. Please set DOSBOX_EXECUTABLE environment variable."
-        exit 1
+        # Fall back to dosbox-x
+        DOSBOX_EXE=$(which dosbox-x 2>/dev/null)
+        if [ -z "$DOSBOX_EXE" ]; then
+            echo "Error: DOSBox not found. Please install dosbox or set DOSBOX_EXECUTABLE environment variable."
+            exit 1
+        fi
     fi
 fi
+
+echo "Using: $DOSBOX_EXE"
+echo
 
 "$DOSBOX_EXE" -conf "dosbox-bridge/maintenance.conf"
 
 echo
-echo "DOSBox-X closed."
+echo "DOSBox closed."
