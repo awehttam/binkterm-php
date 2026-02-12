@@ -328,6 +328,86 @@ class SessionManager {
     }
 
     /**
+     * Launch emulator (DOSBox or DOSEMU) using adapter pattern
+     */
+    async launchEmulator(session) {
+        const { sessionId, sessionData } = session;
+
+        // Create emulator adapter (auto-selects DOSBox or DOSEMU)
+        session.emulator = createEmulatorAdapter(BASE_PATH);
+        const emulatorName = session.emulator.getName();
+
+        console.log(`[SESSION] Using ${emulatorName} for session ${sessionId}`);
+
+        // Create session directory
+        const sessionPath = path.join(BASE_PATH, 'data', 'run', 'door_sessions', sessionId);
+        if (!fs.existsSync(sessionPath)) {
+            fs.mkdirSync(sessionPath, { recursive: true });
+            console.log(`[SESSION] Created session directory: ${sessionPath}`);
+        }
+
+        // Update session with path
+        session.sessionData.session_path = sessionPath;
+
+        // Generate DOOR.SYS drop file
+        if (sessionData.user_data) {
+            let userData = sessionData.user_data;
+            if (typeof userData === 'string') {
+                userData = JSON.parse(userData);
+            }
+
+            const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+            if (!fs.existsSync(dropPath)) {
+                fs.mkdirSync(dropPath, { recursive: true });
+                console.log(`[DROPFILE] Created drop directory: ${dropPath}`);
+            }
+
+            console.log(`[DROPFILE] Writing DOOR.SYS to: ${dropPath}`);
+            this.generateDoorSys(dropPath, userData, sessionData.node_number);
+            console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
+        } else {
+            console.warn(`[DROPFILE] No user_data found for session ${sessionId}`);
+        }
+
+        // Update database with session_path
+        await this.updateSessionPath(sessionId, sessionPath);
+
+        // For DOSBox: allocate port and create TCP listener
+        if (emulatorName === 'DOSBox') {
+            const tcpPort = this.portPool.allocate();
+            session.tcpPort = tcpPort;
+            this.sessionsByPort.set(tcpPort, session);
+
+            console.log(`[${emulatorName}] Allocated port ${tcpPort} for session ${sessionId}`);
+
+            // Create TCP listener
+            await session.emulator.createTCPListener(tcpPort, (socket) => {
+                this.handleEmulatorConnection(socket, session);
+            });
+
+            // Mark as pending connection
+            this.pendingDosBoxConnections.set(tcpPort, session);
+        }
+
+        // Launch emulator
+        const result = await session.emulator.launch(session, sessionData);
+        session.emulatorProcess = result.process;
+        session.emulatorPid = result.pid;
+
+        console.log(`[${emulatorName}] Launched PID ${result.pid} for session ${sessionId}`);
+
+        // For DOSEMU: connection is immediate (PTY), set up handlers now
+        if (emulatorName === 'DOSEMU') {
+            session.emulatorSocket = result.connection;
+            this.setupEmulatorHandlers(session);
+            console.log(`[SESSION] Multiplexing started for session ${sessionId}`);
+        }
+
+        // Update database
+        await this.updateSessionPorts(sessionId, session.tcpPort || 0, result.pid);
+    }
+
+    /**
      * Generate DOOR.SYS drop file from user_data
      * Format: https://en.wikipedia.org/wiki/Doorway_(BBS_door)
      */
@@ -547,6 +627,53 @@ class SessionManager {
         console.log(`[SESSION] Multiplexing started for session ${session.sessionId}`);
     }
 
+    /**
+     * Handle emulator connection (adapter-based, supports DOSBox and DOSEMU)
+     */
+    handleEmulatorConnection(socket, session) {
+        const emulatorName = session.emulator.getName();
+        console.log(`[${emulatorName}] Connection received for session ${session.sessionId}`);
+
+        // Remove from pending (DOSBox only)
+        if (session.tcpPort) {
+            this.pendingDosBoxConnections.delete(session.tcpPort);
+        }
+
+        session.emulatorSocket = socket;
+        this.setupEmulatorHandlers(session);
+
+        console.log(`[SESSION] Multiplexing started for session ${session.sessionId}`);
+    }
+
+    /**
+     * Set up emulator data handlers (adapter-based)
+     */
+    setupEmulatorHandlers(session) {
+        const { sessionId } = session;
+        const emulatorName = session.emulator.getName();
+
+        // Set up data flow: Emulator -> WebSocket
+        session.emulator.onData((data) => {
+            session.bytesFromEmulator += data.length;
+
+            try {
+                // For DOSBox: convert CP437 to UTF-8
+                // For DOSEMU: data is already in correct format from PTY
+                const utf8Data = (emulatorName === 'DOSBox')
+                    ? iconv.decode(data, 'cp437')
+                    : data.toString('utf8');
+
+                if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+                    session.ws.send(utf8Data);
+                } else {
+                    console.warn(`[${emulatorName}->WS] WebSocket not ready, dropping ${data.length} bytes`);
+                }
+            } catch (err) {
+                console.error(`[${emulatorName}] Encoding error for session ${sessionId}:`, err.message);
+            }
+        });
+    }
+
     setupDosBoxHandlers(session) {
         const { dosboxSocket, sessionId } = session;
 
@@ -584,18 +711,23 @@ class SessionManager {
         const { ws, sessionId } = session;
 
         ws.on('message', (data) => {
-            session.bytesToDosbox += data.length;
+            session.bytesToEmulator += data.length;
 
-            // Convert UTF-8 to CP437 for DOSBox
             try {
                 const dataStr = data.toString('utf8');
-                const cp437Data = iconv.encode(dataStr, 'cp437');
 
-                // Forward to DOSBox
-                if (session.dosboxSocket && !session.dosboxSocket.destroyed) {
-                    session.dosboxSocket.write(cp437Data);
+                // For DOSBox: convert UTF-8 to CP437
+                // For DOSEMU: pass through as UTF-8
+                const emulatorName = session.emulator ? session.emulator.getName() : 'Unknown';
+                const emulatorData = (emulatorName === 'DOSBox')
+                    ? iconv.encode(dataStr, 'cp437')
+                    : Buffer.from(dataStr, 'utf8');
+
+                // Forward to emulator
+                if (session.emulator) {
+                    session.emulator.write(emulatorData);
                 } else {
-                    console.warn(`[WS->DOSBOX] DOSBox not ready, dropping ${data.length} bytes`);
+                    console.warn(`[WS->EMULATOR] Emulator not ready, dropping ${data.length} bytes`);
                 }
             } catch (err) {
                 console.error(`[WS] Encoding error for session ${sessionId}:`, err.message);
@@ -668,33 +800,9 @@ class SessionManager {
             clearTimeout(session.disconnectTimer);
         }
 
-        // Close DOSBox socket to simulate carrier loss (door should detect and exit gracefully)
-        if (session.dosboxSocket && !session.dosboxSocket.destroyed) {
-            console.log(`[DOSBOX] Closing socket to simulate carrier loss for session ${session.sessionId}`);
-            session.dosboxSocket.destroy();
-        }
-
-        // DOSBox process should exit on its own when it detects carrier loss
-        // If it doesn't exit within a reasonable time, force kill it
-        if (session.dosboxProcess && !session.dosboxProcess.killed) {
-            const killTimeout = setTimeout(() => {
-                if (session.dosboxProcess && !session.dosboxProcess.killed) {
-                    console.warn(`[DOSBOX] Process PID ${session.dosboxPid} did not exit gracefully, forcing kill`);
-                    try {
-                        session.dosboxProcess.kill('SIGTERM');
-                    } catch (err) {
-                        console.warn(`[DOSBOX] Failed to kill process:`, err.message);
-                    }
-                }
-            }, 5000); // Wait 5 seconds for graceful exit
-
-            // Store timeout so we can clear it if process exits normally
-            session.killTimeout = killTimeout;
-        }
-
-        // Close TCP server
-        if (session.tcpServer) {
-            session.tcpServer.close();
+        // Close emulator using adapter
+        if (session.emulator) {
+            session.emulator.close();
         }
 
         // Close WebSocket
@@ -702,7 +810,7 @@ class SessionManager {
             session.ws.close();
         }
 
-        // Release port
+        // Release port (DOSBox only)
         if (session.tcpPort) {
             this.portPool.release(session.tcpPort);
             this.sessionsByPort.delete(session.tcpPort);
@@ -722,7 +830,7 @@ class SessionManager {
 
         // Log statistics
         const uptime = Math.floor((Date.now() - session.startTime) / 1000);
-        console.log(`[SESSION] Stats - ${session.sessionId}: Uptime ${uptime}s, From DOSBox: ${session.bytesFromDosbox}, To DOSBox: ${session.bytesToDosbox}`);
+        console.log(`[SESSION] Stats - ${session.sessionId}: Uptime ${uptime}s, From Emulator: ${session.bytesFromEmulator}, To Emulator: ${session.bytesToEmulator}`);
     }
 
     cleanupSessionFiles(session) {
@@ -789,13 +897,14 @@ class SessionManager {
             availablePorts: TCP_PORT_MAX - TCP_PORT_BASE - this.portPool.usedPorts.size,
             sessions: Array.from(this.sessionsByToken.values()).map(s => ({
                 sessionId: s.sessionId,
+                emulator: s.emulator ? s.emulator.getName() : 'Unknown',
                 tcpPort: s.tcpPort,
                 uptime: Math.floor((Date.now() - s.startTime) / 1000),
-                bytesFromDosbox: s.bytesFromDosbox,
-                bytesToDosbox: s.bytesToDosbox,
+                bytesFromEmulator: s.bytesFromEmulator,
+                bytesToEmulator: s.bytesToEmulator,
                 wsConnected: s.ws && s.ws.readyState === WebSocket.OPEN,
-                dosboxConnected: s.dosboxSocket && !s.dosboxSocket.destroyed,
-                dosboxPid: s.dosboxPid
+                emulatorConnected: s.emulatorSocket != null,
+                emulatorPid: s.emulatorPid
             }))
         };
     }
