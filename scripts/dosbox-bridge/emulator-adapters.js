@@ -297,6 +297,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
 
         const args = [
             '-t',  // Terminal mode for PTY
+            '-f', configPath,  // Use our config file
             '-E', doorScript  // Execute script
         ];
 
@@ -346,12 +347,12 @@ class DOSEMUAdapter extends EmulatorAdapter {
     }
 
     generateConfig(sessionData, sessionPath) {
-        // DOSEMU uses ~/.dosemu or specified config directory
-        // For now, we'll use default DOSEMU config and rely on command-line args
-
         const configPath = path.join(sessionPath, 'dosemu.conf');
 
-        // Minimal DOSEMU config
+        // Map our dosbox-bridge/dos directory as C: drive
+        const dosDir = path.join(this.basePath, 'dosbox-bridge', 'dos');
+
+        // DOSEMU config with custom C: drive mapping
         const config = `
 # DOSEMU Configuration for Door Session
 $_cpu = "80486"
@@ -359,14 +360,19 @@ $_hogthreshold = (10)
 $_external_charset = "utf8"
 $_internal_charset = "cp437"
 
+# Map our directory as C: drive
+$_hdimage = "dir:${dosDir}"
+
 # Serial port configuration
 $_com1 = "virtual"
-$_com1_virtual = "pty"
 
 # Video settings
 $_console = "0"
 $_graphics = "0"
 $_X = "0"
+
+# Disable sound
+$_sound = "0"
 `;
 
         fs.writeFileSync(configPath, config);
