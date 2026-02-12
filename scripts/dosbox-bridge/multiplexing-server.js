@@ -761,8 +761,25 @@ class SessionManager {
     handleDosBoxDisconnect(session) {
         console.log(`[SESSION] DOSBox disconnected for session ${session.sessionId}`);
 
-        // If DOSBox disconnects but process still running, it exited normally
-        // Wait for process exit event to clean up
+        // DOSBox TCP connection closed (usually means 'exit' command ran)
+        // Give DOSBox a few seconds to exit gracefully, then force kill if needed
+        if (session.dosboxProcess && session.dosboxPid) {
+            console.log(`[SESSION] Waiting 3 seconds for DOSBox PID ${session.dosboxPid} to exit gracefully...`);
+
+            session.killTimeout = setTimeout(() => {
+                console.log(`[SESSION] DOSBox didn't exit gracefully, force killing PID ${session.dosboxPid}`);
+                try {
+                    if (process.platform === 'win32') {
+                        require('child_process').execSync(`taskkill /F /PID ${session.dosboxPid}`, { stdio: 'ignore' });
+                    } else {
+                        process.kill(session.dosboxPid, 'SIGKILL');
+                    }
+                } catch (err) {
+                    console.error(`[SESSION] Failed to kill DOSBox PID ${session.dosboxPid}:`, err.message);
+                }
+                // handleDosBoxExit will be called when process actually dies
+            }, 3000); // 3 second grace period
+        }
     }
 
     handleWebSocketDisconnect(session) {

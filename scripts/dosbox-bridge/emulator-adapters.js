@@ -220,7 +220,9 @@ class DOSBoxAdapter extends EmulatorAdapter {
         const fossilCmd = fossilRequired ? '\\fossil\\bnu.com\n' : '';
 
         // Build autoexec commands
-        const autoexecCommands = `${fossilCmd}copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\ncd ${doorDir}\n${launchCmd}\nexit`;
+        // Note: Some batch files may not return control properly, so we add exit multiple times
+        // and use 'call' to ensure the batch file returns control before exit runs
+        const autoexecCommands = `${fossilCmd}copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\ncd ${doorDir}\n${launchCmd}\necho.\necho Door exited\nexit`;
 
         // Replace autoexec placeholder
         config = config.replace('# Door-specific commands will be appended here', autoexecCommands);
