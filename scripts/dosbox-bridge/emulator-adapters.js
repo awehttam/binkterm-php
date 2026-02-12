@@ -349,10 +349,10 @@ class DOSEMUAdapter extends EmulatorAdapter {
     generateConfig(sessionData, sessionPath) {
         const configPath = path.join(sessionPath, 'dosemu.conf');
 
-        // Map our dosbox-bridge/dos directory as C: drive
+        // Path to our door files
         const dosDir = path.join(this.basePath, 'dosbox-bridge', 'dos');
 
-        // DOSEMU config with custom C: drive mapping
+        // DOSEMU config - allow lredir to our directory
         const config = `
 # DOSEMU Configuration for Door Session
 $_cpu = "80486"
@@ -360,8 +360,8 @@ $_hogthreshold = (10)
 $_external_charset = "utf8"
 $_internal_charset = "cp437"
 
-# Map our directory as C: drive
-$_hdimage = "dir:${dosDir}"
+# Allow lredir to access our directory
+$_lredir_paths = [ "${dosDir}" ]
 
 # Serial port configuration
 $_com1 = "virtual"
@@ -396,7 +396,11 @@ $_sound = "0"
         launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
 
         // Create DOS batch file to launch door
+        // First use lredir to map our Linux directory, then run door commands
+        const dosDir = path.join(this.basePath, 'dosbox-bridge', 'dos');
         const scriptContent = `@echo off
+lredir c: linux\\fs${dosDir}
+c:
 copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS
 cd ${doorDir}
 ${launchCmd}
