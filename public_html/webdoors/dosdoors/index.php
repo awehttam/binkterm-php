@@ -340,17 +340,7 @@ if (empty($doorId)) {
                         term.focus();
                     };
 
-                    let messageCount = 0;
                     socket.onmessage = (event) => {
-                        messageCount++;
-
-                        // Debug: log received data
-                        if (event.data.length < 100) {
-                            console.log('[WS recv #' + messageCount + ']', JSON.stringify(event.data));
-                        } else {
-                            console.log('[WS recv #' + messageCount + ']', event.data.length, 'bytes');
-                        }
-
                         term.write(event.data);
                     };
 
