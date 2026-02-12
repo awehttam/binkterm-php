@@ -296,8 +296,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
         const doorScript = this.generateDoorScript(sessionData, session_path);
 
         const args = [
-            '-n',  // No banner
-            '-I', `dosdebug { -D+M }`,  // Minimal debug
+            '-t',  // Terminal mode for PTY
             '-E', doorScript  // Execute script
         ];
 
