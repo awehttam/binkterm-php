@@ -89,12 +89,13 @@ SimpleRouter::post('/api/door/launch', function() {
 
         // Ensure door exists in database (fallback sync)
         $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $doorManager = new \BinktermPHP\DoorManager();
+
         $stmt = $db->prepare("SELECT id FROM dosbox_doors WHERE door_id = ?");
         $stmt->execute([$doorName]);
         if (!$stmt->fetch()) {
             // Door not in database - try to sync it
             error_log("DOSDOOR: [API] Door '$doorName' not in database, attempting sync...");
-            $doorManager = new \BinktermPHP\DoorManager();
             $syncResult = $doorManager->syncDoorsToDatabase();
             error_log("DOSDOOR: [API] Sync result: synced={$syncResult['synced']}, errors=" . json_encode($syncResult['errors']));
 
