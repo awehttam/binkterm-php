@@ -415,7 +415,13 @@ class SessionManager {
 
         // Write DOOR.SYS file (DOS CRLF line endings)
         const content = lines.join('\r\n') + '\r\n';
-        fs.writeFileSync(doorSysPath, content, 'ascii');
+        try {
+            fs.writeFileSync(doorSysPath, content, 'ascii');
+            console.log(`[DROPFILE] Wrote ${content.length} bytes to ${doorSysPath}`);
+        } catch (err) {
+            console.error(`[DROPFILE] Failed to write DOOR.SYS: ${err.message}`);
+            throw err;
+        }
     }
 
     generateDosBoxConfig(session, tcpPort) {
