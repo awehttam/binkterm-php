@@ -37,6 +37,14 @@ class EmulatorAdapter {
     }
 
     /**
+     * Set up exit handler (called when emulator process exits)
+     * @param {Function} onExit - Callback for process exit (code, signal)
+     */
+    onExit(onExit) {
+        this.exitCallback = onExit;
+    }
+
+    /**
      * Write data to emulator (WebSocket -> emulator)
      * @param {Buffer} data - Data to write
      */
@@ -132,6 +140,9 @@ class DOSBoxAdapter extends EmulatorAdapter {
 
         this.process.on('exit', (code, signal) => {
             console.log(`[${this.getName()}] Process exited: code=${code}, signal=${signal}`);
+            if (this.exitCallback) {
+                this.exitCallback(code, signal);
+            }
         });
 
         return {
@@ -319,6 +330,9 @@ class DOSEMUAdapter extends EmulatorAdapter {
 
         this.process.on('exit', (code, signal) => {
             console.log(`[${this.getName()}] Process exited: code=${code}, signal=${signal}`);
+            if (this.exitCallback) {
+                this.exitCallback(code, signal);
+            }
         });
 
         return {

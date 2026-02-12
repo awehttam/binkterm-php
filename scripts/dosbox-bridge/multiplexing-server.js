@@ -339,6 +339,12 @@ class SessionManager {
 
         console.log(`[SESSION] Using ${emulatorName} for session ${sessionId}`);
 
+        // Set up exit handler for emulator process
+        session.emulator.onExit((code, signal) => {
+            console.log(`[${emulatorName}] Process exited for session ${sessionId}: code=${code}, signal=${signal}`);
+            this.handleDosBoxExit(session);
+        });
+
         // Create session directory
         const sessionPath = path.join(BASE_PATH, 'data', 'run', 'door_sessions', sessionId);
         if (!fs.existsSync(sessionPath)) {
