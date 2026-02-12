@@ -163,7 +163,6 @@ class DoorManager
             'credit_cost' => 0,
             'max_time_minutes' => 30,
             'cpu_cycles' => 10000,
-            'max_concurrent_sessions' => 10
         ];
 
         return DoorConfig::setDoorConfig($doorId, $config);
