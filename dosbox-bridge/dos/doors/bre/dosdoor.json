@@ -18,12 +18,13 @@
     "launch_command": "bre.exe",
     "directory": "dosbox-bridge/dos/doors/bre",
     "dropfile_format": "DOOR.SYS",
+    "dropfile_path": "\\doors\\bre",
     "node_support": false,
     "max_nodes": 1,
     "fossil_required": true,
     "ansi_required": true,
     "time_per_day": 15,
-    "notes": "Single-player game - only one user can play at a time. Turn-based multiplayer via shared game data."
+    "notes": "Single-player game - only one user can play at a time. Turn-based multiplayer via shared game data. Drop file goes directly in door directory."
   },
   "requirements": {
     "dosbox": "dosbox-x",

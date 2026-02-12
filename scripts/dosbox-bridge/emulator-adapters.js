@@ -220,7 +220,11 @@ class DOSBoxAdapter extends EmulatorAdapter {
 
         // Build door launch command
         const doorDir = manifest.door.directory.replace('dosbox-bridge/dos', '').replace(/\//g, '\\');
-        const dropDir = `\\drops\\node${node_number}`;
+
+        // Use custom dropfile_path if specified, otherwise use node-based default
+        const dropDir = manifest.door.dropfile_path
+            ? manifest.door.dropfile_path
+            : `\\drops\\node${node_number}`;
 
         let launchCmd = manifest.door.launch_command || `call ${manifest.door.executable}`;
         launchCmd = launchCmd.replace('{node}', node_number);

@@ -264,7 +264,7 @@ class SessionManager {
         // Update session with path
         session.sessionData.session_path = sessionPath;
 
-        // Generate DOOR.SYS drop file from user_data in node-specific drop directory
+        // Generate DOOR.SYS drop file from user_data
         if (sessionData.user_data) {
             // Parse user_data if it's a JSON string
             let userData = sessionData.user_data;
@@ -272,8 +272,29 @@ class SessionManager {
                 userData = JSON.parse(userData);
             }
 
-            // Create drop directory for this node: dosbox-bridge/dos/drops/node{X}/
-            const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+            // Load door manifest to check for custom dropfile_path
+            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'doors', sessionData.door_id, 'dosdoor.json');
+            let dropPath;
+
+            if (fs.existsSync(manifestPath)) {
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                if (manifest.door && manifest.door.dropfile_path) {
+                    // Use custom dropfile path from manifest (e.g., "\doors\bre")
+                    // Convert to actual filesystem path
+                    const customPath = manifest.door.dropfile_path.replace(/\\/g, '/');
+                    dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', customPath);
+                    console.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
+                } else {
+                    // Default: node-specific drop directory
+                    dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+                    console.log(`[DROPFILE] Using default node-based dropfile path: ${dropPath}`);
+                }
+            } else {
+                // Manifest not found, use default
+                dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+                console.log(`[DROPFILE] Manifest not found, using default path: ${dropPath}`);
+            }
+
             if (!fs.existsSync(dropPath)) {
                 fs.mkdirSync(dropPath, { recursive: true });
                 console.log(`[DROPFILE] Created drop directory: ${dropPath}`);
@@ -282,7 +303,7 @@ class SessionManager {
             console.log(`[DROPFILE] Writing DOOR.SYS to: ${dropPath}`);
             console.log(`[DROPFILE] User data:`, userData);
 
-            // Write DOOR.SYS (without node number in filename)
+            // Write DOOR.SYS
             this.generateDoorSys(dropPath, userData, sessionData.node_number);
             console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
         } else {
