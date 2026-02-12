@@ -496,19 +496,37 @@ class SessionManager {
     findDosBoxExecutable() {
         const envPath = process.env.DOSBOX_EXECUTABLE;
         if (envPath && fs.existsSync(envPath)) {
+            console.log(`[DOSBOX] Using configured executable: ${envPath}`);
             return envPath;
         }
 
-        // Windows default
-        if (process.platform === 'win32') {
-            const defaultPath = 'c:\\dosbox-x\\dosbox-x.exe';
-            if (fs.existsSync(defaultPath)) {
-                return defaultPath;
+        // Prefer vanilla DOSBox (much lighter: ~30MB vs ~256MB RSS)
+        // Try dosbox first, fall back to dosbox-x
+        const candidates = process.platform === 'win32'
+            ? ['dosbox.exe', 'dosbox-x.exe', 'c:\\dosbox\\dosbox.exe', 'c:\\dosbox-x\\dosbox-x.exe']
+            : ['dosbox', 'dosbox-x'];
+
+        // Check which executables exist in PATH
+        for (const candidate of candidates) {
+            try {
+                const result = require('child_process').spawnSync(
+                    process.platform === 'win32' ? 'where' : 'which',
+                    [candidate],
+                    { encoding: 'utf8' }
+                );
+                if (result.status === 0 && result.stdout.trim()) {
+                    const exePath = result.stdout.trim().split('\n')[0];
+                    console.log(`[DOSBOX] Found executable: ${exePath}`);
+                    return candidate;
+                }
+            } catch (e) {
+                // Command not found, try next
             }
         }
 
-        // Try PATH
-        return 'dosbox-x'; // Hope it's in PATH
+        // Fallback: assume dosbox is in PATH
+        console.log('[DOSBOX] No DOSBox found in PATH, trying "dosbox"');
+        return 'dosbox';
     }
 
     handleDosBoxConnection(socket, session) {

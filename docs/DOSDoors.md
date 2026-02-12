@@ -97,11 +97,24 @@ The DOS door system uses a **multiplexing bridge** architecture where a single l
 
 ### Required Software
 
-1. **DOSBox-X** (recommended) or DOSBox
+1. **DOSBox** (recommended) or DOSBox-X
+   - **Vanilla DOSBox is strongly recommended** due to much lower memory usage:
+     - DOSBox: ~30 MB RAM per instance
+     - DOSBox-X: ~256 MB RAM per instance
+     - With 10 concurrent users: 300 MB vs 2.5 GB!
+
+   **Installation:**
+   - Linux (recommended): `sudo apt install dosbox`
+   - Windows: Download from https://www.dosbox.com/
+   - macOS: `brew install dosbox`
+
+   **DOSBox-X (alternative, higher memory usage):**
    - Windows: Download from https://dosbox-x.com/
-   - Default install location: `C:\DOSBox-X\dosbox-x.exe`
-   - Linux: `sudo apt install dosbox-x` or compile from source (see below)
-   - macOS: `brew install dosbox-x` or compile from source (see below)
+   - Linux: `sudo apt install dosbox-x` or compile from source
+   - macOS: `brew install dosbox-x`
+
+   **Note:** The bridge auto-detects and prefers vanilla DOSBox if both are installed.
+   Set `DOSBOX_EXECUTABLE` in `.env` to force a specific binary.
 
 2. **Node.js** 18.x or newer
    - Download from https://nodejs.org/
