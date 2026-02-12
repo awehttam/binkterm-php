@@ -308,6 +308,7 @@ class SessionManager {
             }
 
             console.log(`[DROPFILE] Writing DOOR.SYS to: ${dropPath}`);
+            console.log(`[DROPFILE] User data:`, JSON.stringify(userData).substring(0, 200));
             this.generateDoorSys(dropPath, userData, sessionData.node_number);
             console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
         } else {
