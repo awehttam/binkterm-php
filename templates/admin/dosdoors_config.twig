@@ -177,6 +177,10 @@ function renderDoorsList() {
         const editorValue = document.getElementById('configEditor').value.trim();
         if (editorValue) {
             currentConfig = JSON.parse(editorValue);
+            // Handle edge case: config is an array instead of object
+            if (Array.isArray(currentConfig)) {
+                currentConfig = {};
+            }
         }
     } catch (e) {
         currentConfig = doorsState.config;
@@ -227,6 +231,11 @@ function toggleDoor(doorId, enable) {
         const editor = document.getElementById('configEditor');
         let config = JSON.parse(editor.value || '{}');
 
+        // Handle edge case: config is an array instead of object
+        if (Array.isArray(config)) {
+            config = {};
+        }
+
         if (!config[doorId]) {
             // Initialize with defaults if not exists
             config[doorId] = {
@@ -252,6 +261,11 @@ function enableAllDoors() {
     try {
         const editor = document.getElementById('configEditor');
         let config = JSON.parse(editor.value || '{}');
+
+        // Handle edge case: config is an array instead of object
+        if (Array.isArray(config)) {
+            config = {};
+        }
 
         doorsState.availableDoors.forEach(door => {
             if (!config[door.id]) {
