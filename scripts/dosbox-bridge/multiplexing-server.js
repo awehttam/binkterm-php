@@ -783,9 +783,30 @@ class SessionManager {
             clearTimeout(session.disconnectTimer);
         }
 
-        // Close emulator using adapter
+        // Close emulator TCP connection (simulates carrier loss)
         if (session.emulator) {
             session.emulator.close();
+        }
+
+        // Give emulator process 5 seconds to detect carrier loss and exit gracefully
+        // Then force kill if still running
+        if (session.emulatorProcess && session.emulatorPid) {
+            console.log(`[SESSION] Waiting 5 seconds for emulator PID ${session.emulatorPid} to exit after carrier loss...`);
+            setTimeout(() => {
+                // Check if process still running
+                try {
+                    process.kill(session.emulatorPid, 0); // Signal 0 checks if process exists
+                    console.log(`[SESSION] Emulator PID ${session.emulatorPid} still running, force killing`);
+                    if (process.platform === 'win32') {
+                        require('child_process').execSync(`taskkill /F /PID ${session.emulatorPid}`, { stdio: 'ignore' });
+                    } else {
+                        process.kill(session.emulatorPid, 'SIGKILL');
+                    }
+                } catch (err) {
+                    // Process already exited, good
+                    console.log(`[SESSION] Emulator PID ${session.emulatorPid} already exited`);
+                }
+            }, 5000);
         }
 
         // Close WebSocket

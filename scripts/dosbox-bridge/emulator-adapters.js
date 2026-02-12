@@ -189,15 +189,21 @@ class DOSBoxAdapter extends EmulatorAdapter {
     }
 
     close() {
+        // Close TCP socket first to simulate carrier loss (lost carrier event)
+        // This allows the door game to detect the disconnection and exit gracefully
         if (this.socket) {
+            console.log(`[${this.getName()}] Closing TCP socket (simulating carrier loss)`);
             this.socket.destroy();
+            this.socket = null;
         }
         if (this.tcpServer) {
             this.tcpServer.close();
+            this.tcpServer = null;
         }
-        if (this.process && !this.process.killed) {
-            this.process.kill('SIGTERM');
-        }
+
+        // Don't kill process immediately - let it detect carrier loss
+        // The process exit handler or removeSession will handle killing if needed
+        // Process will be killed by timeout if it doesn't exit on carrier loss
     }
 
     generateConfig(sessionData, sessionPath, tcpPort) {
@@ -234,10 +240,12 @@ class DOSBoxAdapter extends EmulatorAdapter {
         const fossilRequired = manifest.door.fossil_required !== false;
         const fossilCmd = fossilRequired ? '\\fossil\\bnu.com\n' : '';
 
+        // Only copy DOOR.SYS if drop directory is different from door directory
+        // (when using custom dropfile_path, they may be the same)
+        const copyCmd = (dropDir !== doorDir) ? `copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\n` : '';
+
         // Build autoexec commands
-        // Note: Some batch files may not return control properly, so we add exit multiple times
-        // and use 'call' to ensure the batch file returns control before exit runs
-        const autoexecCommands = `${fossilCmd}copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\ncd ${doorDir}\n${launchCmd}\necho.\necho Door exited\nexit`;
+        const autoexecCommands = `${fossilCmd}${copyCmd}cd ${doorDir}\n${launchCmd}\necho.\necho Door exited\nexit`;
 
         // Replace autoexec placeholder
         config = config.replace('# Door-specific commands will be appended here', autoexecCommands);
@@ -383,15 +391,21 @@ class DOSEMUAdapter extends EmulatorAdapter {
     }
 
     close() {
+        // Close TCP socket first to simulate carrier loss (lost carrier event)
+        // This allows the door game to detect the disconnection and exit gracefully
         if (this.socket) {
+            console.log(`[${this.getName()}] Closing TCP socket (simulating carrier loss)`);
             this.socket.destroy();
+            this.socket = null;
         }
         if (this.tcpServer) {
             this.tcpServer.close();
+            this.tcpServer = null;
         }
-        if (this.process && !this.process.killed) {
-            this.process.kill('SIGTERM');
-        }
+
+        // Don't kill process immediately - let it detect carrier loss
+        // The process exit handler or removeSession will handle killing if needed
+        // Process will be killed by timeout if it doesn't exit on carrier loss
     }
 
     generateConfigWithPort(sessionData, sessionPath, tcpPort) {
