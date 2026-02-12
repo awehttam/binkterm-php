@@ -946,6 +946,28 @@ const wsServer = new WebSocket.Server({
 });
 
 console.log(`[WS] Server listening on ${WS_BIND_HOST}:${WS_PORT}`);
+
+// Clean up stale sessions from database on startup
+// This handles sessions that weren't cleaned up if bridge crashed/was killed
+(async () => {
+    const client = new Client(DB_CONFIG);
+    try {
+        await client.connect();
+        const result = await client.query(`
+            UPDATE door_sessions
+            SET ended_at = NOW(), exit_status = 'bridge_restart'
+            WHERE ended_at IS NULL
+        `);
+        if (result.rowCount > 0) {
+            console.log(`[STARTUP] Cleaned up ${result.rowCount} stale session(s) from database`);
+        }
+    } catch (err) {
+        console.error('[STARTUP] Failed to clean up stale sessions:', err.message);
+    } finally {
+        await client.end();
+    }
+})();
+
 console.log('[WS] Waiting for connections...');
 console.log('');
 
