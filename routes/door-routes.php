@@ -105,6 +105,44 @@ SimpleRouter::post('/api/door/launch', function() {
             }
         }
 
+        // Check credits requirement
+        $doorConfigPath = __DIR__ . '/../config/dosdoors.json';
+        if (file_exists($doorConfigPath)) {
+            $doorConfigs = json_decode(file_get_contents($doorConfigPath), true);
+            $doorConfig = $doorConfigs[$doorName] ?? null;
+
+            if ($doorConfig && isset($doorConfig['credit_cost']) && $doorConfig['credit_cost'] > 0) {
+                $creditCost = (int)$doorConfig['credit_cost'];
+
+                // Check if credits system is enabled
+                $userCredit = new \BinktermPHP\UserCredit($userId);
+                if ($userCredit->isEnabled()) {
+                    $currentBalance = $userCredit->getBalance();
+
+                    if ($currentBalance < $creditCost) {
+                        error_log("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
+                        http_response_code(402); // Payment Required
+                        echo json_encode([
+                            'success' => false,
+                            'error' => 'Insufficient credits',
+                            'message' => "This door costs $creditCost credits. You have $currentBalance credits.",
+                            'required' => $creditCost,
+                            'balance' => $currentBalance
+                        ]);
+                        return;
+                    }
+
+                    // Deduct credits
+                    if (!$userCredit->deductCredits($creditCost, 'dosdoor_launch', "Launched door: $doorName")) {
+                        error_log("DOSDOOR: [API] Failed to deduct credits for $doorName");
+                        throw new \Exception("Failed to process credit payment. Please try again.");
+                    }
+
+                    error_log("DOSDOOR: [API] Deducted $creditCost credits for $doorName - New balance: " . $userCredit->getBalance());
+                }
+            }
+        }
+
         // Start new session
         $session = $sessionManager->startSession($userId, $doorName, $userData);
 
