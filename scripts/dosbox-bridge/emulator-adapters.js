@@ -278,11 +278,12 @@ class DOSEMUAdapter extends EmulatorAdapter {
 
     async launch(session, sessionData) {
         const { session_id, node_number, door_id, session_path } = sessionData;
+        const tcpPort = session.tcpPort; // Port allocated by bridge
 
-        console.log(`[${this.getName()}] Launching for session ${session_id}`);
+        console.log(`[${this.getName()}] Launching for session ${session_id} on port ${tcpPort}`);
 
-        // Generate DOSEMU config
-        const configPath = this.generateConfig(sessionData, session_path);
+        // Generate DOSEMU config with TCP port
+        const configPath = this.generateConfigWithPort(sessionData, session_path, tcpPort);
         console.log(`[${this.getName()}] Generated config: ${configPath}`);
 
         // Find DOSEMU executable
@@ -292,58 +293,112 @@ class DOSEMUAdapter extends EmulatorAdapter {
         }
 
         // Build DOSEMU command
-        // DOSEMU will execute the door launch script
         const doorScript = this.generateDoorScript(session_id, door_id, node_number, session_path);
 
         const args = [
-            '-dumb',  // Dumb terminal (no console, use serial only)
             '-f', configPath,  // Use our config file
             '-E', doorScript  // Execute script
         ];
 
         console.log(`[${this.getName()}] Spawning: ${dosemuExe} ${args.join(' ')}`);
 
-        // Spawn DOSEMU with PTY
-        // Set cwd to dosbox-bridge/dos so it maps as DOSEMU's C: drive
+        // Spawn DOSEMU with normal spawn (not PTY)
         const dosemuCwd = path.join(this.basePath, 'dosbox-bridge', 'dos');
 
-        this.pty = pty.spawn(dosemuExe, args, {
-            name: 'xterm-color',
-            cols: 80,
-            rows: 25,
+        this.process = spawn(dosemuExe, args, {
             cwd: dosemuCwd,
-            env: process.env
+            env: process.env,
+            stdio: 'ignore'
         });
 
-        this.process = this.pty;
-
-        this.pty.onExit(({ code, signal }) => {
+        this.process.on('exit', (code, signal) => {
             console.log(`[${this.getName()}] Process exited: code=${code}, signal=${signal}`);
         });
 
         return {
-            process: this.pty,
-            pid: this.pty.pid,
-            connection: this.pty
+            process: this.process,
+            pid: this.process.pid,
+            tcpPort: tcpPort
         };
     }
 
+    /**
+     * Create TCP listener (same as DOSBox)
+     */
+    async createTCPListener(tcpPort, onConnection) {
+        return new Promise((resolve, reject) => {
+            this.tcpServer = net.createServer((socket) => {
+                console.log(`[${this.getName()}] Connection received on port ${tcpPort}`);
+                this.socket = socket;
+                socket.setNoDelay(true);
+                onConnection(socket);
+            });
+
+            this.tcpServer.listen(tcpPort, '127.0.0.1', () => {
+                console.log(`[${this.getName()}] TCP listener ready on port ${tcpPort}`);
+                resolve();
+            });
+
+            this.tcpServer.on('error', (err) => {
+                console.error(`[${this.getName()}] TCP server error:`, err.message);
+                reject(err);
+            });
+        });
+    }
+
     onData(callback) {
-        if (this.pty) {
-            this.pty.onData(callback);
+        if (this.socket) {
+            this.socket.on('data', callback);
         }
     }
 
     write(data) {
-        if (this.pty) {
-            this.pty.write(data);
+        if (this.socket && !this.socket.destroyed) {
+            this.socket.write(data);
         }
     }
 
     close() {
-        if (this.pty) {
-            this.pty.kill();
+        if (this.socket) {
+            this.socket.destroy();
         }
+        if (this.tcpServer) {
+            this.tcpServer.close();
+        }
+        if (this.process && !this.process.killed) {
+            this.process.kill('SIGTERM');
+        }
+    }
+
+    generateConfigWithPort(sessionData, sessionPath, tcpPort) {
+        const configPath = path.join(sessionPath, 'dosemu.conf');
+        const dosDir = path.join(this.basePath, 'dosbox-bridge', 'dos');
+
+        // DOSEMU config with TCP serial port
+        const config = `
+# DOSEMU Configuration for Door Session
+$_cpu = "80486"
+$_hogthreshold = (10)
+$_external_charset = "utf8"
+$_internal_charset = "cp437"
+
+# Allow lredir to access our directory
+$_lredir_paths = [ "${dosDir}" ]
+
+# Serial port configuration - TCP connection (like DOSBox)
+$_com1 = "tcp:127.0.0.1:${tcpPort}"
+
+# Video settings
+$_console = "0"
+$_graphics = "0"
+$_X = "0"
+
+# Disable sound
+$_sound = "0"
+`;
+
+        fs.writeFileSync(configPath, config);
+        return configPath;
     }
 
     generateConfig(sessionData, sessionPath) {
@@ -363,8 +418,9 @@ $_internal_charset = "cp437"
 # Allow lredir to access our directory
 $_lredir_paths = [ "${dosDir}" ]
 
-# Serial port configuration - use stdio for COM1 (PTY will be stdin/stdout)
-$_com1 = "stdio"
+# Serial port configuration - use TCP for COM1 (same as DOSBox)
+# This will be replaced with actual port number
+$_com1 = "tcp:127.0.0.1:__PORT__"
 
 # Video settings
 $_console = "0"

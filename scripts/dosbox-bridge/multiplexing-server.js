@@ -372,8 +372,8 @@ class SessionManager {
         // Update database with session_path
         await this.updateSessionPath(sessionId, sessionPath);
 
-        // For DOSBox: allocate port and create TCP listener
-        if (emulatorName === 'DOSBox') {
+        // For DOSBox and DOSEMU: allocate port and create TCP listener
+        if (emulatorName === 'DOSBox' || emulatorName === 'DOSEMU') {
             const tcpPort = this.portPool.allocate();
             session.tcpPort = tcpPort;
             this.sessionsByPort.set(tcpPort, session);
@@ -396,12 +396,8 @@ class SessionManager {
 
         console.log(`[${emulatorName}] Launched PID ${result.pid} for session ${sessionId}`);
 
-        // For DOSEMU: connection is immediate (PTY), set up handlers now
-        if (emulatorName === 'DOSEMU') {
-            session.emulatorSocket = result.connection;
-            this.setupEmulatorHandlers(session);
-            console.log(`[SESSION] Multiplexing started for session ${sessionId}`);
-        }
+        // Note: For both DOSBox and DOSEMU, we wait for TCP connection
+        // setupEmulatorHandlers will be called in handleEmulatorConnection
 
         // Update database
         await this.updateSessionPorts(sessionId, session.tcpPort || 0, result.pid);
