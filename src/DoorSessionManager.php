@@ -88,12 +88,14 @@ class DoorSessionManager
         $doorDisplayName = $doorInfo['name'] ?? $doorName;
         error_log("DOSDOOR: [StartSession] Door display name: $doorDisplayName");
 
-        // Find available node number
-        $node = $this->findAvailableNode();
-        if ($node === null) {
-            error_log("DOSDOOR: [StartSession] ERROR - No available nodes");
-            throw new Exception('No available door nodes (max ' . $this->maxSessions . ' sessions)');
-        }
+        try {
+            // Find available node number (starts transaction with row-level lock)
+            $node = $this->findAvailableNode();
+            if ($node === null) {
+                error_log("DOSDOOR: [StartSession] ERROR - No available nodes");
+                // Transaction already rolled back in findAvailableNode()
+                throw new Exception('No available door nodes (max ' . $this->maxSessions . ' sessions)');
+            }
 
         // Generate session ID
         $sessionId = DoorDropFile::generateSessionId($userId, $node);
@@ -119,6 +121,7 @@ class DoorSessionManager
         $expiresAt = date('Y-m-d H:i:s', time() + 7200);
 
         // Save session to database (bridge will create session_path, tcp_port, dosbox_pid, DOOR.SYS)
+        // Transaction was started in findAvailableNode() to lock node allocation
         $stmt = $this->db->prepare("
             INSERT INTO door_sessions (
                 session_id, user_id, door_id, node_number,
@@ -137,28 +140,41 @@ class DoorSessionManager
             json_encode($userData)
         ]);
 
+        // Commit transaction (releases node allocation lock)
+        $this->db->commit();
+        error_log("DOSDOOR: [StartSession] Transaction committed - Node $node locked");
+
         // Log session creation
         $this->logSessionEvent($sessionId, 'created', [
             'door' => $doorName,
             'node' => $node,
         ]);
 
-        error_log("DOSDOOR: [StartSession] Session created, bridge will create directory and launch DOSBox");
+            error_log("DOSDOOR: [StartSession] Session created, bridge will create directory and launch DOSBox");
 
-        // Return session info (bridge will create session_path, allocate tcp_port, launch DOSBox)
-        $session = [
-            'session_id' => $sessionId,
-            'user_id' => $userId,
-            'door_id' => $doorName,
-            'door_name' => $doorDisplayName,
-            'node' => $node,
-            'ws_port' => $wsPort,
-            'ws_token' => $wsToken,
-            'started_at' => time(),
-            'expires_at' => $expiresAt,
-        ];
+            // Return session info (bridge will create session_path, allocate tcp_port, launch DOSBox)
+            $session = [
+                'session_id' => $sessionId,
+                'user_id' => $userId,
+                'door_id' => $doorName,
+                'door_name' => $doorDisplayName,
+                'node' => $node,
+                'ws_port' => $wsPort,
+                'ws_token' => $wsToken,
+                'started_at' => time(),
+                'expires_at' => $expiresAt,
+            ];
 
-        return $session;
+            return $session;
+
+        } catch (Exception $e) {
+            // Rollback transaction if it's still active
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+                error_log("DOSDOOR: [StartSession] Transaction rolled back due to error");
+            }
+            throw $e;
+        }
     }
 
     /**
@@ -621,30 +637,48 @@ class DoorSessionManager
     /**
      * Find available node number
      *
+     * Uses row-level locking to prevent race conditions when multiple
+     * sessions start concurrently.
+     *
      * @return int|null Node number or null if none available
      */
     private function findAvailableNode(): ?int
     {
-        // Get all active node numbers from database
-        $stmt = $this->db->query("
-            SELECT node_number FROM door_sessions
-            WHERE ended_at IS NULL
-            ORDER BY node_number
-        ");
-        $usedNodes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        // Start a transaction with row-level locking to prevent race conditions
+        $this->db->beginTransaction();
 
-        error_log("DOSDOOR: [NodeAlloc] Used nodes: " . implode(', ', $usedNodes));
+        try {
+            // Lock active sessions for reading (prevents concurrent allocation of same node)
+            // FOR UPDATE locks the rows, preventing other transactions from modifying them
+            $stmt = $this->db->query("
+                SELECT node_number FROM door_sessions
+                WHERE ended_at IS NULL
+                ORDER BY node_number
+                FOR UPDATE
+            ");
+            $usedNodes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        // Find first available node
-        for ($i = 1; $i <= $this->maxSessions; $i++) {
-            if (!in_array($i, $usedNodes)) {
-                error_log("DOSDOOR: [NodeAlloc] Assigned node: $i");
-                return $i;
+            error_log("DOSDOOR: [NodeAlloc] Used nodes: " . implode(', ', $usedNodes));
+
+            // Find first available node
+            for ($i = 1; $i <= $this->maxSessions; $i++) {
+                if (!in_array($i, $usedNodes)) {
+                    error_log("DOSDOOR: [NodeAlloc] Assigned node: $i");
+                    // Don't commit yet - caller will insert the session and commit
+                    return $i;
+                }
             }
-        }
 
-        error_log("DOSDOOR: [NodeAlloc] No available nodes (max " . $this->maxSessions . ")");
-        return null;
+            // No available nodes
+            $this->db->rollBack();
+            error_log("DOSDOOR: [NodeAlloc] No available nodes (max " . $this->maxSessions . ")");
+            return null;
+
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            error_log("DOSDOOR: [NodeAlloc] Error: " . $e->getMessage());
+            throw $e;
+        }
     }
 
     /**

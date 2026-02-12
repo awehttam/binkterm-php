@@ -965,7 +965,7 @@ setInterval(() => {
     console.log('[STATUS] Active sessions:', stats.activeSessions, '| Available ports:', stats.availablePorts);
     if (stats.activeSessions > 0) {
         stats.sessions.forEach(s => {
-            console.log(`  - ${s.sessionId} (port ${s.tcpPort}, PID ${s.dosboxPid}): ${s.uptime}s, WS:${s.wsConnected}, DOS:${s.dosboxConnected}`);
+            console.log(`  - ${s.sessionId} (port ${s.tcpPort}, PID ${s.emulatorPid}): ${s.uptime}s, WS:${s.wsConnected}, Emulator:${s.emulatorConnected}`);
         });
     }
 }, 60000);
