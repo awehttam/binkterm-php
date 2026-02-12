@@ -116,6 +116,14 @@ The DOS door system uses a **multiplexing bridge** architecture where a single l
    **Note:** The bridge auto-detects and prefers vanilla DOSBox if both are installed.
    Set `DOSBOX_EXECUTABLE` in `.env` to force a specific binary.
 
+   **DOSEMU Support (Experimental, Not Recommended):**
+   - The bridge includes experimental DOSEMU support via `DOOR_EMULATOR=dosemu`
+   - **NOT recommended for production use** - numerous compatibility issues
+   - Console I/O vs serial I/O conflicts with FOSSIL drivers
+   - Complex configuration requirements
+   - Only for adventurous sysops willing to troubleshoot and debug
+   - DOSBox is proven, reliable, and recommended for all deployments
+
 2. **Node.js** 18.x or newer
    - Download from https://nodejs.org/
    - Required for the bridge server

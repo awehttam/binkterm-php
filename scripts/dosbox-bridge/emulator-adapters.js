@@ -215,8 +215,12 @@ class DOSBoxAdapter extends EmulatorAdapter {
         launchCmd = launchCmd.replace('{node}', node_number);
         launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
 
+        // Check if door requires FOSSIL driver (default true for backwards compatibility)
+        const fossilRequired = manifest.door.fossil_required !== false;
+        const fossilCmd = fossilRequired ? '\\fossil\\bnu.com\n' : '';
+
         // Build autoexec commands
-        const autoexecCommands = `copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\ncd ${doorDir}\n${launchCmd}\nexit`;
+        const autoexecCommands = `${fossilCmd}copy ${dropDir}\\DOOR.SYS ${doorDir}\\DOOR.SYS\ncd ${doorDir}\n${launchCmd}\nexit`;
 
         // Replace autoexec placeholder
         config = config.replace('# Door-specific commands will be appended here', autoexecCommands);

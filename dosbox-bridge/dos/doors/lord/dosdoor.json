@@ -20,9 +20,10 @@
     "dropfile_format": "DOOR.SYS",
     "node_support": true,
     "max_nodes": 10,
-    "fossil_required": true,
+    "fossil_required": false,
     "ansi_required": false,
-    "time_per_day": 30
+    "time_per_day": 30,
+    "notes": "LORD uses internal comm routines - FOSSIL not required (faster performance)"
   },
   "requirements": {
     "dosbox": "dosbox-x",
