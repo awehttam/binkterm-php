@@ -45,7 +45,8 @@ class DoorSessionManager
         $this->headlessMode = $headless;
 
         // Load max sessions from environment (default: 100)
-        $this->maxSessions = (int)Config::env('DOSDOOR_MAX_SESSIONS', '100');
+        $this->maxSessions = (int)Config::env('DOSDOOR_MAX_SESSIONS', '10
+        ');
 
         // Choose config file
         // 1. Check environment variable (allows custom config files)
