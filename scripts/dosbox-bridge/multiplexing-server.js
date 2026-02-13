@@ -28,6 +28,7 @@ const WS_PORT = parseInt(process.env.DOSDOOR_WS_PORT) || 6001;
 const WS_BIND_HOST = process.env.DOSDOOR_WS_BIND_HOST || '127.0.0.1';
 const DISCONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
 const DEBUG_KEEP_FILES = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true'; // Set to 'true' to disable cleanup
+const CARRIER_LOSS_TIMEOUT = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000; // ms to wait after carrier loss
 const TCP_PORT_BASE = 5000;
 const TCP_PORT_MAX = 5100;
 const BASE_PATH = path.resolve(__dirname, '../..');
@@ -47,6 +48,7 @@ console.log(`WebSocket Port: ${WS_PORT}`);
 console.log(`Bind Address: ${WS_BIND_HOST}`);
 console.log(`TCP Port Range: ${TCP_PORT_BASE}-${TCP_PORT_MAX}`);
 console.log(`Disconnect Timeout: ${DISCONNECT_TIMEOUT} minutes`);
+console.log(`Carrier Loss Timeout: ${CARRIER_LOSS_TIMEOUT}ms`);
 console.log(`Debug Keep Files: ${DEBUG_KEEP_FILES ? 'YES (cleanup disabled)' : 'NO (cleanup enabled)'}`);
 console.log(`Base Path: ${BASE_PATH}`);
 console.log(`Database: ${DB_CONFIG.user}@${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}`);
@@ -788,10 +790,11 @@ class SessionManager {
             session.emulator.close();
         }
 
-        // Give emulator process 5 seconds to detect carrier loss and exit gracefully
+        // Give emulator process time to detect carrier loss and exit gracefully
         // Then force kill if still running
         if (session.emulatorProcess && session.emulatorPid) {
-            console.log(`[SESSION] Waiting 5 seconds for emulator PID ${session.emulatorPid} to exit after carrier loss...`);
+            const timeoutSec = (CARRIER_LOSS_TIMEOUT / 1000).toFixed(1);
+            console.log(`[SESSION] Waiting ${timeoutSec} seconds for emulator PID ${session.emulatorPid} to exit after carrier loss...`);
             setTimeout(() => {
                 // Check if process still running
                 try {
@@ -806,7 +809,7 @@ class SessionManager {
                     // Process already exited, good
                     console.log(`[SESSION] Emulator PID ${session.emulatorPid} already exited`);
                 }
-            }, 5000);
+            }, CARRIER_LOSS_TIMEOUT);
         }
 
         // Close WebSocket
