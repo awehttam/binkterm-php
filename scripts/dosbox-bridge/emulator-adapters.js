@@ -221,7 +221,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
         config = config.replace(/port:5000/g, `port:${tcpPort}`);
 
         // Get door manifest to build launch command
-        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'doors', door_id, 'dosdoor.json');
+        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'doors', door_id, 'dosdor.json');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
         // Build door launch command
@@ -478,7 +478,7 @@ $_sound = "0"
         const node_number = nodeNumber;
 
         // Get door manifest
-        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'doors', door_id, 'dosdoor.json');
+        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'doors', door_id, 'dosdor.json');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
         // Build door launch command

@@ -37,6 +37,6 @@ node_modules/
 
 # DOS Door files - only track manifests
 dosbox-bridge/dos/doors/*
-!dosbox-bridge/dos/doors/*/dosdoor.json
+!dosbox-bridge/dos/doors/*/dosdor.json
 !dosbox-bridge/dos/doors/*/README.md
 dosbox-bridge/dos/drops/

@@ -2,10 +2,10 @@
 /**
  * DOSBox Door Manifest Scanner
  *
- * Scans for DOS door games with dosdoor.json manifests and provides
+ * Scans for DOS door games with dosdor.json manifests and provides
  * information about installed doors for configuration and display.
  *
- * Note: DOS doors use dosdoor.json (not webdoor.json) because they are
+ * Note: DOS doors use dosdor.json (not webdoor.json) because they are
  * fundamentally different from WebDoors - they run in DOSBox via bridge,
  * not as web applications.
  *
@@ -49,11 +49,11 @@ class DosBoxDoorManifest
             return $doors;
         }
 
-        // Scan each subdirectory for dosdoor.json
+        // Scan each subdirectory for dosdor.json
         $subdirs = glob($this->doorsBasePath . '/*', GLOB_ONLYDIR);
 
         foreach ($subdirs as $doorDir) {
-            $manifestPath = $doorDir . '/dosdoor.json';
+            $manifestPath = $doorDir . '/dosdor.json';
 
             if (file_exists($manifestPath)) {
                 try {
@@ -85,7 +85,7 @@ class DosBoxDoorManifest
             return $this->manifestCache[$doorId];
         }
 
-        $manifestPath = $this->doorsBasePath . '/' . $doorId . '/dosdoor.json';
+        $manifestPath = $this->doorsBasePath . '/' . $doorId . '/dosdor.json';
 
         if (!file_exists($manifestPath)) {
             return null;
@@ -102,9 +102,9 @@ class DosBoxDoorManifest
     }
 
     /**
-     * Parse a dosdoor.json manifest file
+     * Parse a dosdor.json manifest file
      *
-     * @param string $manifestPath Path to dosdoor.json
+     * @param string $manifestPath Path to dosdor.json
      * @param string $doorId Door identifier
      * @return array Parsed manifest data
      * @throws Exception If manifest is invalid
@@ -183,7 +183,7 @@ class DosBoxDoorManifest
     public function isDoorInstalled(string $doorId): bool
     {
         $doorPath = $this->doorsBasePath . '/' . $doorId;
-        $manifestPath = $doorPath . '/dosdoor.json';
+        $manifestPath = $doorPath . '/dosdor.json';
 
         return is_dir($doorPath) && file_exists($manifestPath);
     }

@@ -360,7 +360,7 @@ class SessionManager {
             }
 
             // Load door manifest to check for custom dropfile_path
-            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'doors', sessionData.door_id, 'dosdoor.json');
+            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'doors', sessionData.door_id, 'dosdor.json');
             let dropPath;
 
             if (fs.existsSync(manifestPath)) {
@@ -528,7 +528,7 @@ class SessionManager {
         config = config.replace(/port:5000/g, `port:${tcpPort}`);
 
         // Get door manifest to build launch command
-        const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'doors', sessionData.door_id, 'dosdoor.json');
+        const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'doors', sessionData.door_id, 'dosdor.json');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
         // Build door launch command
