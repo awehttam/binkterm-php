@@ -19,6 +19,9 @@ This upgrade note covers changes introduced in version 1.8.0:
  * Revert change in 1.7.9 where CRYPT-MD5 would be enforced even when plaintext was specified in configuration.  Plaintext sessions should work again now
  * Add MSGID checks when parsing incoming echomail to prevent duplicate entries (necessary for %rescan)
  * Changed the default echomail landing page to the "forum style" echo list.  Sysops can now set the system wide setting to either the reader interface or echo list interface, and users can (re)set their own personal preference
+ * DOS door integration via DOSBox-X and a multiplexing WebSocket bridge, allowing classic BBS door games to be played in the browser
+ * DOS door sessions are now scoped per-door, so multiple doors can be open in separate tabs simultaneously
+ * Blackjack leaderboard now tracks credits earned within the game only, independent of BBS credits earned elsewhere; leaderboard shows current calendar month
  * Miscellaneous fixes and improvements
 
 # Conversion to UTC
