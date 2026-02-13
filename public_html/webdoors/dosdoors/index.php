@@ -242,14 +242,52 @@ if (empty($doorId)) {
                 }
             });
 
-            // Ctrl+key: prevent browser from capturing common combos (Ctrl+W, Ctrl+T, etc.)
-            // and let xterm.js encode them as control characters
+            // Key handler: intercept extended keys before xterm generates ANSI sequences.
+            // DOS apps running via Doorway expect Doorway Protocol (\x00 + IBM PC scan code)
+            // for navigation/function keys, not ANSI escape sequences.
             term.attachCustomKeyEventHandler((e) => {
                 if (e.type !== 'keydown') return true;
+
+                // Extended key Doorway Protocol scan codes (no modifier)
+                const doorwayKeys = {
+                    'ArrowUp':    0x48, 'ArrowDown':  0x50,
+                    'ArrowLeft':  0x4B, 'ArrowRight': 0x4D,
+                    'Home':       0x47, 'End':        0x4F,
+                    'PageUp':     0x49, 'PageDown':   0x51,
+                    'Insert':     0x52, 'Delete':     0x53,
+                    'F1':  0x3B, 'F2':  0x3C, 'F3':  0x3D, 'F4':  0x3E,
+                    'F5':  0x3F, 'F6':  0x40, 'F7':  0x41, 'F8':  0x42,
+                    'F9':  0x43, 'F10': 0x44, 'F11': 0x85, 'F12': 0x86,
+                };
+                // Extended key Doorway Protocol scan codes (Ctrl modifier)
+                const doorwayCtrlKeys = {
+                    'ArrowLeft':  0x73, 'ArrowRight': 0x74,
+                    'Home':       0x77, 'End':        0x75,
+                    'PageUp':     0x84, 'PageDown':   0x76,
+                };
+
+                if (!e.altKey) {
+                    let scanCode = null;
+                    if (e.ctrlKey && doorwayCtrlKeys[e.key] !== undefined) {
+                        scanCode = doorwayCtrlKeys[e.key];
+                    } else if (!e.ctrlKey && doorwayKeys[e.key] !== undefined) {
+                        scanCode = doorwayKeys[e.key];
+                    }
+                    if (scanCode !== null) {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send('\x00' + String.fromCharCode(scanCode));
+                        }
+                        return false; // Suppress xterm's ANSI sequence output
+                    }
+                }
+
+                // Ctrl+key: prevent browser from capturing common combos (Ctrl+W, Ctrl+T, etc.)
+                // and let xterm.js encode them as control characters
                 if (e.ctrlKey && !e.altKey && e.key.length === 1) {
                     e.preventDefault();
                     return true; // xterm handles the encoding
                 }
+
                 return true;
             });
 
