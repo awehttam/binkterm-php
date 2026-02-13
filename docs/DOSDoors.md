@@ -215,11 +215,25 @@ npm install ws iconv-lite pg dotenv
 Edit `.env` and add/verify:
 
 ```bash
-# DOSBox executable path (auto-detected on Windows if in default location)
-DOSBOX_EXECUTABLE=C:\DOSBox-X\dosbox-x.exe
+# DOS Emulator Selection (default: dosbox)
+# dosbox = DOSBox or DOSBox-X (RECOMMENDED for stability)
+# dosemu = DOSEMU (EXPERIMENTAL, Linux only, not recommended)
+# DOOR_EMULATOR=dosbox
+
+# DOSBox executable path (auto-detected if not specified)
+# Auto-detection order: dosbox, dosbox-x
+# DOSBOX_EXECUTABLE=/usr/bin/dosbox-x
+DOSBOX_EXECUTABLE=/usr/local/bin/dosbox-x
+#DOSBOX_EXECUTABLE=C:\DOSBox-X\dosbox-x.exe
+
+# DOSEMU executable path (auto-detected if not specified)
+# Linux only - experimental support, not recommended for production
+# DOSEMU_EXECUTABLE=/usr/bin/dosemu
 
 # DOSBox config file (default: dosbox-bridge-production.conf)
 # DOSDOOR_CONFIG=dosbox-bridge-production.conf
+# DOSDOOR_CONFIG=dosbox-bridge-test.conf
+# DOSDOOR_CONFIG=dosbox-bridge-custom.conf
 
 # WebSocket disconnect behavior (in minutes, default: 0 = immediate)
 # 0 = Immediately simulate carrier loss when WebSocket disconnects
@@ -254,6 +268,11 @@ DOSDOOR_WS_BIND_HOST=127.0.0.1
 # Each session uses one node number (1 to MAX_SESSIONS)
 # Each dosbox instance may take upwards of 100 MB RAM each in headless mode
 DOSDOOR_MAX_SESSIONS=10
+
+# Debug mode - keep session files for inspection (default: false)
+# Set to 'true' to disable cleanup of DOOR.SYS and session directories
+# Useful for debugging drop file generation and DOSBox config issues
+# DOSDOOR_DEBUG_KEEP_FILES=false
 ```
 
 ### 4. Verify Database Schema
@@ -544,13 +563,7 @@ Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.json`:
         "dropfile_format": "DOOR.SYS",
         "node_support": true,
         "max_nodes": 10,
-        "fossil_required": true,
-        "ansi_required": true,
-        "time_per_day": 30
-    },
-    "requirements": {
-        "dosbox": "dosbox-x",
-        "fossil_driver": "BNU.COM"
+        "fossil_required": true
     },
     "config": {
         "enabled": false,
@@ -684,13 +697,10 @@ EOF
         "node_support": true,
         "max_nodes": 10,
         "fossil_required": true,
-        "ansi_required": true,
-        "time_per_day": 30,
         "notes": "Optional notes about this door"
     },
     "requirements": {
-        "dosbox": "dosbox-x",
-        "fossil_driver": "BNU.COM"
+        "dosbox": "dosbox-x"
     },
     "config": {
         "enabled": false,
