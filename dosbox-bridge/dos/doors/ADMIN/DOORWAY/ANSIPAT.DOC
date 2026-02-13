@@ -1,0 +1,22 @@
+This archieve should contain ANSIPAT.EXE and this doc file ANSIPAT.DOC
+
+The purpose of ANSIPAT.EXE is to patch your ANSI.SYS so that it will do a
+BIOS call instead of a direct screen write, making it more compatible with
+DOORWAY, when DOORWAY is operating in BIOS (non-direct screen) mode.
+Although the /L: will work properly about 95% of the time, this patch, if it
+installs, will work 100% of the time.  You will need to run this program in
+the subdirectory that your ANSI.SYS, which get loaded at boot time, resides
+in.  It will copy ANSI.SYS over to ANSI.BAK then search the ANSI.SYS for the
+code which typically scrolls the screen.  If it finds it, it will replace it
+with the appropriate screen scroll BIOS call.  If it doesn't find the
+appropriate code, it will not change ANSI.SYS.  Note that you will have to
+reboot the computer for the new ANSI.SYS to take effect.
+
+However, I highly recommend using PC Magazines ANSI.COM in SLOW mode instead.
+It works perfectly with DOORWAY, and can be switched to FAST mode at will,
+for screen updates which are much faster than using ANSI.SYS.  It is
+available from Data World BBS as ANSI_12.ZIP.
+
+
+                                          Marshall Dudley
+

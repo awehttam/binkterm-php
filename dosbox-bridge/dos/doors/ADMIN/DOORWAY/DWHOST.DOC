@@ -1,0 +1,454 @@
+
+
+
+
+
+
+
+                                  DWHost v3.0
+
+            (c) Copyright 1986 - 1992 by J.C. Kilday Associates
+
+
+                     Developed at the Northern Lights BBS
+
+                      207-761-4782   (v.32bis/VHST)
+
+
+
+
+                               Table of Contents
+                               -----------------
+
+                       Introduction ....................  1
+
+                       Description .....................  1
+
+                       Advanced Answering Modes ........  2
+
+                       Installation ....................  3
+
+                       Additional Setup Notes ..........  4
+
+                       Operating DW Host ...............  6
+
+                       Advanced Features ...............  7
+
+                       Support .........................  8
+
+
+                                 DW Host v3.0                        Page 1
+
+     Introduction
+     ------------
+
+     DW Host  is  a  specialized  host  communications  program   primarily
+     intended to support operations at the  DOS level on the host.   It may
+     be interfaced  with other  communications packages  to implement  more
+     complex functions.   It is intended for operation with Doorway  (which
+     allows nearly  any non-graphics  program to be run from remote).  File
+     transfer  operations are  supported directly  from DOS by DWXFER as is
+     mentioned  in  the  next  section.    Popular  applications of DW Host
+     include  home-to-office  (and  vice  versa)  communications as well as
+     operations  between  a  company  home  office  and  its  remote sites.
+     Software configuration  and file  maintenance on  the DW Host-equipped
+     host are frequent uses.  DW Host  is designed for operation on an  IBM
+     PC, XT, AT, PS/2 or a close compatible connected to a Hayes-compatible
+     modem or a US Robotics HST.
+
+     The complete DW Host package includes the following files:
+
+                DWHost.DOC   - this file
+                DWHost.COM   - executable module
+                DWHost.OVR   - DW Host "overlay" file
+                CONFIG.HLP   - context-sensitive help file
+                HOST.BAT     - optional controlling batch file
+                DO_DW.BAT    - batch file executed by DW Host
+                READ.ME      - quick review information
+
+     Description
+     -----------
+
+     DW Host normally monitors the modem  and upon detecting a ring  answers
+     the call while adjusting to the  caller's baud rate.  Speeds of  38,400
+     bps down to 300 bps  are supported with the following  comm parameters:
+     8 data bits, no parity, 1  stop bit.  Upon successful connect,  DW Host
+     greets the caller with a one-line message of your choosing and requests
+     entry of a password, also of your choosing.  If the correct password is
+     supplied and the callback mode is not in effect, DW Host will  transfer
+     control  of  the  next  part  of  the  communications  session to other
+     software.  Depending on the configuration option chosen, the caller may
+     be dropped  to the  DOS level  (with a DOORWAY command line having been
+     invoked to support continued communications).  Or a caller may next see
+     another communications application,  such as a  BBS-like package, or  a
+     menu of programs that might be run (using the Doorway munu capability).
+     If  the correct  password is  not given  to DW Host  in three attempts,
+     DW Host hangs up and recycles.
+
+     For enhanced security against unauthorized access the callback feature
+     is available.   If  the callback  mode is  in effect  when the correct
+     password is given, rather than  give the caller immediate access,  the
+     program  disconnects  the  caller  and  dials  the  telephone   number
+     specified in the configuration data.  Access is granted only if  there
+     is  a  successful  connect  at  that  number.    DW Host makes up to 3
+     attempts  to  establish  a  connect  (it  calls  a 2nd and 3rd time at
+     intervals  of  1  minute  if  no  answer,  a  busy signal, or no modem
+     connect).  If no  connection is made on  the 3rd attempt, the  program
+
+                                 DW Host     	                        Page 2
+
+     recycles and sets up to await another call.
+
+     If access is  granted to the  DOS level on  the host machine  (through
+     DOORWAY), virtually all DOS commands  may be executed and so  may most
+     other programs which do not use bit mapped graphics.  A program called
+     DWXFER  supports file  transfers while in DOS.  It is included in this
+     ZIP.  You might also like to try Chuck Forsberg's DSZ  for Zmodem file
+     transfers, rather than the older protocol provided by DWXFER (although
+     DWXFER is simpler to use).
+
+     A log of call activity (a file called DW.LOG) is created by DW Host so
+     that any attempts of unauthorized access to your system may be  noted.
+     Calls  accepted  (and   normal  logoffs),  rejected   calls  (password
+     failures), and other  connects not resulting  in access to  the system
+     (hang  ups  at  the  password  prompt  and  3-minute timeouts awaiting
+     password entry) are all recorded in this text file.  The file includes
+     the date and time of each call  and how each ended.  It can  be viewed
+     using the the DOS TYPE command.  It may be deleted at any time  (using
+     DOS ERASE or DEL)  and the program will  start a new one  whenever the
+     next entry is to be made.
+
+     When DW Host  is awaiting  a call,  a display  including the  date and
+     time, some key setup information, and present DW Host status is shown.
+     A screen blanker turns off the screen if there is no keyboard activity
+     within a 2-minute span.  Striking  any key restores the display.   The
+     display  also  is  toggled  on  and  off  by hitting F9.  F10 presents
+     information about the program.  F3 allows access to the  configuration
+     screen where various DW Host setup options may be specified.  F1 or F2
+     cause DW Host to terminate.   F1 leaves the  telephone line in a  BUSY
+     state (modem offhook) while F2 leaves the modem onhook.
+
+     Advanced Answering Modes
+     ------------------------
+
+     DW Host normally is set  up to answer a  call on the first  ring.  But
+     where there is need  for the host computer  to share a phone  line and
+     not intrude on voice calls, special answering modes may be configured.
+     "Long Ring" may be configured such that DW Host answers only after the
+     specified number  of rings  have been  received.  Alternatively, "Ring
+     Back" may be chosen.  This mode requires a caller to dial twice before
+     DW Host answers.   The first  call consists  of a  specified number of
+     rings (or DW Host can be configured for a non-specific number of rings
+     on the first call).  DW Host answers a second call if received  within
+     one minute of the first that lasted the proscribed number of rings.
+
+     Still another  answering mode,  Triggered Callback,  may be  specified
+     where DW Host never answers but, instead, places a call to the  number
+     with which it had been  configured.  Almost a combination of  callback
+     and Ring Back, Triggered Callback is set up by two calls much the same
+     as Ring Back.  The first call  must be of a specified number  of rings
+     (or a non-specific number) and  a second call must be  received within
+
+
+                                 DW Host v3.0                        Page 3
+
+     Advanced Answering Modes (Continued)
+     ------------------------------------
+
+     one minute of the first.  If so "triggered", DW Host goes offhook  and
+     dials out.   Upon connecting  to the  called computer,  a password  is
+     required before the  called party is  allowed access.  Just  as in the
+     callback process described earlier, 3 attempts at a successful connect
+     are made.
+
+     Installation
+     ------------
+
+     DW Host is designed  to operate  under DOS  3.0, and  up, on IBM PC's,
+     XT's, AT's and compatibles equipped with Hayes 1200-compatible modems.
+     If  DW Host has been  configured to  answer on true  ring detect,  the
+     modem cable used must have pin 22 (ring indicate) connected.  Also pin
+     20  (Data Transmitter  Ready signal)  must be  connected and the modem
+     must be capable of providing  result messages indicating baud rate  at
+     connect time (e.g., CONNECT 1200).   Recommended Hayes switch settings
+     are:
+
+        SW 1 - Up, DTR normal (pin 20 controlled by program)
+        SW 2 - Up, Verbal result messages sent (not numeric result codes)
+        SW 3 - Dn, Result messages sent (not quiet mode)
+        SW 4 - Dn, Commands not echoed back
+        SW 5 - Dn, Auto Answer suppressed (controlled by program)
+        SW 6 - Up, Carrier detect indicated by modem (not always on)
+        SW 7 - Up, Single phone line connection
+        SW 8 - Dn, Normal "AT" command set enabled
+
+     If you are using a modem other than the Hayes standard, make sure that
+     its basic  configurable functions  are set  up the  same as above.  If
+     your  modem  does  not  have  switches  for  one  or more of the above
+     functions, there should be appropriate AT commands to achieve the same
+     state.  Please consult your modem owner's manual.
+
+     DW Host  has  been  improved  so  that  the  complication  of   having
+     controlling batch  files is  no longer  a requirement.   There  may be
+     circumstances, however, that may require you to use a batch file (like
+     HOST.BAT,  included  in  the  distribution  archive), but more on that
+     later.    To  install  the  software  you  need only copy DW Host.COM,
+     DW Host.OVR, and CONFIG.HLP to a directory from which it will be  run.
+     The directory you choose should be the default directory when  DW Host
+     is invoked.
+
+     To configure DW Host, run it for the first time in LOCAL mode so  that
+     it won't look for your modem and attempt to initialize it.  Enter  the
+     command:   DW Host L  . The  L command  line parameter specifies LOCAL
+     mode.    Initially,  the  file  DWCONFIG  cannot  be found, you are so
+     informed, and the configuration/setup screen is presented with default
+     settings.  If you take some time  with this screen and use the F1  key
+     to display the available help for each configuration item, you'll have
+     a good understanding of DW Host capabilities when you finish.  Hit the
+     F10 key to save the configuration information.  After DW Host  returns
+     to its status screen, hit F1 or F2 to quit operations in LOCAL mode.
+
+
+                                 DW Host v3.0                        Page 4
+
+     Installation (Continued)
+     ------------------------
+
+     If  all  necessary  configuration  information  has been specified and
+     you've set up whatever batch  files and/or other programs that  are to
+     be accessed from remote through DW Host, your're ready to try bringing
+     up  DW Host  for  its  first  test  run.   The command DW Host with no
+     command line parameters should be tried next.  If the code displays  a
+     status screen  and "Waiting  for a  call" in  the status field, you're
+     ready to try calling in.
+
+     As indicated on the screen, you may exit DW Host by pressing F1 or  F2
+     (choose F1 if you wish to have the line ring BUSY to anyone calling).
+
+     DWCONFIG is a straight ASCII file and can be modified using any  ASCII
+     editor so long as its lines are not interchanged and the limits of the
+     variables (as specified by the original prompts for the data) are  not
+     exceeded.  It  may be necessary  to modify this  file from remote,  in
+     which case the DOS EDLIN, or your favorite line editor may be used.
+
+     Additional Setup Notes
+     ----------------------
+
+     Near the bottom of the  configuration screen is a parameter  headed by:
+     "Program name  of executable  to be  run ...".   If  this item  is left
+     empty, DW Host exits  to DOS upon  successful entry of  a password from
+     remote.  Therefore, proper operation  of DW Host requires that a  batch
+     file such  as HOST.BAT  be used  as a  controlling batch  file when the
+     "program name to  execute" is left  blank on the  configuration screen.
+     If you study HOST.BAT,  you will see how  DW Host is controlled and  is
+     not permitted to drop to DOS without invoking a communications  program
+     or DOORWAY.
+
+     A better way  to set up  DW Host is to  enable it to  "shell out" to a
+     another program to be executed  when a caller successfully enters  the
+     password.  This can be done by specifying the program name to execute,
+     perhaps as in the following example:
+
+       doorway COM1 /g:on /m:100 /O: /S:* /v:d^U /R:^X /c:dos
+
+         (causes Doorway to operate using COM1, allowing the caller
+          100 minutes of time after dropping to DOS.  Additionally it
+          would allow the running of full-screen, direct screen-writing
+          applications from remote, such as Lotus, word processors, Kedit,
+          Brief, Vern Buerg's LIST, etc. )
+
+     The above setup allows you to  invoke DW Host on the host computer  by
+     merely the command DWHost.  When a caller enters the correct password,
+     a shell  to do_drwy.bat is invoked  and the simple  batch file invokes
+     DOORWAY,  which in turn invokes  COMMAND.COM.  Operations  at the  DOS
+     level  from remote  are  sustained  until the  caller gives  the  EXIT
+     command.   Upon the EXIT,  control is returned directly to DW Host and
+     the code recycles internally to set up for another call.
+
+
+                                 DW Host v3.0                        Page 5
+
+     Additional Setup Notes (Continued)
+     ----------------------------------
+
+     This setup also allows DW Host to remain resident during the  "shell."
+     This increases memory usage,  since both DOORWAY  and DW Host  will be
+     resident  at  the  same time.  For maximum  memory availability  it is
+     recommended to use the DROP to BATCH FILE method.
+
+     The above shows how DW Host  may be set  up to operate in  conjunction
+     with  other software  without using  batch files.  The advantages  are
+     simplicity and speed of recycling after a call.  The only disadvantage
+     to this kind of setup is that, in the worst case,  about 35K of memory
+     is  required  for DW Host during the shell.  If  you cannot afford the
+     memory  utilization,  a controlling  batch file  such as  HOST.BAT  is
+     recommended.
+
+     Operation within HOST.BAT leaves  more of system memory  available for
+     applications after DW Host has answered the call and verified  correct
+     password entry.  For this  reason, operation with a controlling  batch
+     file such as HOST.BAT remains an available option.
+
+     If you  use the  batch file  approach to  control of  DW Host, include
+     HOST.BAT in the directory where you have installed DW Host.  Modify it
+     to suit your environment and  setup as appropriate.  For  example, you
+     may wish  to change  "DOORWAY COM1"  to  "DOORWAY COM2"  if  you  have
+     specified use of COM2 on the DW Host configuration screen.
+
+
+                                 DW Host v3.0                        Page 6
+
+     Operating DW Host
+     -----------------
+
+     If the DW Host drive/directory is the current default, and your  modem
+     is turned on, simply enter the following command to run:
+
+                             DWHost    (or HOST if employing batch file)
+
+     The complete syntax of DW Host is as follows:
+
+                         DWHost [ P|L[ C|T ]   [ S ] ]  [ O ]
+
+
+     The C and T are optional parameters which invoke the callback mode  or
+     triggered  callback  mode  (but  only  if  the  callback mode had been
+     configured during the setup of DWCONFIG).  If the S parm is  specified
+     alone or  appended to  another parm  such as  C or  T, the "slow" BIOS
+     screen  write  method  will  be  used  for  writing to the host system
+     screens.  Otherwise, fast screen writing methods are used.  If running
+     under a multi-tasker such as Omniview or DoubleDOS, some bleed through
+     may be noted if  DW Host is operating in  a background partition.   In
+     such cases, specifying the S parm clears up that problem.  Examples:
+
+                   DWHost T   or   DWHost CS   or DWHost S
+
+         (or  HOST C   or   HOST TS  or  HOST S  if employing batch file)
+
+     The L  parm specifies  local mode  (no communication  with a modem) as
+     mentioned  in  an  earlier  section.    The  O  parm is used only when
+     employing  the  batch  file  option  to  recycle  the code externally.
+     DW Host invoked with  the O disconnects  the caller and  exits back to
+     the batch file.  When used the O parm must be the only command line
+     parm.
+
+     The P parm tells DW Host to dial out upon startup.  If a phone  number
+     follows the P (with no intervening space), that number is dialed.   Up
+     to 3 attempts  are made to  connect at the  given number.   The normal
+     prompt and request for password  are presented to the respondent.   If
+     no number follows the P, but a callback phone number has been  entered
+     on the configuration screen, that number is dialed.
+
+     To terminate DW Host operation from the host console, hit F1 or F2. If
+     a caller is logged on to the system and currently operating at the DOS
+     level, DOORWAY COM1 or DOORWAY COM2 in effect, a more drastic means is
+     necessary to terminate DW Host (i.e., the power switch).
+
+     As the caller who  has successfully logged on  to the system, you  may
+     log off  in an  orderly manner  by entering EXIT from any directory.
+
+     If  you  are  using  either  of  the  callback  modes and awaiting the
+     callback, you  may answer  DW Host's call  to your  location in one of
+     several different ways:
+
+      - Set up to receive a call per your modem and/or communications
+        program documentation, or
+
+
+                                 DW Host v3.0                        Page 7
+
+     Operating DW Host (Continued)
+     -----------------------------
+
+      - If using one of the communications programs which, in terminal mode
+        before a connect leaves the Hayes compatible modem in command state
+        (e.g., PibTerm,  Qmodem, or ProComm),  you may type  the command
+        ATA when the onscreen report of RING is received from your modem,
+        or
+
+      - You may setup your modem before or during the session to
+        Auto-Answer mode by entering ATS0=1 or including ATS0=1 in the
+        modem initialization string. If your modem has indicator lights,
+        the AA light will be lit after that command takes effect.
+
+     When operating in the callback  security mode, DW Host makes the  call
+     using the baud rate established during the initial call into  DW Host.
+     Upon successful connect at your location, you are immediately  granted
+     access to the host machine (just as though you had entered the correct
+     password in normal mode).
+
+     When calling out under  "Triggered Callback" operation, the  baud rate
+     specified in the configuration file DWCONFIG is used.  Upon successful
+     connect  you  are  presented  the  configurable one-line greeting that
+     normally is presented to callers  when DW Host answers a call.   Entry
+     of the correct password is required before dropping to DOS on the host
+     machine.
+
+     Advanced Features in v3.0
+     --------------------------
+     This section describes some additional features in DW Host.
+
+     o Extended  Comm Port  Specification -  DW Host now  allows you to use
+     comm ports  other than  COM1 and  COM2.   If you  specify a  comm port
+     greater than 2 on the setup screen (F3), you are prompted for the port
+     address and interrupt (IRQ) number.  This technical detail is required
+     due to the lack of standardization on COM3 and COM4.
+
+     o No  Password Option  - Some  people are  using DW Host  to front-end
+     applications which provide their own  security.  When used with  these
+     applications,   the   DW Host   password   entry  requirement  becomes
+     redundant.   If you  are using  DW Host v3.0  and delete  the password
+     entry on the setup screen, then  as soon as a connect is  established,
+     DW Host exits (or invokes the application named on the setup  screen).
+     The  caller  sees  no  password  entry  prompt  when  no  password  is
+     configured in the setup screen.
+
+     o Modem Activity  Display - As  an aid in  setup trouble-shooting, all
+     strings sent to the modem AND all modem responses are displayed on the
+     status  screen  adjacent  to  the  new  label  of  "Modem:".    As new
+     characters are sent or received from the modem while it is in  command
+     state,  they  are  inserted  into  the  display at the right, shifting
+     earlier data to the left in order to keep the same length display.
+
+     o F1 or F2 to Quit in Modem Reset Error loop - You may now quit out of
+     of DW Host by hitting F1 or F2 when the system is re-cycling due to  a
+     modem  reset  error  (earlier  versions  required  hitting the big red
+     switch).
+
+                                 DW Host v3.0                        Page 8
+
+
+     Advanced Features in v3.0 (Cont'd)
+     ----------------------------------
+
+     o Enhancements to DW  Host v3.0  include:   completely reworked  modem
+     control  logic  for  more  reliable  operations.  Occurrences of modem
+     reset  errors  are  far  less  frequent  (and  compatibility with more
+     modems is provided) in this release.  Comm ports now may be opened  at
+     speeds to 38,400 bps.  The ability to dial out to make a connection
+     using the new P parm has been added (See "Operating DW Host", Page 6).
+
+
+
+                                 DW Host v3.0
+
+     DW Host is made available to you as a fully functional package.  It is
+     distributed as SHAREWARE.  When you register DOORWAY, DWHOST will also
+     be registered.  Check the DOORWAY.DOC, or REGISTER.FRM for information
+     on registering this package.
+
+
+     Support
+     -------
+     Support is available to registered  users of DOORWAY through the  main
+     message base of DATA WORLD BBS which can be reached at the number
+     given below.   Please note  that support  is provided  only for use of
+     DW Host on equipment for which it was designed (described earlier).
+
+                         DATA WORLD BBS - 615-966-3574   Hayes ULTRA
+              PRIVATE REGISTRATION LINE - 615-675-3282   2400/1200
+         Note: the private line becomes a support line when you register.
+
+     Please note that the triggered callback does not work on all phone
+     exchanges due to differences in ring timing.
+

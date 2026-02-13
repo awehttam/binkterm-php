@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "type": "dosdoor",
+  "game": {
+    "name": "DOSDoor DOS shell",
+    "short_name": "dosdrop",
+    "author": "awehttam",
+    "version": "1.00",
+    "release_year": 2026,
+    "description": "Admin shell",
+    "genre": ["RPG", "Adventure", "Fantasy"],
+    "icon": "icon.svg",
+    "screenshot": null
+  },
+  "door": {
+    "type": "dos",
+    "executable": "START.BAT",
+    "launch_command": "call start.bat {node}",
+    "directory": "dosbox-bridge/dos/doors/admin",
+    "dropfile_format": "DOOR.SYS",
+    "dropfile_path": "\\doors\\admin",
+    "node_support": true,
+    "max_nodes": 10,
+    "fossil_required": false,
+    "ansi_required": false,
+    "time_per_day": 30,
+    "notes": "Admin uses the Doorway to Doors "
+  },
+  "requirements": {
+    "dosbox": "dosbox-x",
+    "fossil_driver": "X00.SYS",
+    "admin_only": true
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_time_minutes": 30
+  }
+}

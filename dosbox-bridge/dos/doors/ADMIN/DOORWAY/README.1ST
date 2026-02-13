@@ -1,0 +1,55 @@
+                                DOORWAY
+
+This package contains several programs.  DOORWAY can be set up to turn
+programs into DOORS on BBS's, and to allow remote access to either a
+BBS or a computer at home or business.  The following major executable
+files are provided:
+
+        DOORWAY.EXE   This is the main redirection program.
+        DWHOST.COM    This program will answer the phone and pass control
+                      to DOORWAY for remote access applications.
+        DWCOMM.EXE    The com program to call in with.
+        DWCONFIG.EXE  A program to create a configuration file for DOORWAY.
+                      DOORWAY may be set up for command line switchs or to
+                      read a configuration file.
+
+If all you are wanting to do is set up a remote system to call into later,
+do the following:
+
+        Run install, and answer the questions.
+	log into subdirectory you logged into.
+        Enter: DWHOST L
+        Make any necessary changes to the set-up.
+        F10 to save.
+        Press F1 or F2 to exit.
+        End your autoexec.bat file with \DWHOST\HOST if you wish the computer
+                to boot into the HOST mode.
+
+When you are ready to bring up the HOST to receive calls, type HOST.  Call in
+with DWCOMM or your favorite communicaitons program.  I recommend QMODEM, GT
+Power Com TELIX and so forth.  Once you have called in, entered your password
+and been dropped to dos, enter DOORWAY mode on the remote end (ALT = on
+most com programs, CONTROL DOWN ARROW GT, not applicable to DWCOMM) so all
+the keys will work over the modem.  DOORWAY will toggle between BIOS and
+DIRECT SCREEN write mode by entering the control character you defined in the
+installation from remote.  If you are not getting anything on the remote end,
+enter this character to switch over to DIRECT WRITE mode.  Enter it twice to
+redraw the screen.
+
+To transfer a file while in DOS, make sure you have a copy of DWXFER.EXE on
+the remote (in the path) and HOST end.  Then either shell to DOS on the remote
+and enter DWXFER REMOTE, or install it as an external protocol, so that when
+you do a download it will shell to dos and execute DWXFER REMOTE.  If you are
+calling in with DWCOMM simply select the DWXFER option.
+
+Type exit when through to end the call and bring DWHOST back up for the next
+call.
+
+If carrier is lost in DOS, DOORWAY will bring DWHOST back up again.
+
+For more information read the DWCOMM.DOC, DWHOST.DOC and DOORWAY.DOC.
+
+If you are running something out of the ordinary then you will need to read
+the DOC's.  If you are wanting to use DOORWAY with a bulletin board to create
+DOORS then you will need to read the DOORWAY.DOC file.
+

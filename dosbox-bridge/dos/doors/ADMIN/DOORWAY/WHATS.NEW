@@ -1,0 +1,53 @@
+Whats new in Doorway version 2.22.
+
+You can use the SYS parameter with non-standard com ports now by using
+DOORWAY SYS:XXXX:I, where XXXX is the 4 digit hex address of the com port
+and the I is the irq.
+
+A switch to reboot on carrier loss has been added.  It is the /RB switch.
+If you are running under Desqview, you should use th /19 switch if using the
+/RB switch.
+
+/T: switch can now trap more than one character per switch.
+
+Direct screen writes will now always start at the top of the screen.
+
+Added Digiboard support.  Use COMXD or SYSD to indicate you are usign a
+Digiboard. (The X is the com port number)
+
+Added a /J switch to control scrolling.  Default is 5.  Basically this is
+the number of lines which have to match after a scroll for DOORWAY to scroll
+the remote screen.
+
+DOORWAY announces its entrance with an ESC[=255h and it's exit with a ESC[=255l
+now.  This allows other com programs to automatically enter and exit DOORWAY
+mode.
+
+Fixed where DOORWAY will now work with DOS EDIT and other programs which
+required an INT 9 to read the keyboard buffer.
+
+Added 16550 support to both DOORWAY and DWCOMM.
+
+Fixed problem where high intensity was being interpreted as blinnk on some
+programs.
+
+Fixed problem where DOORWAY would not get turned back on by DSZ if using a
+non standard port.
+
+Added a /NCD switch.  This switch is for no carrier delay.  It is intended for
+null modems where a short CD drop is used to terminate the connection.
+
+Changed the shell to dos to force command.com to use the full environment size.
+
+Added the ability for DOORWAY to stuff the keyboard buffer with a definable
+character sequence when carrier is lost.  This uses the /*: switch.
+
+Added tracking of locked files, so DOORWAY will unlock them if aborting
+externally.
+
+Added the ability for DOORWAY to read a configuration file.  Parameters
+can be in the configuration file or on the command line.
+
+Added a /FC switch to make DOORWAY ignore carrier loss.
+
+

@@ -1,0 +1,106 @@
+                           DWCOMM DOCUMENTATION
+
+This program is included with DOORWAY to serve as the REMOTE communications
+program with DOORWAY.  This program is NOT intended to be an all around
+COM program.  For complete communications capability continue to use QMODEM
+or your favorite COM program.  
+
+You are licensed to use up to 5 copies of this program for each copy of
+DOORWAY. Site licences are available. In conjunction with DOORWAY and DWHOST,
+it is intended to allow easy access to a DOORWAY remote system.
+
+MAIN MENU
+
+When DWCOMM is run a menu will pop up.  This is the command menu.  For first
+time operation, select the C)onfigure selection, and verify or change the
+fields as necessary (see the configuration section below).
+
+Buffer - Entering a "B" will switch the capture buffer on and off.  The capture
+         buffer name is in the configuration menu.  Note that the ANSI
+         sequences will be included in the file, so to view the capture file
+         later will require a DOS type command, or an ANSI editor.
+
+Config - Configure the com program for the correct com port, speed, capture
+         filename, number to dial, and modem initialization string.  Press
+         ESC to exit.  Upon exiting you will receive the options of quitting
+         without saving new configuration information, exiting and saving the
+         information, or continueing with the configuration. Switch between
+         TOUCH TONE and PULSE dialing by entering an ALT T and ALT P.
+
+Dial   - Dial the number from the configuration file.  If the number is blank
+         DWCOMM will ask for the number to dial.  To abort enter ESC.
+
+Init   - Initialize the modem by sending it the initialization string from
+         the configuration file.  This function is called automatically when
+         the program is first brought up.
+
+Receive- Run the batch file DWR.BAT.  This batch file should be set up to
+         allow the transfer protocol of choice to be run.  The included batch
+         file is to use DSZ for ZMODEM.
+
+Send   - Run the batch file DWS.BAT.  This batch file should be set up to
+         allow the transfer protocol of choice to be run.  The included batch
+         file is to use DSZ for ZMODEM.
+
+Term   - Terminal mode. This mode is entered automatically after a Dial also.
+         When in this mode all keystrokes go to the modem, and all characters
+         received from the modem will be displayed.  ANSI is emulated.  To
+         return to the MENU press both SHIFT keys at once.
+
+Xfer   - Xfer using DWXFER.  This will bring up the DWXFER window, allowing
+         you to use this windowed interface for transferring files.
+
+Quit   - Quit DWCOMM and return to DOS.
+
+CONFIGURATION MENU
+
+COM PORT  This allows you to select the appropriate port.  Enter COM:1, COM:2,
+          COM:3, COM:4 for a standard com port.  Enter LOCAL for local testing.
+          Enter PORT:XXXX:Y where XXXX is the hexidecimal base address of the
+          com port, and Y is the irq (1-9) for non-standard ports.
+
+CAPTURE   This is the name you wish the capture file to be written to.  It is
+          toggled on and off by the main menu "B" entry.
+
+BAUD RATE This is the opening BAUD rate you wish to use with the modem.
+          Normally this is the highest rate the modem will work at.  Not
+          recommend to set above 38400.
+
+LOCK PORT When the modem connects it will return a CONNECT string.  Some
+          modems require the baud rate to be changed to the rate indicated
+          in the connect string.  Other modems require the rate to be set at
+          and remain at the initial setting.  Selecting YES will prevent
+          the rate from dropping to the rate indicated in the CONNECT message.
+
+INIT STRG This is the string sent to the modem when the program is brought up,
+          and when Initialize modem is selected from the main menu.
+
+NUM DIAL  This is the number dialed when "D" is selected at the main menu.
+          If this field is left blank, the user is prompted for the number
+          to dial.  Once the number is dialed, the program will wait for a
+          CONNECT from the modem, then switch into the TERMINAL mode.  If BUSY
+          or other error occurs, will redial number.
+
+LPT1-LPT3 DOORWAY has the ability to redirect printer outputs when a /Y:R is
+          included in the command line.  When the printer information is
+          received by the remote, it is tagged as to whether it is going to
+          lpt1, lpt2, or lpt3.  This allows you to have 0 to 3 printers on
+          the remote end, and control where the redirection goes.  For instance
+          if you only have one printer on the remote, all 3 could go to LPT1,
+          or PRN.  If you have no printer, you could put a filename in the
+          entry, and all printer output will be written to the disk.  And
+          if you have 3 printers on the remote, each will respond seperately
+          and properly.  This feature is available only if DWCOMM is use.
+
+COMMAND LINE PARAMETERS
+
+DWCOMM can be executed with several command line switchs.  The following
+switchs are available:
+
+A - Use ANSI for cursor keys instead of DOORWAY codes.  Switchs automatically
+    to DOORWAY mode when you enter DOORWAY, and back to ANSI when you leave.
+B - Use BIOS calls, for Digiboard and Fossil support.
+C - Automatically exits upon carrier loss.
+R - Force use of regular keyboard calls, even if an enhanced keyboard is
+    detected.
+
