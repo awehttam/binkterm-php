@@ -169,7 +169,7 @@ function applyServerState(data) {
 
 async function refreshLeaderboardBestEffort() {
   try {
-    const lb = await WebDoor.getLeaderboard(BOARD_ID, 10, "all");
+    const lb = await WebDoor.getLeaderboard(BOARD_ID, 10, "month");
     if (!lb || !Array.isArray(lb.entries)) return;
 
     const ul = document.getElementById("leaderboard");

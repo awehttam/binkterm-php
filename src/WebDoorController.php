@@ -332,8 +332,8 @@ class WebDoorController
                 $dateFilterSimple = "AND created_at >= CURRENT_DATE - INTERVAL '7 days'";
                 break;
             case 'month':
-                $dateFilter = "AND l.created_at >= CURRENT_DATE - INTERVAL '30 days'";
-                $dateFilterSimple = "AND created_at >= CURRENT_DATE - INTERVAL '30 days'";
+                $dateFilter = "AND l.created_at >= DATE_TRUNC('month', CURRENT_DATE)";
+                $dateFilterSimple = "AND created_at >= DATE_TRUNC('month', CURRENT_DATE)";
                 break;
         }
 
