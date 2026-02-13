@@ -244,10 +244,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if ($state['bestBankroll'] < $balance) {
-        $state['bestBankroll'] = $balance;
-    }
-
     if ($action === '' || $action === 'init') {
         blackjack_store_state($state);
         blackjack_response($state, $balance, $symbol);
