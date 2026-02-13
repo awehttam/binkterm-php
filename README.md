@@ -90,12 +90,14 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
+- **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules (see `docs/FileAreas.md`)
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards 
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
 - **Nodelist Browsers** - Integrated nodelist updater and browser 
+
 
 ### Native Binkp Protocol Support
 - **FTS-1026 Compliant** - binkp/1.0 protocol implementation
@@ -202,14 +204,23 @@ Set `"enabled": false` in the credits configuration to disable the entire system
 
 ## Installation
 
-BinktermPHP can be installed using two methods: the standard Git-based installation, or the experimental installer which is currently under development.
+BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
 ### Requirements
 - **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
+- **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
-- **Composer** - For dependency management (Git installation only)
+- **Composer** - For dependency management 
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
+
+Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-pgsql php-dom postgresql
+sudo apt-get install -y unzip p7zip-full
+```
+The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
 ### Method 1: Using the Installer (Experimental)
 
@@ -240,35 +251,27 @@ The installer will:
 
 This is the standard installation method currently in use while the installer is being developed.
 
-#### Step 1: Pre-requisite Packages
-Ubuntu/Debian:
-```bash
-sudo apt-get update
-sudo apt-get install -y unzip p7zip-full
-```
-
-The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
-
-#### Step 2: Clone Repository
+#### Step 1: Clone Repository
 ```bash
 git clone https://github.com/awehttam/binkterm-php
 cd binkterm-php
 ```
 
-#### Step 3: Install Dependencies
+#### Step 2: Install Dependencies
 ```bash
 composer install
 ```
 
-#### Step 4: Configure Environment
+#### Step 3: Configure Environment
 Copy the example environment file and configure your settings:
 ```bash
 cp .env.example .env
+cp binkp.json.example binkp.json
 ```
 
-Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
+Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.  Once the system is up you can adjust your BBS settings and BinkP configuration through the administration interface.
 
-#### Step 5: Install the database schema and configure the initial Admin user
+#### Step 4: Install the database schema and configure the initial Admin user
 
 First, use the installation script for automated setup:
 ```bash
@@ -291,9 +294,9 @@ php scripts/upgrade.php
 ```
 
 
-#### Step 6: Configure Web Server
+### Configure Web Server
 
-##### Apache
+#### Apache
 ```apache
 <VirtualHost *:80>
     ServerName binktest.local
@@ -306,7 +309,7 @@ php scripts/upgrade.php
 </VirtualHost>
 ```
 
-##### Nginx
+#### Nginx
 ```nginx
 server {
     listen 80;
@@ -327,13 +330,13 @@ server {
 }
 ```
 
-##### PHP Built-in Server (Development)
+#### PHP Built-in Server (Development)
 ```bash
 cd public_html
 php -S localhost:8080
 ```
 
-#### Step 7: Set Up Cron Jobs (Recommended)
+### Set Up Cron Jobs (Recommended)
 Start the long-running services at boot and keep cron for periodic maintenance tasks:
 
 ```cron
@@ -347,24 +350,17 @@ Start the long-running services at boot and keep cron for periodic maintenance t
 @reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
 
 # Update nodelists daily at 3am
-0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
+#0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
 ```
 
 Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for additional cron examples.
 
-#### Step 8: Set Directory Permissions
-The `data/outbound` directory must be writable by both the web server and the user running binkp scripts:
-
-```bash
-chmod a+rwxt data/outbound
-```
-
-The sticky bit (`t`) ensures files can only be deleted by their owner, preventing conflicts between the web server and shell user.
+update_nodelists can be used if you have URL's to update from.  Otherwise nodelists can be updated using file area actions.  
 
 ## Configuration
 
 ### Basic System Configuration
-Edit `config/binkp.json` to configure your system. See `config/binkp.json.example` for a complete reference.
+`config/binkp.json` is used to configure your system. See `config/binkp.json.example` for a complete reference.  Settings can be edited through the web interface.
 
 Note:  Be sure to restart BBS services after editing binkp.json.  You can use the `scripts/restart_daemons.sh` script for this on Linux.
 
@@ -537,7 +533,7 @@ The `crashmail` section controls immediate/direct delivery of netmail:
 
 ### Nodelist Configuration
 
-Create `config/nodelists.json` to configure automatic nodelist downloads. See `config/nodelists.json.example` for a complete reference.
+Create `config/nodelists.json` to configure automatic nodelist downloads from website or other URLs. See `config/nodelists.json.example` for a complete reference.
 
 ```json
 {
@@ -579,7 +575,7 @@ URLs support date macros for dynamic nodelist filenames:
 
 ### Web Terminal Configuration
 
-The web terminal web door provides SSH (and eventually telnet) to various servers  through the browser interface.  To enable terminal access requires:
+The web terminal web door provides SSH and telnet to various servers  through the browser interface.  To enable terminal access requires:
 
 - Enabling terminal access globally through .env (see below)
 - Enabling and configuring the webdoor 'terminal' through config/webdoors.json
@@ -1197,9 +1193,9 @@ php scripts/lovlynet_setup.php
 
 The setup script will:
 - Guide you through registration
-- Automatically assign you an FTN address (227:1/10 and up)
+- Automatically assign you an LovlyNet FTN address 
 - Configure your uplink connection
-- Subscribe you to default echo areas (BINKTERMPHP, ANNOUNCE, TEST)
+- Subscribe you to default echo areas (LVLY_BINKTERMPHP, LVLY_ANNOUNCE, LVLY_TEST)
 - Generate secure passwords for binkp and areafix
 
 ### Public vs Passive Nodes
@@ -1251,8 +1247,7 @@ See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's gu
 - **Network**: LovlyNet (Zone 227)
 - **Hub**: 227:1/1 at lovlynet.lovelybits.org:24554
 - **Registration**: Automated via `lovlynet_setup.php`
-- **Echo Areas**: BINKTERMPHP, ANNOUNCE, TEST (auto-subscribed)
-
+- **Services**: AREAFIX and FILEFIX using your AreaFix password as the subject line
 
 ## Troubleshooting
 
@@ -1518,6 +1513,7 @@ if ($userIdFromUrl && $tokenFromUrl) {
     }
 }
 ```
+---
 
 ## DOS Doors - Classic BBS Door Games
 
@@ -1538,14 +1534,13 @@ The DOS door system uses a multiplexing bridge architecture that connects browse
 - **Automatic Session Management** - Bridge handles entire lifecycle (config generation, DOSBox launch, cleanup)
 - **Carrier Detection** - Realistic BBS behavior with graceful shutdown on disconnect
 - **Drop File Generation** - DOOR.SYS files generated from user data for proper door game integration
-- **Configurable Caching** - DOSBox-X directory cache settings for multi-node file visibility
 
 ### Requirements
 
 - **DOSBox-X** - Required for DOS emulation
 - **Node.js** - Required for the multiplexing bridge server
 - **FOSSIL Driver Support** - Built into DOSBox-X serial port configuration
-- **Door Games** - Classic DOS door game files (LORD, Trade Wars, etc.)
+- **Door Games** - Classic DOS door game files (LORD, BRE, etc.)
 
 ### Getting Started
 
@@ -1558,7 +1553,7 @@ See **[docs/DOSDoors.md](docs/DOSDoors.md)** for complete documentation includin
 
 ## WebDoors - Web-Based Door Games
 
-BinktermPHP implements the evolving **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
+BinktermPHP implements the WebDoors -  HTML5/JavaScript games that integrate with the BBS. 
 
 ### Included WebDoors
 
