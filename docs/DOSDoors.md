@@ -114,23 +114,23 @@ The DOS door system uses a **multiplexing bridge** architecture where a single l
    **Vanilla DOSBox (alternative, not recommended for production):**
    - Similar memory usage (~60-100 MB per instance)
    - Known serial port stability issues
-   - May work for testing but not recommended for production use
+   - May work for testing but not recommended for production use (it didn't work well for me in testing!)
    - Linux: `sudo apt install dosbox`
    - Windows: Download from https://www.dosbox.com/
    - macOS: `brew install dosbox`
 
    **Note:** The bridge auto-detects and prefers vanilla DOSBox if both are installed.
-   Set `DOSBOX_EXECUTABLE=/usr/bin/dosbox-x` in `.env` to force DOSBox-X.
+   Set `DOSBOX_EXECUTABLE=/usr/bin/dosbox-x` in `.env` to specify a dosbox executable to use.
 
    **DOSEMU Support (Experimental, Not Recommended):**
    - The bridge includes experimental DOSEMU support via `DOOR_EMULATOR=dosemu`
-   - **NOT recommended for production use** - numerous compatibility issues
+   - **NOT recommended for production use** - numerous issues and requires further testing+development
    - Console I/O vs serial I/O conflicts with FOSSIL drivers
    - Complex configuration requirements
    - Only for adventurous sysops willing to troubleshoot and debug
    - DOSBox is proven, reliable, and recommended for all deployments
 
-2. **Node.js** 18.x or newer
+2. **Node.js** 18.x or newer (tested with 24)
    - Download from https://nodejs.org/
    - Required for the bridge server
 
@@ -475,11 +475,14 @@ private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
 
 ## Adding New Door Games
 
+**Important Note:** BinktermPHP includes sample `dosdoor.json` manifests and icons for popular door games (LORD, BRE, etc.) but does **not** include the actual door game files due to licensing restrictions. Sysops must download and install door game executables separately.
+
 ### Step 1: Prepare the Door Game
 
 1. **Obtain the door game files**
    - Download from archives (e.g., https://www.bbsdoorarchive.com/)
    - Must be DOS-compatible (16-bit DOS executable or batch file)
+   - Check licensing terms before installing
 
 2. **Test locally first**
    - Extract to a test folder
