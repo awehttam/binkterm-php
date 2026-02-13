@@ -561,7 +561,6 @@ Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.json`:
         "launch_command": "call start.bat {node}",
         "directory": "dosbox-bridge/dos/doors/yourdoor",
         "dropfile_format": "DOOR.SYS",
-        "node_support": true,
         "max_nodes": 10,
         "fossil_required": true
     },
