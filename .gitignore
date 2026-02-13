@@ -37,7 +37,7 @@ node_modules/
 scripts/dosbox-bridge/package-lock.json
 
 # DOS Door files - only track manifests
-dosbox-bridge/dos/doors/*
-!dosbox-bridge/dos/doors/*/dosdoor.jsn
-!dosbox-bridge/dos/doors/*/README.md
-dosbox-bridge/dos/drops/
+dosbox-bridge/dos/DOORS/*
+!dosbox-bridge/dos/DOORS/*/dosdoor.jsn
+!dosbox-bridge/dos/DOORS/*/README.md
+dosbox-bridge/dos/DROPS/
