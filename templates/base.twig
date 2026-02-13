@@ -344,8 +344,15 @@
     </script>
     <script>
         let swRegistration = null;
+        let updatePending = false;
+        let pageNavigating = false;
 
         if ('serviceWorker' in navigator) {
+            // Track if page is navigating
+            window.addEventListener('beforeunload', () => {
+                pageNavigating = true;
+            });
+
             // Listen for messages from service worker BEFORE registration
             navigator.serviceWorker.addEventListener('message', (event) => {
                 console.log('[Page] Received message from SW:', event.data);
@@ -391,11 +398,34 @@
                         console.log('[Page] Service Worker registration failed:', err);
                     });
             });
+
+            // Show pending notification when page becomes visible
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && updatePending && !pageNavigating) {
+                    console.log('[Page] Page visible, showing pending update notification');
+                    showUpdateNotificationNow();
+                }
+            });
         }
 
         function showUpdateNotification() {
+            // Delay slightly to avoid showing during navigation
+            setTimeout(() => {
+                // Only show if page is visible and not navigating
+                if (document.visibilityState === 'visible' && !pageNavigating) {
+                    showUpdateNotificationNow();
+                } else {
+                    // Queue for later when page becomes visible
+                    console.log('[Page] Page not ready for notification, queuing for later');
+                    updatePending = true;
+                }
+            }, 500); // 500ms delay to avoid navigation conflicts
+        }
+
+        function showUpdateNotificationNow() {
             const toastEl = document.getElementById('updateToast');
             if (toastEl) {
+                updatePending = false;
                 const toast = new bootstrap.Toast(toastEl);
                 toast.show();
             }
