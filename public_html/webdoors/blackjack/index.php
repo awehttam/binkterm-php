@@ -56,7 +56,8 @@ function blackjack_default_state(int $startBet): array
         'handsPlayed' => 0,
         'handsWon' => 0,
         'handsLost' => 0,
-        'bestBankroll' => 0,
+        'sessionEarnings' => 0,  // net credits won/lost from blackjack this session
+        'bestEarnings' => 0,     // peak sessionEarnings (leaderboard score)
         'roundId' => 0,
         'lastOutcome' => null
     ];
@@ -204,8 +205,10 @@ function blackjack_end_round(array $state, string $outcome, int $userId, int $ba
         $balance = UserCredit::getBalance($userId);
     }
 
-    if ($state['bestBankroll'] < $balance) {
-        $state['bestBankroll'] = $balance;
+    // Track earnings from blackjack only (independent of external credit sources)
+    $state['sessionEarnings'] = ($state['sessionEarnings'] ?? 0) + $delta;
+    if ($state['sessionEarnings'] > ($state['bestEarnings'] ?? 0)) {
+        $state['bestEarnings'] = $state['sessionEarnings'];
     }
 
     $pv = blackjack_hand_value($state['player']);

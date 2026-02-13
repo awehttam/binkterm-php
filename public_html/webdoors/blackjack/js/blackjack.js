@@ -24,7 +24,8 @@ let state = {
   handsPlayed: 0,
   handsWon: 0,
   handsLost: 0,
-  bestBankroll: 0,
+  sessionEarnings: 0,
+  bestEarnings: 0,
   roundId: 0,
   lastOutcome: null
 };
@@ -95,7 +96,7 @@ async function autosaveAndMaybeScore(outcome) {
   const metadata = {
     save_name: "Auto-save",
     handsPlayed: state.handsPlayed,
-    bestBankroll: state.bestBankroll
+    bestEarnings: state.bestEarnings
   };
 
   try {
@@ -103,12 +104,12 @@ async function autosaveAndMaybeScore(outcome) {
       handsPlayed: state.handsPlayed,
       handsWon: state.handsWon,
       handsLost: state.handsLost,
-      bestBankroll: state.bestBankroll
+      bestEarnings: state.bestEarnings
     }, metadata);
   } catch (e) {}
 
   try {
-    await WebDoor.submitScore(BOARD_ID, state.bestBankroll, {
+    await WebDoor.submitScore(BOARD_ID, state.bestEarnings, {
       outcome,
       bankroll: state.bankroll,
       handsPlayed: state.handsPlayed
@@ -212,7 +213,7 @@ document.getElementById("save").onclick = async () => {
       handsPlayed: state.handsPlayed,
       handsWon: state.handsWon,
       handsLost: state.handsLost,
-      bestBankroll: state.bestBankroll
+      bestEarnings: state.bestEarnings
     }, { save_name: "Manual save" });
     setStatus("Saved.");
   } catch (e) {
