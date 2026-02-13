@@ -16,6 +16,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - camelCase for variables and functions
  - PascalCase for components and classes
  - 4 space indents
+ - **Environment Variables**: Always use `Config::env('VAR_NAME', 'default')` to read from .env file. Do NOT use `getenv()` or `$_ENV` directly.
 
 ## Project Structure
 

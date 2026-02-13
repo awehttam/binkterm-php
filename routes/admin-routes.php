@@ -3,6 +3,8 @@
 use BinktermPHP\AdminActionLogger;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\DoorConfig;
+use BinktermPHP\DoorManager;
 use BinktermPHP\RouteHelper;
 use BinktermPHP\Template;
 use BinktermPHP\UserMeta;
@@ -85,6 +87,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/webdoors_config.twig');
+    });
+
+    // DOSDoors config page
+    SimpleRouter::get('/dosdoors', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/dosdoors_config.twig');
     });
 
     // File area rules page
@@ -880,6 +890,92 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(400);
                 echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // DOSDoors API endpoints
+        SimpleRouter::get('/dosdoors-config', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->getDosdoorsConfig();
+
+                $configData = null;
+                if (!empty($result['config_json'])) {
+                    $configData = json_decode($result['config_json'], true);
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $configData ?? [],
+                    'exists' => $result['active'] ?? false
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::get('/dosdoors-available', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $doorManager = new DoorManager();
+            $allDoors = $doorManager->getAllDoors();
+
+            $doors = [];
+            foreach ($allDoors as $doorId => $door) {
+                $doors[] = [
+                    'id' => $doorId,
+                    'name' => $door['name'],
+                    'short_name' => $door['short_name'] ?? $door['name'],
+                    'author' => $door['author'] ?? 'Unknown',
+                    'description' => $door['description'] ?? '',
+                    'config' => $door['config'] ?? []
+                ];
+            }
+
+            echo json_encode(['success' => true, 'doors' => $doors]);
+        });
+
+        SimpleRouter::post('/dosdoors-config', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? null;
+
+                if (!is_array($config)) {
+                    throw new Exception('Invalid config data');
+                }
+
+                $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                if ($json === false) {
+                    throw new Exception('Failed to encode config as JSON');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->saveDosdoorsConfig($json);
+
+                // Reload config class cache
+                DoorConfig::reload();
+
+                // Sync enabled doors to database
+                $doorManager = new DoorManager();
+                $syncResult = $doorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $config,
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
         });
 

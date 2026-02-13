@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "type": "dosdoor",
+  "game": {
+    "name": "Legend of the Red Dragon",
+    "short_name": "LORD",
+    "author": "Seth Able Robinson",
+    "version": "4.08",
+    "release_year": 1996,
+    "description": "Classic fantasy BBS door game. Slay monsters, rescue the princess, and become the Legend of the Red Dragon!",
+    "genre": ["RPG", "Adventure", "Fantasy"],
+    "players": "Multi-player",
+    "icon": "icon.gif",
+    "screenshot": null
+  },
+  "door": {
+    "type": "dos",
+    "executable": "START.BAT",
+    "launch_command": "call start.bat {node}",
+    "directory": "dosbox-bridge/dos/doors/lord",
+    "dropfile_format": "DOOR.SYS",
+    "node_support": true,
+    "max_nodes": 10,
+    "fossil_required": false,
+    "ansi_required": false,
+    "time_per_day": 30,
+    "notes": "LORD uses internal comm routines - FOSSIL not required (faster performance)"
+  },
+  "requirements": {
+    "dosbox": "dosbox-x",
+    "fossil_driver": "X00.SYS"
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_time_minutes": 30
+  }
+}
