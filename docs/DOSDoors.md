@@ -497,6 +497,21 @@ private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
 
 **Important Note:** BinktermPHP includes sample `dosdoor.jsn` manifests and icons for popular door games (LORD, BRE, etc.) but does **not** include the actual door game files due to licensing restrictions. Sysops must download and install door game executables separately.
 
+> **⚠ Warning: Linux Filesystem Case Sensitivity**
+>
+> DOS is case-insensitive — `LORD`, `lord`, and `Lord` all refer to the same file. Linux is case-sensitive — they are three different files or directories. This mismatch can cause subtle and hard-to-diagnose problems when the `dosbox-bridge/dos/` directory tree is managed from Linux:
+>
+> - If you create a directory named `test` from Linux and later create `TEST`, DOS will see **two different directories** (because DOSBox-X's long filename support preserves the Linux case distinction). This can cause door games to fail to find their own files.
+> - Filenames or directories that don't conform to the **8.3 format** (max 8-character name, 3-character extension, no spaces or special characters) may display or behave inconsistently across DOS and Linux.
+>
+> **Rules to follow when creating or copying files from Linux into `dosbox-bridge/dos/`:**
+>
+> 1. **Use UPPERCASE for all filenames and directory names** — e.g. `DOORS`, `LORD`, `START.BAT`
+> 2. **Stick to 8.3 format** — maximum 8 characters for the name, 3 for the extension
+> 3. **Use only alphanumeric characters, hyphens, and underscores** — avoid spaces and special characters
+>
+> DOSBox-X is configured to emulate **MS-DOS 6.22** (`ver=6.22`), which does not include long filename (LFN/VFAT) support. This means DOS programs will only ever see uppercase 8.3 names, which eliminates the case-duplicate problem. If you change `ver=` to `7.0` or higher in the DOSBox config, LFN support activates and the case-sensitivity problem returns.
+
 ### Step 1: Prepare the Door Game
 
 1. **Obtain the door game files**
@@ -1216,6 +1231,12 @@ You should see authentication error (expected - test token invalid) but connecti
 ---
 
 ## Best Practices
+
+### File Naming (Linux Hosts)
+
+1. **Always use UPPERCASE 8.3 filenames** when creating files or directories inside `dosbox-bridge/dos/` from Linux — DOS is case-insensitive but Linux is not; mixed-case or duplicate-case names will appear as separate entries to DOS
+2. **Never create directories or files that differ only by case** (e.g., `lord/` and `LORD/`) — the DOSBox-X config uses `ver=6.22` (MS-DOS 6.22) to disable long filename support and force 8.3 uppercase handling; do not change this to `ver=7.x` as that re-enables LFN and the case problem returns
+3. **Use the DOS shell maintenance door** to create directories and files within the DOS environment itself — DOS will always create them with the correct uppercase 8.3 names
 
 ### Security
 
