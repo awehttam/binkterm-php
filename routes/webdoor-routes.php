@@ -168,6 +168,7 @@ SimpleRouter::get('/games', function() {
                 SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
                     l.user_id, l.game_id, l.board, l.score, l.created_at
                 FROM webdoor_leaderboards l
+                WHERE l.created_at >= DATE_TRUNC(\'month\', CURRENT_DATE)
                 ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
             )
             SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
