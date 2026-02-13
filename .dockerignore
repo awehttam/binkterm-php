@@ -35,7 +35,7 @@ scripts/dosbox-bridge/dos/drops/
 scripts/dosbox-bridge/dos/doors/*/DOOR*.SYS
 scripts/dosbox-bridge/dos/doors/*/NODE*.DAT
 scripts/dosbox-bridge/dos/doors/*/*.json
-!scripts/dosbox-bridge/dos/doors/*/dosdor.json
+!scripts/dosbox-bridge/dos/doors/*/dosdoor.jsn
 
 # Temporary files
 *.log

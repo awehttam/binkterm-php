@@ -2,10 +2,10 @@
 /**
  * DOSBox Door Manifest Scanner
  *
- * Scans for DOS door games with dosdor.json manifests and provides
+ * Scans for DOS door games with dosdoor.jsn manifests and provides
  * information about installed doors for configuration and display.
  *
- * Note: DOS doors use dosdor.json (not webdoor.json) because they are
+ * Note: DOS doors use dosdoor.jsn (not webdoor.json) because they are
  * fundamentally different from WebDoors - they run in DOSBox via bridge,
  * not as web applications.
  *
@@ -49,11 +49,11 @@ class DosBoxDoorManifest
             return $doors;
         }
 
-        // Scan each subdirectory for dosdor.json
+        // Scan each subdirectory for dosdoor.jsn
         $subdirs = glob($this->doorsBasePath . '/*', GLOB_ONLYDIR);
 
         foreach ($subdirs as $doorDir) {
-            $manifestPath = $doorDir . '/dosdor.json';
+            $manifestPath = $doorDir . '/dosdoor.jsn';
 
             if (file_exists($manifestPath)) {
                 try {
@@ -85,7 +85,7 @@ class DosBoxDoorManifest
             return $this->manifestCache[$doorId];
         }
 
-        $manifestPath = $this->doorsBasePath . '/' . $doorId . '/dosdor.json';
+        $manifestPath = $this->doorsBasePath . '/' . $doorId . '/dosdoor.jsn';
 
         if (!file_exists($manifestPath)) {
             return null;
@@ -102,9 +102,9 @@ class DosBoxDoorManifest
     }
 
     /**
-     * Parse a dosdor.json manifest file
+     * Parse a dosdoor.jsn manifest file
      *
-     * @param string $manifestPath Path to dosdor.json
+     * @param string $manifestPath Path to dosdoor.jsn
      * @param string $doorId Door identifier
      * @return array Parsed manifest data
      * @throws Exception If manifest is invalid
@@ -162,6 +162,7 @@ class DosBoxDoorManifest
 
             // Requirements
             'requirements' => $data['requirements'] ?? [],
+            'admin_only' => !empty($data['requirements']['admin_only']),
 
             // Default config (can be overridden in database)
             'config' => [
@@ -183,7 +184,7 @@ class DosBoxDoorManifest
     public function isDoorInstalled(string $doorId): bool
     {
         $doorPath = $this->doorsBasePath . '/' . $doorId;
-        $manifestPath = $doorPath . '/dosdor.json';
+        $manifestPath = $doorPath . '/dosdoor.jsn';
 
         return is_dir($doorPath) && file_exists($manifestPath);
     }

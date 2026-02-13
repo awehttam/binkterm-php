@@ -121,6 +121,10 @@ SimpleRouter::get('/games', function() {
     $doorManager = new DoorManager();
     $dosDoors = $doorManager->getEnabledDoors();
     foreach ($dosDoors as $doorId => $door) {
+        // Skip admin-only doors for non-admin users
+        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            continue;
+        }
         // Check if door has a custom icon in manifest
         $iconUrl = '/images/dos-door-icon.png'; // Default icon
         if (!empty($door['icon'])) {
@@ -230,6 +234,17 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
         return;
     }
 
+    // Block admin-only doors for non-admins
+    if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title' => 'Access Denied',
+            'error' => 'This door is restricted to administrators.'
+        ]);
+        return;
+    }
+
     // Include the DOS door player
     $doorId = $doorid; // For the player script
     require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
@@ -256,6 +271,17 @@ SimpleRouter::get('/games/{game}', function($game) {
     $door = $doorManager->getDoor($game);
 
     if ($door && !empty($door['config']['enabled'])) {
+        // Block admin-only doors for non-admins
+        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('error.twig', [
+                'error_title' => 'Access Denied',
+                'error' => 'This door is restricted to administrators.'
+            ]);
+            return;
+        }
+
         // This is a DOS door - render with embedded player
         $template = new Template();
         $template->renderResponse('dosdoor_play.twig', [

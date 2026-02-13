@@ -235,9 +235,22 @@ if (empty($doorId)) {
 
             // Handle terminal input
             term.onData((data) => {
+                // Remap DEL (0x7f) to Backspace (0x08) for DOS compatibility
+                if (data === '\x7f') data = '\x08';
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(data);
                 }
+            });
+
+            // Ctrl+key: prevent browser from capturing common combos (Ctrl+W, Ctrl+T, etc.)
+            // and let xterm.js encode them as control characters
+            term.attachCustomKeyEventHandler((e) => {
+                if (e.type !== 'keydown') return true;
+                if (e.ctrlKey && !e.altKey && e.key.length === 1) {
+                    e.preventDefault();
+                    return true; // xterm handles the encoding
+                }
+                return true;
             });
 
             term.onRender(() => {
@@ -448,6 +461,46 @@ if (empty($doorId)) {
                 socket.close();
             }
         });
+
+        // Alt+key handling via capture phase - fires before browser menu/shortcut handling
+        // attachCustomKeyEventHandler is too late on Windows; Alt is consumed first
+        // Uses Doorway Protocol: \x00 + IBM PC scan code (standard for DOS BBS programs)
+        document.addEventListener('keydown', function(e) {
+            if (!e.altKey || e.ctrlKey || !term || !socket || socket.readyState !== WebSocket.OPEN) return;
+
+            // IBM PC scan codes for Alt+letter (Doorway Protocol)
+            const altLetterCodes = {
+                'a': 0x1E, 'b': 0x30, 'c': 0x2E, 'd': 0x20,
+                'e': 0x12, 'f': 0x21, 'g': 0x22, 'h': 0x23,
+                'i': 0x17, 'j': 0x24, 'k': 0x25, 'l': 0x26,
+                'm': 0x32, 'n': 0x31, 'o': 0x18, 'p': 0x19,
+                'q': 0x10, 'r': 0x13, 's': 0x1F, 't': 0x14,
+                'u': 0x16, 'v': 0x2F, 'w': 0x11, 'x': 0x2D,
+                'y': 0x15, 'z': 0x2C
+            };
+            // IBM PC scan codes for Alt+digit (Doorway Protocol)
+            const altDigitCodes = {
+                '1': 0x78, '2': 0x79, '3': 0x7A, '4': 0x7B, '5': 0x7C,
+                '6': 0x7D, '7': 0x7E, '8': 0x7F, '9': 0x80, '0': 0x81
+            };
+
+            let scanCode = null;
+            if (e.code.startsWith('Key')) {
+                const ch = e.code.slice(3).toLowerCase();
+                scanCode = altLetterCodes[ch] ?? null;
+            } else if (e.code.startsWith('Digit')) {
+                const digit = e.code.slice(5);
+                scanCode = altDigitCodes[digit] ?? null;
+            }
+
+            if (scanCode !== null) {
+                e.preventDefault();
+                e.stopPropagation();
+                const seq = '\x00' + String.fromCharCode(scanCode);
+                console.log('[ALT] code=' + e.code + ' scanCode=0x' + scanCode.toString(16) + ' socketState=' + socket.readyState);
+                socket.send(seq);
+            }
+        }, true); // true = capture phase, fires before browser handles it
     </script>
 </body>
 </html>

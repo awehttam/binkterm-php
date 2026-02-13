@@ -154,7 +154,7 @@ binktest/
 │   └── dos/                                # DOS drive (mounted as C:)
 │       └── doors/                          # Door game installations
 │           └── lord/                       # Example: Legend of the Red Dragon
-│               ├── dosdor.json            # Door manifest (required)
+│               ├── dosdoor.jsn            # Door manifest (required)
 │               ├── START.BAT               # Launch script
 │               └── ... (game files)
 ├── scripts/
@@ -494,7 +494,7 @@ private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
 
 ## Adding New Door Games
 
-**Important Note:** BinktermPHP includes sample `dosdor.json` manifests and icons for popular door games (LORD, BRE, etc.) but does **not** include the actual door game files due to licensing restrictions. Sysops must download and install door game executables separately.
+**Important Note:** BinktermPHP includes sample `dosdoor.jsn` manifests and icons for popular door games (LORD, BRE, etc.) but does **not** include the actual door game files due to licensing restrictions. Sysops must download and install door game executables separately.
 
 ### Step 1: Prepare the Door Game
 
@@ -537,7 +537,7 @@ private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
 
 ### Step 3: Create Door Manifest
 
-Create `dosbox-bridge/dos/doors/yourdoor/dosdor.json`:
+Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.jsn`:
 
 ```json
 {
@@ -585,7 +585,7 @@ Create `dosbox-bridge/dos/doors/yourdoor/dosdor.json`:
 ### Step 4: Enable the Door
 
 1. **Scan for new doors:**
-   The system automatically scans `dosbox-bridge/dos/doors/` for `dosdor.json` files
+   The system automatically scans `dosbox-bridge/dos/doors/` for `dosdoor.jsn` files
 
 2. **Enable via admin panel:**
    - Login as admin
@@ -624,7 +624,7 @@ Create `dosbox-bridge/dos/doors/yourdoor/dosdor.json`:
 
 ### Example: Installing LORD
 
-Note: We ship a working dosdor.json for LORD - the information below is for example only.
+Note: We ship a working dosdoor.jsn for LORD - the information below is for example only.
 
 ```bash
 # 1. Create directory
@@ -642,7 +642,7 @@ LORD.EXE DOOR%1.SYS
 EOF
 
 # 4. Create manifest
-cat > dosbox-bridge/dos/doors/lord/dosdor.json << 'EOF'
+cat > dosbox-bridge/dos/doors/lord/dosdoor.jsn << 'EOF'
 {
     "version": "1.0",
     "id": "lord",
@@ -713,7 +713,7 @@ EOF
 
 **game.icon** (string, optional):
 - Filename of the door's icon image (displayed on games page)
-- File must be placed in the door's directory alongside dosdor.json
+- File must be placed in the door's directory alongside dosdoor.jsn
 - Supported formats: GIF, PNG, JPG, JPEG, SVG, BMP, ICO
 - Served securely via `/door-assets/{doorid}/icon` endpoint
 - Only assets declared in manifest can be accessed (security)
@@ -721,7 +721,7 @@ EOF
 
 **game.screenshot** (string, optional):
 - Filename of the door's screenshot image
-- File must be placed in the door's directory alongside dosdor.json
+- File must be placed in the door's directory alongside dosdoor.jsn
 - Supported formats: GIF, PNG, JPG, JPEG, SVG, BMP, ICO
 - Served securely via `/door-assets/{doorid}/screenshot` endpoint
 - Example: `"screenshot": "screenshot.png"`
@@ -790,7 +790,7 @@ The system supports custom icons and screenshots for each door game.
 1. **Place asset files in door directory:**
    ```bash
    dosbox-bridge/dos/doors/lord/
-   ├── dosdor.json
+   ├── dosdoor.jsn
    ├── icon.gif          # Your icon file
    └── screenshot.png    # Your screenshot file
    ```
@@ -852,7 +852,7 @@ Cache-Control: public, max-age=86400
 **Symptoms:** Terminal connects but shows blank screen
 
 **Check:**
-1. Is the door executable correct in `dosdor.json`?
+1. Is the door executable correct in `dosdoor.jsn`?
 2. Does the door exist in `dosbox-bridge/dos/doors/`?
 3. Is the launch command correct?
 

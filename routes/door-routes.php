@@ -106,6 +106,14 @@ SimpleRouter::post('/api/door/launch', function() {
             }
         }
 
+        // Block admin-only doors for non-admins
+        $doorManifestCheck = $doorManager->getDoor($doorName);
+        if ($doorManifestCheck && !empty($doorManifestCheck['admin_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Access denied', 'message' => 'This door is restricted to administrators.']);
+            return;
+        }
+
         // Check credits requirement
         $doorConfigPath = __DIR__ . '/../config/dosdoors.json';
         if (file_exists($doorConfigPath)) {
