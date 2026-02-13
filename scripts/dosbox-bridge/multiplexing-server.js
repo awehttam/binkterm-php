@@ -23,6 +23,84 @@ const { Client } = require('pg');
 const { createEmulatorAdapter } = require('./emulator-adapters');
 require('dotenv').config({ path: __dirname + '/../../.env' });
 
+// Daemon support
+const IS_DAEMON = process.argv.includes('--daemon');
+const PID_FILE = path.resolve(__dirname, '../../data/run/multiplexing-server.pid');
+const LOG_FILE = path.resolve(__dirname, '../../data/logs/multiplexing-server.log');
+
+// Daemonize if --daemon flag is present
+if (IS_DAEMON) {
+    // Ensure directories exist
+    const pidDir = path.dirname(PID_FILE);
+    const logDir = path.dirname(LOG_FILE);
+    if (!fs.existsSync(pidDir)) {
+        fs.mkdirSync(pidDir, { recursive: true });
+    }
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+    }
+
+    // Check if already running
+    if (fs.existsSync(PID_FILE)) {
+        const oldPid = parseInt(fs.readFileSync(PID_FILE, 'utf8'));
+        try {
+            process.kill(oldPid, 0); // Check if process exists
+            console.error(`Error: Multiplexing server already running with PID ${oldPid}`);
+            console.error(`PID file: ${PID_FILE}`);
+            console.error(`To force start, remove the PID file first.`);
+            process.exit(1);
+        } catch (err) {
+            // Process doesn't exist, remove stale PID file
+            console.log(`Removing stale PID file (process ${oldPid} not running)`);
+            fs.unlinkSync(PID_FILE);
+        }
+    }
+
+    // Write PID file
+    fs.writeFileSync(PID_FILE, process.pid.toString());
+    console.log(`Starting in daemon mode (PID: ${process.pid})`);
+    console.log(`PID file: ${PID_FILE}`);
+    console.log(`Log file: ${LOG_FILE}`);
+
+    // Redirect stdout/stderr to log file
+    const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+    process.stdout.write = process.stderr.write = logStream.write.bind(logStream);
+
+    // Detach from terminal
+    process.stdin.end();
+
+    // Cleanup PID file on exit
+    const cleanupPidFile = () => {
+        try {
+            if (fs.existsSync(PID_FILE)) {
+                const currentPid = parseInt(fs.readFileSync(PID_FILE, 'utf8'));
+                if (currentPid === process.pid) {
+                    fs.unlinkSync(PID_FILE);
+                    console.log('Removed PID file on exit');
+                }
+            }
+        } catch (err) {
+            console.error('Error removing PID file:', err);
+        }
+    };
+
+    process.on('exit', cleanupPidFile);
+    process.on('SIGINT', () => {
+        console.log('\nReceived SIGINT, shutting down...');
+        process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+        console.log('\nReceived SIGTERM, shutting down...');
+        process.exit(0);
+    });
+} else {
+    // Interactive mode - cleanup on Ctrl+C
+    process.on('SIGINT', () => {
+        console.log('\nReceived SIGINT, shutting down...');
+        process.exit(0);
+    });
+}
+
 // Configuration from environment
 const WS_PORT = parseInt(process.env.DOSDOOR_WS_PORT) || 6001;
 const WS_BIND_HOST = process.env.DOSDOOR_WS_BIND_HOST || '127.0.0.1';

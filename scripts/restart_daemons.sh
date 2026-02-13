@@ -3,14 +3,17 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PHP_BIN="${PHP_BIN:-php}"
+NODE_BIN="${NODE_BIN:-node}"
 RUN_DIR="${RUN_DIR:-${ROOT_DIR}/data/run}"
 ADMIN_PID="${ADMIN_PID:-${RUN_DIR}/admin_daemon.pid}"
 SCHEDULER_PID="${SCHEDULER_PID:-${RUN_DIR}/binkp_scheduler.pid}"
 SERVER_PID="${SERVER_PID:-${RUN_DIR}/binkp_server.pid}"
 TELNETD_PID="${TELNETD_PID:-${RUN_DIR}/telnetd.pid}"
+MULTIPLEX_PID="${MULTIPLEX_PID:-${RUN_DIR}/multiplexing-server.pid}"
 
 # Track which processes were running before restart
 TELNETD_WAS_RUNNING=false
+MULTIPLEX_WAS_RUNNING=false
 
 stop_process() {
     local pid_file="$1"
@@ -62,6 +65,11 @@ if stop_process "$TELNETD_PID" "telnetd"; then
     TELNETD_WAS_RUNNING=true
 fi
 
+# Check if multiplexing server was running before stopping it
+if stop_process "$MULTIPLEX_PID" "multiplexing-server"; then
+    MULTIPLEX_WAS_RUNNING=true
+fi
+
 start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
 start_process "${PHP_BIN} scripts/binkp_scheduler.php --daemon --pid-file=${SCHEDULER_PID}" "binkp_scheduler"
 start_process "${PHP_BIN} scripts/binkp_server.php --daemon --pid-file=${SERVER_PID}" "binkp_server"
@@ -69,6 +77,11 @@ start_process "${PHP_BIN} scripts/binkp_server.php --daemon --pid-file=${SERVER_
 # Restart telnetd only if it was running
 if [[ "$TELNETD_WAS_RUNNING" == "true" ]]; then
     start_process "${PHP_BIN} telnet/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
+fi
+
+# Restart multiplexing server only if it was running
+if [[ "$MULTIPLEX_WAS_RUNNING" == "true" ]]; then
+    start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"
 fi
 
 echo "Done."
