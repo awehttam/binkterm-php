@@ -25,63 +25,66 @@ require('dotenv').config({ path: __dirname + '/../../.env' });
 
 // Daemon support
 const IS_DAEMON = process.argv.includes('--daemon');
+const IS_DAEMON_CHILD = process.env.DOSBOX_BRIDGE_DAEMON_CHILD === '1';
 const PID_FILE = path.resolve(__dirname, '../../data/run/multiplexing-server.pid');
 const LOG_FILE = path.resolve(__dirname, '../../data/logs/multiplexing-server.log');
 
-// Daemonize if --daemon flag is present
-if (IS_DAEMON) {
+if (IS_DAEMON && !IS_DAEMON_CHILD) {
+    // Parent: spawn a detached child then exit immediately so the shell returns.
+    // The child inherits the log file as stdout/stderr (proper Unix daemon pattern).
+
     // Ensure directories exist
-    const pidDir = path.dirname(PID_FILE);
-    const logDir = path.dirname(LOG_FILE);
-    if (!fs.existsSync(pidDir)) {
-        fs.mkdirSync(pidDir, { recursive: true });
-    }
-    if (!fs.existsSync(logDir)) {
-        fs.mkdirSync(logDir, { recursive: true });
-    }
+    fs.mkdirSync(path.dirname(PID_FILE), { recursive: true });
+    fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 
     // Check if already running
     if (fs.existsSync(PID_FILE)) {
         const oldPid = parseInt(fs.readFileSync(PID_FILE, 'utf8'));
         try {
-            process.kill(oldPid, 0); // Check if process exists
+            process.kill(oldPid, 0);
             console.error(`Error: Multiplexing server already running with PID ${oldPid}`);
             console.error(`PID file: ${PID_FILE}`);
-            console.error(`To force start, remove the PID file first.`);
+            console.error('To force start, remove the PID file first.');
             process.exit(1);
         } catch (err) {
-            // Process doesn't exist, remove stale PID file
+            // Stale PID file - process is gone
             console.log(`Removing stale PID file (process ${oldPid} not running)`);
             fs.unlinkSync(PID_FILE);
         }
     }
 
-    // Write PID file
-    fs.writeFileSync(PID_FILE, process.pid.toString());
-    console.log(`Starting in daemon mode (PID: ${process.pid})`);
+    // Open log file so the child can inherit it as stdout/stderr
+    const logFd = fs.openSync(LOG_FILE, 'a');
+
+    const child = spawn(process.execPath, process.argv.slice(1), {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        env: { ...process.env, DOSBOX_BRIDGE_DAEMON_CHILD: '1' }
+    });
+
+    fs.closeSync(logFd);
+    child.unref(); // Allow parent to exit without waiting for child
+
+    console.log(`Starting in daemon mode (PID: ${child.pid})`);
     console.log(`PID file: ${PID_FILE}`);
     console.log(`Log file: ${LOG_FILE}`);
+    process.exit(0);
 
-    // Redirect stdout/stderr to log file
-    const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
-    process.stdout.write = process.stderr.write = logStream.write.bind(logStream);
+} else if (IS_DAEMON && IS_DAEMON_CHILD) {
+    // Child (daemon): write PID file, set up signal handlers, then continue running.
+    // stdout/stderr are already pointing at the log file via inherited file descriptors.
 
-    // Detach from terminal
-    process.stdin.end();
+    fs.writeFileSync(PID_FILE, process.pid.toString());
 
-    // Cleanup PID file on exit
     const cleanupPidFile = () => {
         try {
             if (fs.existsSync(PID_FILE)) {
                 const currentPid = parseInt(fs.readFileSync(PID_FILE, 'utf8'));
                 if (currentPid === process.pid) {
                     fs.unlinkSync(PID_FILE);
-                    console.log('Removed PID file on exit');
                 }
             }
-        } catch (err) {
-            console.error('Error removing PID file:', err);
-        }
+        } catch (err) { /* best effort */ }
     };
 
     process.on('exit', cleanupPidFile);
@@ -93,10 +96,15 @@ if (IS_DAEMON) {
         console.log('\nReceived SIGTERM, shutting down...');
         process.exit(0);
     });
+
 } else {
-    // Interactive mode - cleanup on Ctrl+C
+    // Interactive mode
     process.on('SIGINT', () => {
         console.log('\nReceived SIGINT, shutting down...');
+        process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+        console.log('\nReceived SIGTERM, shutting down...');
         process.exit(0);
     });
 }
