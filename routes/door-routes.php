@@ -56,10 +56,10 @@ SimpleRouter::post('/api/door/launch', function() {
         // Create session manager in headless (production) mode and start session
         $sessionManager = new DoorSessionManager(null, true);
 
-        // Check if user already has an active session
-        $existingSession = $sessionManager->getUserSession($userId);
+        // Check if user already has an active session for this door
+        $existingSession = $sessionManager->getUserSession($userId, $doorName);
         if ($existingSession) {
-            // User already has an active session - return it
+            // User already has an active session for this door - return it
             // Bridge v3 owns the lifecycle, so if it's in DB, it's active
             error_log("DOSDOOR: [API] Resuming existing session: {$existingSession['session_id']}");
 
@@ -267,12 +267,13 @@ SimpleRouter::get('/api/door/session', function() {
     // Require authentication
     $user = RouteHelper::requireAuth();
     $userId = $user['user_id'] ?? $user['id'];
+    $doorId = $_GET['door'] ?? null;
 
-    error_log("DOSDOOR: [GetSession] User ID: $userId, Username: " . ($user['username'] ?? 'unknown'));
+    error_log("DOSDOOR: [GetSession] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: " . ($doorId ?? 'any'));
 
     try {
         $sessionManager = new DoorSessionManager(null, true);
-        $session = $sessionManager->getUserSession($userId);
+        $session = $sessionManager->getUserSession($userId, $doorId);
 
         if ($session) {
             error_log("DOSDOOR: [GetSession] Found session: {$session['session_id']} for user $userId");

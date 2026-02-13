@@ -297,8 +297,8 @@ if (empty($doorId)) {
         function connectToSession() {
             console.log('[CONNECT] connectToSession called, term exists:', !!term);
 
-            // Get current session
-            fetch('/api/door/session')
+            // Get current session for this specific door
+            fetch('/api/door/session?door=' + encodeURIComponent(doorId))
                 .then(response => response.json())
                 .then(data => {
                     console.log('[CONNECT] Session data received:', data);

@@ -333,20 +333,31 @@ class DoorSessionManager
     }
 
     /**
-     * Get active session for a user
+     * Get active session for a user, optionally filtered by door ID
      *
      * @param int $userId User ID
+     * @param string|null $doorId Optional door ID to filter by
      * @return array|null Session data or null if not found
      */
-    public function getUserSession(int $userId): ?array
+    public function getUserSession(int $userId, ?string $doorId = null): ?array
     {
-        $stmt = $this->db->prepare("
-            SELECT * FROM door_sessions
-            WHERE user_id = ? AND ended_at IS NULL
-            ORDER BY started_at DESC
-            LIMIT 1
-        ");
-        $stmt->execute([$userId]);
+        if ($doorId !== null) {
+            $stmt = $this->db->prepare("
+                SELECT * FROM door_sessions
+                WHERE user_id = ? AND door_id = ? AND ended_at IS NULL
+                ORDER BY started_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$userId, $doorId]);
+        } else {
+            $stmt = $this->db->prepare("
+                SELECT * FROM door_sessions
+                WHERE user_id = ? AND ended_at IS NULL
+                ORDER BY started_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$userId]);
+        }
         $session = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$session) {
