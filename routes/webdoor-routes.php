@@ -121,12 +121,11 @@ SimpleRouter::get('/games', function() {
     $doorManager = new DoorManager();
     $dosDoors = $doorManager->getEnabledDoors();
     foreach ($dosDoors as $doorId => $door) {
-        // Check if door has a custom icon
+        // Check if door has a custom icon in manifest
         $iconUrl = '/images/dos-door-icon.png'; // Default icon
         if (!empty($door['icon'])) {
-            // Build URL to door's icon file
-            // Door directory format: dosbox-bridge/dos/doors/{doorid}/icon.gif
-            $iconUrl = "/door-assets/{$doorId}/" . basename($door['icon']);
+            // Use asset endpoint (manifest declares the actual filename)
+            $iconUrl = "/door-assets/{$doorId}/icon";
         }
 
         $games[] = [

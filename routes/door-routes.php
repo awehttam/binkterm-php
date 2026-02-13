@@ -313,24 +313,52 @@ SimpleRouter::get('/api/door/session', function() {
 });
 
 // Serve door assets (icons, screenshots, etc.)
-SimpleRouter::get('/door-assets/{doorId}/{filename}', function($doorId, $filename) {
-    // Sanitize inputs to prevent directory traversal
-    $doorId = preg_replace('/[^a-zA-Z0-9_-]/', '', $doorId);
-    $filename = basename($filename); // Removes any path components
+// Only serves assets explicitly declared in the door's manifest for security
+SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
+    // Sanitize door ID
+    $doorid = preg_replace('/[^a-zA-Z0-9_-]/', '', $doorid);
 
-    // Build path to door asset
-    $doorPath = __DIR__ . "/../dosbox-bridge/dos/doors/{$doorId}/{$filename}";
-
-    // Check if file exists and is within the allowed directory
-    if (!file_exists($doorPath) || !is_file($doorPath)) {
+    // Only allow specific asset types
+    $allowedAssets = ['icon', 'screenshot'];
+    if (!in_array($asset, $allowedAssets)) {
         http_response_code(404);
-        echo "Asset not found";
+        echo "Invalid asset type";
         return;
     }
 
-    // Verify file is actually in the door directory (prevent traversal)
+    // Load door manifest to get the actual filename
+    $doorManager = new \BinktermPHP\DoorManager();
+    $door = $doorManager->getDoor($doorid);
+
+    if (!$door) {
+        http_response_code(404);
+        echo "Door not found";
+        return;
+    }
+
+    // Get filename from manifest
+    $filename = $door[$asset] ?? null;
+
+    if (!$filename) {
+        http_response_code(404);
+        echo "Asset not defined in manifest";
+        return;
+    }
+
+    // Build path to asset file (only using manifest-declared filename)
+    $filename = basename($filename); // Extra safety
+    $doorPath = __DIR__ . "/../dosbox-bridge/dos/doors/{$doorid}/{$filename}";
+
+    // Verify file exists
+    if (!file_exists($doorPath) || !is_file($doorPath)) {
+        http_response_code(404);
+        echo "Asset file not found";
+        return;
+    }
+
+    // Verify file is in the door directory (prevent traversal)
     $realPath = realpath($doorPath);
-    $allowedBase = realpath(__DIR__ . "/../dosbox-bridge/dos/doors/{$doorId}");
+    $allowedBase = realpath(__DIR__ . "/../dosbox-bridge/dos/doors/{$doorid}");
     if (strpos($realPath, $allowedBase) !== 0) {
         http_response_code(403);
         echo "Access denied";
