@@ -17,7 +17,7 @@
     "type": "dos",
     "executable": "START.BAT",
     "launch_command": "call start.bat {node}",
-    "directory": "dosbox-bridge/dos/doors/lord",
+    "directory": "dosbox-bridge/dos/doors/LORD",
     "dropfile_format": "DOOR.SYS",
     "node_support": true,
     "max_nodes": 10,
