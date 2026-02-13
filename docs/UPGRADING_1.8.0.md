@@ -24,6 +24,14 @@ This upgrade note covers changes introduced in version 1.8.0:
  * Blackjack leaderboard now tracks credits won from hands only (losses do not subtract); score is independent of BBS credits earned elsewhere; leaderboard shows current calendar month
  * Miscellaneous fixes and improvements
 
+# DOS Door Integration
+
+BinktermPHP now supports classic DOS door games playable directly in the browser. The system works by running DOSBox-X (a DOS emulator) on the server for each active session. A Node.js multiplexing bridge connects DOSBox's emulated serial port (COM1) over TCP to a WebSocket, which the browser connects to via an xterm.js terminal. When a user launches a door, a DOOR.SYS drop file is generated with their user information, DOSBox-X starts headlessly and runs the door game, and the browser terminal becomes the user's interface to the game. Sessions are isolated per-door, so multiple users (or tabs) can each have their own concurrent game session.
+
+Door games are installed under `dosbox-bridge/dos/doors/` and described by a `dosdoor.jsn` manifest file (8.3 filename for DOS compatibility). The manifest declares the game name, executable, launch command, node limits, and optional access restrictions such as `admin_only`. The multiplexing bridge runs as a persistent daemon (`node scripts/dosbox-bridge/multiplexing-server.js --daemon`) and must be running for door games to work.
+
+For full setup instructions, configuration options, and how to add new door games, see [docs/DOSDoors.md](DOSDoors.md).
+
 # Conversion to UTC
 
 This release makes normalizes timestamps in the postgres database as "UTC".  Previously the system would use either the Postgres or PHP default time zone when inserting or updating data.  Now, the system will use UTC for dates and times.
