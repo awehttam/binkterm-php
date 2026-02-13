@@ -10,6 +10,7 @@
     "description": "Classic fantasy BBS door game. Slay monsters, rescue the princess, and become the Legend of the Red Dragon!",
     "genre": ["RPG", "Adventure", "Fantasy"],
     "players": "Multi-player",
+    "icon": "icon.gif",
     "screenshot": null
   },
   "door": {

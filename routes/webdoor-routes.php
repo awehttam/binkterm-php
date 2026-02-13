@@ -121,13 +121,21 @@ SimpleRouter::get('/games', function() {
     $doorManager = new DoorManager();
     $dosDoors = $doorManager->getEnabledDoors();
     foreach ($dosDoors as $doorId => $door) {
+        // Check if door has a custom icon
+        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        if (!empty($door['icon'])) {
+            // Build URL to door's icon file
+            // Door directory format: dosbox-bridge/dos/doors/{doorid}/icon.gif
+            $iconUrl = "/door-assets/{$doorId}/" . basename($door['icon']);
+        }
+
         $games[] = [
             'id' => $doorId,
             'name' => $door['name'],
             'description' => $door['description'] ?? '',
             'author' => $door['author'] ?? 'Unknown',
             'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
-            'icon_url' => '/images/dos-door-icon.png', // Default icon for DOS doors
+            'icon_url' => $iconUrl,
             'type' => 'dosdoor',
             'genre' => $door['genre'] ?? [],
             'players' => $door['players'] ?? 'Unknown'

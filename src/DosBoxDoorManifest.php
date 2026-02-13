@@ -146,6 +146,7 @@ class DosBoxDoorManifest
             'description' => $data['game']['description'] ?? '',
             'genre' => $data['game']['genre'] ?? [],
             'players' => $data['game']['players'] ?? 'Single-player',
+            'icon' => $data['game']['icon'] ?? null,
             'screenshot' => $data['game']['screenshot'] ?? null,
 
             // Door technical info

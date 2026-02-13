@@ -311,3 +311,49 @@ SimpleRouter::get('/api/door/session', function() {
         ]);
     }
 });
+
+// Serve door assets (icons, screenshots, etc.)
+SimpleRouter::get('/door-assets/{doorId}/{filename}', function($doorId, $filename) {
+    // Sanitize inputs to prevent directory traversal
+    $doorId = preg_replace('/[^a-zA-Z0-9_-]/', '', $doorId);
+    $filename = basename($filename); // Removes any path components
+
+    // Build path to door asset
+    $doorPath = __DIR__ . "/../dosbox-bridge/dos/doors/{$doorId}/{$filename}";
+
+    // Check if file exists and is within the allowed directory
+    if (!file_exists($doorPath) || !is_file($doorPath)) {
+        http_response_code(404);
+        echo "Asset not found";
+        return;
+    }
+
+    // Verify file is actually in the door directory (prevent traversal)
+    $realPath = realpath($doorPath);
+    $allowedBase = realpath(__DIR__ . "/../dosbox-bridge/dos/doors/{$doorId}");
+    if (strpos($realPath, $allowedBase) !== 0) {
+        http_response_code(403);
+        echo "Access denied";
+        return;
+    }
+
+    // Determine MIME type
+    $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $mimeTypes = [
+        'gif' => 'image/gif',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'svg' => 'image/svg+xml',
+        'bmp' => 'image/bmp',
+        'ico' => 'image/x-icon'
+    ];
+
+    $mimeType = $mimeTypes[$extension] ?? 'application/octet-stream';
+
+    // Serve the file
+    header('Content-Type: ' . $mimeType);
+    header('Content-Length: ' . filesize($doorPath));
+    header('Cache-Control: public, max-age=86400'); // Cache for 24 hours
+    readfile($doorPath);
+});
