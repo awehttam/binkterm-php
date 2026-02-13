@@ -16,7 +16,7 @@
     "type": "dos",
     "executable": "BRE.BAT",
     "launch_command": "bre.bat",
-    "directory": "dosbox-bridge/dos/doors/BRE",
+    "directory": "dosbox-bridge/dos/DOORS/BRE",
     "dropfile_format": "DOOR.SYS",
     "dropfile_path": "\\DOORS\\BRE",
     "node_support": false,

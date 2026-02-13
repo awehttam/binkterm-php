@@ -356,7 +356,8 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     // Build path to asset file (only using manifest-declared filename)
     $filename = basename($filename); // Extra safety
-    $doorPath = __DIR__ . "/../dosbox-bridge/dos/doors/{$doorid}/{$filename}";
+    $dooridUpper = strtoupper($doorid);
+    $doorPath = __DIR__ . "/../dosbox-bridge/dos/DOORS/{$dooridUpper}/{$filename}";
 
     // Verify file exists
     if (!file_exists($doorPath) || !is_file($doorPath)) {
@@ -367,7 +368,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     // Verify file is in the door directory (prevent traversal)
     $realPath = realpath($doorPath);
-    $allowedBase = realpath(__DIR__ . "/../dosbox-bridge/dos/doors/{$doorid}");
+    $allowedBase = realpath(__DIR__ . "/../dosbox-bridge/dos/DOORS/{$dooridUpper}");
     if (strpos($realPath, $allowedBase) !== 0) {
         http_response_code(403);
         echo "Access denied";

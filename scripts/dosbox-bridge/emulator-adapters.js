@@ -221,7 +221,8 @@ class DOSBoxAdapter extends EmulatorAdapter {
         config = config.replace(/port:5000/g, `port:${tcpPort}`);
 
         // Get door manifest to build launch command
-        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'doors', door_id, 'dosdoor.jsn');
+        // DOORS directory is uppercase - Linux filesystem is case-sensitive
+        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'DOORS', door_id.toUpperCase(), 'dosdoor.jsn');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
         // Build door launch command
@@ -230,7 +231,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
         // Use custom dropfile_path if specified, otherwise use node-based default
         const dropDir = manifest.door.dropfile_path
             ? manifest.door.dropfile_path
-            : `\\drops\\node${node_number}`;
+            : `\\DROPS\\NODE${node_number}`;
 
         let launchCmd = manifest.door.launch_command || `call ${manifest.door.executable}`;
         launchCmd = launchCmd.replace('{node}', node_number);
@@ -238,7 +239,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
 
         // Check if door requires FOSSIL driver (default true for backwards compatibility)
         const fossilRequired = manifest.door.fossil_required !== false;
-        const fossilCmd = fossilRequired ? '\\fossil\\bnu.com\n' : '';
+        const fossilCmd = fossilRequired ? '\\FOSSIL\\BNU.COM\n' : '';
 
         // Only copy DOOR.SYS if drop directory is different from door directory
         // (when using custom dropfile_path, they may be the same)
@@ -478,12 +479,13 @@ $_sound = "0"
         const node_number = nodeNumber;
 
         // Get door manifest
-        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'doors', door_id, 'dosdoor.jsn');
+        // DOORS directory is uppercase - Linux filesystem is case-sensitive
+        const manifestPath = path.join(this.basePath, 'dosbox-bridge', 'dos', 'DOORS', door_id.toUpperCase(), 'dosdoor.jsn');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
         // Build door launch command
         const doorDir = manifest.door.directory.replace('dosbox-bridge/dos/', '');
-        const dropDir = `drops/node${node_number}`;
+        const dropDir = `DROPS/NODE${node_number}`;
 
         let launchCmd = manifest.door.launch_command || manifest.door.executable;
         launchCmd = launchCmd.replace('{node}', node_number);

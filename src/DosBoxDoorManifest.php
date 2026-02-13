@@ -32,8 +32,8 @@ class DosBoxDoorManifest
             ? BINKTERMPHP_BASEDIR
             : __DIR__ . '/..');
 
-        // Base path for DOS doors
-        $this->doorsBasePath = $this->basePath . '/dosbox-bridge/dos/doors';
+        // Base path for DOS doors (uppercase - Linux is case-sensitive)
+        $this->doorsBasePath = $this->basePath . '/dosbox-bridge/dos/DOORS';
     }
 
     /**
@@ -152,7 +152,7 @@ class DosBoxDoorManifest
             // Door technical info
             'executable' => $data['door']['executable'],
             'launch_command' => $data['door']['launch_command'] ?? null,
-            'directory' => $data['door']['directory'] ?? "dosbox-bridge/dos/doors/$doorId",
+            'directory' => $data['door']['directory'] ?? "dosbox-bridge/dos/DOORS/" . strtoupper($doorId),
             'dropfile_format' => $data['door']['dropfile_format'] ?? 'DOOR.SYS',
             'node_support' => $data['door']['node_support'] ?? true,
             'max_nodes' => $data['door']['max_nodes'] ?? 10,

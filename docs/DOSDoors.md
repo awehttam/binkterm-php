@@ -153,8 +153,8 @@ binktest/
 │   ├── dosbox-bridge-production.conf       # Headless config (default)
 │   ├── dosbox-bridge-test.conf             # Visible window config (testing)
 │   └── dos/                                # DOS drive (mounted as C:)
-│       └── doors/                          # Door game installations
-│           └── lord/                       # Example: Legend of the Red Dragon
+│       └── DOORS/                          # Door game installations (UPPERCASE - Linux is case-sensitive)
+│           └── LORD/                       # Example: Legend of the Red Dragon
 │               ├── dosdoor.jsn            # Door manifest (required)
 │               ├── START.BAT               # Launch script
 │               └── ... (game files)
@@ -472,7 +472,7 @@ c:
 
 # Door-specific commands will be appended here by the bridge
 # The bridge reads the door manifest and generates:
-# cd \doors\lord
+# cd \DOORS\LORD
 # call start.bat 1
 ```
 
@@ -525,19 +525,19 @@ private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
 
 ### Step 2: Install to BinktermPHP
 
-1. **Create door directory:**
+1. **Create door directory** (use UPPERCASE — Linux is case-sensitive):
    ```bash
-   mkdir dosbox-bridge/dos/doors/yourdoor
+   mkdir dosbox-bridge/dos/DOORS/YOURDOOR
    ```
 
 2. **Copy door files:**
    ```bash
-   cp -r /path/to/door/files/* dosbox-bridge/dos/doors/yourdoor/
+   cp -r /path/to/door/files/* dosbox-bridge/dos/DOORS/YOURDOOR/
    ```
 
 3. **Create launch script** (optional but recommended):
 
-   Create `dosbox-bridge/dos/doors/yourdoor/START.BAT`:
+   Create `dosbox-bridge/dos/DOORS/YOURDOOR/START.BAT`:
    ```batch
    @ECHO OFF
    REM %1 is the node number passed by BinktermPHP
@@ -552,7 +552,7 @@ private const MAX_SESSIONS = 100;    // Maximum concurrent sessions
 
 ### Step 3: Create Door Manifest
 
-Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.jsn`:
+Create `dosbox-bridge/dos/DOORS/YOURDOOR/dosdoor.jsn`:
 
 ```json
 {
@@ -574,7 +574,7 @@ Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.jsn`:
         "type": "dos",
         "executable": "START.BAT",
         "launch_command": "call start.bat {node}",
-        "directory": "dosbox-bridge/dos/doors/yourdoor",
+        "directory": "dosbox-bridge/dos/DOORS/YOURDOOR",
         "dropfile_format": "DOOR.SYS",
         "max_nodes": 10,
         "fossil_required": true
@@ -600,7 +600,7 @@ Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.jsn`:
 ### Step 4: Enable the Door
 
 1. **Scan for new doors:**
-   The system automatically scans `dosbox-bridge/dos/doors/` for `dosdoor.jsn` files
+   The system automatically scans `dosbox-bridge/dos/DOORS/` for `dosdoor.jsn` files
 
 2. **Enable via admin panel:**
    - Login as admin
@@ -642,14 +642,14 @@ Create `dosbox-bridge/dos/doors/yourdoor/dosdoor.jsn`:
 Note: We ship a working dosdoor.jsn for LORD - the information below is for example only.
 
 ```bash
-# 1. Create directory
-mkdir dosbox-bridge/dos/doors/lord
+# 1. Create directory (UPPERCASE - Linux is case-sensitive)
+mkdir dosbox-bridge/dos/DOORS/LORD
 
 # 2. Copy LORD files (from archive or existing installation)
-cp -r /path/to/lord/* dosbox-bridge/dos/doors/lord/
+cp -r /path/to/lord/* dosbox-bridge/dos/DOORS/LORD/
 
 # 3. Create START.BAT
-cat > dosbox-bridge/dos/doors/lord/START.BAT << 'EOF'
+cat > dosbox-bridge/dos/DOORS/LORD/START.BAT << 'EOF'
 @ECHO OFF
 REM Launch Legend of the Red Dragon
 REM %1 = node number from BinktermPHP
@@ -657,7 +657,7 @@ LORD.EXE DOOR%1.SYS
 EOF
 
 # 4. Create manifest
-cat > dosbox-bridge/dos/doors/lord/dosdoor.jsn << 'EOF'
+cat > dosbox-bridge/dos/DOORS/LORD/dosdoor.jsn << 'EOF'
 {
     "version": "1.0",
     "id": "lord",
@@ -700,7 +700,7 @@ The terminal will connect and drop you into a DOS command prompt with the BBS do
 
 From the DOS shell you can:
 
-- Browse and edit files in `C:\doors\` (door game installations)
+- Browse and edit files in `C:\DOORS\` (door game installations)
 - Run door executables directly to test or configure them (e.g., run a door's setup utility)
 - Edit batch files and configuration text files
 - Copy, rename, or delete files within the DOS environment
@@ -742,9 +742,9 @@ If you need longer sessions, you can register Doorway with the original sharewar
         "type": "dos",
         "executable": "FILENAME.EXE",
         "launch_command": "call start.bat {node}",
-        "directory": "dosbox-bridge/dos/doors/doorid",
+        "directory": "dosbox-bridge/dos/DOORS/DOORID",
         "dropfile_format": "DOOR.SYS",
-        "dropfile_path": "\\doors\\doorid",
+        "dropfile_path": "\\DOORS\\DOORID",
         "node_support": true,
         "max_nodes": 10,
         "fossil_required": true,
@@ -781,9 +781,9 @@ If you need longer sessions, you can register Doorway with the original sharewar
 **door.dropfile_path** (string, optional):
 - Custom path where DOOR.SYS should be placed (for non-multi-node doors)
 - Overrides default per-node drop file location
-- Format: `"\\doors\\doorid"` (DOS path format)
+- Format: `"\\DOORS\\DOORID"` (DOS path format, uppercase)
 - Use for doors that expect DOOR.SYS in their own directory
-- Example: BRE expects DOOR.SYS in `\doors\bre\` not `\drops\node1\`
+- Example: BRE expects DOOR.SYS in `\DOORS\BRE\` not `\DROPS\NODE1\`
 
 **fossil_required** (boolean, default: `true`):
 - Controls whether the FOSSIL driver (BNU.COM) is loaded before launching the door
@@ -841,7 +841,7 @@ The system supports custom icons and screenshots for each door game.
 
 1. **Place asset files in door directory:**
    ```bash
-   dosbox-bridge/dos/doors/lord/
+   dosbox-bridge/dos/DOORS/LORD/
    ├── dosdoor.jsn
    ├── icon.gif          # Your icon file
    └── screenshot.png    # Your screenshot file
@@ -905,14 +905,14 @@ Cache-Control: public, max-age=86400
 
 **Check:**
 1. Is the door executable correct in `dosdoor.jsn`?
-2. Does the door exist in `dosbox-bridge/dos/doors/`?
+2. Does the door exist in `dosbox-bridge/dos/DOORS/`?
 3. Is the launch command correct?
 
 **Debug:**
 ```bash
 # Test DOSBox manually
 # Edit dosbox-bridge-test.conf to add:
-cd \doors\yourdoor
+cd \DOORS\YOURDOOR
 call start.bat 1
 
 # Run DOSBox with visible window:
@@ -931,7 +931,7 @@ call start.bat 1
    ```bash
    # Windows - Right click folder → Properties → Security
    # Linux
-   chmod -R 775 dosbox-bridge/dos/doors/yourdoor
+   chmod -R 775 dosbox-bridge/dos/DOORS/YOURDOOR
    ```
 
 2. Is the door configured for multi-node operation?
@@ -941,7 +941,7 @@ call start.bat 1
 3. Are drop files being generated correctly?
    ```bash
    # After launching, check:
-   ls dosbox-bridge/dos/drops/nodeX/door.sys
+   ls dosbox-bridge/dos/DROPS/NODEX/DOOR.SYS
    ```
 
 ### WebSocket Disconnects Immediately
@@ -1241,7 +1241,7 @@ You should see authentication error (expected - test token invalid) but connecti
 ### Security
 
 1. **Validate door files** before installing - only install doors from trusted sources
-2. **Limit door execution** to the `dosbox-bridge/dos/doors/` directory
+2. **Limit door execution** to the `dosbox-bridge/dos/DOORS/` directory
 3. **Review door configs** for potentially dangerous DOS commands
 4. **Monitor logs** for suspicious activity
 5. **Keep DOSBox-X updated** for security patches

@@ -368,25 +368,26 @@ class SessionManager {
             }
 
             // Load door manifest to check for custom dropfile_path
-            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'doors', sessionData.door_id, 'dosdoor.jsn');
+            // DOORS directory is uppercase - Linux filesystem is case-sensitive
+            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', sessionData.door_id.toUpperCase(), 'dosdoor.jsn');
             let dropPath;
 
             if (fs.existsSync(manifestPath)) {
                 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
                 if (manifest.door && manifest.door.dropfile_path) {
-                    // Use custom dropfile path from manifest (e.g., "\doors\bre")
+                    // Use custom dropfile path from manifest (e.g., "\DOORS\BRE")
                     // Convert to actual filesystem path
                     const customPath = manifest.door.dropfile_path.replace(/\\/g, '/');
                     dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', customPath);
                     console.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
                 } else {
                     // Default: node-specific drop directory
-                    dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+                    dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
                     console.log(`[DROPFILE] Using default node-based dropfile path: ${dropPath}`);
                 }
             } else {
                 // Manifest not found, use default
-                dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+                dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
                 console.log(`[DROPFILE] Manifest not found, using default path: ${dropPath}`);
             }
 
@@ -536,12 +537,13 @@ class SessionManager {
         config = config.replace(/port:5000/g, `port:${tcpPort}`);
 
         // Get door manifest to build launch command
-        const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'doors', sessionData.door_id, 'dosdoor.jsn');
+        // DOORS directory is uppercase - Linux filesystem is case-sensitive
+        const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', sessionData.door_id.toUpperCase(), 'dosdoor.jsn');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
         // Build door launch command
         const doorDir = manifest.door.directory.replace('dosbox-bridge/dos', '').replace(/\//g, '\\');
-        const dropDir = `\\drops\\node${sessionData.node_number}`;
+        const dropDir = `\\DROPS\\NODE${sessionData.node_number}`;
 
         let launchCmd = manifest.door.launch_command || `call ${manifest.door.executable}`;
         launchCmd = launchCmd.replace('{node}', sessionData.node_number);
@@ -943,7 +945,7 @@ class SessionManager {
             }
 
             // Remove DOOR.SYS file from drop directory
-            const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'drops', `node${sessionData.node_number}`);
+            const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
             const doorSysPath = path.join(dropPath, 'DOOR.SYS');
             if (fs.existsSync(doorSysPath)) {
                 fs.unlinkSync(doorSysPath);

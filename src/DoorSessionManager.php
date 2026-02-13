@@ -472,7 +472,7 @@ class DoorSessionManager
 
         // Copy drop file to door's directory as DOOR<node>.SYS
         $dropFileSrc = $sessionPath . '/DOOR.SYS';
-        $doorDir = $this->basePath . '/dosbox-bridge/dos/doors/' . strtolower($doorName);
+        $doorDir = $this->basePath . '/dosbox-bridge/dos/DOORS/' . strtoupper($doorName);
 
         if (!is_dir($doorDir)) {
             throw new Exception("Door directory not found: $doorDir");
@@ -493,7 +493,7 @@ class DoorSessionManager
         }
 
         // Extract the DOS path from the directory (remove "dosbox-bridge/dos" prefix)
-        // e.g., "dosbox-bridge/dos/doors/lord" becomes "\doors\lord"
+        // e.g., "dosbox-bridge/dos/DOORS/LORD" becomes "\DOORS\LORD"
         $fullDir = $doorManifest['directory'];
         $dosPath = str_replace('dosbox-bridge/dos', '', $fullDir);
         $dosPath = str_replace('/', '\\', $dosPath); // Convert to DOS path separators
