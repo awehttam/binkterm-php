@@ -63,27 +63,26 @@ The DOS door system uses a **multiplexing bridge** architecture where a single l
 3. **Session Manager** (`src/DoorSessionManager.php`):
    - Allocates nodes (1-100)
    - Generates authentication tokens
-   - Creates drop files (DOOR.SYS)
+   - Stores user data in session record (for drop file generation)
    - Creates session record in database
-   - **Bridge handles everything else** (port allocation, config generation, DOSBox launch)
-
-4. **Drop File Generator** (`src/DoorDropFile.php`): Creates DOOR.SYS files for each session
+   - **Bridge handles everything else** (port allocation, drop file creation, config generation, DOSBox launch)
 
 **Data Flow:**
 1. User clicks door game link
-2. PHP allocates node, generates unique token, creates drop file and session directory
-3. PHP creates database record with session info (token, node, door_id)
+2. PHP allocates node, generates unique token
+3. PHP creates database record with session info (token, node, door_id, user data for drop file)
 4. PHP returns session data with WebSocket URL and token to browser
 5. Browser connects to multiplexing bridge with token: `wss://bbs.com:6001?token=abc123...`
-6. Bridge validates token against database, retrieves session details
+6. Bridge validates token against database, retrieves session details including user data
 7. **Bridge allocates dynamic TCP port** from available pool (no port conflicts!)
-8. **Bridge generates DOSBox config** with allocated port and door-specific settings
-9. **Bridge creates TCP listener** on allocated port
-10. **Bridge launches DOSBox** which connects back to bridge's TCP listener
-11. **Bridge updates database** with allocated port and DOSBox PID
-12. User input flows: Browser → WebSocket → Bridge → TCP → DOSBox → Door Game
-13. Game output flows: Door Game → DOSBox → TCP → Bridge → WebSocket → Browser
-14. When done, DOSBox exits, bridge detects disconnect and cleans up
+8. **Bridge generates drop file (DOOR.SYS)** using user data from session record
+9. **Bridge generates DOSBox config** with allocated port and door-specific settings
+10. **Bridge creates TCP listener** on allocated port
+11. **Bridge launches DOSBox** which connects back to bridge's TCP listener
+12. **Bridge updates database** with allocated port and DOSBox PID
+13. User input flows: Browser → WebSocket → Bridge → TCP → DOSBox → Door Game
+14. Game output flows: Door Game → DOSBox → TCP → Bridge → WebSocket → Browser
+15. When done, DOSBox exits, bridge detects disconnect and cleans up
 
 **Advantages of This Architecture:**
 - **No Port Conflicts**: Dynamic allocation from pool, only binds ports for active sessions
@@ -100,24 +99,28 @@ The DOS door system uses a **multiplexing bridge** architecture where a single l
 
 ### Required Software
 
-1. **DOSBox** (recommended) or DOSBox-X
-   - **Vanilla DOSBox is strongly recommended** due to much lower memory usage:
-     - DOSBox: ~30 MB RAM per instance
-     - DOSBox-X: ~256 MB RAM per instance
-     - With 10 concurrent users: 300 MB vs 2.5 GB!
+1. **DOSBox-X** (recommended) or vanilla DOSBox
+   - **DOSBox-X is strongly recommended** due to better serial port stability and features:
+     - Vanilla DOSBox has known issues with serial port handling
+     - DOSBox-X provides better FOSSIL emulation and multiplexing support
+     - Memory usage: ~60-100 MB RAM per instance in headless mode on x64
+     - With 10 concurrent users: ~1 GB RAM (very reasonable)
 
    **Installation:**
-   - Linux (recommended): `sudo apt install dosbox`
-   - Windows: Download from https://www.dosbox.com/
-   - macOS: `brew install dosbox`
-
-   **DOSBox-X (alternative, higher memory usage):**
    - Windows: Download from https://dosbox-x.com/
    - Linux: `sudo apt install dosbox-x` or compile from source
    - macOS: `brew install dosbox-x`
 
+   **Vanilla DOSBox (alternative, not recommended for production):**
+   - Similar memory usage (~60-100 MB per instance)
+   - Known serial port stability issues
+   - May work for testing but not recommended for production use
+   - Linux: `sudo apt install dosbox`
+   - Windows: Download from https://www.dosbox.com/
+   - macOS: `brew install dosbox`
+
    **Note:** The bridge auto-detects and prefers vanilla DOSBox if both are installed.
-   Set `DOSBOX_EXECUTABLE` in `.env` to force a specific binary.
+   Set `DOSBOX_EXECUTABLE=/usr/bin/dosbox-x` in `.env` to force DOSBox-X.
 
    **DOSEMU Support (Experimental, Not Recommended):**
    - The bridge includes experimental DOSEMU support via `DOOR_EMULATOR=dosemu`
