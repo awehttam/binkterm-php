@@ -28,7 +28,7 @@
                         </a>
                     </div>
                     <div class="col-md-6">
-                        <a href="/echomail" class="text-decoration-none">
+                        <a href="{{ default_echo_list == 'echolist' ? '/echolist' : '/echomail' }}" class="text-decoration-none">
                             <div class="card bg-info text-white">
                                 <div class="card-body">
                                     <h4 id="echomailCount"><i class="fas fa-spinner fa-spin"></i></h4>
