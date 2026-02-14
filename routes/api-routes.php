@@ -1,5 +1,6 @@
 <?php
 
+use BinktermPHP\ActivityTracker;
 use BinktermPHP\AddressBookController;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
@@ -76,6 +77,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if ($sessionId) {
             setcookie('binktermphp_session', $sessionId, time() + 86400 * 30, '/', '', false, true);
+            // Track login event (resolve user_id from session)
+            try {
+                $db = Database::getInstance()->getPdo();
+                $stmt = $db->prepare("SELECT user_id FROM user_sessions WHERE session_id = ?");
+                $stmt->execute([$sessionId]);
+                $row = $stmt->fetch();
+                if ($row) {
+                    ActivityTracker::track((int)$row['user_id'], ActivityTracker::TYPE_LOGIN);
+                }
+            } catch (\Exception $e) {
+                // Tracking errors must not break login
+            }
             echo json_encode(['success' => true]);
         } else {
             http_response_code(401);
@@ -370,10 +383,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
             $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
+            // Check for referral code in session
+            $referralCode = $_SESSION['referral_code'] ?? null;
+            $referrerId = null;
+
+            if ($referralCode) {
+                // Look up referrer by code (only active users can refer)
+                $referrerStmt = $db->prepare("SELECT id FROM users WHERE referral_code = ? AND is_active = TRUE");
+                $referrerStmt->execute([$referralCode]);
+                $referrer = $referrerStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($referrer) {
+                    $referrerId = (int)$referrer['id'];
+
+                    // Prevent self-referral (in case user is logged in)
+                    if (isset($_SESSION['user']['id']) && $_SESSION['user']['id'] == $referrerId) {
+                        $referrerId = null;
+                    }
+                }
+
+                // Clear referral code from session
+                unset($_SESSION['referral_code']);
+            }
+
             // Insert pending user
             $insertStmt = $db->prepare("
-                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_users (username, password_hash, email, real_name, location, reason, ip_address, user_agent, referral_code, referrer_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $insertStmt->execute([
@@ -384,7 +420,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $location ?: null,
                 $reason ?: null,
                 $ipAddress,
-                $userAgent
+                $userAgent,
+                $referralCode,
+                $referrerId
             ]);
 
             $pendingUserId = $db->lastInsertId();
@@ -647,13 +685,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $echomailBadge = $unreadEchomail > $lastEchomailCount ? $unreadEchomail : 0;
         $chatBadge = $chatTotal > $lastChatCount ? $chatTotal : 0;
 
+        // Get user's credit balance
+        $creditBalance = 0;
+        if (\BinktermPHP\UserCredit::isEnabled()) {
+            try {
+                $creditBalance = \BinktermPHP\UserCredit::getBalance($userId);
+            } catch (\Exception $e) {
+                $creditBalance = 0;
+            }
+        }
+
         echo json_encode([
             'unread_netmail' => $netmailBadge,
             'new_echomail' => $echomailBadge,
             'chat_total' => (int)$chatBadge,
             'total_netmail' => $unreadNetmail,
             'total_echomail' => $unreadEchomail,
-            'total_chat' => $chatTotal
+            'total_chat' => $chatTotal,
+            'credit_balance' => $creditBalance
         ]);
     });
 
@@ -1269,23 +1318,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
-            $expiresAt = null;
+            // Use conditional SQL to avoid TIMESTAMPTZ type inference issues
             if ($action === 'kick') {
-                $utcNow = new DateTime('now', new DateTimeZone('UTC'));
-                $utcNow->modify('+10 minutes');
-                $expiresAt = $utcNow->format('Y-m-d H:i:s');
+                // Kick = temporary 10 minute ban
+                $stmt = $db->prepare("
+                    INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                    VALUES (?, ?, ?, ?, NOW() + INTERVAL '10 minutes')
+                    ON CONFLICT (room_id, user_id)
+                    DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                                  reason = EXCLUDED.reason,
+                                  expires_at = EXCLUDED.expires_at,
+                                  created_at = NOW()
+                ");
+                $stmt->execute([
+                    $roomId,
+                    (int)$targetUser['id'],
+                    $user['user_id'] ?? $user['id'],
+                    null
+                ]);
+            } else {
+                // Ban = permanent (NULL expiry)
+                $stmt = $db->prepare("
+                    INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                    VALUES (?, ?, ?, ?, NULL)
+                    ON CONFLICT (room_id, user_id)
+                    DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                                  reason = EXCLUDED.reason,
+                                  expires_at = EXCLUDED.expires_at,
+                                  created_at = NOW()
+                ");
+                $stmt->execute([
+                    $roomId,
+                    (int)$targetUser['id'],
+                    $user['user_id'] ?? $user['id'],
+                    null
+                ]);
             }
-
-            $stmt = $db->prepare("
-                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT (room_id, user_id)
-                DO UPDATE SET banned_by = EXCLUDED.banned_by,
-                              reason = EXCLUDED.reason,
-                              expires_at = EXCLUDED.expires_at,
-                              created_at = NOW()
-            ");
-            $stmt->execute([$roomId, (int)$targetUser['id'], $user['user_id'] ?? $user['id'], null, $expiresAt]);
 
             $actionLabel = $action === 'ban' ? 'banned' : 'kicked';
             echo json_encode([
@@ -1364,6 +1432,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        ActivityTracker::track((int)$userId, ActivityTracker::TYPE_CHAT_SEND, $roomId);
+
         echo json_encode([
             'success' => true,
             'message_id' => (int)$result['id'],
@@ -1416,23 +1486,42 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        $expiresAt = null;
+        // Use conditional SQL to avoid TIMESTAMPTZ type inference issues
         if ($action === 'kick') {
-            $utcNow = new DateTime('now', new DateTimeZone('UTC'));
-            $utcNow->modify('+10 minutes');
-            $expiresAt = $utcNow->format('Y-m-d H:i:s');
+            // Kick = temporary 10 minute ban
+            $stmt = $db->prepare("
+                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                VALUES (?, ?, ?, ?, NOW() + INTERVAL '10 minutes')
+                ON CONFLICT (room_id, user_id)
+                DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                              reason = EXCLUDED.reason,
+                              expires_at = EXCLUDED.expires_at,
+                              created_at = NOW()
+            ");
+            $stmt->execute([
+                $roomId,
+                $targetUserId,
+                $user['user_id'] ?? $user['id'],
+                null
+            ]);
+        } else {
+            // Ban = permanent (NULL expiry)
+            $stmt = $db->prepare("
+                INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
+                VALUES (?, ?, ?, ?, NULL)
+                ON CONFLICT (room_id, user_id)
+                DO UPDATE SET banned_by = EXCLUDED.banned_by,
+                              reason = EXCLUDED.reason,
+                              expires_at = EXCLUDED.expires_at,
+                              created_at = NOW()
+            ");
+            $stmt->execute([
+                $roomId,
+                $targetUserId,
+                $user['user_id'] ?? $user['id'],
+                null
+            ]);
         }
-
-        $stmt = $db->prepare("
-            INSERT INTO chat_room_bans (room_id, user_id, banned_by, reason, expires_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (room_id, user_id)
-            DO UPDATE SET banned_by = EXCLUDED.banned_by,
-                          reason = EXCLUDED.reason,
-                          expires_at = EXCLUDED.expires_at,
-                          created_at = NOW()
-        ");
-        $stmt->execute([$roomId, $targetUserId, $user['user_id'] ?? $user['id'], null, $expiresAt]);
 
         echo json_encode(['success' => true]);
     });
@@ -1920,6 +2009,26 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $files = $manager->getFiles((int)$areaId);
 
+        ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+
+        echo json_encode(['files' => $files]);
+    });
+
+    SimpleRouter::get('/files/recent', function() {
+        RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $limit = min((int)($_GET['limit'] ?? 25), 50);
+        $manager = new \BinktermPHP\FileAreaManager();
+        $files = $manager->getRecentFiles($limit);
+
         echo json_encode(['files' => $files]);
     });
 
@@ -1984,6 +2093,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Properly encode filename for Content-Disposition header (RFC 6266 & RFC 5987)
         $filename = basename($file['filename']);
         $encodedFilename = rawurlencode($filename);
+
+        ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
 
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
@@ -2053,6 +2164,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $uploadedBy,
                 $ownerId
             );
+
+            ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, (int)$fileId, $_FILES['file']['name'] ?? null, ['file_area_id' => $fileAreaId]);
 
             echo json_encode([
                 'success' => true,
@@ -2197,6 +2310,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'netmail', $userId);
 
         if ($message) {
+            ActivityTracker::track($userId, ActivityTracker::TYPE_NETMAIL_READ, (int)$id);
+
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
             if ($replyToData) {
@@ -2247,6 +2362,56 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(404);
             echo json_encode(['error' => 'Message not found or access denied']);
         }
+    })->where(['id' => '[0-9]+']);
+
+    SimpleRouter::get('/messages/netmail/{id}/download', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $handler = new MessageHandler();
+        $message = $handler->getMessage($id, 'netmail', $userId);
+
+        if (!$message) {
+            http_response_code(404);
+            echo 'Message not found';
+            return;
+        }
+
+        $subject = $message['subject'] ?? 'message';
+        $filename = sanitizeFilenameForWindows((string)$subject) . '.txt';
+
+        $fromName = $message['from_name'] ?? 'Unknown';
+        $fromAddress = $message['from_address'] ?? '';
+        $fromLine = $fromAddress ? "$fromName <$fromAddress>" : $fromName;
+
+        $toName = $message['to_name'] ?? 'Unknown';
+        $toAddress = $message['to_address'] ?? '';
+        $toLine = $toAddress ? "$toName <$toAddress>" : $toName;
+
+        $headerLines = [
+            'From: ' . $fromLine,
+            'To: ' . $toLine,
+            'Subject: ' . ($message['subject'] ?? '(No Subject)'),
+            'Date: ' . ($message['date_written'] ?? '')
+        ];
+
+        $headerText = implode("\r\n", $headerLines) . "\r\n\r\n";
+        $bodyText = (string)($message['message_text'] ?? '');
+        $bodyText = str_replace(["\r\n", "\r"], "\n", $bodyText);
+        $bodyText = str_replace("\n", "\r\n", $bodyText);
+        $content = $headerText . $bodyText;
+
+        $charset = 'utf-8';
+        $encodedFilename = rawurlencode($filename);
+
+        header('Content-Type: text/plain; charset=' . $charset);
+        header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
+        header('Content-Length: ' . strlen($content));
+        header('Cache-Control: no-cache, must-revalidate');
+        header('Pragma: public');
+
+        echo $content;
+        exit;
     })->where(['id' => '[0-9]+']);
 
     SimpleRouter::post('/messages/netmail/bulk-delete', function() {
@@ -2626,8 +2791,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $domain = $message['domain'] ?? '';
         $areaLabel = $area !== '' ? $area . ($domain !== '' ? '@' . $domain : '') : '';
 
+        $fromName = $message['from_name'] ?? 'Unknown';
+        $fromAddress = $message['from_address'] ?? '';
+        $fromLine = $fromAddress ? "$fromName <$fromAddress>" : $fromName;
+
         $headerLines = [
-            'From: ' . ($message['from_name'] ?? 'Unknown'),
+            'From: ' . $fromLine,
             'To: ' . ($message['to_name'] ?? 'All'),
             'Subject: ' . ($message['subject'] ?? '(No Subject)'),
             'Date: ' . ($message['date_written'] ?? ''),
@@ -2677,6 +2846,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
         $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false);
+
+        ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
+
         echo json_encode($result);
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
@@ -2811,6 +2983,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if ($result) {
                 $totalAreas = 1 + ($crossPostCount ?? 0);
+                if ($type === 'netmail') {
+                    ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_NETMAIL_SEND, null, $input['to_address'] ?? null);
+                } elseif ($type === 'echomail') {
+                    ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
+                }
                 echo json_encode(['success' => true, 'areas_posted' => $totalAreas]);
             } else {
                 http_response_code(500);
@@ -3528,6 +3705,55 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // Get echolist filter preference
+    // Get echolist filter preferences
+    SimpleRouter::get('/user/echolist-preference', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $db = Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT echolist_subscribed_only, echolist_unread_only
+            FROM user_settings
+            WHERE user_id = ?
+        ");
+        $stmt->execute([$user['user_id']]);
+        $pref = $stmt->fetch();
+
+        echo json_encode([
+            'subscribed_only' => $pref ? (bool)$pref['echolist_subscribed_only'] : false,
+            'unread_only'     => $pref ? (bool)$pref['echolist_unread_only']     : false,
+        ]);
+    });
+
+    // Set echolist filter preferences
+    SimpleRouter::post('/user/echolist-preference', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $subscribedOnly = !empty($input['subscribed_only']);
+        $unreadOnly     = !empty($input['unread_only']);
+
+        $db = Database::getInstance()->getPdo();
+
+        $stmt = $db->prepare("
+            INSERT INTO user_settings (user_id, echolist_subscribed_only, echolist_unread_only)
+            VALUES (?, ?, ?)
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                echolist_subscribed_only = EXCLUDED.echolist_subscribed_only,
+                echolist_unread_only     = EXCLUDED.echolist_unread_only
+        ");
+        $stmt->execute([
+            $user['user_id'],
+            $subscribedOnly ? 'true' : 'false',
+            $unreadOnly     ? 'true' : 'false',
+        ]);
+
+        echo json_encode(['success' => true]);
+    });
+
     SimpleRouter::get('/whosonline', function() {
         $auth = new Auth();
         $user = $auth->requireAuth();
@@ -4075,7 +4301,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $db = Database::getInstance()->getPdo();
-            $stmt = $db->prepare("SELECT * FROM pending_users WHERE id = ?");
+            $stmt = $db->prepare("
+                SELECT p.*, u.username as referrer_username, u.real_name as referrer_real_name
+                FROM pending_users p
+                LEFT JOIN users u ON p.referrer_id = u.id
+                WHERE p.id = ?
+            ");
             $stmt->execute([$id]);
             $pendingUser = $stmt->fetch();
 
@@ -4369,7 +4600,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             // Create user
             $insertStmt = $db->prepare("
                 INSERT INTO users (username, password_hash, real_name, email, is_active, is_admin, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $insertStmt->execute([
@@ -4378,8 +4609,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $realName,
                 $email ?: null,
                 $isActive,
-                $isAdmin,
-                date('Y-m-d H:i:s')
+                $isAdmin
             ]);
 
             $newUserId = $db->lastInsertId();
@@ -4710,5 +4940,133 @@ SimpleRouter::group(['prefix' => '/api/subscriptions'], function() {
     SimpleRouter::post('/admin', function() {
         $controller = new BinktermPHP\SubscriptionController();
         $controller->handleAdminSubscriptions();
+    });
+});
+
+/**
+ * Referral System API Endpoints
+ */
+SimpleRouter::group(['prefix' => '/api/referrals'], function() {
+
+    /**
+     * Get current user's referral statistics
+     * Returns referral code, URL, list of referred users, and total earnings
+     */
+    SimpleRouter::get('/my-stats', function() {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAuth();
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Get user's referral code
+            $stmt = $db->prepare("SELECT referral_code FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user || !$user['referral_code']) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Referral code not found']);
+                return;
+            }
+
+            // Get list of referred users
+            $stmt = $db->prepare("
+                SELECT username, real_name, created_at
+                FROM users
+                WHERE referred_by = ?
+                ORDER BY created_at DESC
+            ");
+            $stmt->execute([$userId]);
+            $referrals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get total credits earned from referrals
+            $stmt = $db->prepare("
+                SELECT COALESCE(SUM(amount), 0) as total_earned
+                FROM user_transactions
+                WHERE user_id = ? AND transaction_type = ?
+            ");
+            $stmt->execute([$userId, UserCredit::TYPE_REFERRAL_BONUS]);
+            $earnings = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Get referral bonus amount for display
+            $creditsConfig = UserCredit::getCreditsConfig();
+            $referralBonus = $creditsConfig['referral_bonus'] ?? 25;
+
+            echo json_encode([
+                'referral_code' => $user['referral_code'],
+                'referral_url' => Config::getSiteUrl() . '/register?ref=' . rawurlencode($user['referral_code']),
+                'referrals' => $referrals,
+                'total_count' => count($referrals),
+                'total_earned' => (int)$earnings['total_earned'],
+                'referral_bonus' => $referralBonus
+            ]);
+
+        } catch (Exception $e) {
+            error_log("Referral stats error: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to retrieve referral statistics']);
+        }
+    });
+
+    /**
+     * Admin endpoint: Get system-wide referral statistics
+     * Requires admin authentication
+     */
+    SimpleRouter::get('/admin/stats', function() {
+        header('Content-Type: application/json');
+
+        $user = RouteHelper::requireAdmin();
+
+        try {
+            $db = Database::getInstance()->getPdo();
+
+            // Total referrals
+            $stmt = $db->query("SELECT COUNT(*) as count FROM users WHERE referred_by IS NOT NULL");
+            $totalReferrals = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+            // Top referrers
+            $stmt = $db->query("
+                SELECT u.username, u.real_name, COUNT(r.id) as referral_count
+                FROM users u
+                INNER JOIN users r ON r.referred_by = u.id
+                GROUP BY u.id, u.username, u.real_name
+                ORDER BY referral_count DESC
+                LIMIT 10
+            ");
+            $topReferrers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Recent referrals
+            $stmt = $db->query("
+                SELECT u.username, u.created_at, r.username as referrer
+                FROM users u
+                INNER JOIN users r ON u.referred_by = r.id
+                ORDER BY u.created_at DESC
+                LIMIT 10
+            ");
+            $recentReferrals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Total credits awarded
+            $stmt = $db->query("
+                SELECT COALESCE(SUM(amount), 0) as total_awarded
+                FROM user_transactions
+                WHERE transaction_type = '" . UserCredit::TYPE_REFERRAL_BONUS . "'
+            ");
+            $totalCreditsAwarded = $stmt->fetch(PDO::FETCH_ASSOC)['total_awarded'];
+
+            echo json_encode([
+                'total_referrals' => (int)$totalReferrals,
+                'top_referrers' => $topReferrers,
+                'recent_referrals' => $recentReferrals,
+                'total_credits_awarded' => (int)$totalCreditsAwarded
+            ]);
+
+        } catch (Exception $e) {
+            error_log("Admin referral stats error: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to retrieve referral statistics']);
+        }
     });
 });

@@ -435,11 +435,25 @@ class TelnetServer
         $state['user_date_format'] = $settings['date_format'] ?? 'Y-m-d H:i:s';
         $state['username'] = $username;
 
+        // Resolve admin status from session record
+        $auth = new \BinktermPHP\Auth();
+        $userRecord = $auth->validateSession($session);
+        $state['is_admin'] = !empty($userRecord['is_admin']);
+
         // Clear failed login attempts for this IP on successful login
         $this->clearFailedLogins($peerIp);
 
         // Log successful login to console
         echo "[" . date('Y-m-d H:i:s') . "] Login: {$username} from {$peerName}\n";
+
+        // Track telnet login in activity log
+        \BinktermPHP\ActivityTracker::track(
+            $userRecord['user_id'] ?? null,
+            \BinktermPHP\ActivityTracker::TYPE_LOGIN,
+            null,
+            'telnet',
+            ['ip' => $peerIp]
+        );
 
         // Set terminal window title to BBS name
         $config = BinkpConfig::getInstance();
@@ -450,6 +464,7 @@ class TelnetServer
         $echomailHandler = new \BinktermPHP\TelnetServer\EchomailHandler($this, $this->apiBase);
         $shoutboxHandler = new \BinktermPHP\TelnetServer\ShoutboxHandler($this, $this->apiBase);
         $pollsHandler = new \BinktermPHP\TelnetServer\PollsHandler($this, $this->apiBase);
+        $doorHandler = new \BinktermPHP\TelnetServer\DoorHandler($this, $this->apiBase);
 
         // Show shoutbox if enabled
         $shoutboxHandler->show($conn, $state, $session, 5);
@@ -508,6 +523,7 @@ class TelnetServer
             // Menu options
             $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
             $showPolls = BbsConfig::isFeatureEnabled('voting_booth');
+            $showDoors = BbsConfig::isFeatureEnabled('webdoors');
 
             $option1 = '| N) Netmail (' . $messageCounts['netmail'] . ' messages)';
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option1, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
@@ -518,6 +534,7 @@ class TelnetServer
             $option = 1;
             $shoutboxOption = null;
             $pollsOption = null;
+            $doorsOption = null;
             $whosOnlineOption = 'w';
 
             $optionLine = "| W) Who's Online";
@@ -532,6 +549,11 @@ class TelnetServer
                 $optionLine = "| P) Polls";
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                 $pollsOption = 'p';
+            }
+            if ($showDoors) {
+                $optionLine = "| D) Door Games";
+                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                $doorsOption = 'd';
             }
             $quitLine = "| Q) Quit";
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
@@ -577,7 +599,7 @@ class TelnetServer
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if ($char === 'n' || $char === 'e' || $char === 'q' || $char === 's' || $char === 'p' || $char === 'w') {
+                    if ($char === 'n' || $char === 'e' || $char === 'q' || $char === 's' || $char === 'p' || $char === 'w' || $char === 'd') {
                         $choice = $char;
                     } elseif (ctype_digit($char)) {
                         $choice = $char;
@@ -602,6 +624,8 @@ class TelnetServer
                 $shoutboxHandler->show($conn, $state, $session, 20);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $pollsHandler->show($conn, $state, $session);
+            } elseif (!empty($doorsOption) && $choice === $doorsOption) {
+                $doorHandler->show($conn, $state, $session);
             } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
                 $this->showWhosOnline($conn, $state, $session);
             } elseif ($choice === $quitOption || strtolower($choice) === 'q') {

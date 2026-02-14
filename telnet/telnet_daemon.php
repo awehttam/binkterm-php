@@ -9,6 +9,7 @@ require_once __DIR__ . '/src/NetmailHandler.php';
 require_once __DIR__ . '/src/EchomailHandler.php';
 require_once __DIR__ . '/src/ShoutboxHandler.php';
 require_once __DIR__ . '/src/PollsHandler.php';
+require_once __DIR__ . '/src/DoorHandler.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\TelnetServer\TelnetServer;

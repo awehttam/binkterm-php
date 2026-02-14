@@ -21,6 +21,7 @@
     <link href="/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
     <link id="theme-stylesheet" href="{{ stylesheet }}" rel="stylesheet">
     <link href="/css/ansisys.css" rel="stylesheet">
+    {% block head %}{% endblock %}
     <style>
         .chat-menu-icon.unread {
             color: #ffc107 !important;
@@ -186,8 +187,15 @@
                                 <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
                                 <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> Polls</a></li>
                                 <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> Shoutbox</a></li>
-                                <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-gamepad"></i> Webdoors </a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> Doors</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/admin/dosdoors"><i class="fas fa-terminal"></i> DOS Doors</a></li>
+                                        <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-globe"></i> Web Doors</a></li>
+                                    </ul>
+                                </li>
                                 <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> Activity Statistics</a></li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a>
                                     <ul class="dropdown-menu">
@@ -224,7 +232,7 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 {% if credits_enabled %}
-                                    <span class="me-2">{{ credits_symbol }}{{ credit_balance }}</span>
+                                    <span class="me-2" id="headerCreditBalance">{{ credits_symbol }}{{ credit_balance }}</span>
                                 {% endif %}
                                 <i class="fas fa-user"></i> {{ current_user.username }}
                             </a>
@@ -337,8 +345,15 @@
     </script>
     <script>
         let swRegistration = null;
+        let updatePending = false;
+        let pageNavigating = false;
 
         if ('serviceWorker' in navigator) {
+            // Track if page is navigating
+            window.addEventListener('beforeunload', () => {
+                pageNavigating = true;
+            });
+
             // Listen for messages from service worker BEFORE registration
             navigator.serviceWorker.addEventListener('message', (event) => {
                 console.log('[Page] Received message from SW:', event.data);
@@ -384,11 +399,34 @@
                         console.log('[Page] Service Worker registration failed:', err);
                     });
             });
+
+            // Show pending notification when page becomes visible
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && updatePending && !pageNavigating) {
+                    console.log('[Page] Page visible, showing pending update notification');
+                    showUpdateNotificationNow();
+                }
+            });
         }
 
         function showUpdateNotification() {
+            // Delay slightly to avoid showing during navigation
+            setTimeout(() => {
+                // Only show if page is visible and not navigating
+                if (document.visibilityState === 'visible' && !pageNavigating) {
+                    showUpdateNotificationNow();
+                } else {
+                    // Queue for later when page becomes visible
+                    console.log('[Page] Page not ready for notification, queuing for later');
+                    updatePending = true;
+                }
+            }, 500); // 500ms delay to avoid navigation conflicts
+        }
+
+        function showUpdateNotificationNow() {
             const toastEl = document.getElementById('updateToast');
             if (toastEl) {
+                updatePending = false;
                 const toast = new bootstrap.Toast(toastEl);
                 toast.show();
             }

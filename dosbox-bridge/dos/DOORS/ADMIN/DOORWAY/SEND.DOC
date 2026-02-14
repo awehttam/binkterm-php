@@ -1,0 +1,32 @@
+                             SEND.EXE
+
+SEND.EXE is a small program which will allow you to send text out the modem
+easily.  Syntax:  SEND FILENAME [/NS]
+
+This will send the file to the screen like a type command, and if the /NS
+is left off will stop every 24 lines and as if they want: MORE, NS, or NO.
+
+You can easily send things out the modem by doing a:
+
+      DOORWAY ...... /P:SEND FILENAME
+
+One nice use is in the MENU; set up a menu file like this:
+
+Welcome to the financial door.  This door will compute the balance,
+payments, balloon payment, number of payments left, principle, interest
+and so forth on any loan, savings or mortgage.  It is full screen
+edited.  The selections may be made by using the cursor keys in doorway
+mode of your com package, or by entering the letters at the beginning
+of each selection.  enter an "=" to compute an entry.  You must have
+ANSI graphics to operate this door.  For complete operation instructions,
+select 1 below.
+
+1:  Read the Doc. file on the financial door.
+2:  Run the door.
+3:  Return to the board
+
+m:Please enter one of the above numbers or "Q" to quit:
+
+/g:on /b:ms /p:\pc-board\SEND.EXE finance.doc
+/g:on /b:xz /p:finance.exe
+

@@ -1,0 +1,29 @@
+DWXFER allows you to send and receive files from a drop to dos easily.
+On the Host end, DWXFER.EXE must be in the path.  To start a transfer,
+enter DWXFER REMOTE on the remote end, while the host is in DOS.  DWXFER
+will then load DWXFER on the HOST side.  Using the cursor keys, insert,
+and delete, fill in the fields for the filename to transfer, and the
+paths (if required) on the host and remote end.  Then select the direction
+with a ALT D.  To start the transfer, enter a ALT S.  DWXFER will not
+overwrite an existing file without asking if it is ok to do so.
+
+To abort a transfer enter ^K's.  To terminate a session enter ESC. If you
+manage to get the ends out of sync, enter ^K's or if you have returned
+to the terminal program and the HOST is still in DWXFER enter ^K's and ESC's.
+
+If you are running com2 then you will need to use DWXFER REMOTE 2 to
+bring up the program.
+
+The simplest way to set this up is to put DWXFER into the directory your
+com program is in.  Then set up an external protocol which simply does a
+DWXFER REMOTE in the batch file.  Then to transfer data in DOS simply
+shell the protocol.
+
+This version has a bug fixed where it would report a "filename not same"
+error.  If this occurs, then it means that the filename on the host and
+remote ends are not the same, possibly line noise ended up on one end or
+the other.  If this happens, delete the filename with the backspace or del
+key, and continue deleting after the filename is gone for several more
+times, to make sure any garbage on the other end is gone.  This should not
+ever happen, as there is error checking between the two.
+

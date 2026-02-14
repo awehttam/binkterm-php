@@ -1,5 +1,6 @@
 <?php
-require_once __DIR__ . '/../../../vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\Auth;
 use BinktermPHP\GameConfig;

@@ -3,6 +3,8 @@
     let mailUnreadTotal = 0;
     let chatUnread = false;
     let mailUnread = { netmail: false, echomail: false };
+    let initialized = false;
+    let pollInterval = null;
 
     function updateMessagingIcon() {
         const messagingIcon = document.getElementById('messagingMenuIcon');
@@ -23,6 +25,25 @@
             menuIcons.forEach((icon) => icon.classList.remove('unread'));
         }
         updateMessagingIcon();
+    }
+
+    function updateCreditBalance(stats) {
+        const creditBalanceElement = document.getElementById('headerCreditBalance');
+        if (creditBalanceElement && stats?.credit_balance !== undefined) {
+            // Validate credit_balance is a finite number
+            const creditValue = Number(stats.credit_balance);
+            if (!Number.isFinite(creditValue)) {
+                return; // Leave existing text unchanged if invalid
+            }
+
+            // Extract the credit symbol from the existing text (everything before the number)
+            const currentText = creditBalanceElement.textContent || '';
+            const symbolMatch = currentText.match(/^([^\d]*)/);
+            const symbol = symbolMatch ? symbolMatch[1] : '';
+
+            // Update with new balance
+            creditBalanceElement.textContent = symbol + Math.floor(creditValue);
+        }
     }
 
     function updateMailIcons(stats, clearTarget = null) {
@@ -59,6 +80,7 @@
         }
 
         updateMessagingIcon();
+        updateCreditBalance(stats);
     }
 
     async function refreshMailState(clearTarget = null) {
@@ -96,6 +118,12 @@
     }
 
     async function init() {
+        // Prevent multiple initializations
+        if (initialized) {
+            return;
+        }
+        initialized = true;
+
         // Get current stats first, then mark as seen with the current count
         const stats = await fetch('/api/dashboard/stats').then(r => r.json()).catch(() => ({}));
 
@@ -117,8 +145,44 @@
         if (!isPathMatch('/netmail') && !isPathMatch('/echomail')) {
             refreshMailState();
         }
-        setInterval(refreshMailState, 30000);
+
+        // Clear any existing interval and create new one
+        if (pollInterval) {
+            clearInterval(pollInterval);
+        }
+        pollInterval = setInterval(refreshMailState, 30000);
     }
+
+    // Listen for postMessage events from WebDoors (credit updates, etc.)
+    window.addEventListener('message', (event) => {
+        // Validate origin - only accept messages from same origin
+        if (event.origin !== window.location.origin) {
+            return;
+        }
+
+        // Handle credit balance updates from WebDoors
+        if (event.data && event.data.type === 'binkterm:updateCredits') {
+            const creditBalanceElement = document.getElementById('headerCreditBalance');
+            if (!creditBalanceElement) {
+                return;
+            }
+
+            // Validate credits value is numeric and non-negative
+            const credits = event.data.credits;
+            if (typeof credits !== 'number' || !isFinite(credits) || credits < 0) {
+                console.warn('Invalid credits value received:', credits);
+                return;
+            }
+
+            // Extract the credit symbol from the existing text
+            const currentText = creditBalanceElement.textContent || '';
+            const symbolMatch = currentText.match(/^([^\d]*)/);
+            const symbol = symbolMatch ? symbolMatch[1] : '';
+
+            // Update with validated balance from WebDoor
+            creditBalanceElement.textContent = symbol + Math.floor(credits);
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', init);
 })();

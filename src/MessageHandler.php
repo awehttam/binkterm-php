@@ -760,8 +760,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -871,8 +871,8 @@ class MessageHandler
 
         // Create local netmail message to sysop
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -956,8 +956,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -969,7 +969,7 @@ class MessageHandler
             $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
             $replyToId,
             $msgId,
-            null, // origin_line (will be added when packet is created) 
+            null, // origin_line (will be added when packet is created)
             $kludgeLines  // Store generated kludges
         ]);
 
@@ -1903,10 +1903,13 @@ class MessageHandler
                 throw new \Exception("Pending user not found or already processed");
             }
             
+            // Generate referral code based on username
+            $referralCode = $this->generateReferralCodeFromUsername($pendingUser['username']);
+
             // Create actual user account
             $userStmt = $this->db->prepare("
-                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active)
-                VALUES (?, ?, ?, ?, ?, NOW(), TRUE)
+                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active, referral_code, referred_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), TRUE, ?, ?)
             ");
 
             $userStmt->execute([
@@ -1914,9 +1917,11 @@ class MessageHandler
                 $pendingUser['password_hash'],
                 $pendingUser['email'],
                 $pendingUser['real_name'],
-                $pendingUser['location'] ?? null
+                $pendingUser['location'] ?? null,
+                $referralCode,
+                $pendingUser['referrer_id'] ?? null
             ]);
-            
+
             $newUserId = $this->db->lastInsertId();
             
             // Create default user settings
@@ -1935,7 +1940,7 @@ class MessageHandler
             $deleteStmt->execute([$pendingUserId]);
 
             $this->db->commit();
-            
+
             // Send welcome netmail to new user
             $this->sendWelcomeMessage($newUserId, $pendingUser['username'], $pendingUser['real_name']);
 
@@ -1954,6 +1959,29 @@ class MessageHandler
             } catch (\Throwable $e) {
                 error_log('[CREDITS] Failed to grant approval bonus: ' . $e->getMessage());
             }
+
+            // Award referral bonus if applicable
+            if ($pendingUser['referrer_id']) {
+                try {
+                    $creditsConfig = UserCredit::getCreditsConfig();
+
+                    if (($creditsConfig['referral_enabled'] ?? false)
+                        && ($creditsConfig['referral_bonus'] ?? 0) > 0) {
+
+                        $referralBonus = (int)$creditsConfig['referral_bonus'];
+
+                        UserCredit::transact(
+                            (int)$pendingUser['referrer_id'],
+                            $referralBonus,
+                            "Referral bonus for new user: " . $pendingUser['username'],
+                            (int)$newUserId,
+                            UserCredit::TYPE_REFERRAL_BONUS
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    error_log('[CREDITS] Failed to grant referral bonus: ' . $e->getMessage());
+                }
+            }
             
             return $newUserId;
             
@@ -1964,19 +1992,32 @@ class MessageHandler
     }
 
     /**
+     * Generate referral code based on username
+     * Since usernames are unique, we can use them directly as referral codes
+     *
+     * @param string $username
+     * @return string
+     */
+    private function generateReferralCodeFromUsername(string $username): string
+    {
+        // Username is already validated as alphanumeric + underscores, which is URL-safe
+        // and guaranteed unique by database constraint
+        return $username;
+    }
+
+    /**
      * Reject a pending user registration
      */
     public function rejectUserRegistration($pendingUserId, $adminUserId, $reason = '')
     {
         $updateStmt = $this->db->prepare("
             UPDATE pending_users 
-            SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, admin_notes = ?
+            SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW(), admin_notes = ?
             WHERE id = ? AND status = 'pending'
         ");
         
         $result = $updateStmt->execute([
             $adminUserId,      // reviewed_by
-            date('Y-m-d H:i:s'), // reviewed_at
             $reason,           // admin_notes
             $pendingUserId     // WHERE id = ?
         ]);
@@ -2227,23 +2268,30 @@ class MessageHandler
         // Generate unique share key
         $shareKey = $this->generateShareKey();
         
-        $expiresAt = null;
+        // Simplify by using conditional SQL instead of CASE with bound parameters
         if ($expiresHours) {
-            $expiresAt = date('Y-m-d H:i:s', time() + ($expiresHours * 3600));
+            $expiresHoursValue = (int)$expiresHours;
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
+                VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?)
+            ");
+            $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
+            $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
+            $stmt->bindValue(5, $expiresHoursValue, \PDO::PARAM_INT);
+            $stmt->bindValue(6, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
+                VALUES (?, ?, ?, ?, NULL, ?)
+            ");
+            $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
+            $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
+            $stmt->bindValue(5, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
         }
-
-        $stmt = $this->db->prepare("
-            INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-
-        // Bind parameters explicitly with proper types
-        $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
-        $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
-        $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
-        $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
-        $stmt->bindValue(5, $expiresAt, \PDO::PARAM_STR);
-        $stmt->bindValue(6, (bool)$isPublic, \PDO::PARAM_BOOL);
         
         //error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
         

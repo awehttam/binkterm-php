@@ -1,6 +1,8 @@
 <?php
 
 // Nodelist routes
+use BinktermPHP\ActivityTracker;
+use BinktermPHP\Auth;
 use Pecee\SimpleRouter\SimpleRouter;
 
 SimpleRouter::get('/nodelist', function() {
@@ -29,11 +31,23 @@ SimpleRouter::group(['prefix' => '/api/nodelist'], function() {
     SimpleRouter::get('/search', function() {
         $controller = new BinktermPHP\Web\NodelistController();
         $controller->api('search');
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+        if ($user) {
+            $userId = $user['user_id'] ?? $user['id'] ?? null;
+            ActivityTracker::track($userId, ActivityTracker::TYPE_NODELIST_VIEW, null, $_GET['q'] ?? null);
+        }
     });
 
     SimpleRouter::get('/node', function() {
         $controller = new BinktermPHP\Web\NodelistController();
         $controller->api('node');
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+        if ($user) {
+            $userId = $user['user_id'] ?? $user['id'] ?? null;
+            ActivityTracker::track($userId, ActivityTracker::TYPE_NODE_VIEW, null, $_GET['address'] ?? null);
+        }
     });
 
     SimpleRouter::get('/zones', function() {

@@ -77,6 +77,18 @@
                     <h6 class="mb-0"><i class="fas fa-filter me-2"></i>Filter Echo Areas</h6>
                 </div>
                 <div class="card-body">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="subscribedOnlyCheck" onchange="toggleSubscribedFilter()">
+                        <label class="form-check-label" for="subscribedOnlyCheck">
+                            Show only subscribed areas
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="unreadOnlyCheck" onchange="toggleUnreadFilter()">
+                        <label class="form-check-label" for="unreadOnlyCheck">
+                            Show only areas with unread messages
+                        </label>
+                    </div>
                     <input type="text" class="form-control" id="areaSearch" placeholder="Type to filter by name or description..." onkeyup="searchEchoAreas(this.value)">
                     <small class="text-muted d-block mt-1">Filters the list below in real-time</small>
                 </div>
@@ -141,9 +153,31 @@
 let allEchoAreas = [];
 let searchQuery = '';
 
+function saveEcholistPreferences() {
+    $.ajax({
+        url: '/api/user/echolist-preference',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            subscribed_only: $('#subscribedOnlyCheck').is(':checked'),
+            unread_only:     $('#unreadOnlyCheck').is(':checked'),
+        })
+    });
+}
+
 $(document).ready(function() {
-    loadEchoAreas();
-    loadStatistics();
+    // Load saved preferences from database
+    $.get('/api/user/echolist-preference')
+        .done(function(data) {
+            if (data.subscribed_only) $('#subscribedOnlyCheck').prop('checked', true);
+            if (data.unread_only)     $('#unreadOnlyCheck').prop('checked', true);
+            loadEchoAreas();
+            loadStatistics();
+        })
+        .fail(function() {
+            loadEchoAreas();
+            loadStatistics();
+        });
 
     // Auto refresh every 2 minutes
     setInterval(function() {
@@ -153,14 +187,28 @@ $(document).ready(function() {
 });
 
 function loadEchoAreas() {
-    $.get('/api/echoareas?subscribed_only=true')
+    const subscribedOnly = $('#subscribedOnlyCheck').is(':checked');
+    const url = '/api/echoareas?subscribed_only=' + subscribedOnly;
+
+    $.get(url)
         .done(function(data) {
             allEchoAreas = data.echoareas || [];
-            displayEchoAreas(allEchoAreas);
+            searchEchoAreas(searchQuery);
         })
         .fail(function() {
             $('#forumsContainer').html('<div class="alert alert-danger">Failed to load echo areas</div>');
         });
+}
+
+function toggleSubscribedFilter() {
+    saveEcholistPreferences();
+    loadEchoAreas();
+    loadStatistics();
+}
+
+function toggleUnreadFilter() {
+    saveEcholistPreferences();
+    searchEchoAreas(searchQuery);
 }
 
 function displayEchoAreas(areas) {
@@ -292,16 +340,21 @@ function navigateToEchoArea(tag, domain) {
 function searchEchoAreas(query) {
     searchQuery = query.toLowerCase().trim();
 
-    if (searchQuery === '') {
-        displayEchoAreas(allEchoAreas);
-        return;
+    let filtered = allEchoAreas;
+
+    // Apply unread filter first
+    if ($('#unreadOnlyCheck').is(':checked')) {
+        filtered = filtered.filter(f => (f.unread_count || 0) > 0);
     }
 
-    const filtered = allEchoAreas.filter(f => {
-        return f.tag.toLowerCase().includes(searchQuery) ||
-               (f.description && f.description.toLowerCase().includes(searchQuery)) ||
-               (f.moderator && f.moderator.toLowerCase().includes(searchQuery));
-    });
+    // Apply search query
+    if (searchQuery !== '') {
+        filtered = filtered.filter(f => {
+            return f.tag.toLowerCase().includes(searchQuery) ||
+                   (f.description && f.description.toLowerCase().includes(searchQuery)) ||
+                   (f.moderator && f.moderator.toLowerCase().includes(searchQuery));
+        });
+    }
 
     displayEchoAreas(filtered);
 }

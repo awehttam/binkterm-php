@@ -376,7 +376,8 @@ class BinkpSession
                 $this->log("Remote address: {$addressData}", 'DEBUG');
 
                 // Handle multiple addresses - remote may send "1:153/149 1:153/149.1 1:153/149.2"
-                $addresses = explode(' ', $addressData);
+                // Trim whitespace first to handle leading/trailing spaces
+                $addresses = array_values(array_filter(explode(' ', trim($addressData)), 'strlen'));
 
                 // Try to find a matching address in our uplinks
                 $matchedAddress = null;
@@ -494,9 +495,9 @@ class BinkpSession
                     $this->remoteCramSupported = true;
                     $this->log("Received CRAM-MD5 challenge from remote", 'DEBUG');
 
-                    // As originator, always use CRAM-MD5 when the remote offers it
-                    // (crypt config only controls whether WE offer CRAM as answerer)
-                    if ($this->isOriginator) {
+                    // As originator, use CRAM-MD5 only if uplink config enables it
+                    // (allows plaintext fallback when crypt is disabled)
+                    if ($this->isOriginator && $this->isCramEnabledForUplink()) {
                         $this->useCramAuth = true;
                         $this->log("Will use CRAM-MD5 authentication", 'DEBUG');
                     }
@@ -986,6 +987,32 @@ class BinkpSession
                 $this->filesReceived[] = $this->currentFile['name'];
                 $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
 
+                // Create metadata file for packets received in insecure sessions
+                if ($this->isInsecureSession && preg_match('/\.pkt$/i', $this->currentFile['name'])) {
+                    $inboundPath = $this->config->getInboundPath();
+                    $metadataFile = $inboundPath . '/' . $this->currentFile['name'] . '.meta';
+                    $metadata = [
+                        'insecure_session' => true,
+                        'remote_address' => $this->remoteAddress ?? 'unknown',
+                        'received_at' => time()
+                    ];
+
+                    $jsonData = json_encode($metadata, JSON_PRETTY_PRINT);
+                    if ($jsonData === false) {
+                        $jsonError = json_last_error_msg();
+                        $this->log("ERROR: Failed to encode metadata for packet '{$this->currentFile['name']}': {$jsonError}", 'ERROR');
+                    } else {
+                        $result = file_put_contents($metadataFile, $jsonData);
+                        if ($result === false) {
+                            $lastError = error_get_last();
+                            $errorMsg = $lastError ? $lastError['message'] : 'unknown error';
+                            $this->log("ERROR: Failed to write metadata file '{$metadataFile}' for packet '{$this->currentFile['name']}': {$errorMsg}", 'ERROR');
+                        } else {
+                            $this->log("Created metadata file for insecure packet: " . $this->currentFile['name'], 'DEBUG');
+                        }
+                    }
+                }
+
                 // Send M_GOT
                 $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
                 $frame = BinkpFrame::createCommand(BinkpFrame::M_GOT, $gotData);
@@ -1057,11 +1084,33 @@ class BinkpSession
             $this->log("CRAM-MD5 validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
 
             if ($match) {
+                // Check if we matched on empty or dash password (insecure session indicators)
+                if ($expectedPassword === '' || $expectedPassword === '-') {
+                    $this->log("CRAM-MD5 matched with empty/dash password - checking insecure policy", 'DEBUG');
+                    return $this->handleInsecureAuth();
+                }
+
                 $this->authMethod = 'cram-md5';
                 $this->sessionType = 'secure';
+                return true;
             }
 
-            return $match;
+            // Check if they're trying to authenticate with "-" (insecure session request)
+            // Compute what the digest would be if password was "-"
+            $dashDigest = $this->computeCramDigest($this->cramChallenge, '-');
+            if (hash_equals($dashDigest, $receivedDigest)) {
+                $this->log("CRAM-MD5 with '-' password detected - checking insecure policy", 'DEBUG');
+                return $this->handleInsecureAuth();
+            }
+
+            // Also check for empty password
+            $emptyDigest = $this->computeCramDigest($this->cramChallenge, '');
+            if (hash_equals($emptyDigest, $receivedDigest)) {
+                $this->log("CRAM-MD5 with empty password detected - checking insecure policy", 'DEBUG');
+                return $this->handleInsecureAuth();
+            }
+
+            return false;
         }
 
         // Plain text password validation

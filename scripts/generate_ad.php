@@ -187,6 +187,101 @@ function buildBorderStyle(int $width, string $accentLevel = 'none'): array
 }
 
 /**
+ * Build a gradient shaded border style (cyan to purple gradient).
+ * Mimics the Wordle-style frame with shading and color gradient.
+ *
+ * @return array{top:string,bottom:string,left:string,right:string}
+ */
+function buildGradientBorderStyle(int $width): array
+{
+    $edgeLen = $width - 2;
+
+    // Gradient colors from bright cyan to purple/magenta
+    // 96 = bright cyan, 94 = bright blue, 95 = bright magenta, 35 = magenta
+    $topColors = ['96', '96', '36', '36', '94'];
+    $bottomColors = ['95', '35', '35', '35', '95'];
+
+    // Build top edge with bright cyan gradient
+    $topEdge = '';
+    for ($i = 0; $i < $edgeLen; $i++) {
+        $colorIdx = (int)(($i / $edgeLen) * (count($topColors) - 1));
+        $color = $topColors[$colorIdx];
+        $topEdge .= "\x1b[" . $color . "m─\x1b[0m";
+    }
+
+    // Build bottom edge with purple/magenta gradient
+    $bottomEdge = '';
+    for ($i = 0; $i < $edgeLen; $i++) {
+        $colorIdx = (int)(($i / $edgeLen) * (count($bottomColors) - 1));
+        $color = $bottomColors[$colorIdx];
+        $bottomEdge .= "\x1b[" . $color . "m─\x1b[0m";
+    }
+
+    // Corners use gradient colors
+    $top = "\x1b[96m┌\x1b[0m" . $topEdge . "\x1b[36m┐\x1b[0m";
+    $bottom = "\x1b[95m└\x1b[0m" . $bottomEdge . "\x1b[35m┘\x1b[0m";
+
+    // Sides will be colored based on position (set in formatAnsiLine)
+    $left = "\x1b[96m│\x1b[0m";
+    $right = "\x1b[36m│\x1b[0m";
+
+    return [
+        'top' => $top,
+        'bottom' => $bottom,
+        'left' => $left,
+        'right' => $right,
+    ];
+}
+
+/**
+ * Build an ice cold gradient border style (dark blue/cyan gradient).
+ * Uses darker, cooler colors for a frozen, icy aesthetic.
+ *
+ * @return array{top:string,bottom:string,left:string,right:string}
+ */
+function buildGradientBorderStyle2(int $width): array
+{
+    $edgeLen = $width - 2;
+    $reset = "\x1b[0m";
+
+    // Ice cold gradient colors - dark blues, cyans, and grays
+    // 36 = dark cyan, 34 = dark blue, 90 = dark gray, 94 = bright blue (for subtle highlights)
+    $topColors = ['36', '36', '94', '34', '34'];
+    $bottomColors = ['34', '34', '90', '90', '36'];
+
+    // Build top edge with dark cyan/blue gradient
+    $topEdge = '';
+    for ($i = 0; $i < $edgeLen; $i++) {
+        $colorIdx = (int)(($i / $edgeLen) * (count($topColors) - 1));
+        $color = $topColors[$colorIdx];
+        $topEdge .= "\x1b[" . $color . "m─\x1b[0m";
+    }
+
+    // Build bottom edge with dark blue/gray gradient
+    $bottomEdge = '';
+    for ($i = 0; $i < $edgeLen; $i++) {
+        $colorIdx = (int)(($i / $edgeLen) * (count($bottomColors) - 1));
+        $color = $bottomColors[$colorIdx];
+        $bottomEdge .= "\x1b[" . $color . "m─\x1b[0m";
+    }
+
+    // Corners use dark ice colors
+    $top = "\x1b[36m┌\x1b[0m" . $topEdge . "\x1b[34m┐\x1b[0m";
+    $bottom = "\x1b[34m└\x1b[0m" . $bottomEdge . "\x1b[90m┘\x1b[0m";
+
+    // Sides use dark cyan and blue
+    $left = "\x1b[36m│\x1b[0m";
+    $right = "\x1b[34m│\x1b[0m";
+
+    return [
+        'top' => $top,
+        'bottom' => $bottom,
+        'left' => $left,
+        'right' => $right,
+    ];
+}
+
+/**
  * Build a star border style for ASCII art variant.
  *
  * @return array{top:string,bottom:string,left:string,right:string}
@@ -634,10 +729,19 @@ function buildAnsiAd(
     string $extraText = '',
     string $borderAccent = 'none',
     string $tagline = '',
-    string $titleFont = 'block'
+    string $titleFont = 'block',
+    string $borderStyle = 'default'
 ): string {
     $width = 72;
-    $GLOBALS['borderStyle'] = buildBorderStyle($width, $borderAccent);
+
+    // Select border style
+    if ($borderStyle === 'gradient') {
+        $GLOBALS['borderStyle'] = buildGradientBorderStyle($width);
+    } elseif ($borderStyle === 'gradient2') {
+        $GLOBALS['borderStyle'] = buildGradientBorderStyle2($width);
+    } else {
+        $GLOBALS['borderStyle'] = buildBorderStyle($width, $borderAccent);
+    }
     $border = $GLOBALS['borderStyle']['top'];
 
     $palettes = [
@@ -650,7 +754,7 @@ function buildAnsiAd(
     $palette = randChoice($palettes);
 
     $domainText = 'Networks: ' . (empty($domains) ? 'None' : implode(', ', $domains));
-    $webdoorsText = 'WebDoors: ' . (empty($webdoors) ? 'None' : implode(', ', $webdoors));
+    $webdoorsText = 'Doors: ' . (empty($webdoors) ? 'None' : implode(', ', $webdoors));
     $siteText = "Website: {$siteUrl}";
 
     $lines = [];
@@ -706,7 +810,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -727,7 +831,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -752,7 +856,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -869,7 +973,7 @@ function buildAnsiAd(
         $lines[] = formatAnsiLine('', "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine("Website: {$siteUrl}", "\x1b[1;36m", $width);
         $lines[] = formatAnsiLine("Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[1;35m", $width);
-        $lines[] = formatAnsiLine("WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[1;35m", $width);
+        $lines[] = formatAnsiLine("Doors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[1;36m", $width);
         if ($extraText !== '') {
             foreach (wrapText($extraText, $width - 2) as $extraLine) {
                 $lines[] = formatAnsiLine($extraLine, "\x1b[0;37m", $width);
@@ -882,7 +986,7 @@ function buildAnsiAd(
         $lines[] = formatAnsiLine("2) Sysop: {$sysopName}", "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine("3) Location: {$location}", "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine("4) Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[0;32m", $width);
-        $lines[] = formatAnsiLine("5) WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine("5) Doors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[0;36m", $width);
         if ($extraText !== '') {
             $lines[] = formatAnsiLine("6) Note: {$extraText}", "\x1b[0;37m", $width);
         }
@@ -894,7 +998,7 @@ function buildAnsiAd(
         $lines[] = formatAnsiLine(centerText("Location: {$location}", $width), "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine(centerText("Website: {$siteUrl}", $width), "\x1b[1;37m", $width);
         $lines[] = formatAnsiLine(centerText("Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), $width), "\x1b[0;32m", $width);
-        $lines[] = formatAnsiLine(centerText("WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), $width), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine(centerText("Doors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), $width), "\x1b[0;36m", $width);
         if ($extraText !== '') {
             $lines[] = formatAnsiLine(centerText($extraText, $width), "\x1b[1;35m", $width);
         }
@@ -921,7 +1025,7 @@ function buildAnsiAd(
         foreach ($domains as $domain) {
             $rightLines[] = $domain;
         }
-        $rightLines[] = "WebDoors:";
+        $rightLines[] = "Doors:";
         foreach ($webdoors as $door) {
             $rightLines[] = $door;
         }
@@ -944,7 +1048,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -983,8 +1087,9 @@ function showUsage(): void
     echo "  --variant=N    Force layout variant (1-12).\n";
     echo "  --extra=TEXT   Extra line centered near the bottom of the ad (or blurb for variant 7).\n";
     echo "  --tagline=TEXT Tagline line (used by variant 7).\n";
-    echo "  --title-font=STYLE  Title font: block, outline, slant, banner.\n";
-    echo "  --border-accent=LEVEL  Border accent level: none, rare, subtle, noticeable.\n";
+    echo "  --title-font=STYLE     Title font: block, outline, slant, banner.\n";
+    echo "  --border-style=STYLE   Border style: default, gradient, gradient2.\n";
+    echo "  --border-accent=LEVEL  Border accent level (default style only): none, rare, subtle, noticeable.\n";
     echo "  --help         Show this help message.\n";
     echo "\n";
     echo "Default behavior:\n";
@@ -1039,9 +1144,18 @@ $webdoorsPath = __DIR__ . '/../config/webdoors.json';
 if (file_exists($webdoorsPath)) {
     $webdoorsJson = json_decode((string)file_get_contents($webdoorsPath), true);
     if (is_array($webdoorsJson)) {
+        // Load manifests to get proper display names
+        $manifests = \BinktermPHP\WebDoorManifest::listManifests();
+        $manifestMap = [];
+        foreach ($manifests as $manifestData) {
+            $manifestMap[$manifestData['id']] = $manifestData['manifest']['game']['name'] ?? $manifestData['id'];
+        }
+
         foreach ($webdoorsJson as $doorId => $doorConfig) {
             if (is_array($doorConfig) && ($doorConfig['enabled'] ?? false) === true) {
-                $webdoors[] = toCamelCase((string)$doorId);
+                // Use display name from manifest if available, otherwise use ID
+                $displayName = $manifestMap[$doorId] ?? toCamelCase((string)$doorId);
+                $webdoors[] = $displayName;
             }
         }
     }
@@ -1075,12 +1189,20 @@ if (isset($args['border-accent'])) {
     }
 }
 
+$borderStyleType = 'default';
+if (isset($args['border-style'])) {
+    $candidate = strtolower(trim((string)$args['border-style']));
+    if (in_array($candidate, ['default', 'gradient', 'gradient2'], true)) {
+        $borderStyleType = $candidate;
+    }
+}
+
 $variant = isset($args['variant']) ? (int)$args['variant'] : 3;
 if ($variant < 1 || $variant > 12) {
     $variant = 3;
 }
 
-$ansi = buildAnsiAd($systemName, $sysopName, $location, $domains, $webdoors, $siteUrl, $variant, $extraText, $borderAccent, $tagline, $titleFont);
+$ansi = buildAnsiAd($systemName, $sysopName, $location, $domains, $webdoors, $siteUrl, $variant, $extraText, $borderAccent, $tagline, $titleFont, $borderStyleType);
 
 if (isset($args['output'])) {
     $outputPath = $args['output'];

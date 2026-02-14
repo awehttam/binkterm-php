@@ -320,6 +320,26 @@ class FileAreaManager
     }
 
     /**
+     * Get most recently uploaded files across all active file areas
+     *
+     * @param int $limit Maximum number of files to return
+     * @return array Array of files ordered by upload date descending
+     */
+    public function getRecentFiles(int $limit = 25): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT f.*, fa.tag as area_tag, fa.domain, fa.is_local
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE f.status = 'approved' AND fa.is_active = TRUE
+            ORDER BY f.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Get files in a file area
      *
      * @param int $areaId File area ID

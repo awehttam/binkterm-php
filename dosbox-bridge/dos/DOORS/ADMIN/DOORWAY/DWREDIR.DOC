@@ -1,0 +1,27 @@
+					DWREDIR
+
+DWREDIR allows you to turn DOORWAY redirection on and off.  For instance,
+lets say you are in dos, and wish to transfer a file called temp.doc from
+your host to your remote using DSZ then place following batch files in your
+dos, in the path (DSZ versions after 12-14-91 do not require this):
+
+file - SZ.BAT:
+
+dwredir off
+dsz dx %1
+dwredir on
+
+file - RZ.BAT:
+
+dwredir off
+dsz rz
+dwredir on
+
+Then you could type sz temp.doc, and the batch file will take care of turning
+DOORWAY on and off for you and tell DSZ to send temp.doc.  If you type rz,
+then that batch file will receive the data for you.  Of course you can use
+DWXFER, which is easier to use, but slower than DSZ.
+
+Note that DSZ 12-14-91 and later autodetect DOORWAY and will disable DOORWAY
+automatically.
+

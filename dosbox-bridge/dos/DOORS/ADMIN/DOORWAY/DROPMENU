@@ -1,0 +1,17 @@
+This is the DOORWAY drop to DOS.  I will need to know if your com program
+on the remote end has 24 lines (with a status line) or 25 lines.  If you
+can turn off the status line, then do so and select #2, otherwise select
+#1.  For full functionality, turn on the DOORWAY mode in your com program
+now.  For most com programs this is done by entering an ALT =.
+
+1.  DROP TO DOS WITH A STATUS LINE ON REMOTE
+
+2.  DROP TO DOS WITHOUT A STATUS LINE ON REMOTE
+
+3.  RETURN TO THE HOST AND DISCONNECT
+
+M:Please enter 1, 2 or 3:
+
+/b:msz
+/b:z
+

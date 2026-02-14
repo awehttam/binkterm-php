@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "type": "dosdoor",
+  "game": {
+    "name": "Game Name",
+    "short_name": "GAMENAME",
+    "author": "Author Name",
+    "version": "1.0",
+    "release_year": 1995,
+    "description": "Description of the game. What is it about? What makes it fun?",
+    "genre": ["Genre1", "Genre2"],
+    "players": "Single-player or Multi-player",
+    "screenshot": null
+  },
+  "door": {
+    "type": "dos",
+    "executable": "START.BAT",
+    "launch_command": "call start.bat {node}",
+    "directory": "dosbox-bridge/dos/doors/gamename",
+    "dropfile_format": "DOOR.SYS",
+    "node_support": true,
+    "max_nodes": 10,
+    "fossil_required": true,
+    "ansi_required": false,
+    "time_per_day": 30,
+    "_comments": {
+      "executable": "Main executable file name (for reference)",
+      "launch_command": "Command to launch the door. Macros: {node} = node number, {dropfile} = DOOR.SYS",
+      "directory": "Full path from project root - automatically converted to DOS path in autoexec"
+    }
+  },
+  "requirements": {
+    "dosbox": "dosbox-x",
+    "fossil_driver": "X00.SYS"
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_time_minutes": 30,
+    "cpu_cycles": 10000
+  }
+}

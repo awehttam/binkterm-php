@@ -1,0 +1,312 @@
+ALARM
+
+This switch enables and disables the HOST speaker.  When OFF a BELL (^G) will
+be sent to the remote, but will not sound on the HOST.  When ON, the Bell
+will sound on both the HOST and REMOTE sytems.
+
+Use the left and right arrows to select options.
+
+BOTTOM LINE
+
+This switch allows you to configure DOORWAY for better compatibility with the
+communication program being used on the REMOTE end.  IT has several options:
+
+    EXCLUDE TOP LINE and EXCLUDE BOTTOM LINE allow the the remote to display
+    only in 24 lines.  This is necessary if the remote has a status line.
+    Since the HOST will have 25 lines, you will need to decide whether to
+    elimiate the top or the bottom line.
+
+    EXCLUDE LOWER RIGHT CHARACTER.  Some com programs do not interpret the
+    ANSI do not wrap line code.  This causes the remote screen to scroll when
+    the bottom line is written, when it should not.  When this happens, updates
+    on the remote will not completely overwrite the previous screen.  When
+    this switch is set the bottom right corner of the remote screen will not
+    update on the remote system.
+
+Use the left and right arrows to select options.
+
+COMMAND.COM
+
+Normally when DOORWAY loads a program COMMAND.COM is not loaded.  This save
+a small amount of memory.  However for a DROP to DOS remote session, or if
+you want to run a batch file from DOORWAY, COMMAND.COM must be loaded.
+
+   DOS means that DOORWAY will load and execute your command intrepretor.
+   A drop to DOS will be performed.
+
+   VIA means that the command intepretor will be sued to load and execute
+   the program file.  This may be a batch file, or the program itself may
+   require a secondary command interpretor to work properly.
+
+Use the left and right arrows to select options.
+
+DISABLE DISK WRITES
+
+If you disable disk writes then the program running under DOORWAY will not
+be able to write to the disk.  This is normally used for security.
+
+Use the left and right arrows to select options.
+
+EXIT MESSAGE
+
+This is the name of a file created with a ASCII or ANSI editor.  The file
+will be opened, and sent to the remote system upon termination of the program
+DOORWAY has loaded.  Pauses can be put into the exit message by starting
+the line where you want the pause with a $:.  Note that the $: MUST be preceded
+by a carriage return/line feed for it to work properly.
+
+FAST
+
+This is used when DOORWAY is running an action game.  It should never be used
+for anything else.  It will not move the cursor until there is a character is
+written.  The purpose is to prevent wasting time moveing the cursor if nothing
+gets written.  Except for action games in BIOS mode this switch should never
+be used.
+
+Use the left and right arrows to select options.
+
+GRAPHICS
+
+This refers to ANSI GRAPHICS.  ANSI will be used if you set this switch on,
+or if you are in direct video mode.  If the remote terminal cannot support
+ANSI or VT100 emulation then this should be set to OFF.  If you leave it blank
+DOORWAY will setting in the DOOR.SYS or PCBOARD.SYS file.
+
+ANSI is required for colors and for cursor addressing.
+
+Use the left and right arrows to select options.
+
+HALT SHELLS TO DOS
+
+This switch will prevent the comspec (COMMAND.COM) from being loaded by
+the application.  It should be used for security if the application program
+has a shell to DOS capability, and you do not want your users to have access
+to DOS.
+
+Use the left and right arrows to select options.
+
+INITIAL WELCOME
+
+This is the name of a file created with a ASCII or ANSI editor.  The file
+will be opened, and sent to the remote system upon execution of DOORWAY.
+
+Pauses can be put into the exit message by starting the line where you want
+the pause with a $:.  Note that the $: MUST be preceded by a carriage
+return/line feed for it to work properly.
+
+A password may be added by starting a line with a P:PASSWORD, where PASSWORD
+is the password you want the user to enter.
+
+A menu can be created by starting a line with a M:.
+
+IE:
+M:Enter your selection:
+
+Refer to the documentation for additional information on using a menu.
+
+SCROLL THRESHOLD
+
+When in direct screen mode, DOORWAY compares the remote screen to the HOST
+screen.  If more than 5 lines can be matched by scrolling the screen, DOORWAY
+will scroll the screen, then fill in the lines which have changed.  If the
+threshold is set low, the remote scroll when there is no apparent reason for
+it to do so.  If it is too high, the remote screen may be repainted entirely
+when a scroll and a couple of lines could have been painted.  This switch
+changes the thresold from 5 lines.  25 will never scroll.
+
+KEYBOARD TIMEOUT
+
+This is the number of seconds DOORWAY will allow with no keyboard input
+from the HOST or REMOTE keyboard.  After this time has elapsed with no input
+DOORWAY will terminate the program and exit.  Default is 255 seconds, and
+0 will disable keyboard timeouts.
+
+INSERT EXTRA LINFEEDS
+
+Some older ANSI.SYS drivers would do a blind scroll.  This is usually best
+fixed by using ANSIPAT.EXE on your ANSI driver, or using PC Magazines ANSI.COM.
+
+If this switch is set ON then DOORWAY will attempt to guess when a blind scroll
+was done when in BIOS mode, and scroll the remote.  If you are getting double
+line feeds at the bottom of the screen on the remote, turn this swithc OFF.
+
+Use the left and right arrows to select options.
+
+MAXIMUM USER TIME
+
+This is the time in minutes the user is allowed in DOORWAY.  If left blank
+defualt is 10 minutes, and if DOORWAY reads a DOOR.SYS or a PCBAORD.SYS file,
+the time will be the amount given in this file, unless overridden by this
+switch.
+
+This switch is only functional on registered versions of DOORWAYU.
+
+NETWORK OVERRIDE
+
+This switch will change calls to read a file into a network compatible mode.
+This may help if a program gets sharing violations when running on more than
+one window or computer.
+
+Use the left and right arrows to select options.
+
+OVERRIDE OPENING SCREEN
+
+This overrides the large DOORWAY opening screen.  It is functional only on
+the registered version of DOORWAY.  The time delays can also be eliminated.
+
+Use the left and right arrows to select options.
+
+PATH TO PROGRAM
+
+This is the path to where the program is.  Remember that you may need to
+put in the drive and the \ for DOS to find the program.  IE. C:\MYPROG.
+
+PROGRAM TO RUN
+
+This is the name of the program file to run.  IT must end in .EXE or .COM
+unless the COMMAND.COM switch is set to VIA.
+
+QUICKBASIC
+
+This allows you to use BIOS mode with programs compiled with QUICKBASIC 4.0.
+Programs compiled with versions 1-3 should use BIOS mode, QUICKBASIC 4.0
+should use this switch and BIOS mode, and versions after 4.0 should use
+DIRECT mode.  Use this switch ONLY for QB 4.0 programs.
+
+Use the left and right arrows to select options.
+
+RETURN or BREAK CODE
+
+This code will cause DOORWAY to abort a program when entered from the host or
+remote keyboard.  For instance, a ^K will break the program and exit DOORWAY
+when a control K is entered at either keyboard.
+
+.SYS FILE LOCATION
+
+This switch defines the location of the DOOR.SYS or PCBOARD.SYS file. 
+Enter the path to the DOOR.SYS or PCBOARD.SYS file.  Enter a * if there
+is no SYS file to be read.  If left blank will look in the current directory
+for the .SYS file.
+
+CHARACTERS TO TRAP
+
+This is a sequence of characters to trap.  Normal and control characters can
+be trapped.  Extended keys cannot be individually trapped.  Entering a ^@ will
+trap all extended keys.  If specific extended keys, such as function, alt,
+and cursor keys need to be trapped, then use the xtable function to translate
+them to something harmless.
+
+     USE MULTITASKER VIRTUAL SCREEN
+
+This switch when ON will use a multitasker's virtual screen address instead
+of the standard screen addresses.  Use this switch if you have VIRTUALIZE VIDEO
+turned OFF in Desqview.  If VIRTUALIZE VIDEO in Desqview is ON do NOT use this
+switch or the remote screen will be scrambled.
+
+Use the left and right arrows to select options.
+
+VIDEO CAPTURE
+
+This should be set to DIRECT if the remote does not receive the HOST's screen.
+If you wish to switch between the modes with the capturing switch, you will
+need to set to either BIOS or DIRECT.
+
+Use the left and right arrows to select options.
+
+VIDEO CAPTURE SWITCH
+
+This character will switch the HOST between DIRECT and BIOS modes.  When
+switching from BIOS to DIRECT mode the remote screen will be redrawn.
+
+If left blank, no switch will be defined.
+
+WAIT
+
+This switch will cause DOORWAY to wait after the program terminates, until
+the user enters a key.
+
+Use the left and right arrows to select options.
+
+TRANSLATION TABLE
+
+This is the path and name of the translation table.  The translation table
+can be created by running XTABLE.  It is used to translate user keystrokes
+to something different for the HOST program.
+
+PRINTER REDIRECTION
+
+Data sent to the printer on the HOST may be sent to the printer, dumped to
+NUL, or sent to the remote.  If the remote does not support printer redirection
+then DOORWAY will dump the characters when remote is selected.
+
+Use the left and right arrows to select options.
+
+RETURN MESAGE
+
+This is the name of a file which replaces the RETURNING TO BOARD message.
+
+
+REBOOT INSTEAD OF EXTERNAL ABORT
+
+If this switch is set, DOORWAY will reboot the computer on a carrier loss
+or user timeout instead of externally aborting the program.  When under
+Desqview the INTERRUPT 19 switch should be set as well, or lockups could
+result.
+
+Use the left and right arrows to select options.
+
+INTERRUPT 19 FOR REBOOTING
+
+Normally DOORWAY does not reboot on carrier loss or timeouts.  However
+if DOORWAY is unable to break the program externally, or if the reboot
+switch is set then DOORWAY will reboot the computer.  If this switch is
+set then DOORWAY will do an interrupt 19 for rebooting.  This is normally
+done when running under Desqview, and in that case an int 19 will simply
+close the Desqview window.
+
+Do not use this switch if you are operating from ordinary dos.  Dos tends
+to lock up on an interrupt 19.
+
+Use the left and right arrows to select options.
+
+OVERRIDE 40 COLUMN MODE
+
+This switch will prevent a program from going into 40 column mode.  The
+reason for this is that 40 column mode under desqview can create problems.
+
+Use the left and right arrows to select options.
+
+CHANGE DIRECTORY TO APPLICATION
+
+If this switch is set then DOORWAY will change into the application directory
+prior to running the program.  This is necessary for many programs to find
+their supporting files, such as the configuration file.
+
+If you are running a batch file from DOORWAY, then it is usually better to
+change any directories within the batch file itself with the CD \SUBDIR
+batch command.
+
+Use the left and rigth arrows to select options.
+
+NO CARRIER LOSS DELAY
+
+Normally DOORWAY will wait for carrier loss to be detected for 6 seconds.
+This prevents aborting the program from call waiting, or if the connection
+drops for a couple of seconds.  If this switch is set true it will abort
+immediately upon detection of a loss of the CD signal.  This is used with
+Galatacom on a null modem connection, where the CD is dropped for only about
+1 second to signal DOORWAY to abort the application.
+
+Use the left and right arrows to select options.
+
+OPTIONAL TERMINATION CODES
+
+DOORWAY will normally attempt to externally abort a program on carrier loss,
+and user timeouts.  However, some programs need to flush files, and do some
+maintnance prior to being aborted.  If this field is not empty, DOORWAY
+will put requested characters in the buffer prior to attempting to externally
+abort the program.  Up to 16 entries may be made.  IE.  If escapes back the
+program to the previous screen (from up to 4 levels depth), and a Q [return]
+Y [return] then exits the program, enter ^[^[^[^[Q^MY^M to make DOORWAY exit
+the program. (The ^[ is the escape character and the ^M is the return key).
+

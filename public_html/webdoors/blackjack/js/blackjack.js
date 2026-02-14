@@ -24,7 +24,7 @@ let state = {
   handsPlayed: 0,
   handsWon: 0,
   handsLost: 0,
-  bestBankroll: 0,
+  sessionWinnings: 0,
   roundId: 0,
   lastOutcome: null
 };
@@ -95,7 +95,7 @@ async function autosaveAndMaybeScore(outcome) {
   const metadata = {
     save_name: "Auto-save",
     handsPlayed: state.handsPlayed,
-    bestBankroll: state.bestBankroll
+    sessionWinnings: state.sessionWinnings
   };
 
   try {
@@ -103,12 +103,12 @@ async function autosaveAndMaybeScore(outcome) {
       handsPlayed: state.handsPlayed,
       handsWon: state.handsWon,
       handsLost: state.handsLost,
-      bestBankroll: state.bestBankroll
+      sessionWinnings: state.sessionWinnings
     }, metadata);
   } catch (e) {}
 
   try {
-    await WebDoor.submitScore(BOARD_ID, state.bestBankroll, {
+    await WebDoor.submitScore(BOARD_ID, state.sessionWinnings, {
       outcome,
       bankroll: state.bankroll,
       handsPlayed: state.handsPlayed
@@ -134,6 +134,8 @@ async function apiAction(action, payload = {}) {
 
 function applyServerState(data) {
   if (!data || !data.state) return;
+
+  const oldBankroll = state.bankroll;
   state = { ...state, ...data.state };
   if (Number.isFinite(data.balance)) state.bankroll = data.balance;
   if (data.symbol) state.symbol = data.symbol;
@@ -154,12 +156,19 @@ function applyServerState(data) {
     lastRoundProcessed = state.roundId;
     autosaveAndMaybeScore(state.lastOutcome);
     refreshLeaderboardBestEffort();
+
+    // Update parent window credit display if balance changed
+    if (oldBankroll !== state.bankroll && Number.isFinite(state.bankroll)) {
+      if (typeof WebDoorCredits !== 'undefined') {
+        WebDoorCredits.updateDisplay(state.bankroll);
+      }
+    }
   }
 }
 
 async function refreshLeaderboardBestEffort() {
   try {
-    const lb = await WebDoor.getLeaderboard(BOARD_ID, 10, "all");
+    const lb = await WebDoor.getLeaderboard(BOARD_ID, 10, "month");
     if (!lb || !Array.isArray(lb.entries)) return;
 
     const ul = document.getElementById("leaderboard");
@@ -203,7 +212,7 @@ document.getElementById("save").onclick = async () => {
       handsPlayed: state.handsPlayed,
       handsWon: state.handsWon,
       handsLost: state.handsLost,
-      bestBankroll: state.bestBankroll
+      sessionWinnings: state.sessionWinnings
     }, { save_name: "Manual save" });
     setStatus("Saved.");
   } catch (e) {

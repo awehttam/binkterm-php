@@ -16,6 +16,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - camelCase for variables and functions
  - PascalCase for components and classes
  - 4 space indents
+ - **Environment Variables**: Always use `Config::env('VAR_NAME', 'default')` to read from .env file. Do NOT use `getenv()` or `$_ENV` directly.
 
 ## Project Structure
 
@@ -40,9 +41,86 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - Leave the vendor directory alone. It's managed by composer only
  - **Composer Dependencies**: When adding a new required package to composer.json, the UPGRADING_x.x.x.md document for that version MUST include instructions to run `composer install` before `php scripts/setup.php`. Without this, the upgrade will fail because `vendor/autoload.php` is loaded before setup.php runs.
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
- - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks. 
- - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php). PHP migrations are executed by scripts/upgrade.php and receive a $db PDO connection.
+ - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks.
+ - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php).
  - setup.php must be called when upgrading - this is to ensure certain things like file permissions are correct.
+
+### PHP Migration Patterns
+
+PHP migrations support two patterns, both are valid and the upgrade script handles both automatically:
+
+**Pattern 1: Direct Execution** (for simple migrations)
+- Migration executes immediately when included
+- Uses `$db` PDO variable available in scope
+- Returns `true` on success or throws exception on failure
+- Example use case: Creating tables, simple data operations
+
+```php
+<?php
+/**
+ * Migration: 1.9.3 - Create example table
+ */
+
+// $db is available in scope when this file is included
+$db->exec("
+    CREATE TABLE IF NOT EXISTS example_table (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL
+    )
+");
+
+$db->exec("CREATE INDEX IF NOT EXISTS idx_example_name ON example_table(name)");
+
+return true;
+```
+
+**Pattern 2: Callable Function** (for complex migrations with logic)
+- Migration returns a closure/function
+- Function receives `$db` as parameter
+- Better for migrations with loops, conditionals, or complex logic
+- Example use case: Data transformations, backfilling, complex updates
+
+```php
+<?php
+/**
+ * Migration: 1.9.3.3 - Generate referral codes for existing users
+ */
+
+function generateReferralCode(): string {
+    $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    $code = '';
+    for ($i = 0; $i < 8; $i++) {
+        $code .= $characters[random_int(0, strlen($characters) - 1)];
+    }
+    return $code;
+}
+
+// Return a callable that receives $db as parameter
+return function($db) {
+    $stmt = $db->query("SELECT id FROM users WHERE referral_code IS NULL");
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $updateStmt = $db->prepare("UPDATE users SET referral_code = ? WHERE id = ?");
+
+    foreach ($users as $user) {
+        $code = generateReferralCode();
+        $updateStmt->execute([$code, $user['id']]);
+    }
+
+    echo "Generated referral codes for " . count($users) . " users\n";
+    return true;
+};
+```
+
+**How the upgrade script handles both patterns:**
+1. Includes the migration file with `$db` in scope
+2. If the result is callable, calls it with `$db` as parameter
+3. If the result is not callable, uses it directly (Pattern 1 already executed)
+4. Validates that result is not `false` (anything else passes)
+
+**When to use each pattern:**
+- Use **Pattern 1** (direct execution) for simple SQL operations
+- Use **Pattern 2** (callable) for migrations needing helper functions, loops, or complex logic
  - See FAQ.md for common questions and troubleshooting
  - To get a database connection use $db = Database::getInstance()->getPdo()
  - Don't edit postgres_schema.sql unless specifically instructed to.  Database changes are typically migration based.
@@ -163,6 +241,71 @@ The system uses this priority order for credit values:
 - Test both new installations (using defaults) and existing installations (manual config) when adding new credit types
 - When updating a template to add information about user credits use the credits_enabled variable in the twig template to determine whether to show the information
 
+### Credit Transaction Security
+**CRITICAL SECURITY REQUIREMENT**: Credit balance modifications must ONLY occur server-side in PHP. Client-side JavaScript can never initiate, request, or perform credit transactions.
+
+**Core Principle:**
+JavaScript requests **business actions** (play game, buy item, send message). The server decides if those actions involve credits and handles all credit operations internally. JavaScript never explicitly requests credit modifications.
+
+**What JavaScript CAN do:**
+- Request business actions: `POST /api/webdoor/netrealm/buy-turns`
+- Update credit display with balance returned by server
+- Communicate display updates to parent window via `postMessage`
+
+**What JavaScript CANNOT do:**
+- Request credit operations (no endpoints like `/api/credits/deduct` or `/api/credits/add`)
+- Tell server to modify credit balances in any way
+- Perform any credit calculations or transactions
+
+**Secure Server-Side Pattern:**
+```php
+// WebDoor API endpoint - /api/webdoor/netrealm/buy-turns
+// JavaScript requests a business action, server handles credits internally
+$userCredit = new UserCredit($userId);
+if ($userCredit->deductCredits($cost, 'netrealm_extra_turns')) {
+    // Perform the business action
+    $game->addTurns(5);
+    // Return new balance for display only
+    return ['success' => true, 'balance' => $userCredit->getBalance()];
+}
+```
+
+**WebDoors and Credits:**
+- WebDoors run in iframes and communicate via `postMessage` API
+- WebDoor JavaScript calls business action endpoints (not credit endpoints)
+- Server validates, performs credit transaction if needed, returns new balance
+- WebDoor updates its display and notifies parent to update header display
+- Parent window only updates display with server-provided values
+
+**Example - Correct Flow:**
+```javascript
+// WebDoor requests business action (buying turns)
+fetch('/api/webdoor/netrealm/buy-turns', {
+    method: 'POST',
+    body: JSON.stringify({turns: 5})
+})
+.then(response => response.json())
+.then(data => {
+    if (data.success) {
+        // Server decided cost, performed transaction, returned new balance
+        // Update parent window display with server's balance
+        window.parent.postMessage({
+            type: 'binkterm:updateCredits',
+            credits: data.balance  // From server, not calculated by JS
+        }, window.location.origin);
+    }
+});
+```
+
+**Never expose credit-specific endpoints to JavaScript:**
+```text
+❌ POST /api/credits/deduct
+❌ POST /api/credits/add
+❌ POST /api/credits/set
+✅ POST /api/webdoor/game/buy-item (server handles credits internally)
+✅ POST /api/games/play-turn (server handles credits internally)
+```
+
 ## Recent Features Added
 
 ### WebDoors System
@@ -183,12 +326,29 @@ A draft status specification with ideas we can draw upon is in `docs/proposals/W
 - `GameConfig` - Manages per-door configuration from config/webdoors.json
 - `WebDoorController` - Handles game session management and API endpoints
 
+**WebDoor SDK (`public_html/webdoors/_doorsdk/`):**
+- The `_doorsdk` directory contains common reusable functions (SDK) for WebDoors to use
+- **JavaScript SDK**: Shared client-side utilities for API calls, postMessage communication, credit display, etc.
+- **PHP SDK**: Server-side helper functions and bootstrap code that WebDoors should include
+  - **Bootstrap**: The PHP SDK (`php/helpers.php`) automatically handles BinktermPHP initialization:
+    - Defines `BINKTERMPHP_BASEDIR` constant
+    - Loads `vendor/autoload.php`
+    - Initializes database connection
+    - Starts PHP session
+  - **Usage**: WebDoors should include the SDK as the first require: `require_once __DIR__ . '/../_doorsdk/php/helpers.php';`
+  - **Important**: WebDoors should NOT directly require `vendor/autoload.php` - use the SDK instead
+- WebDoors should use SDK functions instead of duplicating common logic
+- The SDK provides standardized interfaces for BBS integration (credits, user info, messaging, etc.)
+- When adding new common functionality that multiple WebDoors might use, consider adding it to the SDK
+- The underscore prefix (`_doorsdk`) indicates this is a system directory, not a game
+
 **Important Notes:**
 - When adding WebDoor API functionality or making changes to the WebDoor system (not individual webdoors themselves), update `docs/WebDoors.md` to reflect new features
 - WebDoor specification is evolving - keep documentation synchronized with implementation
 - All WebDoor games must include a valid `webdoor.json` manifest
 - Configuration from manifest `config` section is merged into `config/webdoors.json` on activation
 - Games access BBS functionality through REST API endpoints at `/api/webdoor/*`
+- **WebDoor API Independence**: Each WebDoor must implement its own API routes and backend logic. Do NOT modify `routes/api-routes.php`, `routes/web-routes.php`, or other core BBS APIs to add WebDoor functionality unless explicitly instructed. WebDoor APIs should be self-contained within the WebDoor's own route files (e.g., `routes/webdoor-netrealm-routes.php`) or handled by `WebDoorController`. This keeps WebDoors modular and prevents pollution of core application routes.
 
 ### Multi-Network Support
 - **Multiple Networks**: The system supports multiple FTN networks through individual uplinks with domain-based routing

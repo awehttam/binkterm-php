@@ -1,0 +1,67 @@
+                           XTABLE.EXE INSTRUCTIONS
+
+DOORWAY now has a new capability.  It can redefine keyboard entries made at
+the remote end, including hotkeys.  Thus if you have a program which requires
+a F10 to be pressed to exit, you can now redefine some other key, such as "Q"
+or ^Q, to be an F10.  There are no restrictions on redefinitions (except you
+cannot redefine the RETURN key).  Once the F10 is redefined as a "Q" then the
+user can enter a "Q" to exit the program, and the program will receive an
+F10.
+
+To use the table generator enter XTABLE at the dos prompt.  If you already have
+a table, it will print the translations already in the table.  It will then ask
+if you want to modify the present table or erase it and start a new one.  The
+last definition entered for a key will be the one kept, so if you make a
+mistake simply enter it again.  On each line enter the character you want
+translated followed by the character you want it translated to.  In the above
+example you would enter "Q" followed by "F10".
+
+Xtable will then ask you if you want to implement any not keys.  A hot key
+is where a memory resident program will "pop up" when a certain combination
+of keys are pressed.  Programs such as SETUP (for the printer) and Sidekick
+are hot key initiated.  Hot keys differ from normal translations by several
+things.  First, some hot keys do not use any character keys at all, but look
+for a combination of the control, alt, and shift keys.  Others which look for
+things like an ALT 1, require a hardware keyboard interrupt.  If you implement
+a HOT KEY, the it can fake these things.  Note that virtually all hot key
+programs do direct screen writes.  If they are not turned on, then the
+window will not pop up.
+
+When entering hot keys, enter the character to translat from.  Then RELEASE
+all keys, and enter the combo you want translated to.  It will be captured
+when you release the keys for non-character combos.
+
+The number in paranthesis shows the HEX value passed.  For normal characters
+the lower two bytes are the ASCII, and the first 2 bytes are the scan code.
+For extended codes, the last two bytes are 0 and the first two are again the
+scan code.  The table starts out with a default, such that a character from
+the remote will generate the "most likely" scan code.  For instance the "+"
+will generate the scan code for the SHIFT "=" plus sign.  If you want the
+program to see what appears to be the GREY KEY "+" then simply enter a plus
+sign followed by the GREY KEY "+".  Using the default DOORWAY.XLT is the same
+as using no translation table at all (DOORWAY will still put the "expected"
+scan codes in).
+
+To use the translation table simply put a /X: on the doorway command line
+(before the /P: if there is one).  DOORWAY will then load DOORWAY.XLT from
+the current directory.  If you want it to load a different table or from a
+different directory then follow the /X: with the path\filename of the table.
+You can rename the DOORWAY.XLT file, but it will have to be named DOORWAY.XLT
+if you want to make modifications to it.
+
+INTERNALS
+
+The table consists of two tables of 256 words each.  Each word contains the
+character code and scan code for each possible ASCII character.  The first
+table is the lookup table for standard ASCII characters, and the second is for
+extended codes.  For instance, if a ^C (ASCII 3) comes in the modem, the entry
+at location 6 will be used to determine the translation.  Location 6 will be
+passed to the program in the AL register (as the character) and location 7 will
+be passed to the program as the scan code.  If an extended key was entered with
+a scan code of 3 then the second table would be used, starting with offset 512
+of the file.
+
+If it is a HOY key, then the scan code byte will have a $F#, where the #
+defines which keys are depressed.  The caracter byte will contain either the
+character, if one was entered, or the scan code if it was not.
+

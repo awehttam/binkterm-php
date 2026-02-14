@@ -455,45 +455,54 @@ class BinkpConfig
         return false;
     }
 
-    public function getOriginAddressByDestination(string $destAddr)
-    {
-        $ret=[];
-        foreach($this->getUplinks() as $uplink){
-            $rt = new FtnRouter();
-            $networks=$uplink['networks'];
-            foreach($networks as $network)
-                $rt->addRoute($network, $uplink['address']);
-
-            $r = $rt->routeAddress($destAddr,false);
-            if($r)
-                return $uplink['me'];
-
-        }
-        return false;
-    }
-
     /**
      * Get the uplink configuration that should handle a given destination address.
-     * Uses the networks patterns defined in each uplink to determine routing.
+     *
+     * Builds a single routing table from all uplinks so that the most specific
+     * matching pattern wins regardless of uplink order in the config. A specific
+     * route such as "1:123/456.12" on one uplink will correctly override a
+     * wildcard "1:*\/*" on another uplink.
      *
      * @param string $destAddr Destination FTN address (e.g., "1:123/456")
      * @return array|null The uplink configuration array, or null if no route found
      */
     public function getUplinkForDestination(string $destAddr): ?array
     {
+        // Build one combined router across all uplinks so FtnRouter's
+        // specificity ordering (point > node > net > zone > default) applies
+        // globally, not just within each uplink's own pattern list.
+        $rt = new FtnRouter();
         foreach ($this->getUplinks() as $uplink) {
-            $rt = new FtnRouter();
-            $networks = $uplink['networks'] ?? [];
-            foreach ($networks as $network) {
+            foreach ($uplink['networks'] ?? [] as $network) {
                 $rt->addRoute($network, $uplink['address']);
             }
+        }
 
-            $r = $rt->routeAddress($destAddr, false);
-            if ($r) {
+        $matchedAddress = $rt->routeAddress($destAddr);
+        if ($matchedAddress === null) {
+            return null;
+        }
+
+        // Return the uplink whose address won the route match
+        foreach ($this->getUplinks() as $uplink) {
+            if ($uplink['address'] === $matchedAddress) {
                 return $uplink;
             }
         }
+
         return null;
+    }
+
+    /**
+     * Get our "me" address for the uplink that handles a given destination.
+     *
+     * @param string $destAddr Destination FTN address
+     * @return string|false Our address for the matched uplink, or false if no route
+     */
+    public function getOriginAddressByDestination(string $destAddr)
+    {
+        $uplink = $this->getUplinkForDestination($destAddr);
+        return $uplink ? ($uplink['me'] ?? false) : false;
     }
 
     /**

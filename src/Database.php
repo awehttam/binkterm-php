@@ -24,7 +24,7 @@ class Database
     private static $instance = null;
     private $pdo;
 
-    private function __construct()
+    private function __construct(bool $useUtcTimezone = true)
     {
         try {
             $config = Config::getDatabaseConfig();
@@ -56,15 +56,19 @@ class Database
                 $config['password'], 
                 $config['options'] ?? []
             );
+
+            if ($useUtcTimezone) {
+                $this->pdo->exec("SET TIME ZONE 'UTC'");
+            }
         } catch (PDOException $e) {
             die('Database connection failed: ' . $e->getMessage());
         }
     }
 
-    public static function getInstance()
+    public static function getInstance(bool $useUtcTimezone = true)
     {
         if (self::$instance === null) {
-            self::$instance = new self();
+            self::$instance = new self($useUtcTimezone);
         }
         return self::$instance;
     }
@@ -72,10 +76,10 @@ class Database
     /**
      * Force a reconnect by resetting the singleton.
      */
-    public static function reconnect(): self
+    public static function reconnect(bool $useUtcTimezone = true): self
     {
         self::$instance = null;
-        return self::getInstance();
+        return self::getInstance($useUtcTimezone);
     }
 
     public function getPdo()

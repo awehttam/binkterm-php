@@ -21,20 +21,14 @@
  * - The proxy server address is configured via TERMINAL_PROXY_HOST and TERMINAL_PROXY_PORT
  */
 
-require_once __DIR__ . '../../../../vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\Auth;
-use BinktermPHP\Template;
-use BinktermPHP\Database;
+use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Config;
-
-// Initialize database
-Database::getInstance();
-
-// Start session for auth cookies
-if (!headers_sent()) {
-    session_start();
-}
+use BinktermPHP\GameConfig;
+use BinktermPHP\Template;
 
 // Check authentication (optional for terminal)
 $auth = new Auth();
@@ -56,9 +50,15 @@ $terminalPort = Config::env('TERMINAL_PORT', '22');
 
 // Always include the primary system host at top.
 $terminalHosts[] = ["hostname" => $terminalHost, "port" => $terminalPort, "proto" => "ssh"];
-$gameConfig = \BinktermPHP\GameConfig::getGameConfig("terminal");
+$gameConfig = GameConfig::getGameConfig("terminal");
 
-$terminalHosts =array_merge($terminalHosts, $gameConfig['hosts']);
+// Guard against null GameConfig or missing 'hosts' key
+$configHosts = [];
+if (is_array($gameConfig) && isset($gameConfig['hosts']) && is_array($gameConfig['hosts'])) {
+    $configHosts = $gameConfig['hosts'];
+}
+
+$terminalHosts = array_merge($terminalHosts, $configHosts);
 
 // Check if terminal is enabled.
 if (!$terminalEnabled) {
@@ -70,7 +70,7 @@ if (!$terminalEnabled) {
 }
 // Get system name from BinkP config
 try {
-    $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+    $binkpConfig = BinkpConfig::getInstance();
     $systemName = $binkpConfig->getSystemName();
 } catch (\Exception $e) {
     $systemName = \BinktermPHP\Config::SYSTEM_NAME;
