@@ -754,7 +754,7 @@ function buildAnsiAd(
     $palette = randChoice($palettes);
 
     $domainText = 'Networks: ' . (empty($domains) ? 'None' : implode(', ', $domains));
-    $webdoorsText = 'WebDoors: ' . (empty($webdoors) ? 'None' : implode(', ', $webdoors));
+    $webdoorsText = 'Doors: ' . (empty($webdoors) ? 'None' : implode(', ', $webdoors));
     $siteText = "Website: {$siteUrl}";
 
     $lines = [];
@@ -810,7 +810,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -831,7 +831,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -856,7 +856,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
@@ -973,7 +973,7 @@ function buildAnsiAd(
         $lines[] = formatAnsiLine('', "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine("Website: {$siteUrl}", "\x1b[1;36m", $width);
         $lines[] = formatAnsiLine("Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[1;35m", $width);
-        $lines[] = formatAnsiLine("WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[1;35m", $width);
+        $lines[] = formatAnsiLine("Doors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[1;36m", $width);
         if ($extraText !== '') {
             foreach (wrapText($extraText, $width - 2) as $extraLine) {
                 $lines[] = formatAnsiLine($extraLine, "\x1b[0;37m", $width);
@@ -986,7 +986,7 @@ function buildAnsiAd(
         $lines[] = formatAnsiLine("2) Sysop: {$sysopName}", "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine("3) Location: {$location}", "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine("4) Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), "\x1b[0;32m", $width);
-        $lines[] = formatAnsiLine("5) WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine("5) Doors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), "\x1b[0;36m", $width);
         if ($extraText !== '') {
             $lines[] = formatAnsiLine("6) Note: {$extraText}", "\x1b[0;37m", $width);
         }
@@ -998,7 +998,7 @@ function buildAnsiAd(
         $lines[] = formatAnsiLine(centerText("Location: {$location}", $width), "\x1b[0;37m", $width);
         $lines[] = formatAnsiLine(centerText("Website: {$siteUrl}", $width), "\x1b[1;37m", $width);
         $lines[] = formatAnsiLine(centerText("Networks: " . (empty($domains) ? 'None' : implode(', ', $domains)), $width), "\x1b[0;32m", $width);
-        $lines[] = formatAnsiLine(centerText("WebDoors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), $width), "\x1b[0;32m", $width);
+        $lines[] = formatAnsiLine(centerText("Doors: " . (empty($webdoors) ? 'None' : implode(', ', $webdoors)), $width), "\x1b[0;36m", $width);
         if ($extraText !== '') {
             $lines[] = formatAnsiLine(centerText($extraText, $width), "\x1b[1;35m", $width);
         }
@@ -1025,7 +1025,7 @@ function buildAnsiAd(
         foreach ($domains as $domain) {
             $rightLines[] = $domain;
         }
-        $rightLines[] = "WebDoors:";
+        $rightLines[] = "Doors:";
         foreach ($webdoors as $door) {
             $rightLines[] = $door;
         }
@@ -1048,7 +1048,7 @@ function buildAnsiAd(
             $lines[] = formatAnsiLine($domainLine, "\x1b[0;32m", $width);
         }
         foreach (wrapText($webdoorsText, $width - 2) as $doorLine) {
-            $lines[] = formatAnsiLine($doorLine, "\x1b[0;32m", $width);
+            $lines[] = formatAnsiLine($doorLine, "\x1b[0;36m", $width);
         }
         foreach (wrapText($siteText, $width - 2) as $siteLine) {
             $lines[] = formatAnsiLine($siteLine, "\x1b[1;37m", $width);
