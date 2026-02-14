@@ -20,7 +20,7 @@
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0" id="currentAreaTitle">Select a file area</h6>
+                    <h6 class="mb-0" id="currentAreaTitle"><i class="fas fa-clock"></i> Recent Uploads</h6>
                     <div class="d-flex gap-2">
                         <button class="btn btn-sm btn-primary" id="uploadFileBtn" onclick="showUploadModal()" style="display: none;">
                             <i class="fas fa-upload"></i> Upload File
@@ -31,9 +31,9 @@
             </div>
             <div class="card-body p-0">
                 <div id="filesContainer">
-                    <div class="p-4 text-center text-muted">
-                        <i class="fas fa-folder-open fa-3x mb-3"></i>
-                        <p>Select a file area from the right to browse files</p>
+                    <div class="loading-spinner p-4 text-center text-muted">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        Loading recent uploads...
                     </div>
                 </div>
             </div>
@@ -181,49 +181,6 @@
     </div>
 </div>
 
-<!-- Upload File Modal -->
-<div class="modal fade" id="uploadFileModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Upload File</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="uploadFileForm" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="uploadFile" class="form-label">Select File *</label>
-                        <input type="file" class="form-control" id="uploadFile" name="file" required>
-                        <div class="form-text">Maximum file size: <span id="maxFileSize">10 MB</span></div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="uploadDescription" class="form-label">Short Description *</label>
-                        <input type="text" class="form-control" id="uploadDescription" name="description" required maxlength="255">
-                        <div class="form-text">Brief description of the file</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="uploadLongDescription" class="form-label">Long Description</label>
-                        <textarea class="form-control" id="uploadLongDescription" name="long_description" rows="4" maxlength="2000"></textarea>
-                        <div class="form-text">Optional detailed description</div>
-                    </div>
-
-                    <div id="uploadProgress" class="progress" style="display: none;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <div id="uploadErrorBox" class="alert alert-danger w-100 mb-2 d-none"></div>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="uploadFile()">
-                    <i class="fas fa-upload"></i> Upload
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -236,11 +193,106 @@ const isAdmin = {{ current_user.is_admin|default('false') ? 'true' : 'false' }};
 $(document).ready(function() {
     loadFileAreas();
     loadStats();
+    loadRecentFiles();
 
     $('#searchFiles').on('input', function() {
         filterFiles($(this).val());
     });
 });
+
+function loadRecentFiles() {
+    $.get('/api/files/recent?limit=25')
+        .done(function(data) {
+            if (currentAreaId === null) {
+                displayRecentFiles(data.files);
+            }
+        })
+        .fail(function() {
+            if (currentAreaId === null) {
+                $('#filesContainer').html('<div class="alert alert-danger m-3">Failed to load recent uploads</div>');
+            }
+        });
+}
+
+function displayRecentFiles(files) {
+    $('#currentAreaTitle').html('<i class="fas fa-clock"></i> Recent Uploads');
+    $('#uploadFileBtn').hide();
+
+    if (files.length === 0) {
+        $('#filesContainer').html('<div class="p-4 text-center text-muted">No files have been uploaded yet</div>');
+        return;
+    }
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="35%">Filename</th>
+                        <th width="15%">Area</th>
+                        <th width="18%">Description</th>
+                        <th width="10%">Size</th>
+                        <th width="12%">Uploaded</th>
+                        <th width="10%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    files.forEach(function(file) {
+        const shortDesc = escapeHtml(file.short_description || '');
+        const fileSize = formatBytes(file.filesize);
+        const uploadDate = formatDate(file.created_at);
+        const canDelete = isAdmin || (file.owner_id && file.owner_id === currentUserId);
+
+        let areaLabel = escapeHtml(file.area_tag || '');
+        if (!file.is_local && file.domain) {
+            areaLabel += '<span class="text-muted">@' + escapeHtml(file.domain) + '</span>';
+        }
+
+        let scanIcon = '<i class="fas fa-file me-2"></i>';
+        if (file.virus_scanned) {
+            if (file.virus_scan_result === 'clean') {
+                scanIcon = '<i class="fas fa-shield-alt text-success me-2" title="Virus scan: Clean"></i>';
+            } else if (file.virus_scan_result === 'infected') {
+                scanIcon = '<i class="fas fa-shield-alt text-danger me-2" title="Virus detected: ' + escapeHtml(file.virus_signature || 'Unknown') + '"></i>';
+            } else if (file.virus_scan_result === 'error') {
+                scanIcon = '<i class="fas fa-shield-alt text-warning me-2" title="Virus scan: Error"></i>';
+            } else if (file.virus_scan_result === 'skipped') {
+                scanIcon = '<i class="fas fa-shield-alt text-muted me-2" title="Virus scan: Skipped"></i>';
+            }
+        }
+
+        html += `
+            <tr>
+                <td>
+                    ${scanIcon}
+                    <strong>${escapeHtml(file.filename)}</strong>
+                </td>
+                <td><small class="text-muted">${areaLabel}</small></td>
+                <td><small class="text-muted">${shortDesc}</small></td>
+                <td>${fileSize}</td>
+                <td><small>${uploadDate}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showFileDetails(${file.id})">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <a href="/api/files/${file.id}/download" class="btn btn-sm btn-outline-success" download>
+                        <i class="fas fa-download"></i>
+                    </a>
+                    ${canDelete ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteFile(${file.id}, '${escapeHtml(file.filename)}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table></div>';
+    $('#filesContainer').html(html);
+}
 
 function loadFileAreas() {
     $.get('/api/fileareas?filter=active')

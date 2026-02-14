@@ -1997,6 +1997,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['files' => $files]);
     });
 
+    SimpleRouter::get('/files/recent', function() {
+        RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $limit = min((int)($_GET['limit'] ?? 25), 50);
+        $manager = new \BinktermPHP\FileAreaManager();
+        $files = $manager->getRecentFiles($limit);
+
+        echo json_encode(['files' => $files]);
+    });
+
     SimpleRouter::get('/files/{id}', function($id) {
         RouteHelper::requireAuth();
 
