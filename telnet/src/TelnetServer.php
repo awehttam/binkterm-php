@@ -446,6 +446,15 @@ class TelnetServer
         // Log successful login to console
         echo "[" . date('Y-m-d H:i:s') . "] Login: {$username} from {$peerName}\n";
 
+        // Track telnet login in activity log
+        \BinktermPHP\ActivityTracker::track(
+            $userRecord['user_id'] ?? null,
+            \BinktermPHP\ActivityTracker::TYPE_LOGIN,
+            null,
+            'telnet',
+            ['ip' => $peerIp]
+        );
+
         // Set terminal window title to BBS name
         $config = BinkpConfig::getInstance();
         $this->setTerminalTitle($conn, $config->getSystemName());
