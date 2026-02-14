@@ -74,7 +74,7 @@ class DoorHandler
             $idx = (int)trim($choice) - 1;
             if ($idx >= 0 && $idx < count($doorList)) {
                 $entry = $doorList[$idx];
-                $doorName = $entry['data']['game']['name'] ?? $entry['id'];
+                $doorName = $entry['data']['name'] ?? $entry['id'];
                 $this->launchDoor($conn, $state, $session, $entry['id'], $doorName);
                 return;
             }
@@ -102,10 +102,10 @@ class DoorHandler
         foreach ($doorList as $i => $entry) {
             $num = $i + 1;
             $door = $entry['data'];
-            $name = $door['game']['name'] ?? $entry['id'];
-            $desc = $door['game']['description'] ?? '';
+            $name = $door['name'] ?? $entry['id'];
+            $desc = $door['description'] ?? '';
             $creditCost = (int)($door['config']['credit_cost'] ?? 0);
-            $timeLimit = (int)($door['door']['time_per_day'] ?? $door['config']['max_time_minutes'] ?? 0);
+            $timeLimit = (int)($door['time_per_day'] ?? $door['config']['max_time_minutes'] ?? 0);
 
             $meta = [];
             if ($timeLimit > 0) {
@@ -129,8 +129,6 @@ class DoorHandler
                     TelnetUtils::writeLine($conn, TelnetUtils::colorize('     ' . $line, TelnetUtils::ANSI_DIM));
                 }
             }
-
-            TelnetUtils::writeLine($conn, '');
         }
 
         TelnetUtils::writeLine($conn, TelnetUtils::colorize('Enter number to play, or Q to return: ', TelnetUtils::ANSI_DIM));
