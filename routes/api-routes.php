@@ -3706,43 +3706,50 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     });
 
     // Get echolist filter preference
+    // Get echolist filter preferences
     SimpleRouter::get('/user/echolist-preference', function() {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         $db = Database::getInstance()->getPdo();
         $stmt = $db->prepare("
-            SELECT echolist_subscribed_only
+            SELECT echolist_subscribed_only, echolist_unread_only
             FROM user_settings
             WHERE user_id = ?
         ");
         $stmt->execute([$user['user_id']]);
         $pref = $stmt->fetch();
 
-        // Default to false if no settings row exists
-        $value = $pref ? ($pref['echolist_subscribed_only'] ? 'true' : 'false') : 'false';
-
-        echo json_encode(['value' => $value]);
+        echo json_encode([
+            'subscribed_only' => $pref ? (bool)$pref['echolist_subscribed_only'] : false,
+            'unread_only'     => $pref ? (bool)$pref['echolist_unread_only']     : false,
+        ]);
     });
 
-    // Set echolist filter preference
+    // Set echolist filter preferences
     SimpleRouter::post('/user/echolist-preference', function() {
         $user = RouteHelper::requireAuth();
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true);
-        $value = ($input['value'] ?? 'false') === 'true';
+        $subscribedOnly = !empty($input['subscribed_only']);
+        $unreadOnly     = !empty($input['unread_only']);
 
         $db = Database::getInstance()->getPdo();
 
-        // Insert or update user settings
         $stmt = $db->prepare("
-            INSERT INTO user_settings (user_id, echolist_subscribed_only)
-            VALUES (?, ?)
+            INSERT INTO user_settings (user_id, echolist_subscribed_only, echolist_unread_only)
+            VALUES (?, ?, ?)
             ON CONFLICT (user_id)
-            DO UPDATE SET echolist_subscribed_only = EXCLUDED.echolist_subscribed_only
+            DO UPDATE SET
+                echolist_subscribed_only = EXCLUDED.echolist_subscribed_only,
+                echolist_unread_only     = EXCLUDED.echolist_unread_only
         ");
-        $stmt->execute([$user['user_id'], $value ? 'true' : 'false']);
+        $stmt->execute([
+            $user['user_id'],
+            $subscribedOnly ? 'true' : 'false',
+            $unreadOnly     ? 'true' : 'false',
+        ]);
 
         echo json_encode(['success' => true]);
     });
