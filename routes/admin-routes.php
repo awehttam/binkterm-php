@@ -1833,7 +1833,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         header('Content-Type: application/json');
 
         $db = \BinktermPHP\Database::getInstance()->getPdo();
-        $period = $_GET['period'] ?? '30d';
+        $period        = $_GET['period'] ?? '30d';
+        $excludeAdmins = !empty($_GET['exclude_admins']);
 
         // Build date filter condition
         switch ($period) {
@@ -1852,6 +1853,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 break;
         }
 
+        // Optionally exclude activity from admin users
+        $adminFilter = $excludeAdmins
+            ? "AND (ual.user_id IS NULL OR ual.user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
+            : '';
+
         // Check that user_activity_log table exists
         try {
             $db->query("SELECT 1 FROM user_activity_log LIMIT 1");
@@ -1866,7 +1872,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             FROM user_activity_log ual
             JOIN activity_types at2 ON ual.activity_type_id = at2.id
             JOIN activity_categories ac ON at2.category_id = ac.id
-            WHERE 1=1 {$dateFilter}
+            WHERE 1=1 {$dateFilter}{$adminFilter}
             GROUP BY ac.name
         ");
         $categoryRows = $summaryStmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -1881,7 +1887,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $typeStmt = $db->query("
             SELECT activity_type_id, COUNT(*) AS cnt
             FROM user_activity_log ual
-            WHERE 1=1 {$dateFilter}
+            WHERE 1=1 {$dateFilter}{$adminFilter}
             GROUP BY activity_type_id
         ");
         $byType = [];
@@ -1895,7 +1901,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                    SUM(CASE WHEN activity_type_id = 1 THEN 1 ELSE 0 END) AS views,
                    SUM(CASE WHEN activity_type_id = 2 THEN 1 ELSE 0 END) AS posts
             FROM user_activity_log ual
-            WHERE activity_type_id IN (1, 2) {$dateFilter}
+            WHERE activity_type_id IN (1, 2) {$dateFilter}{$adminFilter}
               AND object_name IS NOT NULL
             GROUP BY object_name
             ORDER BY views DESC
@@ -1912,7 +1918,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $webdoorsStmt = $db->query("
             SELECT object_name AS name, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE activity_type_id = 8 {$dateFilter}
+            WHERE activity_type_id = 8 {$dateFilter}{$adminFilter}
               AND object_name IS NOT NULL
             GROUP BY object_name
             ORDER BY count DESC
@@ -1926,7 +1932,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $dosdoorsStmt = $db->query("
             SELECT object_name AS name, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE activity_type_id = 9 {$dateFilter}
+            WHERE activity_type_id = 9 {$dateFilter}{$adminFilter}
               AND object_name IS NOT NULL
             GROUP BY object_name
             ORDER BY count DESC
@@ -1940,7 +1946,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $topFilesStmt = $db->query("
             SELECT object_name AS name, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE activity_type_id = 6 {$dateFilter}
+            WHERE activity_type_id = 6 {$dateFilter}{$adminFilter}
               AND object_name IS NOT NULL
             GROUP BY object_name
             ORDER BY count DESC
@@ -1954,7 +1960,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $fileAreasStmt = $db->query("
             SELECT object_id AS area_id, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE activity_type_id = 5 {$dateFilter}
+            WHERE activity_type_id = 5 {$dateFilter}{$adminFilter}
               AND object_id IS NOT NULL
             GROUP BY object_id
             ORDER BY count DESC
@@ -1971,7 +1977,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $nodelistSearchStmt = $db->query("
             SELECT object_name AS name, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE activity_type_id = 10 {$dateFilter}
+            WHERE activity_type_id = 10 {$dateFilter}{$adminFilter}
               AND object_name IS NOT NULL
             GROUP BY object_name
             ORDER BY count DESC
@@ -1985,7 +1991,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $topNodesStmt = $db->query("
             SELECT object_name AS name, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE activity_type_id = 11 {$dateFilter}
+            WHERE activity_type_id = 11 {$dateFilter}{$adminFilter}
               AND object_name IS NOT NULL
             GROUP BY object_name
             ORDER BY count DESC
@@ -2000,7 +2006,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             SELECT u.username, COUNT(*) AS count
             FROM user_activity_log ual
             LEFT JOIN users u ON ual.user_id = u.id
-            WHERE 1=1 {$dateFilter}
+            WHERE 1=1 {$dateFilter}{$adminFilter}
               AND ual.user_id IS NOT NULL
             GROUP BY ual.user_id, u.username
             ORDER BY count DESC
@@ -2014,7 +2020,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $hourlyStmt = $db->query("
             SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')::int AS hour, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE 1=1 {$dateFilter}
+            WHERE 1=1 {$dateFilter}{$adminFilter}
             GROUP BY hour
             ORDER BY hour
         ");
@@ -2030,10 +2036,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         }
 
         // Daily activity (last 30 days always, regardless of period for the overview chart)
+        $dailyAdminFilter = $excludeAdmins
+            ? "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
+            : '';
         $dailyStmt = $db->query("
             SELECT DATE(created_at AT TIME ZONE 'UTC') AS date, COUNT(*) AS count
             FROM user_activity_log
             WHERE created_at >= NOW() - INTERVAL '30 days'
+            {$dailyAdminFilter}
             GROUP BY date
             ORDER BY date
         ");
