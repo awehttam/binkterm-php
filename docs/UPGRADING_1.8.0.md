@@ -1,30 +1,68 @@
-# UPGRADING_1.8.0
+# Upgrading to 1.8.0
 
-This upgrade note covers changes introduced in version 1.8.0:
+Make sure you've made a backup of your database and files before upgrading.
 
- * Conversion to UTC - the database now uses TIMESTAMPTZ and a default connection timezone of UTC for recording time stamps
- * "Bottom" kludge lines (PATH, SEEN-BY, VIA) are now stored separately in the bottom_kludges table of echomail and netmail
- * Via is now placed in the bottom kludge line block during outbound message transmission.
- * Netmail now supports 'd' to download the currently displayed message
- * The new echo list (forum style) page now allows filtering the list by subscribed areas only, as well as areas with unread messages
- * Pipecode color support converts pipecodes to ANSI sequences for fuller color coding support in messages  
- * Fixed node list handling of entries with a custom bink port.  Now, the right menu pop up will use standard https/telnet/ssh ports instead of providing the custom bink port
- * IPv6 addresses in the node list should parse properly
- * Added Webdoor SDK.  Doors like Blackjack and CWN should now update the credit balance displayed in the top menu automatically
- * Added loading indicators to dashboard netmail and echomail stats
- * The BBS ad generator now supports gradient borders
- * Users are now given their own referral link and can earn system credit when a referred user is approved
- * Corrected an issue with incoming insecure binkp sessions that would result in a failed session
- * Insecure netmails are now displayed with a warning that the message was received in an insecure fashion
- * Revert change in 1.7.9 where CRYPT-MD5 would be enforced even when plaintext was specified in configuration.  Plaintext sessions should work again now
- * Add MSGID checks when parsing incoming echomail to prevent duplicate entries (necessary for %rescan)
- * Changed the default echomail landing page to the "forum style" echo list.  Sysops can now set the system wide setting to either the reader interface or echo list interface, and users can (re)set their own personal preference
- * DOS door integration via DOSBox-X and a multiplexing WebSocket bridge, allowing classic BBS door games to be played in the browser
- * DOS door sessions are now scoped per-door, so multiple doors can be open in separate tabs simultaneously
- * Blackjack leaderboard now tracks credits won from hands only (losses do not subtract); score is independent of BBS credits earned elsewhere; leaderboard shows current calendar month
- * Miscellaneous fixes and improvements
+## New Features
 
-# DOS Door Integration
+- **DOS Door Integration** — Classic BBS door games now playable in the browser via DOSBox-X and a multiplexing WebSocket bridge. Sessions are scoped per-door so multiple doors can be open in separate tabs simultaneously. See [docs/DOSDoors.md](DOSDoors.md) for full setup instructions.
+- **Activity Tracking & Statistics** — A new admin statistics page surfaces usage analytics: popular echoareas, door plays, file activity, nodelist lookups, top users, and hourly distribution. Configurable period filter (7d / 30d / 90d / all time).
+- **Referral System** — Users receive a personal referral link and earn BBS credits when a referred user is approved.
+- **WebDoor SDK** — Shared client/server SDK for WebDoors. Games like Blackjack and CWN now automatically update the credit balance shown in the top navigation.
+- **Pipecode Color Support** — Pipe codes in messages are converted to ANSI color sequences.
+
+## Messaging
+
+- **Bottom Kludge Storage** — PATH, SEEN-BY, and VIA lines are now stored separately in a `bottom_kludges` column rather than inline with message text, for both echomail and netmail.
+- **Outbound VIA Kludge** — VIA is now correctly placed in the bottom kludge block during outbound message transmission.
+- **Netmail Download** — Press `d` while reading a netmail to download the message as a file.
+- **Insecure Netmail Warning** — Netmails received via an insecure BinkP session are now flagged with a visible warning.
+- **Echomail Duplicate Prevention** — MSGID is now checked on incoming echomail to prevent duplicate entries (required for `%rescan` support).
+- **Configurable Echomail Landing Page** — The default landing page is now the forum-style echo list. Sysops can set the system-wide default (reader or echo list), and users can override their own preference.
+- **Echo List Filtering** — The forum-style echo list can now be filtered to show subscribed areas only, or areas with unread messages.
+
+## Nodelist
+
+- **Custom BinkP Port Fix** — Node entries with a custom BinkP port no longer bleed that port into the SSH/Telnet/HTTPS links in the node popup; standard ports are used for those protocols.
+- **IPv6 Support** — IPv6 addresses in nodelist entries now parse correctly.
+
+## BinkP / Networking
+
+- **Insecure Session Fix** — Corrected an issue where incoming insecure BinkP sessions would fail.
+- **Plaintext Auth Restored** — Reverts a 1.7.9 change that enforced CRYPT-MD5 even when plaintext was specified in configuration. Plaintext sessions work again.
+
+## UI / UX
+
+- **Dashboard Loading Indicators** — Netmail and echomail stat widgets on the admin dashboard now show a loading indicator while fetching counts.
+- **Ad Generator Gradient Borders** — The BBS advertisement generator now supports gradient border styles.
+- **Blackjack Leaderboard** — Now tracks credits won from winning hands only (losses do not subtract). Score is independent of BBS credits earned elsewhere. Leaderboard resets each calendar month.
+
+## Database
+
+- **UTC Timestamp Normalisation** — All timestamps are now stored as `TIMESTAMPTZ` with a connection default of UTC. Previously the system used whatever timezone Postgres or PHP defaulted to. Run `php scripts/setup.php` to apply the migration.
+
+---
+
+## Upgrade Instructions
+
+### From Git
+
+```bash
+git pull
+php scripts/setup.php
+scripts/restart_daemons.sh
+```
+
+### Using the Installer
+
+```bash
+wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/binkterm-installer.phar
+php binkterm-installer.phar
+scripts/restart_daemons.sh
+```
+
+---
+
+## DOS Door Integration
 
 BinktermPHP now supports classic DOS door games playable directly in the browser. The system works by running DOSBox-X (a DOS emulator) on the server for each active session. A Node.js multiplexing bridge connects DOSBox's emulated serial port (COM1) over TCP to a WebSocket, which the browser connects to via an xterm.js terminal. When a user launches a door, a DOOR.SYS drop file is generated with their user information, DOSBox-X starts headlessly and runs the door game, and the browser terminal becomes the user's interface to the game. Sessions are isolated per-door, so multiple users (or tabs) can each have their own concurrent game session.
 
@@ -32,29 +70,6 @@ Door games are installed under `dosbox-bridge/dos/doors/` and described by a `do
 
 For full setup instructions, configuration options, and how to add new door games, see [docs/DOSDoors.md](DOSDoors.md).
 
-# Conversion to UTC
+## UTC Timestamp Normalisation
 
-This release makes normalizes timestamps in the postgres database as "UTC".  Previously the system would use either the Postgres or PHP default time zone when inserting or updating data.  Now, the system will use UTC for dates and times.
-
-# BEFORE UPGRADING
-
-Make sure you've made a backup of your database and files prior to upgrading.  
-
-# Upgrading from Git
-
-```bash
-git pull
-php scripts/setup.php
-scripts/restart_daemons.sh # or however you manage your daemons
-```
-
-# Upgrading using installer
-
-```bash
-# Download the installer
-wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/binkterm-installer.phar
-
-# Run the installer
-php binkterm-installer.phar
-scripts/restart_daemons.sh # or however you manage your daemons
-```
+This release normalises all timestamps in the PostgreSQL database to UTC. Previously the system would use either the Postgres or PHP default timezone when inserting or updating data. Now UTC is used consistently. The migration converts existing columns to `TIMESTAMPTZ` and sets the connection default timezone to UTC.
