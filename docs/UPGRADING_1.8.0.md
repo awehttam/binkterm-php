@@ -5,7 +5,7 @@ Make sure you've made a backup of your database and files before upgrading.
 ## New Features
 
 - **DOS Door Integration** — Classic BBS door games now playable in the browser via DOSBox-X and a multiplexing WebSocket bridge. Sessions are scoped per-door so multiple doors can be open in separate tabs simultaneously. See [docs/DOSDoors.md](DOSDoors.md) for full setup instructions.
-- **Activity Tracking & Statistics** — A new admin statistics page surfaces usage analytics: popular echoareas, door plays, file activity, nodelist lookups, top users, and hourly distribution. Configurable period filter (7d / 30d / 90d / all time).
+- **Activity Tracking & Statistics** — A new event log (`user_activity_log`) records user actions across the web interface and telnet daemon: echomail/netmail reads and sends, file downloads and uploads, door launches, nodelist lookups, chat messages, and logins (web and telnet). A new admin statistics page at `/admin/activity-stats` surfaces usage analytics: popular echoareas, door plays, file activity, nodelist lookups, top users, and hourly distribution. Configurable period filter (7d / 30d / 90d / all time) and an option to exclude admin activity.
 - **Referral System** — Users receive a personal referral link and earn BBS credits when a referred user is approved.
 - **WebDoor SDK** — Shared client/server SDK for WebDoors. Games like Blackjack and CWN now automatically update the credit balance shown in the top navigation.
 - **Pipecode Color Support** — Pipe codes in messages are converted to ANSI color sequences.
@@ -29,6 +29,7 @@ Make sure you've made a backup of your database and files before upgrading.
 
 - **Insecure Session Fix** — Corrected an issue where incoming insecure BinkP sessions would fail.
 - **Plaintext Auth Restored** — Reverts a 1.7.9 change that enforced CRYPT-MD5 even when plaintext was specified in configuration. Plaintext sessions work again.
+- **Outbound Routing Specificity Fix** — A bug in `getUplinkForDestination()` caused the first uplink whose patterns matched at all to win, regardless of how specific the match was. A wildcard route such as `1:*/*` on an early-listed uplink would shadow a more specific route like `1:123/456.12` on any later uplink, making it impossible to configure per-node or per-point overrides. The fix builds one combined routing table across all uplinks so that the most specific pattern always wins, independent of uplink order in `binkp.json`.
 
 ## UI / UX
 
@@ -69,6 +70,20 @@ BinktermPHP now supports classic DOS door games playable directly in the browser
 Door games are installed under `dosbox-bridge/dos/doors/` and described by a `dosdoor.jsn` manifest file (8.3 filename for DOS compatibility). The manifest declares the game name, executable, launch command, node limits, and optional access restrictions such as `admin_only`. The multiplexing bridge runs as a persistent daemon (`node scripts/dosbox-bridge/multiplexing-server.js --daemon`) and must be running for door games to work.
 
 For full setup instructions, configuration options, and how to add new door games, see [docs/DOSDoors.md](DOSDoors.md).
+
+## Activity Tracking & Statistics
+
+This release adds a general-purpose activity event log. Three new database tables are created by the migration:
+
+- **`activity_categories`** — lookup table with six categories: message, file, door, nodelist, chat, auth.
+- **`activity_types`** — 13 named event types (echomail area view, echomail send, netmail read, netmail send, file area view, file download, file upload, webdoor play, DOS door play, nodelist view, node view, chat send, login).
+- **`user_activity_log`** — the event log itself, with columns for `user_id`, `activity_type_id`, `object_id`, `object_name`, `meta` (JSONB), and `created_at`.
+
+The `ActivityTracker::track()` method is called from route handlers and the telnet daemon. It fails silently so a tracking failure never disrupts the underlying user action.
+
+The admin statistics page is available at `/admin/activity-stats` and is linked from the admin navigation menu. Stats can be filtered by time period (7d / 30d / 90d / all time) and optionally exclude admin-account activity.
+
+The migration is applied automatically by `php scripts/setup.php`.
 
 ## UTC Timestamp Normalisation
 
