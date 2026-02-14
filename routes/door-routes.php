@@ -5,6 +5,7 @@
  * API endpoints for launching and managing DOSBox door game sessions
  */
 
+use BinktermPHP\ActivityTracker;
 use BinktermPHP\DoorSessionManager;
 use BinktermPHP\Database;
 use BinktermPHP\RouteHelper;
@@ -185,6 +186,8 @@ SimpleRouter::post('/api/door/launch', function() {
 
         // Start new session
         $session = $sessionManager->startSession($userId, $doorName, $userData);
+
+        ActivityTracker::track($userId, ActivityTracker::TYPE_DOSDOOR_PLAY, null, $doorName);
 
         // Build WebSocket URL for browser
         $wsUrl = \BinktermPHP\Config::env('DOSDOOR_WS_URL');

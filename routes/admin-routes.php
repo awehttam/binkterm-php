@@ -139,6 +139,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/template_editor.twig');
     });
 
+    // Activity statistics page
+    SimpleRouter::get('/activity-stats', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/activity_stats.twig');
+    });
+
     // API routes for admin
     SimpleRouter::group(['prefix' => '/api'], function() {
 
@@ -1816,6 +1824,246 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
         echo json_encode($stats);
+    });
+
+    // Activity statistics API
+    SimpleRouter::get('/api/activity-stats', function() {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $period = $_GET['period'] ?? '30d';
+
+        // Build date filter condition
+        switch ($period) {
+            case '7d':
+                $dateFilter = "AND ual.created_at >= NOW() - INTERVAL '7 days'";
+                break;
+            case '90d':
+                $dateFilter = "AND ual.created_at >= NOW() - INTERVAL '90 days'";
+                break;
+            case 'all':
+                $dateFilter = '';
+                break;
+            case '30d':
+            default:
+                $dateFilter = "AND ual.created_at >= NOW() - INTERVAL '30 days'";
+                break;
+        }
+
+        // Check that user_activity_log table exists
+        try {
+            $db->query("SELECT 1 FROM user_activity_log LIMIT 1");
+        } catch (\Exception $e) {
+            echo json_encode(['error' => 'Activity log table not yet available. Run setup.php to apply migrations.']);
+            return;
+        }
+
+        // Summary: total + by category
+        $summaryStmt = $db->query("
+            SELECT ac.name AS category, COUNT(*) AS cnt
+            FROM user_activity_log ual
+            JOIN activity_types at2 ON ual.activity_type_id = at2.id
+            JOIN activity_categories ac ON at2.category_id = ac.id
+            WHERE 1=1 {$dateFilter}
+            GROUP BY ac.name
+        ");
+        $categoryRows = $summaryStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $byCategory = [];
+        $totalEvents = 0;
+        foreach ($categoryRows as $row) {
+            $byCategory[$row['category']] = (int)$row['cnt'];
+            $totalEvents += (int)$row['cnt'];
+        }
+
+        // Summary: per activity type (for netmail/echomail breakdown)
+        $typeStmt = $db->query("
+            SELECT activity_type_id, COUNT(*) AS cnt
+            FROM user_activity_log ual
+            WHERE 1=1 {$dateFilter}
+            GROUP BY activity_type_id
+        ");
+        $byType = [];
+        foreach ($typeStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $byType[(int)$row['activity_type_id']] = (int)$row['cnt'];
+        }
+
+        // Popular echoareas (views and posts)
+        $echoAreasStmt = $db->query("
+            SELECT object_name AS name,
+                   SUM(CASE WHEN activity_type_id = 1 THEN 1 ELSE 0 END) AS views,
+                   SUM(CASE WHEN activity_type_id = 2 THEN 1 ELSE 0 END) AS posts
+            FROM user_activity_log ual
+            WHERE activity_type_id IN (1, 2) {$dateFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY views DESC
+            LIMIT 20
+        ");
+        $popularEchoareas = $echoAreasStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($popularEchoareas as &$row) {
+            $row['views'] = (int)$row['views'];
+            $row['posts'] = (int)$row['posts'];
+        }
+        unset($row);
+
+        // Popular WebDoors
+        $webdoorsStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 8 {$dateFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $popularWebdoors = $webdoorsStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($popularWebdoors as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Popular DOS Doors
+        $dosdoorsStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 9 {$dateFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $popularDosdoors = $dosdoorsStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($popularDosdoors as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Top downloaded files
+        $topFilesStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 6 {$dateFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 15
+        ");
+        $topFiles = $topFilesStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topFiles as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Most browsed file areas
+        $fileAreasStmt = $db->query("
+            SELECT object_id AS area_id, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 5 {$dateFilter}
+              AND object_id IS NOT NULL
+            GROUP BY object_id
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $topFileareas = $fileAreasStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topFileareas as &$row) {
+            $row['area_id'] = (int)$row['area_id'];
+            $row['count']   = (int)$row['count'];
+        }
+        unset($row);
+
+        // Nodelist searches
+        $nodelistSearchStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 10 {$dateFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $topNodelistSearches = $nodelistSearchStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topNodelistSearches as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Most viewed nodes
+        $topNodesStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 11 {$dateFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $topNodes = $topNodesStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topNodes as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Top users
+        $topUsersStmt = $db->query("
+            SELECT u.username, COUNT(*) AS count
+            FROM user_activity_log ual
+            LEFT JOIN users u ON ual.user_id = u.id
+            WHERE 1=1 {$dateFilter}
+              AND ual.user_id IS NOT NULL
+            GROUP BY ual.user_id, u.username
+            ORDER BY count DESC
+            LIMIT 15
+        ");
+        $topUsers = $topUsersStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topUsers as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Hourly distribution (UTC)
+        $hourlyStmt = $db->query("
+            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')::int AS hour, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE 1=1 {$dateFilter}
+            GROUP BY hour
+            ORDER BY hour
+        ");
+        $hourlyRaw = $hourlyStmt->fetchAll(\PDO::FETCH_ASSOC);
+        // Fill all 24 hours even if no data
+        $hourly = [];
+        $hourlyByHour = [];
+        foreach ($hourlyRaw as $row) {
+            $hourlyByHour[(int)$row['hour']] = (int)$row['count'];
+        }
+        for ($h = 0; $h < 24; $h++) {
+            $hourly[] = ['hour' => $h, 'count' => $hourlyByHour[$h] ?? 0];
+        }
+
+        // Daily activity (last 30 days always, regardless of period for the overview chart)
+        $dailyStmt = $db->query("
+            SELECT DATE(created_at AT TIME ZONE 'UTC') AS date, COUNT(*) AS count
+            FROM user_activity_log
+            WHERE created_at >= NOW() - INTERVAL '30 days'
+            GROUP BY date
+            ORDER BY date
+        ");
+        $daily = $dailyStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($daily as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        echo json_encode([
+            'period' => $period,
+            'summary' => [
+                'total'       => $totalEvents,
+                'by_category' => $byCategory,
+                'by_type'     => [
+                    'echomail_views' => $byType[1] ?? 0,
+                    'echomail_sends' => $byType[2] ?? 0,
+                    'netmail_reads'  => $byType[3] ?? 0,
+                    'netmail_sends'  => $byType[4] ?? 0,
+                ],
+            ],
+            'popular_echoareas'     => $popularEchoareas,
+            'popular_webdoors'      => $popularWebdoors,
+            'popular_dosdoors'      => $popularDosdoors,
+            'top_files'             => $topFiles,
+            'top_fileareas'         => $topFileareas,
+            'top_nodelist_searches' => $topNodelistSearches,
+            'top_nodes'             => $topNodes,
+            'top_users'             => $topUsers,
+            'hourly'                => $hourly,
+            'daily'                 => $daily,
+        ]);
     });
 });
 

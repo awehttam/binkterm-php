@@ -1,5 +1,6 @@
 <?php
 
+use BinktermPHP\ActivityTracker;
 use BinktermPHP\AddressBookController;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
@@ -76,6 +77,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         if ($sessionId) {
             setcookie('binktermphp_session', $sessionId, time() + 86400 * 30, '/', '', false, true);
+            // Track login event (resolve user_id from session)
+            try {
+                $db = Database::getInstance()->getPdo();
+                $stmt = $db->prepare("SELECT user_id FROM user_sessions WHERE session_id = ?");
+                $stmt->execute([$sessionId]);
+                $row = $stmt->fetch();
+                if ($row) {
+                    ActivityTracker::track((int)$row['user_id'], ActivityTracker::TYPE_LOGIN);
+                }
+            } catch (\Exception $e) {
+                // Tracking errors must not break login
+            }
             echo json_encode(['success' => true]);
         } else {
             http_response_code(401);
@@ -1419,6 +1432,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        ActivityTracker::track((int)$userId, ActivityTracker::TYPE_CHAT_SEND, $roomId);
+
         echo json_encode([
             'success' => true,
             'message_id' => (int)$result['id'],
@@ -1994,6 +2009,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $files = $manager->getFiles((int)$areaId);
 
+        ActivityTracker::track($userId, ActivityTracker::TYPE_FILEAREA_VIEW, (int)$areaId);
+
         echo json_encode(['files' => $files]);
     });
 
@@ -2077,6 +2094,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filename = basename($file['filename']);
         $encodedFilename = rawurlencode($filename);
 
+        ActivityTracker::track($userId, ActivityTracker::TYPE_FILE_DOWNLOAD, (int)$id, $filename);
+
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"; filename*=UTF-8\'\'' . $encodedFilename);
         header('Content-Length: ' . filesize($storagePath));
@@ -2145,6 +2164,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $uploadedBy,
                 $ownerId
             );
+
+            ActivityTracker::track($ownerId, ActivityTracker::TYPE_FILE_UPLOAD, (int)$fileId, $_FILES['file']['name'] ?? null, ['file_area_id' => $fileAreaId]);
 
             echo json_encode([
                 'success' => true,
@@ -2289,6 +2310,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $message = $handler->getMessage($id, 'netmail', $userId);
 
         if ($message) {
+            ActivityTracker::track($userId, ActivityTracker::TYPE_NETMAIL_READ, (int)$id);
+
             // Parse REPLYTO kludge from message text and add to response
             $replyToData = parseReplyToKludge($message['message_text']);
             if ($replyToData) {
@@ -2823,6 +2846,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
         $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false);
+
+        ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
+
         echo json_encode($result);
     })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
@@ -2957,6 +2983,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             if ($result) {
                 $totalAreas = 1 + ($crossPostCount ?? 0);
+                if ($type === 'netmail') {
+                    ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_NETMAIL_SEND, null, $input['to_address'] ?? null);
+                } elseif ($type === 'echomail') {
+                    ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
+                }
                 echo json_encode(['success' => true, 'areas_posted' => $totalAreas]);
             } else {
                 http_response_code(500);

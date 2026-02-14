@@ -6,6 +6,7 @@
  * Web pages and REST API endpoints for WebDoor (HTML5 BBS games)
  */
 
+use BinktermPHP\ActivityTracker;
 use BinktermPHP\Auth;
 use BinktermPHP\BbsConfig;
 use BinktermPHP\DoorManager;
@@ -357,6 +358,17 @@ SimpleRouter::get('/api/webdoor/session', function() {
 
     $controller = new WebDoorController();
     $result = $controller->getSession();
+
+    // Track webdoor play session (only when the session endpoint returns successfully)
+    if (!empty($result['session_id'])) {
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+        if ($user) {
+            $userId = $user['user_id'] ?? $user['id'] ?? null;
+            $gameId = $result['game']['id'] ?? null;
+            ActivityTracker::track($userId, ActivityTracker::TYPE_WEBDOOR_PLAY, null, $gameId);
+        }
+    }
 
     echo json_encode($result);
 });

@@ -1,0 +1,455 @@
+{% extends "base.twig" %}
+
+{% block title %}Activity Statistics{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Activity Statistics</h1>
+        <div class="d-flex align-items-center gap-2">
+            <label class="me-1 mb-0 text-muted small">Period:</label>
+            <select id="period-select" class="form-select form-select-sm" style="width:auto">
+                <option value="7d">Last 7 Days</option>
+                <option value="30d" selected>Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="all">All Time</option>
+            </select>
+            <a href="/admin" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div id="loading-indicator" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Loading activity data…</p>
+    </div>
+
+    <div id="stats-content" style="display:none">
+
+        <!-- Summary Cards -->
+        <div class="row mb-4" id="summary-cards"></div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="stats-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-overview" data-bs-toggle="tab" data-bs-target="#pane-overview" type="button">Overview</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-areas" data-bs-toggle="tab" data-bs-target="#pane-areas" type="button">Popular Areas</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-doors" data-bs-toggle="tab" data-bs-target="#pane-doors" type="button">Doors</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-files" data-bs-toggle="tab" data-bs-target="#pane-files" type="button">File Activity</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-nodelist" data-bs-toggle="tab" data-bs-target="#pane-nodelist" type="button">Nodelist</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-users" data-bs-toggle="tab" data-bs-target="#pane-users" type="button">Top Users</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-hourly" data-bs-toggle="tab" data-bs-target="#pane-hourly" type="button">Hourly</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="stats-tab-content">
+
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="pane-overview" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Activity by Category</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Category</th><th class="text-end">Events</th><th style="width:40%"></th></tr></thead>
+                                    <tbody id="category-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Daily Activity (last 30 days)</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0" id="daily-table">
+                                    <thead><tr><th>Date</th><th class="text-end">Events</th><th style="width:40%"></th></tr></thead>
+                                    <tbody id="daily-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Popular Areas Tab -->
+            <div class="tab-pane fade" id="pane-areas" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Most Viewed Echoareas</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Area</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="echoarea-views-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Most Active Echoareas (posts)</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Area</th><th class="text-end">Posts</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="echoarea-posts-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Doors Tab -->
+            <div class="tab-pane fade" id="pane-doors" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Most Played WebDoors</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Game</th><th class="text-end">Sessions</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="webdoor-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Most Played DOS Doors</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Door</th><th class="text-end">Sessions</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="dosdoor-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Activity Tab -->
+            <div class="tab-pane fade" id="pane-files" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Top Downloaded Files</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>File</th><th class="text-end">Downloads</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="file-download-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Most Browsed File Areas</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Area ID</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="filearea-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nodelist Tab -->
+            <div class="tab-pane fade" id="pane-nodelist" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Most Searched Nodelist Queries</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Query</th><th class="text-end">Searches</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="nodelist-search-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-header"><strong>Most Viewed Nodes</strong></div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead><tr><th>Node</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
+                                    <tbody id="node-view-rows"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Users Tab -->
+            <div class="tab-pane fade" id="pane-users" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-header"><strong>Most Active Users</strong></div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead><tr><th>User</th><th class="text-end">Events</th><th style="width:35%"></th></tr></thead>
+                            <tbody id="top-users-rows"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hourly Distribution Tab -->
+            <div class="tab-pane fade" id="pane-hourly" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-header"><strong>Activity by Hour of Day (UTC)</strong></div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead><tr><th>Hour (UTC)</th><th class="text-end">Events</th><th style="width:50%"></th></tr></thead>
+                            <tbody id="hourly-rows"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.tab-content -->
+
+    </div><!-- /#stats-content -->
+
+</div>
+
+<script>
+(function() {
+    let statsData = null;
+
+    function escapeHtml(str) {
+        if (!str) return '&mdash;';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function progressBar(value, max, cls) {
+        const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+        return `<div class="progress" style="height:14px"><div class="progress-bar ${cls||''}" style="width:${pct}%"></div></div>`;
+    }
+
+    function renderRows(tbodyId, items, nameFn, valueFn, barCls) {
+        const tbody = document.getElementById(tbodyId);
+        if (!tbody) return;
+        if (!items || items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-3">No data for this period</td></tr>';
+            return;
+        }
+        const maxVal = Math.max(...items.map(r => parseInt(valueFn(r)) || 0));
+        tbody.innerHTML = items.map(r => {
+            const val = parseInt(valueFn(r)) || 0;
+            return `<tr>
+                <td class="text-truncate" style="max-width:180px">${escapeHtml(nameFn(r))}</td>
+                <td class="text-end fw-semibold">${val.toLocaleString()}</td>
+                <td>${progressBar(val, maxVal, barCls)}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    function summaryCard(label, count, icon, cls, bg, sub) {
+        const subHtml = sub ? `<div class="text-muted" style="font-size:0.7rem;line-height:1.4">${sub}</div>` : '';
+        return `<div class="col-xl-2 col-md-4 col-sm-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle p-3 ${bg} bg-opacity-10 flex-shrink-0">
+                        <i class="fas ${icon} fa-lg ${cls}"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small text-uppercase">${label}</div>
+                        <div class="h4 mb-0 fw-bold">${count.toLocaleString()}</div>
+                        ${subHtml}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function renderSummaryCards(data) {
+        const summary = data.summary || {};
+        const byCategory = summary.by_category || {};
+        const byType = summary.by_type || {};
+        const total = summary.total || 0;
+
+        const echoViews = byType.echomail_views || 0;
+        const echoSends = byType.echomail_sends || 0;
+        const netReads  = byType.netmail_reads  || 0;
+        const netSends  = byType.netmail_sends  || 0;
+
+        document.getElementById('summary-cards').innerHTML =
+            summaryCard('Echomail',   echoViews + echoSends, 'fa-comments',    'text-primary',   'bg-primary',
+                `Views: ${echoViews.toLocaleString()} &nbsp;·&nbsp; Sent: ${echoSends.toLocaleString()}`) +
+            summaryCard('Netmail',    netReads  + netSends,  'fa-envelope',    'text-secondary', 'bg-secondary',
+                `Read: ${netReads.toLocaleString()} &nbsp;·&nbsp; Sent: ${netSends.toLocaleString()}`) +
+            summaryCard('Files',      byCategory.file  || 0, 'fa-folder-open', 'text-success',   'bg-success') +
+            summaryCard('Door Plays', byCategory.door  || 0, 'fa-gamepad',     'text-warning',   'bg-warning') +
+            summaryCard('Logins',     byCategory.auth  || 0, 'fa-sign-in-alt', 'text-info',      'bg-info') +
+            summaryCard('Total',      total,                 'fa-chart-bar',   'text-secondary', 'bg-secondary');
+    }
+
+    function renderOverview(data) {
+        const byCategory = (data.summary || {}).by_category || {};
+        const byType     = (data.summary || {}).by_type     || {};
+
+        const echoViews = byType.echomail_views || 0;
+        const echoSends = byType.echomail_sends || 0;
+        const netReads  = byType.netmail_reads  || 0;
+        const netSends  = byType.netmail_sends  || 0;
+
+        // Build grouped rows: group headers + indented sub-rows
+        const allVals = [
+            echoViews + echoSends, echoViews, echoSends,
+            netReads  + netSends,  netReads,  netSends,
+            byCategory.file || 0, byCategory.door || 0,
+            byCategory.nodelist || 0, byCategory.chat || 0, byCategory.auth || 0,
+        ];
+        const maxCat = Math.max(...allVals);
+
+        function groupRow(label, val) {
+            return `<tr class="fw-semibold">
+                <td>${label}</td>
+                <td class="text-end">${val.toLocaleString()}</td>
+                <td>${progressBar(val, maxCat, 'bg-primary')}</td>
+            </tr>`;
+        }
+        function subRow(label, val, barCls) {
+            return `<tr class="text-muted" style="font-size:0.875rem">
+                <td class="ps-4"><i class="fas fa-angle-right me-1 opacity-50"></i>${label}</td>
+                <td class="text-end">${val.toLocaleString()}</td>
+                <td>${progressBar(val, maxCat, barCls)}</td>
+            </tr>`;
+        }
+        function plainRow(label, val) {
+            return `<tr>
+                <td>${label}</td>
+                <td class="text-end fw-semibold">${val.toLocaleString()}</td>
+                <td>${progressBar(val, maxCat, 'bg-primary')}</td>
+            </tr>`;
+        }
+
+        const catTbody = document.getElementById('category-rows');
+        catTbody.innerHTML =
+            groupRow('Echomail', echoViews + echoSends) +
+            subRow('Area Views', echoViews, 'bg-primary') +
+            subRow('Sent',       echoSends, 'bg-success') +
+            groupRow('Netmail', netReads + netSends) +
+            subRow('Read', netReads, 'bg-secondary') +
+            subRow('Sent', netSends, 'bg-success') +
+            plainRow('Files',    byCategory.file     || 0) +
+            plainRow('Doors',    byCategory.door     || 0) +
+            plainRow('Nodelist', byCategory.nodelist || 0) +
+            plainRow('Chat',     byCategory.chat     || 0) +
+            plainRow('Auth',     byCategory.auth     || 0);
+
+        // Daily table (last 30 days)
+        const daily = data.daily || [];
+        const dailyTbody = document.getElementById('daily-rows');
+        if (daily.length === 0) {
+            dailyTbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-3">No data</td></tr>';
+        } else {
+            const maxDay = Math.max(...daily.map(d => d.count || 0));
+            dailyTbody.innerHTML = daily.slice().reverse().map(d =>
+                `<tr>
+                    <td>${escapeHtml(d.date)}</td>
+                    <td class="text-end fw-semibold">${(d.count||0).toLocaleString()}</td>
+                    <td>${progressBar(d.count||0, maxDay, 'bg-info')}</td>
+                </tr>`
+            ).join('');
+        }
+    }
+
+    function renderAreas(data) {
+        const areas = data.popular_echoareas || [];
+        renderRows('echoarea-views-rows', areas, r => r.name, r => r.views, 'bg-primary');
+        renderRows('echoarea-posts-rows', areas.slice().sort((a,b)=>(b.posts||0)-(a.posts||0)),
+            r => r.name, r => r.posts, 'bg-success');
+    }
+
+    function renderDoors(data) {
+        renderRows('webdoor-rows',  data.popular_webdoors  || [], r => r.name, r => r.count, 'bg-warning');
+        renderRows('dosdoor-rows',  data.popular_dosdoors  || [], r => r.name, r => r.count, 'bg-danger');
+    }
+
+    function renderFiles(data) {
+        renderRows('file-download-rows', data.top_files       || [], r => r.name, r => r.count, 'bg-success');
+        renderRows('filearea-rows',      data.top_fileareas   || [], r => 'Area #'+r.area_id, r => r.count, 'bg-info');
+    }
+
+    function renderNodelist(data) {
+        renderRows('nodelist-search-rows', data.top_nodelist_searches || [], r => r.name, r => r.count, 'bg-secondary');
+        renderRows('node-view-rows',       data.top_nodes             || [], r => r.name, r => r.count, 'bg-primary');
+    }
+
+    function renderUsers(data) {
+        renderRows('top-users-rows', data.top_users || [], r => r.username || '(anon)', r => r.count, 'bg-primary');
+    }
+
+    function renderHourly(data) {
+        const hourly = data.hourly || [];
+        const tbody = document.getElementById('hourly-rows');
+        if (hourly.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-3">No data</td></tr>';
+            return;
+        }
+        const maxH = Math.max(...hourly.map(h => h.count || 0));
+        tbody.innerHTML = hourly.map(h => {
+            const label = String(h.hour).padStart(2,'0') + ':00';
+            return `<tr>
+                <td>${label}</td>
+                <td class="text-end fw-semibold">${(h.count||0).toLocaleString()}</td>
+                <td>${progressBar(h.count||0, maxH, 'bg-primary')}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    function renderAll(data) {
+        renderSummaryCards(data);
+        renderOverview(data);
+        renderAreas(data);
+        renderDoors(data);
+        renderFiles(data);
+        renderNodelist(data);
+        renderUsers(data);
+        renderHourly(data);
+    }
+
+    function loadStats() {
+        const period = document.getElementById('period-select').value;
+        document.getElementById('loading-indicator').style.display = '';
+        document.getElementById('stats-content').style.display = 'none';
+
+        $.getJSON('/admin/api/activity-stats?period=' + encodeURIComponent(period))
+            .done(function(data) {
+                statsData = data;
+                renderAll(data);
+                document.getElementById('loading-indicator').style.display = 'none';
+                document.getElementById('stats-content').style.display = '';
+            })
+            .fail(function(xhr) {
+                document.getElementById('loading-indicator').innerHTML =
+                    '<div class="alert alert-danger">Failed to load statistics. ' +
+                    (xhr.responseJSON && xhr.responseJSON.error ? escapeHtml(xhr.responseJSON.error) : '') + '</div>';
+            });
+    }
+
+    document.getElementById('period-select').addEventListener('change', loadStats);
+    $(document).ready(function() { loadStats(); });
+})();
+</script>
+{% endblock %}
