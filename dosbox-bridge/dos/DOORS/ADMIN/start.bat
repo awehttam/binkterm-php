@@ -1,7 +1,9 @@
 @ECHO OFF
+SET SYSFILE=C:\DROPS\NODE%1\
+SET NODE=%1
 IF EXIST DOORWAY\DOORWAY.EXE GOTO REGISTERED
-DOORWAY\DOORWAYU COM1 /g:on /a:on /m:100 /v:d^U /s:* /c:dos
+DOORWAY\DOORWAYU SYS /g:on /a:on /m:100 /v:d^U /s:%SYSFILE% /c:dos
 GOTO END
 :REGISTERED
-DOORWAY\DOORWAY COM1 /o /g:on /a:on /m:100 /v:d^U /s:* /c:dos
+DOORWAY\DOORWAY SYS /o /g:on /a:on /m:100 /v:d^U /s:%SYSFILE% /c:dos
 :END
