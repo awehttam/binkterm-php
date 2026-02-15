@@ -2,6 +2,9 @@
 
 This directory contains Docker-specific configuration files for BinktermPHP.
 
+WARNING: Docker is UNTESTED and UNSUPPORTED - it is present because Claude generated the files once upon a time and maybe someone will want to fiddle with this.
+
+
 ## Files
 
 ### supervisord.conf
