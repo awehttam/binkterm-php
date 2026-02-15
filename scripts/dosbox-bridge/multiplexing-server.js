@@ -1080,11 +1080,11 @@ wsServer.on('error', (err) => {
     console.error('[WS] Server error:', err.message);
 });
 
-// Status reporting (every 60 seconds)
+// Status reporting (every 60 seconds) — only log when sessions are active
 setInterval(() => {
     const stats = sessionManager.getStats();
-    console.log('[STATUS] Active sessions:', stats.activeSessions, '| Available ports:', stats.availablePorts);
     if (stats.activeSessions > 0) {
+        console.log('[STATUS] Active sessions:', stats.activeSessions, '| Available ports:', stats.availablePorts);
         stats.sessions.forEach(s => {
             console.log(`  - ${s.sessionId} (port ${s.tcpPort}, PID ${s.emulatorPid}): ${s.uptime}s, WS:${s.wsConnected}, Emulator:${s.emulatorConnected}`);
         });
