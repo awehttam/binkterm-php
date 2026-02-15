@@ -55,4 +55,4 @@ if "%DOSBOX_EXE%"=="" (
 echo Using: %DOSBOX_EXE%
 echo.
 
-echo "%DOSBOX_EXE%" -conf "%PROJECT_DIR%\maintenance.conf"
+ "%DOSBOX_EXE%" -conf "%PROJECT_DIR%\maintenance.conf"
