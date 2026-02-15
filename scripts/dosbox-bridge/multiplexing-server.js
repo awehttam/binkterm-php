@@ -23,6 +23,15 @@ const { Client } = require('pg');
 const { createEmulatorAdapter } = require('./emulator-adapters');
 require('dotenv').config({ path: __dirname + '/../../.env' });
 
+// Prepend ISO timestamp to every console.log / .error / .warn line
+['log', 'error', 'warn'].forEach(method => {
+    const original = console[method].bind(console);
+    console[method] = (...args) => {
+        const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
+        original(`[${ts}]`, ...args);
+    };
+});
+
 // Daemon support
 const IS_DAEMON = process.argv.includes('--daemon');
 const IS_DAEMON_CHILD = process.env.DOSBOX_BRIDGE_DAEMON_CHILD === '1';
