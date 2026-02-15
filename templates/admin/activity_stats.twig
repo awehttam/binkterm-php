@@ -219,10 +219,10 @@
             <!-- Hourly Distribution Tab -->
             <div class="tab-pane fade" id="pane-hourly" role="tabpanel">
                 <div class="card shadow-sm">
-                    <div class="card-header"><strong>Activity by Hour of Day (UTC)</strong></div>
+                    <div class="card-header"><strong>Activity by Hour of Day (<span id="hourly-tz-label">UTC</span>)</strong></div>
                     <div class="card-body p-0">
                         <table class="table table-sm table-hover mb-0">
-                            <thead><tr><th>Hour (UTC)</th><th class="text-end">Events</th><th style="width:50%"></th></tr></thead>
+                            <thead><tr><th>Hour (<span class="hourly-tz-col">UTC</span>)</th><th class="text-end">Events</th><th style="width:50%"></th></tr></thead>
                             <tbody id="hourly-rows"></tbody>
                         </table>
                     </div>
@@ -238,6 +238,26 @@
 <script>
 (function() {
     let statsData = null;
+    const userTimezone = {{ user_timezone|json_encode|raw }};
+
+    function formatDate(dateStr) {
+        // dateStr is YYYY-MM-DD already bucketed in the user's timezone by the server
+        // Parse as local midnight to avoid UTC offset shifting the date
+        const parts = dateStr.split('-');
+        const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        return localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function getTzAbbr(timezone) {
+        // Extract short timezone abbreviation from Intl
+        try {
+            return new Intl.DateTimeFormat(undefined, { timeZone: timezone, timeZoneName: 'short' })
+                .formatToParts(new Date())
+                .find(p => p.type === 'timeZoneName')?.value || timezone;
+        } catch(e) {
+            return timezone;
+        }
+    }
 
     function escapeHtml(str) {
         if (!str) return '&mdash;';
@@ -370,7 +390,7 @@
             const maxDay = Math.max(...daily.map(d => d.count || 0));
             dailyTbody.innerHTML = daily.slice().reverse().map(d =>
                 `<tr>
-                    <td>${escapeHtml(d.date)}</td>
+                    <td>${escapeHtml(formatDate(d.date))}</td>
                     <td class="text-end fw-semibold">${(d.count||0).toLocaleString()}</td>
                     <td>${progressBar(d.count||0, maxDay, 'bg-info')}</td>
                 </tr>`
@@ -407,6 +427,12 @@
     function renderHourly(data) {
         const hourly = data.hourly || [];
         const tbody = document.getElementById('hourly-rows');
+        const tzAbbr = getTzAbbr(data.timezone || userTimezone);
+
+        // Update timezone label in card header and column header
+        document.getElementById('hourly-tz-label').textContent = tzAbbr;
+        document.querySelectorAll('.hourly-tz-col').forEach(el => el.textContent = tzAbbr);
+
         if (hourly.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-3">No data</td></tr>';
             return;
@@ -439,7 +465,7 @@
         document.getElementById('loading-indicator').style.display = '';
         document.getElementById('stats-content').style.display = 'none';
 
-        $.getJSON('/admin/api/activity-stats?period=' + encodeURIComponent(period) + '&exclude_admins=' + excludeAdmins)
+        $.getJSON('/admin/api/activity-stats?period=' + encodeURIComponent(period) + '&exclude_admins=' + excludeAdmins + '&timezone=' + encodeURIComponent(userTimezone))
             .done(function(data) {
                 statsData = data;
                 renderAll(data);

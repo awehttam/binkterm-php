@@ -141,10 +141,18 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
-        RouteHelper::requireAdmin();
+        $user = RouteHelper::requireAdmin();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $timezone = 'UTC';
+        if ($userId) {
+            $handler = new \BinktermPHP\MessageHandler();
+            $settings = $handler->getUserSettings((int)$userId);
+            $timezone = $settings['timezone'] ?? 'UTC';
+        }
 
         $template = new Template();
-        $template->renderResponse('admin/activity_stats.twig');
+        $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
     // API routes for admin
@@ -1836,6 +1844,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $period        = $_GET['period'] ?? '30d';
         $excludeAdmins = !empty($_GET['exclude_admins']);
 
+        // Validate and sanitize user timezone
+        $requestedTz = $_GET['timezone'] ?? 'UTC';
+        try {
+            new \DateTimeZone($requestedTz);
+            $timezone = $requestedTz;
+        } catch (\Exception $e) {
+            $timezone = 'UTC';
+        }
+
         // Build date filter condition
         switch ($period) {
             case '7d':
@@ -2016,15 +2033,17 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         foreach ($topUsers as &$row) { $row['count'] = (int)$row['count']; }
         unset($row);
 
-        // Hourly distribution (UTC)
-        $hourlyStmt = $db->query("
-            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')::int AS hour, COUNT(*) AS count
+        // Hourly distribution in user's timezone
+        $hourlyStmt = $db->prepare("
+            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE :tz)::int AS hour, COUNT(*) AS count
             FROM user_activity_log ual
             WHERE 1=1 {$dateFilter}{$adminFilter}
             GROUP BY hour
             ORDER BY hour
         ");
+        $hourlyStmt->execute([':tz' => $timezone]);
         $hourlyRaw = $hourlyStmt->fetchAll(\PDO::FETCH_ASSOC);
+
         // Fill all 24 hours even if no data
         $hourly = [];
         $hourlyByHour = [];
@@ -2039,20 +2058,22 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $dailyAdminFilter = $excludeAdmins
             ? "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
             : '';
-        $dailyStmt = $db->query("
-            SELECT DATE(created_at AT TIME ZONE 'UTC') AS date, COUNT(*) AS count
+        $dailyStmt = $db->prepare("
+            SELECT DATE(created_at AT TIME ZONE :tz) AS date, COUNT(*) AS count
             FROM user_activity_log
             WHERE created_at >= NOW() - INTERVAL '30 days'
             {$dailyAdminFilter}
             GROUP BY date
             ORDER BY date
         ");
+        $dailyStmt->execute([':tz' => $timezone]);
         $daily = $dailyStmt->fetchAll(\PDO::FETCH_ASSOC);
         foreach ($daily as &$row) { $row['count'] = (int)$row['count']; }
         unset($row);
 
         echo json_encode([
-            'period' => $period,
+            'period'   => $period,
+            'timezone' => $timezone,
             'summary' => [
                 'total'       => $totalEvents,
                 'by_category' => $byCategory,
