@@ -348,6 +348,16 @@ class TelnetServer
         // Show login banner
         $this->showLoginBanner($conn, $state);
 
+        // Anti-bot: require ESC key twice before presenting login/register menu
+        if (!$this->requireEscapeKey($conn, $state)) {
+            $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
+            fclose($conn);
+            if ($forked) {
+                exit(0);
+            }
+            return;
+        }
+
         // Login/Register loop
         $loginResult = null;
         while ($loginResult === null) {
@@ -390,7 +400,8 @@ class TelnetServer
             // Allow up to 3 login attempts
             $maxAttempts = 3;
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                $loginResult = $this->attemptLogin($conn, $state);
+                $attemptedUsername = '';
+                $loginResult = $this->attemptLogin($conn, $state, $attemptedUsername);
 
                 if ($loginResult !== null) {
                     // Successful login
@@ -401,7 +412,8 @@ class TelnetServer
 
                 // Failed login
                 $this->recordFailedLogin($peerIp);
-                echo "[" . date('Y-m-d H:i:s') . "] Failed login attempt from {$peerName} (attempt {$attempt}/{$maxAttempts})\n";
+                $userLabel = $attemptedUsername !== '' ? " (user: {$attemptedUsername})" : '';
+                $this->log("Failed login attempt from {$peerName}{$userLabel} (attempt {$attempt}/{$maxAttempts})");
 
                 if ($attempt < $maxAttempts) {
                     $remaining = $maxAttempts - $attempt;
@@ -415,7 +427,7 @@ class TelnetServer
 
             // If all attempts failed, disconnect
             if ($loginResult === null) {
-                echo "[" . date('Y-m-d H:i:s') . "] Login failed (max attempts) from {$peerName}\n";
+                $this->log("Login failed (max attempts) from {$peerName}");
                 fclose($conn);
                 if ($forked) {
                     exit(0);
@@ -1335,12 +1347,13 @@ class TelnetServer
      *
      * @return array|null Returns ['session' => string, 'username' => string] on success, null on failure
      */
-    private function attemptLogin($conn, array &$state): ?array
+    private function attemptLogin($conn, array &$state, string &$attemptedUsername = ''): ?array
     {
         $username = $this->prompt($conn, $state, 'Username: ', true);
         if ($username === null) {
             return null;
         }
+        $attemptedUsername = $username;
         $password = $this->prompt($conn, $state, 'Password: ', false);
         if ($password === null) {
             return null;
@@ -1494,6 +1507,77 @@ class TelnetServer
         }
 
         $this->failedLoginAttempts[$ip][] = time();
+    }
+
+    // ===== ANTI-BOT / CHALLENGE METHODS =====
+
+    /**
+     * Anti-bot challenge: require the user to press ESC twice before login.
+     *
+     * Bots that blindly send credentials without responding to interactive
+     * prompts will time out and be dropped. A 30-second window is given.
+     * Each ESC press is acknowledged with a '*' so the user can see progress.
+     *
+     * @param resource  $conn  Client socket
+     * @param array    &$state Session state
+     * @return bool True if two ESC presses received in time, false on timeout/disconnect
+     */
+    private function requireEscapeKey($conn, array &$state): bool
+    {
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize('Press ESC twice to continue...', self::ANSI_CYAN));
+
+        $escCount  = 0;
+        $deadline  = time() + 30;
+
+        // Short read timeout so we can poll the deadline
+        stream_set_timeout($conn, 2);
+
+        while ($escCount < 2 && time() < $deadline) {
+            if (!is_resource($conn) || feof($conn)) {
+                break;
+            }
+
+            $char = fread($conn, 1);
+
+            if ($char === false || $char === '') {
+                $info = stream_get_meta_data($conn);
+                if ($info['timed_out']) {
+                    continue; // Keep waiting
+                }
+                break; // Real disconnect
+            }
+
+            $byte = ord($char);
+
+            // Strip IAC telnet negotiation bytes
+            if ($byte === self::IAC) {
+                $cmd = fread($conn, 1);
+                if ($cmd !== false) {
+                    $cmdByte = ord($cmd);
+                    if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
+                        fread($conn, 1); // consume option byte
+                    }
+                }
+                continue;
+            }
+
+            if ($byte === 0x1B) { // ESC
+                $escCount++;
+                $this->safeWrite($conn, $this->colorize('*', self::ANSI_GREEN));
+            }
+        }
+
+        // Restore normal read timeout
+        stream_set_timeout($conn, 300);
+
+        if ($escCount >= 2) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, '');
+            return true;
+        }
+
+        return false;
     }
 
     // ===== BANNER / UI METHODS =====
