@@ -718,39 +718,36 @@ function convertPipeCodesToAnsi(text) {
     };
 
     // Replace pipe codes with ANSI escape sequences
+    // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background
     return text.replace(/\|([0-9A-Fa-f]{2})/g, (match, codeHex) => {
-        const code = parseInt(codeHex, 16);
+        const code = parseInt(codeHex, 10);
 
         if (code <= 15) {
-            // Single digit codes 00-0F: Set foreground color only
+            // Codes 00-15: foreground color 0-15
             const ansiFg = pipeToAnsiFg[code] || 37;
             return `\x1b[${ansiFg}m`;
         } else if (code >= 16 && code <= 23) {
-            // Codes 16-23: Foreground colors 0-7 with blink
-            const fg = code - 16;
-            const ansiFg = pipeToAnsiFg[fg] || 37;
-            return `\x1b[${ansiFg};5m`; // Add blink attribute
+            // Codes 16-23: background color 0-7 (code - 16)
+            const bg = code - 16;
+            const ansiBg = pipeToAnsiBg[bg] || 40;
+            return `\x1b[${ansiBg}m`;
         } else {
-            // Extended codes: background + foreground
-            // Upper nibble = background (0-15), lower nibble = foreground (0-15)
-            const bgCode = (code >> 4) & 0x0F;
-            const fgCode = code & 0x0F;
-            const ansiFg = pipeToAnsiFg[fgCode] || 37;
-            const ansiBg = pipeToAnsiBg[bgCode] || 40;
-            return `\x1b[${ansiFg};${ansiBg}m`;
+            // Codes above 23 have no standard meaning in this scheme
+            return '';
         }
     });
 }
 
 /**
- * Parse pipe codes (Synchronet/Mystic/Renegade style) and convert to HTML
- * Pipe codes: |XX where XX is a two-digit hex code representing color
+ * Parse pipe codes (Renegade/Mystic style) and convert to HTML
+ * Pipe codes: |XX where XX is a two-digit DECIMAL code
  *
- * Standard 16-color mapping:
- * 0-7: Normal colors (Black, Red, Green, Yellow, Blue, Magenta, Cyan, White)
- * 8-15: Bright colors
+ * Standard 16-color mapping (decimal):
+ * |00-|07: Normal colors (Black, Blue, Green, Cyan, Red, Magenta, Yellow, White)
+ * |08-|15: Bright colors
+ * |16-|23: Background colors 0-7 (code - 16)
  *
- * Format: |FG|BG where FG is foreground color, BG is background color
+ * Format: set foreground with |00-|15, then background with |16-|23
  * Examples:
  *   |15 = Bright white on black
  *   |0C = Bright red on black
@@ -823,28 +820,17 @@ function parsePipeCodes(text) {
             result += escapeHtml(textBefore);
         }
 
-        // Parse the pipe code
-        const code = parseInt(match[1], 16);
+        // Parse the pipe code as decimal (Renegade style)
+        const code = parseInt(match[1], 10);
 
         if (code <= 15) {
-            // Single digit codes 00-0F: Set foreground color only
+            // Codes 00-15: foreground color 0-15
             currentFg = code;
         } else if (code >= 16 && code <= 23) {
-            // Codes 16-23 (10-17 hex): Foreground colors with blink attribute
-            // These map to colors 0-7 with blink
-            currentFg = code - 16;
-            // Note: Blink not implemented in this version
-        } else if (code >= 128) {
-            // High bit set: background color in upper nibble, foreground in lower nibble
-            // Format: BBBBFFFF where B=background, F=foreground
-            currentBg = (code >> 4) & 0x0F;
-            currentFg = code & 0x0F;
-        } else {
-            // Extended codes: treat as background + foreground
-            // Upper nibble = background (0-7), lower nibble = foreground (0-15)
-            currentBg = (code >> 4) & 0x07;
-            currentFg = code & 0x0F;
+            // Codes 16-23: background color 0-7 (code - 16)
+            currentBg = code - 16;
         }
+        // Codes above 23 have no standard meaning in this scheme
 
         // Ensure colors are in valid range
         currentFg = currentFg & 0x0F;
