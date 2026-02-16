@@ -33,6 +33,7 @@ class Installer
             
             // Run installation steps
             $this->createTables();
+            $this->runMigrations();
             $this->insertDefaultData();
             $this->createAdminUser();
             $this->fixDirectoryPermissions();
@@ -107,7 +108,7 @@ class Installer
     
     private function insertDefaultData()
     {
-        echo "2. Inserting default data...\n";
+        echo "3. Inserting default data...\n";
         
         // Default echoareas are handled by schema
         echo "   ✓ Default echo areas created\n";
@@ -115,7 +116,7 @@ class Installer
     
     private function createAdminUser()
     {
-        echo "3. Setting up administrator account...\n";
+        echo "4. Setting up administrator account...\n";
         
         if ($this->interactive) {
             $username = $this->promptInput("Admin username", "admin");
@@ -222,6 +223,19 @@ class Installer
         echo "• scripts/process_packets.php - Manually process mail packets\n\n";
     }
 
+    private function runMigrations()
+    {
+        echo "2. Running database migrations...\n";
+
+        passthru(PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/upgrade.php'), $exitCode);
+
+        if ($exitCode !== 0) {
+            throw new Exception("Database migration failed with exit code: $exitCode");
+        }
+
+        echo "   ✓ Migrations complete\n";
+    }
+
     private function fixDirectoryPermissions()
     {
         // Only run on Unix-like systems
@@ -229,7 +243,7 @@ class Installer
             return;
         }
 
-        echo "4. Setting directory permissions...\n";
+        echo "5. Setting directory permissions...\n";
 
         $dirs = [
             "Outbound queue" => [__DIR__ . '/../data/outbound', 01777],
