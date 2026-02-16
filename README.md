@@ -213,14 +213,52 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management 
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
+- **Operating User** - It is recommended to run BinktermPHP out of its own user account
 
-Ubuntu/Debian:
+
+#### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
 sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-pgsql php-dom postgresql
 sudo apt-get install -y unzip p7zip-full
 ```
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
+
+#### Postgres Database setup
+
+First, decide on a database name, username, and password. These will be used in your `.env` file later.
+
+Connect to PostgreSQL as the superuser:
+
+```bash
+sudo -u postgres psql
+```
+
+Then run the following commands, replacing `your_username`, `your_password`, and `your_database` with your chosen values:
+
+```sql
+CREATE USER your_username WITH PASSWORD 'your_password';
+CREATE DATABASE your_database OWNER your_username;
+\q
+```
+
+Verify the connection works with the new credentials:
+
+```bash
+psql -U your_username -d your_database -h 127.0.0.1
+```
+
+If the connection succeeds, update your `.env` file with the corresponding values:
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=your_database
+DB_USER=your_username
+DB_PASS=your_password
+```
+
+> **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
 
 ### Method 1: Using the Installer (Experimental)
 
