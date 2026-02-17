@@ -72,9 +72,9 @@ if (!empty($args['help'])) {
     exit(0);
 }
 
-// Extract configuration from arguments
-$host = $args['host'] ?? '0.0.0.0';
-$port = (int)($args['port'] ?? 2323);
+// Extract configuration from arguments, falling back to .env then hardcoded defaults
+$host = $args['host'] ?? Config::env('TELNET_BIND_HOST', '0.0.0.0');
+$port = (int)($args['port'] ?? Config::env('TELNET_PORT', '2323'));
 $apiBase = buildApiBase($args);
 $debug = !empty($args['debug']);
 $daemonMode = !empty($args['daemon']);
