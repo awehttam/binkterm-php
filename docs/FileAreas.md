@@ -51,7 +51,7 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
     }
   ],
   "area_rules": {
-    "NODELIST": [
+    "NODELIST@fidonet": [
       {
         "name": "Import FidoNet Nodelist",
         "domain": "fidonet",
