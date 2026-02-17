@@ -5,14 +5,16 @@
           [1;36mEchoMail  *  NetMail  *  Door Games[0m
                [1;32mBinktermPHP Development Node[0m
 
-    [1;33mFidoNet:[0m [1;37m1:153/150[0m         [1;33mHobbyNet:[0m [1;37m954:11/10[0m
+     [1;33mFidoNet:[0m [1;37m1:153/150[0m        [1;33mHobbyNet:[0m [1;37m954:11/10[0m
+    [1;33mMicroNet:[0m [1;37m618:400/15[0m         [1;33mNixNet:[0m [1;37m86:400/15[0m
 
      On the Web @ https://[1;37mclaudes.lovelybits.org[0m
 
-  Home of the BinktermPHP project:
+            Home of the BinktermPHP project and LovlyNet
 
-  BinktermPHP is a modern Fido/FTN bulletin board system with support
-  for various forms of entertainment  including webdoors, multi-user
-  chats, echomail + netmail messaging and more!
+  BinktermPHP is a modern FidoNet/FTN bulletin board system with 
+  support for various forms of entertainment including web and 
+  dos doors, multi-user chats, echo & net mail messaging and more!
 
-  Mobile friendly and designed for the modern world wide web.
+    Mobile friendly and designed for the modern world wide web.
+
