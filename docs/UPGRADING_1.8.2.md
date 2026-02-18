@@ -36,6 +36,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Gateway Token Debug Logging** — A leftover debug block in `verifyGatewayToken()` was logging raw token values to the PHP error log and issuing a redundant database query on every call. Both have been removed.
 - **XSS in `<script>` Data Islands** — `window.currentUser` and `userTimezone` were serialised with plain `json_encode`, which does not encode `<` or `>`. These now use `JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT` to prevent `</script>` injection regardless of PHP version or flag combinations.
 - **Password Hash in Client-Side Object** — `window.currentUser` included the user's `password_hash` field. The hash is now stripped from the `current_user` Twig global before it reaches any template.
+- **TIC File Path Traversal** — A malicious peer could supply a crafted `File:` field in a `.tic` file containing `../` sequences to write a received file to an arbitrary location on the server. The filename is now sanitised with `basename()` before the storage path is constructed.
+- **Binkp Plaintext Password Timing** — The plaintext password fallback path in the Binkp session used a non-constant-time `===` comparison. This is now done with `hash_equals()` to prevent timing oracle attacks.
 
 ## DOS Door Improvements
 
