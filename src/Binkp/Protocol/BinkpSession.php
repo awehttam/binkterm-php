@@ -1031,7 +1031,11 @@ class BinkpSession
         $this->log("Remote confirmed: {$data}", 'DEBUG');
 
         $parts = explode(' ', $data);
-        $filename = $parts[0];
+        $filename = basename($parts[0]);
+        if ($filename === '' || $filename === '.' || $filename === '..') {
+            $this->log("Invalid filename in M_GOT: {$data}", 'WARNING');
+            return;
+        }
 
         $outboundPath = $this->config->getOutboundPath();
         $filepath = $outboundPath . '/' . $filename;

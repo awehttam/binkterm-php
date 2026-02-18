@@ -349,15 +349,15 @@ class FileAreaRuleProcessor
         }
 
         return [
-            'basedir' => $basedir ?: '',
-            'filepath' => $filepath,
-            'filename' => $filename,
+            'basedir'  => escapeshellarg($basedir ?: ''),
+            'filepath' => escapeshellarg($filepath),
+            'filename' => escapeshellarg($filename),
             'filesize' => (string)$filesize,
-            'domain' => $domain,
-            'areatag' => $areatag,
-            'uploader' => $uploader,
-            'ticfile' => $ticfile,
-            'tempdir' => sys_get_temp_dir()
+            'domain'   => escapeshellarg($domain),
+            'areatag'  => escapeshellarg($areatag),
+            'uploader' => escapeshellarg($uploader),
+            'ticfile'  => escapeshellarg($ticfile),
+            'tempdir'  => escapeshellarg(sys_get_temp_dir()),
         ];
     }
 
