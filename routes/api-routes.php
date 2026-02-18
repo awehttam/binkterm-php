@@ -3362,8 +3362,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
 
-        // Get user message statistics
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ?");
+        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
+        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
+        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
         $netmailStmt->execute([$user['user_id']]);
         $netmailCount = $netmailStmt->fetch()['count'];
 
@@ -3409,8 +3410,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Get user message statistics
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ?");
+        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
+        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
+        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
         $netmailStmt->execute([$userId]);
         $netmailCount = $netmailStmt->fetch()['count'];
 
