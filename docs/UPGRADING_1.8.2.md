@@ -42,6 +42,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Expanded Reserved Username List** — The list of usernames and real names blocked at registration has been extended to cover common authority-implying names (`admin`, `administrator`, `sysadmin`, `sysadm`, `moderator`, `staff`, `support`, and others) to prevent impersonation.
 
 ### Web Interface
+- **Netmail Sent Count on Profile** — The "Netmail Sent" statistic on user profiles was incorrectly counting received messages. The `netmail` table stores `user_id` as the recipient for inbound messages and as the sender for outbound messages; the count now filters by `is_sent = TRUE` so only dispatched messages are counted.
 - **Echomail Sidebar Selected Item Contrast** — The network name, description, and message count badges in the echo area list were unreadable when an area was selected (theme-specific colours such as blue or amber persisted on the blue active background). Selected items now render all text and badges in high-contrast white/light colours.
 - **Who's Online Idle Timer** — An Idle column (admin-only) has been added to the Who's Online page showing time elapsed since each user's last activity. The timer updates every 10 seconds in the browser without additional server requests.
 
