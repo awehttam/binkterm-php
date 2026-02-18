@@ -276,14 +276,13 @@ class AdminController
     public function getDatabaseVersion(): string
     {
         try {
-            $stmt = $this->db->query("
-                SELECT version
-                FROM database_migrations
-                ORDER BY version DESC
-                LIMIT 1
-            ");
-            $result = $stmt->fetch();
-            return $result ? $result['version'] : 'n/a';
+            $stmt = $this->db->query("SELECT version FROM database_migrations");
+            $versions = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            if (empty($versions)) {
+                return 'n/a';
+            }
+            usort($versions, 'version_compare');
+            return end($versions);
         } catch (\Exception $e) {
             return 'n/a';
         }
