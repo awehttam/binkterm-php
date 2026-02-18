@@ -238,7 +238,7 @@
 <script>
 (function() {
     let statsData = null;
-    const userTimezone = {{ user_timezone|json_encode|raw }};
+    const userTimezone = {{ user_timezone|json_encode(15)|raw }};
 
     function formatDate(dateStr) {
         // dateStr is YYYY-MM-DD already bucketed in the user's timezone by the server

@@ -98,6 +98,9 @@ class Template
         }
         $this->twig->addGlobal('csrf_token', $csrfToken);
 
+        if (is_array($currentUser)) {
+            unset($currentUser['password_hash']);
+        }
         $this->twig->addGlobal('current_user', $currentUser);
         $this->twig->addGlobal('system_name', $systemName);
         $this->twig->addGlobal('sysop_name', $sysopName);
