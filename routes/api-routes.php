@@ -3781,6 +3781,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($isAdmin) {
                 $entry['activity'] = $onlineUser['activity'] ?? '';
                 $entry['service'] = $onlineUser['service'] ?? 'web';
+                $entry['last_activity_ts'] = $onlineUser['last_activity'] ? (int)strtotime($onlineUser['last_activity']) : null;
             }
             return $entry;
         }, $onlineUsers);
