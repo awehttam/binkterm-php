@@ -332,10 +332,9 @@ class CharsetConverter
 
 ### 12. Version Bump
 
-Update version to 1.7.0 in:
+Update version 
 - `src/Version.php`
 - `composer.json`
-- `templates/recent_updates.twig` (add changelog entry)
 
 ---
 
@@ -376,7 +375,6 @@ Update version to 1.7.0 in:
 | `src/AdminController.php` | Add QWK network management methods |
 | `src/Version.php` | Bump to 1.7.0 |
 | `composer.json` | Bump version |
-| `templates/recent_updates.twig` | Add changelog entry |
 
 ---
 

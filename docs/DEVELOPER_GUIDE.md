@@ -125,7 +125,6 @@ This method:
 
 - **Application version**: Edit `src/Version.php` only
 - **Auto-updates**: Tearlines, footer, API responses update automatically
-- **Changelog**: Add entries to `templates/recent_updates.twig` for significant changes
 - **Format**: Semantic versioning (MAJOR.MINOR.PATCH)
 
 #### Styling Updates

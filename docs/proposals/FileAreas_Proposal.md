@@ -2652,8 +2652,7 @@ ORDER BY f.virus_scanned_at DESC;
 3. Performance testing (large files, many users)
 4. Documentation: UPGRADING_1.9.0.md
 5. Documentation: Update FAQ.md
-6. Update recent_updates.twig changelog
-7. Bug fixes and refinements
+6. Bug fixes and refinements
 
 **Deliverables**:
 - Complete test coverage

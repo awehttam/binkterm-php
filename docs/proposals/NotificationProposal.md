@@ -198,10 +198,9 @@ if ($userId) {
 
 ### 11. Version Bump
 
-Update version to 1.7.0 in:
+Update version 
 - `src/Version.php`
 - `composer.json`
-- `templates/recent_updates.twig` (add changelog entry)
 
 ---
 
@@ -226,7 +225,6 @@ Update version to 1.7.0 in:
 | `src/BinkdProcessor.php` | Trigger notification on netmail receipt |
 | `src/Version.php` | Bump to 1.7.0 |
 | `composer.json` | Add web-push dependency, bump version |
-| `templates/recent_updates.twig` | Add changelog entry |
 
 ---
 
