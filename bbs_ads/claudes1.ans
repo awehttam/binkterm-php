@@ -1,20 +1,27 @@
 
-                     [1;35mClaude's BBS[0m
-           [1;36m-----  Vancouver, Canada  -----[0m
+                        [1;35mClaude's BBS[0m
+                [1;36m-----  Vancouver, Canada  -----[0m
 
-          [1;36mEchoMail  *  NetMail  *  Door Games[0m
-               [1;32mBinktermPHP Development Node[0m
+              [1;36mEchoMail  *  NetMail  *  Door Games[0m
+                 [1;32mBinktermPHP Development Node[0m
 
      [1;33mFidoNet:[0m [1;37m1:153/150[0m        [1;33mHobbyNet:[0m [1;37m954:11/10[0m
     [1;33mMicroNet:[0m [1;37m618:400/15[0m         [1;33mNixNet:[0m [1;37m86:400/16[0m
 
-     On the Web @ https://[1;37mclaudes.lovelybits.org[0m
+          On the Web @ https://[1;37mclaudes.lovelybits.org[0m
 
-         Home of the BinktermPHP project and LovlyNet
+      [1;32m** Join the BinktermPHP Project -- Contributors Wanted **[0m
 
-  BinktermPHP is a modern FidoNet/FTN bulletin board system with 
-  support for various forms of entertainment including web and 
-  dos doors, multi-user chats, echo & net mail messaging and more!
+  [1;35mhttps://claudes.lovelybits.org/shared/afedf90438b75f3bd62a98770e43ecd4
 
-    Mobile friendly and designed for the modern world wide web.
+               https://tinyurl.com/contributors-wanted[0m
+
+  BinktermPHP is an open source modern web-based BBS and FidoNet 
+  mailer — a love letter to the golden age of bulletin board 
+  systems, rebuilt for the web with PHP, PostgreSQL, and Bootstrap. 
+
+  If you grew up on BBSes, or you're just drawn to niche protocol
+  work and community-driven software, this might be your kind of 
+  project.
+  
 
