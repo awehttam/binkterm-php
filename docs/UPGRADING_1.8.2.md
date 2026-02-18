@@ -43,6 +43,7 @@ Make sure you've made a backup of your database and files before upgrading.
 
 ### Web Interface
 - **Echomail Sidebar Selected Item Contrast** — The network name, description, and message count badges in the echo area list were unreadable when an area was selected (theme-specific colours such as blue or amber persisted on the blue active background). Selected items now render all text and badges in high-contrast white/light colours.
+- **Who's Online Idle Timer** — An Idle column (admin-only) has been added to the Who's Online page showing time elapsed since each user's last activity. The timer updates every 10 seconds in the browser without additional server requests.
 
 ## DOS Door Improvements
 
