@@ -135,6 +135,18 @@ function formatMessageText(messageText, searchTerms = []) {
     }
 
     // Format as readable text with preserved line breaks and quote coloring
+
+    // Pre-scan to find the LAST signature separator in the bottom third of the
+    // message. A bare run of dashes (-- or ---) only counts as a sig separator
+    // when it appears late in the message — earlier occurrences are typically
+    // mid-message dividers, not signature delimiters.
+    const isSigSeparator = line => /^(-{2,3}|_{2,3})$/.test(line.trim());
+    const bottomThirdStart = Math.floor(lines.length * 2 / 3);
+    let lastSigIndex = -1;
+    for (let i = bottomThirdStart; i < lines.length; i++) {
+        if (isSigSeparator(lines[i])) lastSigIndex = i;
+    }
+
     let formattedLines = [];
     let inQuoteBlock = false;
     let inSignature = false;
@@ -143,8 +155,8 @@ function formatMessageText(messageText, searchTerms = []) {
         const line = lines[i];
         const trimmedLine = line.trim();
 
-        // Handle signature separator
-        if (trimmedLine === '---' || trimmedLine === '___' || trimmedLine.match(/^-{2,}$/)) {
+        // Handle signature separator — only trigger on the last one
+        if (isSigSeparator(line) && i === lastSigIndex) {
             inSignature = true;
             let highlightedLine = parseAnsi(trimmedLine);
             highlightedLine = linkifyUrls(highlightedLine);
