@@ -422,7 +422,7 @@ git push origin main
 
 #### 4. Update UPGRADING_x.x.x.md documentation
 
-For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) in the docs/ directory with a summary of changes and important upgrade instructions
+For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) in the docs/ directory with a summary of changes and important upgrade instructions.  Link the new document from the Upgrading section of README.md.
 
 ### What Updates Automatically
 

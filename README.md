@@ -713,15 +713,19 @@ php binkterm-installer.phar
 ### Version-Specific Upgrade Guides
 
 Individual versions with specific upgrade documentation:
-- February 2026 [docs/UPGRADING_1.8.0.md](docs/UPGRADING_1.8.0.md) - Forum style echoarea list is now the default echoarea page.  Binkp insecure session fixes, various enhancements
-- February 8 2026 [docs/UPGRADING_1.7.9.md](docs/UPGRADING_1.7.9.md) - LovlyNet, Telnet user registration, ANSI AD generator, Misc updates 
-- February 6 2026 [docs/UPGRADING_1.7.8.md](docs/UPGRADING_1.7.8.md) - NetMail enhancements, Auto Feed RSS poster, Sysop Notifications to Email, echomail cross posting and more
-- February 4 2026 [docs/UPGRADING_1.7.7.md](docs/UPGRADING_1.7.7.md) - Nodelist import fix for ZC/NC, Webdoor updates, signatures and tag lines, file area action processing, misc fixes
-- February 2 2026 - [docs/UPGRADING_1.7.5.md](docs/UPGRADING_1.7.1.md) - Optimizations to echomail message loader for memory reduction, Bink fixes, file areas, new forum style echoarea list,  various enhancements 
-- January 30 2026 - [docs/UPGRADING_1.7.2.md](docs/UPGRADING_1.7.1.md)  - Maintenance release/pre-release
-- January 29 2026 - [docs/UPGRADING_1.7.1.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 28 2026 - [docs/UPGRADING_1.7.0.md](docs/UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
-- January 24 2026 - [docs/UPGRADING_1.6.7.md](docs/UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
+
+| Version                                | Date        | Highlights |
+|----------------------------------------|-------------|------------|
+| [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 17 2026 | Telnet anti-bot challenge, bind host/port via .env, FTN origin line fix, DOS door improvements |
+| [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026  | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation |
+| [1.7.9](docs/UPGRADING_1.7.9.md)       | Feb 8 2026  | LovlyNet, telnet user registration, ANSI AD generator, misc updates |
+| [1.7.8](docs/UPGRADING_1.7.8.md)       | Feb 6 2026  | NetMail enhancements, auto feed RSS poster, sysop notifications to email, echomail cross posting |
+| [1.7.7](docs/UPGRADING_1.7.7.md)       | Feb 4 2026  | Nodelist import fix for ZC/NC, WebDoor updates, signatures and taglines, file area action processing |
+| [1.7.5](docs/UPGRADING_1.7.5.md)       | Feb 2 2026  | Echomail loader optimisations, Bink fixes, file areas, forum-style echoarea list |
+| [1.7.2](docs/UPGRADING_1.7.2.md)       | Jan 30 2026 | Maintenance release |
+| [1.7.1](docs/UPGRADING_1.7.1.md)       | Jan 29 2026 | Online config editing for BinkP, system config, and WebDoors |
+| [1.7.0](docs/UPGRADING_1.7.0.md)       | Jan 28 2026 | New daemon/scheduler cron model |
+| [1.6.7](docs/UPGRADING_1.6.7.md)       | Jan 24 2026 | Multi-network support (FidoNet, FSXNet, etc.) |
 
 ## Database Management
 
