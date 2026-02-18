@@ -22,6 +22,7 @@ Make sure you've made a backup of your database and files before upgrading.
 ### Admin / Daemon
 - **`reload_binkp_config` Response** — The admin daemon's `reload_binkp_config` command now correctly returns an array response, fixing a parsing error in the web interface.
 - **Fresh Install Migrations** — Database migrations now run correctly during a fresh installation (previously only ran on upgrades).
+- **Auto Feed User Selector** — The "Post As User" dropdown in the auto feed configuration now lists all users instead of being capped at 25.
 
 ## DOS Door Improvements
 

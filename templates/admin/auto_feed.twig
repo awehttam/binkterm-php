@@ -395,7 +395,7 @@ function loadStats() {
 }
 
 function loadUsers() {
-    $.get('/admin/api/users')
+    $.get('/admin/api/users', { limit: 1000 })
         .done(function(data) {
             const select = $('#feedUser');
             select.empty();
