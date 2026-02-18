@@ -27,7 +27,7 @@ class Auth
 
     public function login($username, $password, string $service = 'web')
     {
-        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE username = ? AND is_active = TRUE');
+        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE LOWER(username) = LOWER(?) AND is_active = TRUE');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 

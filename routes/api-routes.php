@@ -373,9 +373,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Check if username or real_name already exists in users or pending_users (case-insensitive)
             $checkStmt = $db->prepare("
-                SELECT 1 FROM users WHERE username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)
+                SELECT 1 FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)
                 UNION
-                SELECT 1 FROM pending_users WHERE (username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND status = 'pending'
+                SELECT 1 FROM pending_users WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND status = 'pending'
             ");
             $checkStmt->execute([$username, $username, $realName, $username, $username, $realName]);
 
