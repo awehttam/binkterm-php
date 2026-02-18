@@ -1541,19 +1541,21 @@ class BinkdProcessor
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
-        
-        // Build origin line with optional origin
-        $originText = " * Origin: ";
-        $origin = $this->config->getSystemOrigin();
-        if (!empty($origin)) {
-            $originText .= $origin;
-        } else {
-            $originText .= $this->config->getSystemName();
+
+        // Origin line is echomail-only per FTS-0004
+        if ($isEchomail) {
+            $originText = " * Origin: ";
+            $origin = $this->config->getSystemOrigin();
+            if (!empty($origin)) {
+                $originText .= $origin;
+            } else {
+                $originText .= $this->config->getSystemName();
+            }
+
+            $originText .= " (" . $systemAddress . ")";
+
+            $messageText .= $originText;
         }
-
-        $originText .= " (" . $systemAddress . ")";
-
-        $messageText .= $originText;
 
         // Add bottom kludges (Via lines, etc.) after origin per FTS-4009.001
         // These appear after message text but before SEEN-BY/PATH
