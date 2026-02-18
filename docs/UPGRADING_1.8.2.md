@@ -38,6 +38,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Password Hash in Client-Side Object** — `window.currentUser` included the user's `password_hash` field. The hash is now stripped from the `current_user` Twig global before it reaches any template.
 - **TIC File Path Traversal** — A malicious peer could supply a crafted `File:` field in a `.tic` file containing `../` sequences to write a received file to an arbitrary location on the server. The filename is now sanitised with `basename()` before the storage path is constructed.
 - **Binkp Plaintext Password Timing** — The plaintext password fallback path in the Binkp session used a non-constant-time `===` comparison. This is now done with `hash_equals()` to prevent timing oracle attacks.
+- **Case-Insensitive Username Matching** — Registration and login now compare usernames case-insensitively, preventing two accounts from coexisting with names that differ only by case (e.g. `Admin` and `admin`).
+- **Expanded Reserved Username List** — The list of usernames and real names blocked at registration has been extended to cover common authority-implying names (`admin`, `administrator`, `sysadmin`, `sysadm`, `moderator`, `staff`, `support`, and others) to prevent impersonation.
 
 ## DOS Door Improvements
 
