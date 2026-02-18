@@ -165,10 +165,6 @@ When adding new configuration settings you'll be working with the configuration 
 You may need to add new commands, or update existing ones depending on the context of the setting being added.  Be sure to clarify and confirm this.
 
 ## Changelog Workflow
- - Badge types: `bg-primary` (Feature), `bg-success` (Improvement), `bg-warning` (Fix), `bg-info` (Update)
- - Keep entries concise but descriptive
- - Limit to 10-15 most recent entries (remove older ones)
- - This file is automatically displayed on the admin dashboard's "Recent Updates" section
 
 ## Credits System Workflow
 When adding new UserCredit credit/reward types or debit types, you must update configuration, code defaults, and admin interface:
