@@ -18,7 +18,6 @@ Make sure you've made a backup of your database and files before upgrading.
 ### Telnet Daemon
 - **Door List Display** — The door list now shows the door name instead of its internal ID.
 - **Multiplexor Log Timestamps** — All multiplexor log output now includes timestamps using local server time (previously UTC or missing entirely).
-- **Multiplexor Idle Log Spam** — Suppressed repetitive idle-status entries in the multiplexor daemon log.
 
 ### Admin / Daemon
 - **`reload_binkp_config` Response** — The admin daemon's `reload_binkp_config` command now correctly returns an array response, fixing a parsing error in the web interface.
@@ -30,6 +29,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Registered version of Doorway receives the `/o` flag for correct operation.
 - `DOORWAYU.EXE` (unregistered Doorway) is now bundled and used by default; installing `DOORWAY.EXE` alongside it will override automatically.
 - Added a README for the built-in Admin door.
+- Suppressed repetitive idle-status entries in the multiplexor daemon log.
 
 ---
 

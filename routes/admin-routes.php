@@ -139,6 +139,33 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/template_editor.twig');
     });
 
+    // Upgrade notes viewer
+    SimpleRouter::get('/upgrade-notes', function() {
+        RouteHelper::requireAdmin();
+
+        $version = \BinktermPHP\Version::getVersion();
+        $docPath = __DIR__ . '/../docs/UPGRADING_' . $version . '.md';
+
+        if (!file_exists($docPath)) {
+            http_response_code(404);
+            $template = new Template();
+            $template->renderResponse('admin/upgrade_notes.twig', [
+                'version'  => $version,
+                'content'  => null,
+            ]);
+            return;
+        }
+
+        $raw = file_get_contents($docPath);
+        $html = \BinktermPHP\MarkdownRenderer::toHtml($raw);
+
+        $template = new Template();
+        $template->renderResponse('admin/upgrade_notes.twig', [
+            'version' => $version,
+            'content' => $html,
+        ]);
+    });
+
     // Activity statistics page
     SimpleRouter::get('/activity-stats', function() {
         $user = RouteHelper::requireAdmin();

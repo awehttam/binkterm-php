@@ -209,6 +209,7 @@
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> README</a></li>
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                                        {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> Upgrade Notes v{{ app_version }}</a></li>{% endif %}
                                         <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> Claude's BBS</a></li>
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> Report Issue</a></li>
                                     </ul>

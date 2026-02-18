@@ -89,6 +89,10 @@ class Template
         $this->twig->addGlobal('app_name', Version::getAppName());
         $this->twig->addGlobal('app_full_version', Version::getFullVersion());
 
+        // Expose whether an upgrade notes page exists for the current version
+        $upgradingFile = __DIR__ . '/../docs/UPGRADING_' . Version::getVersion() . '.md';
+        $this->twig->addGlobal('has_upgrading_doc', file_exists($upgradingFile));
+
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');
 
