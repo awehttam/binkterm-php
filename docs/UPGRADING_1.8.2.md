@@ -19,6 +19,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Door List Display** — The door list now shows the door name instead of its internal ID.
 - **Multiplexor Log Timestamps** — All multiplexor log output now includes timestamps using local server time (previously UTC or missing entirely).
 
+### Message Display
+- **Signature Block Detection** — Signature styling is now only applied to separators (`--` or `---`) found in the bottom third of a message. Previously any bare dash separator triggered dimmed styling for the rest of the message, causing mid-message dividers to be incorrectly styled as signatures. Long decorative dash lines are also no longer mistaken for signature separators.
+
 ### Admin / Daemon
 - **`reload_binkp_config` Response** — The admin daemon's `reload_binkp_config` command now correctly returns an array response, fixing a parsing error in the web interface.
 - **Fresh Install Migrations** — Database migrations now run correctly during a fresh installation (previously only ran on upgrades).
