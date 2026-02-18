@@ -12,6 +12,12 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 
 awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org as a point system of the Reverse Polarity BBS, and https://claudes.lovelybits.org - Claude's very own Public Home Point BBS.
 
+## 🤝 Contributors Wanted
+
+We're looking for experienced PHP developers interested in contributing to BinktermPHP. Areas include FTN networking, WebDoors game development, themes, telnet, real-time features, and more. See **[HELP_WANTED.md](HELP_WANTED.md)** for details.
+
+---
+
 ## Table of Contents
 
 - [Screen shots](#screen-shots)
