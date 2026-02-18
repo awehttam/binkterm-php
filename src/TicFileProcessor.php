@@ -429,7 +429,12 @@ class TicFileProcessor
      */
     protected function storeFile(array $ticData, string $tempFilePath, array $fileArea, string $preCalculatedHash, ?string $storedHash = null): array
     {
-        $filename = $ticData['File'];
+        // Sanitize filename from TIC to prevent directory traversal
+        $filename = basename($ticData['File']);
+        if ($filename === '' || $filename === '.' || $filename === '..') {
+            throw new \Exception("Invalid filename in TIC File field: " . $ticData['File']);
+        }
+
         $areaTag = $fileArea['tag'];
         $areaId = $fileArea['id'] ?? null;
         $dirSuffix = $areaId ? ($areaTag . '-' . $areaId) : $areaTag;
