@@ -18,9 +18,9 @@ class MailUtils
      * @param array $payload Message data to send (to, from, subject, body, etc.)
      * @return array ['success' => bool, 'error' => string|null]
      */
-    public static function sendMessage(string $apiBase, string $session, array $payload): array
+    public static function sendMessage(string $apiBase, string $session, array $payload, ?string $csrfToken = null): array
     {
-        $result = TelnetUtils::apiRequest($apiBase, 'POST', '/api/messages/send', $payload, $session);
+        $result = TelnetUtils::apiRequest($apiBase, 'POST', '/api/messages/send', $payload, $session, 3, $csrfToken);
         $success = ($result['status'] ?? 0) === 200 && !empty($result['data']['success']);
         $error = null;
 

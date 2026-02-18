@@ -117,17 +117,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     SimpleRouter::get('/bbs-settings', function() {
         $user = RouteHelper::requireAdmin();
 
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $csrfToken = bin2hex(random_bytes(32));
-        if ($userId) {
-            $meta = new UserMeta();
-            $meta->setValue((int)$userId, 'csrf_bbs_settings', $csrfToken);
-        }
-
         $template = new Template();
         $template->renderResponse('admin/bbs_settings.twig', [
             'timezone_list' => \DateTimeZone::listIdentifiers(),
-            'bbs_settings_csrf' => $csrfToken
         ]);
     });
 
@@ -619,14 +611,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
-                $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-                $meta = new UserMeta();
-                $expectedToken = $userId ? $meta->getValue($userId, 'csrf_bbs_settings') : null;
-                if (!$expectedToken || !hash_equals($expectedToken, (string)$csrfToken)) {
-                    http_response_code(403);
-                    echo json_encode(['error' => 'Invalid CSRF token']);
-                    return;
-                }
 
                 $payload = json_decode(file_get_contents('php://input'), true);
                 $config = $payload['config'] ?? [];

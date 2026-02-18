@@ -76,20 +76,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
-            setcookie('binktermphp_session', $sessionId, time() + 86400 * 30, '/', '', false, true);
-            // Track login event (resolve user_id from session)
+            setcookie('binktermphp_session', $sessionId, [
+                'expires'  => time() + 86400 * 30,
+                'path'     => '/',
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+            // Track login event and retrieve CSRF token for the response
+            $csrfToken = null;
             try {
                 $db = Database::getInstance()->getPdo();
                 $stmt = $db->prepare("SELECT user_id FROM user_sessions WHERE session_id = ?");
                 $stmt->execute([$sessionId]);
                 $row = $stmt->fetch();
                 if ($row) {
-                    ActivityTracker::track((int)$row['user_id'], ActivityTracker::TYPE_LOGIN);
+                    $userId = (int)$row['user_id'];
+                    ActivityTracker::track($userId, ActivityTracker::TYPE_LOGIN);
+                    $meta      = new UserMeta();
+                    $csrfToken = $meta->getValue($userId, 'csrf_token');
                 }
             } catch (\Exception $e) {
                 // Tracking errors must not break login
             }
-            echo json_encode(['success' => true]);
+            echo json_encode(['success' => true, 'csrf_token' => $csrfToken]);
         } else {
             http_response_code(401);
             echo json_encode(['error' => 'Invalid credentials']);

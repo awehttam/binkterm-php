@@ -436,9 +436,12 @@ class TelnetServer
             }
         }
 
-        $session = $loginResult['session'];
+        $session  = $loginResult['session'];
         $username = $loginResult['username'];
         $loginTime = time();
+
+        // Store CSRF token in state so handlers can attach it to POST requests
+        $state['csrf_token'] = $loginResult['csrf_token'] ?? null;
 
         // Fetch user settings once at login and store in state
         $settingsResponse = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/settings', null, $session);
@@ -1073,7 +1076,23 @@ class TelnetServer
         if ($char === self::KEY_END) return ['END', false, false];
 
         $ord = ord($char[0]);
-        if ($ord === 13 || $ord === 10) {
+        if ($ord === 13) {
+            // CR — consume a trailing LF or NUL if one arrives immediately.
+            // Most terminals send CR+LF for Enter; without this the LF would be
+            // seen as a second ENTER by the very next readKeyWithIdleCheck call
+            // (e.g. the message reader exiting the moment it opens).
+            $read = [$conn];
+            $write = $except = null;
+            if (@stream_select($read, $write, $except, 0, 50000) > 0) {
+                $next = $this->readRawChar($conn, $state);
+                if ($next !== null && ord($next) !== 10 && ord($next) !== 0) {
+                    // Not LF/NUL — put it back for the next read
+                    $state['pushback'] = ($state['pushback'] ?? '') . $next;
+                }
+            }
+            return ['ENTER', false, false];
+        }
+        if ($ord === 10) {
             return ['ENTER', false, false];
         }
         if ($ord === 8 || $ord === 127) {
@@ -1389,7 +1408,11 @@ class TelnetServer
             return null;
         }
 
-        return ['session' => $result['cookie'], 'username' => $username];
+        return [
+            'session'    => $result['cookie'],
+            'username'   => $username,
+            'csrf_token' => $result['data']['csrf_token'] ?? null,
+        ];
     }
 
     /**

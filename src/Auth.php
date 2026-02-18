@@ -34,6 +34,14 @@ class Auth
         if ($user && password_verify($password, $user['password_hash'])) {
             $sessionId = $this->createSession($user['id'], $service);
             $this->updateLastLogin($user['id']);
+
+            // Generate a fresh CSRF token and store it per-user in UserMeta so it
+            // is accessible to both web sessions and the telnet daemon (which has
+            // no PHP session).
+            $csrfToken = bin2hex(random_bytes(32));
+            $meta = new UserMeta();
+            $meta->setValue((int)$user['id'], 'csrf_token', $csrfToken);
+
             return $sessionId;
         }
 
@@ -153,6 +161,22 @@ class Auth
             echo json_encode(['error' => 'Authentication required']);
             exit;
         }
+
+        // CSRF validation for state-changing requests
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $userId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta     = new UserMeta();
+            $expected = $meta->getValue($userId, 'csrf_token');
+            $token    = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if ($expected === null || $token === '' || !hash_equals($expected, $token)) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Invalid CSRF token']);
+                exit;
+            }
+        }
+
         return $user;
     }
 

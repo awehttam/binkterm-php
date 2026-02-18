@@ -4,6 +4,7 @@ Make sure you've made a backup of your database and files before upgrading.
 
 ## New Features
 
+- **CSRF Protection** — All state-changing API requests (POST/PUT/PATCH/DELETE) are now protected by a synchronizer token. The token is stored per-user in the database and is automatically attached to AJAX requests by the web client. The telnet daemon receives the token in the login response and sends it with outgoing requests.
 - **Telnet Bind Configuration** — The telnet daemon's bind host and port can now be set via `.env` variables (`TELNET_HOST`, `TELNET_PORT`), removing the need to edit the script directly.
 - **Telnet Anti-Bot ESC Challenge** — New connections receive an ESC-key challenge before the login prompt, blocking automated scanners. Failed login attempts are now logged.
 - **Activity Stats Timezone** — Dates and times on the activity statistics page are now displayed in the logged-in user's preferred timezone.
@@ -16,6 +17,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Pipe Code Decimal Parsing** — Pipe colour codes are now parsed as decimal values, correcting a blink rendering bug introduced by treating them as octal/hex.
 
 ### Telnet Daemon
+- **Message Reader Flash** — Opening a message from the list no longer immediately exits. The bug was caused by terminals sending CR+LF for Enter; the trailing LF was being read as a second Enter by the message reader.
 - **Door List Display** — The door list now shows the door name instead of its internal ID.
 - **Multiplexor Log Timestamps** — All multiplexor log output now includes timestamps using local server time (previously UTC or missing entirely).
 

@@ -213,8 +213,6 @@
 
 {% block scripts %}
 <script>
-const bbsSettingsCsrf = '{{ bbs_settings_csrf|e('js') }}';
-
 document.addEventListener('DOMContentLoaded', function() {
     loadBbsSettings();
     loadBbsSystem();
@@ -299,7 +297,7 @@ function saveBbsSettings() {
 
             return fetch('/admin/api/bbs-settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ config })
             });
         })
@@ -457,7 +455,7 @@ function saveBbsCredits() {
 
             return fetch('/admin/api/bbs-settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ config })
             });
         })

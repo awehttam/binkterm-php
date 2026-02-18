@@ -419,10 +419,13 @@ $(document).ready(function() {
     // Load user settings on page load
     loadUserSettings();
     
-    // Global AJAX setup
+    // Global AJAX setup — attach CSRF token to every jQuery AJAX request
     $.ajaxSetup({
         beforeSend: function(xhr) {
-            // Add loading indicator if needed
+            const token = document.querySelector('meta[name="csrf-token"]');
+            if (token && token.content) {
+                xhr.setRequestHeader('X-CSRF-Token', token.content);
+            }
         },
         error: function(xhr, status, error) {
             if (xhr.status === 401) {
@@ -432,6 +435,32 @@ $(document).ready(function() {
         }
     });
 });
+
+// Intercept native fetch() calls for same-origin state-changing requests
+// so that templates using fetch() directly also send the CSRF token.
+(function() {
+    const _fetch = window.fetch;
+    window.fetch = function(url, options) {
+        options = options || {};
+        const method = (options.method || 'GET').toUpperCase();
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+            const isSameOrigin = typeof url === 'string' &&
+                (url.startsWith('/') || url.startsWith(window.location.origin));
+            if (isSameOrigin) {
+                const token = document.querySelector('meta[name="csrf-token"]');
+                if (token && token.content) {
+                    options.headers = options.headers || {};
+                    if (options.headers instanceof Headers) {
+                        options.headers.set('X-CSRF-Token', token.content);
+                    } else {
+                        options.headers['X-CSRF-Token'] = token.content;
+                    }
+                }
+            }
+        }
+        return _fetch.call(this, url, options);
+    };
+}());
 
 // Unified user settings management
 function loadUserSettings() {

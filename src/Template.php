@@ -77,6 +77,27 @@ class Template
         $this->twig->addGlobal("favicon_ico", $favicon_ico);
         $this->twig->addGlobal("favicon_png", $favicon_png);
 
+        // CSRF token — stored per-user in UserMeta so it is shared across web
+        // sessions and the telnet daemon.  Generated lazily for users who were
+        // already logged in before this feature was deployed.
+        $csrfToken = '';
+        if ($currentUser) {
+            $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+            if ($userId > 0) {
+                try {
+                    $meta      = new UserMeta();
+                    $csrfToken = $meta->getValue($userId, 'csrf_token') ?? '';
+                    if ($csrfToken === '') {
+                        $csrfToken = bin2hex(random_bytes(32));
+                        $meta->setValue($userId, 'csrf_token', $csrfToken);
+                    }
+                } catch (\Throwable $e) {
+                    // Non-fatal: page renders without CSRF; next POST will 403
+                }
+            }
+        }
+        $this->twig->addGlobal('csrf_token', $csrfToken);
+
         $this->twig->addGlobal('current_user', $currentUser);
         $this->twig->addGlobal('system_name', $systemName);
         $this->twig->addGlobal('sysop_name', $sysopName);
