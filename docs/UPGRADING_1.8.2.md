@@ -29,6 +29,14 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Fresh Install Migrations** — Database migrations now run correctly during a fresh installation (previously only ran on upgrades).
 - **Auto Feed User Selector** — The "Post As User" dropdown in the auto feed configuration now lists all users instead of being capped at 25.
 
+## Security Fixes
+
+- **Binkp M_GOT Path Traversal** — A malicious authenticated peer could send a crafted `M_GOT` filename containing `../` sequences to delete arbitrary files on the server. The filename is now sanitised with `basename()` before use, matching the protection already applied to inbound `M_FILE` handling.
+- **File Area Rule Command Injection** — Filenames received via Binkp are substituted into admin-configured rule scripts as shell macros. These values are now wrapped with `escapeshellarg()` before substitution, preventing a peer from achieving remote code execution via a crafted filename.
+- **Gateway Token Debug Logging** — A leftover debug block in `verifyGatewayToken()` was logging raw token values to the PHP error log and issuing a redundant database query on every call. Both have been removed.
+- **XSS in `<script>` Data Islands** — `window.currentUser` and `userTimezone` were serialised with plain `json_encode`, which does not encode `<` or `>`. These now use `JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT` to prevent `</script>` injection regardless of PHP version or flag combinations.
+- **Password Hash in Client-Side Object** — `window.currentUser` included the user's `password_hash` field. The hash is now stripped from the `current_user` Twig global before it reaches any template.
+
 ## DOS Door Improvements
 
 - Doorway launcher now passes user information via `DOOR.SYS` instead of command-line arguments.
