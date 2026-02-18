@@ -591,6 +591,17 @@ a:hover {
     color: var(--text-color);
 }
 
+.node-item.bg-primary .node-address,
+.node-item.bg-primary .node-system {
+    color: #fff;
+    text-shadow: none;
+}
+
+.node-item.bg-primary .badge {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #333 !important;
+}
+
 .node-sysop {
     color: var(--text-color-muted);
     font-size: 0.9em;

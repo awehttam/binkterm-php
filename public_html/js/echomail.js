@@ -178,7 +178,7 @@ function displayEchoareas(echoareas) {
                 <div class="node-item ${isActive ? 'bg-primary text-white' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="node-address">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
+                            <div class="node-address">${area.tag} ${area.domain ? `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="node-system">${escapeHtml(area.description)}</div>
                         </div>
                         ${countDisplay}
@@ -222,14 +222,14 @@ function displayMobileEchoareas(echoareas) {
             if (isSearchActive && area.search_count !== undefined) {
                 countDisplay = `<span class="badge bg-info">${area.search_count} found</span>`;
             } else {
-                countDisplay = `<span class="badge bg-secondary">${unreadCount}/${totalCount}</span>`;
+                countDisplay = `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${unreadCount}/${totalCount}</span>`;
             }
 
             html += `
                 <div class="list-group-item list-group-item-action ${isActive ? 'active' : ''}" onclick="selectEchoarea('${fullTag}')">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="fw-bold">${area.tag} ${area.domain ? `<span class="badge bg-secondary" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
+                            <div class="fw-bold">${area.tag} ${area.domain ? `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}" style="font-size: 0.65em;">${area.domain}</span>` : ''}</div>
                             <div class="text-muted small">${escapeHtml(area.description)}</div>
                         </div>
                         ${countDisplay}

@@ -41,6 +41,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Case-Insensitive Username Matching** — Registration and login now compare usernames case-insensitively, preventing two accounts from coexisting with names that differ only by case (e.g. `Admin` and `admin`).
 - **Expanded Reserved Username List** — The list of usernames and real names blocked at registration has been extended to cover common authority-implying names (`admin`, `administrator`, `sysadmin`, `sysadm`, `moderator`, `staff`, `support`, and others) to prevent impersonation.
 
+### Web Interface
+- **Echomail Sidebar Selected Item Contrast** — The network name, description, and message count badges in the echo area list were unreadable when an area was selected (theme-specific colours such as blue or amber persisted on the blue active background). Selected items now render all text and badges in high-contrast white/light colours.
+
 ## DOS Door Improvements
 
 - Doorway launcher now passes user information via `DOOR.SYS` instead of command-line arguments.
