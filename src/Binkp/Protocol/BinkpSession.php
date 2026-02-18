@@ -1127,7 +1127,7 @@ class BinkpSession
             $this->log("Accepting plain text password fallback", 'DEBUG');
         }
 
-        $match = $password === $expectedPassword;
+        $match = hash_equals($expectedPassword, $password);
 
         // Log details for debugging authentication issues
         $receivedLen = strlen($password);
