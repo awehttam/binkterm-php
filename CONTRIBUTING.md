@@ -14,6 +14,10 @@ Thank you for your interest in contributing to BinktermPHP! This document provid
 - [Submitting Changes](#submitting-changes)
 - [Changelog Updates](#changelog-updates)
 
+## Looking for Something to Work On?
+
+If you're considering getting involved, check out **[HELP_WANTED.md](HELP_WANTED.md)** for an overview of the areas where contribution would have the most impact — from FTN protocol work and DOS door integration to WebDoors game development and UI themes.
+
 ## Getting Started
 
 BinktermPHP is a modern web interface and mailer tool for FidoNet message packets using the binkp protocol. Before contributing, please familiarize yourself with:
