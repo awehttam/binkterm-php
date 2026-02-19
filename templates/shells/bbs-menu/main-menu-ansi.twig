@@ -1,0 +1,11 @@
+{# ANSI art menu variant for BBS shell #}
+{% if shell_art_content %}
+<div class="mb-3 d-flex justify-content-center">
+    <div class="ansi-art-container">
+        <pre class="ansi-art" id="shellMenuAnsi">{{ shell_art_content }}</pre>
+    </div>
+</div>
+{% else %}
+{# No ANSI file configured — fall back to text menu #}
+{% include 'shells/bbs-menu/main-menu-text.twig' %}
+{% endif %}

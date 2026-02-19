@@ -4242,6 +4242,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $settings = $handler->getUserSettings($userId);
+
+            // Append shell preference from UserMeta
+            if ($userId) {
+                $meta = new \BinktermPHP\UserMeta();
+                $settings['shell'] = $meta->getValue((int)$userId, 'shell') ?? '';
+            }
+
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
             http_response_code(500);
@@ -4263,8 +4270,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         try {
+            $settings = $input['settings'];
+
+            // Handle shell preference separately (stored in UserMeta, not user_settings table)
+            if (isset($settings['shell']) && $userId && !\BinktermPHP\AppearanceConfig::isShellLocked()) {
+                $shellVal = (string)$settings['shell'];
+                if (in_array($shellVal, ['web', 'bbs-menu'], true)) {
+                    $meta = new \BinktermPHP\UserMeta();
+                    $meta->setValue((int)$userId, 'shell', $shellVal);
+                }
+            }
+            unset($settings['shell']);
+
             $handler = new MessageHandler();
-            $result = $handler->updateUserSettings($userId, $input['settings']);
+            $result = $handler->updateUserSettings($userId, $settings);
 
             if ($result) {
                 echo json_encode(['success' => true]);

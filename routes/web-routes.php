@@ -1,6 +1,7 @@
 <?php
 
 // Web routes
+use BinktermPHP\AppearanceConfig;
 use BinktermPHP\Auth;
 use BinktermPHP\Advertising;
 use BinktermPHP\BbsConfig;
@@ -26,9 +27,28 @@ SimpleRouter::get('/', function() {
     // Generate system news content
     $systemNewsContent = $template->renderSystemNews();
 
+    // Load shell art content for the bbs-menu ANSI variant
+    $shellArtContent = null;
+    $bbsMenu = \BinktermPHP\AppearanceConfig::getBbsMenuConfig();
+    if (($bbsMenu['variant'] ?? '') === 'ansi' && !empty($bbsMenu['ansi_file'])) {
+        $artPath = dirname(__DIR__) . '/data/shell_art/' . basename($bbsMenu['ansi_file']);
+        if (is_file($artPath)) {
+            $raw = file_get_contents($artPath);
+            // Strip SAUCE record: \x1A is the traditional EOF/SAUCE delimiter
+            $saucePos = strpos($raw, "\x1A");
+            if ($saucePos !== false) {
+                $raw = substr($raw, 0, $saucePos);
+            }
+            // Convert CP437 (DOS encoding) to UTF-8 so block drawing characters render correctly
+            $shellArtContent = @iconv('CP437', 'UTF-8//TRANSLIT//IGNORE', $raw)
+                ?: mb_convert_encoding($raw, 'UTF-8', 'CP437');
+        }
+    }
+
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
-        'dashboard_ad' => $ad
+        'dashboard_ad' => $ad,
+        'shell_art_content' => $shellArtContent,
     ]);
 });
 
@@ -890,6 +910,42 @@ SimpleRouter::get('/polls/create', function() {
         'poll_cost' => $pollCost,
         'credit_balance' => $balance
     ]);
+});
+
+// Serve shell art files from data/shell_art/ (public read, admin-only write)
+SimpleRouter::get('/shell-art/{name}', function(string $name) {
+    // Sanitize: only allow safe filenames, no path traversal
+    $name = basename($name);
+    if (!preg_match('/^[a-zA-Z0-9_\-]+\.(ans|asc|txt)$/i', $name)) {
+        http_response_code(404);
+        return;
+    }
+
+    $dir = dirname(__DIR__) . '/data/shell_art';
+    $path = $dir . '/' . $name;
+
+    if (!file_exists($path) || !is_file($path)) {
+        http_response_code(404);
+        return;
+    }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Length: ' . filesize($path));
+    header('Cache-Control: public, max-age=3600');
+    readfile($path);
+});
+
+// Public /about page (only when enabled in appearance settings)
+SimpleRouter::get('/about', function() {
+    if (!\BinktermPHP\AppearanceConfig::isAboutPageEnabled()) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('about.twig');
 });
 
 // Include local/custom routes if they exist

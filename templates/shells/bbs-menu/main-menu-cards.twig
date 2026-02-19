@@ -1,0 +1,22 @@
+{# Card grid menu variant for BBS shell #}
+{% set menuItems = appearance.shell.bbs_menu.menu_items %}
+<div class="row row-cols-2 row-cols-md-3 g-3">
+    {% for item in menuItems %}
+    <div class="col">
+        <a href="{{ item.url | e }}" class="text-decoration-none">
+            <div class="card h-100 text-center bbs-menu-card" style="cursor:pointer;">
+                <div class="card-body py-4">
+                    <div class="mb-2">
+                        <span class="badge bg-primary fs-6">{{ item.key | upper | e }}</span>
+                    </div>
+                    <i class="fas fa-{{ item.icon | default('circle') | e }} fa-2x text-primary mb-2"></i>
+                    <h6 class="card-title mb-0">{{ item.label | e }}</h6>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+<div class="mt-3 text-muted small text-center">
+    <i class="fas fa-keyboard me-1"></i> Press the highlighted key to navigate &bull; <kbd>Q</kbd> / <kbd>Esc</kbd> returns to this menu
+</div>

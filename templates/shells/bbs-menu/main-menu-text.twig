@@ -1,0 +1,18 @@
+{# Text/terminal list menu variant for BBS shell #}
+{% set menuItems = appearance.shell.bbs_menu.menu_items %}
+<div class="bbs-text-menu p-3" style="font-family: 'Courier New', Courier, monospace; background: #000; color: #0f0; max-width: 640px; margin: 0 auto; border-radius: 6px;">
+    <div class="mb-3" style="color: #0ff; font-size: 1.1rem; text-align: center;">
+        ═══ {{ system_name | upper | e }} ═══
+    </div>
+    {% for item in menuItems %}
+    <div class="mb-1">
+        <a href="{{ item.url | e }}" class="text-decoration-none" style="color: inherit;">
+            <span style="color: #ff0;">[{{ item.key | upper | e }}]</span>
+            {{ item.label | e }}
+        </a>
+    </div>
+    {% endfor %}
+    <div class="mt-3" style="color: #888; font-size: 0.85rem;">
+        Press key to navigate &bull; [Q] Quit/Return
+    </div>
+</div>

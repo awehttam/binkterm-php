@@ -123,6 +123,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // Appearance & Content settings page
+    SimpleRouter::get('/appearance', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/appearance.twig', [
+            'available_themes' => \BinktermPHP\Config::getThemes(),
+        ]);
+    });
+
     // Custom template editor page
     SimpleRouter::get('/template-editor', function() {
         $user = RouteHelper::requireAdmin();
@@ -691,6 +701,314 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ]);
                 }
                 echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // ---------------------------------------------------------------
+        // Appearance API
+        // ---------------------------------------------------------------
+
+        SimpleRouter::get('/appearance', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $data = $client->getAppearanceConfig();
+                echo json_encode(['success' => true, 'data' => $data]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/branding', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $branding = $payload['branding'] ?? [];
+
+                $accentColor = trim((string)($branding['accent_color'] ?? ''));
+                if ($accentColor !== '' && !preg_match('/^#[0-9A-Fa-f]{6}$/', $accentColor)) {
+                    throw new Exception('Invalid accent color format');
+                }
+
+                $logoUrl = trim((string)($branding['logo_url'] ?? ''));
+                $footerText = trim((string)($branding['footer_text'] ?? ''));
+                if (mb_strlen($footerText) > 500) {
+                    throw new Exception('Footer text must be 500 characters or less');
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['branding']['accent_color'] = $accentColor;
+                $config['branding']['default_theme'] = trim((string)($branding['default_theme'] ?? ''));
+                $config['branding']['lock_theme'] = !empty($branding['lock_theme']);
+                $config['branding']['logo_url'] = $logoUrl;
+                $config['branding']['footer_text'] = $footerText;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/content', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+
+                // Save system news markdown
+                if (array_key_exists('system_news', $payload)) {
+                    $client->setSystemNews((string)$payload['system_news']);
+                }
+
+                // Save house rules markdown
+                if (array_key_exists('house_rules', $payload)) {
+                    $client->setHouseRules((string)$payload['house_rules']);
+                }
+
+                // Save announcement config
+                if (array_key_exists('announcement', $payload)) {
+                    $ann = $payload['announcement'];
+                    $allowedTypes = ['info', 'warning', 'danger', 'success', 'primary'];
+                    $annType = in_array($ann['type'] ?? '', $allowedTypes, true) ? $ann['type'] : 'info';
+
+                    $config = \BinktermPHP\AppearanceConfig::getConfig();
+                    $config['content']['announcement'] = [
+                        'enabled' => !empty($ann['enabled']),
+                        'text' => substr(strip_tags((string)($ann['text'] ?? '')), 0, 1000),
+                        'type' => $annType,
+                        'expires_at' => ($ann['expires_at'] ?? '') !== '' ? (string)$ann['expires_at'] : null,
+                        'dismissible' => !empty($ann['dismissible']),
+                    ];
+                    $client->setAppearanceConfig($config);
+                }
+
+                \BinktermPHP\AppearanceConfig::reload();
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/navigation', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $links = $payload['custom_links'] ?? [];
+
+                if (!is_array($links)) {
+                    throw new Exception('Invalid custom_links payload');
+                }
+
+                $sanitized = [];
+                foreach ($links as $link) {
+                    $label = trim((string)($link['label'] ?? ''));
+                    $url = trim((string)($link['url'] ?? ''));
+                    if ($label === '' || $url === '') {
+                        continue;
+                    }
+                    if (!preg_match('#^https?://#i', $url) && strpos($url, '/') !== 0) {
+                        continue; // Only relative paths starting with / or absolute https? URLs
+                    }
+                    $sanitized[] = [
+                        'label' => substr($label, 0, 100),
+                        'url' => substr($url, 0, 500),
+                        'new_tab' => !empty($link['new_tab']),
+                    ];
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['navigation']['custom_links'] = $sanitized;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/seo', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $seo = $payload['seo'] ?? [];
+
+                $description = substr(trim((string)($seo['description'] ?? '')), 0, 300);
+                $ogImage = trim((string)($seo['og_image_url'] ?? ''));
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['seo']['description'] = $description;
+                $config['seo']['og_image_url'] = $ogImage;
+                $config['seo']['about_page_enabled'] = !empty($seo['about_page_enabled']);
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/shell', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $shell = $payload['shell'] ?? [];
+
+                $activeShell = (string)($shell['active'] ?? 'web');
+                if (!in_array($activeShell, ['web', 'bbs-menu'], true)) {
+                    $activeShell = 'web';
+                }
+
+                $bbsMenu = $shell['bbs_menu'] ?? [];
+                $variant = (string)($bbsMenu['variant'] ?? 'cards');
+                if (!in_array($variant, ['cards', 'ansi', 'text'], true)) {
+                    $variant = 'cards';
+                }
+
+                $menuItems = $bbsMenu['menu_items'] ?? [];
+                $sanitizedItems = [];
+                if (is_array($menuItems)) {
+                    foreach ($menuItems as $item) {
+                        $key = strtoupper(trim((string)($item['key'] ?? '')));
+                        $label = trim((string)($item['label'] ?? ''));
+                        $url = trim((string)($item['url'] ?? ''));
+                        $icon = trim((string)($item['icon'] ?? 'circle'));
+                        if (strlen($key) !== 1 || $label === '' || $url === '') {
+                            continue;
+                        }
+                        $sanitizedItems[] = [
+                            'key' => $key,
+                            'label' => substr($label, 0, 100),
+                            'icon' => preg_replace('/[^a-z0-9-]/', '', strtolower($icon)),
+                            'url' => substr($url, 0, 500),
+                        ];
+                    }
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['shell']['active'] = $activeShell;
+                $config['shell']['lock_shell'] = !empty($shell['lock_shell']);
+                $config['shell']['bbs_menu']['variant'] = $variant;
+                $config['shell']['bbs_menu']['ansi_file'] = basename(trim((string)($bbsMenu['ansi_file'] ?? '')));
+                if (!empty($sanitizedItems)) {
+                    $config['shell']['bbs_menu']['menu_items'] = $sanitizedItems;
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/preview-markdown', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $markdown = (string)($payload['markdown'] ?? '');
+                $html = \BinktermPHP\MarkdownRenderer::toHtml($markdown);
+                echo json_encode(['success' => true, 'html' => $html]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // Shell art management
+        SimpleRouter::get('/shell-art', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $files = $client->listShellArt();
+                echo json_encode(['success' => true, 'files' => $files]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/shell-art/upload', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                if (empty($_FILES['file'])) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'No file uploaded']);
+                    return;
+                }
+                $file = $_FILES['file'];
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Upload error: ' . $file['error']]);
+                    return;
+                }
+                // Max 512 KB for ANSI art
+                if ($file['size'] > 524288) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'File too large (max 512 KB)']);
+                    return;
+                }
+                $originalName = basename($file['name']);
+                $contentBase64 = base64_encode(file_get_contents($file['tmp_name']));
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->uploadShellArt($contentBase64, '', $originalName);
+                echo json_encode(['success' => true, 'name' => $result['name'] ?? $originalName]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::delete('/shell-art/{name}', function(string $name) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $name = basename($name);
+                if (!preg_match('/^[a-zA-Z0-9_\-]+\.(ans|asc|txt)$/i', $name)) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Invalid filename']);
+                    return;
+                }
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->deleteShellArt($name);
+                echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
                 echo json_encode(['error' => $e->getMessage()]);
