@@ -13,6 +13,7 @@ Make sure you've made a backup of your database and files before upgrading.
 ## Bug Fixes
 
 ### FTN / Messaging
+- **Echomail MSGID `addr@domain` Format** — Incoming echomail with a MSGID in `address@domain serial` format (e.g. `618:618/1@micronet 6695bee3`) logged a warning and failed to record the originating address. The parser now handles this format alongside the existing `address serial` and `opaque@address serial` forms.
 - **Origin Line Restricted to Echomail** — Outgoing netmail packets no longer include a `* Origin:` line. Per FTS-0004, origin lines are an echomail convention; netmail routing is conveyed via kludge lines (`^AINTL`, `^AMSGID`, etc.).
 - **Pipe Code Decimal Parsing** — Pipe colour codes are now parsed as decimal values, correcting a blink rendering bug introduced by treating them as octal/hex.
 
