@@ -62,8 +62,9 @@
         .bbs-shell-main {
             flex: 1;
         }
-        /* Admin dropdown in bbs-menu shell header */
-        .bbs-shell-header .dropdown-toggle {
+        /* Admin dropdown button in bbs-menu shell header — scope tightly so the
+           rule does NOT cascade into .dropdown-item.dropdown-toggle submenu links */
+        .bbs-shell-header > .dropdown > .dropdown-toggle {
             color: #fff;
             text-decoration: none;
             font-size: 0.9rem;
@@ -73,12 +74,15 @@
             padding: 0;
             cursor: pointer;
         }
-        .bbs-shell-header .dropdown-toggle:hover { opacity: 1; }
+        .bbs-shell-header > .dropdown > .dropdown-toggle:hover { opacity: 1; }
         .bbs-shell-header .dropdown-submenu { position: relative; }
+        /* Submenus open to the LEFT because the dropdown is right-aligned in the
+           header; opening right would take them off-screen. */
         .bbs-shell-header .dropdown-submenu > .dropdown-menu {
-            top: 0; left: 100%; margin-top: -1px; margin-left: -1px;
+            top: 0; left: auto; right: 100%; margin-top: -1px; margin-right: -1px;
         }
         .bbs-shell-header .dropdown-submenu:hover > .dropdown-menu { display: block; }
+        /* Caret points left (rotate -90°) to indicate the left-opening submenu */
         .bbs-shell-header .dropdown-submenu > .dropdown-toggle::after {
             transform: rotate(-90deg); position: absolute;
             right: 10px; top: 50%; margin-top: -3px;
@@ -120,9 +124,18 @@
             {% if credits_enabled %}
                 <span class="me-2 small" id="headerCreditBalance">{{ credits_symbol }}{{ credit_balance }}</span>
             {% endif %}
-            <a href="/settings" class="bbs-shell-home me-2" title="Settings">
-                <i class="fas fa-user"></i> {{ current_user.username }}
-            </a>
+            <div class="dropdown me-2">
+                <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-user"></i> {{ current_user.username }}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="/profile"><i class="fas fa-id-card"></i> Profile</a></li>
+                    <li><a class="dropdown-item" href="/settings"><i class="fas fa-cog"></i> Settings</a></li>
+                    <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                </ul>
+            </div>
             {% if current_user.is_admin %}
             <div class="dropdown">
                 <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -179,9 +192,6 @@
                 </ul>
             </div>
             {% endif %}
-            <a href="#" class="bbs-shell-home me-2" onclick="logout(); return false;" title="Logout">
-                <i class="fas fa-sign-out-alt"></i>
-            </a>
         {% else %}
             <a href="/login" class="bbs-shell-home me-2">Login</a>
         {% endif %}
