@@ -25,11 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libzip-dev \
         nodejs \
         p7zip-full \
+        postgresql-client \
         supervisor \
         unzip \
-        # DOSBox (vanilla) - much lighter than DOSBox-X (~30MB vs ~256MB RSS)
-        dosbox \
-    && docker-php-ext-install -j"$(nproc)" pdo pdo_pgsql pgsql sockets zip \
+        # DOSBox-X for DOS door support with headless operation
+        dosbox-x \
+    && docker-php-ext-install -j"$(nproc)" pcntl posix pdo pdo_pgsql pgsql sockets zip \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
@@ -72,6 +73,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Expose ports
 EXPOSE 80
+EXPOSE 2323
 EXPOSE 24554
 EXPOSE 24555
 

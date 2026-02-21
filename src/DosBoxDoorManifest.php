@@ -18,6 +18,7 @@ use Exception;
 
 class DosBoxDoorManifest
 {
+    private $basePath;
     private $doorsBasePath;
     private $manifestCache = [];
 

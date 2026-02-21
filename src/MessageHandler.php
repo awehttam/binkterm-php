@@ -197,7 +197,7 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $domain, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
+    public function getEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
     {
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
@@ -3027,7 +3027,7 @@ class MessageHandler
     /**
      * Get threaded echomail messages using MSGID/REPLY relationships
      */
-    public function getThreadedEchomail($echoareaTag = null,$domain, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    public function getThreadedEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all')
     {
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {

@@ -4,6 +4,12 @@ set -e
 echo "BinktermPHP Docker Container Initialization"
 echo "==========================================="
 
+# Generate ADMIN_DAEMON_SECRET if not set
+if [ -z "$ADMIN_DAEMON_SECRET" ]; then
+    export ADMIN_DAEMON_SECRET=$(openssl rand -hex 32)
+    echo "Generated random ADMIN_DAEMON_SECRET"
+fi
+
 # Wait for PostgreSQL to be ready
 if [ -n "$DB_HOST" ]; then
     echo "Waiting for PostgreSQL at $DB_HOST:${DB_PORT:-5432}..."
@@ -34,7 +40,7 @@ DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
 DB_NAME=${DB_NAME:-binkterm}
 DB_USER=${DB_USER:-binkterm}
-DB_PASSWORD=${DB_PASSWORD:-changeme}
+DB_PASS=${DB_PASS:-changeme}
 
 # Site Configuration
 SITE_URL=${SITE_URL:-http://localhost}
@@ -59,6 +65,9 @@ CREDITS_ENABLED=${CREDITS_ENABLED:-true}
 
 # Development/Debug
 APP_DEBUG=${APP_DEBUG:-false}
+
+# Admin Daemon
+ADMIN_DAEMON_SECRET=${ADMIN_DAEMON_SECRET}
 EOF
 
     chown www-data:www-data /var/www/html/.env

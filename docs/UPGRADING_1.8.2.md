@@ -42,10 +42,24 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Case-Insensitive Username Matching** — Registration and login now compare usernames case-insensitively, preventing two accounts from coexisting with names that differ only by case (e.g. `Admin` and `admin`).
 - **Expanded Reserved Username List** — The list of usernames and real names blocked at registration has been extended to cover common authority-implying names (`admin`, `administrator`, `sysadmin`, `sysadm`, `moderator`, `staff`, `support`, and others) to prevent impersonation.
 
+### API / Internal
+- **`getEchomail()` / `getThreadedEchomail()` `$domain` Parameter** — The `$domain` parameter is now optional (defaults to `null`). Callers that previously relied on positional argument ordering without a default value will continue to work.
+
 ### Web Interface
 - **Netmail Sent Count on Profile** — The "Netmail Sent" statistic on user profiles was incorrectly counting received messages. The `netmail` table stores `user_id` as the recipient for inbound messages and as the sender for outbound messages; the count now filters by `is_sent = TRUE` so only dispatched messages are counted.
 - **Echomail Sidebar Selected Item Contrast** — The network name, description, and message count badges in the echo area list were unreadable when an area was selected (theme-specific colours such as blue or amber persisted on the blue active background). Selected items now render all text and badges in high-contrast white/light colours.
 - **Who's Online Idle Timer** — An Idle column (admin-only) has been added to the Who's Online page showing time elapsed since each user's last activity. The timer updates every 10 seconds in the browser without additional server requests.
+
+## Docker Improvements
+
+- **DOSBox-X** — The Docker image now uses `dosbox-x` (headless-capable) instead of vanilla `dosbox`. This enables correct headless DOS door operation inside the container.
+- **Telnet Daemon in Container** — The telnet daemon is now managed by supervisord inside the Docker container. Port `2323` is exposed by default (configurable via `TELNET_PORT` in `.env`).
+- **`ADMIN_DAEMON_SECRET` Auto-Generation** — The Docker entrypoint now auto-generates a random `ADMIN_DAEMON_SECRET` on first start if the variable is not set in `.env`. Set it explicitly if you need a stable value across container restarts.
+- **`postgresql-client` Included** — The `postgresql-client` package is now installed in the Docker image for easier database maintenance from within the container.
+- **`pcntl` / `posix` PHP Extensions** — These extensions are now compiled into the image, required by the telnet daemon process management.
+
+> **Breaking change for Docker users upgrading to 1.8.2:**
+> The database password environment variable has been renamed from `DB_PASSWORD` to `DB_PASS` in `.env.docker.example`, `docker-compose.yml`, and `docker/entrypoint.sh`. Update your `.env` file and any deployment scripts to use `DB_PASS` before restarting the container.
 
 ## DOS Door Improvements
 
