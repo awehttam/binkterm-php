@@ -828,6 +828,10 @@ SimpleRouter::get('/compose/{type}', function($type) {
             $settings = $handler->getUserSettings($userId);
             $signatureText = trim((string)($settings['signature_text'] ?? ''));
             $defaultTagline = (string)($settings['default_tagline'] ?? '');
+            // Resolve random tagline selection at compose time
+            if ($defaultTagline === '__random__' && !empty($templateVars['taglines'])) {
+                $defaultTagline = $templateVars['taglines'][array_rand($templateVars['taglines'])];
+            }
             $templateVars['default_tagline'] = $defaultTagline;
             if ($signatureText !== '') {
                 $sigLines = preg_split('/\r\n|\r|\n/', $signatureText) ?: [];

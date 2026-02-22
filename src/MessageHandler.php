@@ -1736,6 +1736,10 @@ class MessageHandler
                         $params[] = null;
                         break;
                     }
+                    if ($tagline === '__random__') {
+                        $params[] = '__random__';
+                        break;
+                    }
                     if ($taglines === null) {
                         $taglines = $this->getTaglinesList();
                     }
