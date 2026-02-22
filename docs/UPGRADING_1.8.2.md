@@ -49,6 +49,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Netmail Sent Count on Profile** — The "Netmail Sent" statistic on user profiles was incorrectly counting received messages. The `netmail` table stores `user_id` as the recipient for inbound messages and as the sender for outbound messages; the count now filters by `is_sent = TRUE` so only dispatched messages are counted.
 - **Echomail Sidebar Selected Item Contrast** — The network name, description, and message count badges in the echo area list were unreadable when an area was selected (theme-specific colours such as blue or amber persisted on the blue active background). Selected items now render all text and badges in high-contrast white/light colours.
 - **Who's Online Idle Timer** — An Idle column (admin-only) has been added to the Who's Online page showing time elapsed since each user's last activity. The timer updates every 10 seconds in the browser without additional server requests.
+- **Echomail Sort Order Dropdown** — The sort order dropdown (Newest First, Oldest First, By Subject, By Author) on the echomail list page was non-functional. The API routes were not reading the `sort` query parameter and `MessageHandler` always used a hardcoded `ORDER BY date DESC`. Sorting now works correctly in both standard and threaded views.
+- **Random Tagline** — Users can now select "Random tagline" as their default tagline in user settings. Each time the compose window is opened, a tagline is picked at random from the system tagline list and pre-selected in the dropdown (the user can still change it before sending).
 
 ## Docker Improvements
 
