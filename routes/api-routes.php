@@ -2465,9 +2465,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
 
         // Get messages from subscribed echoareas only
-        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded);
+        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded, $sort);
         echo json_encode($result);
     });
 
@@ -2854,7 +2856,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false);
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
+        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false, $sort);
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 

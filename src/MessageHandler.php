@@ -197,7 +197,7 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
+    public function getEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true, $sort = 'date_desc')
     {
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
@@ -264,6 +264,14 @@ class MessageHandler
         }
         $dateField = self::ECHOMAIL_DATE_FIELD;
 
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         if ($echoareaTag) {
             // Build domain filter condition
             $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
@@ -283,10 +291,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
-                ORDER BY CASE
-                    WHEN em.{$dateField} > NOW() THEN 0
-                    ELSE 1
-                END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -331,7 +336,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
-                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -407,7 +412,7 @@ class MessageHandler
     /**
      * Get echomail messages from only subscribed echoareas
      */
-    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
+    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         if (!$userId) {
             return ['messages' => [], 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0]];
@@ -415,7 +420,7 @@ class MessageHandler
 
         $subscriptionManager = new EchoareaSubscriptionManager();
         $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
-        
+
         if (empty($subscribedEchoareas)) {
             return [
                 'messages' => [],
@@ -436,11 +441,11 @@ class MessageHandler
         }
 
         $offset = ($page - 1) * $limit;
-        
+
         // Build the WHERE clause based on filter
         $filterClause = "";
         $filterParams = [];
-        
+
         if ($filter === 'unread') {
             $filterClause = " AND mrs.read_at IS NULL";
         } elseif ($filter === 'read') {
@@ -455,12 +460,21 @@ class MessageHandler
         } elseif ($filter === 'saved') {
             $filterClause = " AND sav.id IS NOT NULL";
         }
-        
+
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
 
         $dateField = self::ECHOMAIL_DATE_FIELD;
+
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -475,7 +489,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+            ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
