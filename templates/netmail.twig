@@ -245,7 +245,7 @@
 {% block scripts %}
 <script>
 window.systemAddress = '{{ system_address }}';
-window.currentUser = {{ current_user|json_encode|raw }};
+window.currentUser = {{ current_user|json_encode(15)|raw }};
 </script>
 <script src="/js/ansisys.js"></script>
 <script src="/js/netmail.js"></script>

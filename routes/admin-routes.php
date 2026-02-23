@@ -117,17 +117,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     SimpleRouter::get('/bbs-settings', function() {
         $user = RouteHelper::requireAdmin();
 
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $csrfToken = bin2hex(random_bytes(32));
-        if ($userId) {
-            $meta = new UserMeta();
-            $meta->setValue((int)$userId, 'csrf_bbs_settings', $csrfToken);
-        }
-
         $template = new Template();
         $template->renderResponse('admin/bbs_settings.twig', [
             'timezone_list' => \DateTimeZone::listIdentifiers(),
-            'bbs_settings_csrf' => $csrfToken
         ]);
     });
 
@@ -139,12 +131,47 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/template_editor.twig');
     });
 
-    // Activity statistics page
-    SimpleRouter::get('/activity-stats', function() {
+    // Upgrade notes viewer
+    SimpleRouter::get('/upgrade-notes', function() {
         RouteHelper::requireAdmin();
 
+        $version = \BinktermPHP\Version::getVersion();
+        $docPath = __DIR__ . '/../docs/UPGRADING_' . $version . '.md';
+
+        if (!file_exists($docPath)) {
+            http_response_code(404);
+            $template = new Template();
+            $template->renderResponse('admin/upgrade_notes.twig', [
+                'version'  => $version,
+                'content'  => null,
+            ]);
+            return;
+        }
+
+        $raw = file_get_contents($docPath);
+        $html = \BinktermPHP\MarkdownRenderer::toHtml($raw);
+
         $template = new Template();
-        $template->renderResponse('admin/activity_stats.twig');
+        $template->renderResponse('admin/upgrade_notes.twig', [
+            'version' => $version,
+            'content' => $html,
+        ]);
+    });
+
+    // Activity statistics page
+    SimpleRouter::get('/activity-stats', function() {
+        $user = RouteHelper::requireAdmin();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $timezone = 'UTC';
+        if ($userId) {
+            $handler = new \BinktermPHP\MessageHandler();
+            $settings = $handler->getUserSettings((int)$userId);
+            $timezone = $settings['timezone'] ?? 'UTC';
+        }
+
+        $template = new Template();
+        $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
     // API routes for admin
@@ -584,14 +611,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
-                $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-                $meta = new UserMeta();
-                $expectedToken = $userId ? $meta->getValue($userId, 'csrf_bbs_settings') : null;
-                if (!$expectedToken || !hash_equals($expectedToken, (string)$csrfToken)) {
-                    http_response_code(403);
-                    echo json_encode(['error' => 'Invalid CSRF token']);
-                    return;
-                }
 
                 $payload = json_decode(file_get_contents('php://input'), true);
                 $config = $payload['config'] ?? [];
@@ -1836,6 +1855,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $period        = $_GET['period'] ?? '30d';
         $excludeAdmins = !empty($_GET['exclude_admins']);
 
+        // Validate and sanitize user timezone
+        $requestedTz = $_GET['timezone'] ?? 'UTC';
+        try {
+            new \DateTimeZone($requestedTz);
+            $timezone = $requestedTz;
+        } catch (\Exception $e) {
+            $timezone = 'UTC';
+        }
+
         // Build date filter condition
         switch ($period) {
             case '7d':
@@ -2016,15 +2044,17 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         foreach ($topUsers as &$row) { $row['count'] = (int)$row['count']; }
         unset($row);
 
-        // Hourly distribution (UTC)
-        $hourlyStmt = $db->query("
-            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')::int AS hour, COUNT(*) AS count
+        // Hourly distribution in user's timezone
+        $hourlyStmt = $db->prepare("
+            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE :tz)::int AS hour, COUNT(*) AS count
             FROM user_activity_log ual
             WHERE 1=1 {$dateFilter}{$adminFilter}
             GROUP BY hour
             ORDER BY hour
         ");
+        $hourlyStmt->execute([':tz' => $timezone]);
         $hourlyRaw = $hourlyStmt->fetchAll(\PDO::FETCH_ASSOC);
+
         // Fill all 24 hours even if no data
         $hourly = [];
         $hourlyByHour = [];
@@ -2039,20 +2069,22 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $dailyAdminFilter = $excludeAdmins
             ? "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
             : '';
-        $dailyStmt = $db->query("
-            SELECT DATE(created_at AT TIME ZONE 'UTC') AS date, COUNT(*) AS count
+        $dailyStmt = $db->prepare("
+            SELECT DATE(created_at AT TIME ZONE :tz) AS date, COUNT(*) AS count
             FROM user_activity_log
             WHERE created_at >= NOW() - INTERVAL '30 days'
             {$dailyAdminFilter}
             GROUP BY date
             ORDER BY date
         ");
+        $dailyStmt->execute([':tz' => $timezone]);
         $daily = $dailyStmt->fetchAll(\PDO::FETCH_ASSOC);
         foreach ($daily as &$row) { $row['count'] = (int)$row['count']; }
         unset($row);
 
         echo json_encode([
-            'period' => $period,
+            'period'   => $period,
+            'timezone' => $timezone,
             'summary' => [
                 'total'       => $totalEvents,
                 'by_category' => $byCategory,

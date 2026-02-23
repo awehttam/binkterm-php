@@ -40,6 +40,7 @@ class TestFileAreaRuleProcessor extends FileAreaRuleProcessor
 {
     private bool $dryRun = true;
     private bool $verbose = false;
+    private bool $fromFilebase = false;
     private array $matchedRules = [];
     private array $executionResults = [];
     private ?string $forceDomain = null;
@@ -54,9 +55,53 @@ class TestFileAreaRuleProcessor extends FileAreaRuleProcessor
         $this->verbose = $verbose;
     }
 
+    public function setFromFilebase(bool $fromFilebase): void
+    {
+        $this->fromFilebase = $fromFilebase;
+    }
+
     public function setForceDomain(?string $domain): void
     {
         $this->forceDomain = $domain;
+    }
+
+    /**
+     * Public wrapper so testFile() can call the private loadRules() when returning early.
+     */
+    private function loadRulesPublic(): array
+    {
+        $reflection = new ReflectionClass(FileAreaRuleProcessor::class);
+        $method = $reflection->getMethod('loadRules');
+        $method->setAccessible(true);
+        return $method->invoke($this);
+    }
+
+    /**
+     * Look up the storage path for a file in the file base by filename and area tag.
+     *
+     * @param string $filename
+     * @param string $areatag
+     * @return string|null Real storage path or null if not found
+     */
+    private function resolveFromFilebase(string $filename, string $areatag): ?string
+    {
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $stmt = $db->prepare("
+            SELECT f.storage_path
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            WHERE f.filename = ? AND fa.tag = ?
+            ORDER BY f.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$filename, strtoupper($areatag)]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$row || empty($row['storage_path'])) {
+            return null;
+        }
+
+        return $row['storage_path'];
     }
 
     public function getMatchedRules(): array
@@ -74,21 +119,34 @@ class TestFileAreaRuleProcessor extends FileAreaRuleProcessor
      */
     public function testFile(string $filename, string $areatag): array
     {
-        // Create a temporary file path for testing
-        $tempFilepath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $filename;
-
-        // If testing with a real file path that exists, use it
-        if (file_exists($filename)) {
+        // Resolve filepath: filebase lookup > existing path > temp path
+        if ($this->fromFilebase) {
+            $resolved = $this->resolveFromFilebase(basename($filename), $areatag);
+            if ($resolved) {
+                $tempFilepath = $resolved;
+            } else {
+                // Return early with a clear error — don't fall back silently
+                return [
+                    'rules_data' => $this->loadRulesPublic(),
+                    'domain'     => $this->forceDomain ?? '',
+                    'matched'    => 0,
+                    'results'    => [],
+                    'filebase_error' => "File '" . basename($filename) . "' not found in area '{$areatag}' in the file base.",
+                ];
+            }
+        } elseif (file_exists($filename)) {
+            // If the argument is an actual path on disk, use it directly
             $tempFilepath = $filename;
+        } else {
+            // Default: synthesise a temp path (file may not exist)
+            $tempFilepath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . basename($filename);
         }
 
         // Use reflection to access private methods
         $reflection = new ReflectionClass(FileAreaRuleProcessor::class);
 
         // Load rules
-        $loadRulesMethod = $reflection->getMethod('loadRules');
-        $loadRulesMethod->setAccessible(true);
-        $rulesData = $loadRulesMethod->invoke($this);
+        $rulesData = $this->loadRulesPublic();
 
         // Determine domain
         $areaDomain = $this->forceDomain ?? $this->getDomainForTestFile($tempFilepath, $areatag);
@@ -124,9 +182,10 @@ class TestFileAreaRuleProcessor extends FileAreaRuleProcessor
 
         return [
             'rules_data' => $rulesData,
-            'domain' => $areaDomain,
-            'matched' => count($this->matchedRules),
-            'results' => $this->executionResults
+            'domain'     => $areaDomain,
+            'filepath'   => $tempFilepath,
+            'matched'    => count($this->matchedRules),
+            'results'    => $this->executionResults
         ];
     }
 
@@ -159,18 +218,23 @@ class TestFileAreaRuleProcessor extends FileAreaRuleProcessor
             'stderr' => null
         ];
 
-        // If not dry-run and file exists, actually execute
-        if (!$this->dryRun && file_exists($filepath)) {
-            $executeMethod = $reflection->getMethod('executeScript');
-            $executeMethod->setAccessible(true);
-            $execResult = $executeMethod->invoke($this, $command, $timeout);
+        // If not dry-run, actually execute (file existence is the script's concern)
+        if (!$this->dryRun) {
+            if (!file_exists($filepath)) {
+                $result['skipped'] = true;
+                $result['skip_reason'] = "File not found: {$filepath} (use --create-file to create a temporary test file)";
+            } else {
+                $executeMethod = $reflection->getMethod('executeScript');
+                $executeMethod->setAccessible(true);
+                $execResult = $executeMethod->invoke($this, $command, $timeout);
 
-            $result['executed'] = true;
-            $result['exit_code'] = $execResult['exit_code'];
-            $result['stdout'] = $execResult['stdout'];
-            $result['stderr'] = $execResult['stderr'];
-            $result['timed_out'] = $execResult['timed_out'];
-            $result['success'] = !$execResult['timed_out'] && $execResult['exit_code'] === 0;
+                $result['executed'] = true;
+                $result['exit_code'] = $execResult['exit_code'];
+                $result['stdout'] = $execResult['stdout'];
+                $result['stderr'] = $execResult['stderr'];
+                $result['timed_out'] = $execResult['timed_out'];
+                $result['success'] = !$execResult['timed_out'] && $execResult['exit_code'] === 0;
+            }
         }
 
         return $result;
@@ -189,6 +253,7 @@ function showUsage()
     echo "Options:\n";
     echo "  --dry-run         Don't execute scripts, just show what would run (default)\n";
     echo "  --execute         Actually execute the scripts\n";
+    echo "  --from-filebase   Resolve the file's real storage path from the file base database\n";
     echo "  --create-file     Create a temporary test file\n";
     echo "  --domain=DOMAIN   Specify domain (optional)\n";
     echo "  --verbose         Show detailed output including substituted commands\n";
@@ -197,7 +262,8 @@ function showUsage()
     echo "  php test_filearea_rules.php test.zip FILES\n";
     echo "  php test_filearea_rules.php --domain=fidonet virus.exe FILES\n";
     echo "  php test_filearea_rules.php --verbose --execute archive.tar.gz UPLOADS\n";
-    echo "  php test_filearea_rules.php --create-file --execute test.zip FILES\n\n";
+    echo "  php test_filearea_rules.php --create-file --execute test.zip FILES\n";
+    echo "  php test_filearea_rules.php --from-filebase --execute NIXLIST.Z51 NIX_LIST\n\n";
 }
 
 function parseArgs($argv)
@@ -206,6 +272,7 @@ function parseArgs($argv)
         'dry_run' => true,
         'verbose' => false,
         'create_file' => false,
+        'from_filebase' => false,
         'domain' => null,
         'filename' => null,
         'areatag' => null
@@ -225,6 +292,8 @@ function parseArgs($argv)
             $args['dry_run'] = false;
         } elseif ($arg === '--create-file') {
             $args['create_file'] = true;
+        } elseif ($arg === '--from-filebase') {
+            $args['from_filebase'] = true;
         } elseif ($arg === '--verbose' || $arg === '-v') {
             $args['verbose'] = true;
         } elseif (strpos($arg, '--domain=') === 0) {
@@ -259,6 +328,7 @@ try {
     $verbose = $args['verbose'];
     $dryRun = $args['dry_run'];
     $createFile = $args['create_file'];
+    $fromFilebase = $args['from_filebase'];
 
     // Create temporary file if requested
     $testFilePath = $filename;
@@ -272,6 +342,7 @@ try {
     $processor = new TestFileAreaRuleProcessor();
     $processor->setDryRun($dryRun);
     $processor->setVerbose($verbose);
+    $processor->setFromFilebase($fromFilebase);
     $processor->setForceDomain($args['domain']);
 
     // Run test
@@ -282,10 +353,24 @@ try {
     $executionResults = $result['results'];
 
     // Display results
+    if (!empty($result['filebase_error'])) {
+        echo "╔══════════════════════════════════════════════════════════════════════\n";
+        echo "║ File Area Rule Test\n";
+        echo "╠══════════════════════════════════════════════════════════════════════\n";
+        echo "║ Filename: {$filename}\n";
+        echo "║ Area Tag: {$areatag}\n";
+        echo "╚══════════════════════════════════════════════════════════════════════\n\n";
+        echo "✗ " . $result['filebase_error'] . "\n";
+        exit(1);
+    }
+
     echo "╔══════════════════════════════════════════════════════════════════════\n";
     echo "║ File Area Rule Test\n";
     echo "╠══════════════════════════════════════════════════════════════════════\n";
     echo "║ Filename: {$filename}\n";
+    if ($fromFilebase && !empty($result['filepath']) && $result['filepath'] !== $filename) {
+        echo "║ Storage:  {$result['filepath']}\n";
+    }
     echo "║ Area Tag: {$areatag}\n";
     echo "║ Domain:   {$domain}\n";
     echo "║ Mode:     " . ($dryRun ? "DRY RUN (no execution)" : "EXECUTE") . "\n";
@@ -347,6 +432,12 @@ try {
             echo "│   {$execResult['command']}\n";
         }
 
+        // Show skip reason if file was not found
+        if (!empty($execResult['skipped'])) {
+            echo "├─────────────────────────────────────────────────────────────────────\n";
+            echo "│ ⚠ Skipped: {$execResult['skip_reason']}\n";
+        }
+
         // Show execution results if not dry-run
         if ($execResult['executed']) {
             echo "├─────────────────────────────────────────────────────────────────────\n";
@@ -388,9 +479,16 @@ try {
             echo "  Use --create-file to create a temporary test file.\n";
         }
     } else {
+        $executedCount = count(array_filter($executionResults, fn($r) => $r['executed']));
         $successCount = count(array_filter($executionResults, fn($r) => $r['executed'] && $r['success']));
         $failCount = count(array_filter($executionResults, fn($r) => $r['executed'] && !$r['success']));
-        echo "\n✓ Executed {$matchedCount} rule(s): {$successCount} succeeded, {$failCount} failed.\n";
+        $skippedCount = count(array_filter($executionResults, fn($r) => !empty($r['skipped'])));
+        if ($executedCount > 0) {
+            echo "\n✓ Executed {$executedCount} rule(s): {$successCount} succeeded, {$failCount} failed.\n";
+        }
+        if ($skippedCount > 0) {
+            echo "\n⚠ Skipped {$skippedCount} rule(s) — file not found. Use --create-file to create a temporary test file.\n";
+        }
     }
 
     echo "\n✓ Test complete.\n";

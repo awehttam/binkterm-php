@@ -2,6 +2,8 @@
 
 This guide covers deploying BinktermPHP using Docker and Docker Compose.
 
+WARNING: Docker is UNTESTED and UNSUPPORTED - it is present because Claude generated the files once upon a time and maybe someone will want to fiddle with this.
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)

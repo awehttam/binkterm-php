@@ -304,7 +304,7 @@ class AdminDaemonServer
                     // Send SIGHUP to reload config
                     if (posix_kill($pid, SIGHUP)) {
                         $this->logger->info("Sent SIGHUP to binkp_server (PID: $pid)");
-                        $this->writeResponse($client, ['ok' => true, 'result' => 'Configuration reload signal sent']);
+                        $this->writeResponse($client, ['ok' => true, 'result' => ['message' => 'Configuration reload signal sent']]);
                     } else {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'failed_to_send_signal']);
                     }

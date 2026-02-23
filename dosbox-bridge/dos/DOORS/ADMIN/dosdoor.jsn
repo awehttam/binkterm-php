@@ -18,7 +18,6 @@
     "launch_command": "call start.bat {node}",
     "directory": "dosbox-bridge/dos/DOORS/ADMIN",
     "dropfile_format": "DOOR.SYS",
-    "dropfile_path": "\\DOORS\\ADMIN",
     "node_support": true,
     "max_nodes": 10,
     "fossil_required": false,

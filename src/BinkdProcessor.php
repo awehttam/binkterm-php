@@ -930,9 +930,12 @@ class BinkdProcessor
                     
                     // Extract original author address from MSGID
                     // MSGID formats:
-                    // 1. Standard: "1:123/456 12345678"
-                    // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
-                    if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                    // 1. Standard:   "1:123/456 12345678"
+                    // 2. With point: "1:123/456.7 12345678"
+                    // 3. Opaque@addr: "244652.syncdata@1:103/705 2d1da177"
+                    // 4. Addr@domain: "618:618/1@micronet 6695bee3"
+                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)(?:@\S+)?\s+/', $messageId, $matches) ||
+                        preg_match('/^(?:[^@\s]+@)(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
                         //$this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
                     } else {
@@ -1541,19 +1544,21 @@ class BinkdProcessor
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
-        
-        // Build origin line with optional origin
-        $originText = " * Origin: ";
-        $origin = $this->config->getSystemOrigin();
-        if (!empty($origin)) {
-            $originText .= $origin;
-        } else {
-            $originText .= $this->config->getSystemName();
+
+        // Origin line is echomail-only per FTS-0004
+        if ($isEchomail) {
+            $originText = " * Origin: ";
+            $origin = $this->config->getSystemOrigin();
+            if (!empty($origin)) {
+                $originText .= $origin;
+            } else {
+                $originText .= $this->config->getSystemName();
+            }
+
+            $originText .= " (" . $systemAddress . ")";
+
+            $messageText .= $originText;
         }
-
-        $originText .= " (" . $systemAddress . ")";
-
-        $messageText .= $originText;
 
         // Add bottom kludges (Via lines, etc.) after origin per FTS-4009.001
         // These appear after message text but before SEEN-BY/PATH

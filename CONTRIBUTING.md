@@ -14,6 +14,10 @@ Thank you for your interest in contributing to BinktermPHP! This document provid
 - [Submitting Changes](#submitting-changes)
 - [Changelog Updates](#changelog-updates)
 
+## Looking for Something to Work On?
+
+If you're considering getting involved, check out **[HELP_WANTED.md](HELP_WANTED.md)** for an overview of the areas where contribution would have the most impact — from FTN protocol work and DOS door integration to WebDoors game development and UI themes.
+
 ## Getting Started
 
 BinktermPHP is a modern web interface and mailer tool for FidoNet message packets using the binkp protocol. Before contributing, please familiarize yourself with:
@@ -133,7 +137,6 @@ All database schema changes must be done through migration scripts:
 4. **Version Bump Required**: When changing the database version through a migration, you must update:
    - `src/Version.php` - Update the VERSION constant
    - `composer.json` - Update the version field
-   - `templates/recent_updates.twig` - Document the change
 
 ### Migration Best Practices
 
@@ -164,11 +167,9 @@ When releasing a new version:
    "version": "1.4.3"
    ```
 
-3. Update `templates/recent_updates.twig` with changelog entry
-
-4. Commit and tag:
+3. Commit and tag:
    ```bash
-   git add src/Version.php composer.json templates/recent_updates.twig
+   git add src/Version.php composer.json
    git commit -m "Bump version to 1.4.3"
    git tag -a v1.4.3 -m "Release version 1.4.3"
    ```
@@ -271,29 +272,7 @@ Before submitting, ensure:
 - [ ] No new security vulnerabilities introduced
 - [ ] Code is properly formatted and commented
 
-## Changelog Updates
 
-For significant features, bug fixes, or improvements, update `templates/recent_updates.twig`:
-
-```html
-<div class="update-item mb-3" data-version="1.4.1" data-date="2025-01-04">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Your Feature Name</h6>
-            <p class="mb-1 text-muted">Brief description of what was added or fixed.</p>
-        </div>
-        <small class="text-muted">v1.4.1</small>
-    </div>
-</div>
-```
-
-Badge types:
-- `bg-primary` - New features
-- `bg-success` - Improvements
-- `bg-warning` - Bug fixes
-- `bg-info` - Updates/Changes
-
-Keep the list to 10-15 most recent entries.
 
 ## Questions or Need Help?
 

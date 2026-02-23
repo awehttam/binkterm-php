@@ -135,6 +135,18 @@ function formatMessageText(messageText, searchTerms = []) {
     }
 
     // Format as readable text with preserved line breaks and quote coloring
+
+    // Pre-scan to find the LAST signature separator in the bottom third of the
+    // message. A bare run of dashes (-- or ---) only counts as a sig separator
+    // when it appears late in the message — earlier occurrences are typically
+    // mid-message dividers, not signature delimiters.
+    const isSigSeparator = line => /^(-{2,3}|_{2,3})$/.test(line.trim());
+    const bottomThirdStart = Math.floor(lines.length * 2 / 3);
+    let lastSigIndex = -1;
+    for (let i = bottomThirdStart; i < lines.length; i++) {
+        if (isSigSeparator(lines[i])) lastSigIndex = i;
+    }
+
     let formattedLines = [];
     let inQuoteBlock = false;
     let inSignature = false;
@@ -143,8 +155,8 @@ function formatMessageText(messageText, searchTerms = []) {
         const line = lines[i];
         const trimmedLine = line.trim();
 
-        // Handle signature separator
-        if (trimmedLine === '---' || trimmedLine === '___' || trimmedLine.match(/^-{2,}$/)) {
+        // Handle signature separator — only trigger on the last one
+        if (isSigSeparator(line) && i === lastSigIndex) {
             inSignature = true;
             let highlightedLine = parseAnsi(trimmedLine);
             highlightedLine = linkifyUrls(highlightedLine);
@@ -407,10 +419,13 @@ $(document).ready(function() {
     // Load user settings on page load
     loadUserSettings();
     
-    // Global AJAX setup
+    // Global AJAX setup — attach CSRF token to every jQuery AJAX request
     $.ajaxSetup({
         beforeSend: function(xhr) {
-            // Add loading indicator if needed
+            const token = document.querySelector('meta[name="csrf-token"]');
+            if (token && token.content) {
+                xhr.setRequestHeader('X-CSRF-Token', token.content);
+            }
         },
         error: function(xhr, status, error) {
             if (xhr.status === 401) {
@@ -420,6 +435,32 @@ $(document).ready(function() {
         }
     });
 });
+
+// Intercept native fetch() calls for same-origin state-changing requests
+// so that templates using fetch() directly also send the CSRF token.
+(function() {
+    const _fetch = window.fetch;
+    window.fetch = function(url, options) {
+        options = options || {};
+        const method = (options.method || 'GET').toUpperCase();
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+            const isSameOrigin = typeof url === 'string' &&
+                (url.startsWith('/') || url.startsWith(window.location.origin));
+            if (isSameOrigin) {
+                const token = document.querySelector('meta[name="csrf-token"]');
+                if (token && token.content) {
+                    options.headers = options.headers || {};
+                    if (options.headers instanceof Headers) {
+                        options.headers.set('X-CSRF-Token', token.content);
+                    } else {
+                        options.headers['X-CSRF-Token'] = token.content;
+                    }
+                }
+            }
+        }
+        return _fetch.call(this, url, options);
+    };
+}());
 
 // Unified user settings management
 function loadUserSettings() {

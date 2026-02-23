@@ -197,7 +197,7 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $domain, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
+    public function getEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true, $sort = 'date_desc')
     {
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
@@ -239,7 +239,7 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter);
+            return $this->getThreadedEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, $sort);
         }
 
         $offset = ($page - 1) * $limit;
@@ -264,6 +264,14 @@ class MessageHandler
         }
         $dateField = self::ECHOMAIL_DATE_FIELD;
 
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         if ($echoareaTag) {
             // Build domain filter condition
             $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
@@ -283,10 +291,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
-                ORDER BY CASE
-                    WHEN em.{$dateField} > NOW() THEN 0
-                    ELSE 1
-                END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -331,7 +336,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
-                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -407,7 +412,7 @@ class MessageHandler
     /**
      * Get echomail messages from only subscribed echoareas
      */
-    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
+    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         if (!$userId) {
             return ['messages' => [], 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0]];
@@ -415,7 +420,7 @@ class MessageHandler
 
         $subscriptionManager = new EchoareaSubscriptionManager();
         $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
-        
+
         if (empty($subscribedEchoareas)) {
             return [
                 'messages' => [],
@@ -432,15 +437,15 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedEchomailFromSubscribedAreas($userId, $page, $limit, $filter, $subscribedEchoareas);
+            return $this->getThreadedEchomailFromSubscribedAreas($userId, $page, $limit, $filter, $subscribedEchoareas, $sort);
         }
 
         $offset = ($page - 1) * $limit;
-        
+
         // Build the WHERE clause based on filter
         $filterClause = "";
         $filterParams = [];
-        
+
         if ($filter === 'unread') {
             $filterClause = " AND mrs.read_at IS NULL";
         } elseif ($filter === 'read') {
@@ -455,12 +460,21 @@ class MessageHandler
         } elseif ($filter === 'saved') {
             $filterClause = " AND sav.id IS NOT NULL";
         }
-        
+
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
 
         $dateField = self::ECHOMAIL_DATE_FIELD;
+
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -475,7 +489,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+            ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
@@ -1722,6 +1736,10 @@ class MessageHandler
                         $params[] = null;
                         break;
                     }
+                    if ($tagline === '__random__') {
+                        $params[] = '__random__';
+                        break;
+                    }
                     if ($taglines === null) {
                         $taglines = $this->getTaglinesList();
                     }
@@ -2870,7 +2888,7 @@ class MessageHandler
     /**
      * Get threaded echomail messages from subscribed echoareas using MSGID/REPLY relationships
      */
-    private function getThreadedEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $subscribedEchoareas = null)
+    private function getThreadedEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $subscribedEchoareas = null, $sort = 'date_desc')
     {
         // Get subscribed echoareas if not provided
         if ($subscribedEchoareas === null) {
@@ -2920,6 +2938,15 @@ class MessageHandler
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
         $dateField = self::ECHOMAIL_DATE_FIELD;
+
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -2934,7 +2961,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+            ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
@@ -2960,13 +2987,18 @@ class MessageHandler
         // Debug: log thread info
         //error_log("DEBUG: Built " . count($threads) . " threads from " . count($allMessages) . " messages");
         
-        // Sort threads by most recent message in each thread
-        usort($threads, function($a, $b) {
-            $aLatest = $this->getLatestMessageInThread($a);
-            $bLatest = $this->getLatestMessageInThread($b);
-            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        // Sort threads according to the requested sort order
+        usort($threads, function($a, $b) use ($sort) {
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
+            return match($sort) {
+                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
+                'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
+                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+            };
         });
-        
+
         // Get total count for pagination (based on actual message count, not thread count)
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM echomail em
@@ -3027,7 +3059,7 @@ class MessageHandler
     /**
      * Get threaded echomail messages using MSGID/REPLY relationships
      */
-    public function getThreadedEchomail($echoareaTag = null,$domain, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    public function getThreadedEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $sort = 'date_desc')
     {
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {
@@ -3097,6 +3129,14 @@ class MessageHandler
         $rootOffset = ($page - 1) * $limit;
         $dateField = self::ECHOMAIL_DATE_FIELD;
 
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         if ($echoareaTag) {
             // Get root messages (threads) for the current page
             $stmt = $this->db->prepare("
@@ -3113,7 +3153,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND {$domainCondition} AND em.reply_to_id IS NULL
-                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -3142,7 +3182,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.reply_to_id IS NULL{$filterClause}
-                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -3162,11 +3202,16 @@ class MessageHandler
         // Build threading relationships
         $threads = $this->buildMessageThreads($allMessages);
 
-        // Sort threads by most recent message in each thread
-        usort($threads, function($a, $b) {
-            $aLatest = $this->getLatestMessageInThread($a);
-            $bLatest = $this->getLatestMessageInThread($b);
-            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        // Sort threads according to the requested sort order
+        usort($threads, function($a, $b) use ($sort) {
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
+            return match($sort) {
+                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
+                'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
+                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+            };
         });
 
         // Flatten threads for display while maintaining structure

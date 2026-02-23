@@ -51,7 +51,7 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
     }
   ],
   "area_rules": {
-    "NODELIST": [
+    "NODELIST@fidonet": [
       {
         "name": "Import FidoNet Nodelist",
         "domain": "fidonet",
@@ -83,7 +83,7 @@ For local file areas without a network domain, use the tag alone:
 
 ```json
 "area_rules": {
-  "NODELIST@fidonet": [
+  "NODELIST": [
     {
       "name": "Import FidoNet Nodelist",
       "pattern": "/^NODELIST\\.(Z|A)[0-9]{2}$/i",

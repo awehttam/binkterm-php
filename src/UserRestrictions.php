@@ -24,13 +24,38 @@ class UserRestrictions
     private const RESERVED_USERNAMES = [
         'system',
         'root',
-        'sysop'
+        'sysop',
+        'admin',
+        'administrator',
+        'sysadmin',
+        'sysadm',
+        'moderator',
+        'mod',
+        'staff',
+        'support',
+        'helpdesk',
+        'postmaster',
+        'webmaster',
+        'nobody',
+        'anonymous',
+        'guest',
     ];
 
     private const RESERVED_REAL_NAMES = [
         'system',
         'root',
-        'sysop'
+        'sysop',
+        'system operator',
+        'system administrator',
+        'admin',
+        'administrator',
+        'sysadmin',
+        'sysadm',
+        'moderator',
+        'staff',
+        'support',
+        'anonymous',
+        'guest',
     ];
 
     /**

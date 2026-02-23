@@ -76,20 +76,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $sessionId = $auth->login($username, $password, $service);
 
         if ($sessionId) {
-            setcookie('binktermphp_session', $sessionId, time() + 86400 * 30, '/', '', false, true);
-            // Track login event (resolve user_id from session)
+            setcookie('binktermphp_session', $sessionId, [
+                'expires'  => time() + 86400 * 30,
+                'path'     => '/',
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+            // Track login event and retrieve CSRF token for the response
+            $csrfToken = null;
             try {
                 $db = Database::getInstance()->getPdo();
                 $stmt = $db->prepare("SELECT user_id FROM user_sessions WHERE session_id = ?");
                 $stmt->execute([$sessionId]);
                 $row = $stmt->fetch();
                 if ($row) {
-                    ActivityTracker::track((int)$row['user_id'], ActivityTracker::TYPE_LOGIN);
+                    $userId = (int)$row['user_id'];
+                    ActivityTracker::track($userId, ActivityTracker::TYPE_LOGIN);
+                    $meta      = new UserMeta();
+                    $csrfToken = $meta->getValue($userId, 'csrf_token');
                 }
             } catch (\Exception $e) {
                 // Tracking errors must not break login
             }
-            echo json_encode(['success' => true]);
+            echo json_encode(['success' => true, 'csrf_token' => $csrfToken]);
         } else {
             http_response_code(401);
             echo json_encode(['error' => 'Invalid credentials']);
@@ -364,9 +373,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             // Check if username or real_name already exists in users or pending_users (case-insensitive)
             $checkStmt = $db->prepare("
-                SELECT 1 FROM users WHERE username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)
+                SELECT 1 FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)
                 UNION
-                SELECT 1 FROM pending_users WHERE (username = ? OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND status = 'pending'
+                SELECT 1 FROM pending_users WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND status = 'pending'
             ");
             $checkStmt->execute([$username, $username, $realName, $username, $username, $realName]);
 
@@ -2456,9 +2465,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
 
         // Get messages from subscribed echoareas only
-        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded);
+        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded, $sort);
         echo json_encode($result);
     });
 
@@ -2845,7 +2856,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false);
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
+        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false, $sort);
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 
@@ -3353,8 +3366,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $db = Database::getInstance()->getPdo();
 
-        // Get user message statistics
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ?");
+        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
+        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
+        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
         $netmailStmt->execute([$user['user_id']]);
         $netmailCount = $netmailStmt->fetch()['count'];
 
@@ -3400,8 +3414,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
-        // Get user message statistics
-        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ?");
+        // Get user message statistics - is_sent = TRUE identifies messages composed and dispatched by
+        // this user; received messages also carry user_id (the recipient) with is_sent = FALSE.
+        $netmailStmt = $db->prepare("SELECT COUNT(*) as count FROM netmail WHERE user_id = ? AND is_sent = TRUE");
         $netmailStmt->execute([$userId]);
         $netmailCount = $netmailStmt->fetch()['count'];
 
@@ -3772,6 +3787,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($isAdmin) {
                 $entry['activity'] = $onlineUser['activity'] ?? '';
                 $entry['service'] = $onlineUser['service'] ?? 'web';
+                $entry['last_activity_ts'] = $onlineUser['last_activity'] ? (int)strtotime($onlineUser['last_activity']) : null;
             }
             return $entry;
         }, $onlineUsers);

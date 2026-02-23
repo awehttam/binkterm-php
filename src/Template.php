@@ -77,6 +77,30 @@ class Template
         $this->twig->addGlobal("favicon_ico", $favicon_ico);
         $this->twig->addGlobal("favicon_png", $favicon_png);
 
+        // CSRF token — stored per-user in UserMeta so it is shared across web
+        // sessions and the telnet daemon.  Generated lazily for users who were
+        // already logged in before this feature was deployed.
+        $csrfToken = '';
+        if ($currentUser) {
+            $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+            if ($userId > 0) {
+                try {
+                    $meta      = new UserMeta();
+                    $csrfToken = $meta->getValue($userId, 'csrf_token') ?? '';
+                    if ($csrfToken === '') {
+                        $csrfToken = bin2hex(random_bytes(32));
+                        $meta->setValue($userId, 'csrf_token', $csrfToken);
+                    }
+                } catch (\Throwable $e) {
+                    // Non-fatal: page renders without CSRF; next POST will 403
+                }
+            }
+        }
+        $this->twig->addGlobal('csrf_token', $csrfToken);
+
+        if (is_array($currentUser)) {
+            unset($currentUser['password_hash']);
+        }
         $this->twig->addGlobal('current_user', $currentUser);
         $this->twig->addGlobal('system_name', $systemName);
         $this->twig->addGlobal('sysop_name', $sysopName);
@@ -88,6 +112,10 @@ class Template
         $this->twig->addGlobal('app_version', Version::getVersion());
         $this->twig->addGlobal('app_name', Version::getAppName());
         $this->twig->addGlobal('app_full_version', Version::getFullVersion());
+
+        // Expose whether an upgrade notes page exists for the current version
+        $upgradingFile = __DIR__ . '/../docs/UPGRADING_' . Version::getVersion() . '.md';
+        $this->twig->addGlobal('has_upgrading_doc', file_exists($upgradingFile));
 
         // Add terminal configuration
         $this->twig->addGlobal('terminal_enabled', Config::env('TERMINAL_ENABLED', 'false') === 'true');

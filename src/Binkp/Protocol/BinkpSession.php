@@ -1031,7 +1031,11 @@ class BinkpSession
         $this->log("Remote confirmed: {$data}", 'DEBUG');
 
         $parts = explode(' ', $data);
-        $filename = $parts[0];
+        $filename = basename($parts[0]);
+        if ($filename === '' || $filename === '.' || $filename === '..') {
+            $this->log("Invalid filename in M_GOT: {$data}", 'WARNING');
+            return;
+        }
 
         $outboundPath = $this->config->getOutboundPath();
         $filepath = $outboundPath . '/' . $filename;
@@ -1123,7 +1127,7 @@ class BinkpSession
             $this->log("Accepting plain text password fallback", 'DEBUG');
         }
 
-        $match = $password === $expectedPassword;
+        $match = hash_equals($expectedPassword, $password);
 
         // Log details for debugging authentication issues
         $receivedLen = strlen($password);

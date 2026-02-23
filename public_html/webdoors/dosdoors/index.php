@@ -7,8 +7,17 @@
  */
 
 use BinktermPHP\RouteHelper;
+use BinktermPHP\UserMeta;
 
 $user = RouteHelper::requireAuth();
+$csrfUserId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+$csrfToken = '';
+if ($csrfUserId > 0) {
+    try {
+        $meta = new UserMeta();
+        $csrfToken = $meta->getValue($csrfUserId, 'csrf_token') ?? '';
+    } catch (\Throwable $e) {}
+}
 
 // If accessed directly, try to extract door ID from URL
 if (!isset($doorId)) {
@@ -32,6 +41,7 @@ if (empty($doorId)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken, ENT_QUOTES) ?>">
     <title>DOS Door Player</title>
     <link rel="stylesheet" href="/webdoors/terminal/assets/xterm.css">
     <style>
@@ -318,8 +328,10 @@ if (empty($doorId)) {
             const formData = new FormData();
             formData.append('door', doorId);
 
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             return fetch('/api/door/launch', {
                 method: 'POST',
+                headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
                 body: formData
             })
             .then(response => response.json())
@@ -423,10 +435,12 @@ if (empty($doorId)) {
                 return;
             }
 
+            const csrfTokenEnd = document.querySelector('meta[name="csrf-token"]')?.content || '';
             fetch('/api/door/end', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    ...(csrfTokenEnd ? { 'X-CSRF-Token': csrfTokenEnd } : {})
                 },
                 body: 'session_id=' + encodeURIComponent(sessionId)
             })

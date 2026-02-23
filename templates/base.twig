@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">{# session-scoped CSRF token, stable across tabs #}
     <title>{% block title %}{{ system_name }}{% endblock %}</title>
 
     {# Meta tags block for SEO - can be overridden by child templates #}
@@ -209,6 +210,7 @@
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> README</a></li>
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                                        {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> Upgrade Notes v{{ app_version }}</a></li>{% endif %}
                                         <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> Claude's BBS</a></li>
                                         <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> Report Issue</a></li>
                                     </ul>
@@ -437,10 +439,13 @@
                 // Tell the waiting service worker to activate
                 swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
 
-                // Reload the page when the new service worker takes control
+                // Reload once when the new service worker takes control.
+                // Use { once: true } to ensure only a single reload fires
+                // even if controllerchange is emitted more than once
+                // (e.g. via clients.claim() during activation).
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     window.location.reload();
-                });
+                }, { once: true });
             } else {
                 // Fallback: just reload
                 window.location.reload();

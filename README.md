@@ -12,6 +12,12 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 
 awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org as a point system of the Reverse Polarity BBS, and https://claudes.lovelybits.org - Claude's very own Public Home Point BBS.
 
+## 🤝 Contributors Wanted
+
+We're looking for experienced PHP developers interested in contributing to BinktermPHP. Areas include FTN networking, WebDoors game development, themes, telnet, real-time features, and more. See **[HELP_WANTED.md](HELP_WANTED.md)** for details.
+
+---
+
 ## Table of Contents
 
 - [Screen shots](#screen-shots)
@@ -213,14 +219,52 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **Web Server** - Apache, Nginx, or PHP built-in server
 - **Composer** - For dependency management 
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
+- **Operating User** - It is recommended to run BinktermPHP out of its own user account
 
-Ubuntu/Debian:
+
+#### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
 sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-pgsql php-dom postgresql
 sudo apt-get install -y unzip p7zip-full
 ```
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
+
+#### Postgres Database setup
+
+First, decide on a database name, username, and password. These will be used in your `.env` file later.
+
+Connect to PostgreSQL as the superuser:
+
+```bash
+sudo -u postgres psql
+```
+
+Then run the following commands, replacing `your_username`, `your_password`, and `your_database` with your chosen values:
+
+```sql
+CREATE USER your_username WITH PASSWORD 'your_password';
+CREATE DATABASE your_database OWNER your_username;
+\q
+```
+
+Verify the connection works with the new credentials:
+
+```bash
+psql -U your_username -d your_database -h 127.0.0.1
+```
+
+If the connection succeeds, update your `.env` file with the corresponding values:
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=your_database
+DB_USER=your_username
+DB_PASS=your_password
+```
+
+> **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
 
 ### Method 1: Using the Installer (Experimental)
 
@@ -675,15 +719,19 @@ php binkterm-installer.phar
 ### Version-Specific Upgrade Guides
 
 Individual versions with specific upgrade documentation:
-- February 2026 [docs/UPGRADING_1.8.0.md](docs/UPGRADING_1.8.0.md) - Forum style echoarea list is now the default echoarea page.  Binkp insecure session fixes, various enhancements
-- February 8 2026 [docs/UPGRADING_1.7.9.md](docs/UPGRADING_1.7.9.md) - LovlyNet, Telnet user registration, ANSI AD generator, Misc updates 
-- February 6 2026 [docs/UPGRADING_1.7.8.md](docs/UPGRADING_1.7.8.md) - NetMail enhancements, Auto Feed RSS poster, Sysop Notifications to Email, echomail cross posting and more
-- February 4 2026 [docs/UPGRADING_1.7.7.md](docs/UPGRADING_1.7.7.md) - Nodelist import fix for ZC/NC, Webdoor updates, signatures and tag lines, file area action processing, misc fixes
-- February 2 2026 - [docs/UPGRADING_1.7.5.md](docs/UPGRADING_1.7.1.md) - Optimizations to echomail message loader for memory reduction, Bink fixes, file areas, new forum style echoarea list,  various enhancements 
-- January 30 2026 - [docs/UPGRADING_1.7.2.md](docs/UPGRADING_1.7.1.md)  - Maintenance release/pre-release
-- January 29 2026 - [docs/UPGRADING_1.7.1.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 28 2026 - [docs/UPGRADING_1.7.0.md](docs/UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
-- January 24 2026 - [docs/UPGRADING_1.6.7.md](docs/UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
+
+| Version                                | Date        | Highlights |
+|----------------------------------------|-------------|------------|
+| [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Telnet anti-bot challenge, bind host/port via .env, FTN origin line fix, DOS door improvements |
+| [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation |
+| [1.7.9](docs/UPGRADING_1.7.9.md)       | Feb 8 2026  | LovlyNet, telnet user registration, ANSI AD generator, misc updates |
+| [1.7.8](docs/UPGRADING_1.7.8.md)       | Feb 6 2026  | NetMail enhancements, auto feed RSS poster, sysop notifications to email, echomail cross posting |
+| [1.7.7](docs/UPGRADING_1.7.7.md)       | Feb 4 2026  | Nodelist import fix for ZC/NC, WebDoor updates, signatures and taglines, file area action processing |
+| [1.7.5](docs/UPGRADING_1.7.5.md)       | Feb 2 2026  | Echomail loader optimisations, Bink fixes, file areas, forum-style echoarea list |
+| [1.7.2](docs/UPGRADING_1.7.2.md)       | Jan 30 2026 | Maintenance release |
+| [1.7.1](docs/UPGRADING_1.7.1.md)       | Jan 29 2026 | Online config editing for BinkP, system config, and WebDoors |
+| [1.7.0](docs/UPGRADING_1.7.0.md)       | Jan 28 2026 | New daemon/scheduler cron model |
+| [1.6.7](docs/UPGRADING_1.6.7.md)       | Jan 24 2026 | Multi-network support (FidoNet, FSXNet, etc.) |
 
 ## Database Management
 

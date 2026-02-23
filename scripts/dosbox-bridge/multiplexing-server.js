@@ -23,6 +23,16 @@ const { Client } = require('pg');
 const { createEmulatorAdapter } = require('./emulator-adapters');
 require('dotenv').config({ path: __dirname + '/../../.env' });
 
+// Prepend ISO timestamp to every console.log / .error / .warn line
+['log', 'error', 'warn'].forEach(method => {
+    const original = console[method].bind(console);
+    console[method] = (...args) => {
+        const d = new Date();
+        const ts = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+        original(`[${ts}]`, ...args);
+    };
+});
+
 // Daemon support
 const IS_DAEMON = process.argv.includes('--daemon');
 const IS_DAEMON_CHILD = process.env.DOSBOX_BRIDGE_DAEMON_CHILD === '1';
@@ -1080,11 +1090,11 @@ wsServer.on('error', (err) => {
     console.error('[WS] Server error:', err.message);
 });
 
-// Status reporting (every 60 seconds)
+// Status reporting (every 60 seconds) — only log when sessions are active
 setInterval(() => {
     const stats = sessionManager.getStats();
-    console.log('[STATUS] Active sessions:', stats.activeSessions, '| Available ports:', stats.availablePorts);
     if (stats.activeSessions > 0) {
+        console.log('[STATUS] Active sessions:', stats.activeSessions, '| Available ports:', stats.availablePorts);
         stats.sessions.forEach(s => {
             console.log(`  - ${s.sessionId} (port ${s.tcpPort}, PID ${s.emulatorPid}): ${s.uptime}s, WS:${s.wsConnected}, Emulator:${s.emulatorConnected}`);
         });

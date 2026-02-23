@@ -24,7 +24,8 @@
                                 <th>Location</th>
                                 {% if current_user and current_user.is_admin %}
                                 <th>Service</th>
-                                <th>Last Activity</th>
+                                <th>Activity</th>
+                                <th>Idle</th>
                                 {% endif %}
                             </tr>
                         </thead>
@@ -38,6 +39,7 @@
                                 {% if current_user and current_user.is_admin %}
                                 <td><span class="badge bg-secondary">{{ user.service ?: 'web' }}</span></td>
                                 <td>{{ user.activity ?: '-' }}</td>
+                                <td class="idle-time" data-last-activity-ts="{{ user.last_activity|date('U') }}">-</td>
                                 {% endif %}
                             </tr>
                             {% endfor %}
@@ -64,6 +66,24 @@
     const onlineUsersBody = document.getElementById('onlineUsersBody');
     const onlineEmptyState = document.getElementById('onlineEmptyState');
     const isAdmin = !!(window.currentUserIsAdmin && window.currentUserIsAdmin === true);
+
+    function formatIdle(ts) {
+        if (!ts) return '-';
+        const diffSec = Math.floor(Date.now() / 1000 - ts);
+        if (diffSec < 0) return '-';
+        if (diffSec < 60) return diffSec + 's';
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return diffMin + 'm';
+        const diffHr = Math.floor(diffMin / 60);
+        const remMin = diffMin % 60;
+        return remMin ? `${diffHr}h ${remMin}m` : `${diffHr}h`;
+    }
+
+    function refreshIdleTimes() {
+        document.querySelectorAll('.idle-time[data-last-activity-ts]').forEach(el => {
+            el.textContent = formatIdle(parseInt(el.dataset.lastActivityTs, 10));
+        });
+    }
 
     function updateOnlineView(payload) {
         if (!payload || !Array.isArray(payload.users)) {
@@ -92,17 +112,19 @@
                 const location = user.location && user.location !== '' ? user.location : 'Unknown';
                 const username = escapeHtml(user.username || '');
                 const usernameCell = `<a href="/profile/${encodeURIComponent(user.username)}" class="text-decoration-none">${username}</a>`;
+                const ts = user.last_activity_ts || null;
                 const serviceCell = isAdmin ? `<td><span class="badge bg-secondary">${escapeHtml(user.service || 'web')}</span></td>` : '';
                 const activityCell = isAdmin ? `<td>${user.activity && user.activity !== '' ? escapeHtml(user.activity) : '-'}</td>` : '';
+                const idleCell = isAdmin ? `<td class="idle-time" data-last-activity-ts="${ts}">${formatIdle(ts)}</td>` : '';
                 return `<tr>
                     <td>${usernameCell}</td>
                     <td>${escapeHtml(location)}</td>
                     ${serviceCell}
                     ${activityCell}
+                    ${idleCell}
                 </tr>`;
             }).join('');
         }
-
     }
 
     function refreshOnline() {
@@ -112,6 +134,8 @@
             .catch(() => {});
     }
 
+    refreshIdleTimes();
+    setInterval(refreshIdleTimes, 10000);
     setInterval(refreshOnline, 60000);
 </script>
 {% endblock %}

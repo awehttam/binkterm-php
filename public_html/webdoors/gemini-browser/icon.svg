@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Capsule body -->
+  <ellipse cx="32" cy="28" rx="11" ry="16" fill="#003d1a" stroke="#00cc55" stroke-width="1.5"/>
+  <!-- Nose cone -->
+  <path d="M21 22 Q32 4 43 22 Z" fill="#005522" stroke="#00cc55" stroke-width="1.5"/>
+  <!-- Porthole -->
+  <circle cx="32" cy="26" r="5" fill="#001a0d" stroke="#00ff88" stroke-width="1.5"/>
+  <circle cx="32" cy="26" r="2.5" fill="#00ff88" opacity="0.25"/>
+  <!-- Fins -->
+  <path d="M21 38 L13 50 L21 45 Z" fill="#004d22" stroke="#00aa44" stroke-width="1"/>
+  <path d="M43 38 L51 50 L43 45 Z" fill="#004d22" stroke="#00aa44" stroke-width="1"/>
+  <!-- Nozzle -->
+  <rect x="27" y="43" width="10" height="4" rx="1" fill="#003311" stroke="#008833" stroke-width="1"/>
+  <!-- Exhaust -->
+  <ellipse cx="32" cy="52" rx="5" ry="7" fill="#ff6600" opacity="0.55"/>
+  <ellipse cx="32" cy="54" rx="3" ry="4" fill="#ffaa00" opacity="0.45"/>
+</svg>

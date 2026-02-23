@@ -165,23 +165,6 @@ When adding new configuration settings you'll be working with the configuration 
 You may need to add new commands, or update existing ones depending on the context of the setting being added.  Be sure to clarify and confirm this.
 
 ## Changelog Workflow
- - **IMPORTANT**: When completing significant features, bug fixes, or improvements, ALWAYS update the changelog at `templates/recent_updates.twig` by adding entries to the top of the file with the current date
- - Use this format:
-   ```html
-   <div class="update-item mb-3" data-version="1.4.1" data-date="2025-08-29">
-       <div class="d-flex justify-content-between align-items-start">
-           <div>
-               <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Webshare Functionality</h6>
-               <p class="mb-1 text-muted">Users can now share echomail messages via secure web links with privacy controls and expiration settings.</p>
-           </div>
-           <small class="text-muted">v1.4.1</small>
-       </div>
-   </div>
-   ```
- - Badge types: `bg-primary` (Feature), `bg-success` (Improvement), `bg-warning` (Fix), `bg-info` (Update)
- - Keep entries concise but descriptive
- - Limit to 10-15 most recent entries (remove older ones)
- - This file is automatically displayed on the admin dashboard's "Recent Updates" section
 
 ## Credits System Workflow
 When adding new UserCredit credit/reward types or debit types, you must update configuration, code defaults, and admin interface:
@@ -427,33 +410,19 @@ Edit `composer.json` to match the new version:
 }
 ```
 
-#### 3. Update Recent Updates Template
-Add an entry to `templates/recent_updates.twig` documenting the changes in this version:
 
-```html
-<div class="update-item mb-3" data-version="1.4.3" data-date="2025-08-29">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h6 class="mb-1"><span class="badge bg-primary me-2">Feature</span>Version Management System</h6>
-            <p class="mb-1 text-muted">Added centralized version management with consistent tearlines and web interface display.</p>
-        </div>
-        <small class="text-muted">v1.4.3</small>
-    </div>
-</div>
-```
-
-#### 4. Commit and Tag
+#### 3. Commit and Tag
 Commit your changes. Do NOT create a tag.
 
 ```bash
-git add src/Version.php composer.json templates/recent_updates.twig
+git add src/Version.php composer.json 
 git commit -m "Bump version to 1.4.3"
 git push origin main 
 ```
 
-#### 5. Update UPGRADING_x.x.x.md documentation
+#### 4. Update UPGRADING_x.x.x.md documentation
 
-For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) in the docs/ directory with a summary of changes and important upgrade instructions
+For new releases we create a document named UPGRADING_x.x.x.md (eg: UPGRADING_1.6.7.md) in the docs/ directory with a summary of changes and important upgrade instructions.  Link the new document from the Upgrading section of README.md.
 
 ### What Updates Automatically
 

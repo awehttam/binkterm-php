@@ -150,7 +150,7 @@ class DoorHandler
         TelnetUtils::writeLine($conn, TelnetUtils::colorize("Launching {$doorName}...", TelnetUtils::ANSI_CYAN));
         TelnetUtils::writeLine($conn, '');
 
-        $apiResult = $this->callDoorLaunchApi($session, $doorId);
+        $apiResult = $this->callDoorLaunchApi($session, $doorId, $state['csrf_token'] ?? null);
 
         if (empty($apiResult['success'])) {
             $msg = $apiResult['message'] ?? $apiResult['error'] ?? 'Failed to start door session';
@@ -198,7 +198,7 @@ class DoorHandler
         @fclose($wsSock);
 
         // Notify the API the session ended (best-effort; bridge also cleans up on disconnect)
-        $this->callDoorEndApi($session, $sessionId);
+        $this->callDoorEndApi($session, $sessionId, $state['csrf_token'] ?? null);
 
         // Restore echo state
         $this->server->safeWrite($conn, chr(255) . chr(251) . chr(1)); // IAC WILL ECHO
@@ -687,14 +687,18 @@ class DoorHandler
      * @param string $doorId  Door identifier
      * @return array Decoded JSON response
      */
-    private function callDoorLaunchApi(string $session, string $doorId): array
+    private function callDoorLaunchApi(string $session, string $doorId, ?string $csrfToken = null): array
     {
+        $headers = ['Content-Type: application/x-www-form-urlencoded'];
+        if ($csrfToken !== null) {
+            $headers[] = 'X-CSRF-Token: ' . $csrfToken;
+        }
         $ch = curl_init(rtrim($this->apiBase, '/') . '/api/door/launch');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => http_build_query(['door' => $doorId]),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_COOKIE         => 'binktermphp_session=' . $session,
             CURLOPT_TIMEOUT        => 15,
         ]);
@@ -716,14 +720,18 @@ class DoorHandler
      * @param string $session   Auth session cookie value
      * @param string $sessionId Door session UUID
      */
-    private function callDoorEndApi(string $session, string $sessionId): void
+    private function callDoorEndApi(string $session, string $sessionId, ?string $csrfToken = null): void
     {
+        $headers = ['Content-Type: application/x-www-form-urlencoded'];
+        if ($csrfToken !== null) {
+            $headers[] = 'X-CSRF-Token: ' . $csrfToken;
+        }
         $ch = curl_init(rtrim($this->apiBase, '/') . '/api/door/end');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => http_build_query(['session_id' => $sessionId]),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_COOKIE         => 'binktermphp_session=' . $session,
             CURLOPT_TIMEOUT        => 5,
         ]);

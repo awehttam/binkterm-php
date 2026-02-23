@@ -441,31 +441,6 @@ SimpleRouter::get('/profile/{username}', function($username) {
     $template->renderResponse('user_profile.twig', $templateVars);
 });
 
-SimpleRouter::get('/development-history', function() {
-    // Get system configuration for display
-    try {
-        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-        $systemName = $binkpConfig->getSystemName();
-        $systemAddress = $binkpConfig->getSystemAddress();
-        $sysopName = $binkpConfig->getSystemSysop();
-    } catch (\Exception $e) {
-        $systemName = 'BinktermPHP System';
-        $systemAddress = 'Not configured';
-        $sysopName = 'Unknown';
-    }
-
-    $templateVars = [
-        'system_name' => $systemName,
-        'fidonet_origin' => $systemAddress,
-        'sysop_name' => $sysopName,
-        'app_version' => \BinktermPHP\Version::getVersion(),
-        'app_full_version' => \BinktermPHP\Version::getFullVersion()
-    ];
-
-    $template = new Template();
-    $template->renderResponse('development_history.twig', $templateVars);
-});
-
 SimpleRouter::get('/settings', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -853,6 +828,10 @@ SimpleRouter::get('/compose/{type}', function($type) {
             $settings = $handler->getUserSettings($userId);
             $signatureText = trim((string)($settings['signature_text'] ?? ''));
             $defaultTagline = (string)($settings['default_tagline'] ?? '');
+            // Resolve random tagline selection at compose time
+            if ($defaultTagline === '__random__' && !empty($templateVars['taglines'])) {
+                $defaultTagline = $templateVars['taglines'][array_rand($templateVars['taglines'])];
+            }
             $templateVars['default_tagline'] = $defaultTagline;
             if ($signatureText !== '') {
                 $sigLines = preg_split('/\r\n|\r|\n/', $signatureText) ?: [];

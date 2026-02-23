@@ -299,6 +299,16 @@ body {
     margin-bottom: 2px;
 }
 
+.node-item.bg-primary .node-address,
+.node-item.bg-primary .node-system {
+    color: #fff;
+}
+
+.node-item.bg-primary .badge {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #333 !important;
+}
+
 .node-sysop {
     color: #6c757d;
     font-size: 0.9em;
