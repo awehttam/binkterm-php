@@ -8,6 +8,7 @@
  *
  * Actions (GET ?action=<name>):
  *   config          — return door configuration and user info
+ *   home_page       — return the built-in start page as gemtext
  *   fetch           — proxy-fetch a gemini:// URL (?url=gemini://…)
  *   bookmark_list   — return bookmarks for current user
  *   bookmark_add    — POST {url, title} — add a bookmark
@@ -32,6 +33,10 @@ $action = $_GET['action'] ?? '';
 switch ($action) {
     case 'config':
         handleConfig();
+        break;
+
+    case 'home_page':
+        handleHomePage();
         break;
 
     case 'fetch':
@@ -63,9 +68,52 @@ function handleConfig(): void
 {
     $cfg = WebDoorSDK\getDoorConfig('gemini-browser');
     WebDoorSDK\jsonResponse([
-        'home_url'     => $cfg['home_url']     ?? 'gemini://kennedy.gemi.dev/',
+        'home_url'     => $cfg['home_url']     ?? 'about:home',
         'max_redirects'=> (int)($cfg['max_redirects'] ?? 5),
         'timeout'      => (int)($cfg['timeout']       ?? 15),
+    ]);
+}
+
+// ── Action: home_page ─────────────────────────────────────────────────────────
+
+/**
+ * Return the built-in start page as a synthetic gemtext response.
+ * The client requests this URL as "about:home".
+ */
+function handleHomePage(): void
+{
+    $body = implode("\n", [
+        '# Geminispace — Start Page',
+        '',
+        'Welcome to Geminispace — a lightweight, privacy-focused corner of the internet.',
+        'No ads. No tracking. No JavaScript. Just text and links.',
+        '',
+        '## Search',
+        '=> gemini://kennedy.gemi.dev/ Kennedy — Gemini Search Engine',
+        '',
+        '## About Gemini',
+        '=> gemini://geminiprotocol.net/ The Gemini Protocol — Official Specification',
+        '=> gemini://gemini.circumlunar.space/ Project Gemini Homepage',
+        '',
+        '## News & Aggregators',
+        '=> gemini://gemini.circumlunar.space/capcom/ CAPCOM — Gemini Feed Aggregator',
+        '=> gemini://rawtext.club/ Rawtext Club — Community Articles',
+        '',
+        '## Community Spaces',
+        '=> gemini://tilde.team/ Tilde Team — Shared Unix Community',
+        '=> gemini://cosmic.voyage/ Cosmic Voyage — Collaborative Sci-Fi Fiction',
+        '',
+        '## Software',
+        '=> gemini://skyjake.fi/lagrange/ Lagrange — Native Gemini Browser',
+    ]);
+
+    WebDoorSDK\jsonResponse([
+        'success' => true,
+        'status'  => 20,
+        'meta'    => 'text/gemini; charset=utf-8',
+        'mime'    => 'text/gemini',
+        'body'    => $body,
+        'url'     => 'about:home',
     ]);
 }
 

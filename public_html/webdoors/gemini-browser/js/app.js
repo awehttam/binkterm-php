@@ -14,7 +14,7 @@ const GeminiBrowser = (() => {
     let histPos         = -1;      // current position in navHistory
     let currentUrl      = '';
     let bookmarks       = [];
-    let config          = { home_url: 'gemini://kennedy.gemi.dev/' };
+    let config          = { home_url: 'about:home' };
     let pendingInputUrl = '';      // URL awaiting user input (status 1x)
 
     // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -89,8 +89,8 @@ const GeminiBrowser = (() => {
     function navigateToBar() {
         let url = el.urlBar.value.trim();
         if (!url) return;
-        // Be forgiving: add scheme if missing
-        if (!url.includes('://')) url = 'gemini://' + url;
+        // Be forgiving: add scheme if missing (but leave about: URLs alone)
+        if (!url.includes('://') && !url.startsWith('about:')) url = 'gemini://' + url;
         navigate(url);
     }
 
@@ -346,9 +346,13 @@ const GeminiBrowser = (() => {
     }
 
     function updateBmButton() {
-        const active = bookmarks.some(b => b.url === currentUrl);
+        const isGemini = currentUrl && currentUrl.startsWith('gemini://');
+        const active   = isGemini && bookmarks.some(b => b.url === currentUrl);
         el.btnBmToggle.classList.toggle('active', active);
-        el.btnBmToggle.title = active ? 'Remove bookmark' : 'Bookmark this page';
+        el.btnBmToggle.disabled = !isGemini;
+        el.btnBmToggle.title    = active    ? 'Remove bookmark'
+                                : isGemini  ? 'Bookmark this page'
+                                            : 'Cannot bookmark this page';
     }
 
     function togglePanel() {
@@ -369,8 +373,12 @@ const GeminiBrowser = (() => {
     }
 
     async function fetchPage(url) {
-        const params = new URLSearchParams({ action: 'fetch', url });
-        const res = await fetch(`api.php?${params}`);
+        // Internal pages are served by the BBS, not fetched over Gemini
+        const endpoint = url === 'about:home'
+            ? 'api.php?action=home_page'
+            : `api.php?${new URLSearchParams({ action: 'fetch', url })}`;
+
+        const res = await fetch(endpoint);
         if (!res.ok) {
             const body = await res.json().catch(() => ({}));
             throw new Error(body.error || `HTTP ${res.status}`);
