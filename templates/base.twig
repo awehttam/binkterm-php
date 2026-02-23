@@ -439,10 +439,13 @@
                 // Tell the waiting service worker to activate
                 swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
 
-                // Reload the page when the new service worker takes control
+                // Reload once when the new service worker takes control.
+                // Use { once: true } to ensure only a single reload fires
+                // even if controllerchange is emitted more than once
+                // (e.g. via clients.claim() during activation).
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     window.location.reload();
-                });
+                }, { once: true });
             } else {
                 // Fallback: just reload
                 window.location.reload();
