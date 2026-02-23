@@ -722,8 +722,8 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights |
 |----------------------------------------|-------------|------------|
-| [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 17 2026 | Telnet anti-bot challenge, bind host/port via .env, FTN origin line fix, DOS door improvements |
-| [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026  | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation |
+| [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Telnet anti-bot challenge, bind host/port via .env, FTN origin line fix, DOS door improvements |
+| [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation |
 | [1.7.9](docs/UPGRADING_1.7.9.md)       | Feb 8 2026  | LovlyNet, telnet user registration, ANSI AD generator, misc updates |
 | [1.7.8](docs/UPGRADING_1.7.8.md)       | Feb 6 2026  | NetMail enhancements, auto feed RSS poster, sysop notifications to email, echomail cross posting |
 | [1.7.7](docs/UPGRADING_1.7.7.md)       | Feb 4 2026  | Nodelist import fix for ZC/NC, WebDoor updates, signatures and taglines, file area action processing |
