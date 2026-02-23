@@ -54,6 +54,32 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Who's Online Idle Timer** — An Idle column (admin-only) has been added to the Who's Online page showing time elapsed since each user's last activity. The timer updates every 10 seconds in the browser without additional server requests.
 - **Echomail Sort Order Dropdown** — The sort order dropdown (Newest First, Oldest First, By Subject, By Author) on the echomail list page was non-functional. The API routes were not reading the `sort` query parameter and `MessageHandler` always used a hardcoded `ORDER BY date DESC`. Sorting now works correctly in both standard and threaded views.
 - **Random Tagline** — Users can now select "Random tagline" as their default tagline in user settings. Each time the compose window is opened, a tagline is picked at random from the system tagline list and pre-selected in the dropdown (the user can still change it before sending).
+- **"Back to Doors" Label** — The back button on the DOS door and WebDoor play pages now reads "Back to Doors" instead of "Back to Games".
+
+## New WebDoors
+
+### Gemini Browser
+
+A built-in WebDoor that lets users browse [Geminispace](https://geminiprotocol.net/) from within the BBS. The Gemini protocol is a lightweight, privacy-focused alternative to the web that uses a plain-text format called Gemtext.
+
+**Features:**
+- Full Gemtext rendering (headings, links, lists, blockquotes, preformatted blocks)
+- Back/forward navigation history
+- Per-user bookmarks (stored server-side)
+- Input prompt support for Gemini 1x interactive pages
+- Dark terminal-green theme
+
+**Security:** The PHP proxy enforces port 1965 exclusively, blocks connections to private/reserved IP ranges, and limits response size. Gemtext content is rendered as escaped HTML — external link text and server error messages cannot inject scripts.
+
+**Configuration** (Admin → WebDoors → Gemini Browser):
+
+| Setting | Default | Description |
+|---|---|---|
+| `home_url` | `gemini://geminiprotocol.net/` | Page loaded on open and when Home is clicked |
+| `max_redirects` | `5` | Maximum redirects to follow |
+| `timeout` | `15` | Connection timeout in seconds |
+| `max_response_bytes` | `10485760` | Maximum response body size (10 MB) |
+| `block_private_ranges` | `true` | Block connections to RFC-1918 / loopback addresses |
 
 ## Docker Improvements
 
