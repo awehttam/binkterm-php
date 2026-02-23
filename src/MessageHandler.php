@@ -2989,8 +2989,8 @@ class MessageHandler
         
         // Sort threads according to the requested sort order
         usort($threads, function($a, $b) use ($sort) {
-            $aRoot = $a[0];
-            $bRoot = $b[0];
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
             return match($sort) {
                 'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
@@ -3204,8 +3204,8 @@ class MessageHandler
 
         // Sort threads according to the requested sort order
         usort($threads, function($a, $b) use ($sort) {
-            $aRoot = $a[0];
-            $bRoot = $b[0];
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
             return match($sort) {
                 'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),

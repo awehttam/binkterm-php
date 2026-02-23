@@ -45,6 +45,9 @@ Make sure you've made a backup of your database and files before upgrading.
 ### File Areas
 - **`%basedir%` Macro Shell Quoting** — The Feb 18 security fix wrapped all file area rule macro values in `escapeshellarg()`, which was correct for network-derived values (`%filepath%`, `%filename%`, `%domain%`, etc.) but broke `%basedir%`. Because `%basedir%` is used as a path component in rule templates (e.g. `php %basedir%/scripts/foo.php`), pre-quoting it produced a split path like `'/home/user/app'/scripts/foo.php`. The basedir value (derived from `realpath()` on the application directory) is now substituted raw; all network-derived macros retain their `escapeshellarg()` protection.
 
+### Echomail Threaded View
+- **Threaded Sort Order** — The subject and author sort options in threaded echomail view were generating PHP warnings and sorting incorrectly. The `usort` comparator was accessing thread nodes as numeric arrays (`$a[0]`) when the thread structure uses associative keys (`$a['message']`). All three threaded sort call sites are now corrected.
+
 ### API / Internal
 - **`getEchomail()` / `getThreadedEchomail()` `$domain` Parameter** — The `$domain` parameter is now optional (defaults to `null`). Callers that previously relied on positional argument ordering without a default value will continue to work.
 
