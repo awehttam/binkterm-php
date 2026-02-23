@@ -144,11 +144,11 @@ function getDoorConfig(string $doorId): ?array
 
     $config = json_decode(file_get_contents($configPath), true);
 
-    if (!$config || !isset($config['doors'][$doorId])) {
+    if (!$config || !isset($config[$doorId])) {
         return null;
     }
 
-    return $config['doors'][$doorId];
+    return $config[$doorId];
 }
 
 /**

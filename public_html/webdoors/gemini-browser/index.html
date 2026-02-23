@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Browser</title>
+    <link rel="stylesheet" href="css/gemini.css">
+</head>
+<body>
+
+    <!-- Toolbar -->
+    <div id="toolbar">
+        <button id="btn-back"    title="Back"    disabled>&#8592;</button>
+        <button id="btn-forward" title="Forward" disabled>&#8594;</button>
+        <button id="btn-home"    title="Home">&#8962;</button>
+        <input  id="url-bar" type="text" placeholder="gemini://..." spellcheck="false" autocomplete="off" autocorrect="off">
+        <button id="btn-go"      title="Go">GO</button>
+        <button id="btn-bm-toggle" title="Bookmark this page">&#9733;</button>
+        <button id="btn-panel"   title="Bookmarks">&#9776;</button>
+    </div>
+
+    <!-- Main area -->
+    <div id="main">
+
+        <!-- Content pane -->
+        <div id="content-wrap">
+            <div id="loading" hidden>Loading&#8230;</div>
+            <div id="content"></div>
+        </div>
+
+        <!-- Bookmarks panel -->
+        <div id="bookmarks-panel" class="hidden">
+            <div id="bookmarks-header">
+                <span>Bookmarks</span>
+                <button id="btn-close-panel" title="Close">&#10005;</button>
+            </div>
+            <div id="bookmarks-list"></div>
+        </div>
+
+    </div>
+
+    <!-- Status bar -->
+    <div id="status-bar"><span id="status-text">Ready</span></div>
+
+    <!-- Input prompt modal -->
+    <div id="input-modal" class="hidden" role="dialog" aria-modal="true">
+        <div id="input-modal-inner">
+            <div id="input-prompt-label"></div>
+            <input id="input-field" type="text" autocomplete="off">
+            <div id="input-modal-buttons">
+                <button id="btn-input-cancel">Cancel</button>
+                <button id="btn-input-submit">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../_doorsdk/js/api.js"></script>
+    <script src="js/gemtext.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

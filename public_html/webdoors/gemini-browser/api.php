@@ -1,0 +1,452 @@
+<?php
+
+/**
+ * Gemini Browser WebDoor — self-contained API
+ *
+ * Handles all server-side logic: Gemini protocol fetch, bookmarks.
+ * Depends only on the WebDoor SDK helpers; does not touch core BBS routes.
+ *
+ * Actions (GET ?action=<name>):
+ *   config          — return door configuration and user info
+ *   fetch           — proxy-fetch a gemini:// URL (?url=gemini://…)
+ *   bookmark_list   — return bookmarks for current user
+ *   bookmark_add    — POST {url, title} — add a bookmark
+ *   bookmark_remove — POST {url}        — remove a bookmark
+ */
+
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
+
+header('Content-Type: application/json; charset=utf-8');
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+$auth = new \BinktermPHP\Auth();
+$user = $auth->getCurrentUser();
+if (!$user) {
+    WebDoorSDK\jsonError('Not authenticated', 401);
+}
+
+// ── Door enabled check ────────────────────────────────────────────────────────
+if (!WebDoorSDK\isDoorEnabled('gemini-browser')) {
+    WebDoorSDK\jsonError('Gemini Browser is not enabled', 403);
+}
+
+// ── Route ─────────────────────────────────────────────────────────────────────
+$action = $_GET['action'] ?? '';
+
+switch ($action) {
+    case 'config':
+        handleConfig();
+        break;
+
+    case 'fetch':
+        handleFetch();
+        break;
+
+    case 'bookmark_list':
+        handleBookmarkList($user);
+        break;
+
+    case 'bookmark_add':
+        handleBookmarkAdd($user);
+        break;
+
+    case 'bookmark_remove':
+        handleBookmarkRemove($user);
+        break;
+
+    default:
+        WebDoorSDK\jsonError('Unknown action', 400);
+}
+
+// ── Action: config ────────────────────────────────────────────────────────────
+
+/**
+ * Return door configuration for the client.
+ */
+function handleConfig(): void
+{
+    $cfg = WebDoorSDK\getDoorConfig('gemini-browser');
+    WebDoorSDK\jsonResponse([
+        'home_url'     => $cfg['home_url']     ?? 'gemini://geminiprotocol.net/',
+        'max_redirects'=> (int)($cfg['max_redirects'] ?? 5),
+        'timeout'      => (int)($cfg['timeout']       ?? 15),
+    ]);
+}
+
+// ── Action: fetch ─────────────────────────────────────────────────────────────
+
+/**
+ * Proxy-fetch a Gemini URL and return the parsed response as JSON.
+ */
+function handleFetch(): void
+{
+    $url = trim($_GET['url'] ?? '');
+    if ($url === '') {
+        WebDoorSDK\jsonError('url parameter is required', 400);
+    }
+
+    $cfg          = WebDoorSDK\getDoorConfig('gemini-browser');
+    $maxRedirects = (int)($cfg['max_redirects']     ?? 5);
+    $timeout      = (int)($cfg['timeout']           ?? 15);
+    $maxBytes     = (int)($cfg['max_response_bytes'] ?? 10485760);
+    $blockPrivate = (bool)($cfg['block_private_ranges'] ?? true);
+
+    $result = geminiGet($url, $maxRedirects, $timeout, $maxBytes, $blockPrivate);
+    WebDoorSDK\jsonResponse($result);
+}
+
+// ── Action: bookmark_list ─────────────────────────────────────────────────────
+
+/**
+ * Return the current user's bookmarks.
+ *
+ * @param array $user
+ */
+function handleBookmarkList(array $user): void
+{
+    WebDoorSDK\jsonResponse(['bookmarks' => bookmarksLoad((int)$user['id'])]);
+}
+
+// ── Action: bookmark_add ──────────────────────────────────────────────────────
+
+/**
+ * Add a bookmark for the current user.
+ *
+ * @param array $user
+ */
+function handleBookmarkAdd(array $user): void
+{
+    $input = json_decode((string)file_get_contents('php://input'), true) ?? [];
+    $url   = trim((string)($input['url']   ?? ''));
+    $title = trim((string)($input['title'] ?? ''));
+
+    if ($url === '') {
+        WebDoorSDK\jsonError('url is required', 400);
+    }
+    if (!str_starts_with($url, 'gemini://')) {
+        WebDoorSDK\jsonError('Only gemini:// URLs can be bookmarked', 400);
+    }
+    if ($title === '') {
+        $title = $url;
+    }
+
+    $userId    = (int)$user['id'];
+    $bookmarks = bookmarksLoad($userId);
+
+    // Deduplicate
+    foreach ($bookmarks as $bm) {
+        if ($bm['url'] === $url) {
+            WebDoorSDK\jsonResponse(['bookmarks' => $bookmarks]);
+        }
+    }
+
+    $bookmarks[] = [
+        'url'   => $url,
+        'title' => $title,
+        'added' => date('Y-m-d H:i:s'),
+    ];
+
+    bookmarksSave($userId, $bookmarks);
+    WebDoorSDK\jsonResponse(['bookmarks' => $bookmarks]);
+}
+
+// ── Action: bookmark_remove ───────────────────────────────────────────────────
+
+/**
+ * Remove a bookmark by URL for the current user.
+ *
+ * @param array $user
+ */
+function handleBookmarkRemove(array $user): void
+{
+    $input = json_decode((string)file_get_contents('php://input'), true) ?? [];
+    $url   = trim((string)($input['url'] ?? ''));
+
+    if ($url === '') {
+        WebDoorSDK\jsonError('url is required', 400);
+    }
+
+    $userId    = (int)$user['id'];
+    $bookmarks = bookmarksLoad($userId);
+    $bookmarks = array_values(array_filter($bookmarks, fn($bm) => $bm['url'] !== $url));
+
+    bookmarksSave($userId, $bookmarks);
+    WebDoorSDK\jsonResponse(['bookmarks' => $bookmarks]);
+}
+
+// ── Bookmark storage helpers ──────────────────────────────────────────────────
+
+/**
+ * Return the path to a user's bookmarks file, creating the directory if needed.
+ *
+ * @param int $userId
+ * @return string
+ */
+function bookmarksPath(int $userId): string
+{
+    $dir = BINKTERMPHP_BASEDIR . '/data/webdoors/gemini-browser/bookmarks';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    return $dir . '/' . $userId . '.json';
+}
+
+/**
+ * Load bookmarks for a user. Returns an empty array if no file exists yet.
+ *
+ * @param int $userId
+ * @return array
+ */
+function bookmarksLoad(int $userId): array
+{
+    $path = bookmarksPath($userId);
+    if (!file_exists($path)) {
+        return [];
+    }
+    $data = json_decode((string)file_get_contents($path), true);
+    return is_array($data) ? $data : [];
+}
+
+/**
+ * Save bookmarks for a user.
+ *
+ * @param int   $userId
+ * @param array $bookmarks
+ */
+function bookmarksSave(int $userId, array $bookmarks): void
+{
+    file_put_contents(
+        bookmarksPath($userId),
+        json_encode($bookmarks, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        LOCK_EX
+    );
+}
+
+// ── Gemini protocol client ────────────────────────────────────────────────────
+
+/**
+ * Fetch a Gemini URL, following redirects up to $maxRedirects times.
+ *
+ * @param string $url
+ * @param int    $maxRedirects
+ * @param int    $timeout         Seconds for connect + read
+ * @param int    $maxBytes        Maximum response body size
+ * @param bool   $blockPrivate    Block RFC-1918 / loopback destinations
+ * @param int    $redirectCount   Current redirect depth (internal)
+ * @return array
+ */
+function geminiGet(
+    string $url,
+    int    $maxRedirects,
+    int    $timeout,
+    int    $maxBytes,
+    bool   $blockPrivate,
+    int    $redirectCount = 0
+): array {
+    if ($redirectCount > $maxRedirects) {
+        return geminiError('Too many redirects', 0, $url);
+    }
+
+    // ── Validate URL ──────────────────────────────────────────────────────────
+    if (!preg_match('/^gemini:\/\//i', $url)) {
+        return geminiError('Only gemini:// URLs are supported', 0, $url);
+    }
+
+    $parsed = parse_url($url);
+    if (!$parsed) {
+        return geminiError('Invalid URL', 0, $url);
+    }
+
+    $host = $parsed['host'] ?? '';
+    $port = (int)($parsed['port'] ?? 1965);
+    $path = $parsed['path'] ?? '/';
+    if ($path === '') $path = '/';
+    if (isset($parsed['query'])) $path .= '?' . $parsed['query'];
+
+    if ($host === '') {
+        return geminiError('Invalid URL: missing host', 0, $url);
+    }
+
+    // Only allow the standard Gemini port to prevent SSRF on other services
+    if ($port !== 1965) {
+        return geminiError('Only the default Gemini port (1965) is allowed', 0, $url);
+    }
+
+    // ── SSRF protection ───────────────────────────────────────────────────────
+    if ($blockPrivate) {
+        $resolved = gethostbyname($host);
+        if (!isPublicIp($resolved)) {
+            return geminiError('Access to private or reserved network addresses is not permitted', 0, $url);
+        }
+    }
+
+    // ── Build canonical request URL ───────────────────────────────────────────
+    $requestUrl = 'gemini://' . $host . $path;
+    if (strlen($requestUrl) > 1024) {
+        return geminiError('URL exceeds the Gemini maximum of 1024 bytes', 0, $url);
+    }
+
+    // ── Open TLS connection ───────────────────────────────────────────────────
+    // Gemini uses a Trust-On-First-Use (TOFU) certificate model, not CA validation
+    $ctx = stream_context_create([
+        'ssl' => [
+            'verify_peer'       => false,
+            'verify_peer_name'  => false,
+            'allow_self_signed' => true,
+        ],
+    ]);
+
+    $socket = @stream_socket_client(
+        "ssl://{$host}:{$port}",
+        $errno, $errstr,
+        $timeout,
+        STREAM_CLIENT_CONNECT,
+        $ctx
+    );
+
+    if ($socket === false) {
+        return geminiError("Connection failed: {$errstr} (errno {$errno})", 0, $url);
+    }
+
+    stream_set_timeout($socket, $timeout);
+
+    // ── Send request ──────────────────────────────────────────────────────────
+    fwrite($socket, $requestUrl . "\r\n");
+
+    // ── Read response header ──────────────────────────────────────────────────
+    // Format: "<STATUS> <META>\r\n"  (max 1029 bytes per spec)
+    $headerLine = fgets($socket, 1030);
+    if ($headerLine === false) {
+        fclose($socket);
+        return geminiError('No response from server', 0, $url);
+    }
+    $headerLine = rtrim($headerLine, "\r\n");
+
+    if (strlen($headerLine) < 3) {
+        fclose($socket);
+        return geminiError('Invalid response header from server', 0, $url);
+    }
+
+    $status = (int)substr($headerLine, 0, 2);
+    $meta   = ltrim(substr($headerLine, 3)); // skip STATUS + space
+
+    // ── Read body (success responses only) ───────────────────────────────────
+    $body      = '';
+    $truncated = false;
+
+    if ($status >= 20 && $status < 30) {
+        $bytesRead = 0;
+        while (!feof($socket)) {
+            $chunk = fread($socket, 8192);
+            if ($chunk === false || $chunk === '') break;
+            $body      .= $chunk;
+            $bytesRead += strlen($chunk);
+            if ($bytesRead >= $maxBytes) {
+                $truncated = true;
+                break;
+            }
+        }
+    }
+
+    fclose($socket);
+
+    // ── Follow redirects ──────────────────────────────────────────────────────
+    if ($status >= 30 && $status < 40 && $meta !== '') {
+        $redirectTarget = geminiResolveUrl($url, $meta);
+        WebDoorSDK\log('gemini-browser', "Redirect ({$status}): {$url} -> {$redirectTarget}");
+        return geminiGet($redirectTarget, $maxRedirects, $timeout, $maxBytes, $blockPrivate, $redirectCount + 1);
+    }
+
+    // ── Character encoding normalisation for text content ────────────────────
+    $mimeType = ($status >= 20 && $status < 30) ? ($meta ?: 'text/gemini; charset=utf-8') : '';
+    $isText   = str_starts_with(strtolower(explode(';', $mimeType)[0]), 'text/');
+
+    if ($isText && $body !== '') {
+        if (preg_match('/charset=([^\s;]+)/i', $mimeType, $cm)) {
+            $charset = strtolower($cm[1]);
+            if ($charset !== 'utf-8' && function_exists('mb_convert_encoding')) {
+                $body = mb_convert_encoding($body, 'UTF-8', strtoupper($charset));
+            }
+        }
+    }
+
+    if ($truncated) {
+        $body .= "\n\n[Response truncated: size limit reached]";
+    }
+
+    return [
+        'success' => true,
+        'status'  => $status,
+        'meta'    => $meta,
+        'mime'    => $mimeType,
+        'body'    => $isText ? $body : null,
+        'url'     => $url,
+    ];
+}
+
+/**
+ * Build an error response array.
+ *
+ * @param string $message
+ * @param int    $status
+ * @param string $url
+ * @return array
+ */
+function geminiError(string $message, int $status, string $url): array
+{
+    return [
+        'success' => false,
+        'error'   => $message,
+        'status'  => $status,
+        'url'     => $url,
+    ];
+}
+
+/**
+ * Resolve a (possibly relative) URL against a Gemini base URL.
+ *
+ * @param string $base
+ * @param string $relative
+ * @return string
+ */
+function geminiResolveUrl(string $base, string $relative): string
+{
+    // Already absolute?
+    if (preg_match('/^[a-z][a-z0-9+\-.]*:\/\//i', $relative)) {
+        return $relative;
+    }
+
+    $p      = parse_url($base);
+    $scheme = $p['scheme'] ?? 'gemini';
+    $host   = $p['host']   ?? '';
+    $port   = isset($p['port']) ? ':' . $p['port'] : '';
+
+    if (str_starts_with($relative, '/')) {
+        return "{$scheme}://{$host}{$port}{$relative}";
+    }
+
+    $basePath = $p['path'] ?? '/';
+    $dir      = rtrim(dirname($basePath), '/') . '/';
+
+    return "{$scheme}://{$host}{$port}{$dir}{$relative}";
+}
+
+/**
+ * Return true if $ip is a publicly routable address.
+ * Uses PHP's FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE.
+ * Returns false for anything that isn't a valid, public IP (loopback,
+ * link-local, RFC-1918, unresolvable hostnames, etc.).
+ *
+ * @param string $ip  The result of gethostbyname() on the target host
+ * @return bool
+ */
+function isPublicIp(string $ip): bool
+{
+    // gethostbyname() returns the hostname unchanged when resolution fails
+    if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+        return false;
+    }
+    return filter_var($ip, FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+    ) !== false;
+}
