@@ -63,7 +63,7 @@ function handleConfig(): void
 {
     $cfg = WebDoorSDK\getDoorConfig('gemini-browser');
     WebDoorSDK\jsonResponse([
-        'home_url'     => $cfg['home_url']     ?? 'gemini://geminiprotocol.net/',
+        'home_url'     => $cfg['home_url']     ?? 'gemini://kennedy.gemi.dev/',
         'max_redirects'=> (int)($cfg['max_redirects'] ?? 5),
         'timeout'      => (int)($cfg['timeout']       ?? 15),
     ]);

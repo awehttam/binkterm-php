@@ -14,7 +14,7 @@ const GeminiBrowser = (() => {
     let histPos         = -1;      // current position in navHistory
     let currentUrl      = '';
     let bookmarks       = [];
-    let config          = { home_url: 'gemini://geminiprotocol.net/' };
+    let config          = { home_url: 'gemini://kennedy.gemi.dev/' };
     let pendingInputUrl = '';      // URL awaiting user input (status 1x)
 
     // ── DOM refs ──────────────────────────────────────────────────────────────
