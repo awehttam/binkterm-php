@@ -159,18 +159,23 @@ class TestFileAreaRuleProcessor extends FileAreaRuleProcessor
             'stderr' => null
         ];
 
-        // If not dry-run and file exists, actually execute
-        if (!$this->dryRun && file_exists($filepath)) {
-            $executeMethod = $reflection->getMethod('executeScript');
-            $executeMethod->setAccessible(true);
-            $execResult = $executeMethod->invoke($this, $command, $timeout);
+        // If not dry-run, actually execute (file existence is the script's concern)
+        if (!$this->dryRun) {
+            if (!file_exists($filepath)) {
+                $result['skipped'] = true;
+                $result['skip_reason'] = "File not found: {$filepath} (use --create-file to create a temporary test file)";
+            } else {
+                $executeMethod = $reflection->getMethod('executeScript');
+                $executeMethod->setAccessible(true);
+                $execResult = $executeMethod->invoke($this, $command, $timeout);
 
-            $result['executed'] = true;
-            $result['exit_code'] = $execResult['exit_code'];
-            $result['stdout'] = $execResult['stdout'];
-            $result['stderr'] = $execResult['stderr'];
-            $result['timed_out'] = $execResult['timed_out'];
-            $result['success'] = !$execResult['timed_out'] && $execResult['exit_code'] === 0;
+                $result['executed'] = true;
+                $result['exit_code'] = $execResult['exit_code'];
+                $result['stdout'] = $execResult['stdout'];
+                $result['stderr'] = $execResult['stderr'];
+                $result['timed_out'] = $execResult['timed_out'];
+                $result['success'] = !$execResult['timed_out'] && $execResult['exit_code'] === 0;
+            }
         }
 
         return $result;
@@ -347,6 +352,12 @@ try {
             echo "│   {$execResult['command']}\n";
         }
 
+        // Show skip reason if file was not found
+        if (!empty($execResult['skipped'])) {
+            echo "├─────────────────────────────────────────────────────────────────────\n";
+            echo "│ ⚠ Skipped: {$execResult['skip_reason']}\n";
+        }
+
         // Show execution results if not dry-run
         if ($execResult['executed']) {
             echo "├─────────────────────────────────────────────────────────────────────\n";
@@ -388,9 +399,16 @@ try {
             echo "  Use --create-file to create a temporary test file.\n";
         }
     } else {
+        $executedCount = count(array_filter($executionResults, fn($r) => $r['executed']));
         $successCount = count(array_filter($executionResults, fn($r) => $r['executed'] && $r['success']));
         $failCount = count(array_filter($executionResults, fn($r) => $r['executed'] && !$r['success']));
-        echo "\n✓ Executed {$matchedCount} rule(s): {$successCount} succeeded, {$failCount} failed.\n";
+        $skippedCount = count(array_filter($executionResults, fn($r) => !empty($r['skipped'])));
+        if ($executedCount > 0) {
+            echo "\n✓ Executed {$executedCount} rule(s): {$successCount} succeeded, {$failCount} failed.\n";
+        }
+        if ($skippedCount > 0) {
+            echo "\n⚠ Skipped {$skippedCount} rule(s) — file not found. Use --create-file to create a temporary test file.\n";
+        }
     }
 
     echo "\n✓ Test complete.\n";
