@@ -19,11 +19,7 @@ require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-$auth = new \BinktermPHP\Auth();
-$user = $auth->getCurrentUser();
-if (!$user) {
-    WebDoorSDK\jsonError('Not authenticated', 401);
-}
+$user = WebDoorSDK\requireAuth();
 
 // ── Door enabled check ────────────────────────────────────────────────────────
 if (!WebDoorSDK\isDoorEnabled('gemini-browser')) {
@@ -43,15 +39,15 @@ switch ($action) {
         break;
 
     case 'bookmark_list':
-        handleBookmarkList($user);
+        handleBookmarkList();
         break;
 
     case 'bookmark_add':
-        handleBookmarkAdd($user);
+        handleBookmarkAdd();
         break;
 
     case 'bookmark_remove':
-        handleBookmarkRemove($user);
+        handleBookmarkRemove();
         break;
 
     default:
@@ -99,22 +95,19 @@ function handleFetch(): void
 
 /**
  * Return the current user's bookmarks.
- *
- * @param array $user
  */
-function handleBookmarkList(array $user): void
+function handleBookmarkList(): void
 {
-    WebDoorSDK\jsonResponse(['bookmarks' => bookmarksLoad((int)$user['id'])]);
+    $data = WebDoorSDK\storageLoad('gemini-browser');
+    WebDoorSDK\jsonResponse(['bookmarks' => $data['bookmarks'] ?? []]);
 }
 
 // ── Action: bookmark_add ──────────────────────────────────────────────────────
 
 /**
  * Add a bookmark for the current user.
- *
- * @param array $user
  */
-function handleBookmarkAdd(array $user): void
+function handleBookmarkAdd(): void
 {
     $input = json_decode((string)file_get_contents('php://input'), true) ?? [];
     $url   = trim((string)($input['url']   ?? ''));
@@ -130,8 +123,8 @@ function handleBookmarkAdd(array $user): void
         $title = $url;
     }
 
-    $userId    = (int)$user['id'];
-    $bookmarks = bookmarksLoad($userId);
+    $data      = WebDoorSDK\storageLoad('gemini-browser');
+    $bookmarks = $data['bookmarks'] ?? [];
 
     // Deduplicate
     foreach ($bookmarks as $bm) {
@@ -146,7 +139,7 @@ function handleBookmarkAdd(array $user): void
         'added' => date('Y-m-d H:i:s'),
     ];
 
-    bookmarksSave($userId, $bookmarks);
+    WebDoorSDK\storageSave('gemini-browser', ['bookmarks' => $bookmarks]);
     WebDoorSDK\jsonResponse(['bookmarks' => $bookmarks]);
 }
 
@@ -154,10 +147,8 @@ function handleBookmarkAdd(array $user): void
 
 /**
  * Remove a bookmark by URL for the current user.
- *
- * @param array $user
  */
-function handleBookmarkRemove(array $user): void
+function handleBookmarkRemove(): void
 {
     $input = json_decode((string)file_get_contents('php://input'), true) ?? [];
     $url   = trim((string)($input['url'] ?? ''));
@@ -166,60 +157,12 @@ function handleBookmarkRemove(array $user): void
         WebDoorSDK\jsonError('url is required', 400);
     }
 
-    $userId    = (int)$user['id'];
-    $bookmarks = bookmarksLoad($userId);
+    $data      = WebDoorSDK\storageLoad('gemini-browser');
+    $bookmarks = $data['bookmarks'] ?? [];
     $bookmarks = array_values(array_filter($bookmarks, fn($bm) => $bm['url'] !== $url));
 
-    bookmarksSave($userId, $bookmarks);
+    WebDoorSDK\storageSave('gemini-browser', ['bookmarks' => $bookmarks]);
     WebDoorSDK\jsonResponse(['bookmarks' => $bookmarks]);
-}
-
-// ── Bookmark storage helpers ──────────────────────────────────────────────────
-
-/**
- * Return the path to a user's bookmarks file, creating the directory if needed.
- *
- * @param int $userId
- * @return string
- */
-function bookmarksPath(int $userId): string
-{
-    $dir = BINKTERMPHP_BASEDIR . '/data/webdoors/gemini-browser/bookmarks';
-    if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
-    }
-    return $dir . '/' . $userId . '.json';
-}
-
-/**
- * Load bookmarks for a user. Returns an empty array if no file exists yet.
- *
- * @param int $userId
- * @return array
- */
-function bookmarksLoad(int $userId): array
-{
-    $path = bookmarksPath($userId);
-    if (!file_exists($path)) {
-        return [];
-    }
-    $data = json_decode((string)file_get_contents($path), true);
-    return is_array($data) ? $data : [];
-}
-
-/**
- * Save bookmarks for a user.
- *
- * @param int   $userId
- * @param array $bookmarks
- */
-function bookmarksSave(int $userId, array $bookmarks): void
-{
-    file_put_contents(
-        bookmarksPath($userId),
-        json_encode($bookmarks, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        LOCK_EX
-    );
 }
 
 // ── Gemini protocol client ────────────────────────────────────────────────────

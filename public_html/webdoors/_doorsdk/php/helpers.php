@@ -39,11 +39,8 @@ if (!headers_sent() && session_status() !== PHP_SESSION_ACTIVE) {
  */
 function getCurrentUser(): ?array
 {
-    if (!isset($_SESSION['user'])) {
-        return null;
-    }
-
-    return $_SESSION['user'];
+    $auth = new \BinktermPHP\Auth();
+    return $auth->getCurrentUser();
 }
 
 /**
@@ -196,6 +193,74 @@ function getDatabase(): \PDO
 function sanitize(string $input): string
 {
     return htmlspecialchars($input, ENT_QUOTES, 'UTF-8');
+}
+
+/**
+ * Load data from a WebDoor's storage slot for the current user.
+ * Returns an empty array if no data has been saved yet.
+ * Calls jsonError(401) and exits if no user is authenticated.
+ *
+ * @param string $doorId  Door identifier (e.g. 'gemini-browser')
+ * @param int    $slot    Storage slot (default 0)
+ * @return array
+ *
+ * @example
+ * $data = \WebDoorSDK\storageLoad('mygame');
+ * $score = $data['high_score'] ?? 0;
+ */
+function storageLoad(string $doorId, int $slot = 0): array
+{
+    $user = getCurrentUser();
+    if (!$user) {
+        jsonError('Not authenticated', 401);
+    }
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $db = getDatabase();
+    $stmt = $db->prepare(
+        'SELECT data FROM webdoor_storage WHERE user_id = ? AND game_id = ? AND slot = ?'
+    );
+    $stmt->execute([$userId, $doorId, $slot]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if (!$row) {
+        return [];
+    }
+    $data = json_decode($row['data'], true);
+    return is_array($data) ? $data : [];
+}
+
+/**
+ * Save data to a WebDoor's storage slot for the current user (upsert).
+ * Calls jsonError(401) and exits if no user is authenticated.
+ *
+ * @param string $doorId  Door identifier (e.g. 'gemini-browser')
+ * @param array  $data    Data to store
+ * @param int    $slot    Storage slot (default 0)
+ *
+ * @example
+ * \WebDoorSDK\storageSave('mygame', ['high_score' => 9001]);
+ */
+function storageSave(string $doorId, array $data, int $slot = 0): void
+{
+    $user = getCurrentUser();
+    if (!$user) {
+        jsonError('Not authenticated', 401);
+    }
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    $db = getDatabase();
+    $stmt = $db->prepare('
+        INSERT INTO webdoor_storage (user_id, game_id, slot, data, saved_at)
+        VALUES (?, ?, ?, ?::jsonb, NOW())
+        ON CONFLICT (user_id, game_id, slot)
+        DO UPDATE SET data = EXCLUDED.data, saved_at = NOW()
+    ');
+    $stmt->execute([
+        $userId,
+        $doorId,
+        $slot,
+        json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
 }
 
 /**
