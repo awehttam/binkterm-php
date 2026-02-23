@@ -42,6 +42,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Case-Insensitive Username Matching** — Registration and login now compare usernames case-insensitively, preventing two accounts from coexisting with names that differ only by case (e.g. `Admin` and `admin`).
 - **Expanded Reserved Username List** — The list of usernames and real names blocked at registration has been extended to cover common authority-implying names (`admin`, `administrator`, `sysadmin`, `sysadm`, `moderator`, `staff`, `support`, and others) to prevent impersonation.
 
+### File Areas
+- **`%basedir%` Macro Shell Quoting** — The Feb 18 security fix wrapped all file area rule macro values in `escapeshellarg()`, which was correct for network-derived values (`%filepath%`, `%filename%`, `%domain%`, etc.) but broke `%basedir%`. Because `%basedir%` is used as a path component in rule templates (e.g. `php %basedir%/scripts/foo.php`), pre-quoting it produced a split path like `'/home/user/app'/scripts/foo.php`. The basedir value (derived from `realpath()` on the application directory) is now substituted raw; all network-derived macros retain their `escapeshellarg()` protection.
+
 ### API / Internal
 - **`getEchomail()` / `getThreadedEchomail()` `$domain` Parameter** — The `$domain` parameter is now optional (defaults to `null`). Callers that previously relied on positional argument ordering without a default value will continue to work.
 
@@ -70,6 +73,11 @@ Make sure you've made a backup of your database and files before upgrading.
 - `DOORWAYU.EXE` (unregistered Doorway) is now bundled and used by default; installing `DOORWAY.EXE` alongside it will override automatically.
 - Added a README for the built-in Admin door.
 - Suppressed repetitive idle-status entries in the multiplexor daemon log.
+
+## Developer Tooling
+
+- **`test_filearea_rules.php` `--from-filebase`** — The file area rule test script now accepts a `--from-filebase` flag that resolves the file's actual storage path from the database rather than assuming `/tmp/<filename>`. This allows `--execute` mode to run against a real file that has already been received into the file base. A clear error is reported if the filename is not found in the specified area.
+- **`test_filearea_rules.php` `--execute` skip reporting** — When `--execute` is used but the file does not exist on disk, the script now reports a per-rule skip warning and an accurate summary instead of silently showing "0 succeeded, 0 failed".
 
 ---
 
