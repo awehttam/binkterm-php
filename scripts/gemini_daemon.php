@@ -7,9 +7,12 @@
  * Serves user Gemini capsules over TLS on port 1965 (configurable).
  *
  * Routes:
- *   gemini://host/                          BBS home — directory of users with published capsules
- *   gemini://host/home/{username}/          User capsule index (index.gmi or auto-listing)
- *   gemini://host/home/{username}/{file}    Specific published capsule file
+ *   gemini://host/                               BBS home — directory of users with published capsules
+ *   gemini://host/home/{username}/               User capsule index (index.gmi or auto-listing)
+ *   gemini://host/home/{username}/{file}         Specific published capsule file
+ *   gemini://host/echomail/                      List of public echo areas
+ *   gemini://host/echomail/{TAG}@{domain}/       50 most recent messages in an echo area
+ *   gemini://host/echomail/{TAG}@{domain}/{id}   Single echomail message
  *
  * Usage:
  *   php scripts/gemini_daemon.php [options]
@@ -351,6 +354,24 @@ function handleHomePage($socket, string $geminiHost): void
             }
         }
 
+        // Echo areas
+        $areaStmt = $db->query(
+            'SELECT tag, domain, description FROM echoareas
+             WHERE gemini_public = TRUE AND is_active = TRUE
+             ORDER BY domain, tag'
+        );
+        $areas = $areaStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (!empty($areas)) {
+            $lines[] = '';
+            $lines[] = '## Echo Areas';
+            $lines[] = '';
+            foreach ($areas as $area) {
+                $identifier = strtoupper($area['tag']) . '@' . strtolower($area['domain']);
+                $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/ {$identifier} — {$area['description']}";
+            }
+        }
+
         geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
     } catch (\Exception $e) {
         geminiRespond($socket, 40, 'Temporary server error');
@@ -477,6 +498,207 @@ function handleUserFile($socket, string $username, string $filename): void
     }
 }
 
+// ── Echo area route handlers ──────────────────────────────────────────────────
+
+/**
+ * List all echo areas with gemini_public = TRUE.
+ *
+ * @param resource $socket
+ * @param string   $geminiHost
+ */
+function handleEchoAreaList($socket, string $geminiHost): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        $stmt = $db->query(
+            'SELECT tag, domain, description
+             FROM echoareas
+             WHERE gemini_public = TRUE AND is_active = TRUE
+             ORDER BY domain, tag'
+        );
+        $areas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $lines = [
+            '# Echo Areas',
+            '',
+            'Public echo areas on this BBS, served read-only.',
+            '',
+        ];
+
+        if (empty($areas)) {
+            $lines[] = 'No public echo areas are available.';
+        } else {
+            foreach ($areas as $area) {
+                $tag    = strtoupper($area['tag']);
+                $domain = strtolower($area['domain'] ?? '');
+                $identifier = $domain !== '' ? "{$tag}@{$domain}" : $tag;
+                $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/ {$identifier} — {$area['description']}";
+            }
+        }
+
+        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $bbsName = $binkpConfig->getSystemName();
+
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/ Return to main index for {$bbsName}";
+
+        geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
+/**
+ * Look up a gemini_public echo area by tag and domain.
+ * Returns the area row or null if not found / not public.
+ */
+function findPublicEchoArea(\PDO $db, string $tag, string $domain): ?array
+{
+    $stmt = $db->prepare(
+        'SELECT id, tag, domain, description
+         FROM echoareas
+         WHERE UPPER(tag) = UPPER(?) AND LOWER(domain) = LOWER(?)
+           AND gemini_public = TRUE AND is_active = TRUE'
+    );
+    $stmt->execute([$tag, $domain]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+/**
+ * List the 50 most recent messages in a public echo area.
+ *
+ * @param resource $socket
+ * @param string   $tag
+ * @param string   $domain
+ * @param string   $geminiHost
+ */
+function handleEchoMessages($socket, string $tag, string $domain, string $geminiHost): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        $area = findPublicEchoArea($db, $tag, $domain);
+        if (!$area) {
+            geminiRespond($socket, 51, 'Not Found');
+            return;
+        }
+
+        $stmt = $db->prepare(
+            'SELECT em.id, em.from_name, em.subject, em.date_written
+             FROM echomail em
+             JOIN echoareas ea ON em.echoarea_id = ea.id
+             WHERE ea.id = ?
+             ORDER BY em.date_written DESC
+             LIMIT 50'
+        );
+        $stmt->execute([(int)$area['id']]);
+        $messages = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $identifier = strtoupper($area['tag']) . '@' . strtolower($area['domain']);
+
+        $lines = [
+            "# {$identifier} — {$area['description']}",
+            '',
+            '50 most recent messages. Oldest first.',
+            '',
+        ];
+
+        if (empty($messages)) {
+            $lines[] = 'No messages in this area yet.';
+        } else {
+            // Reverse so oldest is displayed first (top-to-bottom chronological)
+            $messages = array_reverse($messages);
+            foreach ($messages as $msg) {
+                $date    = date('Y-m-d', strtotime($msg['date_written']));
+                $subject = $msg['subject'] ?? '(no subject)';
+                $from    = $msg['from_name'] ?? '';
+                $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/{$msg['id']}  {$date}  {$subject} ({$from})";
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/echomail/  Back to Echo Areas";
+
+        geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
+/**
+ * Serve a single echomail message from a public echo area.
+ *
+ * @param resource $socket
+ * @param string   $tag
+ * @param string   $domain
+ * @param int      $id
+ * @param string   $geminiHost
+ */
+function handleEchoMessage($socket, string $tag, string $domain, int $id, string $geminiHost): void
+{
+    try {
+        $db = Database::getInstance()->getPdo();
+
+        $area = findPublicEchoArea($db, $tag, $domain);
+        if (!$area) {
+            geminiRespond($socket, 51, 'Not Found');
+            return;
+        }
+
+        $stmt = $db->prepare(
+            'SELECT em.id, em.from_name, em.from_address, em.to_name,
+                    em.subject, em.date_written, em.message_text, em.origin_line
+             FROM echomail em
+             JOIN echoareas ea ON em.echoarea_id = ea.id
+             WHERE em.id = ? AND ea.id = ?'
+        );
+        $stmt->execute([$id, (int)$area['id']]);
+        $msg = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$msg) {
+            geminiRespond($socket, 51, 'Not Found');
+            return;
+        }
+
+        $identifier = strtoupper($area['tag']) . '@' . strtolower($area['domain']);
+        $subject    = $msg['subject'] ?? '(no subject)';
+        $from       = $msg['from_name'] ?? '';
+        $fromAddr   = $msg['from_address'] ? " ({$msg['from_address']})" : '';
+        $to         = $msg['to_name'] ?? '';
+        $date       = $msg['date_written'] ? date('Y-m-d H:i:s', strtotime($msg['date_written'])) : '';
+        $body       = $msg['message_text'] ?? '';
+
+        $lines = [
+            "# {$subject}",
+            '',
+            "From: {$from}{$fromAddr}",
+            "To:   {$to}",
+            "Date: {$date}",
+            '',
+            '---',
+            '',
+            '```',
+            $body,
+            '```',
+            '',
+            '---',
+        ];
+
+        if (!empty($msg['origin_line'])) {
+            $lines[] = '* ' . $msg['origin_line'];
+        }
+
+        $lines[] = '';
+        $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/  Back to {$identifier}";
+
+        geminiRespond($socket, 20, 'text/gemini; charset=utf-8', implode("\n", $lines) . "\n");
+    } catch (\Exception $e) {
+        geminiRespond($socket, 40, 'Temporary server error');
+    }
+}
+
 // ── Request router ────────────────────────────────────────────────────────────
 
 /**
@@ -528,6 +750,12 @@ function handleConnection($socket, string $geminiHost, string $logFile): void
         handleUserIndex($socket, $m[1], $geminiHost);
     } elseif (preg_match('#^/home/([^/]+)/([^/]+)$#', $path, $m)) {
         handleUserFile($socket, $m[1], $m[2]);
+    } elseif ($path === '/echomail/' || $path === '/echomail') {
+        handleEchoAreaList($socket, $geminiHost);
+    } elseif (preg_match('#^/echomail/([A-Za-z0-9._-]+)@([A-Za-z0-9._-]+)/$#', $path, $m)) {
+        handleEchoMessages($socket, $m[1], $m[2], $geminiHost);
+    } elseif (preg_match('#^/echomail/([A-Za-z0-9._-]+)@([A-Za-z0-9._-]+)/(\d+)$#', $path, $m)) {
+        handleEchoMessage($socket, $m[1], $m[2], (int)$m[3], $geminiHost);
     } else {
         geminiRespond($socket, 51, 'Not Found');
     }

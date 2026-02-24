@@ -197,6 +197,14 @@
                         </label>
                         <div class="form-text">Restrict this echo area to sysop/admin users only</div>
                     </div>
+
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="echoareaGeminiPublic" name="gemini_public">
+                        <label class="form-check-label" for="echoareaGeminiPublic">
+                            Public Gemini Access
+                        </label>
+                        <div class="form-text">Expose this echo area as read-only content on the Gemini capsule server</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -429,6 +437,7 @@ function showAddEchoareaModal() {
     $('#echoareaActive').prop('checked', true);
     $('#echoareaLocal').prop('checked', false);
     $('#echoareaSysopOnly').prop('checked', false);
+    $('#echoareaGeminiPublic').prop('checked', false);
     updateColorSelection('#28a745');
     $('#echoareaModal').modal('show');
 }
@@ -450,6 +459,7 @@ function editEchoarea(id) {
             $('#echoareaActive').prop('checked', area.is_active);
             $('#echoareaLocal').prop('checked', area.is_local);
             $('#echoareaSysopOnly').prop('checked', area.is_sysop_only);
+            $('#echoareaGeminiPublic').prop('checked', area.gemini_public);
             updateColorSelection(area.color || '#28a745');
             $('#echoareaModal').modal('show');
         })
@@ -474,6 +484,7 @@ function saveEchoarea() {
         is_active: $('#echoareaActive').is(':checked'),
         is_local: $('#echoareaLocal').is(':checked'),
         is_sysop_only: $('#echoareaSysopOnly').is(':checked'),
+        gemini_public: $('#echoareaGeminiPublic').is(':checked'),
         domain: $("#echoareaDomain").val() || null
     };
     
