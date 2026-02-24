@@ -216,7 +216,7 @@ Set `"enabled": false` in the credits configuration to disable the entire system
 BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
 ### Requirements
-- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
+- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
