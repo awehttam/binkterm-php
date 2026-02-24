@@ -354,15 +354,15 @@ function displayEchoareas(echoareas) {
     } else {
         html = `
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover mb-0" style="table-layout: fixed;">
                     <thead>
                         <tr>
-                            <th width="5%"></th>
-                            <th>ID</th>
-                            <th width="20%">Tag</th>
-                            <th width="35%">Description</th>
-                            <th width="15%">Messages</th>
-                            <th width="15%">Uplink</th>
+                            <th width="4%"></th>
+                            <th width="5%">ID</th>
+                            <th width="22%">Tag</th>
+                            <th width="33%">Description</th>
+                            <th width="10%">Messages</th>
+                            <th width="16%">Uplink</th>
                             <th width="10%">Actions</th>
                         </tr>
                     </thead>
@@ -384,7 +384,7 @@ function displayEchoareas(echoareas) {
                         <div>
                             <div class="d-flex align-items-center mb-1">
                                 <span class="me-2" style="display: inline-block; width: 20px; height: 20px; min-width: 20px; min-height: 20px; background-color: ${area.color || '#28a745'}; border-radius: 3px; flex-shrink: 0;"></span>
-                                <span style="color: #ffc107;">${escapeHtml(area.tag)}</span>
+                                <span style="color: #ffc107; word-break: break-all;">${escapeHtml(area.tag)}</span>
                             </div>
                             <div class="ms-4">
                                 ${area.domain ? `<span class="badge bg-secondary me-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
@@ -393,7 +393,7 @@ function displayEchoareas(echoareas) {
                             </div>
                         </div>
                     </td>
-                    <td>
+                    <td style="word-break: break-word; overflow-wrap: break-word;">
                         <strong>${escapeHtml(area.description)}</strong>
                         ${area.moderator ? `<br><small class="text-muted">Mod: ${escapeHtml(area.moderator)}</small>` : ''}
                     </td>
