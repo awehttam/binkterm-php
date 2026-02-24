@@ -347,12 +347,13 @@ class AnsiTerminal {
     }
 
     // Render the buffer to HTML
+    // Each character is placed in its own fixed-width span (ansi-c) so that box-drawing
+    // and block characters align correctly even when the browser uses a fallback font
+    // that has different glyph metrics than the primary monospace font.
     render() {
         let html = '';
-        let currentClasses = [];
-        let spanOpen = false;
 
-        // Only render up to the last used row (plus some margin for content)
+        // Only render up to the last used row
         const rowsToRender = Math.min(this.buffer.length, this.maxRowUsed + 1);
 
         for (let r = 0; r < rowsToRender; r++) {
@@ -369,9 +370,10 @@ class AnsiTerminal {
 
             for (let c = 0; c <= lastNonSpace; c++) {
                 const cell = row[c];
-                const classes = [];
 
-                // Build class list
+                // Build class list — always include ansi-c for fixed-width cell layout
+                const classes = ['ansi-c'];
+
                 const fgClass = this.getColorClass(cell.fg, false);
                 const bgClass = this.getColorClass(cell.bg, true);
 
@@ -384,34 +386,13 @@ class AnsiTerminal {
                 if (cell.blink) classes.push('ansi-blink');
                 if (cell.reverse) classes.push('ansi-reverse');
 
-                // Check if we need to change span
-                const classStr = classes.sort().join(' ');
-                const currentClassStr = currentClasses.sort().join(' ');
-
-                if (classStr !== currentClassStr) {
-                    if (spanOpen) {
-                        html += '</span>';
-                        spanOpen = false;
-                    }
-                    if (classes.length > 0) {
-                        html += `<span class="${classStr}">`;
-                        spanOpen = true;
-                    }
-                    currentClasses = [...classes];
-                }
-
-                // Escape and add character
-                html += this.escapeChar(cell.char);
+                html += `<span class="${classes.join(' ')}">${this.escapeChar(cell.char)}</span>`;
             }
 
             // End of row
             if (r < rowsToRender - 1) {
                 html += '\n';
             }
-        }
-
-        if (spanOpen) {
-            html += '</span>';
         }
 
         return html;

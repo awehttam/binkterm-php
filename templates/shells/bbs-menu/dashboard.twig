@@ -1,0 +1,22 @@
+{% extends "base.twig" %}
+
+{% block title %}Main Menu - {{ parent() }}{% endblock %}
+{% block section_title %}Main Menu{% endblock %}
+
+{% block content %}
+<div class="py-2">
+    {% if appearance.shell.bbs_menu.variant == 'ansi' %}
+        {% include 'shells/bbs-menu/main-menu-ansi.twig' %}
+    {% elseif appearance.shell.bbs_menu.variant == 'text' %}
+        {% include 'shells/bbs-menu/main-menu-text.twig' %}
+    {% else %}
+        {% include 'shells/bbs-menu/main-menu-cards.twig' %}
+    {% endif %}
+
+    {% if system_news_content %}
+    <div class="mt-4">
+        {{ system_news_content | raw }}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
