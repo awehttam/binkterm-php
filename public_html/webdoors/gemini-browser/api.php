@@ -264,8 +264,11 @@ function geminiGet(
     }
 
     // ── SSRF protection ───────────────────────────────────────────────────────
+    // Resolve once and reuse the IP for the connection to prevent DNS rebinding:
+    // if we validated the hostname and then connected by hostname, a second DNS
+    // lookup inside stream_socket_client() could return a different (private) IP.
+    $resolved = gethostbyname($host);
     if ($blockPrivate) {
-        $resolved = gethostbyname($host);
         if (!isPublicIp($resolved)) {
             return geminiError('Access to private or reserved network addresses is not permitted', 0, $url);
         }
@@ -278,17 +281,21 @@ function geminiGet(
     }
 
     // ── Open TLS connection ───────────────────────────────────────────────────
-    // Gemini uses a Trust-On-First-Use (TOFU) certificate model, not CA validation
+    // Gemini uses a Trust-On-First-Use (TOFU) certificate model, not CA validation.
+    // Connect using the pre-resolved IP (not the hostname) so no second DNS lookup
+    // can occur. peer_name is not used for CA validation here (verify_peer=false)
+    // but set it anyway for any SNI extension that may be sent.
     $ctx = stream_context_create([
         'ssl' => [
             'verify_peer'       => false,
             'verify_peer_name'  => false,
             'allow_self_signed' => true,
+            'peer_name'         => $host,
         ],
     ]);
 
     $socket = @stream_socket_client(
-        "ssl://{$host}:{$port}",
+        "ssl://{$resolved}:{$port}",
         $errno, $errstr,
         $timeout,
         STREAM_CLIENT_CONNECT,
