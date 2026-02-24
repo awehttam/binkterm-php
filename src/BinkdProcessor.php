@@ -1319,8 +1319,11 @@ class BinkdProcessor
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
 
-        // Parse origin address
+        // Parse origin address — must have a configured uplink with a 'me' address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
+        if (!$myAddress) {
+            throw new \Exception("No configured uplink 'me' address for destination $destAddr — cannot build packet header");
+        }
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
@@ -1364,11 +1367,14 @@ class BinkdProcessor
         // Bytes 34-37: Zone information (FSC-0039/0045)
         $header .= pack('vv', $origZone, $destZone);    // 34-37: origZone, destZone
 
-        // Bytes 38-41: AuxNet and capability word
-        $header .= pack('vv', 0, 0);         // 38-41: auxNet, cwCopy
+        // Bytes 38-41: AuxNet and capability word copy
+        // cwCopy must be the byte-swapped value of capWord (FSC-0048 validation)
+        $capWord = 0x0001;  // bit 0: Type-2+ capability
+        $cwCopy  = 0x0100;  // byte-swapped capWord
+        $header .= pack('vv', 0, $cwCopy);   // 38-41: auxNet, cwCopy
 
-        // Bytes 42-45: Extended product info
-        $header .= pack('CCv', 0, 0, 0);     // 42-45: prodCodeHi, revision, cwVal
+        // Bytes 42-45: Extended product info and capability word
+        $header .= pack('CCv', 0, 0, $capWord); // 42-45: prodCodeHi, revision, capWord
 
         // Bytes 46-49: Duplicate zone info (FSC-0048 compatibility)
         $header .= pack('vv', $origZone, $destZone);    // 46-49: origZone_, destZone_

@@ -10,6 +10,51 @@ The Gemini Browser WebDoor now opens to a built-in start page (`about:home`) wit
 
 The start page can be overridden per-installation: set `home_url` to any `gemini://` URL in Admin → WebDoors → Gemini Browser to use an external page instead.
 
+### Gemini Capsule Hosting
+
+BBS users can now publish personal Gemini capsules, accessible at
+`gemini://your-bbs-host/home/username/`. A built-in directory page at
+`gemini://your-bbs-host/` lists all users who have published capsules.
+
+The new **Gemini Capsule** WebDoor provides a browser-based gemtext editor
+with live preview, publish/draft controls, and per-file management.
+
+**This feature is opt-in.** The capsule server is a separate daemon that
+operators start only if they want to expose Gemini.
+
+#### Setup (optional)
+
+1. Add to `.env`:
+   ```
+   GEMINI_PORT=1965
+   GEMINI_BIND_HOST=0.0.0.0
+   ```
+2. Enable the **Gemini Capsule** WebDoor in Admin → WebDoors.
+3. Start the daemon:
+   ```bash
+   php scripts/gemini_daemon.php --daemon
+   ```
+4. On Linux, port 1965 requires root or `authbind`. Alternatively, bind to a
+   high port (e.g. 11965) and forward with `iptables` or `firewalld`.
+
+## Bug Fixes
+
+### Binkp Packet Header: FSC-0048 Type-2+ Capability Word
+
+Outbound FTN packets had `capWord = 0` in the Type-2+ packet header, which
+caused receiving mailers (including sbbsecho/Synchronet) to fail the
+`capWord != 0 && capWord == WORD_REVERSE(cwCopy)` validation check. As a
+result, the originating point address was not read from the packet header and
+messages were identified as coming from the wrong address (e.g. `1:3634/58`
+instead of `1:3634/58.1337`), failing security checks on the remote system.
+
+The header now correctly sets `capWord = 0x0001` (bit 0: Type-2+ capable) and
+`cwCopy = 0x0100` (byte-swapped capWord) per FSC-0048.
+
+Additionally, if no `me` address is configured for the destination uplink,
+the daemon now throws a clear exception rather than silently producing a
+malformed `0:0/0` origin address.
+
 ---
 
 ## Upgrade Instructions
@@ -30,4 +75,3 @@ php binkterm-installer.phar
 scripts/restart_daemons.sh
 ```
 
-> No database migrations are required for this release.
