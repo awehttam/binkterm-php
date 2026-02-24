@@ -366,6 +366,9 @@ function handleHomePage($socket, string $geminiHost): void
             $lines[] = '';
             $lines[] = '## Echo Areas';
             $lines[] = '';
+            $lines[] = 'A selection of public echo areas are available to read below. Join the BBS for a full list of echo areas and to participate in the conversation!';
+            $lines[] = "=> {$siteUrl}/ Join {$bbsName}";
+            $lines[] = '';
             foreach ($areas as $area) {
                 $identifier = strtoupper($area['tag']) . '@' . strtolower($area['domain']);
                 $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/ {$identifier} — {$area['description']}";

@@ -37,6 +37,20 @@ operators start only if they want to expose Gemini.
 See [docs/GeminiCapsule.md](GeminiCapsule.md) for full setup instructions,
 including using a Let's Encrypt certificate instead of the default self-signed one.
 
+### Gemini Capsule: Echo Area Exposure
+
+Echo areas can now be exposed as read-only, publicly-accessible Gemini content. Each area can be opted in individually via the **Public Gemini Access** checkbox in Admin → Area Management → Echo Areas.
+
+When enabled, the Gemini capsule home page lists the area under an **Echo Areas** section (with a link inviting visitors to join the BBS for the full experience), and three new routes become available:
+
+| Route | Content |
+|---|---|
+| `gemini://host/echomail/` | List of all public echo areas |
+| `gemini://host/echomail/TAG@domain/` | 50 most recent messages (oldest first) |
+| `gemini://host/echomail/TAG@domain/{id}` | Individual message with headers and body |
+
+The Gemini daemon logs the remote IP address for every request.
+
 ### Friendly URLs for Shared Messages
 
 Echomail share links now use a human-readable URL based on the echo area and
