@@ -597,9 +597,11 @@ if ($externalCert) {
 }
 $sslCtx = stream_context_create(['ssl' => $sslOptions]);
 
-// Open TLS server socket (ssl:// performs the handshake at accept time)
+// Open a plain TCP server socket.  TLS is negotiated per-connection in the
+// child process (after fork) so the parent's fclose() does not send a TLS
+// close_notify alert to the client before the child has responded.
 $server = @stream_socket_server(
-    "ssl://{$host}:{$port}",
+    "tcp://{$host}:{$port}",
     $errno,
     $errstr,
     STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
@@ -607,12 +609,12 @@ $server = @stream_socket_server(
 );
 
 if ($server === false) {
-    logMsg('ERROR', "Failed to bind ssl://{$host}:{$port} — {$errstr} (errno {$errno})", $logFile);
+    logMsg('ERROR', "Failed to bind tcp://{$host}:{$port} — {$errstr} (errno {$errno})", $logFile);
     cleanupPidFile($pidFile);
     exit(1);
 }
 
-logMsg('INFO', "Gemini capsule server listening on ssl://{$host}:{$port}", $logFile);
+logMsg('INFO', "Gemini capsule server listening on tcp://{$host}:{$port}", $logFile);
 logMsg('INFO', "Serving capsules at gemini://{$geminiHost}/", $logFile);
 
 // Signal handlers
@@ -637,19 +639,20 @@ if (function_exists('pcntl_signal')) {
 
 // Accept loop
 while (true) {
-    // TLS handshake happens during stream_socket_accept with ssl:// server
     $client = @stream_socket_accept($server, 30);
     if ($client === false) {
-        // Log OpenSSL errors (TLS handshake failures) so we can diagnose them
-        $sslErr = openssl_error_string();
-        if ($sslErr) {
-            logMsg('WARNING', "Accept/TLS error: {$sslErr}", $logFile);
-        }
         continue;
     }
 
     if (!function_exists('pcntl_fork')) {
-        // No fork available — handle inline (single-connection at a time)
+        // No fork available — negotiate TLS inline, handle single connection at a time
+        $ok = @stream_socket_enable_crypto($client, true, STREAM_CRYPTO_METHOD_TLS_SERVER);
+        if ($ok !== true) {
+            $sslErr = openssl_error_string() ?: 'TLS handshake failed';
+            logMsg('WARNING', "TLS handshake failed (no-fork): {$sslErr}", $logFile);
+            fclose($client);
+            continue;
+        }
         handleConnection($client, $geminiHost, $logFile);
         continue;
     }
@@ -662,12 +665,19 @@ while (true) {
     }
 
     if ($pid === 0) {
-        // Child: handle connection then exit
+        // Child: negotiate TLS then handle the request
         fclose($server);
+        $ok = @stream_socket_enable_crypto($client, true, STREAM_CRYPTO_METHOD_TLS_SERVER);
+        if ($ok !== true) {
+            $sslErr = openssl_error_string() ?: 'TLS handshake failed';
+            logMsg('WARNING', "TLS handshake failed: {$sslErr}", $logFile);
+            fclose($client);
+            exit(0);
+        }
         handleConnection($client, $geminiHost, $logFile);
         exit(0);
     }
 
-    // Parent: close our copy of the client socket
+    // Parent: close the plain TCP socket — no TLS teardown, no close_notify sent
     fclose($client);
 }
