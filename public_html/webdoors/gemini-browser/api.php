@@ -86,7 +86,6 @@ function handleHomePage(): void
         '# Geminispace — Start Page',
         '',
         'Welcome to Geminispace — a lightweight, privacy-focused corner of the internet.',
-        'No ads. No tracking. No JavaScript. Just text and links.',
     ];
 
     // ── Local capsule server link (if enabled) ────────────────────────────────
