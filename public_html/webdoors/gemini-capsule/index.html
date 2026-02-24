@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Capsule</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <header id="header">
+            <div id="header-title">
+                <span class="header-icon">⬡</span>
+                <span>Gemini Capsule</span>
+            </div>
+            <div id="capsule-url-bar">
+                <span id="capsule-url-label">Your capsule:</span>
+                <a id="capsule-url-link" href="#" target="_blank" rel="noopener noreferrer">—</a>
+            </div>
+        </header>
+
+        <div id="main">
+            <!-- Sidebar: file list -->
+            <aside id="sidebar">
+                <div id="sidebar-header">
+                    <span>Files</span>
+                    <button id="btn-new-file" title="New file">＋</button>
+                </div>
+
+                <ul id="file-list"></ul>
+
+                <div id="new-file-form" class="hidden">
+                    <input type="text" id="new-filename-input" placeholder="filename.gmi" maxlength="100" spellcheck="false">
+                    <div id="new-file-actions">
+                        <button id="btn-create-confirm">Create</button>
+                        <button id="btn-create-cancel">Cancel</button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Editor pane -->
+            <div id="editor-pane">
+                <div id="editor-area" class="hidden">
+                    <div id="editor-toolbar">
+                        <span id="editing-filename"></span>
+                        <div id="editor-actions">
+                            <button id="btn-save">Save</button>
+                            <button id="btn-publish" class="btn-publish">Publish</button>
+                            <button id="btn-delete" class="btn-danger">Delete</button>
+                        </div>
+                    </div>
+
+                    <div id="editor-split">
+                        <div id="editor-left">
+                            <div class="pane-label">
+                                Source
+                                <button id="btn-cheatsheet" title="Gemtext syntax reference">?</button>
+                            </div>
+                            <div id="cheatsheet" class="hidden">
+                                <table id="cheatsheet-table">
+                                    <tbody>
+                                        <tr><td class="cs-syntax"># Heading 1</td><td class="cs-desc">H1 — page title</td></tr>
+                                        <tr><td class="cs-syntax">## Heading 2</td><td class="cs-desc">H2 — section</td></tr>
+                                        <tr><td class="cs-syntax">### Heading 3</td><td class="cs-desc">H3 — subsection</td></tr>
+                                        <tr><td class="cs-syntax">=> URL Label</td><td class="cs-desc">Link (label optional)</td></tr>
+                                        <tr><td class="cs-syntax">* Item</td><td class="cs-desc">List item</td></tr>
+                                        <tr><td class="cs-syntax">&gt; Text</td><td class="cs-desc">Blockquote</td></tr>
+                                        <tr><td class="cs-syntax">``` [alt]</td><td class="cs-desc">Preformatted toggle</td></tr>
+                                        <tr><td class="cs-syntax cs-plain">Plain text</td><td class="cs-desc">Paragraph</td></tr>
+                                        <tr><td class="cs-syntax cs-plain">(blank line)</td><td class="cs-desc">Vertical space</td></tr>
+                                    </tbody>
+                                </table>
+                                <div class="cs-footer">Ctrl+S to save &nbsp;·&nbsp; One element per line</div>
+                            </div>
+                            <textarea id="editor-textarea" spellcheck="false" placeholder="# My Capsule&#10;&#10;Welcome to my capsule!&#10;&#10;=> gemini://geminiprotocol.net/ Gemini Protocol"></textarea>
+                        </div>
+                        <div id="editor-right">
+                            <div class="pane-label">Preview</div>
+                            <div id="preview-pane"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="editor-empty">
+                    <div id="empty-message">
+                        <p>Select a file to edit, or create a new one.</p>
+                        <p class="hint">Tip: Create <code>index.gmi</code> — it becomes your capsule's home page.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast-container"></div>
+    </div>
+
+    <script src="../gemini-browser/js/gemtext.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -296,7 +296,9 @@ function geminiGet(
     );
 
     if ($socket === false) {
-        return geminiError("Connection failed: {$errstr} (errno {$errno})", 0, $url);
+        $sslErr = openssl_error_string() ?: '';
+        $detail = $sslErr ? " [{$sslErr}]" : '';
+        return geminiError("Connection failed: {$errstr} (errno {$errno}){$detail}", 0, $url);
     }
 
     stream_set_timeout($socket, $timeout);

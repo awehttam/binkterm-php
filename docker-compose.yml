@@ -81,6 +81,7 @@ services:
       - "${TELNET_PORT:-2323}:2323"
       - "${BINKP_PORT:-24554}:24554"
       - "${DOSDOOR_WS_PORT:-6001}:6001"
+      - "${GEMINI_PORT:-1965}:1965"
     volumes:
       # Persistent data volumes
       - binkterm_data:/var/www/html/data

@@ -1,0 +1,22 @@
+{
+    "webdoor_version": "1.0",
+    "game": {
+        "id": "gemini-capsule",
+        "name": "Gemini Capsule",
+        "version": "1.0.0",
+        "author": "BinktermPHP",
+        "description": "Edit and publish your personal Gemini capsule accessible via the Gemini protocol",
+        "entry_point": "index.html",
+        "icon": "icon.svg",
+        "screenshots": []
+    },
+    "requirements": {
+        "min_host_version": "1.8.3",
+        "features": [],
+        "permissions": ["user_display_name"]
+    },
+    "multiplayer": {
+        "enabled": false
+    },
+    "config": {}
+}
