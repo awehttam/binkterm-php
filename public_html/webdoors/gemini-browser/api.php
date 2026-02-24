@@ -82,11 +82,26 @@ function handleConfig(): void
  */
 function handleHomePage(): void
 {
-    $body = implode("\n", [
+    $lines = [
         '# Geminispace — Start Page',
         '',
         'Welcome to Geminispace — a lightweight, privacy-focused corner of the internet.',
         'No ads. No tracking. No JavaScript. Just text and links.',
+    ];
+
+    // ── Local capsule server link (if enabled) ────────────────────────────────
+    if (WebDoorSDK\isDoorEnabled('gemini-capsule')) {
+        $host       = parse_url(\BinktermPHP\Config::getSiteUrl(), PHP_URL_HOST) ?? '';
+        $binkpCfg   = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $bbsName    = $binkpCfg->getSystemName();
+        if ($host !== '') {
+            $lines[] = '';
+            $lines[] = '## This BBS';
+            $lines[] = "=> gemini://{$host}/ {$bbsName} — Gemini Capsule Directory";
+        }
+    }
+
+    $lines = array_merge($lines, [
         '',
         '## Search',
         '=> gemini://kennedy.gemi.dev/ Kennedy — Gemini Search Engine',
@@ -106,6 +121,8 @@ function handleHomePage(): void
         '## Software',
         '=> gemini://skyjake.fi/lagrange/ Lagrange — Native Gemini Browser',
     ]);
+
+    $body = implode("\n", $lines);
 
     WebDoorSDK\jsonResponse([
         'success' => true,
