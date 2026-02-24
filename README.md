@@ -37,6 +37,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
   - [File Area Rules](#file-area-rules)
 - [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
+- [Gemini Support](#gemini-support)
 - [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
 - [License](#license)
@@ -96,6 +97,8 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
+- **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
+- **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules (see `docs/FileAreas.md`)
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
@@ -722,7 +725,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights |
 |----------------------------------------|-------------|------------|
-| [1.8.3](docs/UPGRADING_1.8.3.md)       | TBD         | Gemini Browser start page |
+| [1.8.3](docs/UPGRADING_1.8.3.md)       | TBD         | Gemini Capsule Hosting, Gemini Browser start page |
 | [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Gemini Browser WebDoor, CSRF protection, telnet anti-bot, security fixes |
 | [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation |
 | [1.7.9](docs/UPGRADING_1.7.9.md)       | Feb 8 2026  | LovlyNet, telnet user registration, ANSI AD generator, misc updates |
@@ -1686,6 +1689,43 @@ Games interact with the BBS through REST endpoints:
 ### Documentation
 
 For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
+
+## Gemini Support
+
+BinktermPHP includes first-class support for the [Gemini protocol](https://geminiprotocol.net/) — a lightweight, privacy-focused alternative to the web that uses a simple text format called gemtext.
+
+### Gemini Browser
+
+A built-in Gemini browser WebDoor lets users explore Geminispace without leaving the BBS. It includes:
+
+- Address bar with history navigation (back/forward)
+- Bookmark management per user
+- Gemtext rendering with headings, links, lists, blockquotes, and preformatted blocks
+- Redirect following and configurable request timeouts
+- SSRF protection (private/reserved address blocking for public deployments)
+
+The browser opens to a curated start page with links to popular Geminispace destinations. The start page can be overridden in Admin → WebDoors → Gemini Browser.
+
+### Gemini Capsule Hosting
+
+BBS users can publish personal Gemini capsules directly from the web interface. The **Gemini Capsule** WebDoor provides:
+
+- Split-pane gemtext editor with live preview
+- Per-file publish/draft controls (only published files are publicly accessible)
+- Gemtext syntax cheat sheet
+- Multiple `.gmi` files per user
+
+Published capsules are accessible at:
+
+```
+gemini://yourdomain.com/home/username/
+```
+
+A directory page at `gemini://yourdomain.com/` lists all users with published capsules and links to the BBS website.
+
+The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) that operators start only if they want to expose Gemini. It generates a self-signed TLS certificate automatically (Gemini uses a Trust On First Use model), or can be configured to use a CA-signed certificate such as one from Let's Encrypt.
+
+See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
 
 ## Frequently Asked Questions
 
