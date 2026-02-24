@@ -34,9 +34,6 @@ operators start only if they want to expose Gemini.
    ```bash
    php scripts/gemini_daemon.php --daemon
    ```
-4. On Linux, port 1965 requires root or `authbind`. Alternatively, bind to a
-   high port (e.g. 11965) and forward with `iptables` or `firewalld`.
-
 See [docs/GeminiCapsule.md](GeminiCapsule.md) for full setup instructions,
 including using a Let's Encrypt certificate instead of the default self-signed one.
 

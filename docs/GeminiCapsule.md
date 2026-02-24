@@ -33,29 +33,6 @@ php scripts/gemini_daemon.php --daemon
 
 The daemon writes its log to `data/logs/gemini_daemon.log`.
 
-### 4. Port binding on Linux
-
-Port 1965 requires elevated privileges. Options:
-
-**authbind** (recommended):
-```bash
-sudo touch /etc/authbind/byport/1965
-sudo chown binkterm /etc/authbind/byport/1965
-sudo chmod 755 /etc/authbind/byport/1965
-authbind --deep php scripts/gemini_daemon.php --daemon
-```
-
-**iptables redirect** (bind on high port, redirect from 1965):
-```bash
-# In .env:
-GEMINI_PORT=11965
-
-# Redirect 1965 → 11965
-sudo iptables -t nat -A PREROUTING -p tcp --dport 1965 -j REDIRECT --to-port 11965
-```
-
-**Run as root** (not recommended for production).
-
 ---
 
 ## TLS Certificates
