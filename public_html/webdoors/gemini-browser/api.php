@@ -105,6 +105,8 @@ function handleHomePage(): void
         '',
         '## Search',
         '=> gemini://kennedy.gemi.dev/ Kennedy — Gemini Search Engine',
+        '=> gemini://tlgs.one/ TLGS — "Totally Legit" Gemini Search',
+        '=> gemini://cdg.thegonz.net/ CDG — Collaborative Directory of Geminispace',
         '',
         '## About Gemini',
         '=> gemini://geminiprotocol.net/ The Gemini Protocol — Official Specification',
