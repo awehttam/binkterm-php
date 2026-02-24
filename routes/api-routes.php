@@ -4168,6 +4168,52 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::post('/messages/echomail/{id}/share/friendly-url', function($id) {
+        header('Content-Type: application/json');
+
+        $user   = RouteHelper::requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->generateSlugForExistingShare((int)$id, 'echomail', $userId);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(404);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::get('/messages/shared/{area}/{slug}', function($area, $slug) {
+        header('Content-Type: application/json');
+
+        $auth   = new Auth();
+        $user   = $auth->getCurrentUser();
+        $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                $statusCode = ($result['error'] === 'Login required to access this share') ? 401 : 404;
+                http_response_code($statusCode);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
+
     SimpleRouter::get('/messages/shared/{shareKey}', function($shareKey) {
         header('Content-Type: application/json');
 

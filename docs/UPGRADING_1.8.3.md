@@ -40,6 +40,21 @@ operators start only if they want to expose Gemini.
 See [docs/GeminiCapsule.md](GeminiCapsule.md) for full setup instructions,
 including using a Let's Encrypt certificate instead of the default self-signed one.
 
+### Friendly URLs for Shared Messages
+
+Echomail share links now use a human-readable URL based on the echo area and
+message subject, e.g.:
+
+```
+/shared/test@lovlynet/hello-world
+```
+
+Both the new friendly URL and the original 32-character hex token URL remain
+valid simultaneously — existing share links are never broken.
+
+New shares are assigned a friendly URL automatically. To upgrade an existing
+share, open the Share dialog for that message and click **Get Friendly URL**.
+
 ## Bug Fixes
 
 ### Binkp Packet Header: FSC-0048 Type-2+ Capability Word

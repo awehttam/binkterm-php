@@ -1639,6 +1639,7 @@ function showShareDialog(messageId) {
     $('#shareAccessInfo').hide();
     $('#shareExpirySection').show(); // Show expiry dropdown for new shares
     $('#createShareBtn').removeClass('d-none');
+    $('#friendlyUrlBtn').addClass('d-none');
     $('#revokeShareBtn').addClass('d-none');
     $('#publicShare').prop('checked', true);
     $('#shareExpiry').val('');
@@ -1653,6 +1654,9 @@ function showShareDialog(messageId) {
                 $('#shareResult').removeClass('d-none');
                 $('#shareExpirySection').hide(); // Hide expiry dropdown for existing shares
                 $('#createShareBtn').addClass('d-none');
+                if (!share.has_friendly_url) {
+                    $('#friendlyUrlBtn').removeClass('d-none');
+                }
                 $('#revokeShareBtn').removeClass('d-none');
                 $('#publicShare').prop('checked', share.is_public);
 
@@ -1759,6 +1763,28 @@ function createShare() {
     });
 }
 
+function generateFriendlyUrl() {
+    const btn = $('#friendlyUrlBtn');
+    const originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Generating...');
+
+    $.post(`/api/messages/echomail/${currentMessageId}/share/friendly-url`)
+        .done(function(data) {
+            if (data.success) {
+                $('#shareUrl').val(data.share_url);
+                $('#friendlyUrlBtn').addClass('d-none');
+                showSuccess('Friendly URL generated!');
+            } else {
+                showError(data.error || 'Failed to generate friendly URL');
+                btn.prop('disabled', false).html(originalHtml);
+            }
+        })
+        .fail(function() {
+            showError('Failed to generate friendly URL');
+            btn.prop('disabled', false).html(originalHtml);
+        });
+}
+
 function revokeShare() {
     if (!confirm('Are you sure you want to revoke this share link? It will no longer be accessible to others.')) {
         return;
@@ -1839,6 +1865,7 @@ function fallbackCopyTextToClipboard(text) {
 // Event handlers for share modal
 $(document).ready(function() {
     $('#createShareBtn').on('click', createShare);
+    $('#friendlyUrlBtn').on('click', generateFriendlyUrl);
     $('#revokeShareBtn').on('click', revokeShare);
 
     // Reset modal when closed
@@ -1846,6 +1873,7 @@ $(document).ready(function() {
         $('#shareResult').addClass('d-none');
         $('#shareError').addClass('d-none');
         $('#createShareBtn').removeClass('d-none');
+        $('#friendlyUrlBtn').addClass('d-none').prop('disabled', false).html('<i class="fas fa-link"></i> Get Friendly URL');
         $('#revokeShareBtn').addClass('d-none');
     });
 });

@@ -191,7 +191,9 @@
 
 {% block scripts %}
 <script>
-const shareKey = '{{ shareKey }}';
+const shareKey = '{{ shareKey|default('') }}';
+const shareArea = '{{ shareArea|default('')|e('js') }}';
+const shareSlug = '{{ shareSlug|default('')|e('js') }}';
 
 $(document).ready(function() {
     loadSharedMessage();
@@ -199,7 +201,10 @@ $(document).ready(function() {
 });
 
 function loadSharedMessage() {
-    $.get(`/api/messages/shared/${shareKey}`)
+    const apiUrl = shareKey
+        ? `/api/messages/shared/${shareKey}`
+        : `/api/messages/shared/${encodeURIComponent(shareArea)}/${encodeURIComponent(shareSlug)}`;
+    $.get(apiUrl)
         .done(function(data) {
             if (data.success) {
                 displaySharedMessage(data.message, data.share_info);

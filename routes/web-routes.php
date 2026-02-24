@@ -249,6 +249,41 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $template->renderResponse('echomail.twig', ['echoarea' => $echoarea]);
 })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
+SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
+    $auth   = new Auth();
+    $user   = $auth->getCurrentUser();
+    $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+    $messageData = null;
+    $shareInfo   = null;
+    $shareKey    = null;
+
+    try {
+        $handler = new MessageHandler();
+        $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+
+        if ($result['success']) {
+            $messageData = $result['message'];
+            $shareInfo   = $result['share_info'];
+            $shareKey    = $result['share_key'] ?? null;
+        }
+    } catch (Exception $e) {
+        // JavaScript will handle showing the error to the user
+    }
+
+    $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
+
+    $template = new Template();
+    $template->renderResponse('shared_message.twig', [
+        'shareKey'   => $shareKey,
+        'shareArea'  => $area,
+        'shareSlug'  => $slug,
+        'message'    => $messageData,
+        'share_info' => $shareInfo,
+        'share_url'  => $shareUrl
+    ]);
+})->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
+
 SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     // Don't require authentication for shared messages - the API will handle access control
     // But we need to fetch the message data for SEO meta tags
@@ -273,7 +308,6 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     }
 
     // Build the full share URL for meta tags
-    // Build share URL using centralized method
     $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
 
     $template = new Template();
