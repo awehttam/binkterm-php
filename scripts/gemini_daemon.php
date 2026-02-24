@@ -741,7 +741,11 @@ function handleConnection($socket, string $geminiHost, string $logFile): void
         $path = '/';
     }
 
-    logMsg('INFO', "Request: {$requestLine}", $logFile);
+    $remoteAddr = stream_socket_get_name($socket, true) ?: 'unknown';
+    // Strip port, keep only the IP address
+    $remoteIp = preg_replace('/:\d+$/', '', $remoteAddr);
+
+    logMsg('INFO', "[{$remoteIp}] Request: {$requestLine}", $logFile);
 
     // Route
     if ($path === '/' || $path === '') {
