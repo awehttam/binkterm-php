@@ -70,8 +70,9 @@ $pidFile    = $args['pid-file'] ?? __DIR__ . '/../data/run/gemini_daemon.pid';
 $logFile    = $args['log-file'] ?? __DIR__ . '/../data/logs/gemini_daemon.log';
 
 $certDir  = __DIR__ . '/../data/gemini';
-$certPath = $certDir . '/server.crt';
-$keyPath  = $certDir . '/server.key';
+$certPath = Config::env('GEMINI_CERT_PATH', $certDir . '/server.crt');
+$keyPath  = Config::env('GEMINI_KEY_PATH',  $certDir . '/server.key');
+$externalCert = Config::env('GEMINI_CERT_PATH', '') !== '';
 
 // ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -542,8 +543,20 @@ if (!is_dir($logDir)) {
     mkdir($logDir, 0755, true);
 }
 
-// Generate TLS cert if needed
-generateSelfSignedCert($certDir, $certPath, $keyPath, $logFile);
+// Generate self-signed TLS cert only if no external cert is configured
+if ($externalCert) {
+    logMsg('INFO', "Using external TLS certificate: {$certPath}", $logFile);
+    if (!file_exists($certPath)) {
+        logMsg('ERROR', "GEMINI_CERT_PATH does not exist: {$certPath}", $logFile);
+        exit(1);
+    }
+    if (!file_exists($keyPath)) {
+        logMsg('ERROR', "GEMINI_KEY_PATH does not exist: {$keyPath}", $logFile);
+        exit(1);
+    }
+} else {
+    generateSelfSignedCert($certDir, $certPath, $keyPath, $logFile);
+}
 
 // Resolve to clean absolute paths — OpenSSL's C layer on Windows cannot resolve
 // paths containing ".." (e.g. "scripts/../data/gemini/server.crt"), which causes
@@ -571,16 +584,18 @@ try {
 }
 
 // Build SSL stream context.
-// local_cert points to the combined PEM (cert + key in one file); no local_pk needed.
-// Combined PEM avoids OpenSSL 3.x PKCS#8 decoder issues with separate local_pk files.
-$sslCtx = stream_context_create([
-    'ssl' => [
-        'local_cert'        => $certPath,
-        'allow_self_signed' => true,
-        'verify_peer'       => false,
-        'verify_peer_name'  => false,
-    ],
-]);
+// Self-signed certs are stored as combined PEM (cert + key) so local_pk is not needed.
+// External certs (e.g. Let's Encrypt) use separate cert and key files.
+$sslOptions = [
+    'local_cert'        => $certPath,
+    'allow_self_signed' => true,
+    'verify_peer'       => false,
+    'verify_peer_name'  => false,
+];
+if ($externalCert) {
+    $sslOptions['local_pk'] = $keyPath;
+}
+$sslCtx = stream_context_create(['ssl' => $sslOptions]);
 
 // Open TLS server socket (ssl:// performs the handshake at accept time)
 $server = @stream_socket_server(
