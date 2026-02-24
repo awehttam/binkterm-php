@@ -395,6 +395,20 @@ class BinkdProcessor
             }
         }
 
+        // When a point is identified via FMPT but origNode=0 in the message header,
+        // some FTN software (e.g. Synchronet) encodes boss net/node in the PACKET
+        // header rather than the message header or an INTL kludge (which is often
+        // omitted for intra-zone mail). Fall back to the packet-level boss address.
+        if ($origPoint > 0 && $origNode === 0) {
+            $packetOrigNet  = (int)($packetInfo['origNet']  ?? 0);
+            $packetOrigNode = (int)($packetInfo['origNode'] ?? 0);
+            if ($packetOrigNet > 0 || $packetOrigNode > 0) {
+                $origNet  = $packetOrigNet;
+                $origNode = $packetOrigNode;
+                $this->log("[BINKD] Point mail with origNode=0 in message header — using packet boss address: {$origZone}:{$origNet}/{$origNode}.{$origPoint}");
+            }
+        }
+
         $origAddr = $origZone . ':' . $origNet . '/' . $origNode;
         if ($origPoint > 0) {
             $origAddr .= '.' . $origPoint;
