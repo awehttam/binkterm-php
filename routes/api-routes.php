@@ -1744,6 +1744,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
+            $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
@@ -1761,11 +1762,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, is_sysop_only, domain)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, is_sysop_only, domain, gemini_public)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $isSysopOnly ? 1 : 0, $domain]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
 
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -1800,6 +1801,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
+            $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
@@ -1818,11 +1820,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $isSysopOnly ? 1 : 0, $domain, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);
@@ -2465,9 +2467,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
 
         // Get messages from subscribed echoareas only
-        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded);
+        $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded, $sort);
         echo json_encode($result);
     });
 
@@ -2854,7 +2858,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $page = intval($_GET['page'] ?? 1);
         $filter = $_GET['filter'] ?? 'all';
         $threaded = isset($_GET['threaded']) && $_GET['threaded'] === 'true';
-        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false);
+        $allowedSorts = ['date_desc', 'date_asc', 'subject', 'author'];
+        $sort = in_array($_GET['sort'] ?? '', $allowedSorts) ? $_GET['sort'] : 'date_desc';
+        $result = $handler->getEchomail($echoarea, $domain, $page, null, $userId, $filter, $threaded, false, $sort);
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_ECHOMAIL_AREA_VIEW, null, $echoarea);
 
@@ -4163,6 +4169,52 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
     });
+
+    SimpleRouter::post('/messages/echomail/{id}/share/friendly-url', function($id) {
+        header('Content-Type: application/json');
+
+        $user   = RouteHelper::requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->generateSlugForExistingShare((int)$id, 'echomail', $userId);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(404);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::get('/messages/shared/{area}/{slug}', function($area, $slug) {
+        header('Content-Type: application/json');
+
+        $auth   = new Auth();
+        $user   = $auth->getCurrentUser();
+        $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                $statusCode = ($result['error'] === 'Login required to access this share') ? 401 : 404;
+                http_response_code($statusCode);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
     SimpleRouter::get('/messages/shared/{shareKey}', function($shareKey) {
         header('Content-Type: application/json');

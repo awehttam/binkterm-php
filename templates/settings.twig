@@ -132,11 +132,14 @@
                         <label for="defaultTagline" class="form-label">Default Tagline</label>
                         <select class="form-select" id="defaultTagline" name="default_tagline">
                             <option value="">No tagline</option>
+                            {% if taglines %}
+                                <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>— Random tagline —</option>
+                            {% endif %}
                             {% for tagline in taglines %}
                                 <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
                             {% endfor %}
                         </select>
-                        <div class="form-text">Used as the default tagline when composing messages.</div>
+                        <div class="form-text">Used as the default tagline when composing messages. Choose "Random tagline" to pick one at random each time.</div>
                     </div>
 
                     <div class="mb-3">

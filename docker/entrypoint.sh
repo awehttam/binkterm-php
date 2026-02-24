@@ -4,6 +4,12 @@ set -e
 echo "BinktermPHP Docker Container Initialization"
 echo "==========================================="
 
+# Generate ADMIN_DAEMON_SECRET if not set
+if [ -z "$ADMIN_DAEMON_SECRET" ]; then
+    export ADMIN_DAEMON_SECRET=$(openssl rand -hex 32)
+    echo "Generated random ADMIN_DAEMON_SECRET"
+fi
+
 # Wait for PostgreSQL to be ready
 if [ -n "$DB_HOST" ]; then
     echo "Waiting for PostgreSQL at $DB_HOST:${DB_PORT:-5432}..."
@@ -34,7 +40,7 @@ DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
 DB_NAME=${DB_NAME:-binkterm}
 DB_USER=${DB_USER:-binkterm}
-DB_PASSWORD=${DB_PASSWORD:-changeme}
+DB_PASS=${DB_PASS:-changeme}
 
 # Site Configuration
 SITE_URL=${SITE_URL:-http://localhost}
@@ -59,9 +65,12 @@ CREDITS_ENABLED=${CREDITS_ENABLED:-true}
 
 # Development/Debug
 APP_DEBUG=${APP_DEBUG:-false}
+
+# Admin Daemon
+ADMIN_DAEMON_SECRET=${ADMIN_DAEMON_SECRET}
 EOF
 
-    chown www-data:www-data /var/www/html/.env
+    chown binkterm:binkterm /var/www/html/.env
     chmod 640 /var/www/html/.env
     echo ".env file created successfully"
 else
@@ -71,23 +80,26 @@ fi
 # Run database setup/migrations if requested
 if [ "$RUN_SETUP" = "true" ]; then
     echo "Running database setup and migrations..."
-    php /var/www/html/scripts/setup.php
+    su -s /bin/bash binkterm -c "php /var/www/html/scripts/setup.php"
     echo "Setup completed"
 else
     echo "Skipping database setup (set RUN_SETUP=true to enable)"
 fi
 
-# Verify critical directories exist with correct permissions
+# Verify critical directories exist with correct permissions.
+# Volumes may be mounted empty on first run, so re-create and re-own as needed.
+# binkterm owns the files; www-data (in binkterm group) gets write access via 775.
 echo "Verifying directory permissions..."
 mkdir -p \
     /var/www/html/data/logs \
     /var/www/html/data/run \
     /var/www/html/data/inbound \
     /var/www/html/data/outbound \
-    /var/www/html/scripts/dosbox-bridge/dos/drops
+    /var/www/html/dosbox-bridge/dos/DROPS \
+    /var/www/html/dosbox-bridge/dos/DOORS
 
-chown -R www-data:www-data /var/www/html/data /var/www/html/config
-chmod -R 775 /var/www/html/data /var/www/html/config
+chown -R binkterm:binkterm /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
+chmod -R 775 /var/www/html/data /var/www/html/config /var/www/html/dosbox-bridge
 
 echo "Initialization complete!"
 echo ""

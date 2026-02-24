@@ -8,8 +8,6 @@
 #   2. First run: RUN_SETUP=true docker-compose up -d
 #   3. Subsequent runs: docker-compose up -d
 #
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -18,7 +16,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-binkterm}
       POSTGRES_USER: ${DB_USER:-binkterm}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASS:-changeme}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -45,7 +43,7 @@ services:
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-binkterm}
       DB_USER: ${DB_USER:-binkterm}
-      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_PASS: ${DB_PASS:-changeme}
 
       # Site Configuration
       SITE_URL: ${SITE_URL:-http://localhost}
@@ -63,7 +61,8 @@ services:
       DOSDOOR_HEADLESS: "true"
       DOSDOOR_DEBUG_KEEP_FILES: ${DOSDOOR_DEBUG_KEEP_FILES:-false}
       DOSDOOR_DOSBOX_PATH: /usr/bin/dosbox-x
-      DOSDOOR_WS_PORT: 24555
+      DOSDOOR_WS_PORT: 6001
+      DOSDOOR_WS_BIND_HOST: 0.0.0.0
 
       # Credits System
       CREDITS_ENABLED: ${CREDITS_ENABLED:-true}
@@ -71,13 +70,18 @@ services:
       # Development/Debug
       APP_DEBUG: ${APP_DEBUG:-false}
 
+      # Admin Daemon (auto-generated if not set)
+      ADMIN_DAEMON_SECRET: ${ADMIN_DAEMON_SECRET:-}
+
       # Setup flag - set to true on first run to initialize database
       RUN_SETUP: ${RUN_SETUP:-false}
 
     ports:
       - "${HTTP_PORT:-80}:80"
+      - "${TELNET_PORT:-2323}:2323"
       - "${BINKP_PORT:-24554}:24554"
-      - "${DOSDOOR_WS_PORT:-24555}:24555"
+      - "${DOSDOOR_WS_PORT:-6001}:6001"
+      - "${GEMINI_PORT:-1965}:1965"
     volumes:
       # Persistent data volumes
       - binkterm_data:/var/www/html/data

@@ -42,10 +42,58 @@ Make sure you've made a backup of your database and files before upgrading.
 - **Case-Insensitive Username Matching** — Registration and login now compare usernames case-insensitively, preventing two accounts from coexisting with names that differ only by case (e.g. `Admin` and `admin`).
 - **Expanded Reserved Username List** — The list of usernames and real names blocked at registration has been extended to cover common authority-implying names (`admin`, `administrator`, `sysadmin`, `sysadm`, `moderator`, `staff`, `support`, and others) to prevent impersonation.
 
+### File Areas
+- **`%basedir%` Macro Shell Quoting** — The Feb 18 security fix wrapped all file area rule macro values in `escapeshellarg()`, which was correct for network-derived values (`%filepath%`, `%filename%`, `%domain%`, etc.) but broke `%basedir%`. Because `%basedir%` is used as a path component in rule templates (e.g. `php %basedir%/scripts/foo.php`), pre-quoting it produced a split path like `'/home/user/app'/scripts/foo.php`. The basedir value (derived from `realpath()` on the application directory) is now substituted raw; all network-derived macros retain their `escapeshellarg()` protection.
+
+### Echomail Threaded View
+- **Threaded Sort Order** — The subject and author sort options in threaded echomail view were generating PHP warnings and sorting incorrectly. The `usort` comparator was accessing thread nodes as numeric arrays (`$a[0]`) when the thread structure uses associative keys (`$a['message']`). All three threaded sort call sites are now corrected.
+
+### API / Internal
+- **`getEchomail()` / `getThreadedEchomail()` `$domain` Parameter** — The `$domain` parameter is now optional (defaults to `null`). Callers that previously relied on positional argument ordering without a default value will continue to work.
+
 ### Web Interface
 - **Netmail Sent Count on Profile** — The "Netmail Sent" statistic on user profiles was incorrectly counting received messages. The `netmail` table stores `user_id` as the recipient for inbound messages and as the sender for outbound messages; the count now filters by `is_sent = TRUE` so only dispatched messages are counted.
 - **Echomail Sidebar Selected Item Contrast** — The network name, description, and message count badges in the echo area list were unreadable when an area was selected (theme-specific colours such as blue or amber persisted on the blue active background). Selected items now render all text and badges in high-contrast white/light colours.
 - **Who's Online Idle Timer** — An Idle column (admin-only) has been added to the Who's Online page showing time elapsed since each user's last activity. The timer updates every 10 seconds in the browser without additional server requests.
+- **Echomail Sort Order Dropdown** — The sort order dropdown (Newest First, Oldest First, By Subject, By Author) on the echomail list page was non-functional. The API routes were not reading the `sort` query parameter and `MessageHandler` always used a hardcoded `ORDER BY date DESC`. Sorting now works correctly in both standard and threaded views.
+- **Random Tagline** — Users can now select "Random tagline" as their default tagline in user settings. Each time the compose window is opened, a tagline is picked at random from the system tagline list and pre-selected in the dropdown (the user can still change it before sending).
+- **"Back to Doors" Label** — The back button on the DOS door and WebDoor play pages now reads "Back to Doors" instead of "Back to Games".
+
+## New WebDoors
+
+### Gemini Browser
+
+A built-in WebDoor that lets users browse [Geminispace](https://geminiprotocol.net/) from within the BBS. The Gemini protocol is a lightweight, privacy-focused alternative to the web that uses a plain-text format called Gemtext.
+
+**Features:**
+- Full Gemtext rendering (headings, links, lists, blockquotes, preformatted blocks)
+- Back/forward navigation history
+- Per-user bookmarks (stored server-side)
+- Input prompt support for Gemini 1x interactive pages
+- Dark terminal-green theme
+
+**Security:** The PHP proxy enforces port 1965 exclusively, blocks connections to private/reserved IP ranges, and limits response size. Gemtext content is rendered as escaped HTML — external link text and server error messages cannot inject scripts.
+
+**Configuration** (Admin → WebDoors → Gemini Browser):
+
+| Setting | Default | Description |
+|---|---|---|
+| `home_url` | `gemini://geminiprotocol.net/` | Page loaded on open and when Home is clicked |
+| `max_redirects` | `5` | Maximum redirects to follow |
+| `timeout` | `15` | Connection timeout in seconds |
+| `max_response_bytes` | `10485760` | Maximum response body size (10 MB) |
+| `block_private_ranges` | `true` | Block connections to RFC-1918 / loopback addresses |
+
+## Docker Improvements
+
+- **DOSBox-X** — The Docker image now uses `dosbox-x` (headless-capable) instead of vanilla `dosbox`. This enables correct headless DOS door operation inside the container.
+- **Telnet Daemon in Container** — The telnet daemon is now managed by supervisord inside the Docker container. Port `2323` is exposed by default (configurable via `TELNET_PORT` in `.env`).
+- **`ADMIN_DAEMON_SECRET` Auto-Generation** — The Docker entrypoint now auto-generates a random `ADMIN_DAEMON_SECRET` on first start if the variable is not set in `.env`. Set it explicitly if you need a stable value across container restarts.
+- **`postgresql-client` Included** — The `postgresql-client` package is now installed in the Docker image for easier database maintenance from within the container.
+- **`pcntl` / `posix` PHP Extensions** — These extensions are now compiled into the image, required by the telnet daemon process management.
+
+> **Breaking change for Docker users upgrading to 1.8.2:**
+> The database password environment variable has been renamed from `DB_PASSWORD` to `DB_PASS` in `.env.docker.example`, `docker-compose.yml`, and `docker/entrypoint.sh`. Update your `.env` file and any deployment scripts to use `DB_PASS` before restarting the container.
 
 ## DOS Door Improvements
 
@@ -54,6 +102,11 @@ Make sure you've made a backup of your database and files before upgrading.
 - `DOORWAYU.EXE` (unregistered Doorway) is now bundled and used by default; installing `DOORWAY.EXE` alongside it will override automatically.
 - Added a README for the built-in Admin door.
 - Suppressed repetitive idle-status entries in the multiplexor daemon log.
+
+## Developer Tooling
+
+- **`test_filearea_rules.php` `--from-filebase`** — The file area rule test script now accepts a `--from-filebase` flag that resolves the file's actual storage path from the database rather than assuming `/tmp/<filename>`. This allows `--execute` mode to run against a real file that has already been received into the file base. A clear error is reported if the filename is not found in the specified area.
+- **`test_filearea_rules.php` `--execute` skip reporting** — When `--execute` is used but the file does not exist on disk, the script now reports a per-rule skip warning and an accurate summary instead of silently showing "0 succeeded, 0 failed".
 
 ---
 

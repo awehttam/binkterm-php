@@ -349,7 +349,7 @@ class FileAreaRuleProcessor
         }
 
         return [
-            'basedir'  => escapeshellarg($basedir ?: ''),
+            'basedir'  => $basedir ?: '',   // path component macro — must not be pre-quoted
             'filepath' => escapeshellarg($filepath),
             'filename' => escapeshellarg($filename),
             'filesize' => (string)$filesize,

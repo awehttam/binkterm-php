@@ -568,7 +568,11 @@ function renderDashboardAd() {
         if (typeof renderAnsiTerminal !== 'function') {
             return;
         }
-        pre.innerHTML = renderAnsiTerminal(pre.textContent);
+        let rendered = renderAnsiTerminal(pre.textContent);
+        if (typeof linkifyUrls === 'function') {
+            rendered = linkifyUrls(rendered);
+        }
+        pre.innerHTML = rendered;
     };
 
     if (typeof renderAnsiTerminal === 'function') {

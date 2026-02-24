@@ -395,6 +395,20 @@ class BinkdProcessor
             }
         }
 
+        // When a point is identified via FMPT but origNode=0 in the message header,
+        // some FTN software (e.g. Synchronet) encodes boss net/node in the PACKET
+        // header rather than the message header or an INTL kludge (which is often
+        // omitted for intra-zone mail). Fall back to the packet-level boss address.
+        if ($origPoint > 0 && $origNode === 0) {
+            $packetOrigNet  = (int)($packetInfo['origNet']  ?? 0);
+            $packetOrigNode = (int)($packetInfo['origNode'] ?? 0);
+            if ($packetOrigNet > 0 || $packetOrigNode > 0) {
+                $origNet  = $packetOrigNet;
+                $origNode = $packetOrigNode;
+                $this->log("[BINKD] Point mail with origNode=0 in message header — using packet boss address: {$origZone}:{$origNet}/{$origNode}.{$origPoint}");
+            }
+        }
+
         $origAddr = $origZone . ':' . $origNet . '/' . $origNode;
         if ($origPoint > 0) {
             $origAddr .= '.' . $origPoint;
@@ -1319,8 +1333,11 @@ class BinkdProcessor
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
 
-        // Parse origin address
+        // Parse origin address — must have a configured uplink with a 'me' address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
+        if (!$myAddress) {
+            throw new \Exception("No configured uplink 'me' address for destination $destAddr — cannot build packet header");
+        }
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
@@ -1364,11 +1381,14 @@ class BinkdProcessor
         // Bytes 34-37: Zone information (FSC-0039/0045)
         $header .= pack('vv', $origZone, $destZone);    // 34-37: origZone, destZone
 
-        // Bytes 38-41: AuxNet and capability word
-        $header .= pack('vv', 0, 0);         // 38-41: auxNet, cwCopy
+        // Bytes 38-41: AuxNet and capability word copy
+        // cwCopy must be the byte-swapped value of capWord (FSC-0048 validation)
+        $capWord = 0x0001;  // bit 0: Type-2+ capability
+        $cwCopy  = 0x0100;  // byte-swapped capWord
+        $header .= pack('vv', 0, $cwCopy);   // 38-41: auxNet, cwCopy
 
-        // Bytes 42-45: Extended product info
-        $header .= pack('CCv', 0, 0, 0);     // 42-45: prodCodeHi, revision, cwVal
+        // Bytes 42-45: Extended product info and capability word
+        $header .= pack('CCv', 0, 0, $capWord); // 42-45: prodCodeHi, revision, capWord
 
         // Bytes 46-49: Duplicate zone info (FSC-0048 compatibility)
         $header .= pack('vv', $origZone, $destZone);    // 46-49: origZone_, destZone_

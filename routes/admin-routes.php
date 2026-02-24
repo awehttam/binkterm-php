@@ -2304,18 +2304,20 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         // Most browsed file areas
         $fileAreasStmt = $db->query("
-            SELECT object_id AS area_id, COUNT(*) AS count
+            SELECT ual.object_id AS area_id, fa.tag AS area_name, COUNT(*) AS count
             FROM user_activity_log ual
-            WHERE activity_type_id = 5 {$dateFilter}{$adminFilter}
-              AND object_id IS NOT NULL
-            GROUP BY object_id
+            LEFT JOIN file_areas fa ON fa.id = ual.object_id
+            WHERE ual.activity_type_id = 5 {$dateFilter}{$adminFilter}
+              AND ual.object_id IS NOT NULL
+            GROUP BY ual.object_id, fa.tag
             ORDER BY count DESC
             LIMIT 10
         ");
         $topFileareas = $fileAreasStmt->fetchAll(\PDO::FETCH_ASSOC);
         foreach ($topFileareas as &$row) {
-            $row['area_id'] = (int)$row['area_id'];
-            $row['count']   = (int)$row['count'];
+            $row['area_id']   = (int)$row['area_id'];
+            $row['area_name'] = $row['area_name'] ?? 'Area #' . $row['area_id'];  // deleted area fallback
+            $row['count']     = (int)$row['count'];
         }
         unset($row);
 
