@@ -1506,11 +1506,28 @@ class BinkdProcessor
                 // Only add REPLYTO if message has a different reply-to address
                 // For now, we don't add redundant REPLYTO that matches REPLYADDR
                 
-                // Add INTL kludge for zone routing (required for inter-zone mail)
-                list($fromZone, $fromRest) = explode(':', $fromAddress);
-                list($toZone, $toRest) = explode(':', $toAddress);
-                $kludgeLines .= "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}\r\n";
-                
+                // Add INTL kludge for zone routing (required for inter-zone mail).
+                // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
+                list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
+                list($fromNet, $fromNodePoint) = explode('/', $fromNetNodeRaw);
+                $fromNodeOnly = explode('.', $fromNodePoint)[0];
+
+                list($toZone, $toNetNodeRaw) = explode(':', $toAddress);
+                list($toNet, $toNodePoint) = explode('/', $toNetNodeRaw);
+                $toNodeOnly = explode('.', $toNodePoint)[0];
+
+                $kludgeLines .= "\x01INTL {$toZone}:{$toNet}/{$toNodeOnly} {$fromZone}:{$fromNet}/{$fromNodeOnly}\r\n";
+
+                // Add FMPT/TOPT kludges for point addressing if needed
+                if (strpos($fromAddress, '.') !== false) {
+                    list($mainAddr, $fmptPoint) = explode('.', $fromAddress);
+                    $kludgeLines .= "\x01FMPT {$fmptPoint}\r\n";
+                }
+                if (strpos($toAddress, '.') !== false) {
+                    list($mainAddr, $toptPoint) = explode('.', $toAddress);
+                    $kludgeLines .= "\x01TOPT {$toptPoint}\r\n";
+                }
+
                 // Add FLAGS kludge for netmail attributes
                 $flags = [];
                 if (($message['attributes'] ?? 0) & 0x0001) $flags[] = 'PVT'; // Private

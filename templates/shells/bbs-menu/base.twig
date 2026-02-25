@@ -38,6 +38,8 @@
             align-items: center;
             gap: 1rem;
             flex-wrap: wrap;
+            position: relative;
+            z-index: 1030; /* Match Bootstrap's fixed navbar — ensures dropdowns paint above footer */
         }
         .bbs-shell-system-name {
             font-weight: bold;

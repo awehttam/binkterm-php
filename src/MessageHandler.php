@@ -2792,19 +2792,27 @@ class MessageHandler
             $kludgeLines[] = "\x01REPLYTO {$replyToAddress}";
         }
         
-        // Add INTL kludge for zone routing (required for inter-zone mail)
-        list($fromZone, $fromRest) = explode(':', $fromAddress);
-        list($toZone, $toRest) = explode(':', $toAddress);
-        $kludgeLines[] = "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}";
-        
+        // Add INTL kludge for zone routing (required for inter-zone mail).
+        // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
+        // Points are conveyed separately via FMPT/TOPT kludges below.
+        list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
+        list($fromNet, $fromNodePoint) = explode('/', $fromNetNodeRaw);
+        $fromNodeOnly = explode('.', $fromNodePoint)[0];
+
+        list($toZone, $toNetNodeRaw) = explode(':', $toAddress);
+        list($toNet, $toNodePoint) = explode('/', $toNetNodeRaw);
+        $toNodeOnly = explode('.', $toNodePoint)[0];
+
+        $kludgeLines[] = "\x01INTL {$toZone}:{$toNet}/{$toNodeOnly} {$fromZone}:{$fromNet}/{$fromNodeOnly}";
+
         // Add FMPT/TOPT kludges for point addressing if needed
         if (strpos($fromAddress, '.') !== false) {
             list($mainAddr, $point) = explode('.', $fromAddress);
             $kludgeLines[] = "\x01FMPT {$point}";
         }
-        
+
         if (strpos($toAddress, '.') !== false) {
-            list($mainAddr, $point) = explode('.', $toAddress);  
+            list($mainAddr, $point) = explode('.', $toAddress);
             $kludgeLines[] = "\x01TOPT {$point}";
         }
         

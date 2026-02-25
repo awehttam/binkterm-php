@@ -40,8 +40,12 @@
     100% { transform: translate(0); }
 }
 
-/* Prevent horizontal overflow on mobile */
-html, body {
+/* Prevent horizontal overflow on mobile.
+   overflow-x must NOT be set on html — doing so turns overflow-y into
+   "auto" on the root element in Chromium, making html the scroll
+   container and allowing the admin dropdown to create a spurious
+   vertical scrollbar. */
+body {
     overflow-x: hidden;
     max-width: 100vw;
 }
