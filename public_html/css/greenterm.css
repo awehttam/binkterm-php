@@ -381,6 +381,10 @@ a:hover {
     color: var(--term-green-dark);
 }
 
+.form-text {
+    color: var(--text-color-muted);
+}
+
 .form-control:disabled,
 .form-control[readonly] {
     background-color: var(--term-black);

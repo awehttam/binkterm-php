@@ -418,6 +418,10 @@ a:hover {
     color: var(--text-color-muted);
 }
 
+.form-text {
+    color: var(--text-color-muted);
+}
+
 .form-control:disabled,
 .form-control[readonly] {
     background-color: var(--cyber-dark);
