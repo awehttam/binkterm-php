@@ -7,8 +7,8 @@
         transform: scale() so it shrinks proportionally to fit the viewport.
         On desktop the art renders at natural size.
     #}
-    <div class="ansi-art-wrapper d-flex justify-content-center" id="ansiArtWrapper" style="overflow:hidden; cursor:pointer;">
-        <pre class="ansi-art" id="shellMenuAnsi" style="transform-origin:top center; display:inline-block;">{{ shell_art_content }}</pre>
+    <div class="ansi-art-wrapper d-flex justify-content-center" id="ansiArtWrapper" style="cursor:pointer;">
+        <pre class="ansi-art" id="shellMenuAnsi" style="display:inline-block;">{{ shell_art_content }}</pre>
     </div>
 
     {#
@@ -37,16 +37,17 @@
         if (!pre) return;
         var wrapper = pre.closest('.ansi-art-wrapper');
         if (!wrapper) return;
-        // Reset so we can measure natural width
-        pre.style.transform = '';
-        wrapper.style.height = '';
+        // Reset any previous scaling
+        pre.style.fontSize = '';
+        var isMobile = window.matchMedia('(max-width: 767.98px)').matches;
+        var targetWidth = isMobile
+            ? Math.floor(window.innerWidth * 0.99)
+            : wrapper.clientWidth;
         var naturalWidth = pre.scrollWidth;
-        var availWidth = wrapper.clientWidth;
-        if (naturalWidth > availWidth && availWidth > 0) {
-            var scale = availWidth / naturalWidth;
-            pre.style.transform = 'scale(' + scale + ')';
-            // transform doesn't affect layout flow — shrink the wrapper to match
-            wrapper.style.height = Math.ceil(pre.scrollHeight * scale) + 'px';
+        // Mobile: scale to fill (up or down); desktop: only scale down if too wide
+        if (targetWidth > 0 && naturalWidth > 0 && (isMobile || naturalWidth > targetWidth)) {
+            var currentFontSize = parseFloat(window.getComputedStyle(pre).fontSize);
+            pre.style.fontSize = (currentFontSize * targetWidth / naturalWidth).toFixed(2) + 'px';
         }
     }
     // Run after ANSI rendering (which happens in a separate ready handler)
