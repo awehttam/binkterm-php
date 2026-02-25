@@ -109,6 +109,27 @@ See [docs/CUSTOMIZING.md](CUSTOMIZING.md) for the full appearance system referen
 
 ## Bug Fixes
 
+### FidoNet INTL Kludge and Point Addressing (FTS-0001)
+
+Outbound netmail had two related violations of the FTS-0001 point-addressing
+specification:
+
+1. **INTL kludge included the point number.** The INTL kludge was generated as
+   `\x01INTL zone:net/node.point zone:net/node.point`, e.g.
+   `\x01INTL 1:3634/12 1:3634/58.1337`. Per FTS-0001, INTL addresses must be
+   `zone:net/node` only — the point is conveyed separately via FMPT/TOPT.
+   The kludge is now correctly generated as `\x01INTL 1:3634/12 1:3634/58`
+   with a separate `\x01FMPT 1337` line.
+
+2. **FMPT/TOPT kludges were missing from the fallback packet-writing path.**
+   When a stored message had no kludge lines (backward-compatibility path in
+   `BinkdProcessor`), the generated INTL included the point but no FMPT was
+   added. FMPT/TOPT are now generated in this path as well.
+
+These fixes affect all outbound netmail sent from or to point addresses.
+No database changes are required; new messages generated after upgrading will
+have correct kludges.
+
 ### Binkp Packet Header: FSC-0048 Type-2+ Capability Word
 
 Outbound FTN packets had `capWord = 0` in the Type-2+ packet header, which
