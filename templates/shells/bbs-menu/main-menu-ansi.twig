@@ -7,13 +7,17 @@
         transform: scale() so it shrinks proportionally to fit the viewport.
         On desktop the art renders at natural size.
     #}
-    <div class="ansi-art-wrapper d-flex justify-content-center" style="overflow:hidden;">
+    <div class="ansi-art-wrapper d-flex justify-content-center" id="ansiArtWrapper" style="overflow:hidden; cursor:pointer;">
         <pre class="ansi-art" id="shellMenuAnsi" style="transform-origin:top center; display:inline-block;">{{ shell_art_content }}</pre>
     </div>
 
-    {# Touch-friendly menu links shown only on mobile (below the art) #}
+    {#
+        Shortcut links — hidden by default, revealed when the user clicks/taps
+        the ANSI art above. Using display:none (not a Bootstrap breakpoint class)
+        so it never auto-shows based on viewport width alone.
+    #}
     {% set menuItems = appearance.shell.bbs_menu.menu_items %}
-    <div class="d-md-none mt-3">
+    <div id="ansiTouchLinks" class="mt-3" style="display:none;">
         <div class="list-group">
             {% for item in menuItems %}
             <a href="{{ item.url | e }}" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-3">
@@ -49,6 +53,20 @@
     $(document).ready(function() {
         // Small delay so the ANSI renderer has run first
         setTimeout(scaleAnsiArt, 50);
+
+        // Clicking/tapping the ANSI art reveals the shortcut link list and
+        // focuses the hidden keyboard input so the OS keyboard appears.
+        var wrapper = document.getElementById('ansiArtWrapper');
+        var links = document.getElementById('ansiTouchLinks');
+        if (wrapper) {
+            wrapper.addEventListener('click', function() {
+                if (links) {
+                    links.style.display = links.style.display === 'none' ? 'block' : 'none';
+                }
+                var input = document.getElementById('mobileKeyInput');
+                if (input) { input.value = ''; input.focus(); }
+            });
+        }
     });
     $(window).on('resize', scaleAnsiArt);
 })();
