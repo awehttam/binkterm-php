@@ -54,8 +54,7 @@
         // Small delay so the ANSI renderer has run first
         setTimeout(scaleAnsiArt, 50);
 
-        // Clicking/tapping the ANSI art reveals the shortcut link list and
-        // focuses the hidden keyboard input so the OS keyboard appears.
+        // Clicking/tapping the ANSI art toggles the shortcut link list
         var wrapper = document.getElementById('ansiArtWrapper');
         var links = document.getElementById('ansiTouchLinks');
         if (wrapper) {
@@ -63,8 +62,6 @@
                 if (links) {
                     links.style.display = links.style.display === 'none' ? 'block' : 'none';
                 }
-                var input = document.getElementById('mobileKeyInput');
-                if (input) { input.value = ''; input.focus(); }
             });
         }
     });

@@ -238,57 +238,6 @@
         </div>
     </div>
 
-    <!--
-        Mobile keyboard trigger: a floating button visible only on touch devices.
-        Tapping it focuses a tiny invisible input, causing the OS keyboard to appear.
-        Typing a shortcut key (or the item's letter) then navigates normally.
-    -->
-    <button id="mobileKeyTrigger"
-            aria-label="Type shortcut key"
-            title="Type a shortcut key">
-        <i class="fas fa-keyboard"></i>
-    </button>
-    <input type="text" id="mobileKeyInput"
-           autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
-           aria-hidden="true" tabindex="-1">
-
-    <style>
-        /* Only show keyboard trigger on true touch/stylus devices */
-        #mobileKeyTrigger {
-            display: none;
-            position: fixed;
-            bottom: 1.5rem;
-            right: 1.5rem;
-            z-index: 1050;
-            width: 3rem;
-            height: 3rem;
-            border-radius: 50%;
-            border: none;
-            background: var(--bs-primary, #0d6efd);
-            color: #fff;
-            font-size: 1.2rem;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            cursor: pointer;
-        }
-        @media (hover: none) and (pointer: coarse) {
-            #mobileKeyTrigger { display: flex; }
-        }
-        /* Hidden but focusable — must not be display:none or visibility:hidden
-           or iOS Safari will refuse to open the keyboard on .focus() */
-        #mobileKeyInput {
-            position: fixed;
-            opacity: 0;
-            width: 1px;
-            height: 1px;
-            bottom: 0;
-            right: 0;
-            border: none;
-            padding: 0;
-        }
-    </style>
-
     <script>
         {% if current_user %}
         window.currentUserId = {{ current_user.user_id ?? current_user.id }};
@@ -340,24 +289,6 @@
             bbsNavigate(e.key);
         });
 
-        // Mobile keyboard trigger
-        document.getElementById('mobileKeyTrigger').addEventListener('click', function() {
-            const input = document.getElementById('mobileKeyInput');
-            input.value = '';
-            input.focus();
-        });
-
-        // Handle key from mobile input (keydown fires on most Android; input fires on iOS)
-        const mobileInput = document.getElementById('mobileKeyInput');
-        mobileInput.addEventListener('keydown', function(e) {
-            if (e.key && e.key.length === 1) { bbsNavigate(e.key); }
-            else if (e.key === 'Escape') { bbsNavigate('Escape'); }
-        });
-        mobileInput.addEventListener('input', function() {
-            const val = this.value.trim();
-            this.value = '';
-            if (val) bbsNavigate(val);
-        });
     </script>
 
     {% block scripts %}{% endblock %}
