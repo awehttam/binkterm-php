@@ -218,12 +218,17 @@ SimpleRouter::get('/netmail', function() {
     try {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemAddress = $binkpConfig->getSystemAddress();
+        $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
     } catch (\Exception $e) {
         $systemAddress = 'Unknown';
+        $crashmailEnabled = false;
     }
 
     $template = new Template();
-    $template->renderResponse('netmail.twig', ['system_address' => $systemAddress]);
+    $template->renderResponse('netmail.twig', [
+        'system_address'   => $systemAddress,
+        'crashmail_enabled' => $crashmailEnabled,
+    ]);
 });
 
 SimpleRouter::get('/echomail', function() {
@@ -722,10 +727,11 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $echoarea = $_GET['echoarea'] ?? null;
     $domainParam = $_GET['domain'] ?? null;
 
-    // Handle new message parameters (from nodelist)
+    // Handle new message parameters (from nodelist or address book)
     $toAddress = $_GET['to'] ?? null;
     $toName = $_GET['to_name'] ?? null;
     $subject = $_GET['subject'] ?? null;
+    $prefillCrashmail = !empty($_GET['crashmail']);
     // Get system configuration for display
     try {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -776,7 +782,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'credits_enabled' => $creditsEnabled,
         'taglines' => $taglines,
         'default_tagline' => $defaultTagline,
-        'max_cross_post_areas' => $maxCrossPost
+        'max_cross_post_areas' => $maxCrossPost,
+        'prefill_crashmail' => $prefillCrashmail,
     ];
 
     if ($replyId) {

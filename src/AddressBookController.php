@@ -31,8 +31,8 @@ class AddressBookController
     public function getUserEntries($userId, $search = '')
     {
         $sql = "
-            SELECT id, name, messaging_user_id, node_address, email, description, created_at, updated_at
-            FROM address_book 
+            SELECT id, name, messaging_user_id, node_address, email, description, always_crashmail, created_at, updated_at
+            FROM address_book
             WHERE user_id = ?
         ";
         
@@ -61,8 +61,8 @@ class AddressBookController
     public function getEntry($entryId, $userId)
     {
         $stmt = $this->db->prepare("
-            SELECT id, name, messaging_user_id, node_address, email, description, created_at, updated_at
-            FROM address_book 
+            SELECT id, name, messaging_user_id, node_address, email, description, always_crashmail, created_at, updated_at
+            FROM address_book
             WHERE id = ? AND user_id = ?
         ");
         $stmt->execute([$entryId, $userId]);
@@ -96,18 +96,21 @@ class AddressBookController
             throw new \Exception('An entry with this name and address already exists');
         }
 
+        $alwaysCrashmail = !empty($data['always_crashmail']);
+
         $stmt = $this->db->prepare("
-            INSERT INTO address_book (user_id, name, messaging_user_id, node_address, email, description)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO address_book (user_id, name, messaging_user_id, node_address, email, description, always_crashmail)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
             $userId,
             $data['name'],
             $data['messaging_user_id'],
             $data['node_address'],
             $data['email'] ?? null,
-            $data['description'] ?? null
+            $data['description'] ?? null,
+            $alwaysCrashmail ? 'true' : 'false',
         ]);
 
         if ($result) {
@@ -149,20 +152,24 @@ class AddressBookController
             throw new \Exception('An entry with this name and address already exists');
         }
 
+        $alwaysCrashmail = !empty($data['always_crashmail']);
+
         $stmt = $this->db->prepare("
-            UPDATE address_book 
-            SET name = ?, messaging_user_id = ?, node_address = ?, email = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+            UPDATE address_book
+            SET name = ?, messaging_user_id = ?, node_address = ?, email = ?, description = ?,
+                always_crashmail = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND user_id = ?
         ");
-        
+
         return $stmt->execute([
             $data['name'],
             $data['messaging_user_id'],
             $data['node_address'],
             $data['email'] ?? null,
             $data['description'] ?? null,
+            $alwaysCrashmail ? 'true' : 'false',
             $entryId,
-            $userId
+            $userId,
         ]);
     }
 
@@ -183,9 +190,9 @@ class AddressBookController
         $searchTerm = '%' . $query . '%';
         
         $stmt = $this->db->prepare("
-            SELECT id, name, messaging_user_id, node_address, email
-            FROM address_book 
-            WHERE user_id = ? 
+            SELECT id, name, messaging_user_id, node_address, email, always_crashmail
+            FROM address_book
+            WHERE user_id = ?
                 AND (name ILIKE ? OR messaging_user_id ILIKE ? OR node_address ILIKE ?)
             ORDER BY 
                 CASE 

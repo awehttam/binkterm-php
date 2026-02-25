@@ -107,7 +107,27 @@ Add custom links to the navigation bar and configure site-wide SEO metadata (met
 
 See [docs/CUSTOMIZING.md](CUSTOMIZING.md) for the full appearance system reference.
 
+### BBS Menu Shell: Mobile Improvements
+
+The `bbs-menu` shell's ANSI art variant now adjusts the font size of the ANSI `<pre>` element to fit within 99% of the viewport width on mobile, and scales down on desktop if the art is wider than its container.
+
+Tapping the ANSI art reveals a row of shortcut links for navigating the menu. Tapping again hides them. This replaces the previous floating keyboard-trigger button, which has been removed.
+
+The `cards` and `text` variants now display context-appropriate hint text: "Press key to navigate" on desktop, "Tap an item to navigate" on mobile.
+
+### Address Book: Always Use Crashmail
+
+Address book entries now include an **Always use crashmail for this Recipient** checkbox. When enabled, composing a new message to that contact will automatically pre-check the crashmail option on the compose form.
+
+This requires the migration `v1.10.10` — run `php scripts/setup.php` to apply it.
+
 ## Bug Fixes
+
+### MarkdownRenderer: Paragraph Link Rendering
+
+Markdown links that wrapped across soft line breaks in the source text were not rendered correctly — the link syntax was split across two lines during processing, causing the URL to appear as plain text.
+
+Root-relative URLs (e.g. `/subscriptions`) are now also recognised as valid link targets, in addition to `http://` and `https://` URLs.
 
 ### FidoNet INTL Kludge and Point Addressing (FTS-0001)
 

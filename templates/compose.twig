@@ -66,7 +66,7 @@
                     {% if crashmail_enabled %}
                     <div class="mb-3">
                         <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail">
+                            <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail"{% if prefill_crashmail %} checked{% endif %}>
                             <label class="form-check-label" for="crashmail">
                                 <i class="fas fa-bolt text-warning me-1"></i>Crashmail (Direct Delivery){% if credits_enabled %} - <strong>{{ crashmail_cost }} {{ currency_symbol }}</strong>{% endif %}
                             </label>
@@ -613,7 +613,7 @@ function renderComposeAddressBook(entries) {
     } else {
         entries.forEach(function(entry) {
             html += `
-                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.messaging_user_id || 'unknown')}', '${escapeHtml(entry.node_address || '')}')">
+                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.messaging_user_id || 'unknown')}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
                     <div class="fw-bold">${escapeHtml(entry.name || 'Unnamed')}</div>
                     <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
                     <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || 'No address')}</div>
@@ -634,16 +634,21 @@ function searchAddressBookForCompose(query) {
     }
 }
 
-function selectAddressBookEntry(fullName, nodeAddress) {
+function selectAddressBookEntry(fullName, nodeAddress, alwaysCrashmail) {
     $('#toName').val(fullName);
     $('#toAddress').val(nodeAddress);
-    
+
+    // Set crashmail checkbox to match the contact's preference
+    if ($('#crashmail').length) {
+        $('#crashmail').prop('checked', alwaysCrashmail);
+    }
+
     // Close dropdown
     const dropdown = bootstrap.Dropdown.getInstance($('#addressBookButton'));
     if (dropdown) {
         dropdown.hide();
     }
-    
+
     // Clear search
     $('#composeAddressSearch').val('');
 }
@@ -707,9 +712,21 @@ $(document).ready(function() {
                     
                     <div class="mb-3">
                         <label for="addressBookDescription" class="form-label">Description <small class="text-muted">(optional)</small></label>
-                        <textarea class="form-control" id="addressBookDescription" rows="3" 
+                        <textarea class="form-control" id="addressBookDescription" rows="3"
                                   placeholder="Notes about this contact..."></textarea>
                     </div>
+
+                    {% if crashmail_enabled %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="addressBookAlwaysCrashmail" name="always_crashmail">
+                            <label class="form-check-label" for="addressBookAlwaysCrashmail">
+                                <i class="fas fa-bolt text-warning me-1"></i>Always use crashmail for this Recipient
+                            </label>
+                            <div class="form-text">Automatically enable crashmail when composing messages to this contact.</div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </form>
             </div>
             <div class="modal-footer">
@@ -737,7 +754,8 @@ function saveComposeAddressBookEntry() {
         messaging_user_id: $('#addressBookUserId').val().trim(),
         node_address: $('#addressBookNodeAddress').val().trim(),
         email: $('#addressBookEmail').val().trim(),
-        description: $('#addressBookDescription').val().trim()
+        description: $('#addressBookDescription').val().trim(),
+        always_crashmail: $('#addressBookAlwaysCrashmail').is(':checked'),
     };
     
     // Basic validation
@@ -754,6 +772,7 @@ function saveComposeAddressBookEntry() {
         success: function(response) {
             if (response.success) {
                 $('#addressBookModal').modal('hide');
+                loadComposeAddressBook();
                 showSuccess('Entry added successfully');
                 // Optionally populate the compose form
                 if (confirm('Use this entry for the current message?')) {
