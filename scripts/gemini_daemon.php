@@ -883,8 +883,14 @@ while (true) {
         // No fork available — negotiate TLS inline, handle single connection at a time
         $ok = @stream_socket_enable_crypto($client, true, STREAM_CRYPTO_METHOD_TLS_SERVER);
         if ($ok !== true) {
-            $sslErr = openssl_error_string() ?: 'TLS handshake failed';
-            logMsg('WARNING', "TLS handshake failed (no-fork): {$sslErr}", $logFile);
+            $logged = false;
+            while (($sslErr = openssl_error_string()) !== false) {
+                logMsg('WARNING', "TLS handshake failed (no-fork): {$sslErr}", $logFile);
+                $logged = true;
+            }
+            if (!$logged) {
+                logMsg('WARNING', 'TLS handshake failed (no-fork)', $logFile);
+            }
             fclose($client);
             continue;
         }
@@ -904,8 +910,14 @@ while (true) {
         fclose($server);
         $ok = @stream_socket_enable_crypto($client, true, STREAM_CRYPTO_METHOD_TLS_SERVER);
         if ($ok !== true) {
-            $sslErr = openssl_error_string() ?: 'TLS handshake failed';
-            logMsg('WARNING', "TLS handshake failed: {$sslErr}", $logFile);
+            $logged = false;
+            while (($sslErr = openssl_error_string()) !== false) {
+                logMsg('WARNING', "TLS handshake failed: {$sslErr}", $logFile);
+                $logged = true;
+            }
+            if (!$logged) {
+                logMsg('WARNING', 'TLS handshake failed', $logFile);
+            }
             fclose($client);
             exit(0);
         }
