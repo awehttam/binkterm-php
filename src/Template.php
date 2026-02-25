@@ -267,7 +267,7 @@ class Template
     {
         // Priority 1: Markdown file managed via admin UI
         $systemNewsMd = AppearanceConfig::getSystemNewsMarkdown();
-        if ($systemNewsMd !== null) {
+        if ($systemNewsMd !== null && trim($systemNewsMd) !== '') {
             return MarkdownRenderer::toHtml($systemNewsMd);
         }
 
