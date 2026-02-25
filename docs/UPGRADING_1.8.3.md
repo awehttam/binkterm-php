@@ -66,6 +66,47 @@ valid simultaneously — existing share links are never broken.
 New shares are assigned a friendly URL automatically. To upgrade an existing
 share, open the Share dialog for that message and click **Get Friendly URL**.
 
+### Appearance System
+
+A new sysop-controlled appearance system replaces the previous single-template approach. All settings are managed through **Admin → Appearance** and stored in `data/appearance.json`.
+
+#### Shells
+
+The UI chrome is now provided by interchangeable *shells*. Two shells ship with BinktermPHP:
+
+- **`web`** — The existing Bootstrap 5 responsive interface. This is the default and requires no action to keep using.
+- **`bbs-menu`** — A retro bulletin board main menu with three display variants:
+  - `cards` — Bootstrap card grid with icons and keyboard shortcuts
+  - `text` — Terminal-style text menu
+  - `ansi` — Full-screen ANSI art display (upload art files via Admin → Appearance → ANSI Art)
+
+Sysops choose the default shell and can optionally lock all users to it. When not locked, users can choose their preferred shell in their Settings page.
+
+Shell templates live in `templates/shells/<shell-name>/`. The active shell's directory is searched before the core `templates/` directory, so shell templates override core ones automatically.
+
+**Note:** The previous `templates/base.twig` has been superseded by `templates/shells/web/base.twig`. If you had direct customisations to `templates/base.twig`, move them to `templates/custom/base.twig` to preserve them across upgrades.
+
+#### Branding
+
+- Set a custom accent colour applied site-wide as a CSS variable
+- Supply a custom logo URL to replace the system name in the navbar
+- Force a default theme and optionally lock users to it
+- Add custom footer text
+
+#### Announcements
+
+Post a site-wide dismissible banner with an optional expiry date. The banner type (`info`, `warning`, `danger`) controls its colour. Users who dismiss it will not see it again during their session.
+
+#### System News & House Rules
+
+System news (shown on the dashboard) and house rules (`/houserules`) can now be written in Markdown and managed directly through the Admin → Appearance panel, stored in `data/systemnews.md` and `data/houserules.md`. The previous `templates/custom/systemnews.twig` override still works as a fallback.
+
+#### Navigation & SEO
+
+Add custom links to the navigation bar and configure site-wide SEO metadata (meta description, Open Graph image) through the admin panel.
+
+See [docs/CUSTOMIZING.md](CUSTOMIZING.md) for the full appearance system reference.
+
 ## Bug Fixes
 
 ### Binkp Packet Header: FSC-0048 Type-2+ Capability Word

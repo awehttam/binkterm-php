@@ -1372,16 +1372,31 @@ See `templates/custom/header.insert.twig.example` for reference with Google Anal
 
 BinktermPHP provides several ways to customize the look and feel without modifying core files:
 
+### Appearance System (Admin UI)
+
+The easiest way to customize your BBS is through **Admin → Appearance**, which provides a point-and-click interface for:
+
+- **Shells** — Choose between the modern `web` shell (Bootstrap 5) or the retro `bbs-menu` shell. The BBS menu shell offers three variants: card grid, text menu, and ANSI art display. You can allow users to choose their own shell or lock everyone to a single choice.
+- **Branding** — Set a custom accent color, logo URL, default theme, and footer text.
+- **Announcements** — Post a dismissible site-wide announcement with an optional expiry date.
+- **System News** — Write dashboard content in Markdown, managed through the admin panel.
+- **Navigation** — Add custom links to the navigation bar.
+- **SEO** — Set a site description and Open Graph image for search engine and social sharing metadata.
+
+All appearance settings are stored in `data/appearance.json` and take effect immediately.
+
+### Manual Customization
+
 - **Custom Stylesheet**: Set `STYLESHEET=/css/mytheme.css` in `.env` (includes built-in dark theme at `/css/dark.css`)
-- **Template Overrides**: Copy any template to `templates/custom/` to override it
+- **Template Overrides**: Copy any template to `templates/custom/` to override it without touching core files
+- **Shell Templates**: Add a `templates/shells/<name>/` directory with a `base.twig` to create a new shell
 - **Custom Routes**: Create `routes/web-routes.local.php` to add new pages
-- **System News**: Create `templates/custom/systemnews.twig` for dashboard content
 - **Header Insertions**: Add CSS/JS via `templates/custom/header.insert.twig`
 - **Welcome Messages**: Customize login page via `config/welcome.txt`
 
 All customizations are upgrade-safe and won't be overwritten when updating BinktermPHP.
 
-For detailed instructions including Bootstrap 5 components, Twig template variables, and code examples, see **[CUSTOMIZING.md](CUSTOMIZING.md)**.
+For detailed instructions including the full appearance configuration reference, shell template structure, Twig variables, and code examples, see **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)**.
 
 ### Performance Tuning
 

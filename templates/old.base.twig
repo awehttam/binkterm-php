@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">{# session-scoped CSRF token, stable across tabs #}
+    <title>{% block title %}{{ system_name }}{% endblock %}</title>
+
+    {# Meta tags block for SEO - can be overridden by child templates #}
+    {% block meta_tags %}{% endblock %}
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="{{ favicon_svg }}">
+    <link rel="icon" type="image/x-icon" href="{{ favicon_ico }}">
+    <link rel="apple-touch-icon" href="{{ favicon_png }}">
+
+    <link rel="manifest" href="/appmanifestjson">
+
+
+
+    <link href="/vendor/bootstrap-5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
+    <link id="theme-stylesheet" href="{{ stylesheet }}" rel="stylesheet">
+    <link href="/css/ansisys.css" rel="stylesheet">
+    {% block head %}{% endblock %}
+    <style>
+        .chat-menu-icon.unread {
+            color: #ffc107 !important;
+        }
+        .messaging-menu-icon.unread {
+            color: #ffc107 !important;
+        }
+        .mail-menu-icon.unread {
+            color: #ffc107 !important;
+        }
+
+        /* Nested dropdown submenu styles */
+        .dropdown-submenu {
+            position: relative;
+        }
+
+        .dropdown-submenu > .dropdown-menu {
+            top: 0;
+            left: 100%;
+            margin-top: -1px;
+            margin-left: -1px;
+        }
+
+        .dropdown-submenu:hover > .dropdown-menu {
+            display: block;
+        }
+
+        .dropdown-submenu > .dropdown-toggle::after {
+            transform: rotate(-90deg);
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            margin-top: -3px;
+        }
+
+        /* Mobile responsive: stack submenu below on small screens */
+        @media (max-width: 768px) {
+            .dropdown-submenu > .dropdown-menu {
+                position: static !important;
+                margin-left: 1rem;
+                border-left: 2px solid rgba(0,0,0,0.1);
+            }
+        }
+    </style>
+    <script src="/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="/vendor/jquery-3.7.1/jquery-3.7.1.min.js"></script>
+    <script src="/js/app.js"></script>
+    {% if current_user and bbs_feature_enabled('chat') %}
+    <script src="/js/chat-notify.js"></script>
+    {% endif %}
+    {# Include custom header insertions if available #}
+    {% include 'custom/header.insert.twig' ignore missing %}
+</head>
+<body>
+    <!-- Update notification toast -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+        <div id="updateToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
+            <div class="toast-header bg-primary text-white">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong class="me-auto">Update Available</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body bg-light">
+                <small class="text-muted">A new version is ready</small>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-primary w-100" onclick="activateUpdate()">
+                        <i class="fas fa-sync-alt me-1"></i> Reload Now
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="navbar navbar-expand-xl navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-network-wired"></i>
+                {{ system_name }}
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+
+                    {% if current_user %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-envelope-open-text messaging-menu-icon" id="messagingMenuIcon"></i> Messaging
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item" href="/netmail">
+                                        <i class="fas fa-envelope mail-menu-icon" id="netmailMenuIcon"></i> Netmail
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ default_echo_list == 'echolist' ? '/echolist' : '/echomail' }}">
+                                        <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> Echomail
+                                    </a>
+                                </li>
+                                {% if bbs_feature_enabled('chat') %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="/chat">
+                                        <i class="fas fa-comments chat-menu-icon" id="chatMenuIcon"></i> Chat
+                                    </a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </li>
+                        {% if webdoors_active and bbs_feature_enabled('webdoors') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/games">
+                                <i class="fas fa-gamepad"></i> Doors &amp; Games
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% if bbs_feature_enabled('file_areas') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/files">
+                                <i class="fas fa-file"></i> Files
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="/nodelist">
+                                <i class="fas fa-sitemap"></i> Nodelist
+                            </a>
+                        </li>
+
+                        {% if current_user.is_admin %}
+
+                        {% endif %}
+
+                        {% if current_user.is_admin %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-cog"></i> Admin
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/whosonline"><i class="fas fa-user-friends"></i> Who's Online</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                                <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> Binkp Status</a></li>
+                                <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> Manage Users</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> Advertisements</a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> Area Management</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
+                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> File Areas</a></li>
+                                        <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> File Area Rules</a></li>
+                                        <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                                    </ul>
+                                </li>
+                                <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> Auto Feed</a></li>
+                                <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
+                                <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> Polls</a></li>
+                                <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> Shoutbox</a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> Doors</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/admin/dosdoors"><i class="fas fa-terminal"></i> DOS Doors</a></li>
+                                        <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-globe"></i> Web Doors</a></li>
+                                    </ul>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> Activity Statistics</a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> Binkp Configuration</a></li>
+                                        <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> Template Editor</a></li>
+                                    </ul>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-question-circle"></i> Help</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> README</a></li>
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                                        {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> Upgrade Notes v{{ app_version }}</a></li>{% endif %}
+                                        <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> Claude's BBS</a></li>
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> Report Issue</a></li>
+                                    </ul>
+                                </li>
+
+                            </ul>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/nodelist">
+                                <i class="fas fa-sitemap"></i> Nodelist
+                            </a>
+                        </li>
+
+                    {% endif %}
+                </ul>
+                
+                <ul class="navbar-nav">
+                    {% if current_user %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                {% if credits_enabled %}
+                                    <span class="me-2" id="headerCreditBalance">{{ credits_symbol }}{{ credit_balance }}</span>
+                                {% endif %}
+                                <i class="fas fa-user"></i> {{ current_user.username }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/profile">Profile</a></li>
+                                <li><a class="dropdown-item" href="/settings">Settings</a></li>
+                                <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="logout()">Logout</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/login">Login</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-light mt-5 py-3">
+        <div class="container text-center">
+            <small class="text-muted">
+                {{ system_name }} - Node {{ fidonet_origin }} - Sysop: {{ sysop_name }}
+
+            </small>
+            <br>
+            <small class="text-muted">
+                Powered by <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a> |
+                <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">House Rules</a>
+            </small>
+        </div>
+    </footer>
+
+    <div class="modal fade" id="houseRulesModal" tabindex="-1" aria-labelledby="houseRulesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="houseRulesModalLabel">House Rules</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    {% include 'rules.twig' %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+        // Global user settings loaded from server
+        window.userSettings = {
+            timezone: 'America/Los_Angeles' // Default, will be loaded via AJAX
+        };
+        {% if current_user %}
+        window.currentUserId = {{ current_user.user_id ?? current_user.id }};
+        window.currentUserIsAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
+        {% endif %}
+
+        // Handle nested dropdown submenus
+        $(document).ready(function() {
+            // Show submenu on hover (desktop)
+            $('.dropdown-submenu').hover(
+                function() {
+                    $(this).find('> .dropdown-menu').show();
+                },
+                function() {
+                    $(this).find('> .dropdown-menu').hide();
+                }
+            );
+
+            // Handle click on submenu toggle
+            $('.dropdown-submenu > .dropdown-toggle').on('click', function(e) {
+                const href = $(this).attr('href');
+
+                // If it's a real link (not #), allow normal navigation on direct click
+                if (href && href !== '#') {
+                    // On mobile or if submenu is not visible, toggle submenu instead
+                    if ($(window).width() <= 768 || !$(this).next('.dropdown-menu').is(':visible')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const $submenu = $(this).next('.dropdown-menu');
+                        $('.dropdown-submenu .dropdown-menu').not($submenu).hide();
+                        $submenu.toggle();
+                    }
+                    // Otherwise let the link work normally
+                } else {
+                    // For # links, just toggle submenu
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const $submenu = $(this).next('.dropdown-menu');
+                    $('.dropdown-submenu .dropdown-menu').not($submenu).hide();
+                    $submenu.toggle();
+                }
+            });
+
+            // Hide submenu when parent dropdown closes
+            $('.dropdown').on('hide.bs.dropdown', function() {
+                $(this).find('.dropdown-submenu .dropdown-menu').hide();
+            });
+        });
+    </script>
+    <script>
+        let swRegistration = null;
+        let updatePending = false;
+        let pageNavigating = false;
+
+        if ('serviceWorker' in navigator) {
+            // Track if page is navigating
+            window.addEventListener('beforeunload', () => {
+                pageNavigating = true;
+            });
+
+            // Listen for messages from service worker BEFORE registration
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                console.log('[Page] Received message from SW:', event.data);
+                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+                    console.log('[Page] Update available:', event.data.version);
+                    showUpdateNotification();
+                }
+            });
+
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('[Page] Service Worker registered! Scope is:', registration.scope);
+                        swRegistration = registration;
+
+                        // Check if there's already a waiting SW
+                        if (registration.waiting) {
+                            console.log('[Page] SW already waiting, showing update notification');
+                            showUpdateNotification();
+                        }
+
+                        // Listen for new SW installing
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('[Page] New service worker found, installing...');
+
+                            newWorker.addEventListener('statechange', () => {
+                                console.log('[Page] SW state changed to:', newWorker.state);
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('[Page] New SW installed, showing update notification');
+                                    showUpdateNotification();
+                                }
+                            });
+                        });
+
+                        // Check for updates periodically (every 60 seconds)
+                        setInterval(() => {
+                            console.log('[Page] Checking for updates...');
+                            registration.update();
+                        }, 60000);
+                    })
+                    .catch(err => {
+                        console.log('[Page] Service Worker registration failed:', err);
+                    });
+            });
+
+            // Show pending notification when page becomes visible
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && updatePending && !pageNavigating) {
+                    console.log('[Page] Page visible, showing pending update notification');
+                    showUpdateNotificationNow();
+                }
+            });
+        }
+
+        function showUpdateNotification() {
+            // Delay slightly to avoid showing during navigation
+            setTimeout(() => {
+                // Only show if page is visible and not navigating
+                if (document.visibilityState === 'visible' && !pageNavigating) {
+                    showUpdateNotificationNow();
+                } else {
+                    // Queue for later when page becomes visible
+                    console.log('[Page] Page not ready for notification, queuing for later');
+                    updatePending = true;
+                }
+            }, 500); // 500ms delay to avoid navigation conflicts
+        }
+
+        function showUpdateNotificationNow() {
+            const toastEl = document.getElementById('updateToast');
+            if (toastEl) {
+                updatePending = false;
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+        }
+
+        function activateUpdate() {
+            if (swRegistration && swRegistration.waiting) {
+                // Tell the waiting service worker to activate
+                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+                // Reload once when the new service worker takes control.
+                // Use { once: true } to ensure only a single reload fires
+                // even if controllerchange is emitted more than once
+                // (e.g. via clients.claim() during activation).
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    window.location.reload();
+                }, { once: true });
+            } else {
+                // Fallback: just reload
+                window.location.reload();
+            }
+        }
+    </script>
+
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>
