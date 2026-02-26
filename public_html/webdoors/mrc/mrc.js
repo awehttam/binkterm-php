@@ -38,6 +38,7 @@ class MrcClient {
         this.lastPresencePingAt = 0;
         this.autoScroll = true;
         this.username = window.mrcCurrentUser || null;
+        this.localBbs = window.mrcCurrentBbs || null;
 
         this.init();
     }
@@ -367,19 +368,24 @@ class MrcClient {
         }
 
         users.forEach(user => {
-            const isSelf = this.username && user.username.toLowerCase() === this.username.toLowerCase();
-            const isActiveDm = this.privateUser && user.username.toLowerCase() === this.privateUser.toLowerCase();
-            const unread = this.privateUnread[user.username.toLowerCase()] || 0;
+            const userName = user.username || '';
+            const isSelf = this.username && userName.toLowerCase() === this.username.toLowerCase();
+            const isActiveDm = this.privateUser && userName.toLowerCase() === this.privateUser.toLowerCase();
+            const unread = this.privateUnread[userName.toLowerCase()] || 0;
+            const rawBbsName = user.bbs_name ? user.bbs_name.trim() : '';
+            const showBbsName = rawBbsName !== '' && rawBbsName.toLowerCase() !== 'unknown';
+            const isLocalBbs = showBbsName && this.localBbs && rawBbsName.toLowerCase() === this.localBbs.toLowerCase();
+            const displayName = showBbsName ? `${this.escapeHtml(userName)} @ ${this.escapeHtml(rawBbsName)}` : this.escapeHtml(userName);
             const item = $('<div>')
                 .addClass('list-group-item')
                 .addClass(isActiveDm ? 'user-dm-active' : '')
                 .html(`
                     <div class="user-name">
-                        ${this.escapeHtml(user.username)}
+                        ${displayName}
+                        ${isLocalBbs ? '<span class="badge bg-success ms-2">local</span>' : ''}
                         ${user.is_afk ? '<span class="user-afk">(AFK)</span>' : ''}
                         ${unread > 0 ? `<span class="badge bg-warning text-dark ms-2 user-dm-badge">${unread}</span>` : ''}
                     </div>
-                    <div class="user-bbs">${this.escapeHtml(user.bbs_name)}</div>
                 `);
 
             if (!isSelf) {

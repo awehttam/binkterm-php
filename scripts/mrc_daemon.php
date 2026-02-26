@@ -167,19 +167,10 @@ function processIncomingPacket(array $packet): void
 }
 
 /**
- * Handle a join announcement — upsert the user as a foreign presence.
+ * Handle a join announcement — upsert the user as server-reported presence.
  */
 function handleUserJoinAnnouncement(string $username, string $bbsName, string $room): void
 {
-    // The server echoes join announcements for our own local users back to us.
-    // Identify "ours" by BBS name — not username — so that users on other BBSes
-    // who happen to share a username are correctly treated as foreign.
-    $config = MrcConfig::getInstance();
-    $ourBbs = MrcClient::sanitizeName($config->getBbsName());
-    if (strcasecmp(MrcClient::sanitizeName($bbsName), $ourBbs) === 0) {
-        return;
-    }
-
     $db = getDb();
 
     $db->prepare("
@@ -333,27 +324,19 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                 // Replace foreign user list for this room — preserve local (webdoor) users
                 $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false");
                 $stmt->execute(['room' => $room]);
-                // Collect local usernames (exact case) to skip our own users echoed
-                // back by the server. Use exact match so same-named users from other
-                // BBSes (e.g. Awehttam@revpol vs awehttam@ours) are not excluded.
-                $localStmt = $db->prepare("
-                    SELECT username FROM mrc_users
-                    WHERE room_name = :room AND is_local = true
-                ");
-                $localStmt->execute(['room' => $room]);
-                $localNames = $localStmt->fetchAll(PDO::FETCH_COLUMN);
                 $insertStmt = $db->prepare("
                     INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
-                    VALUES (:username, '', :room, false, CURRENT_TIMESTAMP)
+                    VALUES (:username, :bbs_name, :room, false, CURRENT_TIMESTAMP)
                     ON CONFLICT (username, bbs_name, room_name) DO UPDATE
                     SET last_seen = CURRENT_TIMESTAMP
                 ");
                 foreach ($users as $u) {
                     $trimmed = trim($u);
-                    if (in_array($trimmed, $localNames, true)) {
-                        continue; // Exact match — our own user echoed back, skip
-                    }
-                    $insertStmt->execute(['username' => $trimmed, 'room' => $room]);
+                    $insertStmt->execute([
+                        'username' => $trimmed,
+                        'bbs_name' => 'unknown',
+                        'room' => $room
+                    ]);
                 }
                 error_log("MRC: Room {$room} users: {$params}");
             }
@@ -473,8 +456,7 @@ function maintainLocalUserSessions(MrcClient $client): void
     $stmt = $db->query("
         SELECT username, room_name,
                (last_seen < CURRENT_TIMESTAMP - INTERVAL '10 minutes') AS is_stale
-        FROM mrc_users
-        WHERE is_local = true
+        FROM mrc_local_presence
     ");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -491,9 +473,8 @@ function maintainLocalUserSessions(MrcClient $client): void
 
     if ($staleCount > 0) {
         $db->exec("
-            DELETE FROM mrc_users
-            WHERE is_local = true
-            AND last_seen < CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+            DELETE FROM mrc_local_presence
+            WHERE last_seen < CURRENT_TIMESTAMP - INTERVAL '10 minutes'
         ");
         error_log("MRC: Pruned {$staleCount} stale local user(s)");
     }
@@ -543,7 +524,7 @@ function rejoinLocalUserRooms(MrcClient $client): void
 {
     $db = getDb();
 
-    $stmt = $db->query("SELECT username, room_name FROM mrc_users WHERE is_local = true");
+    $stmt = $db->query("SELECT username, room_name FROM mrc_local_presence");
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $client->joinRoom($row['room_name'], $row['username']);
         error_log("MRC: Re-joined {$row['username']} into room: {$row['room_name']}");
@@ -699,7 +680,7 @@ try {
         // was missed.
         if (time() - $lastUserListRefresh >= 60) {
             $db = getDb();
-            $stmt = $db->query("SELECT DISTINCT room_name FROM mrc_users WHERE is_local = true");
+            $stmt = $db->query("SELECT DISTINCT room_name FROM mrc_local_presence");
             foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $room) {
                 $client->requestUserList($room);
             }

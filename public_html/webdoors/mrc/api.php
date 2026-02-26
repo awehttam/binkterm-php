@@ -220,10 +220,10 @@ function upsertLocalPresence(PDO $db, array $user, string $room): void
     ")->execute(['room' => $room]);
 
     $db->prepare("
-        INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
-        VALUES (:username, :bbs_name, :room, true, CURRENT_TIMESTAMP)
+        INSERT INTO mrc_local_presence (username, bbs_name, room_name, last_seen)
+        VALUES (:username, :bbs_name, :room, CURRENT_TIMESTAMP)
         ON CONFLICT (username, bbs_name, room_name) DO UPDATE
-        SET is_local = true, last_seen = CURRENT_TIMESTAMP
+        SET last_seen = CURRENT_TIMESTAMP
     ")->execute(['username' => $localUsername, 'bbs_name' => $localBbsName, 'room' => $room]);
 }
 
@@ -558,11 +558,11 @@ function handleJoin(PDO $db, array $user): void
     ")->execute(['room' => $room]);
 
     $db->prepare("
-        INSERT INTO mrc_users (username, bbs_name, room_name, ip_address, is_local, last_seen)
-        VALUES (:username, :bbs_name, :room, :ip_address, true, CURRENT_TIMESTAMP)
+        INSERT INTO mrc_local_presence (username, bbs_name, room_name, ip_address, last_seen)
+        VALUES (:username, :bbs_name, :room, :ip_address, CURRENT_TIMESTAMP)
         ON CONFLICT (username, bbs_name, room_name) DO UPDATE
-        SET is_local = true, last_seen = CURRENT_TIMESTAMP,
-            ip_address = COALESCE(EXCLUDED.ip_address, mrc_users.ip_address)
+        SET last_seen = CURRENT_TIMESTAMP,
+            ip_address = COALESCE(EXCLUDED.ip_address, mrc_local_presence.ip_address)
     ")->execute(['username' => $username, 'bbs_name' => $bbsName, 'room' => $room, 'ip_address' => $clientIp]);
 
     \WebDoorSDK\jsonResponse(['success' => true]);

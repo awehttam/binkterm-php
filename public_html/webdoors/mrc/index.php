@@ -13,6 +13,7 @@ use BinktermPHP\AppearanceConfig;
 use BinktermPHP\Auth;
 use BinktermPHP\Config;
 use BinktermPHP\MessageHandler;
+use BinktermPHP\Mrc\MrcConfig;
 
 // Resolve the correct theme stylesheet for the current user
 // (mirrors the logic in Template::addGlobalVariables)
@@ -168,6 +169,7 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
     <script src="/js/ansisys.js"></script>
     <script>
         window.mrcCurrentUser = <?php echo json_encode($currentUser['username'] ?? ''); ?>;
+        window.mrcCurrentBbs = <?php echo json_encode(MrcConfig::getInstance()->getBbsName()); ?>;
     </script>
     <!-- MRC Client JS -->
     <script src="mrc.js"></script>
