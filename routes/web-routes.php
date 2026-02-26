@@ -1,6 +1,7 @@
 <?php
 
 // Web routes
+use BinktermPHP\AppearanceConfig;
 use BinktermPHP\Auth;
 use BinktermPHP\Advertising;
 use BinktermPHP\BbsConfig;
@@ -26,9 +27,28 @@ SimpleRouter::get('/', function() {
     // Generate system news content
     $systemNewsContent = $template->renderSystemNews();
 
+    // Load shell art content for the bbs-menu ANSI variant
+    $shellArtContent = null;
+    $bbsMenu = \BinktermPHP\AppearanceConfig::getBbsMenuConfig();
+    if (($bbsMenu['variant'] ?? '') === 'ansi' && !empty($bbsMenu['ansi_file'])) {
+        $artPath = dirname(__DIR__) . '/data/shell_art/' . basename($bbsMenu['ansi_file']);
+        if (is_file($artPath)) {
+            $raw = file_get_contents($artPath);
+            // Strip SAUCE record: \x1A is the traditional EOF/SAUCE delimiter
+            $saucePos = strpos($raw, "\x1A");
+            if ($saucePos !== false) {
+                $raw = substr($raw, 0, $saucePos);
+            }
+            // Convert CP437 (DOS encoding) to UTF-8 so block drawing characters render correctly
+            $shellArtContent = @iconv('CP437', 'UTF-8//TRANSLIT//IGNORE', $raw)
+                ?: mb_convert_encoding($raw, 'UTF-8', 'CP437');
+        }
+    }
+
     $template->renderResponse('dashboard.twig', [
         'system_news_content' => $systemNewsContent,
-        'dashboard_ad' => $ad
+        'dashboard_ad' => $ad,
+        'shell_art_content' => $shellArtContent,
     ]);
 });
 
@@ -148,6 +168,14 @@ SimpleRouter::get('/register', function() {
     }
     $_SESSION['registration_time'] = time();
 
+    // Capture referral code from URL parameter
+    if (isset($_GET['ref']) && !empty($_GET['ref'])) {
+        $sanitized = preg_replace('/[^A-Za-z0-9_]/', '', $_GET['ref']);
+        if (!empty($sanitized)) {
+            $_SESSION['referral_code'] = $sanitized;
+        }
+    }
+
     $template = new Template();
     $template->renderResponse('register.twig');
 });
@@ -190,12 +218,17 @@ SimpleRouter::get('/netmail', function() {
     try {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
         $systemAddress = $binkpConfig->getSystemAddress();
+        $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
     } catch (\Exception $e) {
         $systemAddress = 'Unknown';
+        $crashmailEnabled = false;
     }
 
     $template = new Template();
-    $template->renderResponse('netmail.twig', ['system_address' => $systemAddress]);
+    $template->renderResponse('netmail.twig', [
+        'system_address'   => $systemAddress,
+        'crashmail_enabled' => $crashmailEnabled,
+    ]);
 });
 
 SimpleRouter::get('/echomail', function() {
@@ -241,6 +274,41 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
     $template->renderResponse('echomail.twig', ['echoarea' => $echoarea]);
 })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
+SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {
+    $auth   = new Auth();
+    $user   = $auth->getCurrentUser();
+    $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+    $messageData = null;
+    $shareInfo   = null;
+    $shareKey    = null;
+
+    try {
+        $handler = new MessageHandler();
+        $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+
+        if ($result['success']) {
+            $messageData = $result['message'];
+            $shareInfo   = $result['share_info'];
+            $shareKey    = $result['share_key'] ?? null;
+        }
+    } catch (Exception $e) {
+        // JavaScript will handle showing the error to the user
+    }
+
+    $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . rawurlencode($area) . '/' . rawurlencode($slug);
+
+    $template = new Template();
+    $template->renderResponse('shared_message.twig', [
+        'shareKey'   => $shareKey,
+        'shareArea'  => $area,
+        'shareSlug'  => $slug,
+        'message'    => $messageData,
+        'share_info' => $shareInfo,
+        'share_url'  => $shareUrl
+    ]);
+})->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
+
 SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     // Don't require authentication for shared messages - the API will handle access control
     // But we need to fetch the message data for SEO meta tags
@@ -265,7 +333,6 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     }
 
     // Build the full share URL for meta tags
-    // Build share URL using centralized method
     $shareUrl = \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
 
     $template = new Template();
@@ -276,6 +343,42 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
         'share_url' => $shareUrl
     ]);
 })->where(['shareKey' => '[a-f0-9]{32}']);
+
+SimpleRouter::get('/shared/file/{area}/{filename}', function($area, $filename) {
+    // No auth required — file info is public; download requires login (handled in template)
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+    $fileData  = null;
+    $shareInfo = null;
+
+    try {
+        $manager = new \BinktermPHP\FileAreaManager();
+        $result  = $manager->getSharedFile($area, $filename, $userId);
+
+        if ($result['success']) {
+            $fileData  = $result['file'];
+            $shareInfo = $result['share_info'];
+        }
+    } catch (\Exception $e) {
+        // Render error state below
+    }
+
+    $shareUrl = \BinktermPHP\Config::getSiteUrl()
+        . '/shared/file/'
+        . rawurlencode($area)
+        . '/'
+        . rawurlencode($filename);
+
+    $template = new Template();
+    $template->renderResponse('shared_file.twig', [
+        'file'        => $fileData,
+        'share_info'  => $shareInfo,
+        'share_url'   => $shareUrl,
+        'is_logged_in'=> $userId !== null,
+    ]);
+})->where(['area' => '[A-Za-z0-9@._-]+', 'filename' => '[A-Za-z0-9._-]+']);
 
 SimpleRouter::get('/binkp', function() {
     $auth = new Auth();
@@ -431,31 +534,6 @@ SimpleRouter::get('/profile/{username}', function($username) {
 
     $template = new Template();
     $template->renderResponse('user_profile.twig', $templateVars);
-});
-
-SimpleRouter::get('/development-history', function() {
-    // Get system configuration for display
-    try {
-        $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-        $systemName = $binkpConfig->getSystemName();
-        $systemAddress = $binkpConfig->getSystemAddress();
-        $sysopName = $binkpConfig->getSystemSysop();
-    } catch (\Exception $e) {
-        $systemName = 'BinktermPHP System';
-        $systemAddress = 'Not configured';
-        $sysopName = 'Unknown';
-    }
-
-    $templateVars = [
-        'system_name' => $systemName,
-        'fidonet_origin' => $systemAddress,
-        'sysop_name' => $sysopName,
-        'app_version' => \BinktermPHP\Version::getVersion(),
-        'app_full_version' => \BinktermPHP\Version::getFullVersion()
-    ];
-
-    $template = new Template();
-    $template->renderResponse('development_history.twig', $templateVars);
 });
 
 SimpleRouter::get('/settings', function() {
@@ -685,10 +763,11 @@ SimpleRouter::get('/compose/{type}', function($type) {
     $echoarea = $_GET['echoarea'] ?? null;
     $domainParam = $_GET['domain'] ?? null;
 
-    // Handle new message parameters (from nodelist)
+    // Handle new message parameters (from nodelist or address book)
     $toAddress = $_GET['to'] ?? null;
     $toName = $_GET['to_name'] ?? null;
     $subject = $_GET['subject'] ?? null;
+    $prefillCrashmail = !empty($_GET['crashmail']);
     // Get system configuration for display
     try {
         $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -739,7 +818,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'credits_enabled' => $creditsEnabled,
         'taglines' => $taglines,
         'default_tagline' => $defaultTagline,
-        'max_cross_post_areas' => $maxCrossPost
+        'max_cross_post_areas' => $maxCrossPost,
+        'prefill_crashmail' => $prefillCrashmail,
     ];
 
     if ($replyId) {
@@ -845,6 +925,10 @@ SimpleRouter::get('/compose/{type}', function($type) {
             $settings = $handler->getUserSettings($userId);
             $signatureText = trim((string)($settings['signature_text'] ?? ''));
             $defaultTagline = (string)($settings['default_tagline'] ?? '');
+            // Resolve random tagline selection at compose time
+            if ($defaultTagline === '__random__' && !empty($templateVars['taglines'])) {
+                $defaultTagline = $templateVars['taglines'][array_rand($templateVars['taglines'])];
+            }
             $templateVars['default_tagline'] = $defaultTagline;
             if ($signatureText !== '') {
                 $sigLines = preg_split('/\r\n|\r|\n/', $signatureText) ?: [];
@@ -907,6 +991,42 @@ SimpleRouter::get('/polls/create', function() {
         'poll_cost' => $pollCost,
         'credit_balance' => $balance
     ]);
+});
+
+// Serve shell art files from data/shell_art/ (public read, admin-only write)
+SimpleRouter::get('/shell-art/{name}', function(string $name) {
+    // Sanitize: only allow safe filenames, no path traversal
+    $name = basename($name);
+    if (!preg_match('/^[a-zA-Z0-9_\-]+\.(ans|asc|txt)$/i', $name)) {
+        http_response_code(404);
+        return;
+    }
+
+    $dir = dirname(__DIR__) . '/data/shell_art';
+    $path = $dir . '/' . $name;
+
+    if (!file_exists($path) || !is_file($path)) {
+        http_response_code(404);
+        return;
+    }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Length: ' . filesize($path));
+    header('Cache-Control: public, max-age=3600');
+    readfile($path);
+});
+
+// Public /about page (only when enabled in appearance settings)
+SimpleRouter::get('/about', function() {
+    if (!\BinktermPHP\AppearanceConfig::isAboutPageEnabled()) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig');
+        return;
+    }
+
+    $template = new Template();
+    $template->renderResponse('about.twig');
 });
 
 // Include local/custom routes if they exist

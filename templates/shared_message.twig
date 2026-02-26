@@ -191,7 +191,9 @@
 
 {% block scripts %}
 <script>
-const shareKey = '{{ shareKey }}';
+const shareKey = '{{ shareKey|default('') }}';
+const shareArea = '{{ shareArea|default('')|e('js') }}';
+const shareSlug = '{{ shareSlug|default('')|e('js') }}';
 
 $(document).ready(function() {
     loadSharedMessage();
@@ -199,7 +201,10 @@ $(document).ready(function() {
 });
 
 function loadSharedMessage() {
-    $.get(`/api/messages/shared/${shareKey}`)
+    const apiUrl = shareKey
+        ? `/api/messages/shared/${shareKey}`
+        : `/api/messages/shared/${encodeURIComponent(shareArea)}/${encodeURIComponent(shareSlug)}`;
+    $.get(apiUrl)
         .done(function(data) {
             if (data.success) {
                 displaySharedMessage(data.message, data.share_info);
@@ -250,14 +255,14 @@ function displaySharedMessage(message, shareInfo) {
         
         <div class="message-headers mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">Message Headers</h6>
+                <h6 class="mb-0 text-muted">Kludge Lines</h6>
                 <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
                     <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">Show Headers</span>
+                    <span id="toggleText">Show Kludge Lines</span>
                 </button>
             </div>
             <div id="kludgeContainer" class="kludge-lines" style="display: none;">
-                <pre class="bg-dark text-light p-3 rounded small">${parsedMessage.kludgeLines.length > 0 ? formatKludgeLines(parsedMessage.kludgeLines) : 'No headers found'}</pre>
+                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
             </div>
         </div>
         

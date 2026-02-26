@@ -1,11 +1,14 @@
 // BinkTest JavaScript Application
 // Message parsing and formatting functions
-function parseNetmailMessage(messageText, storedKludgeLines = null) {
+function parseNetmailMessage(messageText, storedKludgeLines = null, storedBottomKludges = null) {
     // If we have stored kludge lines, use them instead of trying to parse from message text
     if (storedKludgeLines && storedKludgeLines.trim()) {
-        const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const topKludges = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const bottomKludges = storedBottomKludges ? storedBottomKludges.split('\n').filter(line => line.trim() !== '') : [];
         return {
-            kludgeLines: kludgeLines,
+            topKludges: topKludges,
+            bottomKludges: bottomKludges,
+            kludgeLines: [...topKludges, ...bottomKludges], // Combined for backward compatibility
             messageBody: messageText.trim()
         };
     }
@@ -45,12 +48,15 @@ function parseNetmailMessage(messageText, storedKludgeLines = null) {
     };
 }
 
-function parseEchomailMessage(messageText, storedKludgeLines = null) {
+function parseEchomailMessage(messageText, storedKludgeLines = null, storedBottomKludges = null) {
     // If we have stored kludge lines, use them instead of trying to parse from message text
     if (storedKludgeLines && storedKludgeLines.trim()) {
-        const kludgeLines = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const topKludges = storedKludgeLines.split('\n').filter(line => line.trim() !== '');
+        const bottomKludges = storedBottomKludges ? storedBottomKludges.split('\n').filter(line => line.trim() !== '') : [];
         return {
-            kludgeLines: kludgeLines,
+            topKludges: topKludges,
+            bottomKludges: bottomKludges,
+            kludgeLines: [...topKludges, ...bottomKludges], // Combined for backward compatibility
             messageBody: messageText.replace(/\s+$/g, '')
         };
     }
@@ -104,6 +110,8 @@ function formatMessageText(messageText, searchTerms = []) {
 
     const hasAnsi = /\x1b\[[0-9;]*m/.test(messageText);
     const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(messageText);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(messageText);
+    const hasColorCodes = hasAnsi || hasPipes;
     const lines = messageText.split(/\r?\n/);
     const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
     const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -112,8 +120,8 @@ function formatMessageText(messageText, searchTerms = []) {
     const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
 
-    const shouldRenderAnsiArt = hasCursorAnsi || (hasAnsi && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
-    const ansiLineStyle = hasAnsi ? ' style="white-space: pre;"' : '';
+    const shouldRenderAnsiArt = hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
+    const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : '';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)
     // If so, use the full terminal renderer instead of line-by-line processing
@@ -127,6 +135,18 @@ function formatMessageText(messageText, searchTerms = []) {
     }
 
     // Format as readable text with preserved line breaks and quote coloring
+
+    // Pre-scan to find the LAST signature separator in the bottom third of the
+    // message. A bare run of dashes (-- or ---) only counts as a sig separator
+    // when it appears late in the message — earlier occurrences are typically
+    // mid-message dividers, not signature delimiters.
+    const isSigSeparator = line => /^(-{2,3}|_{2,3})$/.test(line.trim());
+    const bottomThirdStart = Math.floor(lines.length * 2 / 3);
+    let lastSigIndex = -1;
+    for (let i = bottomThirdStart; i < lines.length; i++) {
+        if (isSigSeparator(lines[i])) lastSigIndex = i;
+    }
+
     let formattedLines = [];
     let inQuoteBlock = false;
     let inSignature = false;
@@ -135,8 +155,8 @@ function formatMessageText(messageText, searchTerms = []) {
         const line = lines[i];
         const trimmedLine = line.trim();
 
-        // Handle signature separator
-        if (trimmedLine === '---' || trimmedLine === '___' || trimmedLine.match(/^-{2,}$/)) {
+        // Handle signature separator — only trigger on the last one
+        if (isSigSeparator(line) && i === lastSigIndex) {
             inSignature = true;
             let highlightedLine = parseAnsi(trimmedLine);
             highlightedLine = linkifyUrls(highlightedLine);
@@ -213,34 +233,70 @@ function formatMessageText(messageText, searchTerms = []) {
 }
 
 // Helper function to highlight search terms in escaped HTML text
+// Only highlights text content, not text inside HTML tags or attributes
 function highlightSearchTerms(htmlText, searchTerms) {
     if (!searchTerms || searchTerms.length === 0 || !htmlText) {
         return htmlText;
     }
 
-    let highlightedText = htmlText;
-
     // Sort search terms by length (longest first) to avoid partial matches inside longer terms
     const sortedTerms = searchTerms.slice().sort((a, b) => b.length - a.length);
 
-    for (const term of sortedTerms) {
-        if (term.length < 2) continue; // Skip single character terms
+    // Split HTML into text and tag parts to avoid highlighting inside tags/attributes
+    // This regex matches HTML tags (including their attributes)
+    const htmlTagPattern = /<[^>]+>/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
 
-        // Create a case-insensitive regex that matches the term
-        const escapedTerm = escapeRegex(term);
-        const regex = new RegExp(escapedTerm, 'gi');
-
-        highlightedText = highlightedText.replace(regex, function(match) {
-            // Avoid double-highlighting by checking if we're already inside a highlight span
-            return `<span class="search-highlight">${match}</span>`;
+    // Split the HTML into alternating text and tag segments
+    while ((match = htmlTagPattern.exec(htmlText)) !== null) {
+        // Add text before this tag
+        if (match.index > lastIndex) {
+            parts.push({
+                type: 'text',
+                content: htmlText.substring(lastIndex, match.index)
+            });
+        }
+        // Add the tag itself
+        parts.push({
+            type: 'tag',
+            content: match[0]
+        });
+        lastIndex = htmlTagPattern.lastIndex;
+    }
+    // Add remaining text after last tag
+    if (lastIndex < htmlText.length) {
+        parts.push({
+            type: 'text',
+            content: htmlText.substring(lastIndex)
         });
     }
 
+    // Now highlight search terms only in text parts
+    for (const term of sortedTerms) {
+        if (term.length < 2) continue; // Skip single character terms
+
+        const escapedTerm = escapeRegex(term);
+        const regex = new RegExp(escapedTerm, 'gi');
+
+        for (let i = 0; i < parts.length; i++) {
+            if (parts[i].type === 'text') {
+                parts[i].content = parts[i].content.replace(regex, function(match) {
+                    return `<span class="search-highlight">${match}</span>`;
+                });
+            }
+        }
+    }
+
+    // Reconstruct the HTML
+    let result = parts.map(p => p.content).join('');
+
     // Clean up nested highlighting that might occur
-    highlightedText = highlightedText.replace(/<span class="search-highlight">([^<]*)<span class="search-highlight">([^<]*)<\/span>([^<]*)<\/span>/gi,
+    result = result.replace(/<span class="search-highlight">([^<]*)<span class="search-highlight">([^<]*)<\/span>([^<]*)<\/span>/gi,
         '<span class="search-highlight">$1$2$3</span>');
 
-    return highlightedText;
+    return result;
 }
 
 // Helper function to escape special regex characters
@@ -284,37 +340,60 @@ function linkifyUrls(text) {
     });
 }
 
+function formatSingleKludgeLine(line) {
+    // Clean up control characters completely
+    let cleanLine = line.replace(/\x01/g, ''); // Remove SOH characters
+    cleanLine = cleanLine.replace(/[\x00-\x1F\x7F-\x9F]/g, ''); // Remove other control characters
+    const escapedLine = escapeHtml(cleanLine);
+
+    // Color code different types of kludge lines
+    if (line.startsWith('\x01MSGID:')) {
+        return `<span style="color: #28a745;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01REPLY:')) {
+        return `<span style="color: #17a2b8;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01INTL')) {
+        return `<span style="color: #ffc107;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01TOPT') || line.startsWith('\x01FMPT')) {
+        return `<span style="color: #fd7e14;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01PID:')) {
+        return `<span style="color: #e83e8c;">${escapedLine}</span>`;
+    } else if (line.startsWith('SEEN-BY:')) {
+        return `<span style="color: #6f42c1;">${escapedLine}</span>`;
+    } else if (line.startsWith('PATH:')) {
+        return `<span style="color: #20c997;">${escapedLine}</span>`;
+    } else if (line.startsWith('AREA:')) {
+        return `<span style="color: #007bff;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01Via')) {
+        return `<span style="color: #ff69b4;">${escapedLine}</span>`;
+    } else if (line.startsWith('\x01')) {
+        // Generic kludge line
+        return `<span style="color: #dc3545;">${escapedLine}</span>`;
+    } else {
+        return `<span style="color: #6c757d;">${escapedLine}</span>`;
+    }
+}
+
 function formatKludgeLines(kludgeLines) {
-    return kludgeLines.map(line => {
-        // Clean up control characters completely
-        let cleanLine = line.replace(/\x01/g, ''); // Remove SOH characters
-        cleanLine = cleanLine.replace(/[\x00-\x1F\x7F-\x9F]/g, ''); // Remove other control characters
-        const escapedLine = escapeHtml(cleanLine);
-        
-        // Color code different types of kludge lines
-        if (line.startsWith('\x01MSGID:')) {
-            return `<span style="color: #28a745;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01REPLY:')) {
-            return `<span style="color: #17a2b8;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01INTL')) {
-            return `<span style="color: #ffc107;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01TOPT') || line.startsWith('\x01FMPT')) {
-            return `<span style="color: #fd7e14;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01PID:')) {
-            return `<span style="color: #e83e8c;">${escapedLine}</span>`;
-        } else if (line.startsWith('SEEN-BY:')) {
-            return `<span style="color: #6f42c1;">${escapedLine}</span>`;
-        } else if (line.startsWith('PATH:')) {
-            return `<span style="color: #20c997;">${escapedLine}</span>`;
-        } else if (line.startsWith('AREA:')) {
-            return `<span style="color: #007bff;">${escapedLine}</span>`;
-        } else if (line.startsWith('\x01')) {
-            // Generic kludge line
-            return `<span style="color: #dc3545;">${escapedLine}</span>`;
-        } else {
-            return `<span style="color: #6c757d;">${escapedLine}</span>`;
+    return kludgeLines.map(line => formatSingleKludgeLine(line)).join('\n');
+}
+
+function formatKludgeLinesWithSeparator(topKludges, bottomKludges) {
+    let output = '';
+
+    // Format top kludges
+    if (topKludges && topKludges.length > 0) {
+        output += topKludges.map(line => formatSingleKludgeLine(line)).join('\n');
+    }
+
+    // Add bottom kludges without separator
+    if (bottomKludges && bottomKludges.length > 0) {
+        if (output) {
+            output += '\n';
         }
-    }).join('\n');
+        output += bottomKludges.map(line => formatSingleKludgeLine(line)).join('\n');
+    }
+
+    return output || 'No kludge lines found';
 }
 
 function toggleKludgeLines() {
@@ -325,11 +404,11 @@ function toggleKludgeLines() {
     if (container.is(':visible')) {
         container.slideUp();
         icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
-        text.text('Show Headers');
+        text.text('Show Kludge Lines');
     } else {
         container.slideDown();
         icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
-        text.text('Hide Headers');
+        text.text('Hide Kludge Lines');
     }
 }
 
@@ -340,10 +419,13 @@ $(document).ready(function() {
     // Load user settings on page load
     loadUserSettings();
     
-    // Global AJAX setup
+    // Global AJAX setup — attach CSRF token to every jQuery AJAX request
     $.ajaxSetup({
         beforeSend: function(xhr) {
-            // Add loading indicator if needed
+            const token = document.querySelector('meta[name="csrf-token"]');
+            if (token && token.content) {
+                xhr.setRequestHeader('X-CSRF-Token', token.content);
+            }
         },
         error: function(xhr, status, error) {
             if (xhr.status === 401) {
@@ -353,6 +435,32 @@ $(document).ready(function() {
         }
     });
 });
+
+// Intercept native fetch() calls for same-origin state-changing requests
+// so that templates using fetch() directly also send the CSRF token.
+(function() {
+    const _fetch = window.fetch;
+    window.fetch = function(url, options) {
+        options = options || {};
+        const method = (options.method || 'GET').toUpperCase();
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+            const isSameOrigin = typeof url === 'string' &&
+                (url.startsWith('/') || url.startsWith(window.location.origin));
+            if (isSameOrigin) {
+                const token = document.querySelector('meta[name="csrf-token"]');
+                if (token && token.content) {
+                    options.headers = options.headers || {};
+                    if (options.headers instanceof Headers) {
+                        options.headers.set('X-CSRF-Token', token.content);
+                    } else {
+                        options.headers['X-CSRF-Token'] = token.content;
+                    }
+                }
+            }
+        }
+        return _fetch.call(this, url, options);
+    };
+}());
 
 // Unified user settings management
 function loadUserSettings() {

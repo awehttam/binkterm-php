@@ -1,0 +1,855 @@
+{% extends "base.twig" %}
+
+{% block title %}Appearance & Content - Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-palette me-2"></i>Appearance &amp; Content</h2>
+</div>
+
+<div id="appearanceAlert"></div>
+
+<ul class="nav nav-tabs mb-3" id="appearanceTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-branding-btn" data-bs-toggle="tab" data-bs-target="#tab-branding" type="button" role="tab">
+            <i class="fas fa-brush me-1"></i> Branding
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-content-btn" data-bs-toggle="tab" data-bs-target="#tab-content" type="button" role="tab">
+            <i class="fas fa-newspaper me-1"></i> Content
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-navigation-btn" data-bs-toggle="tab" data-bs-target="#tab-navigation" type="button" role="tab">
+            <i class="fas fa-link me-1"></i> Navigation
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-seo-btn" data-bs-toggle="tab" data-bs-target="#tab-seo" type="button" role="tab">
+            <i class="fas fa-search me-1"></i> SEO &amp; Public
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-shell-btn" data-bs-toggle="tab" data-bs-target="#tab-shell" type="button" role="tab">
+            <i class="fas fa-desktop me-1"></i> Shell
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-message-reader-btn" data-bs-toggle="tab" data-bs-target="#tab-message-reader" type="button" role="tab">
+            <i class="fas fa-envelope-open-text me-1"></i> Message Reader
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="appearanceTabContent">
+
+    {# ====== TAB: BRANDING ====== #}
+    <div class="tab-pane fade show active" id="tab-branding" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Branding</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Accent Color</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="color" class="form-control form-control-color" id="accentColorPicker" title="Pick accent color">
+                        <input type="text" class="form-control" id="accentColorHex" placeholder="#0d6efd" maxlength="7" style="max-width:120px;">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetAccentColor()">Reset</button>
+                    </div>
+                    <div class="form-text">Override the primary navigation and button color site-wide. Leave blank for default.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="defaultTheme">Default Theme</label>
+                    <select class="form-select" id="defaultTheme" style="max-width:350px;">
+                        <option value="">(System default)</option>
+                        {% for name, path in available_themes %}
+                            <option value="{{ path | e }}">{{ name | e }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Theme applied to all users by default.</div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="lockTheme">
+                        <label class="form-check-label" for="lockTheme">Lock theme (prevent users from overriding)</label>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="logoUrl">Logo URL</label>
+                    <input type="text" class="form-control" id="logoUrl" placeholder="/images/logo.png">
+                    <div class="form-text">URL to a logo image shown in the navbar. Leave blank to use the system name text.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="footerText">Footer Text</label>
+                    <input type="text" class="form-control" id="footerText" maxlength="500" placeholder="Leave blank for default node/sysop line">
+                    <div class="form-text">Custom text for the footer. Leave blank for the default system information line.</div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveBranding()">
+                    <i class="fas fa-save me-1"></i> Save Branding
+                </button>
+                <span id="brandingStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
+    {# ====== TAB: CONTENT ====== #}
+    <div class="tab-pane fade" id="tab-content" role="tabpanel">
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">System News (MOTD)</h5>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewMarkdown('motd', 'motdText', 'motdPreview')">
+                            <i class="fas fa-eye me-1"></i> Preview
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control font-monospace" id="motdText" rows="10" placeholder="Enter system news in Markdown format..."></textarea>
+                        <div class="form-text">Supports Markdown. Shown on the dashboard. Leave blank to show the built-in default or custom systemnews.twig.</div>
+                        <div id="motdPreview" class="border rounded p-3 mt-2" style="display:none; min-height:80px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">House Rules</h5>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewMarkdown('rules', 'rulesText', 'rulesPreview')">
+                            <i class="fas fa-eye me-1"></i> Preview
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control font-monospace" id="rulesText" rows="10" placeholder="Enter house rules in Markdown format..."></textarea>
+                        <div class="form-text">Supports Markdown. Displayed in the House Rules modal linked from the footer.</div>
+                        <div id="rulesPreview" class="border rounded p-3 mt-2" style="display:none; min-height:80px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Site Announcement</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="annEnabled">
+                                <label class="form-check-label" for="annEnabled">Show announcement banner</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="annText">Announcement Text</label>
+                            <input type="text" class="form-control" id="annText" maxlength="500">
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="annType">Type</label>
+                                <select class="form-select" id="annType">
+                                    <option value="info">Info (blue)</option>
+                                    <option value="success">Success (green)</option>
+                                    <option value="warning">Warning (yellow)</option>
+                                    <option value="danger">Danger (red)</option>
+                                    <option value="primary">Primary</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="annExpires">Expires At (optional)</label>
+                                <input type="datetime-local" class="form-control" id="annExpires">
+                                <div class="form-text">Leave blank to never expire.</div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="annDismissible" checked>
+                                    <label class="form-check-label" for="annDismissible">Dismissible</label>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveContent()">
+                            <i class="fas fa-save me-1"></i> Save Content
+                        </button>
+                        <span id="contentStatus" class="ms-2 text-muted small"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ====== TAB: NAVIGATION ====== #}
+    <div class="tab-pane fade" id="tab-navigation" role="tabpanel">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Custom Navigation Links</h5>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNavLink()">
+                    <i class="fas fa-plus me-1"></i> Add Link
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="form-text mb-3">Up to 3 links appear inline in the navbar; 4 or more are grouped into a "Links" dropdown.</div>
+                <table class="table table-sm" id="navLinksTable">
+                    <thead>
+                        <tr>
+                            <th>Label</th>
+                            <th>URL</th>
+                            <th>New Tab</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="navLinksBody">
+                    </tbody>
+                </table>
+                <button type="button" class="btn btn-primary mt-2" onclick="saveNavigation()">
+                    <i class="fas fa-save me-1"></i> Save Navigation
+                </button>
+                <span id="navStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
+    {# ====== TAB: SEO ====== #}
+    <div class="tab-pane fade" id="tab-seo" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">SEO &amp; Public Pages</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="aboutPageEnabled">
+                        <label class="form-check-label" for="aboutPageEnabled">Enable <code>/about</code> public page</label>
+                    </div>
+                    <div class="form-text">When enabled, a publicly accessible /about page shows your system info and house rules. Disabled returns 404.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="seoDescription">Site Description <small class="text-muted">(max 300 chars)</small></label>
+                    <textarea class="form-control" id="seoDescription" rows="3" maxlength="300"></textarea>
+                    <div class="form-text d-flex justify-content-between">
+                        <span>Used in meta description and OG tags for search engines and link previews.</span>
+                        <span id="seoDescLen">0/300</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="ogImageUrl">OG Image URL</label>
+                    <input type="text" class="form-control" id="ogImageUrl" placeholder="https://example.com/preview.png">
+                    <div class="form-text">Image shown when your site is shared on social media. Should be at least 1200×630px.</div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveSeo()">
+                    <i class="fas fa-save me-1"></i> Save SEO Settings
+                </button>
+                <span id="seoStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
+    {# ====== TAB: SHELL ====== #}
+    <div class="tab-pane fade" id="tab-shell" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Interface Shell</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Default Interface Style</label>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <div class="card border-primary h-100" id="shellCardWeb" style="cursor:pointer;" onclick="selectShell('web')">
+                                <div class="card-body text-center py-4">
+                                    <i class="fas fa-globe fa-2x text-primary mb-2"></i>
+                                    <h6 class="mb-1">Web Interface</h6>
+                                    <small class="text-muted">Full navbar, dropdown menus, standard web layout</small>
+                                    <div class="mt-2"><span class="badge bg-primary" id="shellBadgeWeb" style="display:none;">Selected</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="card h-100" id="shellCardBbs" style="cursor:pointer;" onclick="selectShell('bbs-menu')">
+                                <div class="card-body text-center py-4">
+                                    <i class="fas fa-terminal fa-2x text-secondary mb-2"></i>
+                                    <h6 class="mb-1">BBS Menu</h6>
+                                    <small class="text-muted">Minimal header, hotkey navigation, card/text/ANSI menu</small>
+                                    <div class="mt-2"><span class="badge bg-primary" id="shellBadgeBbs" style="display:none;">Selected</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="activeShell" value="web">
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="lockShell">
+                        <label class="form-check-label" for="lockShell">Lock shell (prevent users from overriding in their settings)</label>
+                    </div>
+                </div>
+
+                <div id="bbsMenuConfig" style="display:none;">
+                    <hr>
+                    <h6>BBS Menu Configuration</h6>
+
+                    <div class="mb-3">
+                        <label class="form-label">Menu Variant</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="bbsVariant" id="variantCards" value="cards">
+                                <label class="form-check-label" for="variantCards">Card Grid</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="bbsVariant" id="variantText" value="text">
+                                <label class="form-check-label" for="variantText">Terminal Text</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="bbsVariant" id="variantAnsi" value="ansi">
+                                <label class="form-check-label" for="variantAnsi">ANSI Art</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="ansiFileRow" style="display:none;">
+                        <label class="form-label">ANSI Art File</label>
+                        <input type="hidden" id="ansiFile">
+                        <div class="d-flex align-items-start gap-3 flex-wrap">
+                            <div>
+                                <select class="form-select" id="ansiFileSelect" style="min-width:220px;" onchange="$('#ansiFile').val($(this).val());">
+                                    <option value="">(none selected)</option>
+                                </select>
+                                <div class="form-text">Select an uploaded .ans file to display above the menu.</div>
+                            </div>
+                            <div>
+                                <label class="btn btn-outline-secondary btn-sm mb-0" for="ansiFileUploadInput">
+                                    <i class="fas fa-upload me-1"></i> Upload .ans
+                                </label>
+                                <input type="file" id="ansiFileUploadInput" accept=".ans,.asc,.txt" style="display:none;" onchange="uploadShellArtFile(this)">
+                                <div class="form-text">Max 512 KB.</div>
+                            </div>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteSelectedShellArt()" id="deleteShellArtBtn" style="display:none;">
+                                <i class="fas fa-trash me-1"></i> Delete Selected
+                            </button>
+                        </div>
+                        <div id="shellArtUploadStatus" class="mt-1 small"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Menu Items</label>
+                        <div class="form-text mb-2">Define the hotkeys and destinations for the main menu.</div>
+                        <table class="table table-sm table-bordered" id="menuItemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:60px;">Key</th>
+                                    <th>Label</th>
+                                    <th>Icon <small class="fw-normal text-muted">(Font Awesome name)</small></th>
+                                    <th>URL</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="menuItemsBody">
+                            </tbody>
+                        </table>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addMenuItem()">
+                            <i class="fas fa-plus me-1"></i> Add Item
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="resetMenuItems()">
+                            <i class="fas fa-undo me-1"></i> Reset to Defaults
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveShell()">
+                    <i class="fas fa-save me-1"></i> Save Shell Settings
+                </button>
+                <span id="shellStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
+
+    {# ====== TAB: MESSAGE READER ====== #}
+    <div class="tab-pane fade" id="tab-message-reader" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-envelope-open-text me-2"></i>Message Reader</h5>
+            </div>
+            <div class="card-body">
+                <h6 class="text-muted mb-3">Layout</h6>
+                <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="mrScrollableBody">
+                    <label class="form-check-label" for="mrScrollableBody">
+                        <strong>Scrollable message body</strong>
+                    </label>
+                </div>
+                <div class="form-text mb-3">
+                    When enabled, the message header (From, To, Subject, Date) remains fixed at the top
+                    while the message body scrolls independently. When disabled, the entire modal scrolls
+                    together (default behaviour).
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveMessageReader()">
+                    <i class="fas fa-save me-1"></i> Save Message Reader Settings
+                </button>
+                <span id="messageReaderStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const defaultMenuItems = [
+    { key: 'M', label: 'Messages', icon: 'envelope', url: '/echomail' },
+    { key: 'N', label: 'Netmail', icon: 'at', url: '/netmail' },
+    { key: 'F', label: 'Files', icon: 'folder', url: '/files' },
+    { key: 'G', label: 'Games & Doors', icon: 'gamepad', url: '/games' },
+    { key: 'S', label: 'Settings', icon: 'cog', url: '/settings' },
+];
+
+let appearanceData = {};
+
+$(document).ready(function() {
+    loadAppearanceConfig();
+
+    // Accent color sync
+    $('#accentColorPicker').on('input', function() {
+        $('#accentColorHex').val($(this).val());
+    });
+    $('#accentColorHex').on('input', function() {
+        const v = $(this).val();
+        if (/^#[0-9A-Fa-f]{6}$/.test(v)) {
+            $('#accentColorPicker').val(v);
+        }
+    });
+
+    // SEO char counter
+    $('#seoDescription').on('input', function() {
+        $('#seoDescLen').text($(this).val().length + '/300');
+    });
+
+    // BBS variant toggle
+    $('input[name="bbsVariant"]').on('change', function() {
+        if ($(this).val() === 'ansi') {
+            $('#ansiFileRow').show();
+            loadShellArtList();
+        } else {
+            $('#ansiFileRow').hide();
+        }
+    });
+
+    // Show delete button when a file is selected
+    $('#ansiFileSelect').on('change', function() {
+        $('#ansiFile').val($(this).val());
+        $('#deleteShellArtBtn').toggle($(this).val() !== '');
+    });
+
+    // Active shell toggle (show/hide BBS menu config)
+    updateShellDisplay();
+});
+
+function loadAppearanceConfig() {
+    $.get('/admin/api/appearance')
+        .done(function(response) {
+            if (!response.success) return;
+            const d = response.data || {};
+            appearanceData = d;
+            const config = d.config || {};
+
+            // Branding
+            const b = config.branding || {};
+            const color = b.accent_color || '';
+            if (color) {
+                $('#accentColorPicker').val(color);
+                $('#accentColorHex').val(color);
+            }
+            $('#defaultTheme').val(b.default_theme || '');
+            $('#lockTheme').prop('checked', !!b.lock_theme);
+            $('#logoUrl').val(b.logo_url || '');
+            $('#footerText').val(b.footer_text || '');
+
+            // Content
+            const ann = (config.content || {}).announcement || {};
+            $('#annEnabled').prop('checked', !!ann.enabled);
+            $('#annText').val(ann.text || '');
+            $('#annType').val(ann.type || 'info');
+            if (ann.expires_at) {
+                // Convert to local datetime-local format
+                try {
+                    const dt = new Date(ann.expires_at);
+                    const iso = dt.toISOString().slice(0, 16);
+                    $('#annExpires').val(iso);
+                } catch(e) {}
+            }
+            $('#annDismissible').prop('checked', ann.dismissible !== false);
+
+            // MOTD / House Rules
+            $('#motdText').val(d.system_news || '');
+            $('#rulesText').val(d.house_rules || '');
+
+            // Navigation
+            const links = (config.navigation || {}).custom_links || [];
+            $('#navLinksBody').empty();
+            links.forEach(link => addNavLinkRow(link));
+
+            // SEO
+            const seo = config.seo || {};
+            $('#aboutPageEnabled').prop('checked', !!seo.about_page_enabled);
+            const desc = seo.description || '';
+            $('#seoDescription').val(desc);
+            $('#seoDescLen').text(desc.length + '/300');
+            $('#ogImageUrl').val(seo.og_image_url || '');
+
+            // Shell
+            const shell = config.shell || {};
+            const activeShell = shell.active || 'web';
+            $('#activeShell').val(activeShell);
+            $('#lockShell').prop('checked', !!shell.lock_shell);
+            selectShell(activeShell);
+
+            const bbsMenu = shell.bbs_menu || {};
+            const variant = bbsMenu.variant || 'cards';
+            $('input[name="bbsVariant"][value="' + variant + '"]').prop('checked', true);
+            if (variant === 'ansi') {
+                $('#ansiFileRow').show();
+                loadShellArtList(bbsMenu.ansi_file || '');
+            } else {
+                $('#ansiFileRow').hide();
+            }
+            $('#ansiFile').val(bbsMenu.ansi_file || '');
+
+            const items = bbsMenu.menu_items || defaultMenuItems;
+            $('#menuItemsBody').empty();
+            items.forEach(item => addMenuItemRow(item));
+
+            // Message Reader
+            const mr = config.message_reader || {};
+            $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
+        })
+        .fail(function(xhr) {
+            showAlert('danger', 'Failed to load appearance config: ' + (xhr.responseJSON?.error || 'Unknown error'));
+        });
+}
+
+function selectShell(shell) {
+    $('#activeShell').val(shell);
+    if (shell === 'web') {
+        $('#shellCardWeb').addClass('border-primary').removeClass('border');
+        $('#shellCardBbs').addClass('border').removeClass('border-primary');
+        $('#shellBadgeWeb').show();
+        $('#shellBadgeBbs').hide();
+        $('#bbsMenuConfig').hide();
+    } else {
+        $('#shellCardBbs').addClass('border-primary').removeClass('border');
+        $('#shellCardWeb').addClass('border').removeClass('border-primary');
+        $('#shellBadgeBbs').show();
+        $('#shellBadgeWeb').hide();
+        $('#bbsMenuConfig').show();
+    }
+}
+
+function updateShellDisplay() {
+    selectShell($('#activeShell').val() || 'web');
+}
+
+function resetAccentColor() {
+    $('#accentColorHex').val('');
+    $('#accentColorPicker').val('#0d6efd');
+}
+
+// ---- BRANDING ----
+function saveBranding() {
+    const color = $('#accentColorHex').val().trim();
+    if (color && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+        showStatus('brandingStatus', 'danger', 'Invalid hex color');
+        return;
+    }
+    const payload = {
+        branding: {
+            accent_color: color,
+            default_theme: $('#defaultTheme').val(),
+            lock_theme: $('#lockTheme').is(':checked'),
+            logo_url: $('#logoUrl').val().trim(),
+            footer_text: $('#footerText').val().trim()
+        }
+    };
+    showStatus('brandingStatus', 'info', 'Saving...');
+    $.ajax({
+        url: '/admin/api/appearance/branding',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() { showStatus('brandingStatus', 'success', 'Saved!'); },
+        error: function(xhr) { showStatus('brandingStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+    });
+}
+
+// ---- CONTENT ----
+function saveContent() {
+    const expiresVal = $('#annExpires').val();
+    const payload = {
+        system_news: $('#motdText').val(),
+        house_rules: $('#rulesText').val(),
+        announcement: {
+            enabled: $('#annEnabled').is(':checked'),
+            text: $('#annText').val().trim(),
+            type: $('#annType').val(),
+            expires_at: expiresVal ? new Date(expiresVal).toISOString() : null,
+            dismissible: $('#annDismissible').is(':checked')
+        }
+    };
+    showStatus('contentStatus', 'info', 'Saving...');
+    $.ajax({
+        url: '/admin/api/appearance/content',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() { showStatus('contentStatus', 'success', 'Saved!'); },
+        error: function(xhr) { showStatus('contentStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+    });
+}
+
+function previewMarkdown(type, textareaId, previewId) {
+    const md = $('#' + textareaId).val();
+    $.ajax({
+        url: '/admin/api/appearance/preview-markdown',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ markdown: md }),
+        success: function(response) {
+            const $preview = $('#' + previewId);
+            $preview.html(response.html || '<em>No content</em>').show();
+        },
+        error: function() {
+            $('#' + previewId).html('<span class="text-danger">Preview failed</span>').show();
+        }
+    });
+}
+
+// ---- NAVIGATION ----
+function addNavLink(link) {
+    addNavLinkRow(link || { label: '', url: '', new_tab: false });
+}
+
+function addNavLinkRow(link) {
+    const row = `<tr>
+        <td><input type="text" class="form-control form-control-sm nav-label" value="${escHtml(link.label || '')}" placeholder="Label" maxlength="100"></td>
+        <td><input type="text" class="form-control form-control-sm nav-url" value="${escHtml(link.url || '')}" placeholder="/page or https://..." maxlength="500"></td>
+        <td class="text-center"><input type="checkbox" class="form-check-input nav-newtab" ${link.new_tab ? 'checked' : ''}></td>
+        <td><button type="button" class="btn btn-outline-danger btn-sm" onclick="$(this).closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
+    </tr>`;
+    $('#navLinksBody').append(row);
+}
+
+function saveNavigation() {
+    const links = [];
+    $('#navLinksBody tr').each(function() {
+        const label = $(this).find('.nav-label').val().trim();
+        const url = $(this).find('.nav-url').val().trim();
+        const newTab = $(this).find('.nav-newtab').is(':checked');
+        if (label && url) {
+            links.push({ label, url, new_tab: newTab });
+        }
+    });
+    showStatus('navStatus', 'info', 'Saving...');
+    $.ajax({
+        url: '/admin/api/appearance/navigation',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ custom_links: links }),
+        success: function() { showStatus('navStatus', 'success', 'Saved!'); },
+        error: function(xhr) { showStatus('navStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+    });
+}
+
+// ---- SEO ----
+function saveSeo() {
+    const payload = {
+        seo: {
+            about_page_enabled: $('#aboutPageEnabled').is(':checked'),
+            description: $('#seoDescription').val().trim(),
+            og_image_url: $('#ogImageUrl').val().trim()
+        }
+    };
+    showStatus('seoStatus', 'info', 'Saving...');
+    $.ajax({
+        url: '/admin/api/appearance/seo',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() { showStatus('seoStatus', 'success', 'Saved!'); },
+        error: function(xhr) { showStatus('seoStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+    });
+}
+
+// ---- SHELL ----
+function addMenuItemRow(item) {
+    const row = `<tr>
+        <td><input type="text" class="form-control form-control-sm mi-key" value="${escHtml(item.key || '')}" maxlength="1" style="width:50px;"></td>
+        <td><input type="text" class="form-control form-control-sm mi-label" value="${escHtml(item.label || '')}" maxlength="100"></td>
+        <td><input type="text" class="form-control form-control-sm mi-icon" value="${escHtml(item.icon || '')}" maxlength="50" placeholder="envelope"></td>
+        <td><input type="text" class="form-control form-control-sm mi-url" value="${escHtml(item.url || '')}" maxlength="500"></td>
+        <td><button type="button" class="btn btn-outline-danger btn-sm" onclick="$(this).closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
+    </tr>`;
+    $('#menuItemsBody').append(row);
+}
+
+function addMenuItem() {
+    addMenuItemRow({ key: '', label: '', icon: 'circle', url: '/' });
+}
+
+function resetMenuItems() {
+    if (!confirm('Reset menu items to default?')) return;
+    $('#menuItemsBody').empty();
+    defaultMenuItems.forEach(item => addMenuItemRow(item));
+}
+
+function saveShell() {
+    const menuItems = [];
+    $('#menuItemsBody tr').each(function() {
+        const key = $(this).find('.mi-key').val().trim().toUpperCase();
+        const label = $(this).find('.mi-label').val().trim();
+        const icon = $(this).find('.mi-icon').val().trim();
+        const url = $(this).find('.mi-url').val().trim();
+        if (key.length === 1 && label && url) {
+            menuItems.push({ key, label, icon: icon || 'circle', url });
+        }
+    });
+
+    const variant = $('input[name="bbsVariant"]:checked').val() || 'cards';
+    const payload = {
+        shell: {
+            active: $('#activeShell').val(),
+            lock_shell: $('#lockShell').is(':checked'),
+            bbs_menu: {
+                variant: variant,
+                ansi_file: $('#ansiFile').val().trim(),
+                menu_items: menuItems.length > 0 ? menuItems : defaultMenuItems
+            }
+        }
+    };
+    showStatus('shellStatus', 'info', 'Saving...');
+    $.ajax({
+        url: '/admin/api/appearance/shell',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function() { showStatus('shellStatus', 'success', 'Saved! Reload the page to see the new shell.'); },
+        error: function(xhr) { showStatus('shellStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+    });
+}
+
+// ---- Shell Art Management ----
+function loadShellArtList(selectedFile) {
+    $.get('/admin/api/shell-art', function(data) {
+        const files = data.files || [];
+        const current = selectedFile !== undefined ? selectedFile : $('#ansiFile').val();
+        const $sel = $('#ansiFileSelect');
+        $sel.empty().append('<option value="">(none selected)</option>');
+        files.forEach(function(f) {
+            const opt = $('<option>').val(f.name).text(f.name + ' (' + formatBytes(f.size) + ')');
+            if (f.name === current) opt.prop('selected', true);
+            $sel.append(opt);
+        });
+        $('#ansiFile').val($sel.val() || '');
+        $('#deleteShellArtBtn').toggle($sel.val() !== '');
+    }).fail(function() {
+        $('#shellArtUploadStatus').text('Could not load file list.').addClass('text-danger');
+    });
+}
+
+function uploadShellArtFile(input) {
+    if (!input.files || !input.files[0]) return;
+    const $status = $('#shellArtUploadStatus');
+    $status.text('Uploading...').removeClass('text-danger text-success');
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    $.ajax({
+        url: '/admin/api/shell-art/upload',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(data) {
+            $status.text('Uploaded: ' + data.name).addClass('text-success');
+            loadShellArtList(data.name);
+            input.value = '';
+        },
+        error: function(xhr) {
+            $status.text('Upload failed: ' + (xhr.responseJSON?.error || 'Unknown error')).addClass('text-danger');
+            input.value = '';
+        }
+    });
+}
+
+function deleteSelectedShellArt() {
+    const name = $('#ansiFileSelect').val();
+    if (!name) return;
+    if (!confirm('Delete ' + name + '?')) return;
+    $.ajax({
+        url: '/admin/api/shell-art/' + encodeURIComponent(name),
+        method: 'DELETE',
+        success: function() {
+            $('#shellArtUploadStatus').text('Deleted: ' + name).addClass('text-success');
+            loadShellArtList('');
+        },
+        error: function(xhr) {
+            $('#shellArtUploadStatus').text('Delete failed: ' + (xhr.responseJSON?.error || 'Unknown error')).addClass('text-danger');
+        }
+    });
+}
+
+function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    return Math.round(b / 1024) + ' KB';
+}
+
+// ---- Helpers ----
+function showStatus(id, type, msg) {
+    const icons = { success: 'check', danger: 'exclamation-triangle', info: 'spinner fa-spin', warning: 'exclamation-circle' };
+    const icon = icons[type] || 'info-circle';
+    const colors = { success: 'text-success', danger: 'text-danger', info: 'text-muted', warning: 'text-warning' };
+    const color = colors[type] || 'text-muted';
+    $('#' + id).html(`<i class="fas fa-${icon} me-1"></i><span class="${color}">${escHtml(msg)}</span>`);
+    if (type === 'success') {
+        setTimeout(() => $('#' + id).html(''), 3000);
+    }
+}
+
+function saveMessageReader() {
+    const payload = {
+        message_reader: {
+            scrollable_body: $('#mrScrollableBody').is(':checked')
+        }
+    };
+    $.post('/admin/api/appearance/message-reader', JSON.stringify(payload), null, 'json')
+        .done(function(r) {
+            if (r.success) {
+                $('#messageReaderStatus').text('Saved').removeClass('text-danger').addClass('text-success');
+                setTimeout(() => $('#messageReaderStatus').text(''), 3000);
+            } else {
+                $('#messageReaderStatus').text('Error: ' + (r.error || 'Unknown')).addClass('text-danger');
+            }
+        })
+        .fail(function(xhr) {
+            $('#messageReaderStatus').text('Error: ' + (xhr.responseJSON?.error || 'Request failed')).addClass('text-danger');
+        });
+}
+
+function showAlert(type, msg) {
+    $('#appearanceAlert').html(`<div class="alert alert-${type} alert-dismissible"><button type="button" class="btn-close" data-bs-dismiss="alert"></button>${escHtml(msg)}</div>`);
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+{% endblock %}

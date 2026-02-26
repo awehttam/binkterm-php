@@ -3,6 +3,8 @@
 use BinktermPHP\AdminActionLogger;
 use BinktermPHP\AdminController;
 use BinktermPHP\Auth;
+use BinktermPHP\DoorConfig;
+use BinktermPHP\DoorManager;
 use BinktermPHP\RouteHelper;
 use BinktermPHP\Template;
 use BinktermPHP\UserMeta;
@@ -87,6 +89,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/webdoors_config.twig');
     });
 
+    // DOSDoors config page
+    SimpleRouter::get('/dosdoors', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/dosdoors_config.twig');
+    });
+
     // File area rules page
     SimpleRouter::get('/filearea-rules', function() {
         $user = RouteHelper::requireAdmin();
@@ -107,17 +117,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
     SimpleRouter::get('/bbs-settings', function() {
         $user = RouteHelper::requireAdmin();
 
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $csrfToken = bin2hex(random_bytes(32));
-        if ($userId) {
-            $meta = new UserMeta();
-            $meta->setValue((int)$userId, 'csrf_bbs_settings', $csrfToken);
-        }
-
         $template = new Template();
         $template->renderResponse('admin/bbs_settings.twig', [
             'timezone_list' => \DateTimeZone::listIdentifiers(),
-            'bbs_settings_csrf' => $csrfToken
+        ]);
+    });
+
+    // Appearance & Content settings page
+    SimpleRouter::get('/appearance', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/appearance.twig', [
+            'available_themes' => \BinktermPHP\Config::getThemes(),
         ]);
     });
 
@@ -135,6 +147,49 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/template_editor.twig');
+    });
+
+    // Upgrade notes viewer
+    SimpleRouter::get('/upgrade-notes', function() {
+        RouteHelper::requireAdmin();
+
+        $version = \BinktermPHP\Version::getVersion();
+        $docPath = __DIR__ . '/../docs/UPGRADING_' . $version . '.md';
+
+        if (!file_exists($docPath)) {
+            http_response_code(404);
+            $template = new Template();
+            $template->renderResponse('admin/upgrade_notes.twig', [
+                'version'  => $version,
+                'content'  => null,
+            ]);
+            return;
+        }
+
+        $raw = file_get_contents($docPath);
+        $html = \BinktermPHP\MarkdownRenderer::toHtml($raw);
+
+        $template = new Template();
+        $template->renderResponse('admin/upgrade_notes.twig', [
+            'version' => $version,
+            'content' => $html,
+        ]);
+    });
+
+    // Activity statistics page
+    SimpleRouter::get('/activity-stats', function() {
+        $user = RouteHelper::requireAdmin();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $timezone = 'UTC';
+        if ($userId) {
+            $handler = new \BinktermPHP\MessageHandler();
+            $settings = $handler->getUserSettings((int)$userId);
+            $timezone = $settings['timezone'] ?? 'UTC';
+        }
+
+        $template = new Template();
+        $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
     // API routes for admin
@@ -574,14 +629,6 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
-                $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-                $meta = new UserMeta();
-                $expectedToken = $userId ? $meta->getValue($userId, 'csrf_bbs_settings') : null;
-                if (!$expectedToken || !hash_equals($expectedToken, (string)$csrfToken)) {
-                    http_response_code(403);
-                    echo json_encode(['error' => 'Invalid CSRF token']);
-                    return;
-                }
 
                 $payload = json_decode(file_get_contents('php://input'), true);
                 $config = $payload['config'] ?? [];
@@ -625,6 +672,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     if (!is_numeric($credits['transfer_fee_percent'] ?? null) || (float)$credits['transfer_fee_percent'] < 0 || (float)$credits['transfer_fee_percent'] > 1) {
                         throw new Exception('Transfer fee must be between 0 and 1 (0% to 100%)');
                     }
+                    if (isset($credits['referral_bonus']) && (!is_numeric($credits['referral_bonus']) || (int)$credits['referral_bonus'] < 0)) {
+                        throw new Exception('Referral bonus must be a non-negative integer');
+                    }
                     $config['credits'] = [
                         'enabled' => !empty($credits['enabled']),
                         'symbol' => $symbol,
@@ -636,7 +686,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'crashmail_cost' => (int)$credits['crashmail_cost'],
                         'poll_creation_cost' => (int)$credits['poll_creation_cost'],
                         'return_14days' => (int)$credits['return_14days'],
-                        'transfer_fee_percent' => (float)$credits['transfer_fee_percent']
+                        'transfer_fee_percent' => (float)$credits['transfer_fee_percent'],
+                        'referral_enabled' => !empty($credits['referral_enabled']),
+                        'referral_bonus' => isset($credits['referral_bonus']) ? (int)$credits['referral_bonus'] : 25
                     ];
                 }
 
@@ -657,6 +709,336 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ]);
                 }
                 echo json_encode(['success' => true, 'config' => $updated]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // ---------------------------------------------------------------
+        // Appearance API
+        // ---------------------------------------------------------------
+
+        SimpleRouter::get('/appearance', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $data = $client->getAppearanceConfig();
+                echo json_encode(['success' => true, 'data' => $data]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/branding', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $branding = $payload['branding'] ?? [];
+
+                $accentColor = trim((string)($branding['accent_color'] ?? ''));
+                if ($accentColor !== '' && !preg_match('/^#[0-9A-Fa-f]{6}$/', $accentColor)) {
+                    throw new Exception('Invalid accent color format');
+                }
+
+                $logoUrl = trim((string)($branding['logo_url'] ?? ''));
+                $footerText = trim((string)($branding['footer_text'] ?? ''));
+                if (mb_strlen($footerText) > 500) {
+                    throw new Exception('Footer text must be 500 characters or less');
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['branding']['accent_color'] = $accentColor;
+                $config['branding']['default_theme'] = trim((string)($branding['default_theme'] ?? ''));
+                $config['branding']['lock_theme'] = !empty($branding['lock_theme']);
+                $config['branding']['logo_url'] = $logoUrl;
+                $config['branding']['footer_text'] = $footerText;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/content', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+
+                // Save system news markdown
+                if (array_key_exists('system_news', $payload)) {
+                    $client->setSystemNews((string)$payload['system_news']);
+                }
+
+                // Save house rules markdown
+                if (array_key_exists('house_rules', $payload)) {
+                    $client->setHouseRules((string)$payload['house_rules']);
+                }
+
+                // Save announcement config
+                if (array_key_exists('announcement', $payload)) {
+                    $ann = $payload['announcement'];
+                    $allowedTypes = ['info', 'warning', 'danger', 'success', 'primary'];
+                    $annType = in_array($ann['type'] ?? '', $allowedTypes, true) ? $ann['type'] : 'info';
+
+                    $config = \BinktermPHP\AppearanceConfig::getConfig();
+                    $config['content']['announcement'] = [
+                        'enabled' => !empty($ann['enabled']),
+                        'text' => substr(strip_tags((string)($ann['text'] ?? '')), 0, 1000),
+                        'type' => $annType,
+                        'expires_at' => ($ann['expires_at'] ?? '') !== '' ? (string)$ann['expires_at'] : null,
+                        'dismissible' => !empty($ann['dismissible']),
+                    ];
+                    $client->setAppearanceConfig($config);
+                }
+
+                \BinktermPHP\AppearanceConfig::reload();
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/navigation', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $links = $payload['custom_links'] ?? [];
+
+                if (!is_array($links)) {
+                    throw new Exception('Invalid custom_links payload');
+                }
+
+                $sanitized = [];
+                foreach ($links as $link) {
+                    $label = trim((string)($link['label'] ?? ''));
+                    $url = trim((string)($link['url'] ?? ''));
+                    if ($label === '' || $url === '') {
+                        continue;
+                    }
+                    if (!preg_match('#^https?://#i', $url) && strpos($url, '/') !== 0) {
+                        continue; // Only relative paths starting with / or absolute https? URLs
+                    }
+                    $sanitized[] = [
+                        'label' => substr($label, 0, 100),
+                        'url' => substr($url, 0, 500),
+                        'new_tab' => !empty($link['new_tab']),
+                    ];
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['navigation']['custom_links'] = $sanitized;
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/seo', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $seo = $payload['seo'] ?? [];
+
+                $description = substr(trim((string)($seo['description'] ?? '')), 0, 300);
+                $ogImage = trim((string)($seo['og_image_url'] ?? ''));
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['seo']['description'] = $description;
+                $config['seo']['og_image_url'] = $ogImage;
+                $config['seo']['about_page_enabled'] = !empty($seo['about_page_enabled']);
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/shell', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $shell = $payload['shell'] ?? [];
+
+                $activeShell = (string)($shell['active'] ?? 'web');
+                if (!in_array($activeShell, ['web', 'bbs-menu'], true)) {
+                    $activeShell = 'web';
+                }
+
+                $bbsMenu = $shell['bbs_menu'] ?? [];
+                $variant = (string)($bbsMenu['variant'] ?? 'cards');
+                if (!in_array($variant, ['cards', 'ansi', 'text'], true)) {
+                    $variant = 'cards';
+                }
+
+                $menuItems = $bbsMenu['menu_items'] ?? [];
+                $sanitizedItems = [];
+                if (is_array($menuItems)) {
+                    foreach ($menuItems as $item) {
+                        $key = strtoupper(trim((string)($item['key'] ?? '')));
+                        $label = trim((string)($item['label'] ?? ''));
+                        $url = trim((string)($item['url'] ?? ''));
+                        $icon = trim((string)($item['icon'] ?? 'circle'));
+                        if (strlen($key) !== 1 || $label === '' || $url === '') {
+                            continue;
+                        }
+                        $sanitizedItems[] = [
+                            'key' => $key,
+                            'label' => substr($label, 0, 100),
+                            'icon' => preg_replace('/[^a-z0-9-]/', '', strtolower($icon)),
+                            'url' => substr($url, 0, 500),
+                        ];
+                    }
+                }
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['shell']['active'] = $activeShell;
+                $config['shell']['lock_shell'] = !empty($shell['lock_shell']);
+                $config['shell']['bbs_menu']['variant'] = $variant;
+                $config['shell']['bbs_menu']['ansi_file'] = basename(trim((string)($bbsMenu['ansi_file'] ?? '')));
+                if (!empty($sanitizedItems)) {
+                    $config['shell']['bbs_menu']['menu_items'] = $sanitizedItems;
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/message-reader', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $mr = $payload['message_reader'] ?? [];
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['message_reader']['scrollable_body'] = !empty($mr['scrollable_body']);
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/appearance/preview-markdown', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $markdown = (string)($payload['markdown'] ?? '');
+                $html = \BinktermPHP\MarkdownRenderer::toHtml($markdown);
+                echo json_encode(['success' => true, 'html' => $html]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // Shell art management
+        SimpleRouter::get('/shell-art', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $files = $client->listShellArt();
+                echo json_encode(['success' => true, 'files' => $files]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/shell-art/upload', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                if (empty($_FILES['file'])) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'No file uploaded']);
+                    return;
+                }
+                $file = $_FILES['file'];
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Upload error: ' . $file['error']]);
+                    return;
+                }
+                // Max 512 KB for ANSI art
+                if ($file['size'] > 524288) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'File too large (max 512 KB)']);
+                    return;
+                }
+                $originalName = basename($file['name']);
+                $contentBase64 = base64_encode(file_get_contents($file['tmp_name']));
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->uploadShellArt($contentBase64, '', $originalName);
+                echo json_encode(['success' => true, 'name' => $result['name'] ?? $originalName]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::delete('/shell-art/{name}', function(string $name) {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+            try {
+                $name = basename($name);
+                if (!preg_match('/^[a-zA-Z0-9_\-]+\.(ans|asc|txt)$/i', $name)) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Invalid filename']);
+                    return;
+                }
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->deleteShellArt($name);
+                echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
                 echo json_encode(['error' => $e->getMessage()]);
@@ -978,6 +1360,92 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             } catch (Exception $e) {
                 http_response_code(400);
                 echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // DOSDoors API endpoints
+        SimpleRouter::get('/dosdoors-config', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->getDosdoorsConfig();
+
+                $configData = null;
+                if (!empty($result['config_json'])) {
+                    $configData = json_decode($result['config_json'], true);
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $configData ?? [],
+                    'exists' => $result['active'] ?? false
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::get('/dosdoors-available', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $doorManager = new DoorManager();
+            $allDoors = $doorManager->getAllDoors();
+
+            $doors = [];
+            foreach ($allDoors as $doorId => $door) {
+                $doors[] = [
+                    'id' => $doorId,
+                    'name' => $door['name'],
+                    'short_name' => $door['short_name'] ?? $door['name'],
+                    'author' => $door['author'] ?? 'Unknown',
+                    'description' => $door['description'] ?? '',
+                    'config' => $door['config'] ?? []
+                ];
+            }
+
+            echo json_encode(['success' => true, 'doors' => $doors]);
+        });
+
+        SimpleRouter::post('/dosdoors-config', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? null;
+
+                if (!is_array($config)) {
+                    throw new Exception('Invalid config data');
+                }
+
+                $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                if ($json === false) {
+                    throw new Exception('Failed to encode config as JSON');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->saveDosdoorsConfig($json);
+
+                // Reload config class cache
+                DoorConfig::reload();
+
+                // Sync enabled doors to database
+                $doorManager = new DoorManager();
+                $syncResult = $doorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $config,
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
         });
 
@@ -1818,6 +2286,271 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
         echo json_encode($stats);
+    });
+
+    // Activity statistics API
+    SimpleRouter::get('/api/activity-stats', function() {
+        RouteHelper::requireAdmin();
+
+        header('Content-Type: application/json');
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $period        = $_GET['period'] ?? '30d';
+        $excludeAdmins = !empty($_GET['exclude_admins']);
+
+        // Validate and sanitize user timezone
+        $requestedTz = $_GET['timezone'] ?? 'UTC';
+        try {
+            new \DateTimeZone($requestedTz);
+            $timezone = $requestedTz;
+        } catch (\Exception $e) {
+            $timezone = 'UTC';
+        }
+
+        // Build date filter condition
+        switch ($period) {
+            case '7d':
+                $dateFilter = "AND ual.created_at >= NOW() - INTERVAL '7 days'";
+                break;
+            case '90d':
+                $dateFilter = "AND ual.created_at >= NOW() - INTERVAL '90 days'";
+                break;
+            case 'all':
+                $dateFilter = '';
+                break;
+            case '30d':
+            default:
+                $dateFilter = "AND ual.created_at >= NOW() - INTERVAL '30 days'";
+                break;
+        }
+
+        // Optionally exclude activity from admin users
+        $adminFilter = $excludeAdmins
+            ? "AND (ual.user_id IS NULL OR ual.user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
+            : '';
+
+        // Check that user_activity_log table exists
+        try {
+            $db->query("SELECT 1 FROM user_activity_log LIMIT 1");
+        } catch (\Exception $e) {
+            echo json_encode(['error' => 'Activity log table not yet available. Run setup.php to apply migrations.']);
+            return;
+        }
+
+        // Summary: total + by category
+        $summaryStmt = $db->query("
+            SELECT ac.name AS category, COUNT(*) AS cnt
+            FROM user_activity_log ual
+            JOIN activity_types at2 ON ual.activity_type_id = at2.id
+            JOIN activity_categories ac ON at2.category_id = ac.id
+            WHERE 1=1 {$dateFilter}{$adminFilter}
+            GROUP BY ac.name
+        ");
+        $categoryRows = $summaryStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $byCategory = [];
+        $totalEvents = 0;
+        foreach ($categoryRows as $row) {
+            $byCategory[$row['category']] = (int)$row['cnt'];
+            $totalEvents += (int)$row['cnt'];
+        }
+
+        // Summary: per activity type (for netmail/echomail breakdown)
+        $typeStmt = $db->query("
+            SELECT activity_type_id, COUNT(*) AS cnt
+            FROM user_activity_log ual
+            WHERE 1=1 {$dateFilter}{$adminFilter}
+            GROUP BY activity_type_id
+        ");
+        $byType = [];
+        foreach ($typeStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $byType[(int)$row['activity_type_id']] = (int)$row['cnt'];
+        }
+
+        // Popular echoareas (views and posts)
+        $echoAreasStmt = $db->query("
+            SELECT object_name AS name,
+                   SUM(CASE WHEN activity_type_id = 1 THEN 1 ELSE 0 END) AS views,
+                   SUM(CASE WHEN activity_type_id = 2 THEN 1 ELSE 0 END) AS posts
+            FROM user_activity_log ual
+            WHERE activity_type_id IN (1, 2) {$dateFilter}{$adminFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY views DESC
+            LIMIT 20
+        ");
+        $popularEchoareas = $echoAreasStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($popularEchoareas as &$row) {
+            $row['views'] = (int)$row['views'];
+            $row['posts'] = (int)$row['posts'];
+        }
+        unset($row);
+
+        // Popular WebDoors
+        $webdoorsStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 8 {$dateFilter}{$adminFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $popularWebdoors = $webdoorsStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($popularWebdoors as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Popular DOS Doors
+        $dosdoorsStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 9 {$dateFilter}{$adminFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $popularDosdoors = $dosdoorsStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($popularDosdoors as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Top downloaded files
+        $topFilesStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 6 {$dateFilter}{$adminFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 15
+        ");
+        $topFiles = $topFilesStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topFiles as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Most browsed file areas
+        $fileAreasStmt = $db->query("
+            SELECT ual.object_id AS area_id, fa.tag AS area_name, COUNT(*) AS count
+            FROM user_activity_log ual
+            LEFT JOIN file_areas fa ON fa.id = ual.object_id
+            WHERE ual.activity_type_id = 5 {$dateFilter}{$adminFilter}
+              AND ual.object_id IS NOT NULL
+            GROUP BY ual.object_id, fa.tag
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $topFileareas = $fileAreasStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topFileareas as &$row) {
+            $row['area_id']   = (int)$row['area_id'];
+            $row['area_name'] = $row['area_name'] ?? 'Area #' . $row['area_id'];  // deleted area fallback
+            $row['count']     = (int)$row['count'];
+        }
+        unset($row);
+
+        // Nodelist searches
+        $nodelistSearchStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 10 {$dateFilter}{$adminFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $topNodelistSearches = $nodelistSearchStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topNodelistSearches as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Most viewed nodes
+        $topNodesStmt = $db->query("
+            SELECT object_name AS name, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE activity_type_id = 11 {$dateFilter}{$adminFilter}
+              AND object_name IS NOT NULL
+            GROUP BY object_name
+            ORDER BY count DESC
+            LIMIT 10
+        ");
+        $topNodes = $topNodesStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topNodes as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Top users
+        $topUsersStmt = $db->query("
+            SELECT u.username, COUNT(*) AS count
+            FROM user_activity_log ual
+            LEFT JOIN users u ON ual.user_id = u.id
+            WHERE 1=1 {$dateFilter}{$adminFilter}
+              AND ual.user_id IS NOT NULL
+            GROUP BY ual.user_id, u.username
+            ORDER BY count DESC
+            LIMIT 15
+        ");
+        $topUsers = $topUsersStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($topUsers as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        // Hourly distribution in user's timezone
+        $hourlyStmt = $db->prepare("
+            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE :tz)::int AS hour, COUNT(*) AS count
+            FROM user_activity_log ual
+            WHERE 1=1 {$dateFilter}{$adminFilter}
+            GROUP BY hour
+            ORDER BY hour
+        ");
+        $hourlyStmt->execute([':tz' => $timezone]);
+        $hourlyRaw = $hourlyStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Fill all 24 hours even if no data
+        $hourly = [];
+        $hourlyByHour = [];
+        foreach ($hourlyRaw as $row) {
+            $hourlyByHour[(int)$row['hour']] = (int)$row['count'];
+        }
+        for ($h = 0; $h < 24; $h++) {
+            $hourly[] = ['hour' => $h, 'count' => $hourlyByHour[$h] ?? 0];
+        }
+
+        // Daily activity (last 30 days always, regardless of period for the overview chart)
+        $dailyAdminFilter = $excludeAdmins
+            ? "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM users WHERE is_admin = TRUE))"
+            : '';
+        $dailyStmt = $db->prepare("
+            SELECT DATE(created_at AT TIME ZONE :tz) AS date, COUNT(*) AS count
+            FROM user_activity_log
+            WHERE created_at >= NOW() - INTERVAL '30 days'
+            {$dailyAdminFilter}
+            GROUP BY date
+            ORDER BY date
+        ");
+        $dailyStmt->execute([':tz' => $timezone]);
+        $daily = $dailyStmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($daily as &$row) { $row['count'] = (int)$row['count']; }
+        unset($row);
+
+        echo json_encode([
+            'period'   => $period,
+            'timezone' => $timezone,
+            'summary' => [
+                'total'       => $totalEvents,
+                'by_category' => $byCategory,
+                'by_type'     => [
+                    'echomail_views' => $byType[1] ?? 0,
+                    'echomail_sends' => $byType[2] ?? 0,
+                    'netmail_reads'  => $byType[3] ?? 0,
+                    'netmail_sends'  => $byType[4] ?? 0,
+                ],
+            ],
+            'popular_echoareas'     => $popularEchoareas,
+            'popular_webdoors'      => $popularWebdoors,
+            'popular_dosdoors'      => $popularDosdoors,
+            'top_files'             => $topFiles,
+            'top_fileareas'         => $topFileareas,
+            'top_nodelist_searches' => $topNodelistSearches,
+            'top_nodes'             => $topNodes,
+            'top_users'             => $topUsers,
+            'hourly'                => $hourly,
+            'daily'                 => $daily,
+        ]);
     });
 });
 

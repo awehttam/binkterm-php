@@ -9,6 +9,8 @@ class DatabaseUpgrader
 {
     private $db;
     private $migrationsPath;
+    private $useUtcTimezone = true;
+    private $migrationTimezone = null;
     
     public function __construct()
     {
@@ -22,7 +24,7 @@ class DatabaseUpgrader
         
         try {
             // Initialize database connection
-            $this->db = Database::getInstance()->getPdo();
+            $this->db = Database::getInstance(true)->getPdo();
             
             // Create migrations table if it doesn't exist
             $this->createMigrationsTable();
@@ -88,9 +90,11 @@ class DatabaseUpgrader
     
     private function getCurrentVersion()
     {
+        // Order by ID (insertion order) instead of version string to avoid
+        // string comparison issues (e.g., "1.9.3.9" > "1.9.3.10" as strings)
         $stmt = $this->db->query("
-            SELECT version FROM database_migrations 
-            ORDER BY version DESC 
+            SELECT version FROM database_migrations
+            ORDER BY id DESC
             LIMIT 1
         ");
         $result = $stmt->fetch();
@@ -150,15 +154,23 @@ class DatabaseUpgrader
             echo "Applying migration {$migration['version']}: {$migration['description']}...\n";
             
             try {
+                $this->ensureTimezoneForMigration($migration['version']);
+
                 // Begin transaction
                 $this->db->beginTransaction();
                 
                 // Read and execute migration file
                 if (($migration['type'] ?? 'sql') === 'php') {
                     $db = $this->db;
-                    $result = (function() use ($migration, $db) {
-                        return include $migration['file'];
-                    })();
+                    $migrationFunction = include $migration['file'];
+
+                    // If the migration returns a callable, execute it with $db
+                    if (is_callable($migrationFunction)) {
+                        $result = $migrationFunction($db);
+                    } else {
+                        $result = $migrationFunction;
+                    }
+
                     if ($result === false) {
                         throw new Exception("PHP migration returned false");
                     }
@@ -202,6 +214,28 @@ class DatabaseUpgrader
                 $this->db->rollBack();
                 throw new Exception("Migration {$migration['version']} failed: " . $e->getMessage());
             }
+        }
+    }
+
+    private function ensureTimezoneForMigration(string $version): void
+    {
+        $shouldUseUtc = $version !== '1.8.0' && $version !== '1.9.3.9';
+        $desiredMigrationTimezone = null;
+
+        if ($version === '1.9.3.9') {
+            $desiredMigrationTimezone = date_default_timezone_get();
+        }
+
+        if ($this->useUtcTimezone === $shouldUseUtc && $this->migrationTimezone === $desiredMigrationTimezone) {
+            return;
+        }
+
+        $this->useUtcTimezone = $shouldUseUtc;
+        $this->db = Database::reconnect($shouldUseUtc)->getPdo();
+
+        $this->migrationTimezone = $desiredMigrationTimezone;
+        if ($this->migrationTimezone !== null) {
+            $this->db->exec("SET TIME ZONE '" . str_replace("'", "''", $this->migrationTimezone) . "'");
         }
     }
     
@@ -250,7 +284,7 @@ class DatabaseUpgrader
         }
         
         try {
-            $this->db = Database::getInstance()->getPdo();
+            $this->db = Database::getInstance(true)->getPdo();
             
             $currentVersion = $this->getCurrentVersion();
             echo "Current database version: $currentVersion\n";
@@ -290,7 +324,7 @@ class DatabaseUpgrader
         echo "===========================\n\n";
         
         try {
-            $this->db = Database::getInstance()->getPdo();
+            $this->db = Database::getInstance(true)->getPdo();
             $this->createMigrationsTable();
             
             echo "Current version: " . $this->getCurrentVersion() . "\n\n";

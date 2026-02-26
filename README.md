@@ -12,6 +12,12 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 
 awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org as a point system of the Reverse Polarity BBS, and https://claudes.lovelybits.org - Claude's very own Public Home Point BBS.
 
+## 🤝 Contributors Wanted
+
+We're looking for experienced PHP developers interested in contributing to BinktermPHP. Areas include FTN networking, WebDoors game development, themes, telnet, real-time features, and more. See **[HELP_WANTED.md](HELP_WANTED.md)** for details.
+
+---
+
 ## Table of Contents
 
 - [Screen shots](#screen-shots)
@@ -29,7 +35,9 @@ awehttam runs an instance of BinktermPHP over at https://mypoint.lovelybits.org 
 - [Security Considerations](#security-considerations)
 - [File Areas](#file-areas)
   - [File Area Rules](#file-area-rules)
+- [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
+- [Gemini Support](#gemini-support)
 - [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
 - [License](#license)
@@ -89,12 +97,16 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
+- **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
+- **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
+- **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules (see `docs/FileAreas.md`)
-- **ANSI Support** - Support for ANSI and ASCII art in message readers
+- **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards 
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
 - **Nodelist Browsers** - Integrated nodelist updater and browser 
+
 
 ### Native Binkp Protocol Support
 - **FTS-1026 Compliant** - binkp/1.0 protocol implementation
@@ -201,14 +213,61 @@ Set `"enabled": false` in the credits configuration to disable the entire system
 
 ## Installation
 
-BinktermPHP can be installed using two methods: the standard Git-based installation, or the experimental installer which is currently under development.
+BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
 ### Requirements
-- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
+- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL
+- **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
-- **Composer** - For dependency management (Git installation only)
+- **Composer** - For dependency management 
 - **Operating System** - Designed with Linux in mind, should also run on MacOS, Windows (with some caveats)
+- **Operating User** - It is recommended to run BinktermPHP out of its own user account
+
+
+#### Ubuntu/Debian package requirements
+```bash
+sudo apt-get update
+sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-pgsql php-dom postgresql
+sudo apt-get install -y unzip p7zip-full
+```
+The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
+
+#### Postgres Database setup
+
+First, decide on a database name, username, and password. These will be used in your `.env` file later.
+
+Connect to PostgreSQL as the superuser:
+
+```bash
+sudo -u postgres psql
+```
+
+Then run the following commands, replacing `your_username`, `your_password`, and `your_database` with your chosen values:
+
+```sql
+CREATE USER your_username WITH PASSWORD 'your_password';
+CREATE DATABASE your_database OWNER your_username;
+\q
+```
+
+Verify the connection works with the new credentials:
+
+```bash
+psql -U your_username -d your_database -h 127.0.0.1
+```
+
+If the connection succeeds, update your `.env` file with the corresponding values:
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=your_database
+DB_USER=your_username
+DB_PASS=your_password
+```
+
+> **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
 
 ### Method 1: Using the Installer (Experimental)
 
@@ -239,35 +298,27 @@ The installer will:
 
 This is the standard installation method currently in use while the installer is being developed.
 
-#### Step 1: Pre-requisite Packages
-Ubuntu/Debian:
-```bash
-sudo apt-get update
-sudo apt-get install -y unzip p7zip-full
-```
-
-The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
-
-#### Step 2: Clone Repository
+#### Step 1: Clone Repository
 ```bash
 git clone https://github.com/awehttam/binkterm-php
 cd binkterm-php
 ```
 
-#### Step 3: Install Dependencies
+#### Step 2: Install Dependencies
 ```bash
 composer install
 ```
 
-#### Step 4: Configure Environment
+#### Step 3: Configure Environment
 Copy the example environment file and configure your settings:
 ```bash
 cp .env.example .env
+cp binkp.json.example binkp.json
 ```
 
-Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.
+Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.  Once the system is up you can adjust your BBS settings and BinkP configuration through the administration interface.
 
-#### Step 5: Install the database schema and configure the initial Admin user
+#### Step 4: Install the database schema and configure the initial Admin user
 
 First, use the installation script for automated setup:
 ```bash
@@ -290,9 +341,9 @@ php scripts/upgrade.php
 ```
 
 
-#### Step 6: Configure Web Server
+### Configure Web Server
 
-##### Apache
+#### Apache
 ```apache
 <VirtualHost *:80>
     ServerName binktest.local
@@ -305,7 +356,7 @@ php scripts/upgrade.php
 </VirtualHost>
 ```
 
-##### Nginx
+#### Nginx
 ```nginx
 server {
     listen 80;
@@ -326,13 +377,13 @@ server {
 }
 ```
 
-##### PHP Built-in Server (Development)
+#### PHP Built-in Server (Development)
 ```bash
 cd public_html
 php -S localhost:8080
 ```
 
-#### Step 7: Set Up Cron Jobs (Recommended)
+### Set Up Cron Jobs (Recommended)
 Start the long-running services at boot and keep cron for periodic maintenance tasks:
 
 ```cron
@@ -346,24 +397,17 @@ Start the long-running services at boot and keep cron for periodic maintenance t
 @reboot /usr/bin/php /path/to/binkterm/scripts/binkp_server.php --daemon
 
 # Update nodelists daily at 3am
-0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
+#0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
 ```
 
 Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for additional cron examples.
 
-#### Step 8: Set Directory Permissions
-The `data/outbound` directory must be writable by both the web server and the user running binkp scripts:
-
-```bash
-chmod a+rwxt data/outbound
-```
-
-The sticky bit (`t`) ensures files can only be deleted by their owner, preventing conflicts between the web server and shell user.
+update_nodelists can be used if you have URL's to update from.  Otherwise nodelists can be updated using file area actions.  
 
 ## Configuration
 
 ### Basic System Configuration
-Edit `config/binkp.json` to configure your system. See `config/binkp.json.example` for a complete reference.
+`config/binkp.json` is used to configure your system. See `config/binkp.json.example` for a complete reference.  Settings can be edited through the web interface.
 
 Note:  Be sure to restart BBS services after editing binkp.json.  You can use the `scripts/restart_daemons.sh` script for this on Linux.
 
@@ -470,6 +514,7 @@ Each uplink in the `uplinks` array supports the following fields:
 | `default` | No | Whether this is the default uplink for unrouted messages |
 | `compression` | No | Enable compression (not yet implemented) |
 | `crypt` | No | Enable encryption (not yet implemented) |
+| `binkp_zone` | No | DNS zone for crashmail address resolution (e.g. `"binkp.net"`) — see below |
 
 **Network Patterns**: The `networks` field uses wildcard patterns to define which addresses route through this uplink:
 - `1:*/*` - All Zone 1 addresses
@@ -534,9 +579,32 @@ The `crashmail` section controls immediate/direct delivery of netmail:
 
 **About Crashmail**: Crashmail bypasses normal hub routing and attempts direct delivery to the destination node. This is useful for urgent messages but requires the destination node to be directly reachable. The system uses nodelist IBN/INA flags to determine the destination's hostname and port.
 
+**binkp_zone DNS Fallback**: When a destination node cannot be found in the nodelist, crashmail can fall back to DNS resolution using the `binkp_zone` field on the uplink that handles that address range. The hostname is constructed from the FTN address using the standard FidoNet DNS convention:
+
+```
+f{node}.n{net}.z{zone}.{binkp_zone}
+# Examples:
+#   1:123/456  →  f456.n123.z1.binkp.net
+#   2:250/10   →  f10.n250.z2.binkp.net
+```
+
+If the constructed hostname resolves (A or CNAME record), that host is used for delivery on the configured `fallback_port`. This is compatible with DNS-based binkp address registries such as [binkp.net](https://binkp.net). To enable, set `binkp_zone` on the appropriate uplink:
+
+```json
+{
+    "me": "1:123/456.0",
+    "address": "1:1/23",
+    "hostname": "uplink.example.com",
+    "networks": ["1:*/*"],
+    "binkp_zone": "binkp.net"
+}
+```
+
+The field is optional — if omitted or empty, DNS fallback is disabled and crashmail behaves as before.
+
 ### Nodelist Configuration
 
-Create `config/nodelists.json` to configure automatic nodelist downloads. See `config/nodelists.json.example` for a complete reference.
+Create `config/nodelists.json` to configure automatic nodelist downloads from website or other URLs. See `config/nodelists.json.example` for a complete reference.
 
 ```json
 {
@@ -578,7 +646,7 @@ URLs support date macros for dynamic nodelist filenames:
 
 ### Web Terminal Configuration
 
-The web terminal web door provides SSH (and eventually telnet) to various servers  through the browser interface.  To enable terminal access requires:
+The web terminal web door provides SSH and telnet to various servers  through the browser interface.  To enable terminal access requires:
 
 - Enabling terminal access globally through .env (see below)
 - Enabling and configuring the webdoor 'terminal' through config/webdoors.json
@@ -613,7 +681,7 @@ You can customize the welcome messages displayed to users in various parts of th
 Create `config/terminal_welcome.txt` to display a custom message on the terminal login page. If this file exists, it replaces the default "SSH Connection to host:port" message. The content supports multiple lines and will be displayed exactly as written.
 
 Example `config/terminal_welcome.txt`:
-```
+```text
 Welcome to MyBBS Terminal Gateway!
 
 Connect to our shell server to access:
@@ -652,7 +720,7 @@ The web terminal requires a WebSocket-to-SSH proxy server to bridge browser WebS
 
 In general, you can follow these general steps when upgrading BinktermPHP however individual versions may have their own requirements.
 
-**Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path **BEFORE** upgrading.
+**Review version-specific upgrade notes** - Check for any `UPGRADING_x.x.x.md` documents that apply to your upgrade path **BEFORE** upgrading as there may be specific steps you must take.  This applies to both git and installer methods of upgrading!
 
 The general steps are:
 
@@ -673,15 +741,25 @@ wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/bink
 # Run the installer
 php binkterm-installer.phar
 ```
+
+
 ### Version-Specific Upgrade Guides
 
 Individual versions with specific upgrade documentation:
 
-- February 2 2026 - [docs/UPGRADING_1.7.5.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 30 2026 - [docs/UPGRADING_1.7.2.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 29 2026 - [docs/UPGRADING_1.7.1.md](docs/UPGRADING_1.7.1.md) - Online config editing for BinkP, system config, and Webdoors (restart admin daemon after updates)
-- January 28 2026 - [docs/UPGRADING_1.7.0.md](docs/UPGRADING_1.7.0.md) - New daemon/scheduler cron model (direct cron for binkp_poll/process_packets deprecated)
-- January 24 2026 - [docs/UPGRADING_1.6.7.md](docs/UPGRADING_1.6.7.md) - Multi-network support (FidoNet, FSXNet, etc.)
+| Version                                | Date        | Highlights |
+|----------------------------------------|-------------|------------|
+| [1.8.3](docs/UPGRADING_1.8.3.md)       | TBD         | Gemini Capsule Hosting, Gemini Browser start page |
+| [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Gemini Browser WebDoor, CSRF protection, telnet anti-bot, security fixes |
+| [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation |
+| [1.7.9](docs/UPGRADING_1.7.9.md)       | Feb 8 2026  | LovlyNet, telnet user registration, ANSI AD generator, misc updates |
+| [1.7.8](docs/UPGRADING_1.7.8.md)       | Feb 6 2026  | NetMail enhancements, auto feed RSS poster, sysop notifications to email, echomail cross posting |
+| [1.7.7](docs/UPGRADING_1.7.7.md)       | Feb 4 2026  | Nodelist import fix for ZC/NC, WebDoor updates, signatures and taglines, file area action processing |
+| [1.7.5](docs/UPGRADING_1.7.5.md)       | Feb 2 2026  | Echomail loader optimisations, Bink fixes, file areas, forum-style echoarea list |
+| [1.7.2](docs/UPGRADING_1.7.2.md)       | Jan 30 2026 | Maintenance release |
+| [1.7.1](docs/UPGRADING_1.7.1.md)       | Jan 29 2026 | Online config editing for BinkP, system config, and WebDoors |
+| [1.7.0](docs/UPGRADING_1.7.0.md)       | Jan 28 2026 | New daemon/scheduler cron model |
+| [1.6.7](docs/UPGRADING_1.6.7.md)       | Jan 24 2026 | Multi-network support (FidoNet, FSXNet, etc.) |
 
 ## Database Management
 
@@ -1009,7 +1087,7 @@ php scripts/process_packets.php
 Fidonet day bundles (e.g., `.su0`, `.mo1`, `.we1`) and legacy archives like `.arc`, `.arj`, `.lzh`, `.rar` may contain `.pkt` files. BinktermPHP will try ZIP first, then fall back to external extractors.
 
 Configure extractors via `.env`:
-```
+```bash
 ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
 ```
 
@@ -1145,6 +1223,14 @@ Weekly cron example (every Tuesday at 6:00 AM):
 0 6 * * 2 /usr/bin/php /path/to/binkterm/scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --subject="BBS Advertisement"
 ```
 
+Generate ANSI ads from current system settings:
+
+```bash
+php scripts/generate_ad.php --stdout
+```
+
+For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
+
 ### Cron Job Setup
 The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
@@ -1183,9 +1269,9 @@ php scripts/lovlynet_setup.php
 
 The setup script will:
 - Guide you through registration
-- Automatically assign you an FTN address (227:1/10 and up)
+- Automatically assign you an LovlyNet FTN address 
 - Configure your uplink connection
-- Subscribe you to default echo areas (BINKTERMPHP, ANNOUNCE, TEST)
+- Subscribe you to default echo areas (LVLY_BINKTERMPHP, LVLY_ANNOUNCE, LVLY_TEST)
 - Generate secure passwords for binkp and areafix
 
 ### Public vs Passive Nodes
@@ -1237,8 +1323,7 @@ See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's gu
 - **Network**: LovlyNet (Zone 227)
 - **Hub**: 227:1/1 at lovlynet.lovelybits.org:24554
 - **Registration**: Automated via `lovlynet_setup.php`
-- **Echo Areas**: BINKTERMPHP, ANNOUNCE, TEST (auto-subscribed)
-
+- **Services**: AREAFIX and FILEFIX using your AreaFix password as the subject line
 
 ## Troubleshooting
 
@@ -1311,16 +1396,31 @@ See `templates/custom/header.insert.twig.example` for reference with Google Anal
 
 BinktermPHP provides several ways to customize the look and feel without modifying core files:
 
+### Appearance System (Admin UI)
+
+The easiest way to customize your BBS is through **Admin → Appearance**, which provides a point-and-click interface for:
+
+- **Shells** — Choose between the modern `web` shell (Bootstrap 5) or the retro `bbs-menu` shell. The BBS menu shell offers three variants: card grid, text menu, and ANSI art display. You can allow users to choose their own shell or lock everyone to a single choice.
+- **Branding** — Set a custom accent color, logo URL, default theme, and footer text.
+- **Announcements** — Post a dismissible site-wide announcement with an optional expiry date.
+- **System News** — Write dashboard content in Markdown, managed through the admin panel.
+- **Navigation** — Add custom links to the navigation bar.
+- **SEO** — Set a site description and Open Graph image for search engine and social sharing metadata.
+
+All appearance settings are stored in `data/appearance.json` and take effect immediately.
+
+### Manual Customization
+
 - **Custom Stylesheet**: Set `STYLESHEET=/css/mytheme.css` in `.env` (includes built-in dark theme at `/css/dark.css`)
-- **Template Overrides**: Copy any template to `templates/custom/` to override it
+- **Template Overrides**: Copy any template to `templates/custom/` to override it without touching core files
+- **Shell Templates**: Add a `templates/shells/<name>/` directory with a `base.twig` to create a new shell
 - **Custom Routes**: Create `routes/web-routes.local.php` to add new pages
-- **System News**: Create `templates/custom/systemnews.twig` for dashboard content
 - **Header Insertions**: Add CSS/JS via `templates/custom/header.insert.twig`
 - **Welcome Messages**: Customize login page via `config/welcome.txt`
 
 All customizations are upgrade-safe and won't be overwritten when updating BinktermPHP.
 
-For detailed instructions including Bootstrap 5 components, Twig template variables, and code examples, see **[CUSTOMIZING.md](CUSTOMIZING.md)**.
+For detailed instructions including the full appearance configuration reference, shell template structure, Twig variables, and code examples, see **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)**.
 
 ### Performance Tuning
 
@@ -1451,7 +1551,7 @@ The server accepts either `userid` or `user_id` as the key.
 ### Remote verification example
 
 
-```json
+```php
 <?php
 
 /**
@@ -1504,10 +1604,47 @@ if ($userIdFromUrl && $tokenFromUrl) {
     }
 }
 ```
+---
+
+## DOS Doors - Classic BBS Door Games
+
+BinktermPHP supports running classic DOS door games through DOSBox-X emulation. This brings authentic retro BBS door games like Legend of the Red Dragon (LORD), Trade Wars, and other DOS classics to your web-based BBS.
+
+### How It Works
+
+The DOS door system uses a multiplexing bridge architecture that connects browser terminals to DOSBox-X instances via WebSockets:
+
+- **Browser Terminal** - xterm.js terminal in the web browser
+- **Multiplexing Bridge** - Node.js server managing WebSocket connections and DOSBox instances
+- **DOSBox-X** - Emulator running the actual DOS door game with FOSSIL driver support
+- **Node-Specific Drop Files** - DOOR.SYS generated per-session for proper multi-user support
+
+### Key Features
+
+- **Multi-Node Support** - Multiple users can play simultaneously with isolated sessions
+- **Automatic Session Management** - Bridge handles entire lifecycle (config generation, DOSBox launch, cleanup)
+- **Carrier Detection** - Realistic BBS behavior with graceful shutdown on disconnect
+- **Drop File Generation** - DOOR.SYS files generated from user data for proper door game integration
+
+### Requirements
+
+- **DOSBox-X** - Required for DOS emulation
+- **Node.js** - Required for the multiplexing bridge server
+- **FOSSIL Driver Support** - Built into DOSBox-X serial port configuration
+- **Door Games** - Classic DOS door game files (LORD, BRE, etc.)
+
+### Getting Started
+
+See **[docs/DOSDoors.md](docs/DOSDoors.md)** for complete documentation including:
+- Installation and configuration
+- Adding door games
+- Multi-node setup
+- WebSocket configuration (SSL/proxy support)
+- Troubleshooting and debugging
 
 ## WebDoors - Web-Based Door Games
 
-BinktermPHP implements the evolving **WebDoor** specification, enabling HTML5/JavaScript games to integrate with the BBS. This brings the classic BBS "door game" experience to modern web browsers.
+BinktermPHP implements the WebDoors -  HTML5/JavaScript games that integrate with the BBS. 
 
 ### Included WebDoors
 
@@ -1591,6 +1728,43 @@ Games interact with the BBS through REST endpoints:
 ### Documentation
 
 For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
+
+## Gemini Support
+
+BinktermPHP includes first-class support for the [Gemini protocol](https://geminiprotocol.net/) — a lightweight, privacy-focused alternative to the web that uses a simple text format called gemtext.
+
+### Gemini Browser
+
+A built-in Gemini browser WebDoor lets users explore Geminispace without leaving the BBS. It includes:
+
+- Address bar with history navigation (back/forward)
+- Bookmark management per user
+- Gemtext rendering with headings, links, lists, blockquotes, and preformatted blocks
+- Redirect following and configurable request timeouts
+- SSRF protection (private/reserved address blocking for public deployments)
+
+The browser opens to a curated start page with links to popular Geminispace destinations. The start page can be overridden in Admin → WebDoors → Gemini Browser.
+
+### Gemini Capsule Hosting
+
+BBS users can publish personal Gemini capsules directly from the web interface. The **Gemini Capsule** WebDoor provides:
+
+- Split-pane gemtext editor with live preview
+- Per-file publish/draft controls (only published files are publicly accessible)
+- Gemtext syntax cheat sheet
+- Multiple `.gmi` files per user
+
+Published capsules are accessible at:
+
+```
+gemini://yourdomain.com/home/username/
+```
+
+A directory page at `gemini://yourdomain.com/` lists all users with published capsules and links to the BBS website.
+
+The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) that operators start only if they want to expose Gemini. It generates a self-signed TLS certificate automatically (Gemini uses a Trust On First Use model), or can be configured to use a CA-signed certificate such as one from Let's Encrypt.
+
+See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
 
 ## Frequently Asked Questions
 

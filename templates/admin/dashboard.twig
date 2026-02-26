@@ -102,6 +102,9 @@
                         <a href="/admin/binkp-sessions" class="btn btn-outline-info">
                             <i class="fas fa-history me-2"></i>Session Log
                         </a>
+                        <a href="/admin/activity-stats" class="btn btn-outline-primary">
+                            <i class="fas fa-chart-bar me-2"></i>Activity Statistics
+                        </a>
                     </div>
                 </div>
             </div>
@@ -220,24 +223,6 @@
         </div>
     </div>
 
-    <!-- Recent Updates -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-bullhorn me-2"></i>
-                        Recent Updates
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div id="adminRecentUpdates">
-                        {% include 'recent_updates.twig' %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <style>

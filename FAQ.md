@@ -293,6 +293,44 @@ For more details on file area rules, see `docs/FileAreas.md`.
 
 
 
+## File Areas
+
+### Q: How do I increase the maximum file size in a file area?
+**A:** There are two places to update:
+
+**1. File area setting (Admin → Area Management → File Areas)**
+
+Edit the file area and increase the **Max File Size** field. This controls the per-upload limit enforced by BinktermPHP itself.
+
+**2. PHP upload limits (`php.ini`)**
+
+PHP imposes its own limits that must be at least as large as the value above. Edit your `php.ini` (typically `/etc/php/8.x/fpm/php.ini` or `/etc/php/8.x/apache2/php.ini`):
+
+```ini
+upload_max_filesize = 100M
+post_max_size = 110M
+```
+
+- `upload_max_filesize` — maximum size of a single uploaded file
+- `post_max_size` — maximum size of the entire POST request body; set this slightly larger than `upload_max_filesize`
+
+After editing `php.ini`, restart your PHP process:
+
+```bash
+# PHP-FPM
+sudo systemctl restart php8.x-fpm
+
+# Apache mod_php
+sudo systemctl restart apache2
+```
+
+You can verify the active values with:
+```bash
+php -r "echo ini_get('upload_max_filesize'), ' / ', ini_get('post_max_size'), PHP_EOL;"
+```
+
+---
+
 ## Multi-Network Support
 
 ### Q: Can I connect to multiple FTN networks?

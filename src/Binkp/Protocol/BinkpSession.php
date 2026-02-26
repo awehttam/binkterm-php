@@ -376,7 +376,8 @@ class BinkpSession
                 $this->log("Remote address: {$addressData}", 'DEBUG');
 
                 // Handle multiple addresses - remote may send "1:153/149 1:153/149.1 1:153/149.2"
-                $addresses = explode(' ', $addressData);
+                // Trim whitespace first to handle leading/trailing spaces
+                $addresses = array_values(array_filter(explode(' ', trim($addressData)), 'strlen'));
 
                 // Try to find a matching address in our uplinks
                 $matchedAddress = null;
@@ -418,14 +419,19 @@ class BinkpSession
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
 
                 if ($this->state === self::STATE_INIT) {
+                    // Answerer hasn't sent ADR yet (rare path)
                     $this->sendAddress();
-                    $this->sendPassword();
-                    $this->state = self::STATE_PWD_SENT;
-                } elseif ($this->state === self::STATE_ADDR_SENT) {
-                    $this->sendPassword();
-                    $this->state = self::STATE_PWD_SENT;
-                } else {
                     $this->state = self::STATE_ADDR_RECEIVED;
+                } elseif ($this->state === self::STATE_ADDR_SENT) {
+                    if ($this->isOriginator) {
+                        // Originator sends M_PWD after receiving answerer's ADR
+                        // (NUL frames with CRAM challenge have been processed by now)
+                        $this->sendPassword();
+                        $this->state = self::STATE_PWD_SENT;
+                    } else {
+                        // Answerer waits for originator's M_PWD
+                        $this->state = self::STATE_ADDR_RECEIVED;
+                    }
                 }
                 break;
 
@@ -433,10 +439,6 @@ class BinkpSession
                 $this->log("M_PWD received", 'DEBUG');
                 if (!$this->validatePassword($frame->getData())) {
                     throw new \Exception('Authentication failed');
-                }
-
-                if ($this->state === self::STATE_ADDR_RECEIVED) {
-                    $this->sendPassword();
                 }
 
                 // Only answerer should send M_OK; originator waits for M_OK
@@ -452,8 +454,32 @@ class BinkpSession
                 break;
 
             case BinkpFrame::M_OK:
-                $this->log("M_OK received", 'DEBUG');
+                $okData = $frame->getData();
+                $this->log("M_OK received: {$okData}", 'DEBUG');
+
                 if ($this->state === self::STATE_PWD_SENT) {
+                    // Parse session type from M_OK response
+                    $okLower = strtolower(trim($okData));
+                    $isSecureResponse = (strpos($okLower, 'non-secure') === false
+                        && strpos($okLower, 'insecure') === false);
+
+                    if ($isSecureResponse) {
+                        $this->sessionType = 'secure';
+                    } else {
+                        $this->sessionType = 'non-secure';
+                    }
+
+                    // If we sent a password but server accepted as non-secure,
+                    // the password was not recognized by the remote
+                    if ($this->isOriginator && !empty($this->uplinkPassword)
+                        && $this->sessionType === 'non-secure') {
+                        throw new \Exception(
+                            'Password rejected: sent password but remote accepted as non-secure. '
+                            . 'Verify password configuration on both ends for node '
+                            . $this->remoteAddress
+                        );
+                    }
+
                     $this->state = self::STATE_AUTHENTICATED;
                 }
                 break;
@@ -469,7 +495,8 @@ class BinkpSession
                     $this->remoteCramSupported = true;
                     $this->log("Received CRAM-MD5 challenge from remote", 'DEBUG');
 
-                    // As originator, decide whether to use CRAM based on uplink config
+                    // As originator, use CRAM-MD5 only if uplink config enables it
+                    // (allows plaintext fallback when crypt is disabled)
                     if ($this->isOriginator && $this->isCramEnabledForUplink()) {
                         $this->useCramAuth = true;
                         $this->log("Will use CRAM-MD5 authentication", 'DEBUG');
@@ -680,15 +707,35 @@ class BinkpSession
 
         // Filter TIC pairs for current uplink if applicable
         $ticPairsToSend = [];
+        $ticPairsSkipped = 0;
         if ($this->currentUplink !== null) {
             foreach ($ticPairs as $pair) {
-                // TIC files don't have destination addresses like packets
-                // Send all TIC files for this uplink's domain
-                // This is a simplified approach - could be improved with area subscriptions
+                // Parse TIC file to get destination address
+                $destAddr = $this->getTicDestination($pair['tic']);
+                if ($destAddr === null) {
+                    $this->log("Could not determine destination for TIC: " . basename($pair['tic']) . ", skipping", 'WARNING');
+                    $ticPairsSkipped++;
+                    continue;
+                }
+
+                // Check if this TIC's destination should be routed through the current uplink
+                if (!$this->config->isDestinationForUplink($destAddr, $this->currentUplink)) {
+                    $this->log("TIC " . basename($pair['tic']) . " destined for {$destAddr} not routed through this uplink (" .
+                        ($this->currentUplink['domain'] ?? 'unknown') . "), skipping");
+                    $ticPairsSkipped++;
+                    continue;
+                }
+
+                $this->log("TIC " . basename($pair['tic']) . " destined for {$destAddr} matches uplink " .
+                    ($this->currentUplink['domain'] ?? $this->currentUplink['address']));
                 $ticPairsToSend[] = $pair;
             }
         } else {
             $ticPairsToSend = $ticPairs;
+        }
+
+        if ($ticPairsSkipped > 0) {
+            $this->log("Skipped {$ticPairsSkipped} TIC pairs not for this uplink", 'DEBUG');
         }
 
         $totalFiles = count($filesToSend) + count($ticPairsToSend);
@@ -798,15 +845,46 @@ class BinkpSession
         return null;
     }
 
+    /**
+     * Extract the destination address from a TIC file
+     *
+     * @param string $ticPath Path to TIC file
+     * @return string|null Destination address in zone:net/node format, or null if not found
+     */
+    private function getTicDestination(string $ticPath): ?string
+    {
+        $ticContent = @file_get_contents($ticPath);
+        if ($ticContent === false) {
+            return null;
+        }
+
+        // Parse TIC file to find the "To" field
+        $lines = explode("\n", $ticContent);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match('/^To\s+(.+)$/i', $line, $matches)) {
+                $destAddr = trim($matches[1]);
+                return $destAddr;
+            }
+        }
+
+        return null;
+    }
+
     private function sendFile($filePath)
     {
         $filename = basename($filePath);
         $fileSize = filesize($filePath);
         $timestamp = filemtime($filePath);
 
-        // Get packet destination for logging
-        $destAddr = $this->getPacketDestination($filePath);
+        // Get packet destination for logging (only for .pkt files, not TIC or data files)
         $uplinkAddr = $this->currentUplink['address'] ?? 'unknown';
+        $destAddr = null;
+
+        // Only try to parse packet destination for actual FidoNet packet files
+        if (preg_match('/\.pkt$/i', $filename)) {
+            $destAddr = $this->getPacketDestination($filePath);
+        }
 
         // Format: filename size timestamp [offset]
         // According to binkp spec, format should be: filename size time [offset]
@@ -814,7 +892,11 @@ class BinkpSession
         $frame = BinkpFrame::createCommand(BinkpFrame::M_FILE, $fileInfo);
         $frame->writeToSocket($this->socket);
 
-        $this->log("Sending packet {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+        if ($destAddr) {
+            $this->log("Sending packet {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}, packet dest: {$destAddr}", 'INFO');
+        } else {
+            $this->log("Sending file {$filename} ({$fileSize} bytes) to uplink {$uplinkAddr}", 'INFO');
+        }
 
         $handle = fopen($filePath, 'rb');
         if (!$handle) {
@@ -905,6 +987,32 @@ class BinkpSession
                 $this->filesReceived[] = $this->currentFile['name'];
                 $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
 
+                // Create metadata file for packets received in insecure sessions
+                if ($this->isInsecureSession && preg_match('/\.pkt$/i', $this->currentFile['name'])) {
+                    $inboundPath = $this->config->getInboundPath();
+                    $metadataFile = $inboundPath . '/' . $this->currentFile['name'] . '.meta';
+                    $metadata = [
+                        'insecure_session' => true,
+                        'remote_address' => $this->remoteAddress ?? 'unknown',
+                        'received_at' => time()
+                    ];
+
+                    $jsonData = json_encode($metadata, JSON_PRETTY_PRINT);
+                    if ($jsonData === false) {
+                        $jsonError = json_last_error_msg();
+                        $this->log("ERROR: Failed to encode metadata for packet '{$this->currentFile['name']}': {$jsonError}", 'ERROR');
+                    } else {
+                        $result = file_put_contents($metadataFile, $jsonData);
+                        if ($result === false) {
+                            $lastError = error_get_last();
+                            $errorMsg = $lastError ? $lastError['message'] : 'unknown error';
+                            $this->log("ERROR: Failed to write metadata file '{$metadataFile}' for packet '{$this->currentFile['name']}': {$errorMsg}", 'ERROR');
+                        } else {
+                            $this->log("Created metadata file for insecure packet: " . $this->currentFile['name'], 'DEBUG');
+                        }
+                    }
+                }
+
                 // Send M_GOT
                 $gotData = $this->currentFile['name'] . ' ' . $this->currentFile['size'] . ' ' . $this->currentFile['timestamp'];
                 $frame = BinkpFrame::createCommand(BinkpFrame::M_GOT, $gotData);
@@ -923,7 +1031,11 @@ class BinkpSession
         $this->log("Remote confirmed: {$data}", 'DEBUG');
 
         $parts = explode(' ', $data);
-        $filename = $parts[0];
+        $filename = basename($parts[0]);
+        if ($filename === '' || $filename === '.' || $filename === '..') {
+            $this->log("Invalid filename in M_GOT: {$data}", 'WARNING');
+            return;
+        }
 
         $outboundPath = $this->config->getOutboundPath();
         $filepath = $outboundPath . '/' . $filename;
@@ -976,11 +1088,33 @@ class BinkpSession
             $this->log("CRAM-MD5 validation: " . ($match ? 'OK' : 'FAILED'), $match ? 'DEBUG' : 'WARNING');
 
             if ($match) {
+                // Check if we matched on empty or dash password (insecure session indicators)
+                if ($expectedPassword === '' || $expectedPassword === '-') {
+                    $this->log("CRAM-MD5 matched with empty/dash password - checking insecure policy", 'DEBUG');
+                    return $this->handleInsecureAuth();
+                }
+
                 $this->authMethod = 'cram-md5';
                 $this->sessionType = 'secure';
+                return true;
             }
 
-            return $match;
+            // Check if they're trying to authenticate with "-" (insecure session request)
+            // Compute what the digest would be if password was "-"
+            $dashDigest = $this->computeCramDigest($this->cramChallenge, '-');
+            if (hash_equals($dashDigest, $receivedDigest)) {
+                $this->log("CRAM-MD5 with '-' password detected - checking insecure policy", 'DEBUG');
+                return $this->handleInsecureAuth();
+            }
+
+            // Also check for empty password
+            $emptyDigest = $this->computeCramDigest($this->cramChallenge, '');
+            if (hash_equals($emptyDigest, $receivedDigest)) {
+                $this->log("CRAM-MD5 with empty password detected - checking insecure policy", 'DEBUG');
+                return $this->handleInsecureAuth();
+            }
+
+            return false;
         }
 
         // Plain text password validation
@@ -993,7 +1127,7 @@ class BinkpSession
             $this->log("Accepting plain text password fallback", 'DEBUG');
         }
 
-        $match = $password === $expectedPassword;
+        $match = hash_equals($expectedPassword, $password);
 
         // Log details for debugging authentication issues
         $receivedLen = strlen($password);

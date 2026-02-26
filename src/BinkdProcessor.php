@@ -132,7 +132,31 @@ class BinkdProcessor
     {
         $packetName = basename($filename);
         $this->logPacket($filename, 'IN', 'pending');
-        
+
+        // Check for metadata file indicating insecure session
+        $metadataFile = $filename . '.meta';
+        $isInsecureSession = false;
+        $remoteAddress = null;
+
+        if (file_exists($metadataFile)) {
+            $raw = file_get_contents($metadataFile);
+            $metadata = $raw !== false ? json_decode($raw, true) : null;
+
+            if (is_array($metadata) && json_last_error() === JSON_ERROR_NONE) {
+                $isInsecureSession = $metadata['insecure_session'] ?? false;
+                $remoteAddress = $metadata['remote_address'] ?? null;
+
+                if ($isInsecureSession) {
+                    $this->log("[BINKD] Packet $packetName received via INSECURE session from $remoteAddress");
+                }
+            } else {
+                $this->log("[BINKD] Metadata parse failed for $packetName");
+            }
+
+            // Clean up metadata file
+            @unlink($metadataFile);
+        }
+
         try {
             $handle = fopen($filename, 'rb');
             if (!$handle) {
@@ -167,12 +191,21 @@ class BinkdProcessor
             // Process messages in packet
             $messageCount = 0;
             $failedMessages = 0;
+            $echomailRejected = false;
+
             while (!feof($handle)) {
                 try {
                     $message = $this->readMessage($handle, $packetInfo);
 
                     if ($message) {
-                        $this->storeMessage($message, $packetInfo);
+                        // Security check: reject echomail from insecure sessions
+                        if ($isInsecureSession && !$this->isNetmailMessage($message)) {
+                            $echomailRejected = true;
+                            $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName");
+                            break; // Stop processing this packet
+                        }
+
+                        $this->storeMessage($message, $packetInfo, $isInsecureSession);
                         $messageCount++;
                     }
                 } catch (\Exception $e) {
@@ -181,8 +214,16 @@ class BinkdProcessor
                     // Continue processing other messages
                 }
             }
-            
+
             fclose($handle);
+
+            // If echomail was rejected, throw error to move packet to error dir
+            if ($echomailRejected) {
+                $error = "Packet $packetName rejected: echomail not allowed from insecure sessions";
+                $this->log("[BINKD] $error");
+                $this->logPacket($filename, 'IN', 'error');
+                throw new \Exception($error);
+            }
             
             $this->log("[BINKD] Packet $packetName processed: $messageCount messages stored, $failedMessages failed");
             $this->logPacket($filename, 'IN', 'processed');
@@ -234,6 +275,7 @@ class BinkdProcessor
                 }
             }
         } else {
+            $this->log("FUNKY!  ".__FILE__.":".__LINE__);
             echo __FILE__.":".__LINE__;
             echo "funky";exit;
         }
@@ -350,6 +392,20 @@ class BinkdProcessor
                 if ($origPoint > 0 && $destPoint > 0) {
                     break;
                 }
+            }
+        }
+
+        // When a point is identified via FMPT but origNode=0 in the message header,
+        // some FTN software (e.g. Synchronet) encodes boss net/node in the PACKET
+        // header rather than the message header or an INTL kludge (which is often
+        // omitted for intra-zone mail). Fall back to the packet-level boss address.
+        if ($origPoint > 0 && $origNode === 0) {
+            $packetOrigNet  = (int)($packetInfo['origNet']  ?? 0);
+            $packetOrigNode = (int)($packetInfo['origNode'] ?? 0);
+            if ($packetOrigNet > 0 || $packetOrigNode > 0) {
+                $origNet  = $packetOrigNet;
+                $origNode = $packetOrigNode;
+                $this->log("[BINKD] Point mail with origNode=0 in message header — using packet boss address: {$origZone}:{$origNet}/{$origNode}.{$origPoint}");
             }
         }
 
@@ -511,7 +567,7 @@ class BinkdProcessor
                 ];
                 
                 $encoding = $encodingMap[$charset] ?? $charset;
-                $this->log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
+                //$this->log("[BINKD] Found CHRS kludge: $charset -> using encoding: $encoding");
                 return $encoding;
             }
         }
@@ -519,14 +575,14 @@ class BinkdProcessor
         return null; // No CHRS kludge found
     }
 
-    private function storeMessage($message, $packetInfo = null)
+    private function storeMessage($message, $packetInfo = null, $isInsecureSession = false)
     {
         // Determine if this is netmail or echomail based on FidoNet standards
         // Use comprehensive detection that works with raw message text
         $isNetmail = $this->isNetmailMessage($message);
-        
+
         if ($isNetmail) {
-            $this->storeNetmail($message, $packetInfo);
+            $this->storeNetmail($message, $packetInfo, $isInsecureSession);
         } else {
             $this->storeEchomail($message, $packetInfo, $message['domain']);
         }
@@ -614,7 +670,7 @@ class BinkdProcessor
         return strpos($firstLine, 'AREA:') === 0;
     }
 
-    private function storeNetmail($message, $packetInfo = null)
+    private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false)
     {
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
@@ -627,15 +683,24 @@ class BinkdProcessor
         $lines = explode("\n", $messageText);
         $cleanedLines = [];
         $kludgeLines = [];
+        $bottomKludges = [];
         $tzutcOffset = null;
         $messageId = null;
         $originalAuthorAddress = null;
         $replyAddress = null;
-        
+
         foreach ($lines as $line) {
             // Process kludge lines (lines starting with \x01) in netmail
             if (strlen($line) > 0 && ord($line[0]) === 0x01) {
-                $kludgeLines[] = $line;
+                // Separate bottom kludges (FTS-4009: Via and PATH go after message text)
+                // Via: ^AVia 1:153/757 @... or ^AVia: 1:153/757 @...
+                // PATH: ^APATH: 1/1 2/2 (rare in netmail but handled for consistency)
+                if (preg_match('/^\x01Via[:\s]+\d+:\d+\/\d+/i', $line) ||
+                    preg_match('/^\x01PATH:/i', $line)) {
+                    $bottomKludges[] = $line;
+                } else {
+                    $kludgeLines[] = $line;
+                }
                 
                 // Extract TZUTC offset for proper date calculation
                 if (strpos($line, "\x01TZUTC:") === 0) {
@@ -687,6 +752,7 @@ class BinkdProcessor
         // Create clean message text without kludges
         $cleanMessageText = implode("\n", $cleanedLines);
         $kludgeText = implode("\n", $kludgeLines);
+        $bottomKludgeText = implode("\n", $bottomKludges);
 
         // Use addresses from kludges if available (more reliable than INTL kludge)
         // Priority: REPLYADDR > MSGID original author > message envelope
@@ -707,8 +773,8 @@ class BinkdProcessor
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, reply_to_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, attributes, message_id, original_author_address, reply_address, kludge_lines, bottom_kludges, reply_to_id, received_insecure)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo, $tzutcOffset);
@@ -726,8 +792,10 @@ class BinkdProcessor
             $messageId,
             $originalAuthorAddress,
             $replyAddress,
-            $kludgeText, // Store kludges separately
-            $replyToId
+            $kludgeText, // Store top kludges separately
+            !empty($bottomKludgeText) ? $bottomKludgeText : null, // Store bottom kludges (Via, etc.)
+            $replyToId,
+            $isInsecureSession ? 'true' : 'false' // PostgreSQL boolean
         ]);
 
         $netmailId = $this->db->lastInsertId();
@@ -836,11 +904,12 @@ class BinkdProcessor
         $echoareaTag = 'UNKNOWN';
         $cleanedLines = [];
         $kludgeLines = [];
+        $bottomKludges = [];
         $messageId = null;
         $originLine = null;
         $originalAuthorAddress = null;
         $tzutcOffset = null;
-        
+
         foreach ($lines as $i => $line) {
             // Extract AREA: tag from first line
             if ($i === 0 && strpos($line, 'AREA:') === 0) {
@@ -856,10 +925,18 @@ class BinkdProcessor
                 $kludgeLines[] = "AREA:" . $areaLine;   // No space after AREA:
                 continue; // Don't include AREA: line in message body
             }
-            
+
             // Process kludge lines (lines starting with \x01)
             if (strlen($line) > 0 && ord($line[0]) === 0x01) {
-                $kludgeLines[] = $line;
+                // Separate bottom kludges (FTS-4009: Via and PATH go after message text)
+                // Via: ^AVia 1:153/757 @... or ^AVia: 1:153/757 @...
+                // PATH: ^APATH: 1/1 2/2
+                if (preg_match('/^\x01Via[:\s]+\d+:\d+\/\d+/i', $line) ||
+                    preg_match('/^\x01PATH:/i', $line)) {
+                    $bottomKludges[] = $line;
+                } else {
+                    $kludgeLines[] = $line;
+                }
                 
                 // Extract MSGID for storage and original author address
                 if (strpos($line, "\x01MSGID:") === 0) {
@@ -867,11 +944,14 @@ class BinkdProcessor
                     
                     // Extract original author address from MSGID
                     // MSGID formats:
-                    // 1. Standard: "1:123/456 12345678"
-                    // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
-                    if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                    // 1. Standard:   "1:123/456 12345678"
+                    // 2. With point: "1:123/456.7 12345678"
+                    // 3. Opaque@addr: "244652.syncdata@1:103/705 2d1da177"
+                    // 4. Addr@domain: "618:618/1@micronet 6695bee3"
+                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)(?:@\S+)?\s+/', $messageId, $matches) ||
+                        preg_match('/^(?:[^@\s]+@)(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        $this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
+                        //$this->log("[BINKD] Extracted original author address from echomail MSGID: " . $originalAuthorAddress . " (raw MSGID: " . $messageId . ")");
                     } else {
                         $this->log("[BINKD] WARNING: Could not extract address from echomail MSGID: " . $messageId);
                     }
@@ -896,9 +976,9 @@ class BinkdProcessor
                 continue; // Don't include in message body
             }
             
-            // Process SEEN-BY and PATH lines for storage
+            // Process SEEN-BY and PATH lines for storage (FTS-4009: bottom kludges)
             if (strpos($line, 'SEEN-BY:') === 0 || strpos($line, 'PATH:') === 0) {
-                $kludgeLines[] = $line;
+                $bottomKludges[] = $line;
                 //error_log("Echomail control line: " . $line);
                 continue; // Don't include in message body
             }
@@ -912,7 +992,7 @@ class BinkdProcessor
                 if(!$originalAuthorAddress){
                     if (preg_match('/\((\d+:\d+\/\d+(?:\.\d+)?)\)/', $line, $matches)) {
                         $originalAuthorAddress = $matches[1];
-                        $this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
+                        //$this->log("[BINKD] Extracted original author address from Origin line: " . $originalAuthorAddress . " (raw Origin: " . $line . ")");
                     } else {
                         $this->log("[BINKD] WARNING: Could not extract address from Origin line: " . $line);
                     }
@@ -926,14 +1006,14 @@ class BinkdProcessor
         }
         
         $messageText = implode("\n", $cleanedLines);
-        
+
         // Get or create echoarea
         $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
 
         // We don't record date_received explictly to allow postgres to use its DEFAULT value
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines, reply_to_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written,  message_id, origin_line, kludge_lines, bottom_kludges, reply_to_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?)
         ");
 
         //$this->log("DEBUG: Parsing FidoNet datetime ".$message['dateTime']." TZUTC OFFSET ".$tzutcOffset);
@@ -941,6 +1021,7 @@ class BinkdProcessor
         //$this->log("DEBUG: dateWritten is $dateWritten");
         //$dateWritten = $this->parseFidonetDate($message['dateTime'], $packetInfo);  // Don't use tzutcOFfset because we want to record exactly what they sent to us.
         $kludgeText = implode("\n", $kludgeLines);
+        $bottomKludgeText = implode("\n", $bottomKludges);
 
         // Extract REPLY MSGID from kludges to populate reply_to_id for threading
         $replyToId = null;
@@ -968,6 +1049,18 @@ class BinkdProcessor
             }
         }
 
+        // Check for duplicate MSGID to prevent duplicate messages during rescans
+        if (!empty($messageId)) {
+            $dupCheckStmt = $this->db->prepare("SELECT id FROM echomail WHERE message_id = ? AND echoarea_id = ? LIMIT 1");
+            $dupCheckStmt->execute([$messageId, $echoarea['id']]);
+            $existingMessage = $dupCheckStmt->fetch();
+
+            if ($existingMessage) {
+                $this->log("[BINKD]: Skipping duplicate message - MSGID '" . $messageId . "' already exists in echoarea '" . $echoareaTag . "' (id: " . $existingMessage['id'] . ")");
+                return; // Skip this message
+            }
+        }
+
         // Use original author address from MSGID if available, otherwise fall back to packet sender
         $fromAddress = $originalAuthorAddress ?: $message['origAddr'];
 
@@ -975,7 +1068,9 @@ class BinkdProcessor
                   ", MSGID author: " . ($originalAuthorAddress ?: 'none') .
                   ", Packet sender: " . $message['origAddr'] .
                   ", Using: " . $fromAddress .
-                  ($replyToId ? ", Reply to ID: " . $replyToId : ""));
+                  ($replyToId ? ", Reply to ID: " . $replyToId : "").
+                    ', Subject: '.$message['subject']
+        );
 
         $stmt->execute([
             $echoarea['id'],
@@ -988,6 +1083,7 @@ class BinkdProcessor
             $messageId,
             $originLine,
             $kludgeText,
+            !empty($bottomKludgeText) ? $bottomKludgeText : null, // Store bottom kludges (Via, etc.)
             $replyToId
         ]);
         
@@ -1166,7 +1262,7 @@ class BinkdProcessor
             return $result;
         } catch (\Exception $e) {
             $this->log("DEBUG: Failed to apply TZUTC offset: " . $e->getMessage());
-            $this->log(__FILE__.":".__LINE__." returning $result");
+            $this->log(__FILE__.":".__LINE__." returning $dateString");
             return $dateString; // Return original date if offset application fails
         }
     }
@@ -1237,8 +1333,11 @@ class BinkdProcessor
         $destZone = (int)$destZone;
         $destNet = (int)$destNet;
 
-        // Parse origin address
+        // Parse origin address — must have a configured uplink with a 'me' address
         $myAddress = $this->config->getOriginAddressByDestination($destAddr);
+        if (!$myAddress) {
+            throw new \Exception("No configured uplink 'me' address for destination $destAddr — cannot build packet header");
+        }
         $this->log("writePacketHeader using origin address $myAddress for $destAddr");
         list($origZone, $origNetNode) = explode(':', $myAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
@@ -1282,11 +1381,14 @@ class BinkdProcessor
         // Bytes 34-37: Zone information (FSC-0039/0045)
         $header .= pack('vv', $origZone, $destZone);    // 34-37: origZone, destZone
 
-        // Bytes 38-41: AuxNet and capability word
-        $header .= pack('vv', 0, 0);         // 38-41: auxNet, cwCopy
+        // Bytes 38-41: AuxNet and capability word copy
+        // cwCopy must be the byte-swapped value of capWord (FSC-0048 validation)
+        $capWord = 0x0001;  // bit 0: Type-2+ capability
+        $cwCopy  = 0x0100;  // byte-swapped capWord
+        $header .= pack('vv', 0, $cwCopy);   // 38-41: auxNet, cwCopy
 
-        // Bytes 42-45: Extended product info
-        $header .= pack('CCv', 0, 0, 0);     // 42-45: prodCodeHi, revision, cwVal
+        // Bytes 42-45: Extended product info and capability word
+        $header .= pack('CCv', 0, 0, $capWord); // 42-45: prodCodeHi, revision, capWord
 
         // Bytes 46-49: Duplicate zone info (FSC-0048 compatibility)
         $header .= pack('vv', $origZone, $destZone);    // 46-49: origZone_, destZone_
@@ -1312,7 +1414,7 @@ class BinkdProcessor
         $toAddress = trim($message['to_address']);
         
         // Debug logging
-        $this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
+        //$this->log("DEBUG: Writing message from: " . $fromAddress . " to: " . $toAddress);
         
         list($origZone, $origNetNode) = explode(':', $fromAddress);
         list($origNet, $origNodePoint) = explode('/', $origNetNode);
@@ -1337,11 +1439,11 @@ class BinkdProcessor
         $isEchomail = !$isNetmail && isset($message['is_echomail']) && $message['is_echomail'];
         
         // Debug logging
-        $this->log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
-        $this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
-        $this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
-        $this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
-        
+        //$this->log("DEBUG: Message attributes: " . ($message['attributes'] ?? 0));
+        //$this->log("DEBUG: Message text starts with: " . substr($messageText, 0, 50));
+        //$this->log("DEBUG: Detected as netmail: " . ($isNetmail ? 'YES' : 'NO'));
+        //$this->log("DEBUG: Detected as echomail: " . ($isEchomail ? 'YES' : 'NO'));
+
         // For echomail, keep the actual destination address in message header
         
         // Write message type (2 bytes)
@@ -1404,11 +1506,28 @@ class BinkdProcessor
                 // Only add REPLYTO if message has a different reply-to address
                 // For now, we don't add redundant REPLYTO that matches REPLYADDR
                 
-                // Add INTL kludge for zone routing (required for inter-zone mail)
-                list($fromZone, $fromRest) = explode(':', $fromAddress);
-                list($toZone, $toRest) = explode(':', $toAddress);
-                $kludgeLines .= "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}\r\n";
-                
+                // Add INTL kludge for zone routing (required for inter-zone mail).
+                // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
+                list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
+                list($fromNet, $fromNodePoint) = explode('/', $fromNetNodeRaw);
+                $fromNodeOnly = explode('.', $fromNodePoint)[0];
+
+                list($toZone, $toNetNodeRaw) = explode(':', $toAddress);
+                list($toNet, $toNodePoint) = explode('/', $toNetNodeRaw);
+                $toNodeOnly = explode('.', $toNodePoint)[0];
+
+                $kludgeLines .= "\x01INTL {$toZone}:{$toNet}/{$toNodeOnly} {$fromZone}:{$fromNet}/{$fromNodeOnly}\r\n";
+
+                // Add FMPT/TOPT kludges for point addressing if needed
+                if (strpos($fromAddress, '.') !== false) {
+                    list($mainAddr, $fmptPoint) = explode('.', $fromAddress);
+                    $kludgeLines .= "\x01FMPT {$fmptPoint}\r\n";
+                }
+                if (strpos($toAddress, '.') !== false) {
+                    list($mainAddr, $toptPoint) = explode('.', $toAddress);
+                    $kludgeLines .= "\x01TOPT {$toptPoint}\r\n";
+                }
+
                 // Add FLAGS kludge for netmail attributes
                 $flags = [];
                 if (($message['attributes'] ?? 0) & 0x0001) $flags[] = 'PVT'; // Private
@@ -1462,29 +1581,39 @@ class BinkdProcessor
         
         // Origin line should show the actual system address (including point if it's a point system)
         $systemAddress = $fromAddress; // Use the full system address including point
-        
-        // Build origin line with optional origin
-        $originText = " * Origin: ";
-        $origin = $this->config->getSystemOrigin();
-        if (!empty($origin)) {
-            $originText .= $origin;
-        } else {
-            $originText .= $this->config->getSystemName();
+
+        // Origin line is echomail-only per FTS-0004
+        if ($isEchomail) {
+            $originText = " * Origin: ";
+            $origin = $this->config->getSystemOrigin();
+            if (!empty($origin)) {
+                $originText .= $origin;
+            } else {
+                $originText .= $this->config->getSystemName();
+            }
+
+            $originText .= " (" . $systemAddress . ")";
+
+            $messageText .= $originText;
         }
 
-        $originText .= " (" . $systemAddress . ")";
-        
-        $messageText .= $originText;
-        
-        // Add echomail-specific control lines after origin
+        // Add bottom kludges (Via lines, etc.) after origin per FTS-4009.001
+        // These appear after message text but before SEEN-BY/PATH
+        if (!empty($message['bottom_kludges'])) {
+            $messageText .= "\r\n";
+            $bottomKludges = str_replace("\n", "\r\n", $message['bottom_kludges']);
+            $messageText .= $bottomKludges;
+        }
+
+        // Add echomail-specific control lines after bottom kludges
         if ($isEchomail) {
             $messageText .= "\r\n";
-            
+
             // Parse system address for SEEN-BY and PATH lines
             list($zone, $netNode) = explode(':', $systemAddress);
             list($net, $nodePoint) = explode('/', $netNode);
             $hostNode = explode('.', $nodePoint)[0]; // Host node without point
-            
+
             // Add SEEN-BY line (required for echomail) - uses host node only
             $messageText .= "SEEN-BY: {$net}/{$hostNode}\r\n";
             

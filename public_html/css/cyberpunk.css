@@ -40,8 +40,12 @@
     100% { transform: translate(0); }
 }
 
-/* Prevent horizontal overflow on mobile */
-html, body {
+/* Prevent horizontal overflow on mobile.
+   overflow-x must NOT be set on html — doing so turns overflow-y into
+   "auto" on the root element in Chromium, making html the scroll
+   container and allowing the admin dropdown to create a spurious
+   vertical scrollbar. */
+body {
     overflow-x: hidden;
     max-width: 100vw;
 }
@@ -414,6 +418,10 @@ a:hover {
     color: var(--text-color-muted);
 }
 
+.form-text {
+    color: var(--text-color-muted);
+}
+
 .form-control:disabled,
 .form-control[readonly] {
     background-color: var(--cyber-dark);
@@ -589,6 +597,17 @@ a:hover {
     font-weight: 500;
     margin-bottom: 2px;
     color: var(--text-color);
+}
+
+.node-item.bg-primary .node-address,
+.node-item.bg-primary .node-system {
+    color: #fff;
+    text-shadow: none;
+}
+
+.node-item.bg-primary .badge {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #333 !important;
 }
 
 .node-sysop {
@@ -1508,4 +1527,17 @@ tbody, td, tfoot, th, thead, tr {
     #echolist-page .forum-stats-cell {
         border-top-color: var(--cyber-purple-dim);
     }
+}
+
+/* Message Reader: scrollable body mode */
+/* Remove modal-body top padding so there is no gap above the sticky header */
+.message-reader-scrollable .modal-body {
+    padding-top: 0;
+}
+.message-reader-scrollable .message-header-full {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -1rem 1rem;
+    padding: 1rem 1rem 0.75rem;
 }

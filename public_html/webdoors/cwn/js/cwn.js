@@ -224,8 +224,14 @@ function loadUserInfo() {
     $.get('../../api/user/credits')
         .done(function(data) {
             currentUser = data;
-            $('#userCredits').text(data.credit_balance || 0);
+            const balance = data.credit_balance || 0;
+            $('#userCredits').text(balance);
             updateUserStats();
+
+            // Update parent window credit display using SDK
+            if (typeof WebDoorCredits !== 'undefined') {
+                WebDoorCredits.updateDisplay(balance);
+            }
         })
         .fail(function() {
             $('#userCredits').text('?');

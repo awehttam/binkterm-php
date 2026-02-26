@@ -1,0 +1,40 @@
+{% extends "base.twig" %}
+
+{% block title %}Upgrade Notes v{{ version }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="fas fa-arrow-up-from-bracket me-2"></i>Upgrade Notes <span class="text-muted">v{{ version }}</span></h1>
+    </div>
+
+    {% if content %}
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="card">
+                    <div class="card-body upgrade-notes-body">
+                        {{ content|raw }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            No upgrade notes found for version {{ version }}.
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.upgrade-notes-body h1 { font-size: 1.6rem; margin-top: 1.25rem; }
+.upgrade-notes-body h2 { font-size: 1.3rem; margin-top: 1.25rem; border-bottom: 1px solid var(--bs-border-color); padding-bottom: .3rem; }
+.upgrade-notes-body h3 { font-size: 1.1rem; margin-top: 1rem; }
+.upgrade-notes-body pre { background: #1e1e1e; color: #d4d4d4; border-radius: .375rem; padding: 1rem; overflow-x: auto; }
+.upgrade-notes-body code { font-size: .875em; background: rgba(128,128,128,.15); padding: .1em .3em; border-radius: .2rem; }
+.upgrade-notes-body pre code { background: none; padding: 0; color: inherit; }
+.upgrade-notes-body ul { padding-left: 1.5rem; }
+.upgrade-notes-body hr { margin: 1.5rem 0; }
+.upgrade-notes-body table { width: auto; }
+</style>
+{% endblock %}

@@ -15,7 +15,7 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-9">
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -45,7 +45,7 @@
         </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-3">
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">Statistics</h6>
@@ -197,6 +197,14 @@
                         </label>
                         <div class="form-text">Restrict this echo area to sysop/admin users only</div>
                     </div>
+
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="echoareaGeminiPublic" name="gemini_public">
+                        <label class="form-check-label" for="echoareaGeminiPublic">
+                            Public Gemini Access
+                        </label>
+                        <div class="form-text">Expose this echo area as read-only content on the Gemini capsule server</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -346,15 +354,15 @@ function displayEchoareas(echoareas) {
     } else {
         html = `
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover mb-0" style="table-layout: fixed;">
                     <thead>
                         <tr>
-                            <th width="5%"></th>
-                            <th>ID</th>
-                            <th width="20%">Tag</th>
-                            <th width="35%">Description</th>
-                            <th width="15%">Messages</th>
-                            <th width="15%">Uplink</th>
+                            <th width="4%"></th>
+                            <th width="5%">ID</th>
+                            <th width="22%">Tag</th>
+                            <th width="33%">Description</th>
+                            <th width="10%">Messages</th>
+                            <th width="16%">Uplink</th>
                             <th width="10%">Actions</th>
                         </tr>
                     </thead>
@@ -376,7 +384,7 @@ function displayEchoareas(echoareas) {
                         <div>
                             <div class="d-flex align-items-center mb-1">
                                 <span class="me-2" style="display: inline-block; width: 20px; height: 20px; min-width: 20px; min-height: 20px; background-color: ${area.color || '#28a745'}; border-radius: 3px; flex-shrink: 0;"></span>
-                                <span style="color: #ffc107;">${escapeHtml(area.tag)}</span>
+                                <span style="color: #ffc107; word-break: break-all;">${escapeHtml(area.tag)}</span>
                             </div>
                             <div class="ms-4">
                                 ${area.domain ? `<span class="badge bg-secondary me-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
@@ -385,7 +393,7 @@ function displayEchoareas(echoareas) {
                             </div>
                         </div>
                     </td>
-                    <td>
+                    <td style="word-break: break-word; overflow-wrap: break-word;">
                         <strong>${escapeHtml(area.description)}</strong>
                         ${area.moderator ? `<br><small class="text-muted">Mod: ${escapeHtml(area.moderator)}</small>` : ''}
                     </td>
@@ -429,6 +437,7 @@ function showAddEchoareaModal() {
     $('#echoareaActive').prop('checked', true);
     $('#echoareaLocal').prop('checked', false);
     $('#echoareaSysopOnly').prop('checked', false);
+    $('#echoareaGeminiPublic').prop('checked', false);
     updateColorSelection('#28a745');
     $('#echoareaModal').modal('show');
 }
@@ -450,6 +459,7 @@ function editEchoarea(id) {
             $('#echoareaActive').prop('checked', area.is_active);
             $('#echoareaLocal').prop('checked', area.is_local);
             $('#echoareaSysopOnly').prop('checked', area.is_sysop_only);
+            $('#echoareaGeminiPublic').prop('checked', area.gemini_public);
             updateColorSelection(area.color || '#28a745');
             $('#echoareaModal').modal('show');
         })
@@ -474,6 +484,7 @@ function saveEchoarea() {
         is_active: $('#echoareaActive').is(':checked'),
         is_local: $('#echoareaLocal').is(':checked'),
         is_sysop_only: $('#echoareaSysopOnly').is(':checked'),
+        gemini_public: $('#echoareaGeminiPublic').is(':checked'),
         domain: $("#echoareaDomain").val() || null
     };
     

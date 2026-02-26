@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "type": "dosdoor",
+  "game": {
+    "name": "Example",
+    "short_name": "example",
+    "author": "awehttam",
+    "version": "1.00",
+    "release_year": 2026,
+    "description": "Example dosdoor.jsn manifest for a BinktermPHP door",
+    "genre": ["RPG", "Adventure", "Fantasy"],
+    "icon": "icon.svg",
+    "screenshot": null
+  },
+  "door": {
+    "type": "dos",
+    "executable": "START.BAT",
+    "launch_command": "call start.bat {node}",
+    "directory": "dosbox-bridge/dos/DOORS/SKEL",
+    "dropfile_format": "DOOR.SYS",
+    "node_support": true,
+    "max_nodes": 2,
+    "fossil_required": false,
+    "ansi_required": false,
+    "time_per_day": 30
+  },
+  "requirements": {
+    "dosbox": "dosbox-x",
+    "fossil_driver": "X00.SYS"
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_time_minutes": 30
+  }
+}

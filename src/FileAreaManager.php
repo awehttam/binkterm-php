@@ -320,6 +320,32 @@ class FileAreaManager
     }
 
     /**
+     * Get most recently uploaded files across all active file areas
+     *
+     * @param int $limit Maximum number of files to return
+     * @return array Array of files ordered by upload date descending
+     */
+    public function getRecentFiles(int $limit = 25): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT f.*, fa.tag as area_tag, fa.domain, fa.is_local,
+                   CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
+            FROM files f
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN shared_files sf ON sf.file_id = f.id
+                AND sf.is_active = TRUE
+                AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
+            WHERE f.status = 'approved'
+              AND fa.is_active = TRUE
+              AND (fa.is_private = FALSE OR fa.is_private IS NULL)
+            ORDER BY f.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Get files in a file area
      *
      * @param int $areaId File area ID
@@ -328,9 +354,13 @@ class FileAreaManager
     public function getFiles(int $areaId): array
     {
         $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag
+            SELECT f.*, fa.tag as area_tag,
+                   CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN shared_files sf ON sf.file_id = f.id
+                AND sf.is_active = TRUE
+                AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
             WHERE f.file_area_id = ? AND f.status = 'approved'
             ORDER BY f.created_at DESC
         ");
@@ -579,9 +609,16 @@ class FileAreaManager
                 error_log("Deleted infected file: {$filePath}");
             }
 
-            // Mark file record as rejected
+            // Mark file record as rejected and update area stats
             $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
             $stmt->execute([$fileId]);
+
+            $areaStmt = $this->db->prepare("SELECT file_area_id FROM files WHERE id = ?");
+            $areaStmt->execute([$fileId]);
+            $areaRow = $areaStmt->fetch();
+            if ($areaRow) {
+                $this->updateFileAreaStats((int)$areaRow['file_area_id']);
+            }
         } elseif ($result['result'] === 'error') {
             error_log("Virus scan error for file ID {$fileId}: {$result['error']}");
         }
@@ -1069,5 +1106,231 @@ class FileAreaManager
     }
 
     // Lazy migration removed; directory changes should be handled explicitly.
+
+    // -------------------------------------------------------------------------
+    // File sharing methods
+    // -------------------------------------------------------------------------
+
+    /**
+     * Create a share link for a file, or return an existing active one.
+     * The public URL is /shared/file/{AREA_TAG}/{filename} — human-readable and stable.
+     *
+     * @param int $fileId File ID to share
+     * @param int $userId User creating the share
+     * @param int|null $expiresHours Hours until expiry (null = never)
+     * @return array ['success'=>bool, 'share_url'=>string, 'share_id'=>int, 'existing'=>bool]
+     */
+    public function createFileShare(int $fileId, int $userId, ?int $expiresHours = null): array
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file || $file['status'] !== 'approved') {
+            return ['success' => false, 'error' => 'File not found or not available'];
+        }
+
+        if (!$this->canAccessFileArea($file['file_area_id'], $userId)) {
+            return ['success' => false, 'error' => 'Access denied'];
+        }
+
+        $shareUrl = $this->buildFileShareUrl($file['area_tag'], $file['filename']);
+
+        // Return the existing global share if one is already active for this file
+        $existing = $this->getExistingFileShare($fileId);
+        if ($existing) {
+            return [
+                'success'   => true,
+                'share_url' => $shareUrl,
+                'share_id'  => (int)$existing['id'],
+                'existing'  => true,
+            ];
+        }
+
+        // share_key remains a random token used only for DB uniqueness and revocation tracking
+        $shareKey = bin2hex(random_bytes(16));
+
+        if ($expiresHours !== null) {
+            $expiresHours = (int)$expiresHours;
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_files (file_id, shared_by_user_id, share_key, expires_at, created_at)
+                VALUES (?, ?, ?, NOW() + INTERVAL '1 hour' * ?, NOW())
+                RETURNING id
+            ");
+            $stmt->execute([$fileId, $userId, $shareKey, $expiresHours]);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_files (file_id, shared_by_user_id, share_key, expires_at, created_at)
+                VALUES (?, ?, ?, NULL, NOW())
+                RETURNING id
+            ");
+            $stmt->execute([$fileId, $userId, $shareKey]);
+        }
+
+        $row = $stmt->fetch();
+
+        return [
+            'success'   => true,
+            'share_url' => $shareUrl,
+            'share_id'  => (int)$row['id'],
+            'existing'  => false,
+        ];
+    }
+
+    /**
+     * Fetch a shared file by area tag and filename, updating access statistics.
+     * Picks the most recently created active share for the given file.
+     *
+     * @param string $areaTag File area tag (e.g. "SOFTDIST")
+     * @param string $filename Filename (e.g. "DOOM11.ZIP")
+     * @param int|null $requestingUserId Logged-in user ID (null = anonymous)
+     * @return array ['success'=>bool, 'file'=>array, 'share_info'=>array] or ['success'=>false, 'error'=>string]
+     */
+    public function getSharedFile(string $areaTag, string $filename, ?int $requestingUserId = null): array
+    {
+        $this->cleanupExpiredFileShares();
+
+        $stmt = $this->db->prepare("
+            SELECT sf.id AS share_id,
+                   sf.share_key,
+                   sf.expires_at,
+                   sf.access_count,
+                   sf.last_accessed_at,
+                   sf.created_at AS share_created_at,
+                   sf.shared_by_user_id,
+                   u.username AS shared_by_username,
+                   f.id AS file_id,
+                   f.filename,
+                   f.filesize,
+                   f.short_description,
+                   f.long_description,
+                   f.created_at AS file_created_at,
+                   f.virus_scanned,
+                   f.virus_scan_result,
+                   f.file_area_id,
+                   fa.tag AS area_tag,
+                   fa.description AS area_description
+            FROM shared_files sf
+            JOIN files f ON sf.file_id = f.id
+            JOIN file_areas fa ON f.file_area_id = fa.id
+            JOIN users u ON sf.shared_by_user_id = u.id
+            WHERE LOWER(fa.tag) = LOWER(?)
+              AND LOWER(f.filename) = LOWER(?)
+              AND sf.is_active = TRUE
+              AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
+              AND f.status = 'approved'
+            ORDER BY sf.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$areaTag, $filename]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return ['success' => false, 'error' => 'Share not found or has expired'];
+        }
+
+        // Update access statistics
+        $upd = $this->db->prepare("
+            UPDATE shared_files
+            SET access_count = access_count + 1, last_accessed_at = NOW()
+            WHERE id = ?
+        ");
+        $upd->execute([$row['share_id']]);
+
+        $file = [
+            'id'               => (int)$row['file_id'],
+            'filename'         => $row['filename'],
+            'filesize'         => (int)$row['filesize'],
+            'short_description'=> $row['short_description'],
+            'long_description' => $row['long_description'],
+            'created_at'       => $row['file_created_at'],
+            'virus_scanned'    => $row['virus_scanned'],
+            'virus_scan_result'=> $row['virus_scan_result'],
+            'file_area_id'     => (int)$row['file_area_id'],
+            'area_tag'         => $row['area_tag'],
+            'area_description' => $row['area_description'],
+        ];
+
+        $shareInfo = [
+            'share_id'     => (int)$row['share_id'],
+            'shared_by'    => $row['shared_by_username'],
+            'created_at'   => $row['share_created_at'],
+            'expires_at'   => $row['expires_at'],
+            'access_count' => (int)$row['access_count'] + 1,
+            'share_url'    => $this->buildFileShareUrl($row['area_tag'], $row['filename']),
+            'is_logged_in' => $requestingUserId !== null,
+        ];
+
+        return ['success' => true, 'file' => $file, 'share_info' => $shareInfo];
+    }
+
+    /**
+     * Get the active global share for a file (one share per file, any creator)
+     *
+     * @param int $fileId File ID
+     * @return array|null Share record or null
+     */
+    public function getExistingFileShare(int $fileId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM shared_files
+            WHERE file_id = ?
+              AND is_active = TRUE
+              AND (expires_at IS NULL OR expires_at > NOW())
+            ORDER BY created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$fileId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
+    }
+
+    /**
+     * Revoke a file share
+     *
+     * @param int $shareId Share ID
+     * @param int $userId Requesting user ID
+     * @param bool $isAdmin Whether the user is an admin
+     * @return bool True if revoked
+     */
+    public function revokeFileShare(int $shareId, int $userId, bool $isAdmin = false): bool
+    {
+        if ($isAdmin) {
+            $stmt = $this->db->prepare("UPDATE shared_files SET is_active = FALSE WHERE id = ?");
+            $stmt->execute([$shareId]);
+        } else {
+            $stmt = $this->db->prepare("
+                UPDATE shared_files SET is_active = FALSE
+                WHERE id = ? AND shared_by_user_id = ?
+            ");
+            $stmt->execute([$shareId, $userId]);
+        }
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Deactivate expired file shares
+     */
+    private function cleanupExpiredFileShares(): void
+    {
+        $this->db->exec("
+            UPDATE shared_files
+            SET is_active = FALSE
+            WHERE expires_at IS NOT NULL AND expires_at < NOW() AND is_active = TRUE
+        ");
+    }
+
+    /**
+     * Build the public URL for a file share using the human-readable area/filename path
+     *
+     * @param string $areaTag File area tag (e.g. "SOFTDIST")
+     * @param string $filename Filename (e.g. "DOOM11.ZIP")
+     * @return string
+     */
+    private function buildFileShareUrl(string $areaTag, string $filename): string
+    {
+        return Config::getSiteUrl()
+            . '/shared/file/'
+            . rawurlencode($areaTag)
+            . '/'
+            . rawurlencode($filename);
+    }
 }
 

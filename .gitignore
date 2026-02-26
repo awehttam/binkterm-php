@@ -33,3 +33,12 @@ bbs_ads/*
 
 # Windows utility scripts
 delnul.cmd
+node_modules/
+scripts/dosbox-bridge/package-lock.json
+
+# DOS Door files - only track manifests
+dosbox-bridge/dos/DOORS/*
+!dosbox-bridge/dos/DOORS/*/dosdoor.jsn
+!dosbox-bridge/dos/DOORS/*/README.md
+dosbox-bridge/dos/DROPS/
+dosbox-bridge/dos/drops/

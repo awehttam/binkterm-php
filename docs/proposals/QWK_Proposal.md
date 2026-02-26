@@ -99,7 +99,7 @@ GOODBYE
 
 ### 1. Database Migration
 
-**File:** `database/migrations/v1.7.0_add_qwk_support.sql`
+**File:** `database/migrations/vX.Y.Z_add_qwk_support.sql`
 
 ```sql
 -- QWK download pointers - tracks last downloaded message per user/area
@@ -332,10 +332,9 @@ class CharsetConverter
 
 ### 12. Version Bump
 
-Update version to 1.7.0 in:
+Update version 
 - `src/Version.php`
 - `composer.json`
-- `templates/recent_updates.twig` (add changelog entry)
 
 ---
 
@@ -345,7 +344,7 @@ Update version to 1.7.0 in:
 
 | File | Purpose |
 |------|---------|
-| `database/migrations/v1.7.0_add_qwk_support.sql` | Database schema for QWK tracking and networks |
+| `database/migrations/vX.Y.Z_add_qwk_support.sql` | Database schema for QWK tracking and networks |
 | `src/Qwk/QwkPacketGenerator.php` | Generate QWK download packets |
 | `src/Qwk/RepPacketParser.php` | Parse REP upload packets |
 | `src/Qwk/QwkController.php` | Web/API controller for user downloads |
@@ -357,10 +356,12 @@ Update version to 1.7.0 in:
 | File | Purpose |
 |------|---------|
 | `src/Qwk/QwkNetworkService.php` | Network management and sync logic |
-| `src/Qwk/QwkNetworkPoller.php` | Automated polling service |
+| `src/Qwk/QwkNetworkPoller.php` | Automated polling service (dispatches to hub connectors by type) |
 | `src/Qwk/HttpQwkHub.php` | HTTP/HTTPS hub connector |
 | `src/Qwk/FtpQwkHub.php` | FTP/SFTP hub connector |
-| `scripts/qwk_poll.php` | CLI script for cron-based polling |
+| `src/Qwk/TelnetQwkHub.php` | Telnet hub connector with ZMODEM/YMODEM/XMODEM file transfer |
+| `scripts/qwk_poll.php` | CLI script for cron-based polling (HTTP/FTP networks) |
+| `scripts/telnet_daemon.php` | Telnet QWK daemon - manages outbound telnet sessions for QWK exchange |
 | `templates/admin/qwk_networks.twig` | Admin network management page |
 
 ### Modified Files
@@ -374,9 +375,8 @@ Update version to 1.7.0 in:
 | `templates/admin/nav.twig` | Add QWK Networks admin link |
 | `src/MessageHandler.php` | Add QWK settings methods |
 | `src/AdminController.php` | Add QWK network management methods |
-| `src/Version.php` | Bump to 1.7.0 |
+| `src/Version.php` | Version bump |
 | `composer.json` | Bump version |
-| `templates/recent_updates.twig` | Add changelog entry |
 
 ---
 
@@ -603,7 +603,7 @@ This model is simpler than FidoNet echomail but trades real-time delivery for ea
 
 ### Database Schema for QWK Networks
 
-**Additional migration:** `database/migrations/v1.7.0_add_qwk_support.sql`
+**Additional migration:** `database/migrations/vX.Y.Z_add_qwk_support.sql`
 
 ```sql
 -- QWK Networks configuration
@@ -612,7 +612,7 @@ CREATE TABLE IF NOT EXISTS qwk_networks (
     name VARCHAR(50) NOT NULL,
     description TEXT,
     hub_url VARCHAR(255) NOT NULL,
-    hub_type VARCHAR(20) NOT NULL DEFAULT 'http', -- http, ftp, sftp
+    hub_type VARCHAR(20) NOT NULL DEFAULT 'http', -- http, ftp, sftp, telnet
     bbs_id VARCHAR(8) NOT NULL,
     username VARCHAR(50),
     password_encrypted TEXT,
@@ -707,6 +707,7 @@ QWK networks use various transfer methods:
 | **FTP/FTPS** | Traditional FTP transfer | PHP FTP functions |
 | **SFTP** | Secure FTP via SSH | phpseclib library |
 | **Direct Download** | Manual URL-based download | cURL GET request |
+| **Telnet** | Traditional BBS telnet session with file transfer protocol | PHP sockets + ZMODEM/YMODEM/XMODEM |
 
 #### HTTP-Based Hub Example (DoveNet style)
 
@@ -727,6 +728,250 @@ class HttpQwkHub
     }
 }
 ```
+
+---
+
+### Telnet-Based QWK Transfer
+
+Many QWK hubs (including DoveNet) expose their QWK exchange over a traditional BBS telnet interface. Connecting via telnet requires an interactive session: logging in, navigating menus, and exchanging files using a serial file transfer protocol such as ZMODEM, YMODEM, or XMODEM.
+
+#### Why Telnet Matters
+
+- **DoveNet** primarily supports QWK exchange via telnet to `dove-bbs.com`
+- HTTP endpoints may not always be available or may require special arrangement
+- Telnet + ZMODEM is the universal "lowest common denominator" that every QWK hub supports
+- Some smaller networks offer telnet access exclusively
+
+#### Telnet Session Flow
+
+```
+1. TCP connect to hub (port 23, or custom port)
+2. Wait for login prompt
+3. Send username + password
+4. Wait for BBS main menu / command prompt
+5. Issue download command (hub-specific, e.g. "Q" for QWK or menu selection)
+6. Initiate file receive (ZMODEM auto-detect, or explicit protocol selection)
+7. Receive QWK packet via ZMODEM into local temp file
+8. Issue upload command
+9. Send REP packet via ZMODEM
+10. Wait for confirmation / new message count
+11. Logoff and disconnect
+```
+
+#### TelnetQwkHub Class
+
+**New File:** `src/Qwk/TelnetQwkHub.php`
+
+```php
+<?php
+namespace BinktermPHP\Qwk;
+
+class TelnetQwkHub
+{
+    private $socket;
+    private string $host;
+    private int $port;
+    private string $bbsId;
+    private string $username;
+    private string $password;
+    private string $transferProtocol; // 'zmodem', 'ymodem', 'xmodem'
+    private int $connectTimeout;
+    private int $readTimeout;
+
+    // Key methods:
+    // - connect(): Open TCP connection and negotiate telnet options
+    // - login(): Send credentials and wait for authenticated prompt
+    // - downloadPacket(string $destPath): Navigate menu, receive QWK via transfer protocol
+    // - uploadReplies(string $repPath): Navigate menu, send REP via transfer protocol
+    // - disconnect(): Send logoff command and close socket
+    // - waitForPrompt(string $pattern, int $timeout): Blocking read until pattern matches
+    // - sendCommand(string $cmd): Write line to telnet session
+    // - stripAnsi(string $text): Strip ANSI/VT100 escape codes from received text
+    // - negotiateTelnetOptions(): Handle IAC sequences (suppress echo, terminal type, etc.)
+    // - invokeZmodem(string $mode, string $filePath): Delegate to sz/rz via proc_open
+}
+```
+
+Key implementation details:
+
+| Method | Purpose |
+|--------|---------|
+| `connect()` | Open raw TCP socket, handle telnet IAC negotiation |
+| `waitForPrompt()` | Expect-style pattern matching on received data stream |
+| `stripAnsi()` | Remove ANSI escape codes before pattern matching |
+| `invokeZmodem()` | Fork `sz` (send) or `rz` (receive) via `proc_open`, passing the open socket fd |
+| `downloadPacket()` | Full download cycle: login → menu → ZMODEM receive → logout |
+| `uploadReplies()` | Full upload cycle: login → menu → ZMODEM send → logout |
+
+#### File Transfer Protocol Support
+
+QWK hubs exchange files over the telnet connection using serial transfer protocols:
+
+| Protocol | Speed | Error Correction | Recommended |
+|----------|-------|-----------------|-------------|
+| **ZMODEM** | Fastest | CRC-32, crash recovery | Yes - use by default |
+| **YMODEM** | Moderate | CRC-16, batch mode | Fallback |
+| **XMODEM** | Slowest | Checksum/CRC | Last resort |
+
+**Implementation Strategy:**
+
+Option A (preferred): Delegate to system utilities
+```php
+// Use sz (lsz package) for sending, rz for receiving
+// proc_open passes the raw socket file descriptor to the utility
+$process = proc_open("rz --zmodem --binary -q", $descriptors, $pipes, null, null);
+```
+
+Option B (self-contained): Implement basic ZMODEM in PHP
+- More portable (no system dependency on `lsz`)
+- Significantly more complex
+- Recommended only if `sz`/`rz` cannot be guaranteed on target systems
+
+The `hub_zmodem_binary` config field per network allows specifying the path to `sz`/`rz` if not in `$PATH`.
+
+#### Database Schema Update
+
+The `qwk_networks` table needs to support telnet-specific fields:
+
+```sql
+ALTER TABLE qwk_networks
+    ADD COLUMN IF NOT EXISTS hub_port INTEGER DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS hub_telnet_port INTEGER DEFAULT 23,
+    ADD COLUMN IF NOT EXISTS telnet_download_sequence TEXT DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS telnet_upload_sequence TEXT DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS telnet_transfer_protocol VARCHAR(10) DEFAULT 'zmodem',
+    ADD COLUMN IF NOT EXISTS telnet_connect_timeout INTEGER DEFAULT 30,
+    ADD COLUMN IF NOT EXISTS hub_zmodem_binary VARCHAR(255) DEFAULT NULL;
+```
+
+The `telnet_download_sequence` and `telnet_upload_sequence` fields store JSON-encoded arrays of `[pattern, response]` pairs for hub-specific menu automation, e.g.:
+
+```json
+[
+  ["ogin:", "BBSID\r"],
+  ["assword:", "secret\r"],
+  ["Main Board\\]", "Q\r"],
+  ["\\[Q\\]WK Download", "D\r"],
+  ["protocol", "Z\r"]
+]
+```
+
+This makes `TelnetQwkHub` configurable for hubs with different menu structures without code changes.
+
+---
+
+### Telnet Daemon (`scripts/telnet_daemon.php`)
+
+The telnet daemon is a background process that manages outbound telnet sessions for QWK exchange. Unlike the stateless HTTP/FTP connectors, telnet sessions are interactive and long-lived, warranting a dedicated process.
+
+**New File:** `scripts/telnet_daemon.php`
+
+```php
+#!/usr/bin/env php
+<?php
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
+
+/**
+ * Telnet QWK Daemon
+ *
+ * Manages outbound telnet connections for QWK packet exchange with hub BBSs.
+ * Can run as a one-shot poller (default) or as a long-running daemon watching
+ * for queued poll requests.
+ *
+ * Usage:
+ *   php scripts/telnet_daemon.php              # Poll all active telnet networks once
+ *   php scripts/telnet_daemon.php --network=3  # Poll specific network by ID
+ *   php scripts/telnet_daemon.php --daemon     # Run as persistent daemon (checks every N minutes)
+ *   php scripts/telnet_daemon.php --test=3     # Test connection to network 3, no packet exchange
+ */
+
+use BinktermPHP\Qwk\TelnetQwkHub;
+use BinktermPHP\Qwk\QwkNetworkService;
+```
+
+#### Daemon Modes
+
+| Mode | Flag | Description |
+|------|------|-------------|
+| **One-shot** | (default) | Connect to all active telnet networks, poll once, exit |
+| **Single network** | `--network=ID` | Poll one specific network |
+| **Persistent daemon** | `--daemon` | Loop continuously, polling on configured schedule |
+| **Test connection** | `--test=ID` | Login and logout without exchanging packets, verify credentials |
+
+#### Integration with QwkNetworkPoller
+
+The existing `QwkNetworkPoller` is updated to dispatch based on `hub_type`:
+
+```php
+public function pollNetwork(array $network): array
+{
+    $hub = match($network['hub_type']) {
+        'http', 'https'  => new HttpQwkHub($network),
+        'ftp', 'ftps'    => new FtpQwkHub($network),
+        'telnet'         => new TelnetQwkHub($network),
+        default          => throw new \RuntimeException("Unknown hub type: {$network['hub_type']}")
+    };
+
+    // Download, import, export, upload - same flow regardless of connector
+    $packetPath = $hub->downloadPacket($this->getTempDir());
+    $received   = $this->networkService->importMessages($network['id'], $packetPath);
+    $repPath    = $this->networkService->exportReplies($network['id']);
+    $hub->uploadReplies($repPath);
+
+    return ['messages_received' => $received, 'messages_sent' => ...];
+}
+```
+
+#### Cron / Systemd Integration
+
+```bash
+# Cron: Poll telnet QWK networks every 30 minutes (telnet is slower, be respectful)
+*/30 * * * * php /path/to/binkterm/scripts/telnet_daemon.php >> data/logs/qwk_telnet.log 2>&1
+```
+
+Or run as a persistent daemon via systemd (see `docs/dosdoor-bridge.service.example` for pattern).
+
+#### Logging
+
+The telnet daemon logs to `data/logs/qwk_telnet.log`. Log entries include:
+- Connection attempts (host:port)
+- Login success/failure
+- Bytes transferred per session
+- ZMODEM transfer status
+- Errors and disconnections
+
+---
+
+### DoveNet Telnet Configuration Example
+
+DoveNet (`dove-bbs.com`) supports QWK exchange via telnet. Configuration in BinktermPHP:
+
+```
+Network Name:              DoveNet
+Hub Type:                  telnet
+Hub Host:                  dove-bbs.com
+Hub Telnet Port:           23
+BBS ID:                    BINKTERM
+Username:                  binkterm
+Password:                  ********
+Transfer Protocol:         zmodem
+Download Sequence:         (hub-specific menu sequence - obtain from DoveNet docs)
+Upload Sequence:           (hub-specific menu sequence)
+```
+
+> **Note:** Before implementing, verify the current DoveNet telnet menu structure at `dove-bbs.com`. Hub BBS software and menu layouts change over time. The `telnet_download_sequence` / `telnet_upload_sequence` JSON config allows adapting without code changes.
+
+> **Tip:** DoveNet may also offer HTTP-based QWK exchange. Check with the DoveNet sysop for preferred/supported methods. HTTP is simpler to implement and more reliable; use telnet only if HTTP is not available.
+
+#### Prerequisites for Telnet Support
+
+| Requirement | Notes |
+|-------------|-------|
+| PHP `sockets` extension | For raw TCP socket access |
+| `lsz` / `lrz` packages | Provides `sz` and `rz` ZMODEM utilities (Linux: `apt install lrzsz`) |
+| Network access from server | Server must be able to reach hub on port 23 (or configured port) |
+| Firewall rules | Outbound port 23 (telnet) must not be blocked |
 
 ### Conference-to-Echoarea Mapping
 
@@ -886,16 +1131,28 @@ DoveNet is one of the most active QWK networks. Here's how to join:
 
 1. **Request membership** at dove-bbs.com
 2. **Receive credentials**: BBS ID (e.g., "BINKTERM") and password
-3. **Configure in BinktermPHP**:
+3. **Configure in BinktermPHP** (telnet method):
+   ```
+   Network Name:          DoveNet
+   Hub Type:              telnet
+   Hub Host:              dove-bbs.com
+   Hub Telnet Port:       23
+   BBS ID:                BINKTERM
+   Username:              binkterm
+   Password:              ********
+   Transfer Protocol:     zmodem
+   ```
+   Or via HTTP if available:
    ```
    Network Name: DoveNet
-   Hub URL: https://dove-bbs.com/qwk/
-   BBS ID: BINKTERM
-   Username: binkterm
-   Password: ********
+   Hub Type:     http
+   Hub URL:      https://dove-bbs.com/qwk/
+   BBS ID:       BINKTERM
+   Username:     binkterm
+   Password:     ********
    ```
 4. **Subscribe to conferences**: DOVE-GENERAL, DOVE-SYSOPS, etc.
-5. **Enable automatic polling**: Set cron to run every 15-30 minutes
+5. **Enable automatic polling**: Set cron to run `scripts/telnet_daemon.php` every 30 minutes (telnet) or `scripts/qwk_poll.php` every 15 minutes (HTTP)
 6. **Messages flow**: New posts appear in local echoareas, replies sync back to hub
 
 ### Security Considerations for QWK Networking
@@ -913,10 +1170,12 @@ DoveNet is one of the most active QWK networks. Here's how to join:
 | File | Purpose |
 |------|---------|
 | `src/Qwk/QwkNetworkService.php` | Network management and sync logic |
-| `src/Qwk/QwkNetworkPoller.php` | Automated polling service |
+| `src/Qwk/QwkNetworkPoller.php` | Automated polling service (dispatches to hub connectors by type) |
 | `src/Qwk/HttpQwkHub.php` | HTTP-based hub connector |
 | `src/Qwk/FtpQwkHub.php` | FTP-based hub connector |
-| `scripts/qwk_poll.php` | CLI script for cron-based polling |
+| `src/Qwk/TelnetQwkHub.php` | Telnet hub connector with ZMODEM/YMODEM/XMODEM file transfer |
+| `scripts/qwk_poll.php` | CLI script for cron-based polling (HTTP/FTP networks) |
+| `scripts/telnet_daemon.php` | Telnet QWK daemon - outbound telnet session management |
 | `templates/admin/qwk_networks.twig` | Admin network management page |
 
 ---
@@ -930,6 +1189,9 @@ DoveNet is one of the most active QWK networks. Here's how to join:
 - [DoveNet Information](https://dove-bbs.com/)
 - [FsxNet QWK Setup](https://fsxnet.nz/qwk.html)
 - [BBS Corner Network List](https://www.telnetbbsguide.com/network/)
+- [lrzsz (sz/rz ZMODEM utilities)](https://ohse.de/uwe/software/lrzsz.html)
+- [ZMODEM Protocol Specification](https://www.ibiblio.org/pub/academic/communications/software/zmodem/zmodem.txt)
+- [Telnet Protocol RFC 854](https://www.rfc-editor.org/rfc/rfc854)
 
 ---
 
@@ -937,7 +1199,7 @@ DoveNet is one of the most active QWK networks. Here's how to join:
 
 ### User Offline Mail
 
-1. Run migration: `psql -f database/migrations/v1.7.0_add_qwk_support.sql`
+1. Run migration: `psql -f database/migrations/vX.Y.Z_add_qwk_support.sql`
 2. Enable QWK in Settings page
 3. Subscribe to at least one echo area
 4. Click "Download QWK Packet"
@@ -949,10 +1211,10 @@ DoveNet is one of the most active QWK networks. Here's how to join:
 10. Download another QWK packet - verify only new messages included
 11. Test "Reset Pointers" - verify all messages included in next download
 
-### QWK Networking (Inter-BBS)
+### QWK Networking (Inter-BBS) - HTTP/FTP
 
 1. Navigate to Admin → QWK Networks
-2. Add a new network (e.g., DoveNet test hub or local test hub)
+2. Add a new network (type: http, e.g., DoveNet HTTP hub)
 3. Enter hub URL, BBS ID, and credentials
 4. Click "Fetch Conferences" - verify conference list loads
 5. Subscribe to at least 2 conferences and map to local echoareas
@@ -965,3 +1227,20 @@ DoveNet is one of the most active QWK networks. Here's how to join:
 12. Wait for automatic sync - verify messages flow without manual intervention
 13. Test error handling: disable network connectivity and verify graceful failure
 14. Check sync logs for complete audit trail
+
+### QWK Networking (Inter-BBS) - Telnet
+
+1. Verify prerequisites: `sz` and `rz` available (`which sz rz`; install `lrzsz` if missing)
+2. Navigate to Admin → QWK Networks
+3. Add a new network (type: telnet, e.g., DoveNet)
+4. Enter host, port (default 23), BBS ID, username, password, transfer protocol (zmodem)
+5. Configure `telnet_download_sequence` and `telnet_upload_sequence` JSON for hub menus
+6. Run test: `php scripts/telnet_daemon.php --test=<network_id>` - verify successful login and logout
+7. Run manual poll: `php scripts/telnet_daemon.php --network=<network_id>` - verify packet received
+8. Check `data/logs/qwk_telnet.log` for session transcript and ZMODEM transfer stats
+9. Verify QWK packet downloaded to temp directory and imported to local echoareas
+10. Post a reply in a subscribed echoarea
+11. Run poll again - verify REP packet uploaded and sync log shows messages sent
+12. Set up cron: `*/30 * * * * php scripts/telnet_daemon.php >> data/logs/qwk_telnet.log 2>&1`
+13. Test error handling: provide wrong password - verify graceful failure and log entry
+14. Test connection timeout: block port 23 - verify timeout handled without hanging indefinitely

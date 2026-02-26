@@ -13,8 +13,13 @@
     --border-color: #dee2e6;
 }
 
-/* Prevent horizontal overflow on mobile */
-html, body {
+/* Prevent horizontal overflow on mobile.
+   overflow-x must NOT be set on html — doing so turns overflow-y into
+   "auto" on the root element in Chromium, which makes html (not the
+   window) the scroll container and allows the admin dropdown to push
+   the page scroll height past the viewport, creating a spurious
+   vertical scrollbar. */
+body {
     overflow-x: hidden;
     max-width: 100vw;
 }
@@ -297,6 +302,16 @@ body {
 .node-system {
     font-weight: 500;
     margin-bottom: 2px;
+}
+
+.node-item.bg-primary .node-address,
+.node-item.bg-primary .node-system {
+    color: #fff;
+}
+
+.node-item.bg-primary .badge {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #333 !important;
 }
 
 .node-sysop {
@@ -770,4 +785,26 @@ body {
     #echolist-page .forum-stats-cell {
         border-top-color: #e9ecef;
     }
+}
+
+/* ============================================================
+   Message Reader: scrollable body mode
+   When .message-reader-scrollable is active the modal uses
+   Bootstrap's modal-dialog-scrollable so the .modal-body
+   scrolls.  The .message-header-full sticks to the top of
+   that scroll container so From/To/Subject/Date stay visible.
+   Background colour is handled by the default or theme rules
+   already applied to .message-header-full.
+   ============================================================ */
+/* Remove modal-body top padding so there is no gap above the sticky header */
+.message-reader-scrollable .modal-body {
+    padding-top: 0;
+}
+.message-reader-scrollable .message-header-full {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    /* Extend to the left/right edges of modal-body (which has 1rem side padding) */
+    margin: 0 -1rem 1rem;
+    padding: 1rem 1rem 0.75rem;
 }

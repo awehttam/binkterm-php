@@ -36,7 +36,7 @@ class TelnetUtils
      * @param int $maxRetries Maximum retry attempts (default 3)
      * @return array ['status' => int, 'data' => array, 'error' => string|null]
      */
-    public static function apiRequest(string $base, string $method, string $path, ?array $payload, ?string $session, int $maxRetries = 3): array
+    public static function apiRequest(string $base, string $method, string $path, ?array $payload, ?string $session, int $maxRetries = 3, ?string $csrfToken = null): array
     {
         $url = rtrim($base, '/') . $path;
         $attempt = 0;
@@ -53,12 +53,16 @@ class TelnetUtils
             if ($method === 'POST' || $method === 'PUT') {
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
                 if ($payload !== null) {
-                    $json = json_encode($payload);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    $json    = json_encode($payload);
+                    $headers = [
                         'Content-Type: application/json',
                         'Content-Length: ' . strlen($json)
-                    ]);
+                    ];
+                    if ($csrfToken !== null) {
+                        $headers[] = 'X-CSRF-Token: ' . $csrfToken;
+                    }
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
                 }
             }
 

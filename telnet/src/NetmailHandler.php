@@ -79,6 +79,7 @@ class NetmailHandler
                 TelnetUtils::writeLine($conn, $line);
             }
             $inputRow = max(1, $rows - 1);
+            $inputColStart = 1;
 
             // Build status bar with menu options
             $statusLine = TelnetUtils::buildStatusBar([
@@ -385,7 +386,7 @@ class NetmailHandler
 
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize('Sending netmail...', TelnetUtils::ANSI_CYAN));
-        $result = MailUtils::sendMessage($this->apiBase, $session, $payload);
+        $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize('✓ Netmail sent successfully!', TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {

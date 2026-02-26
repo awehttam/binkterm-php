@@ -261,7 +261,7 @@
 
 <!-- Message View Modal -->
 <div class="modal fade" id="messageModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-message-reader">
+    <div class="modal-dialog modal-lg modal-message-reader{% if appearance.message_reader.scrollable_body %} modal-dialog-scrollable message-reader-scrollable{% endif %}">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
@@ -381,6 +381,10 @@
                 <button type="button" class="btn btn-primary" id="createShareBtn">
                     <i class="fas fa-share-alt"></i>
                     Create Share Link
+                </button>
+                <button type="button" class="btn btn-outline-primary d-none" id="friendlyUrlBtn" title="Generate a readable URL based on the echo area and subject">
+                    <i class="fas fa-link"></i>
+                    Get Friendly URL
                 </button>
                 <button type="button" class="btn btn-danger d-none" id="revokeShareBtn">
                     <i class="fas fa-trash"></i>

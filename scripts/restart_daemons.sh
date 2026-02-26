@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PHP_BIN="${PHP_BIN:-php}"
+NODE_BIN="${NODE_BIN:-node}"
 RUN_DIR="${RUN_DIR:-${ROOT_DIR}/data/run}"
 ADMIN_PID="${ADMIN_PID:-${RUN_DIR}/admin_daemon.pid}"
 SCHEDULER_PID="${SCHEDULER_PID:-${RUN_DIR}/binkp_scheduler.pid}"
@@ -13,6 +14,13 @@ MRC_PID="${MRC_PID:-${RUN_DIR}/mrc_daemon.pid}"
 # Track which processes were running before restart
 TELNETD_WAS_RUNNING=false
 MRC_WAS_RUNNING=false
+MULTIPLEX_PID="${MULTIPLEX_PID:-${RUN_DIR}/multiplexing-server.pid}"
+GEMINI_PID="${GEMINI_PID:-${RUN_DIR}/gemini_daemon.pid}"
+
+# Track which processes were running before restart
+TELNETD_WAS_RUNNING=false
+MULTIPLEX_WAS_RUNNING=false
+GEMINI_WAS_RUNNING=false
 
 stop_process() {
     local pid_file="$1"
@@ -67,6 +75,14 @@ fi
 # Check if MRC daemon was running before stopping it
 if stop_process "$MRC_PID" "mrc_daemon"; then
     MRC_WAS_RUNNING=true
+# Check if multiplexing server was running before stopping it
+if stop_process "$MULTIPLEX_PID" "multiplexing-server"; then
+    MULTIPLEX_WAS_RUNNING=true
+fi
+
+# Check if Gemini daemon was running before stopping it
+if stop_process "$GEMINI_PID" "gemini_daemon"; then
+    GEMINI_WAS_RUNNING=true
 fi
 
 start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
@@ -81,6 +97,14 @@ fi
 # Restart MRC daemon only if it was running
 if [[ "$MRC_WAS_RUNNING" == "true" ]]; then
     start_process "${PHP_BIN} scripts/mrc_daemon.php --daemon --pid-file=${MRC_PID}" "mrc_daemon"
+# Restart multiplexing server only if it was running
+if [[ "$MULTIPLEX_WAS_RUNNING" == "true" ]]; then
+    start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"
+fi
+
+# Restart Gemini daemon only if it was running
+if [[ "$GEMINI_WAS_RUNNING" == "true" ]]; then
+    start_process "${PHP_BIN} scripts/gemini_daemon.php --daemon --pid-file=${GEMINI_PID}" "gemini_daemon"
 fi
 
 echo "Done."

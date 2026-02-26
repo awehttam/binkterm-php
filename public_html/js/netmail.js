@@ -48,6 +48,11 @@ $(document).ready(function() {
                     e.preventDefault();
                     toggleModalFullscreen();
                     break;
+                case 'd':
+                case 'D':
+                    e.preventDefault();
+                    downloadCurrentMessage();
+                    break;
             }
         }
     });
@@ -252,6 +257,7 @@ function displayMessages(messages, isThreaded = false) {
                         <small class="text-muted">
                             <span class="badge bg-secondary">NETMAIL</span>
                             ${isUnread ? '<span class="badge bg-primary ms-1">NEW</span>' : ''}
+                            ${msg.received_insecure ? '<span class="badge bg-warning text-dark ms-1" title="Received via insecure session"><i class="fas fa-exclamation-triangle"></i></span>' : ''}
                         </small>
                     </td>
                     <td>
@@ -391,7 +397,7 @@ function displayMessageContent(message) {
     $('#messageSubject').text(message.subject || '(No Subject)');
 
     // Parse message to separate kludge lines from body (use stored kludge_lines if available)
-    const parsedMessage = parseNetmailMessage(message.message_text || '', message.kludge_lines || null);
+    const parsedMessage = parseNetmailMessage(message.message_text || '', message.kludge_lines || null, message.bottom_kludges || null);
 
     // Check if sender is already in address book before rendering
     checkAndDisplayMessage(message, parsedMessage, isSent);
@@ -461,19 +467,29 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                     <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
                 </div>
             </div>
+            ${message.received_insecure ? `
+            <div class="row mt-2">
+                <div class="col-12">
+                    <span class="badge bg-warning text-dark" title="This message was received via an insecure/unauthenticated binkp session">
+                        <i class="fas fa-exclamation-triangle"></i> Received Insecurely
+                    </span>
+                    <small class="text-muted ms-2">This message was not authenticated</small>
+                </div>
+            </div>
+            ` : ''}
         </div>
 
         ${parsedMessage.kludgeLines.length > 0 ? `
         <div class="message-headers mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">Message Headers</h6>
+                <h6 class="mb-0 text-muted">Kludge Lines</h6>
                 <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
                     <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">Show Headers</span>
+                    <span id="toggleText">Show Kludge Lines</span>
                 </button>
             </div>
             <div id="kludgeContainer" class="kludge-lines" style="display: none;">
-                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLines(parsedMessage.kludgeLines)}</pre>
+                <pre class="bg-dark text-light p-3 rounded small">${formatKludgeLinesWithSeparator(parsedMessage.topKludges || parsedMessage.kludgeLines, parsedMessage.bottomKludges || [])}</pre>
             </div>
         </div>
         ` : ''}
@@ -540,7 +556,7 @@ function composeMessage(type, replyToId = null) {
     window.location.href = `/compose/netmail${replyToId ? '?reply=' + replyToId : ''}`;
 }
 
-function composeMessageToUser(toName, toAddress, subject) {
+function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {
     // Build URL with parameters for composing to a specific user
     const params = new URLSearchParams();
     params.set('to_name', toName);
@@ -549,6 +565,9 @@ function composeMessageToUser(toName, toAddress, subject) {
         // If subject doesn't start with "Re:", add it
         const replySubject = subject && subject.toLowerCase().startsWith('re:') ? subject : 'Re: ' + subject;
         params.set('subject', replySubject);
+    }
+    if (alwaysCrashmail) {
+        params.set('crashmail', '1');
     }
 
     window.location.href = `/compose/netmail?${params.toString()}`;
@@ -725,7 +744,7 @@ function renderAddressBook(entries) {
         entries.forEach(function(entry) {
             html += `
                 <div class="d-flex justify-content-between align-items-start mb-2 p-2 border rounded address-book-entry"
-                     style="cursor: pointer;" onclick="composeToAddressBookEntry('${escapeHtml(entry.messaging_user_id || '')}', '${escapeHtml(entry.node_address || '')}')">
+                     style="cursor: pointer;" onclick="composeToAddressBookEntry('${escapeHtml(entry.messaging_user_id || '')}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
                     <div class="flex-grow-1">
                         <div class="fw-bold small">${escapeHtml(entry.name || 'Unnamed')}</div>
                         <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
@@ -772,6 +791,7 @@ function editAddressBookEntry(entryId) {
                 $('#addressBookNodeAddress').val(entry.node_address);
                 $('#addressBookEmail').val(entry.email || '');
                 $('#addressBookDescription').val(entry.description || '');
+                $('#addressBookAlwaysCrashmail').prop('checked', !!entry.always_crashmail);
                 $('#addressBookModal').modal('show');
             } else {
                 showError('Failed to load entry: ' + response.error);
@@ -789,7 +809,8 @@ function saveAddressBookEntry() {
         messaging_user_id: $('#addressBookUserId').val().trim(),
         node_address: $('#addressBookNodeAddress').val().trim(),
         email: $('#addressBookEmail').val().trim(),
-        description: $('#addressBookDescription').val().trim()
+        description: $('#addressBookDescription').val().trim(),
+        always_crashmail: $('#addressBookAlwaysCrashmail').is(':checked'),
     };
 
     // Basic validation
@@ -844,8 +865,8 @@ function deleteAddressBookEntry(entryId, entryName) {
     });
 }
 
-function composeToAddressBookEntry(messagingUserId, nodeAddress) {
-    composeMessageToUser(messagingUserId, nodeAddress, '');
+function composeToAddressBookEntry(messagingUserId, nodeAddress, alwaysCrashmail) {
+    composeMessageToUser(messagingUserId, nodeAddress, '', alwaysCrashmail);
 }
 
 // Save sender to address book from message modal
@@ -1188,4 +1209,11 @@ function deleteSelectedMessages() {
             showError(error);
         }
     });
+}
+
+function downloadCurrentMessage() {
+    if (!currentMessageId) {
+        return;
+    }
+    window.location.href = `/api/messages/netmail/${encodeURIComponent(currentMessageId)}/download`;
 }

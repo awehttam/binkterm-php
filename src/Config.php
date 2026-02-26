@@ -31,7 +31,7 @@ class Config
 
     const DEFAULT_STYLESHEET = '/css/style.css';
 
-    const FIDONET_ORIGIN = '1:1/0';
+    const FIDONET_ORIGIN = '1:999/999';
     const SYSTEM_NAME = 'BinktermPHP System';
     const SYSOP_NAME = 'System Operator';
     

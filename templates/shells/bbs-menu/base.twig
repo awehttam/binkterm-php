@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}{{ system_name }}{% endblock %}</title>
+
+    {% if appearance.seo.description %}
+    <meta name="description" content="{{ appearance.seo.description | e }}">
+    {% endif %}
+
+    {% block meta_tags %}{% endblock %}
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="{{ favicon_svg }}">
+    <link rel="icon" type="image/x-icon" href="{{ favicon_ico }}">
+    <link rel="apple-touch-icon" href="{{ favicon_png }}">
+
+    <link rel="manifest" href="/appmanifestjson">
+
+    <link href="/vendor/bootstrap-5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/vendor/fontawesome-6.4.0/css/all.min.css" rel="stylesheet">
+    <link id="theme-stylesheet" href="{{ stylesheet }}" rel="stylesheet">
+    <link href="/css/ansisys.css" rel="stylesheet">
+    {% block head %}{% endblock %}
+    <style>
+        body.bbs-menu-shell {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .bbs-shell-header {
+            background: var(--bs-primary, #0d6efd);
+            color: #fff;
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 1030; /* Match Bootstrap's fixed navbar — ensures dropdowns paint above footer */
+        }
+        .bbs-shell-system-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .bbs-shell-section {
+            flex: 1;
+            opacity: 0.85;
+            font-size: 0.95rem;
+        }
+        .bbs-shell-home {
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .bbs-shell-home:hover {
+            opacity: 1;
+            color: #fff;
+            text-decoration: underline;
+        }
+        .bbs-shell-main {
+            flex: 1;
+        }
+        /* Admin dropdown button in bbs-menu shell header — scope tightly so the
+           rule does NOT cascade into .dropdown-item.dropdown-toggle submenu links */
+        .bbs-shell-header > .dropdown > .dropdown-toggle {
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.9rem;
+            opacity: 0.9;
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+        }
+        .bbs-shell-header > .dropdown > .dropdown-toggle:hover { opacity: 1; }
+        .bbs-shell-header .dropdown-submenu { position: relative; }
+        /* Submenus open to the LEFT because the dropdown is right-aligned in the
+           header; opening right would take them off-screen. */
+        .bbs-shell-header .dropdown-submenu > .dropdown-menu {
+            top: 0; left: auto; right: 100%; margin-top: -1px; margin-right: -1px;
+        }
+        .bbs-shell-header .dropdown-submenu:hover > .dropdown-menu { display: block; }
+        /* Caret points left (rotate -90°) to indicate the left-opening submenu */
+        .bbs-shell-header .dropdown-submenu > .dropdown-toggle::after {
+            transform: rotate(-90deg); position: absolute;
+            right: 10px; top: 50%; margin-top: -3px;
+        }
+        @media (max-width: 768px) {
+            .bbs-shell-header .dropdown-submenu > .dropdown-menu {
+                position: static !important; margin-left: 1rem;
+                border-left: 2px solid rgba(0,0,0,0.1);
+            }
+        }
+        {% if appearance.branding.accent_color %}
+        :root { --fidonet-blue: {{ appearance.branding.accent_color | e }}; }
+        .bbs-shell-header { background: {{ appearance.branding.accent_color | e }} !important; }
+        .bg-primary { background-color: {{ appearance.branding.accent_color | e }} !important; }
+        .btn-fidonet { background-color: {{ appearance.branding.accent_color | e }}; border-color: {{ appearance.branding.accent_color | e }}; }
+        {% endif %}
+    </style>
+    <script src="/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="/vendor/jquery-3.7.1/jquery-3.7.1.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/ansisys.js"></script>
+    {% if current_user and bbs_feature_enabled('chat') %}
+    <script src="/js/chat-notify.js"></script>
+    {% endif %}
+    {% include 'custom/header.insert.twig' ignore missing %}
+</head>
+<body class="bbs-menu-shell">
+
+    <header class="bbs-shell-header">
+        <span class="bbs-shell-system-name">
+            {% if appearance.branding.logo_url %}
+                <img src="{{ appearance.branding.logo_url | e }}" alt="{{ system_name | e }}" style="max-height:32px;" class="me-1">
+            {% else %}
+                {{ system_name }}
+            {% endif %}
+        </span>
+        <span class="bbs-shell-section">{% block section_title %}{% endblock %}</span>
+        {% if current_user %}
+            {% if credits_enabled %}
+                <span class="me-2 small" id="headerCreditBalance">{{ credits_symbol }}{{ credit_balance }}</span>
+            {% endif %}
+            <div class="dropdown me-2">
+                <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-user"></i> {{ current_user.username }}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="/profile"><i class="fas fa-id-card"></i> Profile</a></li>
+                    <li><a class="dropdown-item" href="/settings"><i class="fas fa-cog"></i> Settings</a></li>
+                    <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                </ul>
+            </div>
+            {% if current_user.is_admin %}
+            <div class="dropdown">
+                <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-cog"></i> Admin
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="/whosonline"><i class="fas fa-user-friends"></i> Who's Online</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/admin/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> Binkp Status</a></li>
+                    <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> Manage Users</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> Advertisements</a></li>
+                    <li class="dropdown-submenu">
+                        <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> Area Management</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
+                            <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> File Areas</a></li>
+                            <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> File Area Rules</a></li>
+                            <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                        </ul>
+                    </li>
+                    <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> Auto Feed</a></li>
+                    <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
+                    <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> Polls</a></li>
+                    <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> Shoutbox</a></li>
+                    <li class="dropdown-submenu">
+                        <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> Doors</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/admin/dosdoors"><i class="fas fa-terminal"></i> DOS Doors</a></li>
+                            <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-globe"></i> Web Doors</a></li>
+                        </ul>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> Activity Statistics</a></li>
+                    <li class="dropdown-submenu">
+                        <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/admin/appearance"><i class="fas fa-palette"></i> Appearance</a></li>
+                            <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> Binkp Configuration</a></li>
+                            <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> Template Editor</a></li>
+                        </ul>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li class="dropdown-submenu">
+                        <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-question-circle"></i> Help</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> README</a></li>
+                            <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                            {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> Upgrade Notes v{{ app_version }}</a></li>{% endif %}
+                            <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> Report Issue</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        {% else %}
+            <a href="/login" class="bbs-shell-home me-2">Login</a>
+        {% endif %}
+        <a href="/" class="bbs-shell-home" title="Main Menu (Q)">
+            <i class="fas fa-home"></i> Menu
+        </a>
+    </header>
+
+    <main class="bbs-shell-main container-fluid py-3">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-light py-2 border-top">
+        <div class="container text-center">
+            <small class="text-muted">
+                {% if appearance.branding.footer_text %}
+                    {{ appearance.branding.footer_text | e }}
+                {% else %}
+                    {{ system_name }} - Node {{ fidonet_origin }} - Sysop: {{ sysop_name }}
+                {% endif %}
+                | <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">House Rules</a>
+                | Powered by <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a>
+            </small>
+        </div>
+    </footer>
+
+    <div class="modal fade" id="houseRulesModal" tabindex="-1" aria-labelledby="houseRulesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="houseRulesModalLabel">House Rules</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    {% if appearance_houserules_html %}
+                        {{ appearance_houserules_html | raw }}
+                    {% else %}
+                        {% include 'rules.twig' %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        {% if current_user %}
+        window.currentUserId = {{ current_user.user_id ?? current_user.id }};
+        window.currentUserIsAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
+        {% endif %}
+
+        // Nested admin dropdown submenus
+        $(document).ready(function() {
+            $('.bbs-shell-header .dropdown-submenu').hover(
+                function() { $(this).find('> .dropdown-menu').show(); },
+                function() { $(this).find('> .dropdown-menu').hide(); }
+            );
+            $('.bbs-shell-header .dropdown-submenu > .dropdown-toggle').on('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                const $sub = $(this).next('.dropdown-menu');
+                $('.bbs-shell-header .dropdown-submenu .dropdown-menu').not($sub).hide();
+                $sub.toggle();
+            });
+            $('.bbs-shell-header .dropdown').on('hide.bs.dropdown', function() {
+                $(this).find('.dropdown-submenu .dropdown-menu').hide();
+            });
+        });
+
+        // Render ANSI art if present on this page
+        $(document).ready(function() {
+            const pre = document.getElementById('shellMenuAnsi');
+            if (pre && typeof renderAnsiTerminal === 'function') {
+                pre.innerHTML = renderAnsiTerminal(pre.textContent);
+            }
+        });
+
+        // BBS-style keyboard navigation
+        const bbsKeymap = {{ appearance.shell.bbs_menu.menu_items | json_encode | raw }};
+
+        function bbsNavigate(key) {
+            if (key === 'q' || key === 'Q' || key === 'Escape') {
+                window.location.href = '/';
+                return true;
+            }
+            const item = bbsKeymap.find(i => i.key.toUpperCase() === key.toUpperCase());
+            if (item) { window.location.href = item.url; return true; }
+            return false;
+        }
+
+        // Desktop keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            bbsNavigate(e.key);
+        });
+
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -197,7 +197,7 @@ class MessageHandler
         ];
     }
 
-    public function getEchomail($echoareaTag = null, $domain, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true)
+    public function getEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $threaded = false, $checkSubscriptions = true, $sort = 'date_desc')
     {
         // Check subscription access if user is specified and subscription checking is enabled
         if ($userId && $checkSubscriptions && $echoareaTag) {
@@ -239,7 +239,7 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter);
+            return $this->getThreadedEchomail($echoareaTag, $domain, $page, $limit, $userId, $filter, $sort);
         }
 
         $offset = ($page - 1) * $limit;
@@ -264,6 +264,14 @@ class MessageHandler
         }
         $dateField = self::ECHOMAIL_DATE_FIELD;
 
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         if ($echoareaTag) {
             // Build domain filter condition
             $domainCondition = empty($domain) ? "(ea.domain IS NULL OR ea.domain = '')" : "ea.domain = ?";
@@ -283,10 +291,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND {$domainCondition}
-                ORDER BY CASE
-                    WHEN em.{$dateField} > NOW() THEN 0
-                    ELSE 1
-                END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -331,7 +336,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE 1=1{$filterClause}
-                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -407,7 +412,7 @@ class MessageHandler
     /**
      * Get echomail messages from only subscribed echoareas
      */
-    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
+    public function getEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false, $sort = 'date_desc')
     {
         if (!$userId) {
             return ['messages' => [], 'pagination' => ['page' => 1, 'limit' => 25, 'total' => 0, 'pages' => 0]];
@@ -415,7 +420,7 @@ class MessageHandler
 
         $subscriptionManager = new EchoareaSubscriptionManager();
         $subscribedEchoareas = $subscriptionManager->getUserSubscribedEchoareas($userId);
-        
+
         if (empty($subscribedEchoareas)) {
             return [
                 'messages' => [],
@@ -432,15 +437,15 @@ class MessageHandler
 
         // If threaded view is requested, use the threading method
         if ($threaded) {
-            return $this->getThreadedEchomailFromSubscribedAreas($userId, $page, $limit, $filter, $subscribedEchoareas);
+            return $this->getThreadedEchomailFromSubscribedAreas($userId, $page, $limit, $filter, $subscribedEchoareas, $sort);
         }
 
         $offset = ($page - 1) * $limit;
-        
+
         // Build the WHERE clause based on filter
         $filterClause = "";
         $filterParams = [];
-        
+
         if ($filter === 'unread') {
             $filterClause = " AND mrs.read_at IS NULL";
         } elseif ($filter === 'read') {
@@ -455,12 +460,21 @@ class MessageHandler
         } elseif ($filter === 'saved') {
             $filterClause = " AND sav.id IS NOT NULL";
         }
-        
+
         // Create IN clause for subscribed echoareas
         $echoareaIds = array_column($subscribedEchoareas, 'id');
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
 
         $dateField = self::ECHOMAIL_DATE_FIELD;
+
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -475,7 +489,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+            ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
@@ -672,7 +686,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -738,6 +752,25 @@ class MessageHandler
             }
         }
 
+        // Attachment requires crashmail (direct delivery to ensure the file arrives with the message)
+        if ($attachment !== null && !$crashmail) {
+            @unlink($attachment['file_path'] ?? '');
+            throw new \Exception('File attachments require crashmail (direct delivery) to be enabled.');
+        }
+
+        // Attachments can only be delivered to remote nodes via crashmail.
+        // All users on this system share the same FTN address, so local delivery
+        // (self or any same-system user) is not supported for attachments.
+        if ($attachment !== null && $toAddress === $originAddress) {
+            @unlink($attachment['file_path'] ?? '');
+            throw new \Exception('File attachments can only be sent to remote nodes. Sending to a local address (including yourself or other users on this system) is not supported.');
+        }
+
+        // For file attachments, the FidoNet convention is that the subject IS the filename
+        if ($attachment !== null) {
+            $subject = $attachment['filename'];
+        }
+
         // For crashmail, verify destination can be resolved via nodelist before accepting
         if ($crashmail && $toAddress !== $originAddress) {
             $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
@@ -760,8 +793,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -779,6 +812,18 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
+
+            // Store attachment path and set FILE_ATTACH attribute when a file is attached
+            if ($attachment !== null) {
+                $fileAttachAttr = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
+                $attStmt = $this->db->prepare("
+                    UPDATE netmail SET outbound_attachment_path = ?, attributes = ?
+                    WHERE id = ?
+                ");
+                $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+            }
 
             if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
                 $charged = UserCredit::debit(
@@ -871,8 +916,8 @@ class MessageHandler
 
         // Create local netmail message to sysop
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -956,8 +1001,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
+            INSERT INTO echomail (echoarea_id, from_address, from_name, to_name, subject, message_text, date_written, reply_to_id, message_id, origin_line, kludge_lines, bottom_kludges)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
@@ -969,7 +1014,7 @@ class MessageHandler
             $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline),
             $replyToId,
             $msgId,
-            null, // origin_line (will be added when packet is created) 
+            null, // origin_line (will be added when packet is created)
             $kludgeLines  // Store generated kludges
         ]);
 
@@ -1722,6 +1767,10 @@ class MessageHandler
                         $params[] = null;
                         break;
                     }
+                    if ($tagline === '__random__') {
+                        $params[] = '__random__';
+                        break;
+                    }
                     if ($taglines === null) {
                         $taglines = $this->getTaglinesList();
                     }
@@ -1903,10 +1952,13 @@ class MessageHandler
                 throw new \Exception("Pending user not found or already processed");
             }
             
+            // Generate referral code based on username
+            $referralCode = $this->generateReferralCodeFromUsername($pendingUser['username']);
+
             // Create actual user account
             $userStmt = $this->db->prepare("
-                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active)
-                VALUES (?, ?, ?, ?, ?, NOW(), TRUE)
+                INSERT INTO users (username, password_hash, email, real_name, location, created_at, is_active, referral_code, referred_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), TRUE, ?, ?)
             ");
 
             $userStmt->execute([
@@ -1914,9 +1966,11 @@ class MessageHandler
                 $pendingUser['password_hash'],
                 $pendingUser['email'],
                 $pendingUser['real_name'],
-                $pendingUser['location'] ?? null
+                $pendingUser['location'] ?? null,
+                $referralCode,
+                $pendingUser['referrer_id'] ?? null
             ]);
-            
+
             $newUserId = $this->db->lastInsertId();
             
             // Create default user settings
@@ -1935,7 +1989,7 @@ class MessageHandler
             $deleteStmt->execute([$pendingUserId]);
 
             $this->db->commit();
-            
+
             // Send welcome netmail to new user
             $this->sendWelcomeMessage($newUserId, $pendingUser['username'], $pendingUser['real_name']);
 
@@ -1954,6 +2008,29 @@ class MessageHandler
             } catch (\Throwable $e) {
                 error_log('[CREDITS] Failed to grant approval bonus: ' . $e->getMessage());
             }
+
+            // Award referral bonus if applicable
+            if ($pendingUser['referrer_id']) {
+                try {
+                    $creditsConfig = UserCredit::getCreditsConfig();
+
+                    if (($creditsConfig['referral_enabled'] ?? false)
+                        && ($creditsConfig['referral_bonus'] ?? 0) > 0) {
+
+                        $referralBonus = (int)$creditsConfig['referral_bonus'];
+
+                        UserCredit::transact(
+                            (int)$pendingUser['referrer_id'],
+                            $referralBonus,
+                            "Referral bonus for new user: " . $pendingUser['username'],
+                            (int)$newUserId,
+                            UserCredit::TYPE_REFERRAL_BONUS
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    error_log('[CREDITS] Failed to grant referral bonus: ' . $e->getMessage());
+                }
+            }
             
             return $newUserId;
             
@@ -1964,19 +2041,32 @@ class MessageHandler
     }
 
     /**
+     * Generate referral code based on username
+     * Since usernames are unique, we can use them directly as referral codes
+     *
+     * @param string $username
+     * @return string
+     */
+    private function generateReferralCodeFromUsername(string $username): string
+    {
+        // Username is already validated as alphanumeric + underscores, which is URL-safe
+        // and guaranteed unique by database constraint
+        return $username;
+    }
+
+    /**
      * Reject a pending user registration
      */
     public function rejectUserRegistration($pendingUserId, $adminUserId, $reason = '')
     {
         $updateStmt = $this->db->prepare("
             UPDATE pending_users 
-            SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, admin_notes = ?
+            SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW(), admin_notes = ?
             WHERE id = ? AND status = 'pending'
         ");
         
         $result = $updateStmt->execute([
             $adminUserId,      // reviewed_by
-            date('Y-m-d H:i:s'), // reviewed_at
             $reason,           // admin_notes
             $pendingUserId     // WHERE id = ?
         ]);
@@ -2219,42 +2309,66 @@ class MessageHandler
             return [
                 'success' => true,
                 'share_key' => $existingShare['share_key'],
-                'share_url' => $this->buildShareUrl($existingShare['share_key']),
+                'share_url' => $this->buildShareUrl(
+                    $existingShare['share_key'],
+                    $existingShare['area_identifier'] ?? null,
+                    $existingShare['slug'] ?? null
+                ),
                 'existing' => true
             ];
         }
 
         // Generate unique share key
         $shareKey = $this->generateShareKey();
-        
-        $expiresAt = null;
-        if ($expiresHours) {
-            $expiresAt = date('Y-m-d H:i:s', time() + ($expiresHours * 3600));
+
+        // Build friendly slug for echomail messages
+        $areaIdentifier = null;
+        $slug           = null;
+        if ($messageType === 'echomail' && !empty($message['subject'])) {
+            $tag    = $message['echoarea'] ?? '';
+            $domain = $message['domain']   ?? '';
+            if ($tag !== '') {
+                $areaIdentifier = $domain !== '' ? "{$tag}@{$domain}" : $tag;
+                $slug           = $this->generateFriendlySlug($message['subject'], $areaIdentifier);
+            }
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
+        // Simplify by using conditional SQL instead of CASE with bound parameters
+        if ($expiresHours) {
+            $expiresHoursValue = (int)$expiresHours;
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug)
+                VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?, ?, ?)
+            ");
+            $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
+            $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
+            $stmt->bindValue(5, $expiresHoursValue, \PDO::PARAM_INT);
+            $stmt->bindValue(6, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
+            $stmt->bindValue(7, $areaIdentifier, \PDO::PARAM_STR);
+            $stmt->bindValue(8, $slug, \PDO::PARAM_STR);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug)
+                VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
+            ");
+            $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
+            $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
+            $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
+            $stmt->bindValue(5, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
+            $stmt->bindValue(6, $areaIdentifier, \PDO::PARAM_STR);
+            $stmt->bindValue(7, $slug, \PDO::PARAM_STR);
+        }
 
-        // Bind parameters explicitly with proper types
-        $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
-        $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
-        $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
-        $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
-        $stmt->bindValue(5, $expiresAt, \PDO::PARAM_STR);
-        $stmt->bindValue(6, (bool)$isPublic, \PDO::PARAM_BOOL);
-        
-        //error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
-        
         $result = $stmt->execute();
 
         if ($result) {
             return [
-                'success' => true,
+                'success'   => true,
                 'share_key' => $shareKey,
-                'share_url' => $this->buildShareUrl($shareKey),
-                'expires_at' => $expiresAt,
+                'share_url' => $this->buildShareUrl($shareKey, $areaIdentifier, $slug),
                 'is_public' => $isPublic
             ];
         }
@@ -2335,12 +2449,110 @@ class MessageHandler
     }
 
     /**
+     * Assign a friendly slug to an existing share that was created before slug support.
+     * If the share already has a slug, returns the existing friendly URL unchanged.
+     * Only the user who created the share may call this.
+     *
+     * @param int    $messageId
+     * @param string $messageType
+     * @param int    $userId
+     */
+    public function generateSlugForExistingShare(int $messageId, string $messageType, int $userId): array
+    {
+        $share = $this->getExistingShare($messageId, $messageType, $userId);
+        if (!$share) {
+            return ['success' => false, 'error' => 'Share not found'];
+        }
+
+        // Already has a slug — just return the current friendly URL
+        if (!empty($share['area_identifier']) && !empty($share['slug'])) {
+            return [
+                'success'   => true,
+                'share_url' => $this->buildShareUrl(
+                    $share['share_key'],
+                    $share['area_identifier'],
+                    $share['slug']
+                ),
+                'existing' => true
+            ];
+        }
+
+        // Only echomail has area context for slug generation
+        if ($messageType !== 'echomail') {
+            return ['success' => false, 'error' => 'Friendly URLs are only available for echomail shares'];
+        }
+
+        // Load the message to get subject and echoarea
+        $stmt = $this->db->prepare("
+            SELECT em.subject, ea.tag, ea.domain
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE em.id = ?
+        ");
+        $stmt->execute([$messageId]);
+        $msg = $stmt->fetch();
+
+        if (!$msg || empty($msg['subject'])) {
+            return ['success' => false, 'error' => 'Cannot generate slug: message not found or has no subject'];
+        }
+
+        $tag            = $msg['tag']    ?? '';
+        $domain         = $msg['domain'] ?? '';
+        $areaIdentifier = $domain !== '' ? "{$tag}@{$domain}" : $tag;
+        $slug           = $this->generateFriendlySlug($msg['subject'], $areaIdentifier);
+
+        $stmt = $this->db->prepare("
+            UPDATE shared_messages
+            SET area_identifier = ?, slug = ?
+            WHERE share_key = ?
+        ");
+        $stmt->execute([$areaIdentifier, $slug, $share['share_key']]);
+
+        return [
+            'success'   => true,
+            'share_url' => $this->buildShareUrl($share['share_key'], $areaIdentifier, $slug),
+            'existing'  => false
+        ];
+    }
+
+    /**
+     * Get shared message by friendly slug URL (/shared/{area}/{slug}).
+     *
+     * @param string   $areaIdentifier  e.g. "test@lovlynet"
+     * @param string   $slug            e.g. "hello-world"
+     * @param int|null $requestingUserId
+     */
+    public function getSharedMessageBySlug(string $areaIdentifier, string $slug, ?int $requestingUserId = null): array
+    {
+        $this->cleanupExpiredShares();
+
+        $stmt = $this->db->prepare("
+            SELECT sm.*, u.username as shared_by_username, u.real_name as shared_by_real_name
+            FROM shared_messages sm
+            JOIN users u ON sm.shared_by_user_id = u.id
+            WHERE sm.area_identifier = ?
+              AND sm.slug = ?
+              AND sm.is_active = TRUE
+              AND (sm.expires_at IS NULL OR sm.expires_at > NOW())
+        ");
+        $stmt->execute([$areaIdentifier, $slug]);
+        $share = $stmt->fetch();
+
+        if (!$share) {
+            return ['success' => false, 'error' => 'Share not found or expired'];
+        }
+
+        // Delegate to the core lookup logic via share_key
+        return $this->getSharedMessage($share['share_key'], $requestingUserId);
+    }
+
+    /**
      * Get all shares for a message by a user
      */
     public function getMessageShares($messageId, $messageType, $userId)
     {
         $stmt = $this->db->prepare("
-            SELECT * FROM shared_messages 
+            SELECT * FROM shared_messages
             WHERE message_id = ? AND message_type = ? AND shared_by_user_id = ? AND is_active = TRUE
             ORDER BY created_at DESC
         ");
@@ -2350,13 +2562,16 @@ class MessageHandler
 
         $result = [];
         foreach ($shares as $share) {
+            $areaId = $share['area_identifier'] ?? null;
+            $slug   = $share['slug'] ?? null;
             $result[] = [
-                'share_key' => $share['share_key'],
-                'share_url' => $this->buildShareUrl($share['share_key']),
-                'created_at' => $share['created_at'],
-                'expires_at' => $share['expires_at'],
-                'is_public' => $share['is_public'],
-                'access_count' => $share['access_count'],
+                'share_key'        => $share['share_key'],
+                'share_url'        => $this->buildShareUrl($share['share_key'], $areaId, $slug),
+                'has_friendly_url' => ($areaId !== null && $slug !== null),
+                'created_at'       => $share['created_at'],
+                'expires_at'       => $share['expires_at'],
+                'is_public'        => $share['is_public'],
+                'access_count'     => $share['access_count'],
                 'last_accessed_at' => $share['last_accessed_at']
             ];
         }
@@ -2433,11 +2648,53 @@ class MessageHandler
     }
 
     /**
-     * Build share URL
+     * Generate a URL-friendly slug from a subject, unique within the given area identifier.
+     * Appends -2, -3, etc. on collision.
      */
-    private function buildShareUrl($shareKey)
+    private function generateFriendlySlug(string $subject, string $areaIdentifier): string
     {
-        return \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
+        $slug = strtolower($subject);
+        $slug = preg_replace('/\s+/', '-', $slug);
+        $slug = preg_replace('/[^a-z0-9\-]/', '', $slug);
+        $slug = preg_replace('/-+/', '-', $slug);
+        $slug = trim($slug, '-');
+        $slug = substr($slug, 0, 100);
+
+        if ($slug === '') {
+            $slug = 'message';
+        }
+
+        $base   = $slug;
+        $suffix = 2;
+        $stmt   = $this->db->prepare(
+            "SELECT id FROM shared_messages WHERE area_identifier = ? AND slug = ?"
+        );
+        while (true) {
+            $stmt->execute([$areaIdentifier, $slug]);
+            if (!$stmt->fetch()) {
+                break;
+            }
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Build share URL — prefers the friendly /shared/{area}/{slug} form when available.
+     *
+     * @param string      $shareKey
+     * @param string|null $areaIdentifier  e.g. "test@lovlynet"
+     * @param string|null $slug            e.g. "hello-world"
+     */
+    private function buildShareUrl(string $shareKey, ?string $areaIdentifier = null, ?string $slug = null): string
+    {
+        $base = \BinktermPHP\Config::getSiteUrl();
+        if ($areaIdentifier !== null && $slug !== null) {
+            return $base . '/shared/' . rawurlencode($areaIdentifier) . '/' . rawurlencode($slug);
+        }
+        return $base . '/shared/' . $shareKey;
     }
 
     /**
@@ -2566,19 +2823,27 @@ class MessageHandler
             $kludgeLines[] = "\x01REPLYTO {$replyToAddress}";
         }
         
-        // Add INTL kludge for zone routing (required for inter-zone mail)
-        list($fromZone, $fromRest) = explode(':', $fromAddress);
-        list($toZone, $toRest) = explode(':', $toAddress);
-        $kludgeLines[] = "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}";
-        
+        // Add INTL kludge for zone routing (required for inter-zone mail).
+        // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
+        // Points are conveyed separately via FMPT/TOPT kludges below.
+        list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
+        list($fromNet, $fromNodePoint) = explode('/', $fromNetNodeRaw);
+        $fromNodeOnly = explode('.', $fromNodePoint)[0];
+
+        list($toZone, $toNetNodeRaw) = explode(':', $toAddress);
+        list($toNet, $toNodePoint) = explode('/', $toNetNodeRaw);
+        $toNodeOnly = explode('.', $toNodePoint)[0];
+
+        $kludgeLines[] = "\x01INTL {$toZone}:{$toNet}/{$toNodeOnly} {$fromZone}:{$fromNet}/{$fromNodeOnly}";
+
         // Add FMPT/TOPT kludges for point addressing if needed
         if (strpos($fromAddress, '.') !== false) {
             list($mainAddr, $point) = explode('.', $fromAddress);
             $kludgeLines[] = "\x01FMPT {$point}";
         }
-        
+
         if (strpos($toAddress, '.') !== false) {
-            list($mainAddr, $point) = explode('.', $toAddress);  
+            list($mainAddr, $point) = explode('.', $toAddress);
             $kludgeLines[] = "\x01TOPT {$point}";
         }
         
@@ -2822,7 +3087,7 @@ class MessageHandler
     /**
      * Get threaded echomail messages from subscribed echoareas using MSGID/REPLY relationships
      */
-    private function getThreadedEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $subscribedEchoareas = null)
+    private function getThreadedEchomailFromSubscribedAreas($userId, $page = 1, $limit = null, $filter = 'all', $subscribedEchoareas = null, $sort = 'date_desc')
     {
         // Get subscribed echoareas if not provided
         if ($subscribedEchoareas === null) {
@@ -2872,6 +3137,15 @@ class MessageHandler
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
         $dateField = self::ECHOMAIL_DATE_FIELD;
+
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         $stmt = $this->db->prepare("
             SELECT em.id, em.from_name, em.from_address, em.to_name,
                    em.subject, em.date_received, em.date_written, em.echoarea_id,
@@ -2886,7 +3160,7 @@ class MessageHandler
             LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
             LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
             WHERE ea.id IN ($placeholders) AND ea.is_active = TRUE{$filterClause}
-            ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+            ORDER BY {$orderBy}
             LIMIT ? OFFSET ?
         ");
 
@@ -2912,13 +3186,18 @@ class MessageHandler
         // Debug: log thread info
         //error_log("DEBUG: Built " . count($threads) . " threads from " . count($allMessages) . " messages");
         
-        // Sort threads by most recent message in each thread
-        usort($threads, function($a, $b) {
-            $aLatest = $this->getLatestMessageInThread($a);
-            $bLatest = $this->getLatestMessageInThread($b);
-            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        // Sort threads according to the requested sort order
+        usort($threads, function($a, $b) use ($sort) {
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
+            return match($sort) {
+                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
+                'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
+                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+            };
         });
-        
+
         // Get total count for pagination (based on actual message count, not thread count)
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM echomail em
@@ -2979,7 +3258,7 @@ class MessageHandler
     /**
      * Get threaded echomail messages using MSGID/REPLY relationships
      */
-    public function getThreadedEchomail($echoareaTag = null,$domain, $page = 1, $limit = null, $userId = null, $filter = 'all')
+    public function getThreadedEchomail($echoareaTag = null, $domain = null, $page = 1, $limit = null, $userId = null, $filter = 'all', $sort = 'date_desc')
     {
         // Get user's messages_per_page setting if limit not specified
         if ($limit === null && $userId) {
@@ -3049,6 +3328,14 @@ class MessageHandler
         $rootOffset = ($page - 1) * $limit;
         $dateField = self::ECHOMAIL_DATE_FIELD;
 
+        // Build ORDER BY clause based on sort parameter
+        $orderBy = match($sort) {
+            'date_asc' => "em.{$dateField} ASC",
+            'subject'  => "em.subject ASC",
+            'author'   => "em.from_name ASC",
+            default    => "CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC",
+        };
+
         if ($echoareaTag) {
             // Get root messages (threads) for the current page
             $stmt = $this->db->prepare("
@@ -3065,7 +3352,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE ea.tag = ?{$filterClause} AND {$domainCondition} AND em.reply_to_id IS NULL
-                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId, $echoareaTag];
@@ -3094,7 +3381,7 @@ class MessageHandler
                 LEFT JOIN shared_messages sm ON (sm.message_id = em.id AND sm.message_type = 'echomail' AND sm.shared_by_user_id = ? AND sm.is_active = TRUE AND (sm.expires_at IS NULL OR sm.expires_at > NOW()))
                 LEFT JOIN saved_messages sav ON (sav.message_id = em.id AND sav.message_type = 'echomail' AND sav.user_id = ?)
                 WHERE em.reply_to_id IS NULL{$filterClause}
-                ORDER BY CASE WHEN em.{$dateField} > NOW() THEN 0 ELSE 1 END, em.{$dateField} DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?
             ");
             $params = [$userId, $userId, $userId];
@@ -3114,11 +3401,16 @@ class MessageHandler
         // Build threading relationships
         $threads = $this->buildMessageThreads($allMessages);
 
-        // Sort threads by most recent message in each thread
-        usort($threads, function($a, $b) {
-            $aLatest = $this->getLatestMessageInThread($a);
-            $bLatest = $this->getLatestMessageInThread($b);
-            return strtotime($bLatest['date_received']) - strtotime($aLatest['date_received']);
+        // Sort threads according to the requested sort order
+        usort($threads, function($a, $b) use ($sort) {
+            $aRoot = $a['message'];
+            $bRoot = $b['message'];
+            return match($sort) {
+                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
+                'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
+                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+            };
         });
 
         // Flatten threads for display while maintaining structure

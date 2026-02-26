@@ -89,6 +89,14 @@
                             <input class="form-check-input" type="checkbox" id="bbsFileAreas">
                             <label class="form-check-label" for="bbsFileAreas">Enable File Areas</label>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="bbsDefaultEchoInterface">Default Echo Interface</label>
+                            <select class="form-select" id="bbsDefaultEchoInterface">
+                                <option value="echolist">Echo List (Forum view)</option>
+                                <option value="reader">Reader (Message list)</option>
+                            </select>
+                            <small class="text-muted">Default interface for viewing echomail. Users can override this in their settings.</small>
+                        </div>
                         <hr>
                         <div class="mb-3">
                             <label class="form-label" for="bbsMaxCrossPost">Max Cross-Post Areas</label>
@@ -165,6 +173,17 @@
                                 <input type="number" class="form-control" id="bbsCreditsTransferFee" min="0" max="1" step="0.01">
                                 <small class="text-muted">Percentage of credit transfers taken as fee (0.05 = 5%). Distributed to sysops.</small>
                             </div>
+                            <hr>
+                            <h6 class="mb-3">Referral System</h6>
+                            <div class="mb-3 form-check">
+                                <input class="form-check-input" type="checkbox" id="bbsCreditsReferralEnabled">
+                                <label class="form-check-label" for="bbsCreditsReferralEnabled">Enable Referral System</label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="bbsCreditsReferralBonus">Referral Bonus</label>
+                                <input type="number" class="form-control" id="bbsCreditsReferralBonus" min="0" step="1">
+                                <small class="text-muted">Credits awarded when a referred user is approved by admin.</small>
+                            </div>
                         </div>
                     </div>
                     <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">Save Credit Settings</button>
@@ -194,8 +213,6 @@
 
 {% block scripts %}
 <script>
-const bbsSettingsCsrf = '{{ bbs_settings_csrf|e('js') }}';
-
 document.addEventListener('DOMContentLoaded', function() {
     loadBbsSettings();
     loadBbsSystem();
@@ -218,6 +235,7 @@ function loadBbsSettings() {
             document.getElementById('bbsVoting').checked = !!features.voting_booth;
             document.getElementById('bbsChat').checked = !!features.chat;
             document.getElementById('bbsFileAreas').checked = !!features.file_areas;
+            document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
             const maxCrossPost = parseInt(data.config?.max_cross_post_areas, 10);
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
             document.getElementById('bbsCreditsEnabled').checked = credits.enabled !== false;
@@ -240,6 +258,10 @@ function loadBbsSettings() {
             document.getElementById('bbsCreditsPollCreationCost').value = Number.isNaN(pollCreationCostValue) ? 15 : pollCreationCostValue;
             document.getElementById('bbsCreditsNew14Days').value = Number.isNaN(new14DaysValue) ? 50 : new14DaysValue;
             document.getElementById('bbsCreditsTransferFee').value = Number.isNaN(transferFeeValue) ? 0.05 : transferFeeValue;
+
+            const referralBonusValue = parseInt(credits.referral_bonus, 10);
+            document.getElementById('bbsCreditsReferralEnabled').checked = !!credits.referral_enabled;
+            document.getElementById('bbsCreditsReferralBonus').value = Number.isNaN(referralBonusValue) ? 25 : referralBonusValue;
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || 'Failed to load settings', 'danger');
@@ -269,12 +291,13 @@ function saveBbsSettings() {
                     file_areas: document.getElementById('bbsFileAreas').checked
                 },
                 credits: credits,
-                max_cross_post_areas: maxCrossPost
+                max_cross_post_areas: maxCrossPost,
+                default_echo_interface: document.getElementById('bbsDefaultEchoInterface').value
             };
 
             return fetch('/admin/api/bbs-settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ config })
             });
         })
@@ -399,6 +422,12 @@ function saveBbsCredits() {
         return;
     }
 
+    const referralBonus = parseInt(document.getElementById('bbsCreditsReferralBonus').value, 10);
+    if (Number.isNaN(referralBonus) || referralBonus < 0) {
+        showBbsCreditsAlert('Referral bonus must be a non-negative integer.', 'danger');
+        return;
+    }
+
     // Get current BBS features settings (don't change them)
     fetch('/admin/api/bbs-settings')
         .then(response => response.json())
@@ -418,13 +447,15 @@ function saveBbsCredits() {
                     crashmail_cost: crashmailCost,
                     poll_creation_cost: pollCreationCost,
                     return_14days: new14Days,
-                    transfer_fee_percent: transferFee
+                    transfer_fee_percent: transferFee,
+                    referral_enabled: document.getElementById('bbsCreditsReferralEnabled').checked,
+                    referral_bonus: referralBonus
                 }
             };
 
             return fetch('/admin/api/bbs-settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': bbsSettingsCsrf },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ config })
             });
         })

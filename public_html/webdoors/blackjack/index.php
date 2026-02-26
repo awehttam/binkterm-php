@@ -1,23 +1,13 @@
 <?php
 
-if (!defined('BINKTERMPHP_BASEDIR')) {
-    define('BINKTERMPHP_BASEDIR', dirname(__DIR__, 3));
-}
-
-require_once BINKTERMPHP_BASEDIR . '/vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\Auth;
 use BinktermPHP\BbsConfig;
-use BinktermPHP\Database;
 use BinktermPHP\GameConfig;
 use BinktermPHP\Template;
 use BinktermPHP\UserCredit;
-
-Database::getInstance();
-
-if (!headers_sent() && session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
 
 $auth = new Auth();
 $user = $auth->getCurrentUser();
@@ -66,7 +56,7 @@ function blackjack_default_state(int $startBet): array
         'handsPlayed' => 0,
         'handsWon' => 0,
         'handsLost' => 0,
-        'bestBankroll' => 0,
+        'sessionWinnings' => 0,  // credits won from blackjack hands this session (losses never subtract)
         'roundId' => 0,
         'lastOutcome' => null
     ];
@@ -214,8 +204,9 @@ function blackjack_end_round(array $state, string $outcome, int $userId, int $ba
         $balance = UserCredit::getBalance($userId);
     }
 
-    if ($state['bestBankroll'] < $balance) {
-        $state['bestBankroll'] = $balance;
+    // Accumulate only winnings (losses never subtract from this total)
+    if ($delta > 0) {
+        $state['sessionWinnings'] = ($state['sessionWinnings'] ?? 0) + $delta;
     }
 
     $pv = blackjack_hand_value($state['player']);
@@ -252,10 +243,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (\Throwable $e) {
         blackjack_response($state, 0, $symbol, false, 'Unable to load balance', 500);
         exit;
-    }
-
-    if ($state['bestBankroll'] < $balance) {
-        $state['bestBankroll'] = $balance;
     }
 
     if ($action === '' || $action === 'init') {
@@ -447,6 +434,12 @@ try {
   <h2>Leaderboard</h2>
   <ul id="leaderboard"></ul>
 
+  <!-- WebDoor SDK -->
+  <script src="../_doorsdk/js/api.js"></script>
+  <script src="../_doorsdk/js/credits.js"></script>
+  <script src="../_doorsdk/js/messaging.js"></script>
+
+  <!-- Game Scripts -->
   <script src="js/webdoor.js"></script>
   <script src="js/blackjack.js"></script>
 </body>

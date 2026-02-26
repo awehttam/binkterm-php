@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "type": "dosdoor",
+  "game": {
+    "name": "Barren Realms Elite",
+    "short_name": "BRE",
+    "author": "Mehul Patel",
+    "version": "1.54",
+    "release_year": 1991,
+    "description": "Classic space empire building and trading strategy game. Build your empire, trade resources, and battle other players in this turn-based strategy game.",
+    "genre": ["Strategy", "Trading", "Empire Building"],
+    "players": "Single-player (turn-based multiplayer)",
+    "screenshot": null
+  },
+  "door": {
+    "type": "dos",
+    "executable": "BRE.BAT",
+    "launch_command": "bre.bat",
+    "directory": "dosbox-bridge/dos/DOORS/BRE",
+    "dropfile_format": "DOOR.SYS",
+    "dropfile_path": "\\DOORS\\BRE",
+    "node_support": false,
+    "max_nodes": 1,
+    "fossil_required": true,
+    "ansi_required": true,
+    "time_per_day": 15,
+    "notes": "Single-player game - only one user can play at a time. Turn-based multiplayer via shared game data. Drop file goes directly in door directory."
+  },
+  "requirements": {
+    "dosbox": "dosbox-x",
+    "fossil_driver": "BNU.COM"
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_time_minutes": 15
+  }
+}

@@ -4,7 +4,8 @@
  * Returns current map, players, and online status for all configured servers
  */
 
-require_once __DIR__ . '/../../../vendor/autoload.php';
+// Include WebDoor SDK (handles autoload, database, and session initialization)
+require_once __DIR__ . '/../_doorsdk/php/helpers.php';
 
 use BinktermPHP\GameConfig;
 

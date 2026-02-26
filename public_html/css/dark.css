@@ -18,8 +18,12 @@
     --kludge-text: #b0b0b0;
 }
 
-/* Prevent horizontal overflow on mobile */
-html, body {
+/* Prevent horizontal overflow on mobile.
+   overflow-x must NOT be set on html — doing so turns overflow-y into
+   "auto" on the root element in Chromium, making html the scroll
+   container and allowing the admin dropdown to create a spurious
+   vertical scrollbar. */
+body {
     overflow-x: hidden;
     max-width: 100vw;
 }
@@ -341,6 +345,10 @@ body {
     color: var(--text-color-muted);
 }
 
+.form-text {
+    color: var(--text-color-muted);
+}
+
 .form-control:disabled,
 .form-control[readonly] {
     background-color: var(--bg-primary);
@@ -463,6 +471,16 @@ body {
     font-weight: 500;
     margin-bottom: 2px;
     color: var(--text-color);
+}
+
+.node-item.bg-primary .node-address,
+.node-item.bg-primary .node-system {
+    color: #fff;
+}
+
+.node-item.bg-primary .badge {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #333 !important;
 }
 
 .node-sysop {
@@ -1034,4 +1052,17 @@ a:hover {
     #echolist-page .forum-stats-cell {
         border-top-color: rgba(255, 255, 255, 0.1);
     }
+}
+
+/* Message Reader: scrollable body mode */
+/* Remove modal-body top padding so there is no gap above the sticky header */
+.message-reader-scrollable .modal-body {
+    padding-top: 0;
+}
+.message-reader-scrollable .message-header-full {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -1rem 1rem;
+    padding: 1rem 1rem 0.75rem;
 }

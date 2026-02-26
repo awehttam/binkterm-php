@@ -27,13 +27,21 @@ class Auth
 
     public function login($username, $password, string $service = 'web')
     {
-        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE username = ? AND is_active = TRUE');
+        $stmt = $this->db->prepare('SELECT id, password_hash FROM users WHERE LOWER(username) = LOWER(?) AND is_active = TRUE');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
             $sessionId = $this->createSession($user['id'], $service);
             $this->updateLastLogin($user['id']);
+
+            // Generate a fresh CSRF token and store it per-user in UserMeta so it
+            // is accessible to both web sessions and the telnet daemon (which has
+            // no PHP session).
+            $csrfToken = bin2hex(random_bytes(32));
+            $meta = new UserMeta();
+            $meta->setValue((int)$user['id'], 'csrf_token', $csrfToken);
+
             return $sessionId;
         }
 
@@ -153,6 +161,22 @@ class Auth
             echo json_encode(['error' => 'Authentication required']);
             exit;
         }
+
+        // CSRF validation for state-changing requests
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $userId   = (int)($user['user_id'] ?? $user['id'] ?? 0);
+            $meta     = new UserMeta();
+            $expected = $meta->getValue($userId, 'csrf_token');
+            $token    = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if ($expected === null || $token === '' || !hash_equals($expected, $token)) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Invalid CSRF token']);
+                exit;
+            }
+        }
+
         return $user;
     }
 
@@ -261,25 +285,6 @@ class Auth
      */
     public function verifyGatewayToken(int $userId, string $token): array|false
     {
-        // Debug: Check if token exists at all
-        $debugStmt = $this->db->prepare("
-            SELECT gt.*, u.is_active as user_active
-            FROM gateway_tokens gt
-            LEFT JOIN users u ON gt.user_id = u.id
-            WHERE gt.token = ?
-        ");
-        $debugStmt->execute([$token]);
-        $debugResult = $debugStmt->fetch(\PDO::FETCH_ASSOC);
-
-        if (!$debugResult) {
-            error_log("[GATEWAY] Token not found in database: $token");
-        } else {
-            // Check database NOW() vs expires_at
-            $nowStmt = $this->db->query("SELECT NOW() as db_now");
-            $dbNow = $nowStmt->fetch(\PDO::FETCH_ASSOC)['db_now'];
-            //error_log("[GATEWAY] Token found - user_id in token: {$debugResult['user_id']}, requested user_id: $userId, expires_at: {$debugResult['expires_at']}, db_now: $dbNow, used_at: " . ($debugResult['used_at'] ?? 'NULL') . ", user_active: " . ($debugResult['user_active'] ? 'true' : 'false'));
-        }
-
         // Find the token
         $stmt = $this->db->prepare("
             SELECT gt.*, u.username, u.real_name, u.email, u.location

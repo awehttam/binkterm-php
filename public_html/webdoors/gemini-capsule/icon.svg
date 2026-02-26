@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Capsule body -->
+  <ellipse cx="32" cy="18" rx="7" ry="10" fill="#003d1a" stroke="#00cc55" stroke-width="1.2"/>
+  <!-- Nose cone -->
+  <path d="M25 12 Q32 2 39 12 Z" fill="#005522" stroke="#00cc55" stroke-width="1.2"/>
+  <!-- Porthole -->
+  <circle cx="32" cy="17" r="3" fill="#001a0d" stroke="#00ff88" stroke-width="1.2"/>
+  <circle cx="32" cy="17" r="1.5" fill="#00ff88" opacity="0.25"/>
+  <!-- Fins -->
+  <path d="M25 25 L19 33 L25 30 Z" fill="#004d22" stroke="#00aa44" stroke-width="0.75"/>
+  <path d="M39 25 L45 33 L39 30 Z" fill="#004d22" stroke="#00aa44" stroke-width="0.75"/>
+  <!-- Nozzle -->
+  <rect x="29" y="27" width="6" height="3" rx="1" fill="#003311" stroke="#008833" stroke-width="0.75"/>
+
+  <!-- Serving plate / cloche rim -->
+  <ellipse cx="32" cy="30" rx="16" ry="2.5" fill="#002a14" stroke="#00cc55" stroke-width="1.5"/>
+  <ellipse cx="32" cy="30" rx="16" ry="2.5" fill="none" stroke="#00ff88" stroke-width="0.4" opacity="0.5"/>
+
+  <!-- Serving arm -->
+  <rect x="30" y="30" width="4" height="12" fill="#001f0d" stroke="#007733" stroke-width="0.75"/>
+
+  <!-- Server chassis -->
+  <rect x="5" y="42" width="54" height="16" rx="2" fill="#001a0d" stroke="#00cc55" stroke-width="1.5"/>
+  <!-- Drive bay slots -->
+  <rect x="9"  y="46" width="6" height="4" rx="1" fill="#002e14" stroke="#00aa44" stroke-width="0.75"/>
+  <rect x="17" y="46" width="6" height="4" rx="1" fill="#002e14" stroke="#00aa44" stroke-width="0.75"/>
+  <rect x="25" y="46" width="6" height="4" rx="1" fill="#002e14" stroke="#00aa44" stroke-width="0.75"/>
+  <!-- Vent slots -->
+  <line x1="34" y1="47" x2="44" y2="47" stroke="#005522" stroke-width="0.75"/>
+  <line x1="34" y1="49" x2="44" y2="49" stroke="#005522" stroke-width="0.75"/>
+  <line x1="34" y1="51" x2="44" y2="51" stroke="#005522" stroke-width="0.75"/>
+  <!-- Status LEDs -->
+  <circle cx="49" cy="47" r="1.5" fill="#00ff88" opacity="0.95"/>
+  <circle cx="53" cy="47" r="1.5" fill="#ffaa00" opacity="0.8"/>
+  <!-- Bottom chassis stripe -->
+  <line x1="9" y1="54" x2="46" y2="54" stroke="#004422" stroke-width="1"/>
+</svg>

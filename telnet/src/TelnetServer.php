@@ -348,6 +348,16 @@ class TelnetServer
         // Show login banner
         $this->showLoginBanner($conn, $state);
 
+        // Anti-bot: require ESC key twice before presenting login/register menu
+        if (!$this->requireEscapeKey($conn, $state)) {
+            $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
+            fclose($conn);
+            if ($forked) {
+                exit(0);
+            }
+            return;
+        }
+
         // Login/Register loop
         $loginResult = null;
         while ($loginResult === null) {
@@ -390,7 +400,8 @@ class TelnetServer
             // Allow up to 3 login attempts
             $maxAttempts = 3;
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                $loginResult = $this->attemptLogin($conn, $state);
+                $attemptedUsername = '';
+                $loginResult = $this->attemptLogin($conn, $state, $attemptedUsername);
 
                 if ($loginResult !== null) {
                     // Successful login
@@ -401,7 +412,8 @@ class TelnetServer
 
                 // Failed login
                 $this->recordFailedLogin($peerIp);
-                echo "[" . date('Y-m-d H:i:s') . "] Failed login attempt from {$peerName} (attempt {$attempt}/{$maxAttempts})\n";
+                $userLabel = $attemptedUsername !== '' ? " (user: {$attemptedUsername})" : '';
+                $this->log("Failed login attempt from {$peerName}{$userLabel} (attempt {$attempt}/{$maxAttempts})");
 
                 if ($attempt < $maxAttempts) {
                     $remaining = $maxAttempts - $attempt;
@@ -415,7 +427,7 @@ class TelnetServer
 
             // If all attempts failed, disconnect
             if ($loginResult === null) {
-                echo "[" . date('Y-m-d H:i:s') . "] Login failed (max attempts) from {$peerName}\n";
+                $this->log("Login failed (max attempts) from {$peerName}");
                 fclose($conn);
                 if ($forked) {
                     exit(0);
@@ -424,9 +436,12 @@ class TelnetServer
             }
         }
 
-        $session = $loginResult['session'];
+        $session  = $loginResult['session'];
         $username = $loginResult['username'];
         $loginTime = time();
+
+        // Store CSRF token in state so handlers can attach it to POST requests
+        $state['csrf_token'] = $loginResult['csrf_token'] ?? null;
 
         // Fetch user settings once at login and store in state
         $settingsResponse = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/settings', null, $session);
@@ -435,11 +450,25 @@ class TelnetServer
         $state['user_date_format'] = $settings['date_format'] ?? 'Y-m-d H:i:s';
         $state['username'] = $username;
 
+        // Resolve admin status from session record
+        $auth = new \BinktermPHP\Auth();
+        $userRecord = $auth->validateSession($session);
+        $state['is_admin'] = !empty($userRecord['is_admin']);
+
         // Clear failed login attempts for this IP on successful login
         $this->clearFailedLogins($peerIp);
 
         // Log successful login to console
         echo "[" . date('Y-m-d H:i:s') . "] Login: {$username} from {$peerName}\n";
+
+        // Track telnet login in activity log
+        \BinktermPHP\ActivityTracker::track(
+            $userRecord['user_id'] ?? null,
+            \BinktermPHP\ActivityTracker::TYPE_LOGIN,
+            null,
+            'telnet',
+            ['ip' => $peerIp]
+        );
 
         // Set terminal window title to BBS name
         $config = BinkpConfig::getInstance();
@@ -450,6 +479,7 @@ class TelnetServer
         $echomailHandler = new \BinktermPHP\TelnetServer\EchomailHandler($this, $this->apiBase);
         $shoutboxHandler = new \BinktermPHP\TelnetServer\ShoutboxHandler($this, $this->apiBase);
         $pollsHandler = new \BinktermPHP\TelnetServer\PollsHandler($this, $this->apiBase);
+        $doorHandler = new \BinktermPHP\TelnetServer\DoorHandler($this, $this->apiBase);
 
         // Show shoutbox if enabled
         $shoutboxHandler->show($conn, $state, $session, 5);
@@ -508,6 +538,7 @@ class TelnetServer
             // Menu options
             $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
             $showPolls = BbsConfig::isFeatureEnabled('voting_booth');
+            $showDoors = BbsConfig::isFeatureEnabled('webdoors');
 
             $option1 = '| N) Netmail (' . $messageCounts['netmail'] . ' messages)';
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option1, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
@@ -518,6 +549,7 @@ class TelnetServer
             $option = 1;
             $shoutboxOption = null;
             $pollsOption = null;
+            $doorsOption = null;
             $whosOnlineOption = 'w';
 
             $optionLine = "| W) Who's Online";
@@ -532,6 +564,11 @@ class TelnetServer
                 $optionLine = "| P) Polls";
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                 $pollsOption = 'p';
+            }
+            if ($showDoors) {
+                $optionLine = "| D) Door Games";
+                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                $doorsOption = 'd';
             }
             $quitLine = "| Q) Quit";
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
@@ -577,7 +614,7 @@ class TelnetServer
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if ($char === 'n' || $char === 'e' || $char === 'q' || $char === 's' || $char === 'p' || $char === 'w') {
+                    if ($char === 'n' || $char === 'e' || $char === 'q' || $char === 's' || $char === 'p' || $char === 'w' || $char === 'd') {
                         $choice = $char;
                     } elseif (ctype_digit($char)) {
                         $choice = $char;
@@ -602,6 +639,8 @@ class TelnetServer
                 $shoutboxHandler->show($conn, $state, $session, 20);
             } elseif (!empty($pollsOption) && $choice === $pollsOption) {
                 $pollsHandler->show($conn, $state, $session);
+            } elseif (!empty($doorsOption) && $choice === $doorsOption) {
+                $doorHandler->show($conn, $state, $session);
             } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
                 $this->showWhosOnline($conn, $state, $session);
             } elseif ($choice === $quitOption || strtolower($choice) === 'q') {
@@ -1037,7 +1076,23 @@ class TelnetServer
         if ($char === self::KEY_END) return ['END', false, false];
 
         $ord = ord($char[0]);
-        if ($ord === 13 || $ord === 10) {
+        if ($ord === 13) {
+            // CR — consume a trailing LF or NUL if one arrives immediately.
+            // Most terminals send CR+LF for Enter; without this the LF would be
+            // seen as a second ENTER by the very next readKeyWithIdleCheck call
+            // (e.g. the message reader exiting the moment it opens).
+            $read = [$conn];
+            $write = $except = null;
+            if (@stream_select($read, $write, $except, 0, 50000) > 0) {
+                $next = $this->readRawChar($conn, $state);
+                if ($next !== null && ord($next) !== 10 && ord($next) !== 0) {
+                    // Not LF/NUL — put it back for the next read
+                    $state['pushback'] = ($state['pushback'] ?? '') . $next;
+                }
+            }
+            return ['ENTER', false, false];
+        }
+        if ($ord === 10) {
             return ['ENTER', false, false];
         }
         if ($ord === 8 || $ord === 127) {
@@ -1311,12 +1366,13 @@ class TelnetServer
      *
      * @return array|null Returns ['session' => string, 'username' => string] on success, null on failure
      */
-    private function attemptLogin($conn, array &$state): ?array
+    private function attemptLogin($conn, array &$state, string &$attemptedUsername = ''): ?array
     {
         $username = $this->prompt($conn, $state, 'Username: ', true);
         if ($username === null) {
             return null;
         }
+        $attemptedUsername = $username;
         $password = $this->prompt($conn, $state, 'Password: ', false);
         if ($password === null) {
             return null;
@@ -1352,7 +1408,11 @@ class TelnetServer
             return null;
         }
 
-        return ['session' => $result['cookie'], 'username' => $username];
+        return [
+            'session'    => $result['cookie'],
+            'username'   => $username,
+            'csrf_token' => $result['data']['csrf_token'] ?? null,
+        ];
     }
 
     /**
@@ -1470,6 +1530,77 @@ class TelnetServer
         }
 
         $this->failedLoginAttempts[$ip][] = time();
+    }
+
+    // ===== ANTI-BOT / CHALLENGE METHODS =====
+
+    /**
+     * Anti-bot challenge: require the user to press ESC twice before login.
+     *
+     * Bots that blindly send credentials without responding to interactive
+     * prompts will time out and be dropped. A 30-second window is given.
+     * Each ESC press is acknowledged with a '*' so the user can see progress.
+     *
+     * @param resource  $conn  Client socket
+     * @param array    &$state Session state
+     * @return bool True if two ESC presses received in time, false on timeout/disconnect
+     */
+    private function requireEscapeKey($conn, array &$state): bool
+    {
+        $this->writeLine($conn, '');
+        $this->writeLine($conn, $this->colorize('Press ESC twice to continue...', self::ANSI_CYAN));
+
+        $escCount  = 0;
+        $deadline  = time() + 30;
+
+        // Short read timeout so we can poll the deadline
+        stream_set_timeout($conn, 2);
+
+        while ($escCount < 2 && time() < $deadline) {
+            if (!is_resource($conn) || feof($conn)) {
+                break;
+            }
+
+            $char = fread($conn, 1);
+
+            if ($char === false || $char === '') {
+                $info = stream_get_meta_data($conn);
+                if ($info['timed_out']) {
+                    continue; // Keep waiting
+                }
+                break; // Real disconnect
+            }
+
+            $byte = ord($char);
+
+            // Strip IAC telnet negotiation bytes
+            if ($byte === self::IAC) {
+                $cmd = fread($conn, 1);
+                if ($cmd !== false) {
+                    $cmdByte = ord($cmd);
+                    if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
+                        fread($conn, 1); // consume option byte
+                    }
+                }
+                continue;
+            }
+
+            if ($byte === 0x1B) { // ESC
+                $escCount++;
+                $this->safeWrite($conn, $this->colorize('*', self::ANSI_GREEN));
+            }
+        }
+
+        // Restore normal read timeout
+        stream_set_timeout($conn, 300);
+
+        if ($escCount >= 2) {
+            $this->writeLine($conn, '');
+            $this->writeLine($conn, '');
+            return true;
+        }
+
+        return false;
     }
 
     // ===== BANNER / UI METHODS =====
