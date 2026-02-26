@@ -171,20 +171,16 @@ function processIncomingPacket(array $packet): void
  */
 function handleUserJoinAnnouncement(string $username, string $bbsName, string $room): void
 {
-    $db = getDb();
-
-    // The server echoes join announcements back to us for our own local users.
-    // Skip creating a foreign entry if this username is already present as a
-    // local (webdoor) user in the room — regardless of the BBS name in the
-    // announcement, which may differ slightly from what we stored.
-    $localCheck = $db->prepare("
-        SELECT 1 FROM mrc_users
-        WHERE LOWER(username) = LOWER(:username) AND room_name = :room AND is_local = true
-    ");
-    $localCheck->execute(['username' => $username, 'room' => $room]);
-    if ($localCheck->fetchColumn()) {
+    // The server echoes join announcements for our own local users back to us.
+    // Identify "ours" by BBS name — not username — so that users on other BBSes
+    // who happen to share a username are correctly treated as foreign.
+    $config = MrcConfig::getInstance();
+    $ourBbs = MrcClient::sanitizeName($config->getBbsName());
+    if (strcasecmp(MrcClient::sanitizeName($bbsName), $ourBbs) === 0) {
         return;
     }
+
+    $db = getDb();
 
     $db->prepare("
         INSERT INTO mrc_rooms (room_name, last_activity)
@@ -214,21 +210,14 @@ function handleUserPartAnnouncement(string $username, string $bbsName, string $r
 
 /**
  * Check if a join/part announcement belongs to a local webdoor user.
+ * Uses BBS name comparison rather than username so same-named users on
+ * other systems are not mistakenly treated as local.
  */
 function isLocalAnnouncement(string $username, string $bbsName, string $room): bool
 {
-    $db = getDb();
-    $stmt = $db->prepare("
-        SELECT 1 FROM mrc_users
-        WHERE LOWER(username) = LOWER(:username)
-          AND room_name = :room
-          AND is_local = true
-    ");
-    $stmt->execute([
-        'username' => MrcClient::sanitizeName($username),
-        'room' => MrcClient::sanitizeName($room)
-    ]);
-    return (bool)$stmt->fetchColumn();
+    $config = MrcConfig::getInstance();
+    $ourBbs = MrcClient::sanitizeName($config->getBbsName());
+    return strcasecmp(MrcClient::sanitizeName($bbsName), $ourBbs) === 0;
 }
 
 /**
@@ -344,11 +333,11 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                 // Replace foreign user list for this room — preserve local (webdoor) users
                 $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false");
                 $stmt->execute(['room' => $room]);
-                // Collect local usernames so we don't create duplicate foreign entries.
-                // The server includes our own users in USERLIST but stores them with
-                // bbs_name='' which would create a second row alongside the local entry.
+                // Collect local usernames (exact case) to skip our own users echoed
+                // back by the server. Use exact match so same-named users from other
+                // BBSes (e.g. Awehttam@revpol vs awehttam@ours) are not excluded.
                 $localStmt = $db->prepare("
-                    SELECT LOWER(username) FROM mrc_users
+                    SELECT username FROM mrc_users
                     WHERE room_name = :room AND is_local = true
                 ");
                 $localStmt->execute(['room' => $room]);
@@ -361,8 +350,8 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                 ");
                 foreach ($users as $u) {
                     $trimmed = trim($u);
-                    if (in_array(strtolower($trimmed), $localNames)) {
-                        continue; // Already tracked as a local user, skip
+                    if (in_array($trimmed, $localNames, true)) {
+                        continue; // Exact match — our own user echoed back, skip
                     }
                     $insertStmt->execute(['username' => $trimmed, 'room' => $room]);
                 }
