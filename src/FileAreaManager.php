@@ -331,7 +331,9 @@ class FileAreaManager
             SELECT f.*, fa.tag as area_tag, fa.domain, fa.is_local
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
-            WHERE f.status = 'approved' AND fa.is_active = TRUE
+            WHERE f.status = 'approved'
+              AND fa.is_active = TRUE
+              AND (fa.is_private = FALSE OR fa.is_private IS NULL)
             ORDER BY f.created_at DESC
             LIMIT ?
         ");
