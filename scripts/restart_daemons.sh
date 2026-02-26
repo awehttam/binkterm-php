@@ -63,9 +63,9 @@ start_process() {
 
 mkdir -p "$RUN_DIR"
 
-stop_process "$ADMIN_PID" "admin_daemon"
-stop_process "$SCHEDULER_PID" "binkp_scheduler"
-stop_process "$SERVER_PID" "binkp_server"
+stop_process "$ADMIN_PID" "admin_daemon" || true
+stop_process "$SCHEDULER_PID" "binkp_scheduler" || true
+stop_process "$SERVER_PID" "binkp_server" || true
 
 # Check if telnetd was running before stopping it
 if stop_process "$TELNETD_PID" "telnetd"; then
