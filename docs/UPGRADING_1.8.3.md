@@ -16,6 +16,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - File Share Links: share individual files via public `/shared/file/AREA/FILENAME` URLs
 - Crashmail: binkp_zone DNS fallback — nodes not in the nodelist can be reached via a DNS zone (e.g. binkp.net)
 - Netmail: file attachment sending via crashmail — attach a file to an outbound netmail for direct delivery in the same binkp session
+- Crashmail: scheduler polls every 5 minutes; new crashmail triggers immediate delivery via admin daemon
 
 **Bug Fixes**
 - MarkdownRenderer: fixed link rendering across soft line breaks; added support for root-relative URLs
@@ -199,6 +200,18 @@ To enable, add `binkp_zone` to an uplink in `config/binkp.json`:
 ```
 
 No database migration is required. No changes are needed to existing configurations — the field is optional and ignored when empty.
+
+### Crashmail: Scheduled Polling and Immediate Delivery
+
+The crashmail queue is now processed on two triggers:
+
+**Scheduled polling (every 5 minutes):** The `binkp_scheduler` daemon checks the crashmail queue every 5 minutes and runs `crashmail_poll.php` if there are pending items. Previously, it checked on every scheduler loop iteration (every 60 seconds by default), which was unnecessarily frequent.
+
+**Immediate delivery on queue:** When a new crashmail is queued (e.g. a user sends a netmail with crashmail enabled), the system immediately signals the admin daemon to run `crashmail_poll.php` rather than waiting for the next scheduled window. This means most outbound crashmail is delivered within seconds of being sent.
+
+If the admin daemon is not running, the immediate trigger is silently skipped and the item will be picked up by the next scheduled poll.
+
+No configuration changes are required. No database migration is required.
 
 ### Message Reader: Scrollable Body
 
