@@ -5,6 +5,7 @@ Make sure you've made a backup of your database and files before upgrading.
 ## Summary of Changes
 
 **New Features**
+- Message Reader: optional scrollable body — message header stays fixed while body scrolls (Admin → Appearance → Message Reader)
 - Gemini Browser: built-in start page (`about:home`) with curated Geminispace links
 - Gemini Capsule Hosting: users can publish personal Gemini capsules at `gemini://host/home/username/`
 - Gemini Capsule: echo areas can be exposed as read-only public Gemini content
@@ -179,6 +180,16 @@ To enable, add `binkp_zone` to an uplink in `config/binkp.json`:
 ```
 
 No database migration is required. No changes are needed to existing configurations — the field is optional and ignored when empty.
+
+### Message Reader: Scrollable Body
+
+A new **Message Reader** tab in Admin → Appearance adds a **Scrollable message body** toggle.
+
+When enabled, the message header (From, To, Area, Date, Subject) remains fixed at the top of the message modal while the body scrolls independently. This makes it easier to refer back to header information while reading long messages.
+
+The default is off, preserving the existing behaviour where the entire modal scrolls together.
+
+No database migration is required.
 
 ## Bug Fixes
 

@@ -35,6 +35,11 @@
             <i class="fas fa-desktop me-1"></i> Shell
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-message-reader-btn" data-bs-toggle="tab" data-bs-target="#tab-message-reader" type="button" role="tab">
+            <i class="fas fa-envelope-open-text me-1"></i> Message Reader
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content" id="appearanceTabContent">
@@ -367,6 +372,35 @@
         </div>
     </div>
 
+
+    {# ====== TAB: MESSAGE READER ====== #}
+    <div class="tab-pane fade" id="tab-message-reader" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-envelope-open-text me-2"></i>Message Reader</h5>
+            </div>
+            <div class="card-body">
+                <h6 class="text-muted mb-3">Layout</h6>
+                <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="mrScrollableBody">
+                    <label class="form-check-label" for="mrScrollableBody">
+                        <strong>Scrollable message body</strong>
+                    </label>
+                </div>
+                <div class="form-text mb-3">
+                    When enabled, the message header (From, To, Subject, Date) remains fixed at the top
+                    while the message body scrolls independently. When disabled, the entire modal scrolls
+                    together (default behaviour).
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="saveMessageReader()">
+                    <i class="fas fa-save me-1"></i> Save Message Reader Settings
+                </button>
+                <span id="messageReaderStatus" class="ms-2 text-muted small"></span>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -494,6 +528,10 @@ function loadAppearanceConfig() {
             const items = bbsMenu.menu_items || defaultMenuItems;
             $('#menuItemsBody').empty();
             items.forEach(item => addMenuItemRow(item));
+
+            // Message Reader
+            const mr = config.message_reader || {};
+            $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
         })
         .fail(function(xhr) {
             showAlert('danger', 'Failed to load appearance config: ' + (xhr.responseJSON?.error || 'Unknown error'));
@@ -783,6 +821,26 @@ function showStatus(id, type, msg) {
     if (type === 'success') {
         setTimeout(() => $('#' + id).html(''), 3000);
     }
+}
+
+function saveMessageReader() {
+    const payload = {
+        message_reader: {
+            scrollable_body: $('#mrScrollableBody').is(':checked')
+        }
+    };
+    $.post('/admin/api/appearance/message-reader', JSON.stringify(payload), null, 'json')
+        .done(function(r) {
+            if (r.success) {
+                $('#messageReaderStatus').text('Saved').removeClass('text-danger').addClass('text-success');
+                setTimeout(() => $('#messageReaderStatus').text(''), 3000);
+            } else {
+                $('#messageReaderStatus').text('Error: ' + (r.error || 'Unknown')).addClass('text-danger');
+            }
+        })
+        .fail(function(xhr) {
+            $('#messageReaderStatus').text('Error: ' + (xhr.responseJSON?.error || 'Request failed')).addClass('text-danger');
+        });
 }
 
 function showAlert(type, msg) {

@@ -85,6 +85,9 @@ class AppearanceConfig
                 'og_image_url' => '',
                 'about_page_enabled' => false,
             ],
+            'message_reader' => [
+                'scrollable_body' => false,
+            ],
         ];
     }
 
@@ -317,5 +320,18 @@ class AppearanceConfig
     {
         self::load();
         return !empty(self::$config['seo']['about_page_enabled']);
+    }
+
+    // -------------------------------------------------------------------------
+    // Message Reader
+    // -------------------------------------------------------------------------
+
+    /**
+     * Whether the message reader shows a scrollable body with a fixed header.
+     */
+    public static function isMessageReaderScrollable(): bool
+    {
+        self::load();
+        return !empty(self::$config['message_reader']['scrollable_body']);
     }
 }

@@ -935,6 +935,28 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             }
         });
 
+        SimpleRouter::post('/appearance/message-reader', function() {
+            RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true) ?? [];
+                $mr = $payload['message_reader'] ?? [];
+
+                $config = \BinktermPHP\AppearanceConfig::getConfig();
+                $config['message_reader']['scrollable_body'] = !empty($mr['scrollable_body']);
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->setAppearanceConfig($config);
+                \BinktermPHP\AppearanceConfig::reload();
+
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
         SimpleRouter::post('/appearance/preview-markdown', function() {
             RouteHelper::requireAdmin();
             header('Content-Type: application/json');

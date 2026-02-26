@@ -1053,3 +1053,16 @@ a:hover {
         border-top-color: rgba(255, 255, 255, 0.1);
     }
 }
+
+/* Message Reader: scrollable body mode */
+/* Remove modal-body top padding so there is no gap above the sticky header */
+.message-reader-scrollable .modal-body {
+    padding-top: 0;
+}
+.message-reader-scrollable .message-header-full {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -1rem 1rem;
+    padding: 1rem 1rem 0.75rem;
+}

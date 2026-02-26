@@ -1528,3 +1528,16 @@ tbody, td, tfoot, th, thead, tr {
         border-top-color: var(--cyber-purple-dim);
     }
 }
+
+/* Message Reader: scrollable body mode */
+/* Remove modal-body top padding so there is no gap above the sticky header */
+.message-reader-scrollable .modal-body {
+    padding-top: 0;
+}
+.message-reader-scrollable .message-header-full {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -1rem 1rem;
+    padding: 1rem 1rem 0.75rem;
+}
