@@ -2,6 +2,23 @@
 
 Make sure you've made a backup of your database and files before upgrading.
 
+## Summary of Changes
+
+**New Features**
+- Gemini Browser: built-in start page (`about:home`) with curated Geminispace links
+- Gemini Capsule Hosting: users can publish personal Gemini capsules at `gemini://host/home/username/`
+- Gemini Capsule: echo areas can be exposed as read-only public Gemini content
+- Friendly URLs for shared echomail messages (e.g. `/shared/test@lovlynet/hello-world`)
+- Appearance System: shells, branding, announcements, system news/house rules, custom nav links, and SEO metadata managed through Admin → Appearance
+- BBS Menu Shell: mobile improvements — ANSI scaling, tap-to-reveal shortcuts, context-aware hint text
+- Address Book: "Always use crashmail" per-contact option
+- File Share Links: share individual files via public `/shared/file/AREA/FILENAME` URLs
+
+**Bug Fixes**
+- MarkdownRenderer: fixed link rendering across soft line breaks; added support for root-relative URLs
+- FidoNet INTL kludge: removed point number from INTL line; added missing FMPT/TOPT in fallback packet path
+- Binkp packet header: corrected FSC-0048 Type-2+ capability word (`capWord`/`cwCopy`); clearer error when no `me` address is configured
+
 ## New Features
 
 ### Gemini Browser: Built-in Start Page
@@ -120,6 +137,20 @@ The `cards` and `text` variants now display context-appropriate hint text: "Pres
 Address book entries now include an **Always use crashmail for this Recipient** checkbox. When enabled, composing a new message to that contact will automatically pre-check the crashmail option on the compose form.
 
 This requires the migration `v1.10.10` — run `php scripts/setup.php` to apply it.
+
+### File Share Links
+
+Logged-in users can now share individual files from file areas via a public, human-readable link in the format:
+
+```
+/shared/file/AREANAME/FILENAME.ZIP
+```
+
+A **Share** button appears in the file details modal. Clicking it opens a share dialog where the user can set an optional expiry (1 hour, 24 hours, 1 week, 30 days, or never) and copy the generated link. The link can be revoked at any time from the same dialog.
+
+The share page displays the filename, size, upload date, area tag, description, and virus scan status. Anonymous visitors see a login/register prompt in place of the download button. Logged-in users get a download button and a link to browse the file area.
+
+This requires the migration `v1.10.11` — run `php scripts/setup.php` to apply it.
 
 ## Bug Fixes
 
