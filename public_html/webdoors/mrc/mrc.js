@@ -375,33 +375,30 @@ class MrcClient {
         const userList = $('#user-list');
         const userCount = $('#user-count');
 
+        const normalizedUsers = this.dedupeUsers(users);
         userList.empty();
-        userCount.text(users.length);
+        userCount.text(normalizedUsers.length);
 
-        if (users.length === 0) {
+        if (normalizedUsers.length === 0) {
             userList.html('<div class="text-muted small p-2">No users online</div>');
             return;
         }
 
-        const isLocalPresent = this.isLocalUserPresent(users);
+        const isLocalPresent = this.isLocalUserPresent(normalizedUsers);
         this.updateInputStateByPresence(isLocalPresent);
 
-        users.forEach(user => {
+        normalizedUsers.forEach(user => {
             const userName = user.username || '';
             const isSelf = this.username && userName.toLowerCase() === this.username.toLowerCase();
             const isActiveDm = this.privateUser && userName.toLowerCase() === this.privateUser.toLowerCase();
             const unread = this.privateUnread[userName.toLowerCase()] || 0;
-            const rawBbsName = user.bbs_name ? user.bbs_name.trim() : '';
-            const showBbsName = rawBbsName !== '' && rawBbsName.toLowerCase() !== 'unknown';
-            const isLocalBbs = showBbsName && this.localBbs && rawBbsName.toLowerCase() === this.localBbs.toLowerCase();
-            const displayName = showBbsName ? `${this.escapeHtml(userName)} @ ${this.escapeHtml(rawBbsName)}` : this.escapeHtml(userName);
+            const displayName = this.escapeHtml(userName);
             const item = $('<div>')
                 .addClass('list-group-item')
                 .addClass(isActiveDm ? 'user-dm-active' : '')
                 .html(`
                     <div class="user-name">
                         ${displayName}
-                        ${isLocalBbs ? '<span class="badge bg-success ms-2">local</span>' : ''}
                         ${user.is_afk ? '<span class="user-afk">(AFK)</span>' : ''}
                         ${unread > 0 ? `<span class="badge bg-warning text-dark ms-2 user-dm-badge">${unread}</span>` : ''}
                     </div>
@@ -415,6 +412,32 @@ class MrcClient {
 
             userList.append(item);
         });
+    }
+
+    /**
+     * Dedupe users by username (case-sensitive).
+     * Prefer entries that include a real BBS name.
+     */
+    dedupeUsers(users) {
+        const byName = new Map();
+        users.forEach(user => {
+            const name = (user.username || '').trim();
+            if (!name) return;
+            const key = name;
+            const existing = byName.get(key);
+            if (!existing) {
+                byName.set(key, user);
+                return;
+            }
+            const existingBbs = (existing.bbs_name || '').trim().toLowerCase();
+            const newBbs = (user.bbs_name || '').trim().toLowerCase();
+            const existingHasBbs = existingBbs !== '' && existingBbs !== 'unknown';
+            const newHasBbs = newBbs !== '' && newBbs !== 'unknown';
+            if (newHasBbs && !existingHasBbs) {
+                byName.set(key, user);
+            }
+        });
+        return Array.from(byName.values());
     }
 
     /**
