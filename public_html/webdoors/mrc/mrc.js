@@ -209,7 +209,9 @@ class MrcClient {
             if (response.success) {
                 this.joinedRoom = roomName;
                 this.viewedRoom = roomName;
-                this.lastMessageId = 0;
+                this.lastMessageId = typeof response.last_message_id === 'number'
+                    ? response.last_message_id
+                    : 0;
                 this.seenMessageIds.clear();
                 this.missingPresenceCount = 0;
                 this.exitPrivateChat();
@@ -227,7 +229,7 @@ class MrcClient {
 
                 // Clear messages
                 $('#chat-messages').html(
-                    '<div class="text-center text-muted py-3">Loading messages...</div>'
+                    '<div class="text-center text-muted py-3">Waiting for new messages...</div>'
                 );
 
                 // Load initial data (includes rooms + users + messages)
@@ -561,6 +563,9 @@ class MrcClient {
             case 'motd':
                 this.sendCommand(command, args);
                 break;
+            case 'rooms':
+                this.sendCommand(command, args);
+                break;
             case 'help':
             case 'list':
             case 'whoon':
@@ -579,7 +584,7 @@ class MrcClient {
      * Send a supported command to the MRC server.
      */
     async sendCommand(command, args) {
-        if (!this.joinedRoom) {
+        if (!this.joinedRoom && command !== 'rooms') {
             this.showError('Join a room before using commands.');
             return;
         }
@@ -597,7 +602,7 @@ class MrcClient {
                 contentType: 'application/json',
                 data: JSON.stringify({
                     command,
-                    room: this.joinedRoom,
+                    room: this.joinedRoom || '',
                     args
                 }),
                 dataType: 'json'
@@ -609,6 +614,10 @@ class MrcClient {
             }
 
             setTimeout(() => this.poll(false), 500);
+            if (command === 'rooms') {
+                this.showError('Refreshing room list...');
+                setTimeout(() => this.poll(true), 1000);
+            }
         } catch (error) {
             console.error('Command failed:', error);
             this.showError(`Command '/${command}' failed.`);
@@ -877,7 +886,7 @@ class MrcClient {
         }
 
         this.viewedRoom = roomName;
-        this.lastMessageId = 0;
+        this.lastMessageId = await this.fetchRoomCursor(roomName);
         this.seenMessageIds.clear();
 
         $('#current-room-name span').text(roomName);
@@ -896,10 +905,33 @@ class MrcClient {
         $(`#room-list .list-group-item[data-room="${roomName}"]`).addClass('active');
 
         $('#chat-messages').html(
-            '<div class="text-center text-muted py-3">Loading messages...</div>'
+            '<div class="text-center text-muted py-3">Waiting for new messages...</div>'
         );
 
         await this.poll(false);
+    }
+
+    /**
+     * Fetch latest message id for a room to start from "now".
+     */
+    async fetchRoomCursor(roomName) {
+        try {
+            const response = await $.ajax({
+                url: 'api.php',
+                method: 'GET',
+                dataType: 'json',
+                data: {
+                    action: 'room_cursor',
+                    room: roomName
+                }
+            });
+            if (response && response.success && typeof response.last_message_id === 'number') {
+                return response.last_message_id;
+            }
+        } catch (error) {
+            console.error('Room cursor fetch failed:', error);
+        }
+        return 0;
     }
 
     /**

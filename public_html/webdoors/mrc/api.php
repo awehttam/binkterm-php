@@ -33,6 +33,7 @@ try {
         case 'users':    handleUsers($db);                  break;
         case 'send':     handleSend($db, $user);            break;
         case 'join':     handleJoin($db, $user);            break;
+        case 'room_cursor': handleRoomCursor($db);           break;
         default:
             \WebDoorSDK\jsonError('Unknown action', 400);
     }
@@ -420,30 +421,52 @@ function handleCommand(PDO $db, array $user): void
     if (strpos($command, '~') !== false) {
         \WebDoorSDK\jsonError('Invalid character in command');
     }
-    if (empty($room)) {
-        \WebDoorSDK\jsonError('Room is required');
-    }
-    if (strpos($room, '~') !== false) {
-        \WebDoorSDK\jsonError('Invalid character in room');
-    }
-
-    if ($command !== 'motd') {
+    if (!in_array($command, ['motd', 'rooms'], true)) {
         \WebDoorSDK\jsonError('Unsupported command');
+    }
+    if ($command !== 'rooms') {
+        if (empty($room)) {
+            \WebDoorSDK\jsonError('Room is required');
+        }
+        if (strpos($room, '~') !== false) {
+            \WebDoorSDK\jsonError('Invalid character in room');
+        }
     }
 
     $config   = MrcConfig::getInstance();
     $username = MrcClient::sanitizeName($user['username']);
-    $room     = MrcClient::sanitizeName($room);
+    $room     = $command === 'rooms' ? '' : MrcClient::sanitizeName($room);
     $bbsName  = MrcClient::sanitizeName($config->getBbsName());
 
     $db->prepare("
         INSERT INTO mrc_outbound (field1, field2, field3, field4, field5, field6, field7, priority)
         VALUES (:f1, :f2, :f3, :f4, :f5, :f6, :f7, :priority)
     ")->execute([
-        'f1' => $username, 'f2' => $bbsName, 'f3' => $room,
-        'f4' => 'SERVER',  'f5' => '',        'f6' => $room,
-        'f7' => 'MOTD',     'priority' => 5
+        'f1' => $command === 'rooms' ? $bbsName : $username,
+        'f2' => $bbsName,
+        'f3' => $room,
+        'f4' => 'SERVER',
+        'f5' => '',
+        'f6' => $room,
+        'f7' => $command === 'rooms' ? 'LIST' : 'MOTD',
+        'priority' => 5
     ]);
+
+    if ($command === 'rooms') {
+        $db->prepare("
+            INSERT INTO mrc_state (key, value, updated_at)
+            VALUES ('list_refresh_started', :value, CURRENT_TIMESTAMP)
+            ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+        ")->execute(['value' => (string)time()]);
+
+        $db->prepare("
+            INSERT INTO mrc_state (key, value, updated_at)
+            VALUES ('list_refresh_pending', 'true', CURRENT_TIMESTAMP)
+            ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+        ")->execute();
+    }
 
     \WebDoorSDK\jsonResponse(['success' => true]);
 }
@@ -563,6 +586,47 @@ function handleJoin(PDO $db, array $user): void
             ip_address = COALESCE(EXCLUDED.ip_address, mrc_local_presence.ip_address)
     ")->execute(['username' => $username, 'bbs_name' => $bbsName, 'room' => $room, 'ip_address' => $clientIp]);
 
-    \WebDoorSDK\jsonResponse(['success' => true]);
+    $stmt = $db->prepare("
+        SELECT COALESCE(MAX(id), 0) AS max_id
+        FROM mrc_messages
+        WHERE is_private = false
+          AND (to_room = :room OR from_room = :room)
+    ");
+    $stmt->execute(['room' => $room]);
+    $maxId = (int)$stmt->fetchColumn();
+
+    \WebDoorSDK\jsonResponse([
+        'success' => true,
+        'last_message_id' => $maxId
+    ]);
+}
+
+/**
+ * Get the latest non-private message id for a room.
+ */
+function handleRoomCursor(PDO $db): void
+{
+    $room = $_GET['room'] ?? '';
+    if (empty($room)) {
+        \WebDoorSDK\jsonError('Room is required');
+    }
+    if (strpos($room, '~') !== false) {
+        \WebDoorSDK\jsonError('Invalid character in room');
+    }
+
+    $room = MrcClient::sanitizeName($room);
+    $stmt = $db->prepare("
+        SELECT COALESCE(MAX(id), 0) AS max_id
+        FROM mrc_messages
+        WHERE is_private = false
+          AND (to_room = :room OR from_room = :room)
+    ");
+    $stmt->execute(['room' => $room]);
+    $maxId = (int)$stmt->fetchColumn();
+
+    \WebDoorSDK\jsonResponse([
+        'success' => true,
+        'last_message_id' => $maxId
+    ]);
 }
 

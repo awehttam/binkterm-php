@@ -124,6 +124,66 @@ function updateLastPing(int $timestamp): void
 }
 
 /**
+ * Start a room list refresh window for pruning.
+ */
+function startRoomListRefresh(): void
+{
+    $db = getDb();
+    $stmt = $db->prepare("
+        INSERT INTO mrc_state (key, value, updated_at)
+        VALUES ('list_refresh_started', :value, CURRENT_TIMESTAMP)
+        ON CONFLICT (key) DO UPDATE
+        SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    ");
+    $stmt->execute(['value' => (string)time()]);
+
+    $stmt = $db->prepare("
+        INSERT INTO mrc_state (key, value, updated_at)
+        VALUES ('list_refresh_pending', 'true', CURRENT_TIMESTAMP)
+        ON CONFLICT (key) DO UPDATE
+        SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    ");
+    $stmt->execute();
+}
+
+/**
+ * Prune rooms that were not seen during the last LIST refresh window.
+ */
+function pruneStaleRooms(): void
+{
+    $db = getDb();
+
+    $started = $db->prepare("SELECT value FROM mrc_state WHERE key = 'list_refresh_started'");
+    $started->execute();
+    $startedAt = (int)($started->fetchColumn() ?: 0);
+    if ($startedAt <= 0) {
+        return;
+    }
+
+    $pending = $db->prepare("SELECT value FROM mrc_state WHERE key = 'list_refresh_pending'");
+    $pending->execute();
+    if ($pending->fetchColumn() !== 'true') {
+        return;
+    }
+
+    // Wait a few seconds for LIST lines to arrive.
+    if (time() - $startedAt < 3) {
+        return;
+    }
+
+    $db->prepare("
+        DELETE FROM mrc_rooms
+        WHERE last_list_seen IS NULL OR last_list_seen < to_timestamp(:started_at)
+    ")->execute(['started_at' => $startedAt]);
+
+    $db->prepare("
+        UPDATE mrc_state
+        SET value = 'false', updated_at = CURRENT_TIMESTAMP
+        WHERE key = 'list_refresh_pending'
+    ")->execute();
+}
+
+/**
  * Process incoming MRC packet
  */
 function processIncomingPacket(array $packet): void
@@ -264,11 +324,16 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             // No room context: may be a LIST response directed to this BBS.
             // Server sends one line per room: "*.:  #roomname  <count>  <topic>"
             // After pipe-code stripping, match "#roomname  <digits>" pattern.
-            if (preg_match('/#(\w{1,20})\s+\d+/', $clean, $m)) {
+            // Be tolerant of non-word chars (e.g. dashes) and missing counts.
+            if (
+                preg_match('/#([A-Za-z0-9_-]{1,30})\s+\d+/', $clean, $m) ||
+                preg_match('/#([A-Za-z0-9_-]{1,30})\b/', $clean, $m)
+            ) {
                 $db->prepare("
-                    INSERT INTO mrc_rooms (room_name, last_activity)
-                    VALUES (:room, CURRENT_TIMESTAMP)
-                    ON CONFLICT (room_name) DO NOTHING
+                    INSERT INTO mrc_rooms (room_name, last_activity, last_list_seen)
+                    VALUES (:room, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (room_name) DO UPDATE
+                    SET last_list_seen = CURRENT_TIMESTAMP
                 ")->execute(['room' => $m[1]]);
                 error_log("MRC: Added room from LIST: {$m[1]}");
             }
@@ -621,6 +686,7 @@ try {
     $lastKeepalive = 0;
     $lastIamHere = 0;
     $lastUserListRefresh = 0;
+    $lastRoomListRefresh = 0;
 
     // Main loop
     while (!$shutdown) {
@@ -650,6 +716,7 @@ try {
                     seedAutoJoinRooms();
 
                     // Request full room list from server to populate mrc_rooms.
+                    startRoomListRefresh();
                     $client->requestRoomList();
 
                     // Re-join any rooms with active local (webdoor) users.
@@ -708,6 +775,9 @@ try {
             }
             $lastUserListRefresh = time();
         }
+
+        // Prune rooms after LIST refresh window.
+        pruneStaleRooms();
 
         // Check keepalive timeout
         if ($client->isKeepaliveExpired()) {
