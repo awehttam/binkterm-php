@@ -321,11 +321,13 @@ function displayRecentFiles(files) {
             }
         }
 
+        const shareIcon = file.is_shared ? '<i class="fas fa-share-alt text-success ms-1" title="Shared"></i>' : '';
+
         html += `
             <tr>
                 <td>
                     ${scanIcon}
-                    <strong>${escapeHtml(file.filename)}</strong>
+                    <strong>${escapeHtml(file.filename)}</strong>${shareIcon}
                 </td>
                 <td><small class="text-muted">${areaLabel}</small></td>
                 <td><small class="text-muted">${shortDesc}</small></td>
@@ -524,11 +526,13 @@ function displayFiles(files) {
             }
         }
 
+        const shareIcon = file.is_shared ? '<i class="fas fa-share-alt text-success ms-1" title="Shared"></i>' : '';
+
         html += `
             <tr>
                 <td>
                     ${scanIcon}
-                    <strong>${escapeHtml(file.filename)}</strong>
+                    <strong>${escapeHtml(file.filename)}</strong>${shareIcon}
                 </td>
                 <td><small class="text-muted">${shortDesc}</small></td>
                 <td>${fileSize}</td>

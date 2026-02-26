@@ -328,9 +328,13 @@ class FileAreaManager
     public function getRecentFiles(int $limit = 25): array
     {
         $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag, fa.domain, fa.is_local
+            SELECT f.*, fa.tag as area_tag, fa.domain, fa.is_local,
+                   CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN shared_files sf ON sf.file_id = f.id
+                AND sf.is_active = TRUE
+                AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
             WHERE f.status = 'approved'
               AND fa.is_active = TRUE
               AND (fa.is_private = FALSE OR fa.is_private IS NULL)
@@ -350,9 +354,13 @@ class FileAreaManager
     public function getFiles(int $areaId): array
     {
         $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag
+            SELECT f.*, fa.tag as area_tag,
+                   CASE WHEN sf.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_shared
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN shared_files sf ON sf.file_id = f.id
+                AND sf.is_active = TRUE
+                AND (sf.expires_at IS NULL OR sf.expires_at > NOW())
             WHERE f.file_area_id = ? AND f.status = 'approved'
             ORDER BY f.created_at DESC
         ");
