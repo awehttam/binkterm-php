@@ -74,42 +74,45 @@ class MrcConfig
      */
     private function createDefaultConfig(): void
     {
-        $defaultConfig = [
-            'enabled' => false,
-            'server' => [
-                'host' => 'mrc.bottomlessabyss.net',
-                'port' => 50000,
-                'use_ssl' => true,
-                'ssl_port' => 50001
-            ],
-            'bbs' => [
-                'name' => 'BinktermPHP BBS',
-                'platform' => 'BINKTERMPHP/Linux64/1.3.0',
-                'sysop' => 'Sysop'
-            ],
-            'connection' => [
-                'auto_reconnect' => true,
-                'reconnect_delay' => 30,
-                'ping_interval' => 60,
-                'handshake_timeout' => 1,
-                'keepalive_timeout' => 125
-            ],
-            'rooms' => [
-                'default' => 'lobby',
-                'auto_join' => ['lobby']
-            ],
-            'messages' => [
-                'max_length' => 140,
-                'history_limit' => 1000,
-                'prune_after_days' => 30
-            ],
-            'info' => [
-                'website' => '',
-                'telnet' => '',
-                'ssh' => '',
-                'description' => ''
-            ]
-        ];
+        $defaultConfig = $this->loadDefaultConfigFromExample();
+        if ($defaultConfig === null) {
+            $defaultConfig = [
+                'enabled' => false,
+                'server' => [
+                    'host' => 'mrc.bottomlessabyss.net',
+                    'port' => 50000,
+                    'use_ssl' => true,
+                    'ssl_port' => 50001
+                ],
+                'bbs' => [
+                    'name' => 'BinktermPHP BBS',
+                    'platform' => 'BINKTERMPHP/Linux64/1.3.0',
+                    'sysop' => 'Sysop'
+                ],
+                'connection' => [
+                    'auto_reconnect' => true,
+                    'reconnect_delay' => 30,
+                    'ping_interval' => 60,
+                    'handshake_timeout' => 1,
+                    'keepalive_timeout' => 125
+                ],
+                'rooms' => [
+                    'default' => 'lobby',
+                    'auto_join' => ['lobby']
+                ],
+                'messages' => [
+                    'max_length' => 140,
+                    'history_limit' => 1000,
+                    'prune_after_days' => 30
+                ],
+                'info' => [
+                    'website' => '',
+                    'telnet' => '',
+                    'ssh' => '',
+                    'description' => ''
+                ]
+            ];
+        }
 
         $configDir = dirname($this->configPath);
         if (!is_dir($configDir)) {
@@ -118,6 +121,31 @@ class MrcConfig
 
         file_put_contents($this->configPath, json_encode($defaultConfig, JSON_PRETTY_PRINT));
         $this->config = $defaultConfig;
+    }
+
+    /**
+     * Load default config from mrc.json.example when available.
+     *
+     * @return array|null
+     */
+    private function loadDefaultConfigFromExample(): ?array
+    {
+        $examplePath = dirname($this->configPath) . '/mrc.json.example';
+        if (!file_exists($examplePath)) {
+            return null;
+        }
+
+        $json = file_get_contents($examplePath);
+        if ($json === false) {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return null;
+        }
+
+        return $decoded;
     }
 
     /**

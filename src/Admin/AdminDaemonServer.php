@@ -435,6 +435,7 @@ class AdminDaemonServer
                     break;
                 case 'get_mrc_config':
                     $mrcConfig = \BinktermPHP\Mrc\MrcConfig::getInstance();
+                    $mrcConfig->reloadConfig();
                     $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
                     break;
                 case 'set_mrc_config':
