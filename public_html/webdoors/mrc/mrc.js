@@ -39,6 +39,7 @@ class MrcClient {
         this.autoScroll = true;
         this.username = window.mrcCurrentUser || null;
         this.localBbs = window.mrcCurrentBbs || null;
+        this.missingPresenceCount = 0;
 
         this.init();
     }
@@ -210,6 +211,7 @@ class MrcClient {
                 this.viewedRoom = roomName;
                 this.lastMessageId = 0;
                 this.seenMessageIds.clear();
+                this.missingPresenceCount = 0;
                 this.exitPrivateChat();
 
                 // Update UI
@@ -362,12 +364,7 @@ class MrcClient {
     handleServerNotice(body) {
         const lower = body.toLowerCase();
         if (lower.includes('no route to a room from your user')) {
-            this.joinedRoom = null;
-            if (this.viewMode === 'room') {
-                $('#message-input').prop('disabled', true);
-                $('#send-btn').prop('disabled', true);
-                $('#join-room-active-btn').removeClass('d-none');
-            }
+            this.showError('Server says you are not in a room. Please join a room.');
         }
     }
 
@@ -426,16 +423,9 @@ class MrcClient {
     isLocalUserPresent(users) {
         if (!this.username) return false;
         const me = this.username.toLowerCase();
-        const localBbs = this.localBbs ? this.localBbs.toLowerCase() : null;
         return users.some(u => {
             const name = (u.username || '').toLowerCase();
-            if (name !== me) return false;
-            const bbs = (u.bbs_name || '').toLowerCase();
-            if (bbs === '' || bbs === 'unknown') {
-                return true;
-            }
-            if (!localBbs) return true;
-            return bbs === localBbs;
+            return name === me;
         });
     }
 
@@ -445,11 +435,15 @@ class MrcClient {
     updateInputStateByPresence(isPresent) {
         if (this.viewMode !== 'room' || !this.joinedRoom) return;
         if (!isPresent) {
-            this.joinedRoom = null;
-            $('#message-input').prop('disabled', true);
-            $('#send-btn').prop('disabled', true);
-            $('#join-room-active-btn').removeClass('d-none');
+            this.missingPresenceCount += 1;
+            if (this.missingPresenceCount >= 2) {
+                this.joinedRoom = null;
+                $('#message-input').prop('disabled', true);
+                $('#send-btn').prop('disabled', true);
+                $('#join-room-active-btn').removeClass('d-none');
+            }
         } else {
+            this.missingPresenceCount = 0;
             $('#message-input').prop('disabled', false);
             $('#send-btn').prop('disabled', false);
         }
