@@ -13,6 +13,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - BBS Menu Shell: mobile improvements — ANSI scaling, tap-to-reveal shortcuts, context-aware hint text
 - Address Book: "Always use crashmail" per-contact option
 - File Share Links: share individual files via public `/shared/file/AREA/FILENAME` URLs
+- Crashmail: binkp_zone DNS fallback — nodes not in the nodelist can be reached via a DNS zone (e.g. binkp.net)
 
 **Bug Fixes**
 - MarkdownRenderer: fixed link rendering across soft line breaks; added support for root-relative URLs
@@ -151,6 +152,32 @@ A **Share** button appears in the file details modal. Clicking it opens a share 
 The share page displays the filename, size, upload date, area tag, description, and virus scan status. Anonymous visitors see a login/register prompt in place of the download button. Logged-in users get a download button and a link to browse the file area.
 
 This requires the migration `v1.10.11` — run `php scripts/setup.php` to apply it.
+
+### Crashmail: binkp_zone DNS Fallback
+
+Crashmail can now resolve destination nodes via DNS when a node is not present in the nodelist. Each uplink in `config/binkp.json` accepts an optional `binkp_zone` field specifying a DNS zone to query (e.g. `binkp.net`).
+
+When crashmail cannot find connection information in the nodelist, it looks up the uplink that would normally route the destination address and checks whether that uplink has `binkp_zone` set. If so, it constructs a DNS hostname using the FidoNet address convention:
+
+```
+f{node}.n{net}.z{zone}.{binkp_zone}
+# e.g. node 1:123/456 → f456.n123.z1.binkp.net
+```
+
+If the hostname resolves (A or CNAME record), that host is used for the crash delivery on the default binkp port (24554). No password is sent — the session is insecure, consistent with existing nodelist-based crash delivery.
+
+To enable, add `binkp_zone` to an uplink in `config/binkp.json`:
+
+```json
+{
+    "address": "1:1/23",
+    "hostname": "uplink.example.com",
+    "binkp_zone": "binkp.net",
+    ...
+}
+```
+
+No database migration is required. No changes are needed to existing configurations — the field is optional and ignored when empty.
 
 ## Bug Fixes
 

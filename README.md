@@ -514,6 +514,7 @@ Each uplink in the `uplinks` array supports the following fields:
 | `default` | No | Whether this is the default uplink for unrouted messages |
 | `compression` | No | Enable compression (not yet implemented) |
 | `crypt` | No | Enable encryption (not yet implemented) |
+| `binkp_zone` | No | DNS zone for crashmail address resolution (e.g. `"binkp.net"`) — see below |
 
 **Network Patterns**: The `networks` field uses wildcard patterns to define which addresses route through this uplink:
 - `1:*/*` - All Zone 1 addresses
@@ -577,6 +578,29 @@ The `crashmail` section controls immediate/direct delivery of netmail:
 | `allow_insecure_crash_delivery` | false | Allow crashmail delivery without password |
 
 **About Crashmail**: Crashmail bypasses normal hub routing and attempts direct delivery to the destination node. This is useful for urgent messages but requires the destination node to be directly reachable. The system uses nodelist IBN/INA flags to determine the destination's hostname and port.
+
+**binkp_zone DNS Fallback**: When a destination node cannot be found in the nodelist, crashmail can fall back to DNS resolution using the `binkp_zone` field on the uplink that handles that address range. The hostname is constructed from the FTN address using the standard FidoNet DNS convention:
+
+```
+f{node}.n{net}.z{zone}.{binkp_zone}
+# Examples:
+#   1:123/456  →  f456.n123.z1.binkp.net
+#   2:250/10   →  f10.n250.z2.binkp.net
+```
+
+If the constructed hostname resolves (A or CNAME record), that host is used for delivery on the configured `fallback_port`. This is compatible with DNS-based binkp address registries such as [binkp.net](https://binkp.net). To enable, set `binkp_zone` on the appropriate uplink:
+
+```json
+{
+    "me": "1:123/456.0",
+    "address": "1:1/23",
+    "hostname": "uplink.example.com",
+    "networks": ["1:*/*"],
+    "binkp_zone": "binkp.net"
+}
+```
+
+The field is optional — if omitted or empty, DNS fallback is disabled and crashmail behaves as before.
 
 ### Nodelist Configuration
 

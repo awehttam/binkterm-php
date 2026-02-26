@@ -37,7 +37,8 @@
             "enabled": true,
             "compression": false,
             "crypt": false,
-            "default": true
+            "default": true,
+            "binkp_zone": ""
         }
     ],
     "security": {

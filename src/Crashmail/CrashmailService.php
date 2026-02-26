@@ -113,37 +113,104 @@ class CrashmailService
     }
 
     /**
-     * Resolve destination address to connection info
+     * Resolve destination address to connection info.
      *
-     * Crashmail ONLY uses nodelist for direct delivery - no hub routing fallback.
+     * Resolution order:
+     *   1. Nodelist (IBN/INA flags) — if use_nodelist_for_routing is enabled
+     *   2. binkp_zone DNS lookup — if the uplink that handles this destination
+     *      has a binkp_zone configured (e.g. "binkp.net")
      *
      * @param string $address FTN address
      * @return array Connection info with hostname, port, password, source
      */
     public function resolveDestination(string $address): array
     {
-        // Crashmail only uses nodelist for direct delivery
+        // Step 1: nodelist lookup
         if ($this->config->getCrashmailUseNodelist()) {
             $nodeInfo = $this->nodelistManager->getCrashRouteInfo($address);
             if ($nodeInfo && !empty($nodeInfo['hostname'])) {
                 return [
-                    'hostname' => $nodeInfo['hostname'],
-                    'port' => $nodeInfo['port'] ?? 24554,
-                    'password' => '',  // Insecure delivery for nodelist lookups
-                    'source' => 'nodelist',
+                    'hostname'    => $nodeInfo['hostname'],
+                    'port'        => $nodeInfo['port'] ?? 24554,
+                    'password'    => '',  // Insecure delivery for nodelist lookups
+                    'source'      => 'nodelist',
                     'system_name' => $nodeInfo['system_name'] ?? '',
-                    'sysop_name' => $nodeInfo['sysop_name'] ?? ''
+                    'sysop_name'  => $nodeInfo['sysop_name'] ?? ''
                 ];
+            }
+        }
+
+        // Step 2: binkp_zone DNS lookup via the uplink that would normally route this address
+        $uplink = $this->config->getUplinkForDestination($address);
+        if ($uplink && !empty($uplink['binkp_zone'])) {
+            $dnsResult = $this->resolveViaBinkpZone($address, $uplink['binkp_zone']);
+            if ($dnsResult !== null) {
+                return $dnsResult;
             }
         }
 
         // No direct route available - crashmail cannot be delivered
         return [
             'hostname' => null,
-            'port' => $this->config->getCrashmailFallbackPort(),
+            'port'     => $this->config->getCrashmailFallbackPort(),
             'password' => '',
-            'source' => 'unknown'
+            'source'   => 'unknown'
         ];
+    }
+
+    /**
+     * Attempt to resolve an FTN address via a binkp_zone DNS lookup.
+     *
+     * Constructs the hostname as fF.nN.zZ.{zone} (e.g. f456.n123.z1.binkp.net)
+     * and checks whether it resolves. PHP's gethostbyname() follows CNAME chains
+     * and returns the original string unchanged when resolution fails.
+     *
+     * @param string $address FTN address (e.g. "1:123/456" or "1:123/456.1")
+     * @param string $zone    DNS zone (e.g. "binkp.net")
+     * @return array|null Connection info array, or null if not resolvable
+     */
+    private function resolveViaBinkpZone(string $address, string $zone): ?array
+    {
+        $hostname = $this->buildBinkpZoneHostname($address, $zone);
+        if ($hostname === null) {
+            return null;
+        }
+
+        // gethostbyname() returns the IP on success or the input string on failure
+        $resolved = gethostbyname($hostname);
+        if ($resolved === $hostname) {
+            return null;  // DNS lookup failed
+        }
+
+        return [
+            'hostname'    => $hostname,  // Use DNS name so PHP handles CNAME following on connect
+            'port'        => $this->config->getCrashmailFallbackPort(),
+            'password'    => '',
+            'source'      => 'binkp_zone',
+            'system_name' => '',
+            'sysop_name'  => ''
+        ];
+    }
+
+    /**
+     * Build the DNS hostname for a FTN address within a binkp_zone.
+     *
+     * Format: f{node}.n{net}.z{zone}.{binkp_zone}
+     * Points are ignored — DNS is per-node only.
+     *
+     * @param string $address FTN address
+     * @param string $zone    DNS zone suffix (e.g. "binkp.net")
+     * @return string|null Constructed hostname, or null if address cannot be parsed
+     */
+    private function buildBinkpZoneHostname(string $address, string $zone): ?string
+    {
+        // Accepts Z:N/F or Z:N/F.P — point component is ignored for DNS
+        if (!preg_match('/^(\d+):(\d+)\/(\d+)/', $address, $m)) {
+            return null;
+        }
+
+        [, $z, $n, $f] = $m;
+        return "f{$f}.n{$n}.z{$z}." . ltrim($zone, '.');
     }
 
     /**
