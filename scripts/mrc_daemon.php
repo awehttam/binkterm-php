@@ -235,12 +235,20 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             // Join format:    * (Joining) user@bbs just joined room #room
             // Part format:    * (Parting) user@bbs has left room #room
             // Timeout format: * (Timeout) user@bbs client session has timed-out
+            // Leave server:   * (Leaving) user@bbs just left the server
             if (preg_match('/\(Joining\)\s+(\S+?)@(\S+?)\s+just joined/i', $clean, $m)) {
                 handleUserJoinAnnouncement($m[1], $m[2], $room);
                 $suppressAnnouncement = isLocalAnnouncement($m[1], $m[2], $room);
             } elseif (preg_match('/\((Parting|Timeout)\)\s+(\S+?)@(\S+?)\s/i', $clean, $m)) {
                 handleUserPartAnnouncement($m[2], $m[3], $room);
                 $suppressAnnouncement = isLocalAnnouncement($m[2], $m[3], $room);
+            } elseif (preg_match('/(?:\(Leaving\)\s+)?(\S+?)@(\S+?)\s+just left the server/i', $clean, $m)) {
+                // Remove from all rooms; server did not provide a room context.
+                $db->prepare("
+                    DELETE FROM mrc_users
+                    WHERE username = :username AND bbs_name = :bbs_name
+                ")->execute(['username' => $m[1], 'bbs_name' => $m[2]]);
+                $suppressAnnouncement = isLocalAnnouncement($m[1], $m[2], $room);
             }
 
             // Store announcement in mrc_messages so webdoor clients see it.

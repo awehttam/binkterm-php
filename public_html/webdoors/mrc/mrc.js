@@ -282,6 +282,10 @@ class MrcClient {
             }
             const messageEl = this.createMessageElement(msg);
             chatArea.append(messageEl);
+
+            if (msg.from_user === 'SERVER') {
+                this.handleServerNotice(msg.message_body || '');
+            }
         });
 
         // Auto-scroll to bottom
@@ -353,6 +357,21 @@ class MrcClient {
     }
 
     /**
+     * React to server notices that indicate routing/join issues.
+     */
+    handleServerNotice(body) {
+        const lower = body.toLowerCase();
+        if (lower.includes('no route to a room from your user')) {
+            this.joinedRoom = null;
+            if (this.viewMode === 'room') {
+                $('#message-input').prop('disabled', true);
+                $('#send-btn').prop('disabled', true);
+                $('#join-room-active-btn').removeClass('d-none');
+            }
+        }
+    }
+
+    /**
      * Render users list
      */
     renderUsers(users) {
@@ -364,8 +383,12 @@ class MrcClient {
 
         if (users.length === 0) {
             userList.html('<div class="text-muted small p-2">No users online</div>');
+            this.updateInputStateByPresence(false);
             return;
         }
+
+        const isLocalPresent = this.isLocalUserPresent(users);
+        this.updateInputStateByPresence(isLocalPresent);
 
         users.forEach(user => {
             const userName = user.username || '';
@@ -396,6 +419,38 @@ class MrcClient {
 
             userList.append(item);
         });
+    }
+
+    /**
+     * Check if current local user appears in the server-provided user list.
+     */
+    isLocalUserPresent(users) {
+        if (!this.username) return false;
+        const me = this.username.toLowerCase();
+        const localBbs = this.localBbs ? this.localBbs.toLowerCase() : null;
+        return users.some(u => {
+            const name = (u.username || '').toLowerCase();
+            if (name !== me) return false;
+            if (!localBbs) return true;
+            const bbs = (u.bbs_name || '').toLowerCase();
+            return bbs === localBbs;
+        });
+    }
+
+    /**
+     * Disable chat when the server indicates we are no longer in the room.
+     */
+    updateInputStateByPresence(isPresent) {
+        if (this.viewMode !== 'room' || !this.joinedRoom) return;
+        if (!isPresent) {
+            this.joinedRoom = null;
+            $('#message-input').prop('disabled', true);
+            $('#send-btn').prop('disabled', true);
+            $('#join-room-active-btn').removeClass('d-none');
+        } else {
+            $('#message-input').prop('disabled', false);
+            $('#send-btn').prop('disabled', false);
+        }
     }
 
     /**
