@@ -19,6 +19,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - MarkdownRenderer: fixed link rendering across soft line breaks; added support for root-relative URLs
 - FidoNet INTL kludge: removed point number from INTL line; added missing FMPT/TOPT in fallback packet path
 - Binkp packet header: corrected FSC-0048 Type-2+ capability word (`capWord`/`cwCopy`); clearer error when no `me` address is configured
+- Pipe codes: Mystic BBS letter-based control and information codes (e.g. `|AO`, `|PO`) now stripped correctly; Mystic hex colour codes (`|0A`, `|1F`, etc.) now parsed correctly; `|PI` and `|CD` rendered
 
 ## New Features
 
@@ -180,6 +181,21 @@ To enable, add `binkp_zone` to an uplink in `config/binkp.json`:
 No database migration is required. No changes are needed to existing configurations — the field is optional and ignored when empty.
 
 ## Bug Fixes
+
+### Pipe Code Rendering
+
+Letter-based pipe codes used by Mystic BBS and compatible software were not handled, causing codes like `|AO` (abort off) and `|PO` (pause off) to appear as literal text in rendered messages.
+
+The pipe code renderer now:
+
+- **Strips** all Mystic BBS control codes (`|AO`, `|PO`, `|AA`, `|CL`, `|PA`, `|BE`, `|PB`, `|PE`, `|PN`, and others)
+- **Converts** Mystic BBS cursor codes (`|[A##`, `|[B##`, `|[C##`, `|[D##`, `|[K`, `|[X##`, `|[Y##`) to their ANSI CSI equivalents and passes them to the existing ANSI terminal emulator
+- **Strips** all Mystic BBS information codes (`|UN`, `|TI`, `|DA`, `|BN`, etc.) — these codes are substituted at runtime by the BBS and cannot be resolved in archived messages
+- **Renders** `|PI` as a literal pipe character (`|`)
+- **Renders** `|CD` as an ANSI colour reset
+- **Fixes** Mystic-style hex colour codes (`|0A`, `|1F`, `|4E`, etc.) — previously these were parsed as decimal, producing the wrong colour; they are now parsed as two hex nibbles (upper = background, lower = foreground)
+
+No configuration changes are required.
 
 ### MarkdownRenderer: Paragraph Link Rendering
 
