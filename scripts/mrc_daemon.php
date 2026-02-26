@@ -172,6 +172,20 @@ function processIncomingPacket(array $packet): void
 function handleUserJoinAnnouncement(string $username, string $bbsName, string $room): void
 {
     $db = getDb();
+
+    // The server echoes join announcements back to us for our own local users.
+    // Skip creating a foreign entry if this username is already present as a
+    // local (webdoor) user in the room — regardless of the BBS name in the
+    // announcement, which may differ slightly from what we stored.
+    $localCheck = $db->prepare("
+        SELECT 1 FROM mrc_users
+        WHERE LOWER(username) = LOWER(:username) AND room_name = :room AND is_local = true
+    ");
+    $localCheck->execute(['username' => $username, 'room' => $room]);
+    if ($localCheck->fetchColumn()) {
+        return;
+    }
+
     $db->prepare("
         INSERT INTO mrc_rooms (room_name, last_activity)
         VALUES (:room, CURRENT_TIMESTAMP)
@@ -199,6 +213,25 @@ function handleUserPartAnnouncement(string $username, string $bbsName, string $r
 }
 
 /**
+ * Check if a join/part announcement belongs to a local webdoor user.
+ */
+function isLocalAnnouncement(string $username, string $bbsName, string $room): bool
+{
+    $db = getDb();
+    $stmt = $db->prepare("
+        SELECT 1 FROM mrc_users
+        WHERE LOWER(username) = LOWER(:username)
+          AND room_name = :room
+          AND is_local = true
+    ");
+    $stmt->execute([
+        'username' => MrcClient::sanitizeName($username),
+        'room' => MrcClient::sanitizeName($room)
+    ]);
+    return (bool)$stmt->fetchColumn();
+}
+
+/**
  * Handle SERVER commands (PING, ROOMTOPIC, NOTIFY, etc.)
  *
  * All server commands arrive with the verb (and optional params) in f7.
@@ -209,20 +242,34 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
     $db = getDb();
 
     // If f7 starts with a pipe/MCI code or non-alpha character it's a display
-    // message (join/part announcement, notice, etc.), not a command verb.
+    // message (join/part/timeout announcement, notice, etc.), not a command verb.
     if ($f7 === '' || !ctype_alpha($f7[0])) {
         $room  = $packet['f6'] ?? '';
         $clean = preg_replace('/\|[0-9]{2}/', '', $f7);
         error_log("MRC: Room message" . ($room ? " [{$room}]" : '') . ": {$clean}");
 
-        // Parse join/part announcements to keep the user list accurate.
-        // Join format:  * (Joining) user@bbs just joined room #room
-        // Part format:  * (Parting) user@bbs has left room #room
         if ($room) {
+            $suppressAnnouncement = false;
+            // Parse join/part/timeout announcements to keep the user list accurate.
+            // Join format:    * (Joining) user@bbs just joined room #room
+            // Part format:    * (Parting) user@bbs has left room #room
+            // Timeout format: * (Timeout) user@bbs client session has timed-out
             if (preg_match('/\(Joining\)\s+(\S+?)@(\S+?)\s+just joined/i', $clean, $m)) {
                 handleUserJoinAnnouncement($m[1], $m[2], $room);
-            } elseif (preg_match('/\(Parting\)\s+(\S+?)@(\S+?)\s/i', $clean, $m)) {
-                handleUserPartAnnouncement($m[1], $m[2], $room);
+                $suppressAnnouncement = isLocalAnnouncement($m[1], $m[2], $room);
+            } elseif (preg_match('/\((Parting|Timeout)\)\s+(\S+?)@(\S+?)\s/i', $clean, $m)) {
+                handleUserPartAnnouncement($m[2], $m[3], $room);
+                $suppressAnnouncement = isLocalAnnouncement($m[2], $m[3], $room);
+            }
+
+            // Store announcement in mrc_messages so webdoor clients see it.
+            // Suppress local join/part announcements to avoid spam when switching rooms.
+            if (!$suppressAnnouncement) {
+                $db->prepare("
+                    INSERT INTO mrc_messages
+                        (from_user, from_site, from_room, to_user, msg_ext, to_room, message_body, is_private, received_at)
+                    VALUES ('SERVER', '', '', '', '', :room, :body, false, CURRENT_TIMESTAMP)
+                ")->execute(['room' => $room, 'body' => $f7]);
             }
         }
 
@@ -284,6 +331,15 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                 // Replace foreign user list for this room — preserve local (webdoor) users
                 $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false");
                 $stmt->execute(['room' => $room]);
+                // Collect local usernames so we don't create duplicate foreign entries.
+                // The server includes our own users in USERLIST but stores them with
+                // bbs_name='' which would create a second row alongside the local entry.
+                $localStmt = $db->prepare("
+                    SELECT LOWER(username) FROM mrc_users
+                    WHERE room_name = :room AND is_local = true
+                ");
+                $localStmt->execute(['room' => $room]);
+                $localNames = $localStmt->fetchAll(PDO::FETCH_COLUMN);
                 $insertStmt = $db->prepare("
                     INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
                     VALUES (:username, '', :room, false, CURRENT_TIMESTAMP)
@@ -291,7 +347,11 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     SET last_seen = CURRENT_TIMESTAMP
                 ");
                 foreach ($users as $u) {
-                    $insertStmt->execute(['username' => trim($u), 'room' => $room]);
+                    $trimmed = trim($u);
+                    if (in_array(strtolower($trimmed), $localNames)) {
+                        continue; // Already tracked as a local user, skip
+                    }
+                    $insertStmt->execute(['username' => $trimmed, 'room' => $room]);
                 }
                 error_log("MRC: Room {$room} users: {$params}");
             }

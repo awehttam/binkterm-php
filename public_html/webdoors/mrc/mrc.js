@@ -17,14 +17,20 @@ function escapeHtml(text) {
 
 class MrcClient {
     constructor() {
-        this.currentRoom = null;
+        this.joinedRoom = null;
+        this.viewedRoom = null;
+        this.viewMode = 'room'; // room | private
+        this.privateUser = null;
         this.pollInterval = 2000; // 2 seconds
-        this.messagesPollTimer = null;
-        this.usersPollTimer = null;
-        this.roomsPollTimer = null;
+        this.pollTimer = null;
+        this.lastRoomsPollAt = 0;
         this.lastMessageId = 0;
+        this.lastPrivateMessageId = 0;
+        this.lastPrivateGlobalId = 0;
+        this.privateUnread = {};
+        this.unreadInitDone = false;
         this.autoScroll = true;
-        this.username = null;
+        this.username = window.mrcCurrentUser || null;
 
         this.init();
     }
@@ -44,6 +50,17 @@ class MrcClient {
             this.refreshMessages();
         });
 
+        $('#join-room-active-btn').on('click', () => {
+            if (this.viewedRoom) {
+                this.joinRoom(this.viewedRoom);
+            }
+        });
+
+        $('#private-chat-exit').on('click', (e) => {
+            e.preventDefault();
+        this.exitPrivateChat(true);
+        });
+
         $('#join-room-btn').on('click', () => {
             this.joinRoomFromInput();
         });
@@ -58,11 +75,11 @@ class MrcClient {
         // Check connection status
         this.checkStatus();
 
-        // Load rooms list
-        this.loadRooms();
+        // Initial poll (includes rooms + unread init)
+        this.poll(true, true);
 
-        // Start periodic room list updates
-        this.startRoomsPolling();
+        // Start unified polling
+        this.startPolling();
     }
 
     /**
@@ -101,28 +118,6 @@ class MrcClient {
     }
 
     /**
-     * Load rooms list
-     */
-    async loadRooms() {
-        try {
-            const response = await $.ajax({
-                url: 'api.php?action=rooms',
-                method: 'GET',
-                dataType: 'json'
-            });
-
-            if (response.success) {
-                this.renderRooms(response.rooms);
-            }
-        } catch (error) {
-            console.error('Failed to load rooms:', error);
-            $('#room-list').html(
-                '<div class="text-danger small p-2">Failed to load rooms</div>'
-            );
-        }
-    }
-
-    /**
      * Render rooms list
      */
     renderRooms(rooms) {
@@ -135,10 +130,13 @@ class MrcClient {
         }
 
         rooms.forEach(room => {
-            const isActive = this.currentRoom === room.room_name;
+            const isJoined = this.joinedRoom === room.room_name;
+            const isViewed = this.viewedRoom === room.room_name && this.viewMode === 'room';
             const item = $('<div>')
                 .addClass('list-group-item')
-                .addClass(isActive ? 'active' : '')
+                .addClass(isViewed ? 'active' : '')
+                .addClass(isJoined ? 'room-joined' : '')
+                .addClass(isViewed ? 'room-viewed' : '')
                 .attr('data-room', room.room_name)
                 .html(`
                     <div class="room-name">#${this.escapeHtml(room.room_name)}</div>
@@ -148,7 +146,7 @@ class MrcClient {
                     </div>
                 `)
                 .on('click', () => {
-                    this.joinRoom(room.room_name);
+                    this.viewRoom(room.room_name);
                 });
 
             roomList.append(item);
@@ -170,24 +168,38 @@ class MrcClient {
      * Join a room
      */
     async joinRoom(roomName) {
+        if (this.joinedRoom && this.joinedRoom === roomName) {
+            if (this.viewMode !== 'room') {
+                this.exitPrivateChat(true);
+                await this.poll(false);
+            } else {
+                await this.refreshMessages();
+            }
+            $('#message-input').focus();
+            return;
+        }
+
         try {
             const response = await $.ajax({
                 url: 'api.php?action=join',
                 method: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify({ room: roomName, from_room: this.currentRoom || '' }),
+                data: JSON.stringify({ room: roomName, from_room: this.joinedRoom || '' }),
                 dataType: 'json'
             });
 
             if (response.success) {
-                this.currentRoom = roomName;
+                this.joinedRoom = roomName;
+                this.viewedRoom = roomName;
                 this.lastMessageId = 0;
+                this.exitPrivateChat();
 
                 // Update UI
                 $('#current-room-name span').text(roomName);
                 $('#current-room-topic').text('');
                 $('#message-input').prop('disabled', false);
                 $('#send-btn').prop('disabled', false);
+                $('#join-room-active-btn').addClass('d-none');
 
                 // Update active room in list
                 $('#room-list .list-group-item').removeClass('active');
@@ -198,16 +210,8 @@ class MrcClient {
                     '<div class="text-center text-muted py-3">Loading messages...</div>'
                 );
 
-                // Refresh room list so newly created rooms appear immediately
-                this.loadRooms();
-
-                // Start polling
-                this.startMessagesPolling();
-                this.startUsersPolling();
-
-                // Load initial data
-                await this.loadMessages();
-                await this.loadUsers();
+                // Load initial data (includes rooms + users + messages)
+                await this.poll(true);
 
                 // Focus message input
                 $('#message-input').focus();
@@ -215,38 +219,6 @@ class MrcClient {
         } catch (error) {
             console.error('Failed to join room:', error);
             this.showError('Failed to join room. Please try again.');
-        }
-    }
-
-    /**
-     * Load messages for current room
-     */
-    async loadMessages(append = false) {
-        if (!this.currentRoom) return;
-
-        try {
-            const response = await $.ajax({
-                url: 'api.php',
-                method: 'GET',
-                dataType: 'json',
-                data: {
-                    action: 'messages',
-                    room: this.currentRoom,
-                    limit: 100,
-                    after: this.lastMessageId
-                }
-            });
-
-            if (response.success) {
-                this.renderMessages(response.messages, append);
-
-                // Update last message ID
-                if (response.messages.length > 0) {
-                    this.lastMessageId = response.messages[response.messages.length - 1].id;
-                }
-            }
-        } catch (error) {
-            console.error('Failed to load messages:', error);
         }
     }
 
@@ -292,6 +264,17 @@ class MrcClient {
 
         const header = $('<div>').addClass('message-header');
 
+        if (msg.received_at) {
+            // Parse as UTC (DB stores CURRENT_TIMESTAMP without tz marker);
+            // getHours/Minutes/Seconds then return the user's local time.
+            const raw = msg.received_at.replace(' ', 'T');
+            const d = new Date(raw.endsWith('Z') || raw.includes('+') ? raw : raw + 'Z');
+            const time = [d.getHours(), d.getMinutes(), d.getSeconds()]
+                .map(n => String(n).padStart(2, '0'))
+                .join(':');
+            header.append($('<span>').addClass('message-time').text(time));
+        }
+
         if (!isSystem) {
             header.append(
                 $('<span>').addClass('message-user').text(msg.from_user),
@@ -299,9 +282,11 @@ class MrcClient {
             );
         }
 
-        if (msg.received_at) {
-            const time = new Date(msg.received_at).toLocaleTimeString();
-            header.append($('<span>').addClass('message-time').text(time));
+        if (isPrivate) {
+            const target = msg.to_user ? `→ ${msg.to_user}` : '→ ?';
+            header.append(
+                $('<span>').addClass('message-site').text(target)
+            );
         }
 
         const rawBody = this.stripUsernamePrefix(msg.message_body, msg.from_user);
@@ -314,28 +299,6 @@ class MrcClient {
         messageDiv.append(header, body);
 
         return messageDiv;
-    }
-
-    /**
-     * Load users in current room
-     */
-    async loadUsers() {
-        if (!this.currentRoom) return;
-
-        try {
-            const response = await $.ajax({
-                url: 'api.php',
-                method: 'GET',
-                dataType: 'json',
-                data: { action: 'users', room: this.currentRoom }
-            });
-
-            if (response.success) {
-                this.renderUsers(response.users);
-            }
-        } catch (error) {
-            console.error('Failed to load users:', error);
-        }
     }
 
     /**
@@ -354,15 +317,26 @@ class MrcClient {
         }
 
         users.forEach(user => {
+            const isSelf = this.username && user.username.toLowerCase() === this.username.toLowerCase();
+            const isActiveDm = this.privateUser && user.username.toLowerCase() === this.privateUser.toLowerCase();
+            const unread = this.privateUnread[user.username.toLowerCase()] || 0;
             const item = $('<div>')
                 .addClass('list-group-item')
+                .addClass(isActiveDm ? 'user-dm-active' : '')
                 .html(`
                     <div class="user-name">
                         ${this.escapeHtml(user.username)}
                         ${user.is_afk ? '<span class="user-afk">(AFK)</span>' : ''}
+                        ${unread > 0 ? `<span class="badge bg-warning text-dark ms-2 user-dm-badge">${unread}</span>` : ''}
                     </div>
                     <div class="user-bbs">${this.escapeHtml(user.bbs_name)}</div>
                 `);
+
+            if (!isSelf) {
+                item.on('click', () => {
+                    this.startPrivateChat(user.username);
+                });
+            }
 
             userList.append(item);
         });
@@ -375,7 +349,9 @@ class MrcClient {
         const input = $('#message-input');
         const message = input.val().trim();
 
-        if (!message || !this.currentRoom) return;
+        if (!message) return;
+        if (this.viewMode === 'room' && !this.joinedRoom) return;
+        if (this.viewMode === 'private' && !this.privateUser) return;
 
         try {
             const response = await $.ajax({
@@ -383,8 +359,9 @@ class MrcClient {
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
-                    room: this.currentRoom,
-                    message: message
+                    room: this.joinedRoom,
+                    message: message,
+                    to_user: this.viewMode === 'private' ? this.privateUser : ''
                 }),
                 dataType: 'json'
             });
@@ -394,7 +371,7 @@ class MrcClient {
                 this.updateCharCount();
 
                 // Force immediate message refresh
-                setTimeout(() => this.loadMessages(true), 500);
+                setTimeout(() => this.poll(false), 500);
             }
         } catch (error) {
             console.error('Failed to send message:', error);
@@ -406,70 +383,32 @@ class MrcClient {
      * Refresh messages manually
      */
     async refreshMessages() {
-        this.lastMessageId = 0;
-        await this.loadMessages(false);
+        if (this.viewMode === 'private') {
+            this.lastPrivateMessageId = 0;
+        } else {
+            this.lastMessageId = 0;
+        }
+        await this.poll(false);
     }
 
     /**
-     * Start messages polling
+     * Start unified polling
      */
-    startMessagesPolling() {
-        this.stopMessagesPolling();
+    startPolling() {
+        this.stopPolling();
 
-        this.messagesPollTimer = setInterval(() => {
-            this.loadMessages(true);
+        this.pollTimer = setInterval(() => {
+            this.poll(false);
         }, this.pollInterval);
     }
 
     /**
-     * Stop messages polling
+     * Stop unified polling
      */
-    stopMessagesPolling() {
-        if (this.messagesPollTimer) {
-            clearInterval(this.messagesPollTimer);
-            this.messagesPollTimer = null;
-        }
-    }
-
-    /**
-     * Start users polling
-     */
-    startUsersPolling() {
-        this.stopUsersPolling();
-
-        this.usersPollTimer = setInterval(() => {
-            this.loadUsers();
-        }, this.pollInterval * 2); // Poll users less frequently
-    }
-
-    /**
-     * Stop users polling
-     */
-    stopUsersPolling() {
-        if (this.usersPollTimer) {
-            clearInterval(this.usersPollTimer);
-            this.usersPollTimer = null;
-        }
-    }
-
-    /**
-     * Start rooms polling
-     */
-    startRoomsPolling() {
-        this.stopRoomsPolling();
-
-        this.roomsPollTimer = setInterval(() => {
-            this.loadRooms();
-        }, 30000); // Poll rooms every 30 seconds
-    }
-
-    /**
-     * Stop rooms polling
-     */
-    stopRoomsPolling() {
-        if (this.roomsPollTimer) {
-            clearInterval(this.roomsPollTimer);
-            this.roomsPollTimer = null;
+    stopPolling() {
+        if (this.pollTimer) {
+            clearInterval(this.pollTimer);
+            this.pollTimer = null;
         }
     }
 
@@ -505,6 +444,204 @@ class MrcClient {
 
         // Auto-dismiss after 5 seconds
         setTimeout(() => errorEl.remove(), 5000);
+    }
+
+    /**
+     * Start a private chat with another user
+     */
+    async startPrivateChat(username) {
+        if (!username) return;
+        this.privateUser = username;
+        this.viewMode = 'private';
+        this.lastPrivateMessageId = 0;
+
+        $('#private-chat-user').text(username);
+        $('#private-chat-indicator').removeClass('d-none');
+        $('#message-input').attr('placeholder', `Private message to ${username}...`);
+
+        $('#current-room-topic').text('Private chat');
+        $('#chat-messages').html(
+            '<div class="text-center text-muted py-3">Loading private messages...</div>'
+        );
+
+        await this.poll(false);
+        $('#message-input').focus();
+        this.clearPrivateUnread(username);
+    }
+
+    /**
+     * Exit private chat and return to room view
+     */
+    exitPrivateChat(suppressPoll = false) {
+        if (this.viewMode !== 'private') return;
+        this.viewMode = 'room';
+        this.privateUser = null;
+        this.lastPrivateMessageId = 0;
+        $('#private-chat-indicator').addClass('d-none');
+        $('#private-chat-user').text('');
+        $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
+        if (!suppressPoll) {
+            this.poll(false);
+        }
+        if (this.viewedRoom) {
+            $('#current-room-topic').text('');
+        }
+    }
+
+    /**
+     * Clear unread count for a specific user.
+     */
+    clearPrivateUnread(username) {
+        if (!username) return;
+        const key = username.toLowerCase();
+        if (this.privateUnread[key]) {
+            delete this.privateUnread[key];
+            this.updatePrivateUnreadBadge();
+        }
+    }
+
+    /**
+     * Update the global private unread badge in the sidebar header.
+     */
+    updatePrivateUnreadBadge() {
+        const total = Object.values(this.privateUnread).reduce((sum, val) => sum + val, 0);
+        const badge = $('#private-unread-count');
+        if (total > 0) {
+            badge.text(total).removeClass('d-none');
+        } else {
+            badge.text('0').addClass('d-none');
+        }
+    }
+
+    /**
+     * Unified poll for messages, users, rooms, and private unread.
+     */
+    async poll(includeRooms = false, unreadInit = false) {
+        const now = Date.now();
+        const shouldIncludeRooms = includeRooms || (now - this.lastRoomsPollAt >= 30000);
+
+        try {
+            const response = await $.ajax({
+                url: 'api.php',
+                method: 'GET',
+                dataType: 'json',
+                data: {
+                    action: 'poll',
+                    view_mode: this.viewMode,
+                    view_room: this.viewedRoom || '',
+                    join_room: this.joinedRoom || '',
+                    with_user: this.privateUser || '',
+                    after: this.lastMessageId,
+                    after_private: this.lastPrivateMessageId,
+                    after_unread: this.lastPrivateGlobalId,
+                    include_rooms: shouldIncludeRooms ? '1' : '0',
+                    unread_init: (!this.unreadInitDone || unreadInit) ? '1' : '0'
+                }
+            });
+
+            if (!response.success) {
+                return;
+            }
+
+            if (response.messages) {
+                if (this.viewMode === 'private') {
+                    const append = this.lastPrivateMessageId !== 0;
+                    this.renderMessages(response.messages, append);
+                    if (response.messages.length > 0) {
+                        this.lastPrivateMessageId = response.messages[response.messages.length - 1].id;
+                        this.syncPrivateUnreadFromMessages(response.messages);
+                    }
+                } else {
+                    const append = this.lastMessageId !== 0;
+                    this.renderMessages(response.messages, append);
+                    if (response.messages.length > 0) {
+                        this.lastMessageId = response.messages[response.messages.length - 1].id;
+                    }
+                }
+            }
+
+            if (response.users) {
+                this.renderUsers(response.users);
+            }
+
+            if (response.rooms) {
+                this.renderRooms(response.rooms);
+                this.lastRoomsPollAt = now;
+            }
+
+            if (response.private_unread) {
+                const counts = response.private_unread.counts || {};
+                Object.keys(counts).forEach(key => {
+                    const sender = key.toLowerCase();
+                    if (this.privateUser && sender === this.privateUser.toLowerCase() && this.viewMode === 'private') {
+                        return;
+                    }
+                    this.privateUnread[sender] = (this.privateUnread[sender] || 0) + counts[key];
+                });
+                if (typeof response.private_unread.latest_id === 'number') {
+                    this.lastPrivateGlobalId = Math.max(this.lastPrivateGlobalId, response.private_unread.latest_id);
+                }
+                this.updatePrivateUnreadBadge();
+                this.unreadInitDone = true;
+            }
+        } catch (error) {
+            console.error('Poll failed:', error);
+        }
+    }
+
+    /**
+     * View a room without sending NEWROOM (no join spam).
+     */
+    async viewRoom(roomName) {
+        if (!roomName) return;
+
+        if (this.viewMode !== 'room') {
+            this.exitPrivateChat(true);
+        }
+
+        this.viewedRoom = roomName;
+        this.lastMessageId = 0;
+
+        $('#current-room-name span').text(roomName);
+        $('#current-room-topic').text(
+            this.joinedRoom && this.joinedRoom !== roomName
+                ? 'Viewing history (not joined)'
+                : ''
+        );
+
+        const needsJoin = !this.joinedRoom || this.joinedRoom !== roomName;
+        $('#join-room-active-btn').toggleClass('d-none', !needsJoin);
+        $('#message-input').prop('disabled', needsJoin);
+        $('#send-btn').prop('disabled', needsJoin);
+
+        $('#room-list .list-group-item').removeClass('active');
+        $(`#room-list .list-group-item[data-room="${roomName}"]`).addClass('active');
+
+        $('#chat-messages').html(
+            '<div class="text-center text-muted py-3">Loading messages...</div>'
+        );
+
+        await this.poll(false);
+    }
+
+    /**
+     * Sync unread state from messages loaded in a private chat.
+     */
+    syncPrivateUnreadFromMessages(messages) {
+        if (!this.privateUser || this.viewMode !== 'private') return;
+        const key = this.privateUser.toLowerCase();
+        if (this.privateUnread[key]) {
+            delete this.privateUnread[key];
+            this.updatePrivateUnreadBadge();
+        }
+
+        let latestIncomingId = this.lastPrivateGlobalId;
+        messages.forEach(msg => {
+            if (msg.to_user && this.username && msg.to_user.toLowerCase() === this.username.toLowerCase()) {
+                latestIncomingId = Math.max(latestIncomingId, msg.id);
+            }
+        });
+        this.lastPrivateGlobalId = latestIncomingId;
     }
 
     /**
