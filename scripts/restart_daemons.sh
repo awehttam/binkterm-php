@@ -75,6 +75,8 @@ fi
 # Check if MRC daemon was running before stopping it
 if stop_process "$MRC_PID" "mrc_daemon"; then
     MRC_WAS_RUNNING=true
+fi
+
 # Check if multiplexing server was running before stopping it
 if stop_process "$MULTIPLEX_PID" "multiplexing-server"; then
     MULTIPLEX_WAS_RUNNING=true
@@ -97,6 +99,8 @@ fi
 # Restart MRC daemon only if it was running
 if [[ "$MRC_WAS_RUNNING" == "true" ]]; then
     start_process "${PHP_BIN} scripts/mrc_daemon.php --daemon --pid-file=${MRC_PID}" "mrc_daemon"
+fi
+
 # Restart multiplexing server only if it was running
 if [[ "$MULTIPLEX_WAS_RUNNING" == "true" ]]; then
     start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"
