@@ -155,6 +155,7 @@ class Template
 
         // Is the game system enabled
         $this->twig->addGlobal('webdoors_active', GameConfig::isGameSystemEnabled());
+        $this->twig->addGlobal('mrc_webdoor_enabled', GameConfig::isEnabled('mrc'));
 
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);

@@ -1097,13 +1097,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $result = $client->send(['cmd' => 'get_mrc_config']);
-
-                if (!$result['ok']) {
-                    throw new Exception($result['error'] ?? 'Failed to get MRC config');
-                }
-
-                echo json_encode(['success' => true, 'config' => $result['result']]);
+                $config = $client->getMrcConfig();
+                echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
                 echo json_encode(['error' => $e->getMessage()]);
@@ -1128,14 +1123,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
 
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $result = $client->send([
-                    'cmd' => 'set_mrc_config',
-                    'data' => ['config' => $config]
-                ]);
-
-                if (!$result['ok']) {
-                    throw new Exception($result['error'] ?? 'Failed to save MRC config');
-                }
+                $savedConfig = $client->setMrcConfig($config);
 
                 $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
                 if ($userId) {
@@ -1144,7 +1132,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ]);
                 }
 
-                echo json_encode(['success' => true, 'config' => $result['result']]);
+                echo json_encode(['success' => true, 'config' => $savedConfig]);
             } catch (Exception $e) {
                 http_response_code(500);
                 echo json_encode(['error' => $e->getMessage()]);
@@ -1162,11 +1150,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
-                $result = $client->send(['cmd' => 'restart_mrc_daemon']);
-
-                if (!$result['ok']) {
-                    throw new Exception($result['error'] ?? 'Failed to restart MRC daemon');
-                }
+                $client->restartMrcDaemon();
 
                 $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
                 if ($userId) {

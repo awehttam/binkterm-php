@@ -29,6 +29,7 @@ try {
         case 'private_unread': handlePrivateUnread($db, $user); break;
         case 'heartbeat': handleHeartbeat($db, $user);        break;
         case 'poll':     handlePoll($db, $user);              break;
+        case 'command':  handleCommand($db, $user);           break;
         case 'users':    handleUsers($db);                  break;
         case 'send':     handleSend($db, $user);            break;
         case 'join':     handleJoin($db, $user);            break;
@@ -407,6 +408,46 @@ function handleUsers(PDO $db): void
     $stmt->execute(['room' => $room]);
 
     \WebDoorSDK\jsonResponse(['success' => true, 'users' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+}
+
+function handleCommand(PDO $db, array $user): void
+{
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $command = strtolower(trim($input['command'] ?? ''));
+    $room = $input['room'] ?? '';
+
+    if ($command === '') {
+        \WebDoorSDK\jsonError('Command is required');
+    }
+    if (strpos($command, '~') !== false) {
+        \WebDoorSDK\jsonError('Invalid character in command');
+    }
+    if (empty($room)) {
+        \WebDoorSDK\jsonError('Room is required');
+    }
+    if (strpos($room, '~') !== false) {
+        \WebDoorSDK\jsonError('Invalid character in room');
+    }
+
+    if ($command !== 'motd') {
+        \WebDoorSDK\jsonError('Unsupported command');
+    }
+
+    $config   = MrcConfig::getInstance();
+    $username = MrcClient::sanitizeName($user['username']);
+    $room     = MrcClient::sanitizeName($room);
+    $bbsName  = MrcClient::sanitizeName($config->getBbsName());
+
+    $db->prepare("
+        INSERT INTO mrc_outbound (field1, field2, field3, field4, field5, field6, field7, priority)
+        VALUES (:f1, :f2, :f3, :f4, :f5, :f6, :f7, :priority)
+    ")->execute([
+        'f1' => $username, 'f2' => $bbsName, 'f3' => $room,
+        'f4' => 'SERVER',  'f5' => '',        'f6' => $room,
+        'f7' => 'MOTD',     'priority' => 5
+    ]);
+
+    \WebDoorSDK\jsonResponse(['success' => true]);
 }
 
 function handleSend(PDO $db, array $user): void

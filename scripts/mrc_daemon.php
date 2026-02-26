@@ -457,7 +457,7 @@ function processOutboundQueue(MrcClient $client): void
 /**
  * Maintain local (webdoor) user sessions:
  *   - Send IAMHERE for active users so the server keeps them in room routing.
- *   - Send LOGOFF + prune users whose browser heartbeat has expired (3 min).
+ *   - Send LOGOFF + prune users whose browser heartbeat has expired (10 min).
  */
 function maintainLocalUserSessions(MrcClient $client): void
 {
@@ -466,7 +466,7 @@ function maintainLocalUserSessions(MrcClient $client): void
     // Collect stale and active users in one query
     $stmt = $db->query("
         SELECT username, room_name,
-               (last_seen < CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_stale
+               (last_seen < CURRENT_TIMESTAMP - INTERVAL '10 minutes') AS is_stale
         FROM mrc_users
         WHERE is_local = true
     ");
@@ -487,7 +487,7 @@ function maintainLocalUserSessions(MrcClient $client): void
         $db->exec("
             DELETE FROM mrc_users
             WHERE is_local = true
-            AND last_seen < CURRENT_TIMESTAMP - INTERVAL '3 minutes'
+            AND last_seen < CURRENT_TIMESTAMP - INTERVAL '10 minutes'
         ");
         error_log("MRC: Pruned {$staleCount} stale local user(s)");
     }

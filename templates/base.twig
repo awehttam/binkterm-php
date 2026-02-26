@@ -130,7 +130,14 @@
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <a class="dropdown-item" href="/chat">
-                                        <i class="fas fa-comments chat-menu-icon" id="chatMenuIcon"></i> Chat
+                                        <i class="fas fa-comments chat-menu-icon" id="chatMenuIcon"></i> Local Chat
+                                    </a>
+                                </li>
+                                {% endif %}
+                                {% if webdoors_active and bbs_feature_enabled('webdoors') and mrc_webdoor_enabled %}
+                                <li>
+                                    <a class="dropdown-item" href="/games/mrc">
+                                        <i class="fas fa-satellite-dish"></i> MRC Chat
                                     </a>
                                 </li>
                                 {% endif %}

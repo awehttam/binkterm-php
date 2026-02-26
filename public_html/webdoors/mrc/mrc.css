@@ -180,8 +180,8 @@ html, body {
 }
 
 .message {
-    margin-bottom: 1rem;
-    padding: 0.5rem;
+    margin-bottom: 0;
+    padding: 0;
     border-radius: 4px;
     animation: fadeIn 0.3s;
 }
@@ -194,9 +194,7 @@ html, body {
 }
 
 .message-header {
-    display: flex;
-    align-items: baseline;
-    margin-bottom: 0.25rem;
+    display: none;
 }
 
 .message-time {
@@ -221,6 +219,7 @@ html, body {
     color: var(--text-color, #e0e0e0);
     word-wrap: break-word;
     white-space: pre-wrap;
+    line-height: 1.1;
 }
 
 .message-private {
@@ -316,6 +315,28 @@ html, body {
 
 #private-chat-indicator .btn-link:hover {
     color: #000;
+}
+
+/* ------------------------------------------------------------------ */
+/* MOTD Modal                                                          */
+/* ------------------------------------------------------------------ */
+
+.mrc-motd-text {
+    white-space: pre-wrap;
+    font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+    font-size: 0.9rem;
+    color: var(--text-color, #e0e0e0);
+    margin: 0;
+}
+
+.modal-content {
+    background-color: var(--bg-card, #282c35);
+    border-color: var(--border-color, #3a3d4a);
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--border-color, #3a3d4a);
 }
 
 /* ------------------------------------------------------------------ */

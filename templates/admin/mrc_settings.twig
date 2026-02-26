@@ -6,15 +6,7 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2">MRC Chat Settings</h1>
-        <div>
-            <span id="mrcConnectionStatus" class="badge bg-secondary me-2">Checking...</span>
-            <button class="btn btn-sm btn-outline-primary" onclick="checkMrcStatus()">
-                <i class="bi bi-arrow-clockwise"></i> Check Status
-            </button>
-            <button class="btn btn-sm btn-outline-warning" onclick="restartMrcDaemon()">
-                <i class="bi bi-arrow-repeat"></i> Restart Daemon
-            </button>
-        </div>
+        <div></div>
     </div>
 
     <div class="alert alert-info">
@@ -233,7 +225,6 @@ let mrcConfig = {};
 // Load MRC configuration on page load
 $(document).ready(function() {
     loadMrcSettings();
-    checkMrcStatus();
 });
 
 /**
@@ -364,73 +355,6 @@ async function saveMrcSettings() {
     }
 }
 
-/**
- * Check MRC daemon status
- */
-async function checkMrcStatus() {
-    try {
-        const response = await $.ajax({
-            url: '/api/webdoor/mrc/status',
-            method: 'GET',
-            dataType: 'json'
-        });
-
-        if (response.success) {
-            updateMrcStatus(response.enabled, response.connected);
-        }
-    } catch (error) {
-        console.error('Failed to check MRC status:', error);
-        updateMrcStatus(false, false);
-    }
-}
-
-/**
- * Update status badge
- */
-function updateMrcStatus(enabled, connected) {
-    const badge = $('#mrcConnectionStatus');
-
-    if (!enabled) {
-        badge.removeClass('bg-success bg-warning bg-secondary bg-danger')
-             .addClass('bg-secondary')
-             .text('Disabled');
-    } else if (connected) {
-        badge.removeClass('bg-success bg-warning bg-secondary bg-danger')
-             .addClass('bg-success')
-             .text('Connected');
-    } else {
-        badge.removeClass('bg-success bg-warning bg-secondary bg-danger')
-             .addClass('bg-warning')
-             .text('Disconnected');
-    }
-}
-
-/**
- * Restart MRC daemon
- */
-async function restartMrcDaemon() {
-    if (!confirm('Restart the MRC daemon? This will disconnect all users temporarily.')) {
-        return;
-    }
-
-    try {
-        const response = await $.ajax({
-            url: '/admin/api/mrc-restart',
-            method: 'POST',
-            dataType: 'json'
-        });
-
-        if (response.success) {
-            showAlert('mrcGeneralAlert', 'success', 'MRC daemon restart initiated');
-            setTimeout(checkMrcStatus, 2000);
-        } else {
-            showAlert('mrcGeneralAlert', 'danger', 'Failed to restart MRC daemon');
-        }
-    } catch (error) {
-        console.error('Failed to restart MRC daemon:', error);
-        showAlert('mrcGeneralAlert', 'danger', 'Error restarting MRC daemon');
-    }
-}
 
 /**
  * Show alert message

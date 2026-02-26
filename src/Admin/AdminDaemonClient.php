@@ -235,6 +235,21 @@ class AdminDaemonClient
         return $this->sendCommand('stop_services');
     }
 
+    public function getMrcConfig(): array
+    {
+        return $this->sendCommand('get_mrc_config');
+    }
+
+    public function setMrcConfig(array $config): array
+    {
+        return $this->sendCommand('set_mrc_config', ['config' => $config]);
+    }
+
+    public function restartMrcDaemon(): array
+    {
+        return $this->sendCommand('restart_mrc_daemon');
+    }
+
 
     public function close(): void
     {

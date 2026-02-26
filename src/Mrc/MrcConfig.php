@@ -212,16 +212,6 @@ class MrcConfig
      */
     public function getBbsName(): string
     {
-        // Prefer the canonical system name from binkp config
-        try {
-            $binkpName = BinkpConfig::getInstance()->getSystemName();
-            if (!empty($binkpName)) {
-                return substr($this->sanitizeBbsName($binkpName), 0, 64);
-            }
-        } catch (\Exception $e) {
-            // Fall through to mrc.json value
-        }
-
         return substr($this->sanitizeBbsName($this->config['bbs']['name'] ?? 'BinktermPHP BBS'), 0, 64);
     }
 
@@ -244,7 +234,13 @@ class MrcConfig
      */
     public function getPlatformInfo(): string
     {
-        return $this->config['bbs']['platform'] ?? 'BINKTERMPHP/Linux64/1.3.0';
+        $configured = trim((string)($this->config['bbs']['platform'] ?? ''));
+        if ($configured === '') {
+            $os = PHP_OS_FAMILY === 'Windows' ? 'Windows' : 'Linux';
+            $arch = PHP_INT_SIZE === 8 ? '64' : '32';
+            return "BINKTERMPHP/{$os}{$arch}/1.3.0";
+        }
+        return $configured;
     }
 
     /**

@@ -17,17 +17,6 @@
     ]
   },
   "config": {
-    "enabled": false,
-    "server_host": "mrc.bottomlessabyss.net",
-    "server_port": 50000,
-    "use_ssl": true,
-    "ssl_port": 50001,
-    "bbs_name": "BinktermPHP BBS",
-    "platform": "BINKTERMPHP/Linux64/1.0.0",
-    "sysop": "Sysop",
-    "default_room": "lobby",
-    "auto_join_rooms": ["lobby"],
-    "max_message_length": 140,
-    "poll_interval": 2000
+    "enabled": false
   }
 }

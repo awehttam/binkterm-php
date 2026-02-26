@@ -171,5 +171,23 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
     </script>
     <!-- MRC Client JS -->
     <script src="mrc.js"></script>
+
+    <!-- MOTD Modal -->
+    <div class="modal fade" id="motdModal" tabindex="-1" aria-labelledby="motdModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="motdModalLabel">Message of the Day</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="motdModalBody" class="mrc-motd-text"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
