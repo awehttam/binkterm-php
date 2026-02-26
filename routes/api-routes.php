@@ -2118,6 +2118,129 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         exit;
     })->where(['id' => '[0-9]+']);
 
+    /**
+     * POST /api/files/{id}/share
+     * Create a share link for a file (auth required). Returns existing share if one exists.
+     */
+    SimpleRouter::post('/files/{id}/share', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $expiresHours = isset($input['expires_hours']) && $input['expires_hours'] !== ''
+            ? (int)$input['expires_hours']
+            : null;
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $manager = new \BinktermPHP\FileAreaManager();
+        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours);
+
+        if (!$result['success']) {
+            http_response_code(400);
+        }
+        echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/shared/check/{fileId}
+     * Check if the current user has an active share for a file (auth required).
+     * Returns the share URL (area/filename format) if found.
+     */
+    SimpleRouter::get('/files/shared/check/{fileId}', function($fileId) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $userId  = $user['user_id'] ?? $user['id'] ?? null;
+        $manager = new \BinktermPHP\FileAreaManager();
+        $share   = $manager->getExistingFileShare((int)$fileId, (int)$userId);
+
+        if ($share) {
+            // Need the file's area tag and filename to build the URL
+            $file = $manager->getFileById((int)$fileId);
+            $shareUrl = $file
+                ? \BinktermPHP\Config::getSiteUrl()
+                    . '/shared/file/'
+                    . rawurlencode($file['area_tag'])
+                    . '/'
+                    . rawurlencode($file['filename'])
+                : null;
+
+            echo json_encode([
+                'success'   => true,
+                'share_id'  => (int)$share['id'],
+                'share_url' => $shareUrl,
+            ]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
+    })->where(['fileId' => '[0-9]+']);
+
+    /**
+     * GET /api/files/shared/{area}/{filename}
+     * Get shared file info by area tag and filename (no auth required).
+     */
+    SimpleRouter::get('/files/shared/{area}/{filename}', function($area, $filename) {
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $auth = new \BinktermPHP\Auth();
+        $currentUser = $auth->getCurrentUser();
+        $requestingUserId = $currentUser ? ($currentUser['user_id'] ?? $currentUser['id'] ?? null) : null;
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $result  = $manager->getSharedFile($area, $filename, $requestingUserId);
+
+        if (!$result['success']) {
+            http_response_code(404);
+        }
+        echo json_encode($result);
+    })->where(['area' => '[A-Za-z0-9@._-]+', 'filename' => '[A-Za-z0-9._-]+']);
+
+    /**
+     * DELETE /api/files/shares/{shareId}
+     * Revoke a file share (auth required, owner or admin).
+     */
+    SimpleRouter::delete('/files/shares/{shareId}', function($shareId) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $revoked = $manager->revokeFileShare((int)$shareId, (int)$userId, $isAdmin);
+
+        if (!$revoked) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Share not found or access denied']);
+            return;
+        }
+        echo json_encode(['success' => true]);
+    })->where(['shareId' => '[0-9]+']);
+
     SimpleRouter::post('/files/upload', function() {
         $user = RouteHelper::requireAuth();
 

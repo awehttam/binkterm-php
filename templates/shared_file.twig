@@ -1,0 +1,191 @@
+{% extends "base.twig" %}
+
+{% block title %}{% if file %}{{ file.filename }} | Shared File{% else %}Shared File{% endif %} - {{ parent() }}{% endblock %}
+
+{% block meta_tags %}
+    {% if file %}
+        {% set description = file.short_description ? file.short_description : ('File shared from ' ~ system_name) %}
+        <meta name="description" content="{{ description|e }}">
+
+        {# Open Graph meta tags #}
+        <meta property="og:title" content="{{ file.filename|e }}">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="{{ share_url }}">
+        <meta property="og:description" content="{{ description|e }}">
+        <meta property="og:site_name" content="{{ system_name }}">
+
+        {# Twitter Card meta tags #}
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{{ file.filename|e }}">
+        <meta name="twitter:description" content="{{ description|e }}">
+
+        <meta name="keywords" content="FidoNet, file, BBS, download, {{ file.area_tag }}">
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10">
+
+            {% if file and share_info %}
+
+                {# Share header badge #}
+                <div class="alert alert-info mb-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-share-alt me-2"></i>
+                        <div>
+                            <strong>Shared File</strong>
+                            <p class="mb-0 mt-1">
+                                Shared by <strong>{{ share_info.shared_by }}</strong>
+                                on {{ share_info.created_at|date('M j, Y') }}
+                                &mdash; viewed {{ share_info.access_count }} time{{ share_info.access_count != 1 ? 's' : '' }}
+                                {% if share_info.expires_at %}
+                                    &mdash; expires {{ share_info.expires_at|date('M j, Y g:i A') }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {# File info card #}
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-file me-2"></i>{{ file.filename }}
+                        </h5>
+                        {% if file.virus_scanned and file.virus_scan_result == 'clean' %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-shield-alt me-1"></i>Clean
+                            </span>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-3">Size:</dt>
+                            <dd class="col-sm-9" id="sharedFileSize">{{ file.filesize }}</dd>
+
+                            <dt class="col-sm-3">Uploaded:</dt>
+                            <dd class="col-sm-9">{{ file.created_at|date('M j, Y') }}</dd>
+
+                            <dt class="col-sm-3">Area:</dt>
+                            <dd class="col-sm-9">
+                                <span class="badge bg-secondary">{{ file.area_tag }}</span>
+                                {% if file.area_description %}
+                                    <span class="text-muted ms-1">{{ file.area_description }}</span>
+                                {% endif %}
+                            </dd>
+
+                            {% if file.short_description %}
+                                <dt class="col-sm-3">Description:</dt>
+                                <dd class="col-sm-9">{{ file.short_description }}</dd>
+                            {% endif %}
+                        </dl>
+
+                        {% if file.long_description %}
+                            <div class="mt-3">
+                                <strong>Details:</strong>
+                                <pre class="bg-light p-2 rounded mt-1" style="white-space: pre-wrap; word-wrap: break-word;">{{ file.long_description }}</pre>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-footer">
+                        {% if is_logged_in %}
+                            {# Logged-in: show download button and area browse link #}
+                            <a href="/api/files/{{ file.id }}/download" class="btn btn-primary me-2">
+                                <i class="fas fa-download me-1"></i>Download
+                            </a>
+                            <a href="/files?area={{ file.file_area_id }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-folder-open me-1"></i>Browse {{ file.area_tag }} area
+                            </a>
+                        {% else %}
+                            {# Anonymous: info-only, prompt to register/login #}
+                            <div class="alert alert-primary mb-0">
+                                <div class="d-flex align-items-start">
+                                    <i class="fas fa-user-plus me-3 mt-1"></i>
+                                    <div class="flex-grow-1">
+                                        <h6 class="alert-heading mb-2">Join {{ system_name }} to Download</h6>
+                                        <p class="mb-3">
+                                            Create a free account to download this file and access our full file archive.
+                                        </p>
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <a href="/register" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-user-plus me-1"></i>Register
+                                            </a>
+                                            <a href="/login" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-sign-in-alt me-1"></i>Login
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# About this system #}
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-info-circle me-2"></i>About {{ system_name }}
+                        </h6>
+                        <p class="card-text mb-0">
+                            {{ system_name }} is a FidoNet-connected BBS with public file areas. Members can
+                            upload, download, and share files from a growing archive.
+                        </p>
+                        <small class="text-muted">
+                            <i class="fas fa-code me-1"></i>Powered by BinktermPHP
+                        </small>
+                    </div>
+                </div>
+
+            {% else %}
+
+                {# Error state #}
+                <div class="alert alert-danger">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <div>
+                            <strong>File Not Available</strong>
+                            <p class="mb-0 mt-1">
+                                This shared file link is not available. It may have expired or been revoked.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-home me-1"></i>Go to Main Site
+                        </a>
+                    </div>
+                </div>
+
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Format file size using the same helper used in files.twig
+    const sizeEl = document.getElementById('sharedFileSize');
+    if (sizeEl) {
+        const bytes = parseInt(sizeEl.textContent, 10);
+        if (!isNaN(bytes)) {
+            sizeEl.textContent = formatBytes(bytes);
+        }
+    }
+});
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+</script>
+{% endblock %}

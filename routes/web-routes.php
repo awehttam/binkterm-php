@@ -344,6 +344,42 @@ SimpleRouter::get('/shared/{shareKey}', function($shareKey) {
     ]);
 })->where(['shareKey' => '[a-f0-9]{32}']);
 
+SimpleRouter::get('/shared/file/{area}/{filename}', function($area, $filename) {
+    // No auth required — file info is public; download requires login (handled in template)
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+    $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+    $fileData  = null;
+    $shareInfo = null;
+
+    try {
+        $manager = new \BinktermPHP\FileAreaManager();
+        $result  = $manager->getSharedFile($area, $filename, $userId);
+
+        if ($result['success']) {
+            $fileData  = $result['file'];
+            $shareInfo = $result['share_info'];
+        }
+    } catch (\Exception $e) {
+        // Render error state below
+    }
+
+    $shareUrl = \BinktermPHP\Config::getSiteUrl()
+        . '/shared/file/'
+        . rawurlencode($area)
+        . '/'
+        . rawurlencode($filename);
+
+    $template = new Template();
+    $template->renderResponse('shared_file.twig', [
+        'file'        => $fileData,
+        'share_info'  => $shareInfo,
+        'share_url'   => $shareUrl,
+        'is_logged_in'=> $userId !== null,
+    ]);
+})->where(['area' => '[A-Za-z0-9@._-]+', 'filename' => '[A-Za-z0-9._-]+']);
+
 SimpleRouter::get('/binkp', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
