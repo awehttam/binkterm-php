@@ -29,7 +29,11 @@ class Scheduler
     private $lastPollTimes;
     private $crashmailService;
     private $db;
-    
+    /** @var int Unix timestamp of last crashmail poll run */
+    private $lastCrashmailPoll = 0;
+    /** Minimum seconds between scheduled crashmail polls */
+    const CRASHMAIL_POLL_INTERVAL = 300;
+
     public function __construct($config = null, $logger = null)
     {
         $this->config = $config ?: BinkpConfig::getInstance();
@@ -293,37 +297,57 @@ class Scheduler
 
                 $this->processInboundIfNeeded();
 
-                if (!$this->config->getCrashmailEnabled()) {
-                    $this->log("Crashmail disabled, skipping crashmail poll", 'DEBUG');
-                } else {
-                    try {
-                        $stats = $this->crashmailService->getQueueStats();
-                        $pending = (int)($stats['pending'] ?? 0);
-                        $attempting = (int)($stats['attempting'] ?? 0);
-                        $totalPending = $pending + $attempting;
-
-                        if ($totalPending === 0) {
-                            $this->log("No crashmail queued, skipping crashmail poll", 'DEBUG');
-                        } else {
-                            $this->log("Crashmail poll starting", 'DEBUG');
-                            $crashmailResult = $this->client->crashmailPoll();
-                            $crashmailSuccess = ($crashmailResult['exit_code'] ?? 1) === 0;
-                            if ($crashmailSuccess) {
-                                $this->log("Crashmail poll completed");
-                            } else {
-                                $this->log("Crashmail poll failed", 'ERROR');
-                            }
-                        }
-                    } catch (\Throwable $e) {
-                        $this->log("Crashmail queue check failed: " . $e->getMessage(), 'ERROR');
-                    }
-                }
+                $this->runScheduledCrashmailPoll();
                 
             } catch (\Exception $e) {
                 $this->log("Scheduler error: " . $e->getMessage(), 'ERROR');
             }
             
             sleep($interval);
+        }
+    }
+
+    /**
+     * Run the crashmail poll if enabled, there are pending items, and the
+     * minimum interval (CRASHMAIL_POLL_INTERVAL seconds) has elapsed since
+     * the last scheduled run.
+     */
+    private function runScheduledCrashmailPoll(): void
+    {
+        if (!$this->config->getCrashmailEnabled()) {
+            $this->log("Crashmail disabled, skipping crashmail poll", 'DEBUG');
+            return;
+        }
+
+        $now = time();
+        $elapsed = $now - $this->lastCrashmailPoll;
+        if ($elapsed < self::CRASHMAIL_POLL_INTERVAL) {
+            $remaining = self::CRASHMAIL_POLL_INTERVAL - $elapsed;
+            $this->log("Crashmail poll not due yet ({$remaining}s remaining)", 'DEBUG');
+            return;
+        }
+
+        try {
+            $stats = $this->crashmailService->getQueueStats();
+            $totalPending = (int)($stats['pending'] ?? 0) + (int)($stats['attempting'] ?? 0);
+
+            if ($totalPending === 0) {
+                $this->log("No crashmail queued, skipping crashmail poll", 'DEBUG');
+            } else {
+                $this->log("Crashmail poll starting ({$totalPending} pending)");
+                $result = $this->client->crashmailPoll();
+                if (($result['exit_code'] ?? 1) === 0) {
+                    $this->log("Crashmail poll completed");
+                } else {
+                    $this->log("Crashmail poll failed", 'ERROR');
+                }
+            }
+
+            // Update timestamp regardless of whether there were items, so the
+            // 5-minute window resets from the last check, not from the last delivery.
+            $this->lastCrashmailPoll = $now;
+        } catch (\Throwable $e) {
+            $this->log("Crashmail poll error: " . $e->getMessage(), 'ERROR');
         }
     }
 

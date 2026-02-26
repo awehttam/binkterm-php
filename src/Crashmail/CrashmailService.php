@@ -26,6 +26,7 @@ use BinktermPHP\Database;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\Nodelist\NodelistManager;
 use BinktermPHP\Binkp\SessionLogger;
+use BinktermPHP\Admin\AdminDaemonClient;
 
 class CrashmailService
 {
@@ -107,6 +108,17 @@ class CrashmailService
 
         if ($success) {
             error_log("[CRASHMAIL] Queued netmail ID {$netmailId} for crash delivery to {$netmail['to_address']}");
+
+            // Poke the admin daemon so the scheduler despools this immediately
+            // rather than waiting for the next scheduled poll.
+            try {
+                $client = new AdminDaemonClient();
+                $client->crashmailPoll();
+                $client->close();
+            } catch (\Throwable $e) {
+                // Non-fatal — the scheduled poll will pick it up within 5 minutes
+                error_log("[CRASHMAIL] Could not trigger immediate poll: " . $e->getMessage());
+            }
         }
 
         return $success;
