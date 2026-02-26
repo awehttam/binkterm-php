@@ -1,0 +1,178 @@
+/* MRC Chat Styles */
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+#room-list .list-group-item {
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+    transition: background-color 0.2s;
+}
+
+#room-list .list-group-item:hover {
+    background-color: #e9ecef;
+}
+
+#room-list .list-group-item.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+#room-list .room-name {
+    font-weight: 500;
+}
+
+#room-list .room-topic {
+    font-size: 0.85rem;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#room-list .room-users {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+#chat-messages {
+    height: calc(100vh - 200px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.message {
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    animation: fadeIn 0.3s;
+}
+
+.message:hover {
+    background-color: #f8f9fa;
+}
+
+.message-header {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 0.25rem;
+}
+
+.message-user {
+    font-weight: 600;
+    color: #0d6efd;
+    margin-right: 0.5rem;
+}
+
+.message-site {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-right: 0.5rem;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    color: #adb5bd;
+    margin-left: auto;
+}
+
+.message-body {
+    color: #212529;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.message-private {
+    background-color: #fff3cd;
+    border-left: 3px solid #ffc107;
+}
+
+.message-system {
+    background-color: #d1ecf1;
+    border-left: 3px solid #0dcaf0;
+    font-style: italic;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#user-list .list-group-item {
+    border: none;
+    border-radius: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+#user-list .user-name {
+    font-weight: 500;
+}
+
+#user-list .user-bbs {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+#user-list .user-afk {
+    color: #dc3545;
+    font-style: italic;
+}
+
+#connection-status i {
+    font-size: 0.6rem;
+    vertical-align: middle;
+}
+
+#message-input:disabled {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+}
+
+#send-btn:disabled {
+    cursor: not-allowed;
+}
+
+/* Scrollbar styling */
+#chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+#chat-messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#chat-messages::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+#chat-messages::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .col-md-2,
+    .col-md-8 {
+        min-width: 100%;
+    }
+
+    #room-list,
+    #user-list {
+        height: auto;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+}

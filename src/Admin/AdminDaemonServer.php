@@ -433,6 +433,43 @@ class AdminDaemonServer
                     $result = $this->installCustomTemplate($source, $overwrite);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                     break;
+                case 'get_mrc_config':
+                    $mrcConfig = \BinktermPHP\Mrc\MrcConfig::getInstance();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
+                    break;
+                case 'set_mrc_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!is_array($payload)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_config']);
+                        break;
+                    }
+                    $mrcConfig = \BinktermPHP\Mrc\MrcConfig::getInstance();
+                    $mrcConfig->setFullConfig($payload);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
+                    break;
+                case 'restart_mrc_daemon':
+                    $defaultPidFile = __DIR__ . '/../../data/run/mrc_daemon.pid';
+                    $pidFile = \BinktermPHP\Config::env('MRC_DAEMON_PID_FILE') ?: $defaultPidFile;
+
+                    // Stop daemon if running
+                    if (file_exists($pidFile)) {
+                        $pid = (int)trim(file_get_contents($pidFile));
+                        if ($pid > 0 && posix_kill($pid, 0)) {
+                            posix_kill($pid, SIGTERM);
+                            // Wait for shutdown
+                            for ($i = 0; $i < 10; $i++) {
+                                usleep(100000); // 100ms
+                                if (!posix_kill($pid, 0)) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Start daemon
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/mrc_daemon.php', '--daemon', "--pid-file=$pidFile"]);
+                    $this->logCommandResult('restart_mrc_daemon', $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
                 case 'get_appearance_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getAppearanceConfig()]);
                     break;

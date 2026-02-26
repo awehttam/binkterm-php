@@ -9,6 +9,11 @@ ADMIN_PID="${ADMIN_PID:-${RUN_DIR}/admin_daemon.pid}"
 SCHEDULER_PID="${SCHEDULER_PID:-${RUN_DIR}/binkp_scheduler.pid}"
 SERVER_PID="${SERVER_PID:-${RUN_DIR}/binkp_server.pid}"
 TELNETD_PID="${TELNETD_PID:-${RUN_DIR}/telnetd.pid}"
+MRC_PID="${MRC_PID:-${RUN_DIR}/mrc_daemon.pid}"
+
+# Track which processes were running before restart
+TELNETD_WAS_RUNNING=false
+MRC_WAS_RUNNING=false
 MULTIPLEX_PID="${MULTIPLEX_PID:-${RUN_DIR}/multiplexing-server.pid}"
 GEMINI_PID="${GEMINI_PID:-${RUN_DIR}/gemini_daemon.pid}"
 
@@ -67,6 +72,9 @@ if stop_process "$TELNETD_PID" "telnetd"; then
     TELNETD_WAS_RUNNING=true
 fi
 
+# Check if MRC daemon was running before stopping it
+if stop_process "$MRC_PID" "mrc_daemon"; then
+    MRC_WAS_RUNNING=true
 # Check if multiplexing server was running before stopping it
 if stop_process "$MULTIPLEX_PID" "multiplexing-server"; then
     MULTIPLEX_WAS_RUNNING=true
@@ -86,6 +94,9 @@ if [[ "$TELNETD_WAS_RUNNING" == "true" ]]; then
     start_process "${PHP_BIN} telnet/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
 fi
 
+# Restart MRC daemon only if it was running
+if [[ "$MRC_WAS_RUNNING" == "true" ]]; then
+    start_process "${PHP_BIN} scripts/mrc_daemon.php --daemon --pid-file=${MRC_PID}" "mrc_daemon"
 # Restart multiplexing server only if it was running
 if [[ "$MULTIPLEX_WAS_RUNNING" == "true" ]]; then
     start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"

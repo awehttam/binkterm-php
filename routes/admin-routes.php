@@ -133,6 +133,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         ]);
     });
 
+    // MRC Chat settings page
+    SimpleRouter::get('/mrc-settings', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/mrc_settings.twig');
+    });
+
     // Custom template editor page
     SimpleRouter::get('/template-editor', function() {
         $user = RouteHelper::requireAdmin();
@@ -1071,6 +1079,101 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->saveTaglines($text);
                 echo json_encode(['success' => true, 'taglines' => $result['text'] ?? '']);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        // MRC settings
+        SimpleRouter::get('/mrc-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->send(['cmd' => 'get_mrc_config']);
+
+                if (!$result['ok']) {
+                    throw new Exception($result['error'] ?? 'Failed to get MRC config');
+                }
+
+                echo json_encode(['success' => true, 'config' => $result['result']]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/mrc-settings', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? [];
+
+                if (!is_array($config)) {
+                    throw new Exception('Invalid configuration payload');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->send([
+                    'cmd' => 'set_mrc_config',
+                    'data' => ['config' => $config]
+                ]);
+
+                if (!$result['ok']) {
+                    throw new Exception($result['error'] ?? 'Failed to save MRC config');
+                }
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'mrc_settings_updated', [
+                        'enabled' => $config['enabled'] ?? null
+                    ]);
+                }
+
+                echo json_encode(['success' => true, 'config' => $result['result']]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/mrc-restart', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->send(['cmd' => 'restart_mrc_daemon']);
+
+                if (!$result['ok']) {
+                    throw new Exception($result['error'] ?? 'Failed to restart MRC daemon');
+                }
+
+                $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+                if ($userId) {
+                    AdminActionLogger::logAction($userId, 'mrc_daemon_restarted');
+                }
+
+                echo json_encode(['success' => true, 'message' => 'MRC daemon restart initiated']);
             } catch (Exception $e) {
                 http_response_code(500);
                 echo json_encode(['error' => $e->getMessage()]);
