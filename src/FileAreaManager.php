@@ -1123,8 +1123,8 @@ class FileAreaManager
 
         $shareUrl = $this->buildFileShareUrl($file['area_tag'], $file['filename']);
 
-        // Return existing active share if one exists
-        $existing = $this->getExistingFileShare($fileId, $userId);
+        // Return the existing global share if one is already active for this file
+        $existing = $this->getExistingFileShare($fileId);
         if ($existing) {
             return [
                 'success'   => true,
@@ -1252,23 +1252,22 @@ class FileAreaManager
     }
 
     /**
-     * Get an existing active share for a file/user combination
+     * Get the active global share for a file (one share per file, any creator)
      *
      * @param int $fileId File ID
-     * @param int $userId User ID
      * @return array|null Share record or null
      */
-    public function getExistingFileShare(int $fileId, int $userId): ?array
+    public function getExistingFileShare(int $fileId): ?array
     {
         $stmt = $this->db->prepare("
             SELECT * FROM shared_files
             WHERE file_id = ?
-              AND shared_by_user_id = ?
               AND is_active = TRUE
               AND (expires_at IS NULL OR expires_at > NOW())
+            ORDER BY created_at DESC
             LIMIT 1
         ");
-        $stmt->execute([$fileId, $userId]);
+        $stmt->execute([$fileId]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
     }

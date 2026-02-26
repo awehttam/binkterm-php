@@ -155,7 +155,7 @@
                 <div id="shareModalContent" style="display:none;">
                     <div id="existingShareInfo" class="alert alert-info mb-3" style="display:none;">
                         <i class="fas fa-info-circle me-1"></i>
-                        You already have an active share link for this file.
+                        This file already has an active share link.
                     </div>
                     <div class="mb-3" id="shareExpiryGroup">
                         <label for="shareExpiry" class="form-label">Link Expiry</label>
@@ -768,14 +768,16 @@ function showFileShareDialog() {
             $('#shareModalLoading').hide();
             $('#shareModalContent').show();
             if (data.success && data.share_url) {
-                // Existing share found
+                // Existing global share found
                 currentShareId = data.share_id;
                 $('#existingShareInfo').show();
                 $('#shareLinkGroup').show();
                 $('#shareUrlInput').val(data.share_url);
-                $('#shareRevokeGroup').show();
                 $('#shareExpiryGroup').hide();
                 $('#createShareBtn').hide();
+                if (data.can_revoke) {
+                    $('#shareRevokeGroup').show();
+                }
             }
         })
         .fail(function() {

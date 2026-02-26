@@ -2163,8 +2163,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         $userId  = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
         $manager = new \BinktermPHP\FileAreaManager();
-        $share   = $manager->getExistingFileShare((int)$fileId, (int)$userId);
+        $share   = $manager->getExistingFileShare((int)$fileId);
 
         if ($share) {
             // Need the file's area tag and filename to build the URL
@@ -2178,9 +2179,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 : null;
 
             echo json_encode([
-                'success'   => true,
-                'share_id'  => (int)$share['id'],
-                'share_url' => $shareUrl,
+                'success'    => true,
+                'share_id'   => (int)$share['id'],
+                'share_url'  => $shareUrl,
+                'can_revoke' => $isAdmin || (int)$share['shared_by_user_id'] === (int)$userId,
             ]);
         } else {
             echo json_encode(['success' => false]);
