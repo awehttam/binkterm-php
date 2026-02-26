@@ -139,8 +139,8 @@ function handlePrivateMessages(PDO $db, array $user): void
         WHERE is_private = true
           AND id > :after
           AND (
-            (LOWER(from_user) = LOWER(:me) AND LOWER(to_user) = LOWER(:with_user))
-            OR (LOWER(from_user) = LOWER(:with_user) AND LOWER(to_user) = LOWER(:me))
+            (from_user = :me AND to_user = :with_user)
+            OR (from_user = :with_user AND to_user = :me)
           )
         ORDER BY received_at ASC, id ASC
         LIMIT :limit
@@ -164,7 +164,7 @@ function handlePrivateUnread(PDO $db, array $user): void
         SELECT id, from_user
         FROM mrc_messages
         WHERE is_private = true
-          AND LOWER(to_user) = LOWER(:me)
+          AND to_user = :me
           AND id > :after
         ORDER BY id ASC
     ");
@@ -179,8 +179,7 @@ function handlePrivateUnread(PDO $db, array $user): void
     foreach ($rows as $row) {
         $from = $row['from_user'] ?? '';
         if ($from !== '') {
-            $key = strtolower($from);
-            $counts[$key] = ($counts[$key] ?? 0) + 1;
+            $counts[$from] = ($counts[$from] ?? 0) + 1;
         }
         $latestId = max($latestId, (int)$row['id']);
     }
@@ -256,20 +255,20 @@ function handlePoll(PDO $db, array $user): void
         $username = MrcClient::sanitizeName($user['username']);
         $withUser = MrcClient::sanitizeName($withUser);
 
-        $stmt = $db->prepare("
-            SELECT
-                id, from_user, from_site, from_room, to_user, to_room,
-                message_body, msg_ext, is_private, received_at
-            FROM mrc_messages
-            WHERE is_private = true
-              AND id > :after
-              AND (
-                (LOWER(from_user) = LOWER(:me) AND LOWER(to_user) = LOWER(:with_user))
-                OR (LOWER(from_user) = LOWER(:with_user) AND LOWER(to_user) = LOWER(:me))
-              )
-            ORDER BY received_at ASC, id ASC
-            LIMIT 200
-        ");
+            $stmt = $db->prepare("
+                SELECT
+                    id, from_user, from_site, from_room, to_user, to_room,
+                    message_body, msg_ext, is_private, received_at
+                FROM mrc_messages
+                WHERE is_private = true
+                  AND id > :after
+                  AND (
+                    (from_user = :me AND to_user = :with_user)
+                    OR (from_user = :with_user AND to_user = :me)
+                  )
+                ORDER BY received_at ASC, id ASC
+                LIMIT 200
+            ");
         $stmt->bindValue(':me', $username, PDO::PARAM_STR);
         $stmt->bindValue(':with_user', $withUser, PDO::PARAM_STR);
         $stmt->bindValue(':after', $afterPrivate, PDO::PARAM_INT);
@@ -307,7 +306,7 @@ function handlePoll(PDO $db, array $user): void
                 SELECT COALESCE(MAX(id), 0) AS max_id
                 FROM mrc_messages
                 WHERE is_private = true
-                  AND LOWER(to_user) = LOWER(:me)
+                  AND to_user = :me
             ");
             $stmt->bindValue(':me', $username, PDO::PARAM_STR);
             $stmt->execute();
@@ -321,7 +320,7 @@ function handlePoll(PDO $db, array $user): void
                 SELECT id, from_user
                 FROM mrc_messages
                 WHERE is_private = true
-                  AND LOWER(to_user) = LOWER(:me)
+                  AND to_user = :me
                   AND id > :after
                 ORDER BY id ASC
             ");
@@ -335,8 +334,7 @@ function handlePoll(PDO $db, array $user): void
             foreach ($rows as $row) {
                 $from = $row['from_user'] ?? '';
                 if ($from !== '') {
-                    $key = strtolower($from);
-                    $counts[$key] = ($counts[$key] ?? 0) + 1;
+                    $counts[$from] = ($counts[$from] ?? 0) + 1;
                 }
                 $latestId = max($latestId, (int)$row['id']);
             }

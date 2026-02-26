@@ -176,10 +176,13 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const modalEl = document.getElementById('mrcWarningModal');
-            if (modalEl && typeof bootstrap !== 'undefined') {
-                const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
-                modal.show();
-            }
+            if (!modalEl || typeof bootstrap === 'undefined') return;
+            if (sessionStorage.getItem('mrcWarningSeen') === '1') return;
+            const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
+            modal.show();
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                sessionStorage.setItem('mrcWarningSeen', '1');
+            }, { once: true });
         });
     </script>
 

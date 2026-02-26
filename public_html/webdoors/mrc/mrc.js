@@ -389,9 +389,9 @@ class MrcClient {
 
         normalizedUsers.forEach(user => {
             const userName = user.username || '';
-            const isSelf = this.username && userName.toLowerCase() === this.username.toLowerCase();
-            const isActiveDm = this.privateUser && userName.toLowerCase() === this.privateUser.toLowerCase();
-            const unread = this.privateUnread[userName.toLowerCase()] || 0;
+            const isSelf = this.username && userName === this.username;
+            const isActiveDm = this.privateUser && userName === this.privateUser;
+            const unread = this.privateUnread[userName] || 0;
             const displayName = this.escapeHtml(userName);
             const item = $('<div>')
                 .addClass('list-group-item')
@@ -445,9 +445,9 @@ class MrcClient {
      */
     isLocalUserPresent(users) {
         if (!this.username) return false;
-        const me = this.username.toLowerCase();
+        const me = this.username;
         return users.some(u => {
-            const name = (u.username || '').toLowerCase();
+            const name = (u.username || '');
             return name === me;
         });
     }
@@ -707,7 +707,7 @@ class MrcClient {
      */
     clearPrivateUnread(username) {
         if (!username) return;
-        const key = username.toLowerCase();
+        const key = username;
         if (this.privateUnread[key]) {
             delete this.privateUnread[key];
             this.updatePrivateUnreadBadge();
@@ -806,12 +806,11 @@ class MrcClient {
 
             if (response.private_unread) {
                 const counts = response.private_unread.counts || {};
-                Object.keys(counts).forEach(key => {
-                    const sender = key.toLowerCase();
-                    if (this.privateUser && sender === this.privateUser.toLowerCase() && this.viewMode === 'private') {
+                Object.keys(counts).forEach(sender => {
+                    if (this.privateUser && sender === this.privateUser && this.viewMode === 'private') {
                         return;
                     }
-                    this.privateUnread[sender] = (this.privateUnread[sender] || 0) + counts[key];
+                    this.privateUnread[sender] = (this.privateUnread[sender] || 0) + counts[sender];
                 });
                 if (typeof response.private_unread.latest_id === 'number') {
                     this.lastPrivateGlobalId = Math.max(this.lastPrivateGlobalId, response.private_unread.latest_id);
@@ -908,7 +907,7 @@ class MrcClient {
      */
     syncPrivateUnreadFromMessages(messages) {
         if (!this.privateUser || this.viewMode !== 'private') return;
-        const key = this.privateUser.toLowerCase();
+        const key = this.privateUser;
         if (this.privateUnread[key]) {
             delete this.privateUnread[key];
             this.updatePrivateUnreadBadge();
@@ -916,7 +915,7 @@ class MrcClient {
 
         let latestIncomingId = this.lastPrivateGlobalId;
         messages.forEach(msg => {
-            if (msg.to_user && this.username && msg.to_user.toLowerCase() === this.username.toLowerCase()) {
+            if (msg.to_user && this.username && msg.to_user === this.username) {
                 latestIncomingId = Math.max(latestIncomingId, msg.id);
             }
         });
