@@ -251,6 +251,7 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
         if ($room) {
             $suppressAnnouncement = false;
             // Parse join/part/timeout announcements to keep the user list accurate.
+
             // Join format:    * (Joining) user@bbs just joined room #room
             // Part format:    * (Parting) user@bbs has left room #room
             // Timeout format: * (Timeout) user@bbs client session has timed-out
@@ -270,6 +271,18 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                         (from_user, from_site, from_room, to_user, msg_ext, to_room, message_body, is_private, received_at)
                     VALUES ('SERVER', '', '', '', '', :room, :body, false, CURRENT_TIMESTAMP)
                 ")->execute(['room' => $room, 'body' => $f7]);
+            }
+        } else {
+            // No room context: may be a LIST response directed to this BBS.
+            // Server sends one line per room: "*.:  #roomname  <count>  <topic>"
+            // After pipe-code stripping, match "#roomname  <digits>" pattern.
+            if (preg_match('/#(\w{1,20})\s+\d+/', $clean, $m)) {
+                $db->prepare("
+                    INSERT INTO mrc_rooms (room_name, last_activity)
+                    VALUES (:room, CURRENT_TIMESTAMP)
+                    ON CONFLICT (room_name) DO NOTHING
+                ")->execute(['room' => $m[1]]);
+                error_log("MRC: Added room from LIST: {$m[1]}");
             }
         }
 
@@ -355,6 +368,10 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                 }
                 error_log("MRC: Room {$room} users: {$params}");
             }
+            break;
+
+        case 'HELLO':
+            // Server greeting after connect — no action needed.
             break;
 
         case 'NOTIFY':
@@ -504,6 +521,31 @@ function clearForeignUsers(): void
 }
 
 /**
+ * Ensure the configured auto_join rooms exist in mrc_rooms so the
+ * WebDoor room list is populated even before any user joins.
+ * No NEWROOM packets are sent — this is a DB-only operation.
+ */
+function seedAutoJoinRooms(): void
+{
+    $db = getDb();
+    $config = MrcConfig::getInstance();
+    $rooms = $config->getAutoJoinRooms();
+
+    $stmt = $db->prepare("
+        INSERT INTO mrc_rooms (room_name, last_activity)
+        VALUES (:room, CURRENT_TIMESTAMP)
+        ON CONFLICT (room_name) DO NOTHING
+    ");
+
+    foreach ($rooms as $room) {
+        $room = trim((string)$room);
+        if ($room !== '') {
+            $stmt->execute(['room' => $room]);
+        }
+    }
+}
+
+/**
  * Re-join each local (webdoor) user into their room after a reconnect.
  * Each user needs their own NEWROOM packet so the MRC server establishes
  * an individual session for them — sending NEWROOM only as the BBS is not enough.
@@ -586,6 +628,7 @@ try {
     $lastReconnectAttempt = 0;
     $lastKeepalive = 0;
     $lastIamHere = 0;
+    $lastUserListRefresh = 0;
 
     // Main loop
     while (!$shutdown) {
@@ -609,6 +652,13 @@ try {
                     // Clear stale foreign users; local (webdoor) users are kept
                     // so their rooms can be re-established below.
                     clearForeignUsers();
+
+                    // Seed configured rooms into mrc_rooms so the WebDoor
+                    // room list is populated even before any user joins.
+                    seedAutoJoinRooms();
+
+                    // Request full room list from server to populate mrc_rooms.
+                    $client->requestRoomList();
 
                     // Re-join any rooms with active local (webdoor) users.
                     // Individual room joins happen via the outbound queue when
@@ -653,6 +703,18 @@ try {
         if (time() - $lastIamHere >= 50) {
             maintainLocalUserSessions($client);
             $lastIamHere = time();
+        }
+
+        // Refresh user list for each room with active local users every 60 seconds.
+        // This catches remote users who joined before us or whose join announcement
+        // was missed.
+        if (time() - $lastUserListRefresh >= 60) {
+            $db = getDb();
+            $stmt = $db->query("SELECT DISTINCT room_name FROM mrc_users WHERE is_local = true");
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $room) {
+                $client->requestUserList($room);
+            }
+            $lastUserListRefresh = time();
         }
 
         // Check keepalive timeout

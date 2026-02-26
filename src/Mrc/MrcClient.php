@@ -454,6 +454,33 @@ class MrcClient
     }
 
     /**
+     * Request a list of active rooms from the server.
+     * The server responds with a LIST verb (or display text — see handleServerCommand).
+     *
+     * @return bool
+     */
+    public function requestRoomList(): bool
+    {
+        $bbsName = self::sanitizeName($this->config->getBbsName());
+        return $this->sendPacket($bbsName, $bbsName, '', 'SERVER', '', '', 'LIST');
+    }
+
+    /**
+     * Request the current user list for a room from the server.
+     * Format: CLIENT~bbs~room~SERVER~ALL~~USERLIST~
+     * The server responds with USERLIST:user1,user2,...
+     *
+     * @param string $room
+     * @return bool
+     */
+    public function requestUserList(string $room): bool
+    {
+        $bbsName = self::sanitizeName($this->config->getBbsName());
+        $room    = self::sanitizeName($room);
+        return $this->sendPacket('CLIENT', $bbsName, $room, 'SERVER', 'ALL', '', 'USERLIST');
+    }
+
+    /**
      * Join a room
      * Sends NEWROOM command (REQUIRED on initial connect)
      *
