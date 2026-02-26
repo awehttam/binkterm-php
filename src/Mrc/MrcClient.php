@@ -466,6 +466,23 @@ class MrcClient
     }
 
     /**
+     * Send an INFO* command to the server.
+     *
+     * Format: bbs~bbs~~SERVER~~INFOWEB:value~
+     */
+    public function sendInfo(string $command, string $value): bool
+    {
+        $bbsName = self::sanitizeName($this->config->getBbsName());
+        $command = strtoupper(trim($command));
+        $value = trim($value);
+        if ($command === '' || $value === '') {
+            return false;
+        }
+
+        return $this->sendPacket($bbsName, $bbsName, '', 'SERVER', '', '', "{$command}:{$value}");
+    }
+
+    /**
      * Request the current user list for a room from the server.
      * Format: CLIENT~bbs~room~SERVER~ALL~~USERLIST~
      * The server responds with USERLIST:user1,user2,...

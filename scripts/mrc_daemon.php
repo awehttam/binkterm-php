@@ -707,6 +707,24 @@ try {
                 if ($client->connect()) {
                     updateConnectionState(true);
 
+                    // Send INFO* metadata to the hub on connect.
+                    $web = trim((string)$config->getWebsite());
+                    $telnet = trim((string)$config->getTelnet());
+                    $sysop = trim((string)$config->getSysop());
+                    $desc = trim((string)$config->getDescription());
+                    if ($web !== '') {
+                        $client->sendInfo('INFOWEB', $web);
+                    }
+                    if ($telnet !== '') {
+                        $client->sendInfo('INFOTEL', $telnet);
+                    }
+                    if ($sysop !== '') {
+                        $client->sendInfo('INFOSYS', $sysop);
+                    }
+                    if ($desc !== '') {
+                        $client->sendInfo('INFODSC', $desc);
+                    }
+
                     // Clear stale foreign users; local (webdoor) users are kept
                     // so their rooms can be re-established below.
                     clearForeignUsers();
