@@ -383,7 +383,6 @@ class MrcClient {
 
         if (users.length === 0) {
             userList.html('<div class="text-muted small p-2">No users online</div>');
-            this.updateInputStateByPresence(false);
             return;
         }
 
@@ -431,8 +430,11 @@ class MrcClient {
         return users.some(u => {
             const name = (u.username || '').toLowerCase();
             if (name !== me) return false;
-            if (!localBbs) return true;
             const bbs = (u.bbs_name || '').toLowerCase();
+            if (bbs === '' || bbs === 'unknown') {
+                return true;
+            }
+            if (!localBbs) return true;
             return bbs === localBbs;
         });
     }
