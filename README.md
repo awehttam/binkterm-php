@@ -96,6 +96,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
+- **MRC Chat** - Real-time multi-BBS chat via the MRC (Multi Relay Chat) network; connects users across BBSes in shared rooms with private messaging support (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
 - **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
 - **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
@@ -1658,6 +1659,7 @@ BinktermPHP ships with the following WebDoors out of the box:
 - **Wordle** - Popular five-letter word guessing game
 
 **Utilities:**
+- **MRC Chat** - Real-time multi-BBS chat connecting to the MRC network (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
 - **BBSLink** - Gateway to classic DOS door games via BBSLink service
 - **Community Wireless Node List** - Interactive map for discovering and sharing community wireless networks, mesh networks, and grassroots infrastructure
 - **Source Games** - Live server browser for Source engine games (TF2, CS:GO) with real-time stats
