@@ -57,7 +57,6 @@ require_once __DIR__."/../src/functions.php";
 require_once __DIR__."/../routes/web-routes.php";
 require_once __DIR__."/../routes/webdoor-routes.php";
 require_once __DIR__."/../routes/api-routes.php";
-require_once __DIR__."/../routes/mrc-api-routes.php";
 require_once __DIR__."/../routes/admin-routes.php";
 require_once __DIR__."/../routes/nodelist-routes.php";
 require_once __DIR__."/../routes/door-routes.php";

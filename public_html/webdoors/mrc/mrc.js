@@ -3,6 +3,18 @@
  * Handles real-time chat interface with HTTP polling
  */
 
+// Required by ansisys.js parsePipeCodes (normally provided by app.js)
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
 class MrcClient {
     constructor() {
         this.currentRoom = null;
@@ -59,7 +71,7 @@ class MrcClient {
     async checkStatus() {
         try {
             const response = await $.ajax({
-                url: '/api/webdoor/mrc/status',
+                url: 'api.php?action=status',
                 method: 'GET',
                 dataType: 'json'
             });
@@ -94,7 +106,7 @@ class MrcClient {
     async loadRooms() {
         try {
             const response = await $.ajax({
-                url: '/api/webdoor/mrc/rooms',
+                url: 'api.php?action=rooms',
                 method: 'GET',
                 dataType: 'json'
             });
@@ -160,7 +172,7 @@ class MrcClient {
     async joinRoom(roomName) {
         try {
             const response = await $.ajax({
-                url: '/api/webdoor/mrc/join',
+                url: 'api.php?action=join',
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({ room: roomName, from_room: this.currentRoom || '' }),
@@ -214,10 +226,12 @@ class MrcClient {
 
         try {
             const response = await $.ajax({
-                url: `/api/webdoor/mrc/messages/${encodeURIComponent(this.currentRoom)}`,
+                url: 'api.php',
                 method: 'GET',
                 dataType: 'json',
                 data: {
+                    action: 'messages',
+                    room: this.currentRoom,
                     limit: 100,
                     after: this.lastMessageId
                 }
@@ -290,9 +304,12 @@ class MrcClient {
             header.append($('<span>').addClass('message-time').text(time));
         }
 
+        const rawBody = this.stripUsernamePrefix(msg.message_body, msg.from_user);
         const body = $('<div>')
             .addClass('message-body')
-            .text(msg.message_body);
+            .html(typeof parsePipeCodes === 'function'
+                ? parsePipeCodes(rawBody)
+                : $('<div>').text(rawBody).html());
 
         messageDiv.append(header, body);
 
@@ -307,9 +324,10 @@ class MrcClient {
 
         try {
             const response = await $.ajax({
-                url: `/api/webdoor/mrc/users/${encodeURIComponent(this.currentRoom)}`,
+                url: 'api.php',
                 method: 'GET',
-                dataType: 'json'
+                dataType: 'json',
+                data: { action: 'users', room: this.currentRoom }
             });
 
             if (response.success) {
@@ -361,7 +379,7 @@ class MrcClient {
 
         try {
             const response = await $.ajax({
-                url: '/api/webdoor/mrc/send',
+                url: 'api.php?action=send',
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
@@ -487,6 +505,51 @@ class MrcClient {
 
         // Auto-dismiss after 5 seconds
         setTimeout(() => errorEl.remove(), 5000);
+    }
+
+    /**
+     * Strip embedded username prefix from message body.
+     *
+     * MRC convention embeds the sender name in F7 so other clients can display
+     * it (e.g. "admin: hello" or "|03<|02admin|03>: hello").  Since we already
+     * show from_user in the message header we strip the prefix here to avoid
+     * showing the name twice.
+     *
+     * Handles two formats:
+     *   - Plain:       "username: message"
+     *   - Pipe-coded:  "|XX<|XXusername|XX>:? message"
+     */
+    /**
+     * Strip the W1 (username) prefix from a message body per MRC spec.
+     *
+     * MRC Field 7 format: "W1 W2+" where W1 = sender handle, W2+ = chat text.
+     * Other clients (Mystic, ZOC, etc.) display this as "W1: W2+".
+     *
+     * Since we already show from_user in the message header we strip W1 so
+     * the body shows only the chat text.
+     *
+     * Two formats are handled:
+     *   - Plain:       "username message"  (what we send)
+     *   - Pipe-coded:  "|XX<|XXusername|XX>:? message" (other BBSes)
+     */
+    stripUsernamePrefix(body, fromUser) {
+        if (!body || !fromUser) return body;
+
+        const escaped = fromUser.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // Pipe-coded bracket format from other BBSes: "|XX<|XXusername|XX>:? "
+        const bracketRe = new RegExp(
+            '^(\\|[0-9A-Fa-f]{2})*<(\\|[0-9A-Fa-f]{2})*' + escaped + '(\\|[0-9A-Fa-f]{2})*>:?\\s+',
+            'i'
+        );
+        const bm = body.match(bracketRe);
+        if (bm) return body.substring(bm[0].length);
+
+        // Plain format: "username " (space-delimited, what we send per spec)
+        const plainRe = new RegExp('^' + escaped + '\\s+', 'i');
+        if (plainRe.test(body)) return body.replace(plainRe, '');
+
+        return body;
     }
 
     /**

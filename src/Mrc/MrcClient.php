@@ -383,6 +383,47 @@ class MrcClient
     }
 
     /**
+     * Send IAMHERE for a connected user.
+     * Must be sent every ~60s per user or the server removes them from routing.
+     *
+     * Spec: user~bbs~room~SERVER~msgext~room~IAMHERE~
+     *
+     * Note: the :ACTIVE/:AWAY extension was added in a later revision and is
+     * not supported by all servers — send the plain command only.
+     *
+     * @param string $username User's handle
+     * @param string $room     Room the user is currently in
+     * @return bool
+     */
+    public function sendIamHere(string $username, string $room): bool
+    {
+        $username = self::sanitizeName($username);
+        $room     = self::sanitizeName($room);
+        $bbsName  = self::sanitizeName($this->config->getBbsName());
+
+        return $this->sendPacket($username, $bbsName, $room, 'SERVER', '', $room, 'IAMHERE');
+    }
+
+    /**
+     * Send LOGOFF for a user leaving a room.
+     * Tells the server the user has left so other clients update their user list.
+     *
+     * Spec: user~bbs~room~SERVER~msgext~room~LOGOFF~
+     *
+     * @param string $username User's handle
+     * @param string $room     Room the user is leaving
+     * @return bool
+     */
+    public function sendLogoff(string $username, string $room): bool
+    {
+        $username = self::sanitizeName($username);
+        $room     = self::sanitizeName($room);
+        $bbsName  = self::sanitizeName($this->config->getBbsName());
+
+        return $this->sendPacket($username, $bbsName, $room, 'SERVER', '', $room, 'LOGOFF');
+    }
+
+    /**
      * Send keepalive response (IMALIVE)
      * Response to server PING
      *
@@ -442,8 +483,8 @@ class MrcClient
     public function sendMessage(string $username, string $room, string $message): bool
     {
         $username = self::sanitizeName($username);
-        $room = self::sanitizeName($room);
-        $bbsName = $this->config->getBbsName();
+        $room     = self::sanitizeName($room);
+        $bbsName  = self::sanitizeName($this->config->getBbsName());
 
         // Truncate message to max length
         $maxLength = $this->config->getMaxMessageLength();
@@ -464,8 +505,8 @@ class MrcClient
     public function sendPrivateMessage(string $fromUser, string $toUser, string $message): bool
     {
         $fromUser = self::sanitizeName($fromUser);
-        $toUser = self::sanitizeName($toUser);
-        $bbsName = $this->config->getBbsName();
+        $toUser   = self::sanitizeName($toUser);
+        $bbsName  = self::sanitizeName($this->config->getBbsName());
 
         // Truncate message to max length
         $maxLength = $this->config->getMaxMessageLength();

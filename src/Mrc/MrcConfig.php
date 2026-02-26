@@ -15,6 +15,8 @@
 
 namespace BinktermPHP\Mrc;
 
+use BinktermPHP\Binkp\Config\BinkpConfig;
+
 /**
  * MRC (Multi Relay Chat) Configuration Manager
  *
@@ -203,11 +205,36 @@ class MrcConfig
     /**
      * Get BBS name (max 64 chars)
      *
+     * Uses binkp system name as the primary source (the canonical BBS identity),
+     * falling back to the mrc.json bbs.name if binkp config is unavailable.
+     *
      * @return string
      */
     public function getBbsName(): string
     {
-        return substr($this->config['bbs']['name'] ?? 'BinktermPHP BBS', 0, 64);
+        // Prefer the canonical system name from binkp config
+        try {
+            $binkpName = BinkpConfig::getInstance()->getSystemName();
+            if (!empty($binkpName)) {
+                return substr($this->sanitizeBbsName($binkpName), 0, 64);
+            }
+        } catch (\Exception $e) {
+            // Fall through to mrc.json value
+        }
+
+        return substr($this->sanitizeBbsName($this->config['bbs']['name'] ?? 'BinktermPHP BBS'), 0, 64);
+    }
+
+    /**
+     * Strip characters that MRC servers reject from a BBS name.
+     * Removes apostrophes and other punctuation that cause server-side rejections.
+     *
+     * @param string $name
+     * @return string
+     */
+    private function sanitizeBbsName(string $name): string
+    {
+        return str_replace(["'", '"', '`'], '', $name);
     }
 
     /**

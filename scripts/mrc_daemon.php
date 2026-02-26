@@ -167,6 +167,38 @@ function processIncomingPacket(array $packet): void
 }
 
 /**
+ * Handle a join announcement — upsert the user as a foreign presence.
+ */
+function handleUserJoinAnnouncement(string $username, string $bbsName, string $room): void
+{
+    $db = getDb();
+    $db->prepare("
+        INSERT INTO mrc_rooms (room_name, last_activity)
+        VALUES (:room, CURRENT_TIMESTAMP)
+        ON CONFLICT (room_name) DO UPDATE SET last_activity = CURRENT_TIMESTAMP
+    ")->execute(['room' => $room]);
+
+    $db->prepare("
+        INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
+        VALUES (:username, :bbs_name, :room, false, CURRENT_TIMESTAMP)
+        ON CONFLICT (username, bbs_name, room_name) DO UPDATE
+        SET last_seen = CURRENT_TIMESTAMP
+    ")->execute(['username' => $username, 'bbs_name' => $bbsName, 'room' => $room]);
+}
+
+/**
+ * Handle a part announcement — remove the user from the room.
+ */
+function handleUserPartAnnouncement(string $username, string $bbsName, string $room): void
+{
+    $db = getDb();
+    $db->prepare("
+        DELETE FROM mrc_users
+        WHERE username = :username AND bbs_name = :bbs_name AND room_name = :room AND is_local = false
+    ")->execute(['username' => $username, 'bbs_name' => $bbsName, 'room' => $room]);
+}
+
+/**
  * Handle SERVER commands (PING, ROOMTOPIC, NOTIFY, etc.)
  *
  * All server commands arrive with the verb (and optional params) in f7.
@@ -182,6 +214,18 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
         $room  = $packet['f6'] ?? '';
         $clean = preg_replace('/\|[0-9]{2}/', '', $f7);
         error_log("MRC: Room message" . ($room ? " [{$room}]" : '') . ": {$clean}");
+
+        // Parse join/part announcements to keep the user list accurate.
+        // Join format:  * (Joining) user@bbs just joined room #room
+        // Part format:  * (Parting) user@bbs has left room #room
+        if ($room) {
+            if (preg_match('/\(Joining\)\s+(\S+?)@(\S+?)\s+just joined/i', $clean, $m)) {
+                handleUserJoinAnnouncement($m[1], $m[2], $room);
+            } elseif (preg_match('/\(Parting\)\s+(\S+?)@(\S+?)\s/i', $clean, $m)) {
+                handleUserPartAnnouncement($m[1], $m[2], $room);
+            }
+        }
+
         return;
     }
 
@@ -237,12 +281,12 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     VALUES (:room, CURRENT_TIMESTAMP)
                     ON CONFLICT (room_name) DO UPDATE SET last_activity = CURRENT_TIMESTAMP
                 ")->execute(['room' => $room]);
-                // Replace current user list for this room
-                $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room");
+                // Replace foreign user list for this room — preserve local (webdoor) users
+                $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false");
                 $stmt->execute(['room' => $room]);
                 $insertStmt = $db->prepare("
-                    INSERT INTO mrc_users (username, bbs_name, room_name, last_seen)
-                    VALUES (:username, '', :room, CURRENT_TIMESTAMP)
+                    INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
+                    VALUES (:username, '', :room, false, CURRENT_TIMESTAMP)
                     ON CONFLICT (username, bbs_name, room_name) DO UPDATE
                     SET last_seen = CURRENT_TIMESTAMP
                 ");
@@ -351,16 +395,67 @@ function processOutboundQueue(MrcClient $client): void
 }
 
 /**
- * Join default rooms on connect
+ * Maintain local (webdoor) user sessions:
+ *   - Send IAMHERE for active users so the server keeps them in room routing.
+ *   - Send LOGOFF + prune users whose browser heartbeat has expired (3 min).
  */
-function joinDefaultRooms(MrcClient $client, MrcConfig $config): void
+function maintainLocalUserSessions(MrcClient $client): void
 {
-    $rooms = $config->getAutoJoinRooms();
-    $bbsName = $config->getBbsName();
+    $db = getDb();
 
-    foreach ($rooms as $room) {
-        $client->joinRoom($room, $bbsName);
-        error_log("MRC: Joined room: {$room}");
+    // Collect stale and active users in one query
+    $stmt = $db->query("
+        SELECT username, room_name,
+               (last_seen < CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_stale
+        FROM mrc_users
+        WHERE is_local = true
+    ");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $staleCount = 0;
+    foreach ($rows as $row) {
+        if ($row['is_stale']) {
+            $client->sendLogoff($row['username'], $row['room_name']);
+            error_log("MRC: LOGOFF stale user {$row['username']} from {$row['room_name']}");
+            $staleCount++;
+        } else {
+            $client->sendIamHere($row['username'], $row['room_name']);
+        }
+    }
+
+    if ($staleCount > 0) {
+        $db->exec("
+            DELETE FROM mrc_users
+            WHERE is_local = true
+            AND last_seen < CURRENT_TIMESTAMP - INTERVAL '3 minutes'
+        ");
+        error_log("MRC: Pruned {$staleCount} stale local user(s)");
+    }
+}
+
+/**
+ * Clear foreign user presence records.
+ * Called on (re)connect so stale remote-user entries are removed.
+ * Local (webdoor) users are preserved so their rooms can be re-joined.
+ */
+function clearForeignUsers(): void
+{
+    getDb()->exec("DELETE FROM mrc_users WHERE is_local = false");
+}
+
+/**
+ * Re-join each local (webdoor) user into their room after a reconnect.
+ * Each user needs their own NEWROOM packet so the MRC server establishes
+ * an individual session for them — sending NEWROOM only as the BBS is not enough.
+ */
+function rejoinLocalUserRooms(MrcClient $client): void
+{
+    $db = getDb();
+
+    $stmt = $db->query("SELECT username, room_name FROM mrc_users WHERE is_local = true");
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $client->joinRoom($row['room_name'], $row['username']);
+        error_log("MRC: Re-joined {$row['username']} into room: {$row['room_name']}");
     }
 }
 
@@ -430,6 +525,7 @@ try {
     $client->setDebug($debugMode);
     $lastReconnectAttempt = 0;
     $lastKeepalive = 0;
+    $lastIamHere = 0;
 
     // Main loop
     while (!$shutdown) {
@@ -450,11 +546,20 @@ try {
                 if ($client->connect()) {
                     updateConnectionState(true);
 
-                    // Join default rooms
+                    // Clear stale foreign users; local (webdoor) users are kept
+                    // so their rooms can be re-established below.
+                    clearForeignUsers();
+
+                    // Re-join any rooms with active local (webdoor) users.
+                    // Individual room joins happen via the outbound queue when
+                    // users join from the web UI.  We do NOT send a BBS-level
+                    // NEWROOM using the BBS name as a username — that creates a
+                    // phantom user session the server will time out.
                     sleep(1); // Give server time to process handshake
-                    joinDefaultRooms($client, $config);
+                    rejoinLocalUserRooms($client);
 
                     $lastKeepalive = time();
+                    $lastIamHere   = time(); // Delay first IAMHERE so NEWROOMs are processed first
                 } else {
                     updateConnectionState(false);
                 }
@@ -483,6 +588,12 @@ try {
 
         // Process outbound queue
         processOutboundQueue($client);
+
+        // Send IAMHERE for active local users; LOGOFF + prune stale ones
+        if (time() - $lastIamHere >= 50) {
+            maintainLocalUserSessions($client);
+            $lastIamHere = time();
+        }
 
         // Check keepalive timeout
         if ($client->isKeepaliveExpired()) {
