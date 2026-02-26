@@ -41,7 +41,7 @@ function showUsage() {
     echo "Options:\n";
     echo "  --host=HOST        Remote host to connect to (required)\n";
     echo "  --port=PORT        Remote port (default: 24554)\n";
-    echo "  --address=ADDR     Our FTN address (default: 1:1/0)\n";
+    echo "  --address=ADDR     Our FTN address (default: 1:999/999)\n";
     echo "  --password=PWD     Session password (default: empty)\n";
     echo "  --sysname=NAME     Our system name (default: Test System)\n";
     echo "  --sysop=NAME       Our sysop name (default: Test Sysop)\n";
@@ -141,7 +141,7 @@ function sendDataFrame($socket, $data) {
 $options = [
     'host' => null,
     'port' => 24554,
-    'address' => '1:1/0',
+    'address' => '1:999/999',
     'password' => '',
     'sysname' => 'Test System',
     'sysop' => 'Test Sysop',

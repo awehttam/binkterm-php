@@ -117,7 +117,7 @@ class BinkpConfig
     
     public function getSystemAddress()
     {
-        return $this->config['system']['address'] ?? '1:1/0';
+        return $this->config['system']['address'] ?? '1:999/999';
     }
     
     public function getSystemSysop()
