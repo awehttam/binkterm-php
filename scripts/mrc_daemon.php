@@ -30,6 +30,7 @@ function showUsage()
     echo "  --daemon          Run as daemon (detach from terminal)\n";
     echo "  --pid-file=FILE   Write PID file (default: data/run/mrc_daemon.pid)\n";
     echo "  --log-level=LEVEL Log level (default: INFO)\n";
+    echo "  --debug           Enable protocol debug logging (raw send/recv)\n";
     echo "  --help            Show this help message\n";
     echo "\n";
 }
@@ -137,9 +138,10 @@ function processIncomingPacket(array $packet): void
     $f6 = $packet['f6'];
     $f7 = $packet['f7'];
 
-    // Handle SERVER commands
+    // Handle SERVER commands - command verb is in f7, not f2
     if ($f1 === 'SERVER') {
-        handleServerCommand($f2, $packet);
+        $verb = explode(':', $f7, 2)[0];
+        handleServerCommand($verb, $f7, $packet);
         return;
     }
 
@@ -150,14 +152,14 @@ function processIncomingPacket(array $packet): void
     ");
 
     $stmt->execute([
-        'from_user' => $f1,
-        'from_site' => $f2,
-        'from_room' => $f3,
-        'to_user' => $f4,
-        'msg_ext' => $f5,
-        'to_room' => $f6,
+        'from_user'    => $f1,
+        'from_site'    => $f2,
+        'from_room'    => $f3,
+        'to_user'      => $f4,
+        'msg_ext'      => $f5,
+        'to_room'      => $f6,
         'message_body' => $f7,
-        'is_private' => !empty($f4) ? 'true' : 'false'
+        'is_private'   => !empty($f4) ? 'true' : 'false'
     ]);
 
     // Prune old messages (keep last 1000 per room)
@@ -166,21 +168,38 @@ function processIncomingPacket(array $packet): void
 
 /**
  * Handle SERVER commands (PING, ROOMTOPIC, NOTIFY, etc.)
+ *
+ * All server commands arrive with the verb (and optional params) in f7.
+ * Format: VERB:param1:param2 or just VERB
  */
-function handleServerCommand(string $command, array $packet): void
+function handleServerCommand(string $verb, string $f7, array $packet): void
 {
     $db = getDb();
 
-    switch ($command) {
+    // If f7 starts with a pipe/MCI code or non-alpha character it's a display
+    // message (join/part announcement, notice, etc.), not a command verb.
+    if ($f7 === '' || !ctype_alpha($f7[0])) {
+        $room  = $packet['f6'] ?? '';
+        $clean = preg_replace('/\|[0-9]{2}/', '', $f7);
+        error_log("MRC: Room message" . ($room ? " [{$room}]" : '') . ": {$clean}");
+        return;
+    }
+
+    // Extract params portion (everything after first ':')
+    $params = strpos($f7, ':') !== false ? substr($f7, strpos($f7, ':') + 1) : '';
+
+    $verb = strtoupper($verb);
+
+    switch ($verb) {
         case 'PING':
             // Keepalive ping - response handled by main loop
             break;
 
         case 'ROOMTOPIC':
-            // Update room topic
-            // Format: SERVER~ROOMTOPIC~~~~room~topic~
-            $room = $packet['f6'];
-            $topic = $packet['f7'];
+            // Format: ROOMTOPIC:room:topic
+            $parts = explode(':', $params, 2);
+            $room  = $parts[0] ?? '';
+            $topic = $parts[1] ?? '';
 
             if ($room) {
                 $stmt = $db->prepare("
@@ -194,38 +213,70 @@ function handleServerCommand(string $command, array $packet): void
             break;
 
         case 'USERROOM':
-            // User joined/left room
-            // Format: SERVER~USERROOM~room~user~action~room~~
-            $room = $packet['f3'];
-            $user = $packet['f4'];
-            $action = $packet['f5']; // JOIN or PART
+            // Server confirms which room the client is in
+            // Format: USERROOM:room
+            $room = $params;
+            error_log("MRC: Server confirmed room: {$room}");
+            break;
 
-            if ($action === 'JOIN') {
-                // Add user to room
-                $stmt = $db->prepare("
+        case 'USERNICK':
+            // Server assigned/confirmed nick (may have suffix to resolve conflicts)
+            // Format: USERNICK:nick
+            error_log("MRC: Server assigned nick: {$params}");
+            break;
+
+        case 'USERLIST':
+            // Server sending current room user list (response to USERLIST or NEWROOM)
+            // Format: USERLIST:user1,user2,...  f6=room
+            $room = $packet['f6'];
+            if ($room && $params !== '') {
+                $users = array_filter(explode(',', $params));
+                // Ensure room exists before inserting users (foreign key requirement)
+                $db->prepare("
+                    INSERT INTO mrc_rooms (room_name, last_activity)
+                    VALUES (:room, CURRENT_TIMESTAMP)
+                    ON CONFLICT (room_name) DO UPDATE SET last_activity = CURRENT_TIMESTAMP
+                ")->execute(['room' => $room]);
+                // Replace current user list for this room
+                $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room");
+                $stmt->execute(['room' => $room]);
+                $insertStmt = $db->prepare("
                     INSERT INTO mrc_users (username, bbs_name, room_name, last_seen)
-                    VALUES (:username, :bbs_name, :room, CURRENT_TIMESTAMP)
+                    VALUES (:username, '', :room, CURRENT_TIMESTAMP)
                     ON CONFLICT (username, bbs_name, room_name) DO UPDATE
                     SET last_seen = CURRENT_TIMESTAMP
                 ");
-                $stmt->execute(['username' => $user, 'bbs_name' => '', 'room' => $room]);
-            } elseif ($action === 'PART') {
-                // Remove user from room
-                $stmt = $db->prepare("
-                    DELETE FROM mrc_users WHERE username = :username AND room_name = :room
-                ");
-                $stmt->execute(['username' => $user, 'room' => $room]);
+                foreach ($users as $u) {
+                    $insertStmt->execute(['username' => trim($u), 'room' => $room]);
+                }
+                error_log("MRC: Room {$room} users: {$params}");
             }
             break;
 
         case 'NOTIFY':
-            // System notification
-            error_log("MRC: Server notification: " . $packet['f7']);
+            // System notification - Format: NOTIFY:message
+            error_log("MRC: Server notification: {$params}");
             break;
 
         case 'TERMINATE':
-            // Server terminating connection
-            error_log("MRC: Server terminating connection: " . $packet['f7']);
+            // Server requesting graceful shutdown - Format: TERMINATE:msg
+            error_log("MRC: Server terminate request: {$params}");
+            break;
+
+        case 'OLDVERSION':
+            // Server rejected our version - Format: OLDVERSION:minversion
+            error_log("MRC: Version rejected, server requires >= {$params}");
+            break;
+
+        default:
+            // If f4 is a username (not CLIENT/empty) this is a server-generated
+            // display notice directed at a specific user, not a command verb.
+            if (!empty($packet['f4']) && $packet['f4'] !== 'CLIENT') {
+                $clean = preg_replace('/\|[0-9]{2}/', '', $f7);
+                error_log("MRC: Server notice to {$packet['f4']}: {$clean}");
+            } else {
+                error_log("MRC: Unhandled server verb: {$verb} (f7={$f7})");
+            }
             break;
     }
 }
@@ -308,7 +359,7 @@ function joinDefaultRooms(MrcClient $client, MrcConfig $config): void
     $bbsName = $config->getBbsName();
 
     foreach ($rooms as $room) {
-        $client->joinRoom($room, 'SYSTEM');
+        $client->joinRoom($room, $bbsName);
         error_log("MRC: Joined room: {$room}");
     }
 }
@@ -371,9 +422,12 @@ try {
         });
     }
 
-    error_log("MRC: Daemon started (PID: " . getmypid() . ")");
+    $debugMode = isset($args['debug']);
+
+    error_log("MRC: Daemon started (PID: " . getmypid() . ")" . ($debugMode ? " [DEBUG MODE]" : ""));
 
     $client = new MrcClient($config);
+    $client->setDebug($debugMode);
     $lastReconnectAttempt = 0;
     $lastKeepalive = 0;
 
@@ -416,8 +470,8 @@ try {
         // Read incoming packets
         $packets = $client->readPackets();
         foreach ($packets as $packet) {
-            // Check for PING
-            if ($packet['f1'] === 'SERVER' && $packet['f2'] === 'PING') {
+            // Check for PING - command is in f7, not f2
+            if ($packet['f1'] === 'SERVER' && strtoupper($packet['f7']) === 'PING') {
                 $client->sendKeepalive();
                 $client->updateLastPing();
                 updateLastPing(time());

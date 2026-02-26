@@ -32,6 +32,17 @@ class MrcClient {
             this.refreshMessages();
         });
 
+        $('#join-room-btn').on('click', () => {
+            this.joinRoomFromInput();
+        });
+
+        $('#join-room-input').on('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.joinRoomFromInput();
+            }
+        });
+
         // Check connection status
         this.checkStatus();
 
@@ -133,6 +144,17 @@ class MrcClient {
     }
 
     /**
+     * Join room from the text input
+     */
+    joinRoomFromInput() {
+        const input = $('#join-room-input');
+        const roomName = input.val().trim();
+        if (!roomName) return;
+        input.val('');
+        this.joinRoom(roomName);
+    }
+
+    /**
      * Join a room
      */
     async joinRoom(roomName) {
@@ -141,7 +163,7 @@ class MrcClient {
                 url: '/api/webdoor/mrc/join',
                 method: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify({ room: roomName }),
+                data: JSON.stringify({ room: roomName, from_room: this.currentRoom || '' }),
                 dataType: 'json'
             });
 
@@ -163,6 +185,9 @@ class MrcClient {
                 $('#chat-messages').html(
                     '<div class="text-center text-muted py-3">Loading messages...</div>'
                 );
+
+                // Refresh room list so newly created rooms appear immediately
+                this.loadRooms();
 
                 // Start polling
                 this.startMessagesPolling();

@@ -4963,16 +4963,16 @@ SimpleRouter::group(['prefix' => '/api/webdoor/mrc'], function() {
             }
 
             $db = Database::getInstance()->getPdo();
+            $mrcConfig = \BinktermPHP\Mrc\MrcConfig::getInstance();
 
-            // Sanitize username
-            $username = str_replace(' ', '_', $user['username']);
-            $username = str_replace('~', '', $username);
-
-            // Sanitize room name
-            $room = str_replace(' ', '_', $room);
-            $room = str_replace('~', '', $room);
+            // Sanitize username and room names
+            $username = \BinktermPHP\Mrc\MrcClient::sanitizeName($user['username']);
+            $room     = \BinktermPHP\Mrc\MrcClient::sanitizeName($room);
+            $fromRoom = \BinktermPHP\Mrc\MrcClient::sanitizeName($input['from_room'] ?? '');
+            $bbsName  = \BinktermPHP\Mrc\MrcClient::sanitizeName($mrcConfig->getBbsName());
 
             // Queue NEWROOM command with high priority
+            // Format: user~bbs~fromroom~SERVER~msgext~toroom~NEWROOM:oldroom:newroom~
             $stmt = $db->prepare("
                 INSERT INTO mrc_outbound (field1, field2, field3, field4, field5, field6, field7, priority)
                 VALUES (:f1, :f2, :f3, :f4, :f5, :f6, :f7, :priority)
@@ -4980,12 +4980,12 @@ SimpleRouter::group(['prefix' => '/api/webdoor/mrc'], function() {
 
             $stmt->execute([
                 'f1' => $username,
-                'f2' => 'NEWROOM',
-                'f3' => '',
-                'f4' => '',
+                'f2' => $bbsName,
+                'f3' => $fromRoom,
+                'f4' => 'SERVER',
                 'f5' => '',
                 'f6' => $room,
-                'f7' => '',
+                'f7' => "NEWROOM:{$fromRoom}:{$room}",
                 'priority' => 10 // High priority
             ]);
 

@@ -37,10 +37,33 @@ class MrcClient
     private $lastPing = 0;
     private $receiveBuffer = '';
     private $connected = false;
+    private bool $debug = false;
 
     public function __construct(MrcConfig $config)
     {
         $this->config = $config;
+    }
+
+    /**
+     * Enable or disable protocol debug logging
+     *
+     * @param bool $debug
+     */
+    public function setDebug(bool $debug): void
+    {
+        $this->debug = $debug;
+    }
+
+    /**
+     * Log a debug message (only when debug mode is enabled)
+     *
+     * @param string $message
+     */
+    private function debugLog(string $message): void
+    {
+        if ($this->debug) {
+            error_log("MRC [DEBUG] " . $message);
+        }
     }
 
     /**
@@ -91,6 +114,7 @@ class MrcClient
 
             // Send handshake within 1 second
             $handshake = $this->config->getHandshakeString() . "\n";
+            $this->debugLog("SEND HANDSHAKE: " . rtrim($handshake));
             $written = fwrite($this->socket, $handshake);
 
             if ($written === false) {
@@ -119,8 +143,9 @@ class MrcClient
     public function disconnect(): void
     {
         if ($this->isConnected()) {
-            // Send SHUTDOWN command
-            $this->sendCommand('', 'SHUTDOWN');
+            $bbsName = self::sanitizeName($this->config->getBbsName());
+            // SHUTDOWN format: CLIENT~bbs~~SERVER~ALL~~SHUTDOWN~
+            $this->sendPacket('CLIENT', $bbsName, '', 'SERVER', 'ALL', '', 'SHUTDOWN');
 
             // Give it a moment to send
             usleep(100000); // 100ms
@@ -188,6 +213,8 @@ class MrcClient
         // Build packet: F1~F2~F3~F4~F5~F6~F7~\n
         $packet = implode('~', $fields) . "~\n";
 
+        $this->debugLog("SEND: " . rtrim($packet));
+
         // Send packet
         $written = @fwrite($this->socket, $packet);
 
@@ -229,6 +256,8 @@ class MrcClient
             return $packets;
         }
 
+        $this->debugLog("RECV RAW: " . json_encode($data));
+
         // Append to receive buffer
         $this->receiveBuffer .= $data;
 
@@ -267,13 +296,17 @@ class MrcClient
         // Split on tilde
         $parts = explode('~', $line);
 
-        // Valid packet has exactly 8 parts (7 fields + trailing ~)
-        if (count($parts) !== 8) {
-            error_log("MRC: Invalid packet format (expected 8 parts, got " . count($parts) . "): " . substr($line, 0, 100));
+        // Valid packet has 8 parts (7 fields + trailing ~).
+        // Some server error/notice responses omit the trailing ~ so accept 7 parts too.
+        $partCount = count($parts);
+        if ($partCount === 7) {
+            $parts[] = ''; // synthesize missing trailing empty field
+        } elseif ($partCount !== 8) {
+            error_log("MRC: Invalid packet format (expected 8 parts, got {$partCount}): " . substr($line, 0, 100));
             return null;
         }
 
-        return [
+        $packet = [
             'f1' => $parts[0], // FromUser or SERVER/CLIENT
             'f2' => $parts[1], // FromSite or command
             'f3' => $parts[2], // FromRoom
@@ -282,6 +315,14 @@ class MrcClient
             'f6' => $parts[5], // ToRoom
             'f7' => $parts[6]  // MessageBody
         ];
+
+        $this->debugLog(sprintf(
+            "RECV: f1=%s f2=%s f3=%s f4=%s f5=%s f6=%s f7=%s",
+            $packet['f1'], $packet['f2'], $packet['f3'],
+            $packet['f4'], $packet['f5'], $packet['f6'], $packet['f7']
+        ));
+
+        return $packet;
     }
 
     /**
@@ -350,7 +391,11 @@ class MrcClient
     public function sendKeepalive(): bool
     {
         $this->lastPing = time();
-        return $this->sendCommand('', 'IMALIVE');
+        $bbsName = self::sanitizeName($this->config->getBbsName());
+        $pid = (string)getmypid();
+
+        // IMALIVE format: CLIENT~bbs~pid~SERVER~msgext~~IMALIVE:bbsname~
+        return $this->sendPacket('CLIENT', $bbsName, $pid, 'SERVER', '', '', "IMALIVE:{$bbsName}");
     }
 
     /**
@@ -375,13 +420,15 @@ class MrcClient
      * @param string $username Username
      * @return bool
      */
-    public function joinRoom(string $room, string $username): bool
+    public function joinRoom(string $room, string $username, string $fromRoom = ''): bool
     {
         $room = self::sanitizeName($room);
         $username = self::sanitizeName($username);
+        $bbsName = self::sanitizeName($this->config->getBbsName());
+        $fromRoom = self::sanitizeName($fromRoom);
 
-        // NEWROOM command format: username~NEWROOM~~~~room~
-        return $this->sendPacket($username, 'NEWROOM', '', '', '', $room, '');
+        // NEWROOM format: user~bbs~fromroom~SERVER~msgext~toroom~NEWROOM:oldroom:newroom~
+        return $this->sendPacket($username, $bbsName, $fromRoom, 'SERVER', '', $room, "NEWROOM:{$fromRoom}:{$room}");
     }
 
     /**

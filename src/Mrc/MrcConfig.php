@@ -82,7 +82,7 @@ class MrcConfig
             ],
             'bbs' => [
                 'name' => 'BinktermPHP BBS',
-                'platform' => 'BINKTERMPHP/Linux64/1.0.0',
+                'platform' => 'BINKTERMPHP/Linux64/1.3.0',
                 'sysop' => 'Sysop'
             ],
             'connection' => [
@@ -217,7 +217,7 @@ class MrcConfig
      */
     public function getPlatformInfo(): string
     {
-        return $this->config['bbs']['platform'] ?? 'BINKTERMPHP/Linux64/1.0.0';
+        return $this->config['bbs']['platform'] ?? 'BINKTERMPHP/Linux64/1.3.0';
     }
 
     /**

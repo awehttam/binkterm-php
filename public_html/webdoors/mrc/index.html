@@ -14,9 +14,16 @@
             <!-- Left Sidebar: Room List -->
             <div class="col-md-2 border-end bg-light">
                 <div class="p-3">
-                    <h5 class="mb-3">
+                    <h5 class="mb-2">
                         <i class="bi bi-door-open"></i> Rooms
                     </h5>
+                    <div class="input-group input-group-sm mb-3">
+                        <input type="text" class="form-control" id="join-room-input"
+                               placeholder="Room name..." autocomplete="off" maxlength="20">
+                        <button class="btn btn-outline-primary" id="join-room-btn" type="button" title="Join or create room">
+                            <i class="bi bi-arrow-right-circle"></i>
+                        </button>
+                    </div>
                     <div id="room-list" class="list-group">
                         <div class="text-center text-muted py-3">
                             <div class="spinner-border spinner-border-sm" role="status">
