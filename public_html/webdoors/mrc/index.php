@@ -173,6 +173,33 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
     </script>
     <!-- MRC Client JS -->
     <script src="mrc.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const modalEl = document.getElementById('mrcWarningModal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
+                modal.show();
+            }
+        });
+    </script>
+
+    <!-- MRC Warning Modal -->
+    <div class="modal fade" id="mrcWarningModal" tabindex="-1" aria-labelledby="mrcWarningModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mrcWarningModalLabel">MRC Under Development</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    MRC is currently under development and in testing, and may not be suitable for production use due to bugs or other issues.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">I Understand</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- MOTD Modal -->
     <div class="modal fade" id="motdModal" tabindex="-1" aria-labelledby="motdModalLabel" aria-hidden="true">
