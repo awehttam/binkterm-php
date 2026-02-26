@@ -86,7 +86,7 @@ class AppearanceConfig
                 'about_page_enabled' => false,
             ],
             'message_reader' => [
-                'scrollable_body' => false,
+                'scrollable_body' => true,
             ],
         ];
     }

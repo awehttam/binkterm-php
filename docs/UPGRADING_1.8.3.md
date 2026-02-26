@@ -5,7 +5,7 @@ Make sure you've made a backup of your database and files before upgrading.
 ## Summary of Changes
 
 **New Features**
-- Message Reader: optional scrollable body — message header stays fixed while body scrolls (Admin → Appearance → Message Reader)
+- Message Reader: scrollable body enabled by default — message header stays fixed while body scrolls; configurable in Admin → Appearance → Message Reader
 - Gemini Browser: built-in start page (`about:home`) with curated Geminispace links
 - Gemini Capsule Hosting: users can publish personal Gemini capsules at `gemini://host/home/username/`
 - Gemini Capsule: echo areas can be exposed as read-only public Gemini content
@@ -187,7 +187,7 @@ A new **Message Reader** tab in Admin → Appearance adds a **Scrollable message
 
 When enabled, the message header (From, To, Area, Date, Subject) remains fixed at the top of the message modal while the body scrolls independently. This makes it easier to refer back to header information while reading long messages.
 
-The default is off, preserving the existing behaviour where the entire modal scrolls together.
+The default is on. To revert to the previous behaviour (entire modal scrolls together), disable the toggle in Admin → Appearance → Message Reader.
 
 No database migration is required.
 
