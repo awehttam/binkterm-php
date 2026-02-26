@@ -5,6 +5,7 @@ Make sure you've made a backup of your database and files before upgrading.
 ## Summary of Changes
 
 **New Features**
+- MRC (Multi Relay Chat): experimental WebDoor for real-time multi-BBS chat via the MRC network (see below)
 - Message Reader: scrollable body enabled by default — message header stays fixed while body scrolls; configurable in Admin → Appearance → Message Reader
 - Gemini Browser: built-in start page (`about:home`) with curated Geminispace links
 - Gemini Capsule Hosting: users can publish personal Gemini capsules at `gemini://host/home/username/`
@@ -25,6 +26,42 @@ Make sure you've made a backup of your database and files before upgrading.
 - Pipe codes: Mystic BBS letter-based control and information codes (e.g. `|AO`, `|PO`) now stripped correctly; Mystic hex colour codes (`|0A`, `|1F`, etc.) now parsed correctly; `|PI` and `|CD` rendered
 
 ## New Features
+
+### MRC Chat (Experimental)
+
+> **This feature is experimental and preliminary.** Protocol behaviour, configuration, and database schema may change in future releases. It has been tested against the pre-production MRC server but should be considered a work in progress.
+
+MRC (Multi Relay Chat) is a real-time multi-BBS chat network. BinktermPHP now includes a WebDoor-based MRC client that allows logged-in users to join rooms and chat with users on other connected BBSes.
+
+**What works:**
+- Persistent daemon (`scripts/mrc_daemon.php`) maintains the BBS connection to the MRC server
+- Users join rooms and send/receive messages via the MRC WebDoor (`/door/mrc`)
+- Pipe code colours in incoming messages are rendered in the web UI
+- User presence: join/part announcements, user list per room, LOGOFF on session expiry
+- Room list with topic and user count
+
+**Known limitations:**
+- Private messages (PMs) are received but cannot be sent from the web UI yet
+- IMALIVE and IAMHERE keepalives are working; user sessions are maintained and cleaned up correctly
+
+**Setup (optional):**
+
+1. Enable MRC in `config/mrc.json`:
+   ```json
+   {
+       "enabled": true,
+       "server": { "host": "mrc.bottomlessabyss.net", "port": 5000 }
+   }
+   ```
+2. Enable the **MRC Chat** WebDoor in Admin → WebDoors.
+3. Start the daemon:
+   ```bash
+   php scripts/mrc_daemon.php --daemon
+   ```
+
+This requires the migrations `v1.10.13` and `v1.10.13.1` — run `php scripts/setup.php` to apply them.
+
+---
 
 ### Gemini Browser: Built-in Start Page
 
