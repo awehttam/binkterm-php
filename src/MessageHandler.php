@@ -754,7 +754,16 @@ class MessageHandler
 
         // Attachment requires crashmail (direct delivery to ensure the file arrives with the message)
         if ($attachment !== null && !$crashmail) {
+            @unlink($attachment['file_path'] ?? '');
             throw new \Exception('File attachments require crashmail (direct delivery) to be enabled.');
+        }
+
+        // Attachments can only be delivered to remote nodes via crashmail.
+        // All users on this system share the same FTN address, so local delivery
+        // (self or any same-system user) is not supported for attachments.
+        if ($attachment !== null && $toAddress === $originAddress) {
+            @unlink($attachment['file_path'] ?? '');
+            throw new \Exception('File attachments can only be sent to remote nodes. Sending to a local address (including yourself or other users on this system) is not supported.');
         }
 
         // For file attachments, the FidoNet convention is that the subject IS the filename
