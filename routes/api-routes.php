@@ -3032,6 +3032,62 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
+    /**
+     * Upload a file for attachment to an outbound netmail.
+     * Returns a token used to reference the file when sending.
+     */
+    SimpleRouter::post('/netmail/attachment/upload', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (empty($_FILES['file'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'No file uploaded']);
+            return;
+        }
+
+        $file = $_FILES['file'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Upload error: ' . $file['error']]);
+            return;
+        }
+
+        $maxBytes = (int)\BinktermPHP\Config::env('NETMAIL_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024);
+        if ($file['size'] > $maxBytes) {
+            http_response_code(400);
+            echo json_encode(['error' => 'File exceeds maximum size of ' . round($maxBytes / 1048576) . ' MB']);
+            return;
+        }
+
+        // Sanitise filename: keep only safe characters
+        $originalName = basename($file['name']);
+        $safeName = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $originalName);
+        if ($safeName === '' || $safeName === '.') {
+            $safeName = 'attachment';
+        }
+
+        $token = bin2hex(random_bytes(16));
+        $destDir = __DIR__ . '/../data/netmail_attachments';
+        if (!is_dir($destDir)) {
+            mkdir($destDir, 0777, true);
+        }
+        $destPath = $destDir . '/' . $token . '_' . $safeName;
+
+        if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to store uploaded file']);
+            return;
+        }
+
+        echo json_encode([
+            'token'             => $token,
+            'original_filename' => $safeName,
+            'size'              => $file['size'],
+        ]);
+    });
+
     SimpleRouter::post('/messages/send', function() {
         $user = RouteHelper::requireAuth();
 
@@ -3050,6 +3106,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['to_address'] = $binkpConfig->getSystemAddress();
                 }
 
+                // Resolve attachment token if provided
+                $attachment = null;
+                $attachmentToken = $input['attachment_token'] ?? '';
+                if (!empty($attachmentToken) && preg_match('/^[0-9a-f]{32}$/', $attachmentToken)) {
+                    $attachDir = __DIR__ . '/../data/netmail_attachments';
+                    $matches = glob($attachDir . '/' . $attachmentToken . '_*');
+                    if (!empty($matches)) {
+                        $attachPath = $matches[0];
+                        $attachFilename = substr(basename($attachPath), 33); // strip token + underscore
+                        $attachment = ['file_path' => $attachPath, 'filename' => $attachFilename];
+                    }
+                }
+
                 $crashmailFlag = !empty($input['crashmail']);
                 $result = $handler->sendNetmail(
                     $user['user_id'],
@@ -3060,7 +3129,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     null, // fromName
                     $input['reply_to_id'] ?? null,
                     $crashmailFlag,
-                    $input['tagline'] ?? null
+                    $input['tagline'] ?? null,
+                    $attachment
                 );
             } elseif ($type === 'echomail') {
                 $foo=explode("@", $input['echoarea']);

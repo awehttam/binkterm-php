@@ -76,6 +76,14 @@
                             </div>
                         </div>
                     </div>
+                    <div id="attachmentSection" class="mb-3" style="display:none">
+                        <label class="form-label">
+                            <i class="fas fa-paperclip me-1"></i>Attach File
+                            <small class="text-muted">(requires crashmail; subject will be set to filename)</small>
+                        </label>
+                        <input type="file" id="attachmentFile" class="form-control">
+                        <div id="attachmentName" class="form-text"></div>
+                    </div>
                     {% endif %}
                 {% else %}
                     <div class="row mb-3">
@@ -257,6 +265,29 @@ $(document).ready(function() {
         $('#toAddress').on('blur', function() {
             validateFidonetAddressField(this);
         });
+
+        // Show attachment section for netmail
+        $('#attachmentSection').show();
+
+        // Handle file selection
+        $('#attachmentFile').on('change', function() {
+            const file = this.files[0];
+            if (file) {
+                // Set subject to filename and lock it
+                $('#subject').val(file.name).prop('readonly', true);
+                // Force crashmail on and disable the checkbox
+                $('#crashmail').prop('checked', true).prop('disabled', true);
+                const size = file.size < 1048576
+                    ? (file.size / 1024).toFixed(1) + ' KB'
+                    : (file.size / 1048576).toFixed(1) + ' MB';
+                $('#attachmentName').text('Attached: ' + file.name + ' (' + size + ')');
+            } else {
+                // Restore subject and re-enable crashmail
+                $('#subject').prop('readonly', false);
+                $('#crashmail').prop('disabled', false);
+                $('#attachmentName').text('');
+            }
+        });
     }
 
     // Auto-save draft every 2 minutes
@@ -386,13 +417,13 @@ function validateFidonetAddressField(field) {
 function sendMessage() {
     const messageType = $('#messageType').val();
     const form = $('#composeForm');
-    
+
     // Validate form
     if (!form[0].checkValidity()) {
         form[0].reportValidity();
         return;
     }
-    
+
     // Additional validation for netmail
     if (messageType === 'netmail') {
         if (!validateFidonetAddressField('#toAddress')) {
@@ -418,7 +449,7 @@ function sendMessage() {
         tagline: $('#taglineSelect').val(),
         cross_post_areas: crossPostAreas
     };
-    
+
     // Show sending status
     $('#sendStatus').show().html(`
         <div class="alert alert-info">
@@ -426,47 +457,85 @@ function sendMessage() {
             Sending ${messageType}...
         </div>
     `);
-    
+
     // Disable form
     form.find('input, textarea, select, button').prop('disabled', true);
-    
-    $.ajax({
-        url: `/api/messages/send`,
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify(formData),
-        success: function(response) {
-            const areasPosted = response.areas_posted || 1;
-            const crossPostMsg = areasPosted > 1 ? ` (posted to ${areasPosted} areas)` : '';
-            $('#sendStatus').html(`
-                <div class="alert alert-success">
-                    <i class="fas fa-check me-2"></i>
-                    ${messageType.charAt(0).toUpperCase() + messageType.slice(1)} sent successfully!${crossPostMsg}
-                </div>
-            `);
 
-            // Delete draft after successful send if we loaded from a draft
-            if (window.currentDraftId) {
-                deleteDraftAfterSend(window.currentDraftId);
-            }
+    // Upload attachment first if one is selected (netmail only)
+    const attachFile = document.getElementById('attachmentFile');
+    const hasAttachment = messageType === 'netmail' && attachFile && attachFile.files.length > 0;
 
-            setTimeout(function() {
-                window.location.href = `/${messageType}`;
-            }, 2000);
-        },
-        error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : `Failed to send ${messageType}`;
-            $('#sendStatus').html(`
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    ${escapeHtml(error)}
-                </div>
-            `);
-            
-            // Re-enable form
-            form.find('input, textarea, select, button').prop('disabled', false);
+    function doSend(attachmentToken) {
+        if (attachmentToken) {
+            formData.attachment_token = attachmentToken;
         }
-    });
+
+        $.ajax({
+            url: `/api/messages/send`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                const areasPosted = response.areas_posted || 1;
+                const crossPostMsg = areasPosted > 1 ? ` (posted to ${areasPosted} areas)` : '';
+                $('#sendStatus').html(`
+                    <div class="alert alert-success">
+                        <i class="fas fa-check me-2"></i>
+                        ${messageType.charAt(0).toUpperCase() + messageType.slice(1)} sent successfully!${crossPostMsg}
+                    </div>
+                `);
+
+                // Delete draft after successful send if we loaded from a draft
+                if (window.currentDraftId) {
+                    deleteDraftAfterSend(window.currentDraftId);
+                }
+
+                setTimeout(function() {
+                    window.location.href = `/${messageType}`;
+                }, 2000);
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON ? xhr.responseJSON.error : `Failed to send ${messageType}`;
+                $('#sendStatus').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ${escapeHtml(error)}
+                    </div>
+                `);
+
+                // Re-enable form
+                form.find('input, textarea, select, button').prop('disabled', false);
+            }
+        });
+    } // end doSend
+
+    if (hasAttachment) {
+        // Upload the file first, then send the message with the returned token
+        const uploadData = new FormData();
+        uploadData.append('file', attachFile.files[0]);
+        $.ajax({
+            url: '/api/netmail/attachment/upload',
+            method: 'POST',
+            data: uploadData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                doSend(response.token);
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to upload attachment';
+                $('#sendStatus').html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ${escapeHtml(error)}
+                    </div>
+                `);
+                form.find('input, textarea, select, button').prop('disabled', false);
+            }
+        });
+    } else {
+        doSend(null);
+    }
 }
 
 

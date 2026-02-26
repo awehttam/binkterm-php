@@ -237,7 +237,7 @@ class CrashmailService
             SELECT cq.*,
                    n.from_address, n.to_address, n.from_name, n.to_name,
                    n.subject, n.message_text, n.date_written, n.attributes,
-                   n.message_id, n.kludge_lines
+                   n.message_id, n.kludge_lines, n.outbound_attachment_path
             FROM crashmail_queue cq
             JOIN netmail n ON cq.netmail_id = n.id
             WHERE cq.status IN ('pending', 'attempting')
@@ -365,8 +365,21 @@ class CrashmailService
                 throw new \Exception("No password for destination and insecure delivery disabled");
             }
 
+            // Build attachment info if present
+            $attachment = null;
+            if (!empty($queueItem['outbound_attachment_path'])) {
+                $attachPath = $queueItem['outbound_attachment_path'];
+                // Filename stored in the path: strip the token prefix (32 hex chars + underscore)
+                $attachFilename = preg_replace('/^[0-9a-f]{32}_/', '', basename($attachPath));
+                $attachment = [
+                    'file_path'  => $attachPath,
+                    'filename'   => $attachFilename,
+                    'netmail_id' => $queueItem['netmail_id'],
+                ];
+            }
+
             // Perform the delivery using BinkpSession
-            $deliveryResult = $this->performCrashDelivery($socket, $tempPacket, $destAddress, $password);
+            $deliveryResult = $this->performCrashDelivery($socket, $tempPacket, $destAddress, $password, $attachment);
             $success = $deliveryResult['success'];
 
             $sessionLogger->incrementStat('messages_sent', $success ? 1 : 0);
@@ -433,9 +446,10 @@ class CrashmailService
      * @param string $packetPath Path to the packet file to send
      * @param string $destAddress Destination FTN address
      * @param string $password Session password (empty for insecure)
+     * @param array|null $attachment Optional attachment ['file_path' => ..., 'filename' => ..., 'netmail_id' => ...]
      * @return array ['success' => bool, 'auth_method' => string]
      */
-    private function performCrashDelivery($socket, string $packetPath, string $destAddress, string $password): array
+    private function performCrashDelivery($socket, string $packetPath, string $destAddress, string $password, ?array $attachment = null): array
     {
         error_log("[CRASHMAIL] Starting binkp session for crash delivery to {$destAddress}");
 
@@ -452,14 +466,36 @@ class CrashmailService
             // Get the auth method used
             $authMethod = $session->getAuthMethod();
 
-            // Send the packet file directly
+            // Send the packet file (contains the message with FILE_ATTACH flag set)
             $this->sendPacketFile($socket, $packetPath);
+
+            // Send the attachment file if present
+            if ($attachment !== null && !empty($attachment['file_path']) && file_exists($attachment['file_path'])) {
+                error_log("[CRASHMAIL] Sending attachment: {$attachment['filename']}");
+                $this->sendAttachmentFile($socket, $attachment['file_path'], $attachment['filename']);
+            }
 
             // Send EOB to indicate we're done sending
             $this->sendEOB($socket);
 
-            // Wait for M_GOT confirmation and EOB from remote
+            // Wait for M_GOT confirmation for the packet
             $confirmed = $this->waitForConfirmation($socket, basename($packetPath));
+
+            // If we sent an attachment, also wait for its M_GOT
+            if ($confirmed && $attachment !== null && !empty($attachment['file_path']) && file_exists($attachment['file_path'])) {
+                $attachConfirmed = $this->waitForGot($socket, $attachment['filename']);
+                if ($attachConfirmed) {
+                    error_log("[CRASHMAIL] Attachment delivery confirmed: {$attachment['filename']}");
+                    // Clear attachment path from DB and remove temp file
+                    if (!empty($attachment['netmail_id'])) {
+                        $clrStmt = $this->db->prepare("UPDATE netmail SET outbound_attachment_path = NULL WHERE id = ?");
+                        $clrStmt->execute([$attachment['netmail_id']]);
+                    }
+                    @unlink($attachment['file_path']);
+                } else {
+                    error_log("[CRASHMAIL] No M_GOT received for attachment: {$attachment['filename']}");
+                }
+            }
 
             if ($confirmed) {
                 error_log("[CRASHMAIL] Delivery confirmed by remote");
@@ -516,6 +552,88 @@ class CrashmailService
         fclose($handle);
 
         error_log("[CRASHMAIL] Sent {$bytesSent} bytes of packet data");
+    }
+
+    /**
+     * Send an attachment file over binkp using M_FILE frames.
+     *
+     * @param resource $socket Connected socket
+     * @param string $filePath Full path to file on disk
+     * @param string $filename Filename to advertise to the remote
+     */
+    private function sendAttachmentFile($socket, string $filePath, string $filename): void
+    {
+        $fileSize  = filesize($filePath);
+        $timestamp = filemtime($filePath);
+
+        $fileInfo = "{$filename} {$fileSize} {$timestamp} 0";
+        $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createCommand(
+            \BinktermPHP\Binkp\Protocol\BinkpFrame::M_FILE,
+            $fileInfo
+        );
+        $frame->writeToSocket($socket);
+        error_log("[CRASHMAIL] Sent M_FILE for attachment: {$fileInfo}");
+
+        $handle = fopen($filePath, 'rb');
+        if (!$handle) {
+            throw new \Exception("Cannot open attachment file: {$filePath}");
+        }
+
+        $bytesSent = 0;
+        while (!feof($handle)) {
+            $data = fread($handle, 8192);
+            if ($data === false || strlen($data) === 0) {
+                break;
+            }
+            $dataFrame = \BinktermPHP\Binkp\Protocol\BinkpFrame::createData($data);
+            $dataFrame->writeToSocket($socket);
+            $bytesSent += strlen($data);
+        }
+        fclose($handle);
+
+        error_log("[CRASHMAIL] Sent {$bytesSent} bytes of attachment data");
+    }
+
+    /**
+     * Wait for an M_GOT frame for a specific filename.
+     * Used after sending an attachment to confirm the remote accepted it.
+     *
+     * @param resource $socket Connected socket
+     * @param string $filename Expected filename in M_GOT
+     * @return bool True if M_GOT received for this file within timeout
+     */
+    private function waitForGot($socket, string $filename): bool
+    {
+        $timeout = time() + 30;
+
+        while (time() < $timeout) {
+            $frame = \BinktermPHP\Binkp\Protocol\BinkpFrame::parseFromSocket($socket, true);
+            if (!$frame) {
+                usleep(100000);
+                continue;
+            }
+
+            if ($frame->isCommand()) {
+                switch ($frame->getCommand()) {
+                    case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_GOT:
+                        $gotData = $frame->getData();
+                        error_log("[CRASHMAIL] Received M_GOT (attachment wait): {$gotData}");
+                        if (strpos($gotData, $filename) !== false) {
+                            return true;
+                        }
+                        break;
+
+                    case \BinktermPHP\Binkp\Protocol\BinkpFrame::M_ERR:
+                        error_log("[CRASHMAIL] Received M_ERR while waiting for attachment GOT: " . $frame->getData());
+                        return false;
+
+                    default:
+                        error_log("[CRASHMAIL] Received command while waiting for attachment GOT: " . $frame->getCommand());
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

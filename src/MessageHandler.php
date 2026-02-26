@@ -686,7 +686,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -752,6 +752,16 @@ class MessageHandler
             }
         }
 
+        // Attachment requires crashmail (direct delivery to ensure the file arrives with the message)
+        if ($attachment !== null && !$crashmail) {
+            throw new \Exception('File attachments require crashmail (direct delivery) to be enabled.');
+        }
+
+        // For file attachments, the FidoNet convention is that the subject IS the filename
+        if ($attachment !== null) {
+            $subject = $attachment['filename'];
+        }
+
         // For crashmail, verify destination can be resolved via nodelist before accepting
         if ($crashmail && $toAddress !== $originAddress) {
             $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
@@ -793,6 +803,18 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
+
+            // Store attachment path and set FILE_ATTACH attribute when a file is attached
+            if ($attachment !== null) {
+                $fileAttachAttr = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
+                $attStmt = $this->db->prepare("
+                    UPDATE netmail SET outbound_attachment_path = ?, attributes = ?
+                    WHERE id = ?
+                ");
+                $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+            }
 
             if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
                 $charged = UserCredit::debit(

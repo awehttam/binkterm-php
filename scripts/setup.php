@@ -64,7 +64,8 @@ class SetupManager
         $filesDirs = [
             $baseDir . '/files',
             $baseDir . '/files/.quarantine',
-            $baseDir . '/files/private'
+            $baseDir . '/files/private',
+            $baseDir . '/netmail_attachments'
         ];
 
         foreach ($filesDirs as $dir) {

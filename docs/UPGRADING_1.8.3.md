@@ -15,6 +15,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Address Book: "Always use crashmail" per-contact option
 - File Share Links: share individual files via public `/shared/file/AREA/FILENAME` URLs
 - Crashmail: binkp_zone DNS fallback — nodes not in the nodelist can be reached via a DNS zone (e.g. binkp.net)
+- Netmail: file attachment sending via crashmail — attach a file to an outbound netmail for direct delivery in the same binkp session
 
 **Bug Fixes**
 - MarkdownRenderer: fixed link rendering across soft line breaks; added support for root-relative URLs
@@ -154,6 +155,24 @@ A **Share** button appears in the file details modal. Clicking it opens a share 
 The share page displays the filename, size, upload date, area tag, description, and virus scan status. Anonymous visitors see a login/register prompt in place of the download button. Logged-in users get a download button and a link to browse the file area.
 
 This requires the migration `v1.10.11` — run `php scripts/setup.php` to apply it.
+
+### Netmail: File Attachment Sending
+
+Outbound netmail can now carry a file attachment delivered via crashmail in the same binkp session.
+
+**How it works:**
+
+1. On the compose form, when **Netmail** is selected and crashmail is available, an **Attach File** section appears below the crashmail checkbox.
+2. Selecting a file locks the subject field to the filename (per FidoNet convention — the subject of a file-attach netmail *is* the filename) and forces crashmail on.
+3. The file is uploaded to the server immediately (`POST /api/netmail/attachment/upload`), and the returned token is included when the message is submitted.
+4. The crash daemon sends the `.pkt` (with the `FILE_ATTACH` attribute set) followed immediately by the file itself in the same binkp session. After receiving `M_GOT` for the file, the server removes the temporary copy.
+
+**Limitations:**
+
+- Crashmail delivery only — hub/poll routing for file-attach messages is not supported.
+- Maximum upload size is 10 MB by default. Override with `NETMAIL_ATTACHMENT_MAX_SIZE` (bytes) in `.env`.
+
+**Migration:** Requires `v1.10.12` — run `php scripts/setup.php` to apply. Setup also creates the `data/netmail_attachments/` staging directory.
 
 ### Crashmail: binkp_zone DNS Fallback
 
