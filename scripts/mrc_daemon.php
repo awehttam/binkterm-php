@@ -322,7 +322,11 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             // Format: USERLIST:user1,user2,...  f6=room
             $room = $packet['f6'];
             if ($room && $params !== '') {
-                $users = array_filter(explode(',', $params));
+                $users = array_values(array_filter(array_map('trim', explode(',', $params)), 'strlen'));
+                if (count($users) === 0) {
+                    error_log("MRC: USERLIST empty/invalid for room {$room} (raw={$params})");
+                    break;
+                }
                 // Ensure room exists before inserting users (foreign key requirement)
                 $db->prepare("
                     INSERT INTO mrc_rooms (room_name, last_activity)
@@ -339,14 +343,14 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     SET last_seen = CURRENT_TIMESTAMP
                 ");
                 foreach ($users as $u) {
-                    $trimmed = trim($u);
+                    $trimmed = $u;
                     $insertStmt->execute([
                         'username' => $trimmed,
                         'bbs_name' => 'unknown',
                         'room' => $room
                     ]);
                 }
-                error_log("MRC: Room {$room} users: {$params}");
+                error_log("MRC: Room {$room} users (" . count($users) . "): {$params}");
             }
             break;
 
