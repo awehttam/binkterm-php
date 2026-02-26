@@ -333,22 +333,32 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     VALUES (:room, CURRENT_TIMESTAMP)
                     ON CONFLICT (room_name) DO UPDATE SET last_activity = CURRENT_TIMESTAMP
                 ")->execute(['room' => $room]);
-                // Replace foreign user list for this room — preserve local (webdoor) users
-                $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false");
-                $stmt->execute(['room' => $room]);
-                $insertStmt = $db->prepare("
-                    INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
-                    VALUES (:username, :bbs_name, :room, false, CURRENT_TIMESTAMP)
-                    ON CONFLICT (username, bbs_name, room_name) DO UPDATE
-                    SET last_seen = CURRENT_TIMESTAMP
-                ");
-                foreach ($users as $u) {
-                    $trimmed = $u;
-                    $insertStmt->execute([
-                        'username' => $trimmed,
-                        'bbs_name' => 'unknown',
-                        'room' => $room
-                    ]);
+                // Replace foreign user list for this room — preserve local (webdoor) users.
+                // Wrap in a transaction to avoid empty-list flashes during polling.
+                $db->beginTransaction();
+                try {
+                    $stmt = $db->prepare("DELETE FROM mrc_users WHERE room_name = :room AND is_local = false");
+                    $stmt->execute(['room' => $room]);
+                    $insertStmt = $db->prepare("
+                        INSERT INTO mrc_users (username, bbs_name, room_name, is_local, last_seen)
+                        VALUES (:username, :bbs_name, :room, false, CURRENT_TIMESTAMP)
+                        ON CONFLICT (username, bbs_name, room_name) DO UPDATE
+                        SET last_seen = CURRENT_TIMESTAMP
+                    ");
+                    foreach ($users as $u) {
+                        $trimmed = $u;
+                        $insertStmt->execute([
+                            'username' => $trimmed,
+                            'bbs_name' => 'unknown',
+                            'room' => $room
+                        ]);
+                    }
+                    $db->commit();
+                } catch (Throwable $e) {
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
+                    error_log("MRC: USERLIST update failed for room {$room}: " . $e->getMessage());
                 }
                 error_log("MRC: Room {$room} users (" . count($users) . "): {$params}");
             }
