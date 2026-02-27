@@ -1445,3 +1445,23 @@ tbody, td, tfoot, th, thead, tr {
     margin: 0 -1rem 1rem;
     padding: 1rem 1rem 0.75rem;
 }
+
+/* Markdown Editor */
+.md-editor-wrapper {
+    border-color: var(--term-amber-dark);
+}
+
+.md-editor-toolbar {
+    background-color: var(--term-black-light);
+    border-bottom-color: var(--term-amber-dark);
+}
+
+.md-editor-textarea {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+}
+
+.md-preview-pane {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+}

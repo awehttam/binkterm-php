@@ -120,13 +120,60 @@
                            value="{{ reply_subject }}" required>
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-3" id="messageTextGroup">
                     <label for="messageText" class="form-label">Message *</label>
                     <textarea class="form-control" id="messageText" name="message_text" 
                               rows="15" required>{{ reply_text }}</textarea>
                     <div class="form-text">
                         Use plain text. Fidonet standard formatting applies.
                     </div>
+                </div>
+
+                <!-- Markdown Editor (shown when "Send as Markdown" is checked) -->
+                <div class="mb-3" id="markdownEditorContainer" style="display: none;">
+                    <label class="form-label">Message * <small class="text-muted ms-2"><i class="fab fa-markdown me-1"></i>Markdown mode</small></label>
+                    <div class="md-editor-wrapper">
+                        <div class="md-editor-toolbar" role="toolbar" aria-label="Markdown formatting">
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('bold')" title="Bold (Ctrl+B)"><strong>B</strong></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('italic')" title="Italic (Ctrl+I)"><em>I</em></button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h1')" title="Heading 1">H1</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h2')" title="Heading 2">H2</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h3')" title="Heading 3">H3</button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('code')" title="Inline code"><i class="fas fa-code"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('codeblock')" title="Code block"><i class="fas fa-file-code"></i></button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('link')" title="Link (Ctrl+K)"><i class="fas fa-link"></i></button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ul')" title="Unordered list"><i class="fas fa-list-ul"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ol')" title="Ordered list"><i class="fas fa-list-ol"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('quote')" title="Blockquote"><i class="fas fa-quote-left"></i></button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('hr')" title="Horizontal rule">&#8212;</button>
+                            </div>
+                            <div class="btn-group btn-group-sm ms-auto">
+                                <button type="button" class="btn btn-secondary" id="mdEditBtn" onclick="mdSetMode('edit')" title="Edit mode">Edit</button>
+                                <button type="button" class="btn btn-outline-secondary" id="mdPreviewBtn" onclick="mdSetMode('preview')" title="Preview rendered output">Preview</button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="showMarkdownHelp()" title="Markdown quick reference"><i class="fas fa-question-circle"></i></button>
+                            </div>
+                        </div>
+                        <div class="md-editor-body">
+                            <textarea class="md-editor-textarea" id="mdEditorText" spellcheck="true" placeholder="Write your markdown message here..."></textarea>
+                            <div class="md-preview-pane" id="mdPreviewPane" style="display: none;">
+                                <span class="text-muted small fst-italic">Click Preview to see the rendered output.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text"><i class="fab fa-markdown me-1"></i>Markdown formatting active. <a href="#" onclick="showMarkdownHelp(); return false;">Quick reference</a></div>
                 </div>
 
                 <div class="mb-3" id="markdownSection" style="display: none;">
@@ -240,6 +287,8 @@ const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
 let allEchoareas = [];
 let markdownSupportTimer = null;
 let markdownPrefilled = false;
+let mdEditorActive = false;
+let mdPreviewTimer = null;
 const replyIsMarkdown = {{ reply_is_markdown ? 'true' : 'false' }};
 
 function updateMarkdownSection(allowed) {
@@ -249,8 +298,12 @@ function updateMarkdownSection(allowed) {
         if (replyIsMarkdown && !markdownPrefilled) {
             $('#sendMarkdown').prop('checked', true);
             markdownPrefilled = true;
+            initMarkdownEditor();
         }
     } else {
+        if (mdEditorActive) {
+            destroyMarkdownEditor();
+        }
         $('#sendMarkdown').prop('checked', false);
         section.hide();
     }
@@ -289,6 +342,328 @@ function refreshMarkdownSupportForNetmail() {
     fetchMarkdownSupport({ address: address });
 }
 
+/**
+ * Initialize the markdown split-pane editor, replacing the plain textarea.
+ */
+function initMarkdownEditor() {
+    if (mdEditorActive) return;
+    mdEditorActive = true;
+
+    // Apply critical layout styles inline so they work regardless of CSS cache state
+    const editorHeight = $('#messageText').outerHeight() || 300;
+    $('#mdEditorText').css({
+        display: 'block',
+        width: '100%',
+        height: editorHeight + 'px',
+        resize: 'none',
+        boxSizing: 'border-box'
+    });
+    $('#mdPreviewPane').css({
+        display: 'none',  // mdSetMode('edit') will manage visibility
+        width: '100%',
+        height: editorHeight + 'px',
+        overflowY: 'auto',
+        boxSizing: 'border-box'
+    });
+
+    // Copy current plain textarea content into the editor
+    $('#mdEditorText').val($('#messageText').val());
+
+    // Start in edit mode
+    mdSetMode('edit');
+
+    // Swap visibility
+    $('#messageTextGroup').hide();
+    $('#markdownEditorContainer').show();
+
+    // Set up input handler (sync to hidden textarea only — preview updates on tab switch)
+    $('#mdEditorText').off('input.md').on('input.md', function() {
+        $('#messageText').val($(this).val());
+    });
+
+    // Keyboard shortcuts
+    $('#mdEditorText').off('keydown.md').on('keydown.md', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === 'b') { e.preventDefault(); mdAction('bold'); return; }
+            if (e.key === 'i') { e.preventDefault(); mdAction('italic'); return; }
+            if (e.key === 'k') { e.preventDefault(); mdAction('link'); return; }
+        }
+        // Tab key: insert 4 spaces
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const ta = this;
+            const s = ta.selectionStart;
+            const end = ta.selectionEnd;
+            ta.value = ta.value.substring(0, s) + '    ' + ta.value.substring(end);
+            ta.selectionStart = ta.selectionEnd = s + 4;
+            $('#messageText').val(ta.value);
+        }
+    });
+
+    $('#mdEditorText').trigger('focus');
+}
+
+/**
+ * Switch between Edit and Preview tabs in the markdown editor.
+ * @param {string} mode - 'edit' or 'preview'
+ */
+function mdSetMode(mode) {
+    if (mode === 'preview') {
+        $('#mdEditorText').hide();
+        $('#mdPreviewPane').show();
+        $('#mdEditBtn').removeClass('btn-secondary').addClass('btn-outline-secondary');
+        $('#mdPreviewBtn').removeClass('btn-outline-secondary').addClass('btn-secondary');
+        updateMarkdownPreview();
+    } else {
+        $('#mdPreviewPane').hide();
+        $('#mdEditorText').show();
+        $('#mdEditBtn').removeClass('btn-outline-secondary').addClass('btn-secondary');
+        $('#mdPreviewBtn').removeClass('btn-secondary').addClass('btn-outline-secondary');
+        $('#mdEditorText').trigger('focus');
+    }
+}
+
+/**
+ * Tear down the markdown editor and restore the plain textarea.
+ */
+function destroyMarkdownEditor() {
+    if (!mdEditorActive) return;
+
+    // Sync content back to the plain textarea
+    $('#messageText').val($('#mdEditorText').val());
+
+    // Remove event handlers
+    $('#mdEditorText').off('input.md keydown.md');
+
+    // Reset to edit mode for next time
+    mdSetMode('edit');
+
+    // Swap visibility
+    $('#markdownEditorContainer').hide();
+    $('#messageTextGroup').show();
+
+    mdEditorActive = false;
+}
+
+/**
+ * Ensure the hidden #messageText textarea has the latest editor content.
+ */
+function syncEditorToTextarea() {
+    if (mdEditorActive) {
+        $('#messageText').val($('#mdEditorText').val());
+    }
+}
+
+/**
+ * Fetch a live preview from the server and update the preview pane.
+ */
+function updateMarkdownPreview() {
+    const text = $('#mdEditorText').val();
+    const preview = $('#mdPreviewPane');
+
+    if (!text.trim()) {
+        preview.html('<span class="text-muted small fst-italic">Preview will appear here as you type\u2026</span>');
+        return;
+    }
+
+    preview.addClass('md-preview-loading');
+
+    $.ajax({
+        url: '/api/messages/markdown-preview',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ text: text }),
+        success: function(response) {
+            preview.removeClass('md-preview-loading');
+            preview.html(response.html || '<span class="text-muted small fst-italic">Nothing to preview.</span>');
+        },
+        error: function() {
+            preview.removeClass('md-preview-loading');
+        }
+    });
+}
+
+/**
+ * Apply a markdown toolbar action to the editor textarea.
+ * @param {string} action
+ */
+function mdAction(action) {
+    const ta = document.getElementById('mdEditorText');
+    if (!ta) return;
+
+    const start = ta.selectionStart;
+    const end   = ta.selectionEnd;
+    const sel   = ta.value.substring(start, end);
+    const before = ta.value.substring(0, start);
+    const after  = ta.value.substring(end);
+
+    let newStart = start;
+    let newEnd   = end;
+
+    switch (action) {
+        case 'bold':
+            if (sel) {
+                ta.value = before + '**' + sel + '**' + after;
+                newStart = start + 2; newEnd = end + 2;
+            } else {
+                ta.value = before + '**bold text**' + after;
+                newStart = start + 2; newEnd = start + 11;
+            }
+            break;
+
+        case 'italic':
+            if (sel) {
+                ta.value = before + '*' + sel + '*' + after;
+                newStart = start + 1; newEnd = end + 1;
+            } else {
+                ta.value = before + '*italic text*' + after;
+                newStart = start + 1; newEnd = start + 12;
+            }
+            break;
+
+        case 'code':
+            if (sel) {
+                ta.value = before + '`' + sel + '`' + after;
+                newStart = start + 1; newEnd = end + 1;
+            } else {
+                ta.value = before + '`code`' + after;
+                newStart = start + 1; newEnd = start + 5;
+            }
+            break;
+
+        case 'codeblock': {
+            const cbPre = (before.length === 0 || before.endsWith('\n')) ? '' : '\n';
+            const cbPost = (after.length === 0 || after.startsWith('\n')) ? '' : '\n';
+            if (sel) {
+                ta.value = before + cbPre + '```\n' + sel + '\n```' + cbPost + after;
+                newStart = start + cbPre.length + 4;
+                newEnd   = newStart + sel.length;
+            } else {
+                ta.value = before + cbPre + '```\ncode here\n```' + cbPost + after;
+                newStart = start + cbPre.length + 4;
+                newEnd   = start + cbPre.length + 13;
+            }
+            break;
+        }
+
+        case 'link':
+            if (sel) {
+                ta.value = before + '[' + sel + '](url)' + after;
+                newStart = end + 3; newEnd = end + 6; // select 'url'
+            } else {
+                ta.value = before + '[link text](url)' + after;
+                newStart = start + 1; newEnd = start + 10;
+            }
+            break;
+
+        case 'h1':
+            mdToggleLinePrefix(ta, '# ');
+            $('#messageText').val(ta.value);
+            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
+            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+            ta.focus();
+            return;
+
+        case 'h2':
+            mdToggleLinePrefix(ta, '## ');
+            $('#messageText').val(ta.value);
+            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
+            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+            ta.focus();
+            return;
+
+        case 'h3':
+            mdToggleLinePrefix(ta, '### ');
+            $('#messageText').val(ta.value);
+            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
+            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+            ta.focus();
+            return;
+
+        case 'ul':
+            mdToggleLinePrefix(ta, '- ');
+            $('#messageText').val(ta.value);
+            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
+            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+            ta.focus();
+            return;
+
+        case 'ol':
+            mdToggleLinePrefix(ta, '1. ');
+            $('#messageText').val(ta.value);
+            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
+            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+            ta.focus();
+            return;
+
+        case 'quote':
+            mdToggleLinePrefix(ta, '> ');
+            $('#messageText').val(ta.value);
+            if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
+            mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+            ta.focus();
+            return;
+
+        case 'hr': {
+            const hrPre  = (before.length === 0 || before.endsWith('\n')) ? '' : '\n';
+            const hrPost = (after.length === 0 || after.startsWith('\n')) ? '' : '\n';
+            ta.value = before + hrPre + '---' + hrPost + after;
+            newStart = newEnd = start + hrPre.length + 3;
+            break;
+        }
+
+        default:
+            return;
+    }
+
+    ta.selectionStart = newStart;
+    ta.selectionEnd   = newEnd;
+    ta.focus();
+
+    // Sync and schedule preview
+    $('#messageText').val(ta.value);
+    if (mdPreviewTimer) clearTimeout(mdPreviewTimer);
+    mdPreviewTimer = setTimeout(updateMarkdownPreview, 500);
+}
+
+/**
+ * Toggle a line prefix on the line containing the cursor.
+ * @param {HTMLTextAreaElement} ta
+ * @param {string} prefix
+ */
+function mdToggleLinePrefix(ta, prefix) {
+    const pos  = ta.selectionStart;
+    const text = ta.value;
+
+    const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+    let   lineEnd   = text.indexOf('\n', pos);
+    if (lineEnd === -1) lineEnd = text.length;
+
+    const line       = text.substring(lineStart, lineEnd);
+    const beforeLine = text.substring(0, lineStart);
+    const afterLine  = text.substring(lineEnd);
+
+    let newLine, cursorDelta;
+    if (line.startsWith(prefix)) {
+        newLine     = line.substring(prefix.length);
+        cursorDelta = -prefix.length;
+    } else {
+        newLine     = prefix + line;
+        cursorDelta = prefix.length;
+    }
+
+    ta.value = beforeLine + newLine + afterLine;
+    const newPos = Math.max(lineStart, pos + cursorDelta);
+    ta.selectionStart = ta.selectionEnd = newPos;
+}
+
+/**
+ * Show the markdown quick-reference help modal.
+ */
+function showMarkdownHelp() {
+    $('#markdownHelpModal').modal('show');
+}
+
 $(document).ready(function() {
     const messageType = $('#messageType').val();
     const replyToId = $('#replyToId').val();
@@ -318,6 +693,15 @@ $(document).ready(function() {
     $('#composeForm').on('submit', function(e) {
         e.preventDefault();
         sendMessage();
+    });
+
+    // Markdown editor toggle
+    $('#sendMarkdown').on('change', function() {
+        if ($(this).is(':checked')) {
+            initMarkdownEditor();
+        } else {
+            destroyMarkdownEditor();
+        }
     });
 
     // Address validation for netmail
@@ -500,6 +884,9 @@ function sendMessage() {
         }
     }
 
+    // Sync markdown editor content to hidden textarea if active
+    syncEditorToTextarea();
+
     // Collect cross-post areas
     const crossPostAreas = [];
     $('.cross-post-check:checked').each(function() {
@@ -610,6 +997,7 @@ function sendMessage() {
 
 
 function saveDraft(silent = false) {
+    syncEditorToTextarea();
     const formData = {
         type: $('#messageType').val(),
         to_address: $('#toAddress').val(),
@@ -932,4 +1320,67 @@ function saveComposeAddressBookEntry() {
 }
 </script>
 {% endif %}
+
+<!-- Markdown Quick Reference Modal -->
+<div class="modal fade" id="markdownHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fab fa-markdown me-2"></i>Markdown Quick Reference</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Text Formatting</h6>
+                        <table class="table table-sm table-bordered">
+                            <thead><tr><th>Syntax</th><th>Result</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>**bold**</code></td><td><strong>bold</strong></td></tr>
+                                <tr><td><code>*italic*</code></td><td><em>italic</em></td></tr>
+                                <tr><td><code>`inline code`</code></td><td><code>inline code</code></td></tr>
+                                <tr><td><code>[link](url)</code></td><td>hyperlink</td></tr>
+                            </tbody>
+                        </table>
+                        <h6>Headings</h6>
+                        <table class="table table-sm table-bordered">
+                            <tbody>
+                                <tr><td><code># Heading 1</code></td><td><strong>H1</strong></td></tr>
+                                <tr><td><code>## Heading 2</code></td><td><strong>H2</strong></td></tr>
+                                <tr><td><code>### Heading 3</code></td><td><strong>H3</strong></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Lists &amp; Blocks</h6>
+                        <table class="table table-sm table-bordered">
+                            <tbody>
+                                <tr><td><code>- item</code></td><td>Bullet list</td></tr>
+                                <tr><td><code>1. item</code></td><td>Numbered list</td></tr>
+                                <tr><td><code>&gt; text</code></td><td>Blockquote</td></tr>
+                                <tr><td><code>---</code></td><td>Horizontal rule</td></tr>
+                            </tbody>
+                        </table>
+                        <h6>Code Block</h6>
+                        <pre class="bg-light p-2 rounded small">```
+code here
+```</pre>
+                        <h6>Keyboard Shortcuts</h6>
+                        <table class="table table-sm table-bordered">
+                            <tbody>
+                                <tr><td><kbd>Ctrl+B</kbd></td><td>Bold</td></tr>
+                                <tr><td><kbd>Ctrl+I</kbd></td><td>Italic</td></tr>
+                                <tr><td><kbd>Ctrl+K</kbd></td><td>Link</td></tr>
+                                <tr><td><kbd>Tab</kbd></td><td>Indent (4 spaces)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

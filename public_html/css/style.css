@@ -808,3 +808,82 @@ body {
     margin: 0 -1rem 1rem;
     padding: 1rem 1rem 0.75rem;
 }
+
+/* Markdown Editor
+   ============================================================ */
+.md-editor-wrapper {
+    width: 100%;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Toolbar: single horizontal row of btn-groups, scrolls if needed */
+.md-editor-toolbar {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 5px 8px;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    gap: 4px;
+    align-items: center;
+    flex-shrink: 0;
+    min-height: 38px;
+}
+
+.md-editor-toolbar .btn-group {
+    flex-shrink: 0;
+}
+
+.md-editor-toolbar .btn {
+    padding: 2px 8px;
+    font-size: 0.8rem;
+}
+
+/* Editor and preview stacked — JS controls which is visible */
+.md-editor-body {
+    display: block;
+}
+
+.md-editor-textarea {
+    display: block !important;
+    width: 100% !important;
+    /* height set by JS to match original textarea */
+    border: none;
+    border-radius: 0;
+    resize: none !important;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 10px;
+    outline: none;
+    background-color: #fff;
+    color: #212529;
+    overflow-y: auto;
+}
+
+.md-editor-textarea:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.md-preview-pane {
+    display: none;
+    width: 100%;
+    /* height set by JS to match original textarea */
+    padding: 10px 16px;
+    overflow-y: auto;
+    font-size: 0.9rem;
+    word-wrap: break-word;
+    background-color: #fff;
+    color: #212529;
+}
+
+.md-preview-loading {
+    opacity: 0.5;
+    pointer-events: none;
+}

@@ -3289,6 +3289,24 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode(['allowed' => $allowed]);
     });
 
+    // Markdown preview render for compose UI
+    SimpleRouter::post('/messages/markdown-preview', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $text = trim($input['text'] ?? '');
+
+        if ($text === '') {
+            echo json_encode(['html' => '']);
+            return;
+        }
+
+        $html = \BinktermPHP\MarkdownRenderer::toHtml($text);
+        echo json_encode(['html' => $html]);
+    });
+
     // Save message draft
     SimpleRouter::post('/messages/draft', function() {
         $user = RouteHelper::requireAuth();

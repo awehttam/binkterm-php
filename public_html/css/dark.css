@@ -1066,3 +1066,23 @@ a:hover {
     margin: 0 -1rem 1rem;
     padding: 1rem 1rem 0.75rem;
 }
+
+/* Markdown Editor */
+.md-editor-wrapper {
+    border-color: var(--border-color);
+}
+
+.md-editor-toolbar {
+    background-color: var(--bg-secondary);
+    border-bottom-color: var(--border-color);
+}
+
+.md-editor-textarea {
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+}
+
+.md-preview-pane {
+    background-color: var(--bg-card);
+    color: var(--text-color);
+}
