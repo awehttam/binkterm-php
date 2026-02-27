@@ -7,6 +7,7 @@ Make sure you've made a backup of your database and files before upgrading.
 **New Features**
 - MRC (Multi Relay Chat): experimental WebDoor for real-time multi-BBS chat via the MRC network (see below)
 - Echomail: bulk "Mark as Read" action for selected messages in the echomail reader
+- Markdown Messages: opt-in Markdown rendering for netmail/echomail when a MARKDOWN kludge is present (see below)
 - Message Reader: scrollable body enabled by default — message header stays fixed while body scrolls; configurable in Admin → Appearance → Message Reader
 - Gemini Browser: built-in start page (`about:home`) with curated Geminispace links
 - Gemini Capsule Hosting: users can publish personal Gemini capsules at `gemini://host/home/username/`
@@ -264,6 +265,17 @@ A new **Message Reader** tab in Admin → Appearance adds a **Scrollable message
 When enabled, the message header (From, To, Area, Date, Subject) remains fixed at the top of the message modal while the body scrolls independently. This makes it easier to refer back to header information while reading long messages.
 
 The default is on. To revert to the previous behaviour (entire modal scrolls together), disable the toggle in Admin → Appearance → Message Reader.
+
+No database migration is required.
+
+### Markdown Messages (MARKDOWN Kludge)
+
+For networks that support Markdown, messages can now be rendered as Markdown when the MARKDOWN kludge is present. This follows the LSC-001 proposal (CommonMark 0.31.2 baseline). When a message contains a `^AMARKDOWN: 1` kludge line, the reader renders the message body as Markdown (with inline HTML disabled and links sanitized).
+
+**Sending Markdown:**
+- Enable `allow_markdown` on the target uplink in `/admin/binkp-config`.
+- In the compose screen, a **Send as Markdown** checkbox will appear when the target network supports it.
+- When checked, the MARKDOWN kludge is added to the message.
 
 No database migration is required.
 

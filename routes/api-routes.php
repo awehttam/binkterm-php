@@ -3146,6 +3146,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $input = json_decode(file_get_contents('php://input'), true);
         $type = $input['type'] ?? '';
+        $sendMarkdown = !empty($input['send_markdown']);
 
         $handler = new MessageHandler();
 
@@ -3181,7 +3182,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['reply_to_id'] ?? null,
                     $crashmailFlag,
                     $input['tagline'] ?? null,
-                    $attachment
+                    $attachment,
+                    $sendMarkdown
                 );
             } elseif ($type === 'echomail') {
                 $foo=explode("@", $input['echoarea']);
@@ -3196,7 +3198,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['subject'],
                     $input['message_text'],
                     $input['reply_to_id'],
-                    $input['tagline'] ?? null
+                    $input['tagline'] ?? null,
+                    false,
+                    $sendMarkdown
                 );
 
                 // Handle cross-posting to additional areas
@@ -3228,7 +3232,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                                 $input['message_text'],
                                 null,
                                 $input['tagline'] ?? null,
-                                true // skipCredits
+                                true,
+                                $sendMarkdown
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {
@@ -3258,6 +3263,30 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(500);
             echo json_encode(['error' => $e->getMessage()]);
         }
+    });
+
+    // Markdown support lookup for compose UI
+    SimpleRouter::get('/messages/markdown-support', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $address = $_GET['address'] ?? null;
+        $domain = $_GET['domain'] ?? null;
+        $allowed = false;
+
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            if (!empty($domain)) {
+                $allowed = $binkpConfig->isMarkdownAllowedForDomain((string)$domain);
+            } elseif (!empty($address)) {
+                $allowed = $binkpConfig->isMarkdownAllowedForDestination((string)$address);
+            }
+        } catch (\Exception $e) {
+            $allowed = false;
+        }
+
+        echo json_encode(['allowed' => $allowed]);
     });
 
     // Save message draft

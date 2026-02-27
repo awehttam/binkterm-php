@@ -129,6 +129,16 @@
                     </div>
                 </div>
 
+                <div class="mb-3" id="markdownSection" style="display: none;">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="sendMarkdown" name="send_markdown">
+                        <label class="form-check-label" for="sendMarkdown">
+                            <i class="fab fa-markdown me-1"></i>Send as Markdown
+                        </label>
+                        <div class="form-text">Adds the MARKDOWN kludge for compatible networks.</div>
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label for="taglineSelect" class="form-label">Tagline</label>
                     <select class="form-select" id="taglineSelect" name="tagline">
@@ -228,6 +238,50 @@
 <script>
 const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
 let allEchoareas = [];
+let markdownSupportTimer = null;
+
+function updateMarkdownSection(allowed) {
+    const section = $('#markdownSection');
+    if (allowed) {
+        section.show();
+    } else {
+        $('#sendMarkdown').prop('checked', false);
+        section.hide();
+    }
+}
+
+function fetchMarkdownSupport(params) {
+    $.get('/api/messages/markdown-support', params)
+        .done(function(response) {
+            updateMarkdownSection(!!response.allowed);
+        })
+        .fail(function() {
+            updateMarkdownSection(false);
+        });
+}
+
+function refreshMarkdownSupportForEchomail() {
+    const selected = $('#echoarea').val();
+    if (!selected || !selected.includes('@')) {
+        updateMarkdownSection(false);
+        return;
+    }
+    const domain = selected.split('@')[1];
+    if (!domain) {
+        updateMarkdownSection(false);
+        return;
+    }
+    fetchMarkdownSupport({ domain: domain });
+}
+
+function refreshMarkdownSupportForNetmail() {
+    const address = ($('#toAddress').val() || '').trim();
+    if (!address) {
+        updateMarkdownSection(false);
+        return;
+    }
+    fetchMarkdownSupport({ address: address });
+}
 
 $(document).ready(function() {
     const messageType = $('#messageType').val();
@@ -265,6 +319,12 @@ $(document).ready(function() {
         $('#toAddress').on('blur', function() {
             validateFidonetAddressField(this);
         });
+        $('#toAddress').on('input', function() {
+            if (markdownSupportTimer) {
+                clearTimeout(markdownSupportTimer);
+            }
+            markdownSupportTimer = setTimeout(refreshMarkdownSupportForNetmail, 300);
+        });
 
         // Show attachment section for netmail
         $('#attachmentSection').show();
@@ -288,6 +348,8 @@ $(document).ready(function() {
                 $('#attachmentName').text('');
             }
         });
+
+        refreshMarkdownSupportForNetmail();
     }
 
     // Auto-save draft every 2 minutes
@@ -318,6 +380,7 @@ function loadEchoareas() {
                         $(this).css('border-left', `4px solid ${color}`);
                     }
                     populateCrossPostAreas();
+                    refreshMarkdownSupportForEchomail();
                 });
             }
             // Pre-select if specified in URL or template, or from loaded draft
@@ -437,18 +500,19 @@ function sendMessage() {
         crossPostAreas.push($(this).val());
     });
 
-    const formData = {
-        type: messageType,
-        to_address: $('#toAddress').val(),
-        to_name: $('#toName').val(),
-        echoarea: $('#echoarea').val(),
-        subject: $('#subject').val(),
-        message_text: $('#messageText').val(),
-        reply_to_id: $('#replyToId').val() || null,
-        crashmail: $('#crashmail').is(':checked'),
-        tagline: $('#taglineSelect').val(),
-        cross_post_areas: crossPostAreas
-    };
+        const formData = {
+            type: messageType,
+            to_address: $('#toAddress').val(),
+            to_name: $('#toName').val(),
+            echoarea: $('#echoarea').val(),
+            subject: $('#subject').val(),
+            message_text: $('#messageText').val(),
+            reply_to_id: $('#replyToId').val() || null,
+            crashmail: $('#crashmail').is(':checked'),
+            tagline: $('#taglineSelect').val(),
+            cross_post_areas: crossPostAreas,
+            send_markdown: $('#sendMarkdown').length ? $('#sendMarkdown').is(':checked') : false
+        };
 
     // Show sending status
     $('#sendStatus').show().html(`
@@ -711,6 +775,8 @@ function selectAddressBookEntry(fullName, nodeAddress, alwaysCrashmail) {
     if ($('#crashmail').length) {
         $('#crashmail').prop('checked', alwaysCrashmail);
     }
+
+    refreshMarkdownSupportForNetmail();
 
     // Close dropdown
     const dropdown = bootstrap.Dropdown.getInstance($('#addressBookButton'));

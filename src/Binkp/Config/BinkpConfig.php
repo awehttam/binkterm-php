@@ -541,6 +541,32 @@ class BinkpConfig
     }
 
     /**
+     * Check if Markdown is allowed for a given domain.
+     */
+    public function isMarkdownAllowedForDomain(string $domain): bool
+    {
+        $uplink = $this->getUplinkByDomain($domain);
+        return !empty($uplink['allow_markdown']);
+    }
+
+    /**
+     * Check if Markdown is allowed for a given destination address.
+     */
+    public function isMarkdownAllowedForDestination(string $destAddr): bool
+    {
+        if (empty($destAddr)) {
+            return false;
+        }
+
+        if ($this->isMyAddress($destAddr)) {
+            return true;
+        }
+
+        $uplink = $this->getUplinkForDestination($destAddr);
+        return $uplink ? !empty($uplink['allow_markdown']) : false;
+    }
+
+    /**
      * Get all uplinks for a specific domain
      *
      * @param string $domain Domain name

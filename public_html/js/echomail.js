@@ -770,6 +770,10 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         `;
     }
 
+    const bodyHtml = (message.is_markdown == 1 && message.markdown_html)
+        ? message.markdown_html
+        : formatMessageText(parsedMessage.messageBody);
+
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
@@ -818,7 +822,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         </div>
 
         <div class="message-text">
-            ${formatMessageText(parsedMessage.messageBody)}
+            ${bodyHtml}
         </div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;

@@ -229,6 +229,9 @@ function displaySharedMessage(message, shareInfo) {
     
     // Parse message to separate kludge lines from body
     const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
+    const bodyHtml = (message.is_markdown == 1 && message.markdown_html)
+        ? message.markdown_html
+        : formatMessageText(parsedMessage.messageBody);
     
     // Build message content
     const html = `
@@ -267,7 +270,7 @@ function displaySharedMessage(message, shareInfo) {
         </div>
         
         <div class="message-text">
-            ${formatMessageText(parsedMessage.messageBody)}
+            ${bodyHtml}
         </div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;

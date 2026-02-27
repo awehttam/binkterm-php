@@ -167,6 +167,7 @@
                             <th>Hostname</th>
                             <th>Port</th>
                             <th>Schedule</th>
+                            <th>Markdown</th>
                             <th>Enabled</th>
                             <th>Default</th>
                             <th>Actions</th>
@@ -227,6 +228,10 @@
                     <div class="col-md-12">
                         <label class="form-label" for="uplinkNetworks">Networks (one per line)</label>
                         <textarea class="form-control" id="uplinkNetworks" rows="4"></textarea>
+                    </div>
+                    <div class="col-md-3 form-check mt-2 ms-2">
+                        <input class="form-check-input" type="checkbox" id="uplinkAllowMarkdown">
+                        <label class="form-check-label" for="uplinkAllowMarkdown">Allow Markdown</label>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkEnabled">
@@ -431,7 +436,7 @@ function renderUplinks() {
     tbody.innerHTML = '';
     const uplinks = binkpConfig.uplinks || [];
     if (uplinks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-muted">No uplinks configured.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-muted">No uplinks configured.</td></tr>';
         return;
     }
     uplinks.forEach((uplink, index) => {
@@ -443,6 +448,7 @@ function renderUplinks() {
             <td>${escapeHtml(uplink.hostname || '')}</td>
             <td>${uplink.port ?? ''}</td>
             <td><code>${escapeHtml(uplink.poll_schedule || '')}</code></td>
+            <td>${uplink.allow_markdown ? 'Yes' : 'No'}</td>
             <td>${uplink.enabled ? 'Yes' : 'No'}</td>
             <td>${uplink.default ? 'Yes' : 'No'}</td>
             <td>
@@ -467,6 +473,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkPassword').value = '';
         document.getElementById('uplinkSchedule').value = '0 */4 * * *';
         document.getElementById('uplinkNetworks').value = '';
+        document.getElementById('uplinkAllowMarkdown').checked = false;
         document.getElementById('uplinkEnabled').checked = true;
         document.getElementById('uplinkCompression').checked = false;
         document.getElementById('uplinkCrypt').checked = false;
@@ -486,6 +493,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkPassword').value = uplink.password || '';
         document.getElementById('uplinkSchedule').value = uplink.poll_schedule || '';
         document.getElementById('uplinkNetworks').value = Array.isArray(uplink.networks) ? uplink.networks.join('\n') : '';
+        document.getElementById('uplinkAllowMarkdown').checked = !!uplink.allow_markdown;
         document.getElementById('uplinkEnabled').checked = !!uplink.enabled;
         document.getElementById('uplinkCompression').checked = !!uplink.compression;
         document.getElementById('uplinkCrypt').checked = !!uplink.crypt;
@@ -506,6 +514,7 @@ function saveUplink() {
         password: document.getElementById('uplinkPassword').value.trim(),
         poll_schedule: document.getElementById('uplinkSchedule').value.trim(),
         networks: document.getElementById('uplinkNetworks').value.split('\n').map(v => v.trim()).filter(Boolean),
+        allow_markdown: document.getElementById('uplinkAllowMarkdown').checked,
         enabled: document.getElementById('uplinkEnabled').checked,
         compression: document.getElementById('uplinkCompression').checked,
         crypt: document.getElementById('uplinkCrypt').checked,

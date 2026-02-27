@@ -446,6 +446,10 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         `;
     }
 
+    const bodyHtml = (message.is_markdown == 1 && message.markdown_html)
+        ? message.markdown_html
+        : formatMessageText(parsedMessage.messageBody);
+
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
@@ -495,7 +499,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         ` : ''}
 
         <div class="message-text">
-            ${formatMessageText(parsedMessage.messageBody)}
+            ${bodyHtml}
         </div>
 
         ${message.attachments && message.attachments.length > 0 ? `
