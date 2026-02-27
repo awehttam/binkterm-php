@@ -325,6 +325,21 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             // Server sends one line per room: "*.:  #roomname  <count>  <topic>"
             // After pipe-code stripping, match "#roomname  <digits>" pattern.
             // Be tolerant of non-word chars (e.g. dashes) and missing counts.
+            $targetUser = $packet['f4'] ?? '';
+            if ($targetUser !== '') {
+                $targetUser = MrcClient::sanitizeName($targetUser);
+                $fromSite = $packet['f5'] ?? '';
+                $db->prepare("
+                    INSERT INTO mrc_messages
+                        (from_user, from_site, from_room, to_user, msg_ext, to_room, message_body, is_private, received_at)
+                    VALUES ('SERVER', :from_site, '', :to_user, '', '', :body, true, CURRENT_TIMESTAMP)
+                ")->execute([
+                    'from_site' => $fromSite,
+                    'to_user' => $targetUser,
+                    'body' => $f7
+                ]);
+                return;
+            }
             if (
                 preg_match('/#([A-Za-z0-9_-]{1,30})\s+\d+/', $clean, $m) ||
                 preg_match('/#([A-Za-z0-9_-]{1,30})\b/', $clean, $m)

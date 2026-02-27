@@ -27,10 +27,12 @@ class MrcClient {
         this.lastMessageId = 0;
         this.lastPrivateMessageId = 0;
         this.lastPrivateGlobalId = 0;
+        this.lastSystemMessageId = 0;
         this.privateUnread = {};
         this.unreadInitDone = false;
         this.seenMessageIds = new Set();
         this.seenPrivateMessageIds = new Set();
+        this.seenSystemMessageIds = new Set();
         this.motdPendingUntil = 0;
         this.motdLines = [];
         this.motdSeenIds = new Set();
@@ -566,6 +568,17 @@ class MrcClient {
             case 'rooms':
                 this.sendCommand(command, args);
                 break;
+            case 'topic':
+                if (!this.joinedRoom) {
+                    this.showError('Join a room before setting the topic.');
+                    break;
+                }
+                if (args.length === 0) {
+                    this.showError('Usage: /topic <new topic>');
+                    break;
+                }
+                this.sendCommand(command, args);
+                break;
             case 'help':
             case 'list':
             case 'whoon':
@@ -737,6 +750,57 @@ class MrcClient {
     }
 
     /**
+     * Fetch private SERVER notices and display them inline.
+     */
+    async fetchSystemNotices() {
+        if (!this.username) return;
+
+        try {
+            const response = await $.ajax({
+                url: 'api.php',
+                method: 'GET',
+                dataType: 'json',
+                data: {
+                    action: 'private',
+                    with: 'SERVER',
+                    after: this.lastSystemMessageId
+                }
+            });
+
+            if (!response || !response.success || !response.messages) {
+                return;
+            }
+
+            const messages = response.messages;
+            if (messages.length === 0) {
+                return;
+            }
+
+            const chatArea = $('#chat-messages');
+            messages.forEach(msg => {
+                const msgId = msg.id;
+                if (this.seenSystemMessageIds.has(msgId)) {
+                    return;
+                }
+                this.seenSystemMessageIds.add(msgId);
+                chatArea.append(this.createMessageElement(msg));
+                this.lastSystemMessageId = Math.max(this.lastSystemMessageId, msgId);
+            });
+
+            if (this.autoScroll) {
+                this.scrollToBottom();
+            }
+
+            if (this.privateUnread.SERVER) {
+                delete this.privateUnread.SERVER;
+                this.updatePrivateUnreadBadge();
+            }
+        } catch (error) {
+            console.error('Failed to fetch system notices:', error);
+        }
+    }
+
+    /**
      * Lightweight presence ping to avoid false stale pruning.
      */
     async pingPresence() {
@@ -826,6 +890,10 @@ class MrcClient {
                 }
                 this.updatePrivateUnreadBadge();
                 this.unreadInitDone = true;
+
+                if (counts.SERVER) {
+                    this.fetchSystemNotices();
+                }
             }
 
             if (this.motdPendingUntil > 0 && Date.now() > this.motdPendingUntil) {

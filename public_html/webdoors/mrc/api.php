@@ -421,7 +421,7 @@ function handleCommand(PDO $db, array $user): void
     if (strpos($command, '~') !== false) {
         \WebDoorSDK\jsonError('Invalid character in command');
     }
-    if (!in_array($command, ['motd', 'rooms'], true)) {
+    if (!in_array($command, ['motd', 'rooms', 'topic'], true)) {
         \WebDoorSDK\jsonError('Unsupported command');
     }
     if ($command !== 'rooms') {
@@ -438,6 +438,26 @@ function handleCommand(PDO $db, array $user): void
     $room     = $command === 'rooms' ? '' : MrcClient::sanitizeName($room);
     $bbsName  = MrcClient::sanitizeName($config->getBbsName());
 
+    $commandArgs = $input['args'] ?? [];
+    $commandArgs = is_array($commandArgs) ? $commandArgs : [];
+    $commandArgs = array_map('trim', $commandArgs);
+    $commandArgs = array_values(array_filter($commandArgs, 'strlen'));
+    $topicText = '';
+    if ($command === 'topic') {
+        if (empty($commandArgs)) {
+            \WebDoorSDK\jsonError('Topic text is required');
+        }
+        $topicText = implode(' ', $commandArgs);
+        $topicText = str_replace('~', '', $topicText);
+        $topicText = preg_replace('/\\|[0-9A-Fa-f]{2}/', '', $topicText);
+        $topicText = preg_replace('/\\|[A-Za-z]{2}/', '', $topicText);
+        $topicText = trim($topicText);
+        if ($topicText === '') {
+            \WebDoorSDK\jsonError('Topic text is required');
+        }
+        $topicText = substr($topicText, 0, 55);
+    }
+
     $db->prepare("
         INSERT INTO mrc_outbound (field1, field2, field3, field4, field5, field6, field7, priority)
         VALUES (:f1, :f2, :f3, :f4, :f5, :f6, :f7, :priority)
@@ -448,7 +468,7 @@ function handleCommand(PDO $db, array $user): void
         'f4' => 'SERVER',
         'f5' => '',
         'f6' => $room,
-        'f7' => $command === 'rooms' ? 'LIST' : 'MOTD',
+        'f7' => $command === 'rooms' ? 'LIST' : ($command === 'topic' ? "NEWTOPIC:{$room}:{$topicText}" : 'MOTD'),
         'priority' => 5
     ]);
 
