@@ -237,11 +237,22 @@ UPDATE users SET is_admin = TRUE WHERE username = 'username';
 **A:** Use the echomail maintenance script:
 ```bash
 # Preview what would be deleted (dry run)
-php cli/echomail_maintenance.php --domain=fidonet --max-age=365 --dry-run
+php scripts/echomail_maintenance.php --echo=all --domain=fidonet --max-age=365 --dry-run
 
 # Actually delete old messages
-php cli/echomail_maintenance.php --domain=fidonet --max-age=365
+php scripts/echomail_maintenance.php --echo=all --domain=fidonet --max-age=365
 ```
+
+### Q: I can't delete an echo area because it has messages. How do I remove it?
+**A:** Purge the echo's messages first, then delete the area:
+```bash
+# Preview purge for a single echo (dry run)
+php scripts/echomail_maintenance.php --echo=YOUR_ECHO_TAG --domain=fidonet --max-count=0 --dry-run
+
+# Purge all messages for that echo
+php scripts/echomail_maintenance.php --echo=YOUR_ECHO_TAG --domain=fidonet --max-count=0
+```
+Then delete the echo area in the admin UI.
 
 ### Q: How do I import a nodelist?
 **A:**

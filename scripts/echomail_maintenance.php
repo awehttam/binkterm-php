@@ -18,7 +18,7 @@
  *   --echo=TAG          Echo area tag (use 'all' for all areas in domain)
  *   --domain=DOMAIN     Network domain (e.g., fidonet, fsxnet) - required
  *   --max-age=DAYS      Delete messages older than this many days
- *   --max-count=NUM     Keep only the newest NUM messages per echo
+ *   --max-count=NUM     Keep only the newest NUM messages per echo (0 = delete all)
  *   --dry-run           Show what would be deleted without actually deleting
  *   --quiet             Suppress output except errors
  *   --help              Show this help message
@@ -80,8 +80,8 @@ if ($maxAge !== null && $maxAge <= 0) {
     exit(1);
 }
 
-if ($maxCount !== null && $maxCount <= 0) {
-    echo "Error: --max-count must be a positive number\n";
+if ($maxCount !== null && $maxCount < 0) {
+    echo "Error: --max-count must be zero or a positive number\n";
     exit(1);
 }
 
@@ -238,7 +238,7 @@ function showHelp() {
     echo "  --domain=DOMAIN     Network domain (e.g., fidonet, fsxnet)\n\n";
     echo "At least one of:\n";
     echo "  --max-age=DAYS      Delete messages older than this many days\n";
-    echo "  --max-count=NUM     Keep only the newest NUM messages per echo\n\n";
+    echo "  --max-count=NUM     Keep only the newest NUM messages per echo (0 = delete all)\n\n";
     echo "Optional:\n";
     echo "  --dry-run           Show what would be deleted without deleting\n";
     echo "  --quiet             Suppress output except errors\n";
