@@ -59,7 +59,11 @@ class FileAreaManager
      */
     public function getFileAreas(string $filter = 'active', ?int $userId = null, bool $isAdmin = false): array
     {
-        $sql = "SELECT * FROM file_areas WHERE 1=1";
+        $sql = "SELECT id, tag, description, domain, is_local, is_active,
+                       max_file_size, allowed_extensions, blocked_extensions,
+                       replace_existing, allow_duplicate_hash, upload_permission,
+                       scan_virus, file_count, total_size, created_at, updated_at
+                FROM file_areas WHERE 1=1";
         $params = [];
 
         if ($filter === 'active') {
@@ -182,6 +186,8 @@ class FileAreaManager
         $uploadPermission = intval($data['upload_permission'] ?? self::UPLOAD_USERS_ALLOWED);
         $scanVirus = (bool)($data['scan_virus'] ?? true);
         $isActive = (bool)($data['is_active'] ?? false);
+        $password = trim((string)($data['password'] ?? ''));
+        $password = $password === '' ? null : $password;
 
         if (empty($tag) || empty($description)) {
             throw new \Exception('Tag and description are required');
@@ -196,7 +202,7 @@ class FileAreaManager
             INSERT INTO file_areas (
                 tag, description, domain, is_local, is_active,
                 max_file_size, allowed_extensions, blocked_extensions, replace_existing,
-                allow_duplicate_hash,
+                allow_duplicate_hash, password,
                 upload_permission, scan_virus,
                 created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
@@ -206,7 +212,7 @@ class FileAreaManager
         $stmt->execute([
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
-            $allowDuplicateHash ? 1 : 0,
+            $allowDuplicateHash ? 1 : 0, $password,
             $uploadPermission, $scanVirus ? 1 : 0
         ]);
 
@@ -236,6 +242,8 @@ class FileAreaManager
         $uploadPermission = intval($data['upload_permission'] ?? self::UPLOAD_USERS_ALLOWED);
         $scanVirus = (bool)($data['scan_virus'] ?? true);
         $isActive = (bool)($data['is_active'] ?? false);
+        $password = trim((string)($data['password'] ?? ''));
+        $password = $password === '' ? null : $password;
 
         if (empty($tag) || empty($description)) {
             throw new \Exception('Tag and description are required');
@@ -251,14 +259,14 @@ class FileAreaManager
             UPDATE file_areas
             SET tag = ?, description = ?, domain = ?, is_local = ?, is_active = ?,
                 max_file_size = ?, allowed_extensions = ?, blocked_extensions = ?,
-                replace_existing = ?, allow_duplicate_hash = ?, upload_permission = ?, scan_virus = ?, updated_at = NOW()
+                replace_existing = ?, allow_duplicate_hash = ?, password = ?, upload_permission = ?, scan_virus = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
         $result = $stmt->execute([
             $tag, $description, $domain, $isLocal ? 1 : 0, $isActive ? 1 : 0,
             $maxFileSize, $allowedExtensions, $blockedExtensions, $replaceExisting ? 1 : 0,
-            $allowDuplicateHash ? 1 : 0,
+            $allowDuplicateHash ? 1 : 0, $password,
             $uploadPermission, $scanVirus ? 1 : 0, $id
         ]);
 

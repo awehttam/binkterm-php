@@ -115,6 +115,12 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="fileareaPassword" class="form-label">TIC Password (Optional)</label>
+                        <input type="password" class="form-control" id="fileareaPassword" name="password" maxlength="255" autocomplete="new-password">
+                        <div class="form-text">File echo password for TIC files (FSC-87 Pw field)</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="fileareaAllowedExt" class="form-label">Allowed Extensions</label>
                         <input type="text" class="form-control" id="fileareaAllowedExt" name="allowed_extensions" placeholder="e.g., zip,txt,pdf">
                         <div class="form-text">Comma-separated list (leave empty for all)</div>
@@ -307,6 +313,7 @@ function showAddFileareaModal() {
     $('#fileareaForm')[0].reset();
     $('#fileareaIsActive').prop('checked', true);
     $('#fileareaDomain').val('');
+    $('#fileareaPassword').val('');
     $('#fileareaMaxSize').val(10);
     new bootstrap.Modal('#fileareaModal').show();
 }
@@ -322,6 +329,7 @@ function editFilearea(id) {
             $('#fileareaTag').val(area.tag);
             $('#fileareaDescription').val(area.description);
             $('#fileareaDomain').val(area.domain || '');
+            $('#fileareaPassword').val(area.password || '');
             $('#fileareaMaxSize').val((area.max_file_size || 10485760) / 1048576);
             $('#fileareaAllowedExt').val(area.allowed_extensions || '');
             $('#fileareaBlockedExt').val(area.blocked_extensions || '');
@@ -346,6 +354,7 @@ function saveFilearea() {
         tag: $('#fileareaTag').val(),
         description: $('#fileareaDescription').val(),
         domain: $('#fileareaDomain').val().trim(),
+        password: $('#fileareaPassword').val(),
         max_file_size: maxSizeBytes,
         allowed_extensions: $('#fileareaAllowedExt').val(),
         blocked_extensions: $('#fileareaBlockedExt').val(),
