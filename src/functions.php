@@ -45,6 +45,64 @@ function filterKludgeLines($messageText) {
 }
 
 /**
+ * Filter kludge lines but preserve empty lines (for Markdown rendering).
+ */
+function filterKludgeLinesPreserveEmptyLines($messageText) {
+    $lines = preg_split('/\r\n|\r|\n/', $messageText);
+    $messageLines = [];
+
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+
+        if ($trimmed !== '') {
+            if (preg_match('/^(INTL|FMPT|TOPT|MSGID|REPLY|PID|TZUTC)\s/', $trimmed) ||
+                preg_match('/^Via\s+\d+:\d+\/\d+\s+@\d{8}\.\d{6}\.UTC/', $trimmed) ||
+                strpos($trimmed, "\x01") === 0 ||
+                strpos($trimmed, 'SEEN-BY:') === 0 ||
+                strpos($trimmed, 'PATH:') === 0) {
+                continue;
+            }
+        }
+
+        $messageLines[] = $line;
+    }
+
+    return implode("\n", $messageLines);
+}
+
+/**
+ * Check if a message contains a MARKDOWN kludge.
+ *
+ * @param array $message Message array with kludge_lines/bottom_kludges/message_text
+ * @return bool
+ */
+function hasMarkdownKludge(array $message): bool {
+    $kludgeText = '';
+    if (!empty($message['kludge_lines'])) {
+        $kludgeText .= $message['kludge_lines'];
+    }
+    if (!empty($message['bottom_kludges'])) {
+        $kludgeText .= ($kludgeText !== '' ? "\n" : '') . $message['bottom_kludges'];
+    }
+    if ($kludgeText !== '' && preg_match('/^\x01MARKDOWN:\s*\d+/mi', $kludgeText)) {
+        return true;
+    }
+
+    $messageText = $message['message_text'] ?? '';
+    if ($messageText === '') {
+        return false;
+    }
+    $lines = preg_split('/\r\n|\r|\n/', $messageText);
+    foreach ($lines as $line) {
+        if (preg_match('/^\x01MARKDOWN:\s*\d+/i', $line)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Generate initials from a person's name for echomail quoting
  * Examples: "Mark Anderson" -> "MA", "John" -> "JO", "Mary Jane Smith" -> "MS"
  */

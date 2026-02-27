@@ -3164,7 +3164,7 @@ class MessageHandler
             $message['is_markdown'] = 1;
             $message['markdown_version'] = $version;
             $rawText = (string)($message['message_text'] ?? '');
-            $cleanText = \filterKludgeLines($rawText);
+            $cleanText = \filterKludgeLinesPreserveEmptyLines($rawText);
             $message['markdown_html'] = \BinktermPHP\MarkdownRenderer::toHtml($cleanText);
         } else {
             $message['is_markdown'] = 0;
