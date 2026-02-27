@@ -670,13 +670,17 @@ function convertPipeCodesToAnsi(text) {
     // Hide/show cursor (|[0 / |[1) have no meaningful equivalent in the web viewer — strip them
     text = text.replace(/\|\[[01]/g, '');
 
-    // Strip all known letter-based control and information codes.
-    // Control codes: meaningless in archived message viewing.
-    // Information codes (|UN, |TI, |DA, etc.): BBS substitutes these at runtime;
-    // we have no context to resolve them, so they are removed.
-    // This covers the full Mystic BBS display code set plus common codes from
-    // Renegade, Synchronet, and other FTN-compatible BBS software.
-    text = text.replace(/\|[A-Z]{2}/gi, '');
+    // Strip only known letter-based control and information codes.
+    // Unknown codes should be preserved verbatim.
+    const knownPipeCodes = [
+        'CL', 'PA', 'PO', 'NL', 'CR', 'BS', 'BE', 'LF', 'FF',
+        'UN', 'TI', 'DA', 'DN', 'LD', 'RD', 'LT', 'RT',
+        'KP', 'KR', 'KS', 'KT', 'KU', 'KD',
+        'GE', 'GV', 'GL', 'GR', 'GN', 'GO'
+    ];
+    text = text.replace(/\|([A-Z]{2})/gi, (match, code) => {
+        return knownPipeCodes.includes(code.toUpperCase()) ? '' : match;
+    });
 
     // Pipe code to ANSI color mapping
     const pipeToAnsiFg = {
@@ -749,11 +753,11 @@ function convertPipeCodesToAnsi(text) {
             return `\x1b[${ansiBg}m`;
         }
         // Codes above 23 with no letters — no standard meaning, strip
-        return '';
+        return match;
     });
 
     // Strip Mystic theme color codes |T0-|T9 (theme-dependent, can't render without theme context)
-    text = text.replace(/\|[A-Za-z][0-9]/g, '');
+    text = text.replace(/\|T[0-9]/gi, '');
 
     // Restore escaped pipe characters
     text = text.replace(/\x00PIPE\x00/g, '|');
