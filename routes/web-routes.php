@@ -822,14 +822,15 @@ SimpleRouter::get('/compose/{type}', function($type) {
         'prefill_crashmail' => $prefillCrashmail,
     ];
 
-    if ($replyId) {
-        $handler = new MessageHandler();
-        $userId = $user['user_id'] ?? $user['id'] ?? null;
-        $originalMessage = $handler->getMessage($replyId, $type, $userId);
-
-        if ($originalMessage) {
-            if ($type === 'netmail') {
-                $templateVars['reply_to_id'] = $replyId;
+      if ($replyId) {
+          $handler = new MessageHandler();
+          $userId = $user['user_id'] ?? $user['id'] ?? null;
+          $originalMessage = $handler->getMessage($replyId, $type, $userId);
+  
+          if ($originalMessage) {
+              $templateVars['reply_is_markdown'] = hasMarkdownKludge($originalMessage);
+              if ($type === 'netmail') {
+                  $templateVars['reply_to_id'] = $replyId;
 
                 // Try to parse REPLYTO kludge from the original message text
                 $replyToData = parseReplyToKludge($originalMessage['message_text']);
@@ -857,9 +858,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
                     "Date: {$originalMessage['date_written']}\n" .
                     "Subject: {$originalMessage['subject']}\n\n" .
                     "> " . str_replace("\n", "\n> ", $cleanMessageText);
-            } else {
-                $templateVars['reply_to_id'] = $replyId;
-                $templateVars['reply_to_name'] = $originalMessage['from_name'];
+              } else {
+                  $templateVars['reply_to_id'] = $replyId;
+                  $templateVars['reply_to_name'] = $originalMessage['from_name'];
                 $subject = $originalMessage['subject'] ?? '';
                 // Remove "Re: " prefix if it exists (case insensitive)
                 $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
@@ -884,9 +885,9 @@ SimpleRouter::get('/compose/{type}', function($type) {
                     "Date: {$originalMessage['date_written']}\n" .
                     "Subject: {$originalMessage['subject']}\n\n" .
                     $quotedText;
-            }
-        }
-    }
+              }
+          }
+      }
 
     if ($echoarea) {
         // Combine echoarea with domain if provided separately and not already in tag@domain format

@@ -239,11 +239,17 @@
 const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
 let allEchoareas = [];
 let markdownSupportTimer = null;
+let markdownPrefilled = false;
+const replyIsMarkdown = {{ reply_is_markdown ? 'true' : 'false' }};
 
 function updateMarkdownSection(allowed) {
     const section = $('#markdownSection');
     if (allowed) {
         section.show();
+        if (replyIsMarkdown && !markdownPrefilled) {
+            $('#sendMarkdown').prop('checked', true);
+            markdownPrefilled = true;
+        }
     } else {
         $('#sendMarkdown').prop('checked', false);
         section.hide();
