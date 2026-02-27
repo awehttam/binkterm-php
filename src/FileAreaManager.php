@@ -205,7 +205,7 @@ class FileAreaManager
                 allow_duplicate_hash, password,
                 upload_permission, scan_virus,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             RETURNING id
         ");
 
