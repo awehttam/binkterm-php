@@ -6,6 +6,7 @@ Make sure you've made a backup of your database and files before upgrading.
 
 **New Features**
 - MRC (Multi Relay Chat): experimental WebDoor for real-time multi-BBS chat via the MRC network (see below)
+- Echomail: bulk "Mark as Read" action for selected messages in the echomail reader
 - Message Reader: scrollable body enabled by default — message header stays fixed while body scrolls; configurable in Admin → Appearance → Message Reader
 - Gemini Browser: built-in start page (`about:home`) with curated Geminispace links
 - Gemini Capsule Hosting: users can publish personal Gemini capsules at `gemini://host/home/username/`
