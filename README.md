@@ -106,7 +106,8 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Credit System** - Support for credits and rewards 
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
-- **Nodelist Browsers** - Integrated nodelist updater and browser 
+- **Nodelist Browsers** - Integrated nodelist updater and browser
+- **Markdown Support** - Echomail and netmail can be composed and rendered using Markdown formatting on compatible networks
 
 
 ### Native Binkp Protocol Support
@@ -211,6 +212,58 @@ $reward = UserCredit::getRewardAmount('action_name', $defaultValue);
 **Disabling Credits:**
 
 Set `"enabled": false` in the credits configuration to disable the entire system. When disabled, all credit-related functionality is hidden and no transactions are recorded.
+
+### Markdown Support
+
+BinktermPHP supports Markdown formatting in echomail and netmail messages on networks that allow it. When enabled for an uplink, users can compose messages using standard Markdown syntax and have them rendered with full formatting in the message reader.
+
+**How it works:**
+
+Markdown support is opt-in per uplink via the `allow_markdown` flag in the Binkp configuration. When a user sends a message with Markdown enabled, BinktermPHP adds a `\x01MARKDOWN: 1` kludge line to the outbound packet. Readers that recognise this kludge — including BinktermPHP itself — render the message body as formatted HTML. Readers that don't recognise it see the raw Markdown text, which remains human-readable as plain text.
+
+**Enabling Markdown for an uplink:**
+
+In your Binkp configuration, add `"allow_markdown": true` to the uplink definition:
+
+```json
+{
+  "uplinks": [
+    {
+      "address": "1:123/456",
+      "domain": "lovlynet",
+      "allow_markdown": true
+    }
+  ]
+}
+```
+
+**Composing Markdown messages:**
+
+When a user composes a message to a Markdown-enabled network, a **Send as Markdown** checkbox appears below the message body. Checking it activates the Markdown editor, which includes:
+
+- **Formatting toolbar** — buttons for bold, italic, headings (H1–H3), inline code, code blocks, links, bullet lists, ordered lists, blockquotes, and horizontal rules
+- **Keyboard shortcuts** — Ctrl+B (bold), Ctrl+I (italic), Ctrl+K (link), Tab (indent)
+- **Edit / Preview tabs** — switch between raw Markdown editing and a rendered preview that uses the same server-side renderer as the message reader
+
+**Supported syntax:**
+
+| Syntax | Result |
+|--------|--------|
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `` `code` `` | inline code |
+| `# Heading` | H1 heading |
+| `[text](url)` | hyperlink |
+| `- item` | bullet list |
+| `1. item` | numbered list |
+| `> text` | blockquote |
+| ` ``` ` | fenced code block |
+| `---` | horizontal rule |
+| `\| col \| col \|` | table |
+
+**Rendering:**
+
+Incoming messages with the `MARKDOWN` kludge are rendered server-side by `MarkdownRenderer` and displayed as HTML in the echomail and netmail readers. Messages without the kludge continue to be displayed as plain text. The rendered preview in the composer uses the same renderer, so what you see in Preview is exactly what readers will see.
 
 ## Installation
 
