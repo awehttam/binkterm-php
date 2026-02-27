@@ -1311,10 +1311,11 @@ function updateSelectionDisplay() {
     const count = selectedMessages.size;
     $('#selectedCount').text(count);
 
+    const bulkButtons = $('#bulkActions button');
     if (count === 0) {
-        $('#bulkActions .btn-outline-danger').prop('disabled', true);
+        bulkButtons.prop('disabled', true);
     } else {
-        $('#bulkActions .btn-outline-danger').prop('disabled', false);
+        bulkButtons.prop('disabled', false);
     }
 }
 
@@ -1327,6 +1328,48 @@ function clearSelection() {
     if (selectMode) {
         toggleSelectMode();
     }
+}
+
+function markSelectedAsRead() {
+    if (selectedMessages.size === 0) {
+        showError('No messages selected');
+        return;
+    }
+
+    const messageIds = Array.from(selectedMessages);
+    const markBtn = $('#bulkActions .btn-outline-primary');
+    const originalText = markBtn.html();
+    markBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Marking...');
+
+    $.ajax({
+        url: '/api/messages/echomail/read',
+        type: 'POST',
+        data: JSON.stringify({ messageIds: messageIds }),
+        contentType: 'application/json',
+        success: function(response) {
+            if (response.success) {
+                showSuccess(response.message);
+                clearSelection();
+                loadMessages();
+                loadStats();
+            } else {
+                showError(response.error || 'Failed to mark messages as read');
+            }
+        },
+        error: function(xhr) {
+            let errorMessage = 'Failed to mark messages as read';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMessage = response.error || errorMessage;
+            } catch (e) {
+                // Use default error message
+            }
+            showError(errorMessage);
+        },
+        complete: function() {
+            markBtn.prop('disabled', false).html(originalText);
+        }
+    });
 }
 
 function deleteSelectedMessages() {

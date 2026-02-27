@@ -2600,6 +2600,57 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         echo json_encode($result);
     });
 
+    // Echomail bulk read endpoint - must come before parameterized routes
+    SimpleRouter::post('/messages/echomail/read', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['messageIds'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message IDs']);
+            return;
+        }
+
+        $userId = (int)$user['user_id'];
+        $db = Database::getInstance()->getPdo();
+        $marked = 0;
+
+        try {
+            $db->beginTransaction();
+            $stmt = $db->prepare("
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'echomail', NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = EXCLUDED.read_at
+            ");
+
+            foreach ($messageIds as $id) {
+                $stmt->execute([$userId, (int)$id]);
+                $marked++;
+            }
+
+            $db->commit();
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to mark messages as read']);
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => "Marked $marked message" . ($marked !== 1 ? 's' : '') . " as read",
+            'marked' => $marked,
+            'total' => count($messageIds)
+        ]);
+    });
+
     // Echomail bulk delete endpoint - must come before parameterized routes
     SimpleRouter::post('/messages/echomail/delete', function() {
         $user = RouteHelper::requireAuth();
