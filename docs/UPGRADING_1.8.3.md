@@ -243,7 +243,7 @@ To enable, add `binkp_zone` to an uplink in `config/binkp.json`:
 }
 ```
 
-No database migration is required. No changes are needed to existing configurations — the field is optional and ignored when empty.
+No changes are needed to existing configurations — the field is optional and ignored when empty.
 
 ### Crashmail: Scheduled Polling and Immediate Delivery
 
@@ -255,7 +255,7 @@ The crashmail queue is now processed on two triggers:
 
 If the admin daemon is not running, the immediate trigger is silently skipped and the item will be picked up by the next scheduled poll.
 
-No configuration changes are required. No database migration is required.
+No configuration changes are required.
 
 ### Message Reader: Scrollable Body
 
@@ -265,7 +265,7 @@ When enabled, the message header (From, To, Area, Date, Subject) remains fixed a
 
 The default is on. To revert to the previous behaviour (entire modal scrolls together), disable the toggle in Admin → Appearance → Message Reader.
 
-No database migration is required.
+
 
 ### Markdown Messages (MARKDOWN Kludge)
 
@@ -277,7 +277,7 @@ For networks that support Markdown, messages can now be rendered as Markdown whe
 - When checked, the plain textarea is replaced by a toolbar-equipped editor with **Edit** and **Preview** tabs. The toolbar covers bold, italic, headings, code, links, lists, blockquote, and horizontal rule, with Ctrl+B/I/K keyboard shortcuts.
 - When checked, the MARKDOWN kludge is added to the message.
 
-No database migration is required.
+
 
 ## Bug Fixes
 
