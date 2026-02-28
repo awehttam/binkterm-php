@@ -3272,10 +3272,33 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         $address = $_GET['address'] ?? null;
-        $domain = $_GET['domain'] ?? null;
+        $domain  = $_GET['domain']  ?? null;
+        $area    = $_GET['area']    ?? null;  // full tag@domain string for echomail
         $allowed = false;
 
         try {
+            // Local-only echo areas always allow markdown
+            if (!empty($area)) {
+                $atPos = strpos($area, '@');
+                $tag       = $atPos !== false ? substr($area, 0, $atPos) : $area;
+                $areaDomain = $atPos !== false ? substr($area, $atPos + 1) : '';
+
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                if ($areaDomain === '') {
+                    // Area has no domain (local area with NULL/empty domain)
+                    $stmt = $db->prepare("SELECT is_local FROM echoareas WHERE UPPER(tag) = UPPER(?) AND (domain IS NULL OR domain = '')");
+                    $stmt->execute([$tag]);
+                } else {
+                    $stmt = $db->prepare("SELECT is_local FROM echoareas WHERE UPPER(tag) = UPPER(?) AND LOWER(domain) = LOWER(?)");
+                    $stmt->execute([$tag, $areaDomain]);
+                }
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($row && $row['is_local']) {
+                    echo json_encode(['allowed' => true]);
+                    return;
+                }
+            }
+
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             if (!empty($domain)) {
                 $allowed = $binkpConfig->isMarkdownAllowedForDomain((string)$domain);

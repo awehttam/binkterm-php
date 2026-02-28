@@ -321,16 +321,18 @@ function fetchMarkdownSupport(params) {
 
 function refreshMarkdownSupportForEchomail() {
     const selected = $('#echoarea').val();
-    if (!selected || !selected.includes('@')) {
+    if (!selected) {
         updateMarkdownSection(false);
         return;
     }
-    const domain = selected.split('@')[1];
-    if (!domain) {
+    const atIdx = selected.indexOf('@');
+    const tag = atIdx >= 0 ? selected.substring(0, atIdx) : selected;
+    const domain = atIdx >= 0 ? selected.substring(atIdx + 1) : '';
+    if (!tag) {
         updateMarkdownSection(false);
         return;
     }
-    fetchMarkdownSupport({ domain: domain });
+    fetchMarkdownSupport({ area: selected, domain: domain });
 }
 
 function refreshMarkdownSupportForNetmail() {

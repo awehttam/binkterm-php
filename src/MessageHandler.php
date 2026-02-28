@@ -1005,7 +1005,7 @@ class MessageHandler
         $markdownAllowed = false;
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $markdownAllowed = !empty($sendMarkdown) && $binkpConfig->isMarkdownAllowedForDomain($domain);
+            $markdownAllowed = !empty($sendMarkdown) && ($isLocalArea || $binkpConfig->isMarkdownAllowedForDomain($domain));
         } catch (\Exception $e) {
             $markdownAllowed = false;
         }
