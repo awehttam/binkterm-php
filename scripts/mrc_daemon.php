@@ -748,6 +748,11 @@ try {
                     // room list is populated even before any user joins.
                     seedAutoJoinRooms();
 
+                    // Give server time to process handshake and INFO commands
+                    // before sending LIST or NEWROOM — otherwise the server
+                    // may not have established our session yet and will ignore them.
+                    sleep(1);
+
                     // Request full room list from server to populate mrc_rooms.
                     startRoomListRefresh();
                     $client->requestRoomList();
@@ -757,7 +762,6 @@ try {
                     // users join from the web UI.  We do NOT send a BBS-level
                     // NEWROOM using the BBS name as a username — that creates a
                     // phantom user session the server will time out.
-                    sleep(1); // Give server time to process handshake
                     rejoinLocalUserRooms($client);
 
                     $lastKeepalive = time();
