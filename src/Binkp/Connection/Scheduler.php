@@ -187,7 +187,7 @@ class Scheduler
     
     private function parseCronExpression($cronExpression, $now)
     {
-        $parts = explode(' ', $cronExpression);
+        $parts = preg_split('/\s+/', trim($cronExpression), -1, PREG_SPLIT_NO_EMPTY);
         if (count($parts) !== 5) {
             $this->log("Invalid cron expression: {$cronExpression}", 'WARNING');
             return false;
