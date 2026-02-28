@@ -7,7 +7,7 @@ Make sure you've made a backup of your database and files before upgrading.
 **New Features**
 - MRC (Multi Relay Chat): experimental WebDoor for real-time multi-BBS chat via the MRC network (see below)
 - Echomail: bulk "Mark as Read" action for selected messages in the echomail reader
-- Markdown Messages: opt-in Markdown rendering for netmail/echomail when a MARKDOWN kludge is present (see below)
+- Markdown Messages: opt-in Markdown rendering for netmail/echomail when a MARKDOWN kludge is present (see below); GUI toolbar editor in the compose window with Edit/Preview tabs; local echo areas always allow Markdown
 - Message Reader: scrollable body enabled by default — message header stays fixed while body scrolls; configurable in Admin → Appearance → Message Reader
 - Gemini Browser: built-in start page (`about:home`) with curated Geminispace links
 - Gemini Capsule Hosting: users can publish personal Gemini capsules at `gemini://host/home/username/`
@@ -26,6 +26,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - FidoNet INTL kludge: removed point number from INTL line; added missing FMPT/TOPT in fallback packet path
 - Binkp packet header: corrected FSC-0048 Type-2+ capability word (`capWord`/`cwCopy`); clearer error when no `me` address is configured
 - Pipe codes: Mystic BBS letter-based control and information codes (e.g. `|AO`, `|PO`) now stripped correctly; Mystic hex colour codes (`|0A`, `|1F`, etc.) now parsed correctly; `|PI` and `|CD` rendered
+- About page: network addresses were displayed as "Array" instead of formatted address strings
+- Scheduler: cron expression parser now tolerates leading/trailing whitespace and multiple spaces between fields
 
 ## New Features
 
@@ -186,7 +188,6 @@ The `cards` and `text` variants now display context-appropriate hint text: "Pres
 
 Address book entries now include an **Always use crashmail for this Recipient** checkbox. When enabled, composing a new message to that contact will automatically pre-check the crashmail option on the compose form.
 
-This requires the migration `v1.10.10` — run `php scripts/setup.php` to apply it.
 
 ### File Share Links
 
@@ -200,7 +201,6 @@ A **Share** button appears in the file details modal. Clicking it opens a share 
 
 The share page displays the filename, size, upload date, area tag, description, and virus scan status. Anonymous visitors see a login/register prompt in place of the download button. Logged-in users get a download button and a link to browse the file area.
 
-This requires the migration `v1.10.11` — run `php scripts/setup.php` to apply it.
 
 ### Netmail: File Attachment Sending
 
@@ -218,7 +218,6 @@ Outbound netmail can now carry a file attachment delivered via crashmail in the 
 - Crashmail delivery only — hub/poll routing for file-attach messages is not supported.
 - Maximum upload size is 10 MB by default. Override with `NETMAIL_ATTACHMENT_MAX_SIZE` (bytes) in `.env`.
 
-**Migration:** Requires `v1.10.12` — run `php scripts/setup.php` to apply. Setup also creates the `data/netmail_attachments/` staging directory.
 
 ### Crashmail: binkp_zone DNS Fallback
 
@@ -274,7 +273,8 @@ For networks that support Markdown, messages can now be rendered as Markdown whe
 
 **Sending Markdown:**
 - Enable `allow_markdown` on the target uplink in `/admin/binkp-config`.
-- In the compose screen, a **Send as Markdown** checkbox will appear when the target network supports it.
+- In the compose screen, a **Send as Markdown** checkbox will appear when the target network supports it. Local-only echo areas always show the checkbox.
+- When checked, the plain textarea is replaced by a toolbar-equipped editor with **Edit** and **Preview** tabs. The toolbar covers bold, italic, headings, code, links, lists, blockquote, and horizontal rule, with Ctrl+B/I/K keyboard shortcuts.
 - When checked, the MARKDOWN kludge is added to the message.
 
 No database migration is required.
