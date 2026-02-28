@@ -446,6 +446,10 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         `;
     }
 
+    const bodyHtml = (message.is_markdown == 1 && message.markdown_html)
+        ? message.markdown_html
+        : formatMessageText(parsedMessage.messageBody);
+
     const html = `
         <div class="message-header-full mb-3">
             <div class="row">
@@ -495,7 +499,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         ` : ''}
 
         <div class="message-text">
-            ${formatMessageText(parsedMessage.messageBody)}
+            ${bodyHtml}
         </div>
 
         ${message.attachments && message.attachments.length > 0 ? `
@@ -556,7 +560,7 @@ function composeMessage(type, replyToId = null) {
     window.location.href = `/compose/netmail${replyToId ? '?reply=' + replyToId : ''}`;
 }
 
-function composeMessageToUser(toName, toAddress, subject) {
+function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {
     // Build URL with parameters for composing to a specific user
     const params = new URLSearchParams();
     params.set('to_name', toName);
@@ -565,6 +569,9 @@ function composeMessageToUser(toName, toAddress, subject) {
         // If subject doesn't start with "Re:", add it
         const replySubject = subject && subject.toLowerCase().startsWith('re:') ? subject : 'Re: ' + subject;
         params.set('subject', replySubject);
+    }
+    if (alwaysCrashmail) {
+        params.set('crashmail', '1');
     }
 
     window.location.href = `/compose/netmail?${params.toString()}`;
@@ -741,7 +748,7 @@ function renderAddressBook(entries) {
         entries.forEach(function(entry) {
             html += `
                 <div class="d-flex justify-content-between align-items-start mb-2 p-2 border rounded address-book-entry"
-                     style="cursor: pointer;" onclick="composeToAddressBookEntry('${escapeHtml(entry.messaging_user_id || '')}', '${escapeHtml(entry.node_address || '')}')">
+                     style="cursor: pointer;" onclick="composeToAddressBookEntry('${escapeHtml(entry.messaging_user_id || '')}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
                     <div class="flex-grow-1">
                         <div class="fw-bold small">${escapeHtml(entry.name || 'Unnamed')}</div>
                         <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
@@ -788,6 +795,7 @@ function editAddressBookEntry(entryId) {
                 $('#addressBookNodeAddress').val(entry.node_address);
                 $('#addressBookEmail').val(entry.email || '');
                 $('#addressBookDescription').val(entry.description || '');
+                $('#addressBookAlwaysCrashmail').prop('checked', !!entry.always_crashmail);
                 $('#addressBookModal').modal('show');
             } else {
                 showError('Failed to load entry: ' + response.error);
@@ -805,7 +813,8 @@ function saveAddressBookEntry() {
         messaging_user_id: $('#addressBookUserId').val().trim(),
         node_address: $('#addressBookNodeAddress').val().trim(),
         email: $('#addressBookEmail').val().trim(),
-        description: $('#addressBookDescription').val().trim()
+        description: $('#addressBookDescription').val().trim(),
+        always_crashmail: $('#addressBookAlwaysCrashmail').is(':checked'),
     };
 
     // Basic validation
@@ -860,8 +869,8 @@ function deleteAddressBookEntry(entryId, entryName) {
     });
 }
 
-function composeToAddressBookEntry(messagingUserId, nodeAddress) {
-    composeMessageToUser(messagingUserId, nodeAddress, '');
+function composeToAddressBookEntry(messagingUserId, nodeAddress, alwaysCrashmail) {
+    composeMessageToUser(messagingUserId, nodeAddress, '', alwaysCrashmail);
 }
 
 // Save sender to address book from message modal

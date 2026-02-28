@@ -669,6 +669,8 @@ class MessageHandler
                     // Ignore errors, domains are optional
                 }
             }
+
+            $message = $this->appendMarkdownRendering($message);
         }
 
         return $message;
@@ -686,7 +688,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $sendMarkdown = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -710,13 +712,22 @@ class MessageHandler
 
         $messageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline ?? null);
 
+        $sendMarkdown = !empty($sendMarkdown);
+        $markdownAllowed = false;
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $markdownAllowed = $sendMarkdown && $binkpConfig->isMarkdownAllowedForDestination($toAddress);
+        } catch (\Exception $e) {
+            $markdownAllowed = false;
+        }
+
         // Special case: if sending to "sysop" at our local system, route to local sysop user
         if (!empty($toName) && strtolower($toName) === 'sysop') {
             try {
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                 // Only route locally if destination is one of our addresses (or no address specified)
                 if (empty($toAddress) || $binkpConfig->isMyAddress($toAddress)) {
-                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null);
+                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null, $markdownAllowed);
                 }
             } catch (\Exception $e) {
                 // If we can't get config, fall through to normal send
@@ -752,6 +763,25 @@ class MessageHandler
             }
         }
 
+        // Attachment requires crashmail (direct delivery to ensure the file arrives with the message)
+        if ($attachment !== null && !$crashmail) {
+            @unlink($attachment['file_path'] ?? '');
+            throw new \Exception('File attachments require crashmail (direct delivery) to be enabled.');
+        }
+
+        // Attachments can only be delivered to remote nodes via crashmail.
+        // All users on this system share the same FTN address, so local delivery
+        // (self or any same-system user) is not supported for attachments.
+        if ($attachment !== null && $toAddress === $originAddress) {
+            @unlink($attachment['file_path'] ?? '');
+            throw new \Exception('File attachments can only be sent to remote nodes. Sending to a local address (including yourself or other users on this system) is not supported.');
+        }
+
+        // For file attachments, the FidoNet convention is that the subject IS the filename
+        if ($attachment !== null) {
+            $subject = $attachment['filename'];
+        }
+
         // For crashmail, verify destination can be resolved via nodelist before accepting
         if ($crashmail && $toAddress !== $originAddress) {
             $crashmailService = new \BinktermPHP\Crashmail\CrashmailService();
@@ -764,7 +794,7 @@ class MessageHandler
         }
 
         // Generate kludges for this netmail
-        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId);
+        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId, null, $markdownAllowed);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -793,6 +823,18 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
+
+            // Store attachment path and set FILE_ATTACH attribute when a file is attached
+            if ($attachment !== null) {
+                $fileAttachAttr = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
+                $attStmt = $this->db->prepare("
+                    UPDATE netmail SET outbound_attachment_path = ?, attributes = ?
+                    WHERE id = ?
+                ");
+                $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+            }
 
             if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
                 $charged = UserCredit::debit(
@@ -835,7 +877,7 @@ class MessageHandler
         return $result;
     }
 
-    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null)
+    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $sendMarkdown = false)
     {
         // Get sysop name from config
         try {
@@ -875,7 +917,7 @@ class MessageHandler
         $senderName = $fromName ?: ($senderUser['real_name'] ?: $senderUser['username']);
 
         // Generate kludges for this local netmail
-        $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId);
+        $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId, null, !empty($sendMarkdown));
 
         // Extract MSGID from generated kludges to ensure consistency
         $msgId = null;
@@ -922,7 +964,7 @@ class MessageHandler
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $sendMarkdown = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -960,7 +1002,15 @@ class MessageHandler
         // Generate kludges for this echomail
         $fromName = $user['real_name'] ?: $user['username'];
         $toName = $toName ?: 'All';
-        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId);
+        $markdownAllowed = false;
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $markdownAllowed = !empty($sendMarkdown) && ($isLocalArea || $binkpConfig->isMarkdownAllowedForDomain($domain));
+        } catch (\Exception $e) {
+            $markdownAllowed = false;
+        }
+
+        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markdownAllowed);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -2278,20 +2328,36 @@ class MessageHandler
             return [
                 'success' => true,
                 'share_key' => $existingShare['share_key'],
-                'share_url' => $this->buildShareUrl($existingShare['share_key']),
+                'share_url' => $this->buildShareUrl(
+                    $existingShare['share_key'],
+                    $existingShare['area_identifier'] ?? null,
+                    $existingShare['slug'] ?? null
+                ),
                 'existing' => true
             ];
         }
 
         // Generate unique share key
         $shareKey = $this->generateShareKey();
-        
+
+        // Build friendly slug for echomail messages
+        $areaIdentifier = null;
+        $slug           = null;
+        if ($messageType === 'echomail' && !empty($message['subject'])) {
+            $tag    = $message['echoarea'] ?? '';
+            $domain = $message['domain']   ?? '';
+            if ($tag !== '') {
+                $areaIdentifier = $domain !== '' ? "{$tag}@{$domain}" : $tag;
+                $slug           = $this->generateFriendlySlug($message['subject'], $areaIdentifier);
+            }
+        }
+
         // Simplify by using conditional SQL instead of CASE with bound parameters
         if ($expiresHours) {
             $expiresHoursValue = (int)$expiresHours;
             $stmt = $this->db->prepare("
-                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
-                VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?)
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug)
+                VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 hour' * ?, ?, ?, ?)
             ");
             $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
             $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
@@ -2299,28 +2365,29 @@ class MessageHandler
             $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
             $stmt->bindValue(5, $expiresHoursValue, \PDO::PARAM_INT);
             $stmt->bindValue(6, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
+            $stmt->bindValue(7, $areaIdentifier, \PDO::PARAM_STR);
+            $stmt->bindValue(8, $slug, \PDO::PARAM_STR);
         } else {
             $stmt = $this->db->prepare("
-                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public)
-                VALUES (?, ?, ?, ?, NULL, ?)
+                INSERT INTO shared_messages (message_id, message_type, shared_by_user_id, share_key, expires_at, is_public, area_identifier, slug)
+                VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
             ");
             $stmt->bindValue(1, $messageId, \PDO::PARAM_INT);
             $stmt->bindValue(2, $messageType, \PDO::PARAM_STR);
             $stmt->bindValue(3, $userId, \PDO::PARAM_INT);
             $stmt->bindValue(4, $shareKey, \PDO::PARAM_STR);
             $stmt->bindValue(5, $isPublic ? 'true' : 'false', \PDO::PARAM_STR);
+            $stmt->bindValue(6, $areaIdentifier, \PDO::PARAM_STR);
+            $stmt->bindValue(7, $slug, \PDO::PARAM_STR);
         }
-        
-        //error_log("MessageHandler::createMessageShare - isPublic binding: " . var_export((bool)$isPublic, true));
-        
+
         $result = $stmt->execute();
 
         if ($result) {
             return [
-                'success' => true,
+                'success'   => true,
                 'share_key' => $shareKey,
-                'share_url' => $this->buildShareUrl($shareKey),
-                'expires_at' => $expiresAt,
+                'share_url' => $this->buildShareUrl($shareKey, $areaIdentifier, $slug),
                 'is_public' => $isPublic
             ];
         }
@@ -2386,6 +2453,7 @@ class MessageHandler
 
         // Clean message for JSON encoding
         $message = $this->cleanMessageForJson($message);
+        $message = $this->appendMarkdownRendering($message);
 
         return [
             'success' => true,
@@ -2401,12 +2469,110 @@ class MessageHandler
     }
 
     /**
+     * Assign a friendly slug to an existing share that was created before slug support.
+     * If the share already has a slug, returns the existing friendly URL unchanged.
+     * Only the user who created the share may call this.
+     *
+     * @param int    $messageId
+     * @param string $messageType
+     * @param int    $userId
+     */
+    public function generateSlugForExistingShare(int $messageId, string $messageType, int $userId): array
+    {
+        $share = $this->getExistingShare($messageId, $messageType, $userId);
+        if (!$share) {
+            return ['success' => false, 'error' => 'Share not found'];
+        }
+
+        // Already has a slug — just return the current friendly URL
+        if (!empty($share['area_identifier']) && !empty($share['slug'])) {
+            return [
+                'success'   => true,
+                'share_url' => $this->buildShareUrl(
+                    $share['share_key'],
+                    $share['area_identifier'],
+                    $share['slug']
+                ),
+                'existing' => true
+            ];
+        }
+
+        // Only echomail has area context for slug generation
+        if ($messageType !== 'echomail') {
+            return ['success' => false, 'error' => 'Friendly URLs are only available for echomail shares'];
+        }
+
+        // Load the message to get subject and echoarea
+        $stmt = $this->db->prepare("
+            SELECT em.subject, ea.tag, ea.domain
+            FROM echomail em
+            JOIN echoareas ea ON em.echoarea_id = ea.id
+            WHERE em.id = ?
+        ");
+        $stmt->execute([$messageId]);
+        $msg = $stmt->fetch();
+
+        if (!$msg || empty($msg['subject'])) {
+            return ['success' => false, 'error' => 'Cannot generate slug: message not found or has no subject'];
+        }
+
+        $tag            = $msg['tag']    ?? '';
+        $domain         = $msg['domain'] ?? '';
+        $areaIdentifier = $domain !== '' ? "{$tag}@{$domain}" : $tag;
+        $slug           = $this->generateFriendlySlug($msg['subject'], $areaIdentifier);
+
+        $stmt = $this->db->prepare("
+            UPDATE shared_messages
+            SET area_identifier = ?, slug = ?
+            WHERE share_key = ?
+        ");
+        $stmt->execute([$areaIdentifier, $slug, $share['share_key']]);
+
+        return [
+            'success'   => true,
+            'share_url' => $this->buildShareUrl($share['share_key'], $areaIdentifier, $slug),
+            'existing'  => false
+        ];
+    }
+
+    /**
+     * Get shared message by friendly slug URL (/shared/{area}/{slug}).
+     *
+     * @param string   $areaIdentifier  e.g. "test@lovlynet"
+     * @param string   $slug            e.g. "hello-world"
+     * @param int|null $requestingUserId
+     */
+    public function getSharedMessageBySlug(string $areaIdentifier, string $slug, ?int $requestingUserId = null): array
+    {
+        $this->cleanupExpiredShares();
+
+        $stmt = $this->db->prepare("
+            SELECT sm.*, u.username as shared_by_username, u.real_name as shared_by_real_name
+            FROM shared_messages sm
+            JOIN users u ON sm.shared_by_user_id = u.id
+            WHERE sm.area_identifier = ?
+              AND sm.slug = ?
+              AND sm.is_active = TRUE
+              AND (sm.expires_at IS NULL OR sm.expires_at > NOW())
+        ");
+        $stmt->execute([$areaIdentifier, $slug]);
+        $share = $stmt->fetch();
+
+        if (!$share) {
+            return ['success' => false, 'error' => 'Share not found or expired'];
+        }
+
+        // Delegate to the core lookup logic via share_key
+        return $this->getSharedMessage($share['share_key'], $requestingUserId);
+    }
+
+    /**
      * Get all shares for a message by a user
      */
     public function getMessageShares($messageId, $messageType, $userId)
     {
         $stmt = $this->db->prepare("
-            SELECT * FROM shared_messages 
+            SELECT * FROM shared_messages
             WHERE message_id = ? AND message_type = ? AND shared_by_user_id = ? AND is_active = TRUE
             ORDER BY created_at DESC
         ");
@@ -2416,13 +2582,16 @@ class MessageHandler
 
         $result = [];
         foreach ($shares as $share) {
+            $areaId = $share['area_identifier'] ?? null;
+            $slug   = $share['slug'] ?? null;
             $result[] = [
-                'share_key' => $share['share_key'],
-                'share_url' => $this->buildShareUrl($share['share_key']),
-                'created_at' => $share['created_at'],
-                'expires_at' => $share['expires_at'],
-                'is_public' => $share['is_public'],
-                'access_count' => $share['access_count'],
+                'share_key'        => $share['share_key'],
+                'share_url'        => $this->buildShareUrl($share['share_key'], $areaId, $slug),
+                'has_friendly_url' => ($areaId !== null && $slug !== null),
+                'created_at'       => $share['created_at'],
+                'expires_at'       => $share['expires_at'],
+                'is_public'        => $share['is_public'],
+                'access_count'     => $share['access_count'],
                 'last_accessed_at' => $share['last_accessed_at']
             ];
         }
@@ -2499,11 +2668,53 @@ class MessageHandler
     }
 
     /**
-     * Build share URL
+     * Generate a URL-friendly slug from a subject, unique within the given area identifier.
+     * Appends -2, -3, etc. on collision.
      */
-    private function buildShareUrl($shareKey)
+    private function generateFriendlySlug(string $subject, string $areaIdentifier): string
     {
-        return \BinktermPHP\Config::getSiteUrl() . '/shared/' . $shareKey;
+        $slug = strtolower($subject);
+        $slug = preg_replace('/\s+/', '-', $slug);
+        $slug = preg_replace('/[^a-z0-9\-]/', '', $slug);
+        $slug = preg_replace('/-+/', '-', $slug);
+        $slug = trim($slug, '-');
+        $slug = substr($slug, 0, 100);
+
+        if ($slug === '') {
+            $slug = 'message';
+        }
+
+        $base   = $slug;
+        $suffix = 2;
+        $stmt   = $this->db->prepare(
+            "SELECT id FROM shared_messages WHERE area_identifier = ? AND slug = ?"
+        );
+        while (true) {
+            $stmt->execute([$areaIdentifier, $slug]);
+            if (!$stmt->fetch()) {
+                break;
+            }
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Build share URL — prefers the friendly /shared/{area}/{slug} form when available.
+     *
+     * @param string      $shareKey
+     * @param string|null $areaIdentifier  e.g. "test@lovlynet"
+     * @param string|null $slug            e.g. "hello-world"
+     */
+    private function buildShareUrl(string $shareKey, ?string $areaIdentifier = null, ?string $slug = null): string
+    {
+        $base = \BinktermPHP\Config::getSiteUrl();
+        if ($areaIdentifier !== null && $slug !== null) {
+            return $base . '/shared/' . rawurlencode($areaIdentifier) . '/' . rawurlencode($slug);
+        }
+        return $base . '/shared/' . $shareKey;
     }
 
     /**
@@ -2601,12 +2812,16 @@ class MessageHandler
     /**
      * Generate kludge lines for netmail messages
      */
-    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null, $replyToAddress = null)
+    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null, $replyToAddress = null, $markdown = false)
     {
         $kludgeLines = [];
         
         // Add CHRS kludge for UTF-8 encoding
         $kludgeLines[] = "\x01CHRS: UTF-8 4";
+
+        if ($markdown) {
+            $kludgeLines[] = "\x01MARKDOWN: 1";
+        }
 
         // Add TZUTC kludge line for netmail
         $tzutc = \generateTzutc();
@@ -2632,19 +2847,27 @@ class MessageHandler
             $kludgeLines[] = "\x01REPLYTO {$replyToAddress}";
         }
         
-        // Add INTL kludge for zone routing (required for inter-zone mail)
-        list($fromZone, $fromRest) = explode(':', $fromAddress);
-        list($toZone, $toRest) = explode(':', $toAddress);
-        $kludgeLines[] = "\x01INTL {$toZone}:{$toRest} {$fromZone}:{$fromRest}";
-        
+        // Add INTL kludge for zone routing (required for inter-zone mail).
+        // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
+        // Points are conveyed separately via FMPT/TOPT kludges below.
+        list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
+        list($fromNet, $fromNodePoint) = explode('/', $fromNetNodeRaw);
+        $fromNodeOnly = explode('.', $fromNodePoint)[0];
+
+        list($toZone, $toNetNodeRaw) = explode(':', $toAddress);
+        list($toNet, $toNodePoint) = explode('/', $toNetNodeRaw);
+        $toNodeOnly = explode('.', $toNodePoint)[0];
+
+        $kludgeLines[] = "\x01INTL {$toZone}:{$toNet}/{$toNodeOnly} {$fromZone}:{$fromNet}/{$fromNodeOnly}";
+
         // Add FMPT/TOPT kludges for point addressing if needed
         if (strpos($fromAddress, '.') !== false) {
             list($mainAddr, $point) = explode('.', $fromAddress);
             $kludgeLines[] = "\x01FMPT {$point}";
         }
-        
+
         if (strpos($toAddress, '.') !== false) {
-            list($mainAddr, $point) = explode('.', $toAddress);  
+            list($mainAddr, $point) = explode('.', $toAddress);
             $kludgeLines[] = "\x01TOPT {$point}";
         }
         
@@ -2657,12 +2880,16 @@ class MessageHandler
     /**
      * Generate kludge lines for echomail messages
      */
-    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null)
+    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null, $markdown = false)
     {
         $kludgeLines = [];
 
         // Add CHRS kludge for UTF-8 encoding
         $kludgeLines[] = "\x01CHRS: UTF-8 4 ";
+
+        if ($markdown) {
+            $kludgeLines[] = "\x01MARKDOWN: 1";
+        }
 
         // Add TZUTC kludge line for echomail
         $tzutc = \generateTzutc();
@@ -2883,6 +3110,67 @@ class MessageHandler
         }
         
         return empty($kludgeData) ? null : $kludgeData;
+    }
+
+    /**
+     * Detect MARKDOWN kludge version from message data.
+     *
+     * @param array $message
+     * @return int|null
+     */
+    private function detectMarkdownKludgeVersion(array $message): ?int
+    {
+        $kludgeText = '';
+        if (!empty($message['kludge_lines'])) {
+            $kludgeText .= $message['kludge_lines'];
+        }
+        if (!empty($message['bottom_kludges'])) {
+            $kludgeText .= ($kludgeText !== '' ? "\n" : '') . $message['bottom_kludges'];
+        }
+
+        if ($kludgeText === '') {
+            $messageText = $message['message_text'] ?? '';
+            $lines = preg_split('/\r\n|\r|\n/', $messageText);
+            $kludgeLines = [];
+            foreach ($lines as $line) {
+                if (strlen($line) > 0 && ord($line[0]) === 0x01) {
+                    $kludgeLines[] = $line;
+                }
+            }
+            $kludgeText = implode("\n", $kludgeLines);
+        }
+
+        if ($kludgeText === '') {
+            return null;
+        }
+
+        if (preg_match('/^\x01MARKDOWN:\s*(\d+)/mi', $kludgeText, $matches)) {
+            return (int)$matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Add Markdown rendering data to a message if MARKDOWN kludge is present.
+     *
+     * @param array $message
+     * @return array
+     */
+    private function appendMarkdownRendering(array $message): array
+    {
+        $version = $this->detectMarkdownKludgeVersion($message);
+        if ($version !== null) {
+            $message['is_markdown'] = 1;
+            $message['markdown_version'] = $version;
+            $rawText = (string)($message['message_text'] ?? '');
+            $cleanText = \filterKludgeLinesPreserveEmptyLines($rawText);
+            $message['markdown_html'] = \BinktermPHP\MarkdownRenderer::toHtml($cleanText);
+        } else {
+            $message['is_markdown'] = 0;
+        }
+
+        return $message;
     }
 
     /**

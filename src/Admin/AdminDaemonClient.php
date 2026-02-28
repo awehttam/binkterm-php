@@ -191,9 +191,63 @@ class AdminDaemonClient
         ]);
     }
 
+    public function getAppearanceConfig(): array
+    {
+        return $this->sendCommand('get_appearance_config');
+    }
+
+    public function setAppearanceConfig(array $config): array
+    {
+        return $this->sendCommand('set_appearance_config', ['config' => $config]);
+    }
+
+    public function setSystemNews(string $text): array
+    {
+        return $this->sendCommand('set_system_news', ['text' => $text]);
+    }
+
+    public function setHouseRules(string $text): array
+    {
+        return $this->sendCommand('set_house_rules', ['text' => $text]);
+    }
+
+    public function listShellArt(): array
+    {
+        return $this->sendCommand('list_shell_art');
+    }
+
+    public function uploadShellArt(string $contentBase64, string $name = '', string $originalName = ''): array
+    {
+        return $this->sendCommand('upload_shell_art', [
+            'content_base64' => $contentBase64,
+            'name' => $name,
+            'original_name' => $originalName
+        ]);
+    }
+
+    public function deleteShellArt(string $name): array
+    {
+        return $this->sendCommand('delete_shell_art', ['name' => $name]);
+    }
+
     public function stopServices(): array
     {
         return $this->sendCommand('stop_services');
+    }
+
+    public function getMrcConfig(): array
+    {
+        return $this->sendCommand('get_mrc_config');
+    }
+
+    public function setMrcConfig(array $config): array
+    {
+        return $this->sendCommand('set_mrc_config', ['config' => $config]);
+    }
+
+    public function restartMrcDaemon(): array
+    {
+        return $this->sendCommand('restart_mrc_daemon');
     }
 
 

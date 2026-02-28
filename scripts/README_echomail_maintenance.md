@@ -35,7 +35,7 @@ php scripts/echomail_maintenance.php --echo=TAG --max-age=DAYS --max-count=NUM [
 ### Deletion Criteria (at least one required)
 
 - `--max-age=DAYS` - Delete messages older than this many days
-- `--max-count=NUM` - Keep only the newest NUM messages per echo area
+- `--max-count=NUM` - Keep only the newest NUM messages per echo area (use `0` to delete all)
 
 Both parameters can be combined. When both are specified:
 1. Age-based deletion runs first

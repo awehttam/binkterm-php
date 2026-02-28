@@ -8,6 +8,7 @@
  *
  * Actions (GET ?action=<name>):
  *   config          — return door configuration and user info
+ *   home_page       — return the built-in start page as gemtext
  *   fetch           — proxy-fetch a gemini:// URL (?url=gemini://…)
  *   bookmark_list   — return bookmarks for current user
  *   bookmark_add    — POST {url, title} — add a bookmark
@@ -32,6 +33,10 @@ $action = $_GET['action'] ?? '';
 switch ($action) {
     case 'config':
         handleConfig();
+        break;
+
+    case 'home_page':
+        handleHomePage();
         break;
 
     case 'fetch':
@@ -63,9 +68,70 @@ function handleConfig(): void
 {
     $cfg = WebDoorSDK\getDoorConfig('gemini-browser');
     WebDoorSDK\jsonResponse([
-        'home_url'     => $cfg['home_url']     ?? 'gemini://kennedy.gemi.dev/',
+        'home_url'     => $cfg['home_url']     ?? 'about:home',
         'max_redirects'=> (int)($cfg['max_redirects'] ?? 5),
         'timeout'      => (int)($cfg['timeout']       ?? 15),
+    ]);
+}
+
+// ── Action: home_page ─────────────────────────────────────────────────────────
+
+/**
+ * Return the built-in start page as a synthetic gemtext response.
+ * The client requests this URL as "about:home".
+ */
+function handleHomePage(): void
+{
+    $lines = [
+        '# Geminispace — Start Page',
+        '',
+        'Welcome to Geminispace — a lightweight, privacy-focused corner of the internet.',
+    ];
+
+    // ── Local capsule server link (if enabled) ────────────────────────────────
+    if (WebDoorSDK\isDoorEnabled('gemini-capsule')) {
+        $host       = parse_url(\BinktermPHP\Config::getSiteUrl(), PHP_URL_HOST) ?? '';
+        $binkpCfg   = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        $bbsName    = $binkpCfg->getSystemName();
+        if ($host !== '') {
+            $lines[] = '';
+            $lines[] = '## This BBS';
+            $lines[] = "=> gemini://{$host}/ {$bbsName} — Gemini Capsule Directory";
+        }
+    }
+
+    $lines = array_merge($lines, [
+        '',
+        '## Search',
+        '=> gemini://kennedy.gemi.dev/ Kennedy — Gemini Search Engine',
+        '=> gemini://tlgs.one/ TLGS — "Totally Legit" Gemini Search',
+        '=> gemini://cdg.thegonz.net/ CDG — Collaborative Directory of Geminispace',
+        '',
+        '## About Gemini',
+        '=> gemini://geminiprotocol.net/ The Gemini Protocol — Official Specification',
+        '=> gemini://gemini.circumlunar.space/ Project Gemini Homepage',
+        '',
+        '## News & Aggregators',
+        '=> gemini://gemini.circumlunar.space/capcom/ CAPCOM — Gemini Feed Aggregator',
+        '=> gemini://rawtext.club/ Rawtext Club — Community Articles',
+        '',
+        '## Community Spaces',
+        '=> gemini://tilde.team/ Tilde Team — Shared Unix Community',
+        '=> gemini://cosmic.voyage/ Cosmic Voyage — Collaborative Sci-Fi Fiction',
+        '',
+        '## Software',
+        '=> gemini://skyjake.fi/lagrange/ Lagrange — Native Gemini Browser',
+    ]);
+
+    $body = implode("\n", $lines);
+
+    WebDoorSDK\jsonResponse([
+        'success' => true,
+        'status'  => 20,
+        'meta'    => 'text/gemini; charset=utf-8',
+        'mime'    => 'text/gemini',
+        'body'    => $body,
+        'url'     => 'about:home',
     ]);
 }
 
@@ -216,8 +282,11 @@ function geminiGet(
     }
 
     // ── SSRF protection ───────────────────────────────────────────────────────
+    // Resolve once and reuse the IP for the connection to prevent DNS rebinding:
+    // if we validated the hostname and then connected by hostname, a second DNS
+    // lookup inside stream_socket_client() could return a different (private) IP.
+    $resolved = gethostbyname($host);
     if ($blockPrivate) {
-        $resolved = gethostbyname($host);
         if (!isPublicIp($resolved)) {
             return geminiError('Access to private or reserved network addresses is not permitted', 0, $url);
         }
@@ -230,17 +299,21 @@ function geminiGet(
     }
 
     // ── Open TLS connection ───────────────────────────────────────────────────
-    // Gemini uses a Trust-On-First-Use (TOFU) certificate model, not CA validation
+    // Gemini uses a Trust-On-First-Use (TOFU) certificate model, not CA validation.
+    // Connect using the pre-resolved IP (not the hostname) so no second DNS lookup
+    // can occur. peer_name is not used for CA validation here (verify_peer=false)
+    // but set it anyway for any SNI extension that may be sent.
     $ctx = stream_context_create([
         'ssl' => [
             'verify_peer'       => false,
             'verify_peer_name'  => false,
             'allow_self_signed' => true,
+            'peer_name'         => $host,
         ],
     ]);
 
     $socket = @stream_socket_client(
-        "ssl://{$host}:{$port}",
+        "ssl://{$resolved}:{$port}",
         $errno, $errstr,
         $timeout,
         STREAM_CLIENT_CONNECT,
@@ -248,7 +321,9 @@ function geminiGet(
     );
 
     if ($socket === false) {
-        return geminiError("Connection failed: {$errstr} (errno {$errno})", 0, $url);
+        $sslErr = openssl_error_string() ?: '';
+        $detail = $sslErr ? " [{$sslErr}]" : '';
+        return geminiError("Connection failed: {$errstr} (errno {$errno}){$detail}", 0, $url);
     }
 
     stream_set_timeout($socket, $timeout);

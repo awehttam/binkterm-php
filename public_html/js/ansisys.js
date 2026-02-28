@@ -347,12 +347,13 @@ class AnsiTerminal {
     }
 
     // Render the buffer to HTML
+    // Each character is placed in its own fixed-width span (ansi-c) so that box-drawing
+    // and block characters align correctly even when the browser uses a fallback font
+    // that has different glyph metrics than the primary monospace font.
     render() {
         let html = '';
-        let currentClasses = [];
-        let spanOpen = false;
 
-        // Only render up to the last used row (plus some margin for content)
+        // Only render up to the last used row
         const rowsToRender = Math.min(this.buffer.length, this.maxRowUsed + 1);
 
         for (let r = 0; r < rowsToRender; r++) {
@@ -369,9 +370,10 @@ class AnsiTerminal {
 
             for (let c = 0; c <= lastNonSpace; c++) {
                 const cell = row[c];
-                const classes = [];
 
-                // Build class list
+                // Build class list — always include ansi-c for fixed-width cell layout
+                const classes = ['ansi-c'];
+
                 const fgClass = this.getColorClass(cell.fg, false);
                 const bgClass = this.getColorClass(cell.bg, true);
 
@@ -384,34 +386,13 @@ class AnsiTerminal {
                 if (cell.blink) classes.push('ansi-blink');
                 if (cell.reverse) classes.push('ansi-reverse');
 
-                // Check if we need to change span
-                const classStr = classes.sort().join(' ');
-                const currentClassStr = currentClasses.sort().join(' ');
-
-                if (classStr !== currentClassStr) {
-                    if (spanOpen) {
-                        html += '</span>';
-                        spanOpen = false;
-                    }
-                    if (classes.length > 0) {
-                        html += `<span class="${classStr}">`;
-                        spanOpen = true;
-                    }
-                    currentClasses = [...classes];
-                }
-
-                // Escape and add character
-                html += this.escapeChar(cell.char);
+                html += `<span class="${classes.join(' ')}">${this.escapeChar(cell.char)}</span>`;
             }
 
             // End of row
             if (r < rowsToRender - 1) {
                 html += '\n';
             }
-        }
-
-        if (spanOpen) {
-            html += '</span>';
         }
 
         return html;
@@ -673,10 +654,33 @@ function hasPipeCodes(text) {
 function convertPipeCodesToAnsi(text) {
     if (!text) return text;
 
-    // Strip special pipe codes (clear screen, pause, etc.) - not relevant for message viewing
-    // Common special codes: |CL (clear), |PA (pause), |DE (delete), |RD (read), |CR (carriage return), |LF (line feed)
-    // Use explicit whitelist of known special codes (case-insensitive)
-    text = text.replace(/\|(CL|PA|DE|RD|CR|LF)/gi, '');
+    // Handle |PI first: Mystic BBS escape for a literal pipe character
+    text = text.replace(/\|PI/gi, '\x00PIPE\x00');
+
+    // Handle |CD: Mystic BBS "reset color to default" → ANSI reset
+    text = text.replace(/\|CD/gi, '\x1b[0m');
+
+    // Convert Mystic BBS cursor/screen control codes to ANSI escape sequences.
+    // The ANSI parser (AnsiScreen) handles these natively; when the simpler
+    // colour-only path is used they are stripped harmlessly by that path.
+    text = text.replace(/\|\[([ABCD])(\d{1,3})/gi, (m, dir, n) => `\x1b[${n}${dir.toUpperCase()}`); // cursor up/down/right/left
+    text = text.replace(/\|\[X(\d{1,3})/gi,        (m, n) => `\x1b[${n}G`);    // cursor to column (horizontal absolute)
+    text = text.replace(/\|\[Y(\d{1,3})/gi,        (m, n) => `\x1b[${n};1H`);  // cursor to row (position to row, col 1)
+    text = text.replace(/\|\[K/gi,                  '\x1b[K');                  // clear to end of line
+    // Hide/show cursor (|[0 / |[1) have no meaningful equivalent in the web viewer — strip them
+    text = text.replace(/\|\[[01]/g, '');
+
+    // Strip only known letter-based control and information codes.
+    // Unknown codes should be preserved verbatim.
+    const knownPipeCodes = [
+        'CL', 'PA', 'PO', 'NL', 'CR', 'BS', 'BE', 'LF', 'FF',
+        'UN', 'TI', 'DA', 'DN', 'LD', 'RD', 'LT', 'RT',
+        'KP', 'KR', 'KS', 'KT', 'KU', 'KD',
+        'GE', 'GV', 'GL', 'GR', 'GN', 'GO'
+    ];
+    text = text.replace(/\|([A-Z]{2})/gi, (match, code) => {
+        return knownPipeCodes.includes(code.toUpperCase()) ? '' : match;
+    });
 
     // Pipe code to ANSI color mapping
     const pipeToAnsiFg = {
@@ -717,25 +721,48 @@ function convertPipeCodesToAnsi(text) {
         15: 107  // Bright White
     };
 
-    // Replace pipe codes with ANSI escape sequences
-    // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background
-    return text.replace(/\|([0-9A-Fa-f]{2})/g, (match, codeHex) => {
-        const code = parseInt(codeHex, 10);
+    // Replace pipe color codes with ANSI escape sequences.
+    // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background.
+    // Mystic-style hex codes (|0A = bright green, |1F = blue bg + white fg, etc.) are also
+    // handled: codes with letters A-F are parsed as hex nibbles.
+    text = text.replace(/\|([0-9A-Fa-f]{2})/g, (match, codeStr) => {
+        // Detect Mystic-style hex encoding: code contains a letter (A-F)
+        const isMysticHex = /[A-Fa-f]/.test(codeStr);
 
+        if (isMysticHex) {
+            // Mystic format: |XY = upper nibble X is background (0-F), lower nibble Y is foreground (0-F)
+            const hi = parseInt(codeStr[0], 16);
+            const lo = parseInt(codeStr[1], 16);
+            const ansiFg = pipeToAnsiFg[lo] || 37;
+            const ansiBg = pipeToAnsiBg[hi] || 40;
+            // Only emit background if non-zero (hi > 0), so |0F = just bright white fg
+            if (hi > 0) {
+                return `\x1b[${ansiBg};${ansiFg}m`;
+            }
+            return `\x1b[${ansiFg}m`;
+        }
+
+        // Renegade-style decimal: |00-|15 = foreground, |16-|23 = background
+        const code = parseInt(codeStr, 10);
         if (code <= 15) {
-            // Codes 00-15: foreground color 0-15
             const ansiFg = pipeToAnsiFg[code] || 37;
             return `\x1b[${ansiFg}m`;
         } else if (code >= 16 && code <= 23) {
-            // Codes 16-23: background color 0-7 (code - 16)
             const bg = code - 16;
             const ansiBg = pipeToAnsiBg[bg] || 40;
             return `\x1b[${ansiBg}m`;
-        } else {
-            // Codes above 23 have no standard meaning in this scheme
-            return '';
         }
+        // Codes above 23 with no letters — no standard meaning, strip
+        return match;
     });
+
+    // Strip Mystic theme color codes |T0-|T9 (theme-dependent, can't render without theme context)
+    text = text.replace(/\|T[0-9]/gi, '');
+
+    // Restore escaped pipe characters
+    text = text.replace(/\x00PIPE\x00/g, '|');
+
+    return text;
 }
 
 /**

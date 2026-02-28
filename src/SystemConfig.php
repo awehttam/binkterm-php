@@ -25,7 +25,7 @@ class SystemConfig
             return $binkpConfig->getSystemAddress();
         } catch (\Exception $e) {
             // Fall back to a default or config value
-            return Config::FIDONET_ORIGIN ?? '1:1/0';
+            return Config::FIDONET_ORIGIN ?? '1:999/999';
         }
     }
     

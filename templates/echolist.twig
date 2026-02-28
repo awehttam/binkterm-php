@@ -194,6 +194,11 @@ function loadEchoAreas() {
         .done(function(data) {
             allEchoAreas = data.echoareas || [];
             searchEchoAreas(searchQuery);
+            const networks = new Set();
+            allEchoAreas.forEach(f => {
+                networks.add(f.is_local ? 'Local' : (f.domain || 'Unknown'));
+            });
+            $('#totalNetworks').text(networks.size);
         })
         .fail(function() {
             $('#forumsContainer').html('<div class="alert alert-danger">Failed to load echo areas</div>');
@@ -379,11 +384,6 @@ function loadStatistics() {
             $('#totalAreas').text(data.areas || 0);
         });
 
-    const networks = new Set();
-    allEchoAreas.forEach(f => {
-        networks.add(f.is_local ? 'Local' : (f.domain || 'Unknown'));
-    });
-    $('#totalNetworks').text(networks.size);
 }
 
 function formatDate(dateStr) {

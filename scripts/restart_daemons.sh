@@ -9,11 +9,18 @@ ADMIN_PID="${ADMIN_PID:-${RUN_DIR}/admin_daemon.pid}"
 SCHEDULER_PID="${SCHEDULER_PID:-${RUN_DIR}/binkp_scheduler.pid}"
 SERVER_PID="${SERVER_PID:-${RUN_DIR}/binkp_server.pid}"
 TELNETD_PID="${TELNETD_PID:-${RUN_DIR}/telnetd.pid}"
+MRC_PID="${MRC_PID:-${RUN_DIR}/mrc_daemon.pid}"
+
+# Track which processes were running before restart
+TELNETD_WAS_RUNNING=false
+MRC_WAS_RUNNING=false
 MULTIPLEX_PID="${MULTIPLEX_PID:-${RUN_DIR}/multiplexing-server.pid}"
+GEMINI_PID="${GEMINI_PID:-${RUN_DIR}/gemini_daemon.pid}"
 
 # Track which processes were running before restart
 TELNETD_WAS_RUNNING=false
 MULTIPLEX_WAS_RUNNING=false
+GEMINI_WAS_RUNNING=false
 
 stop_process() {
     local pid_file="$1"
@@ -56,18 +63,28 @@ start_process() {
 
 mkdir -p "$RUN_DIR"
 
-stop_process "$ADMIN_PID" "admin_daemon"
-stop_process "$SCHEDULER_PID" "binkp_scheduler"
-stop_process "$SERVER_PID" "binkp_server"
+stop_process "$ADMIN_PID" "admin_daemon" || true
+stop_process "$SCHEDULER_PID" "binkp_scheduler" || true
+stop_process "$SERVER_PID" "binkp_server" || true
 
 # Check if telnetd was running before stopping it
 if stop_process "$TELNETD_PID" "telnetd"; then
     TELNETD_WAS_RUNNING=true
 fi
 
+# Check if MRC daemon was running before stopping it
+if stop_process "$MRC_PID" "mrc_daemon"; then
+    MRC_WAS_RUNNING=true
+fi
+
 # Check if multiplexing server was running before stopping it
 if stop_process "$MULTIPLEX_PID" "multiplexing-server"; then
     MULTIPLEX_WAS_RUNNING=true
+fi
+
+# Check if Gemini daemon was running before stopping it
+if stop_process "$GEMINI_PID" "gemini_daemon"; then
+    GEMINI_WAS_RUNNING=true
 fi
 
 start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
@@ -79,9 +96,19 @@ if [[ "$TELNETD_WAS_RUNNING" == "true" ]]; then
     start_process "${PHP_BIN} telnet/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
 fi
 
+# Restart MRC daemon only if it was running
+if [[ "$MRC_WAS_RUNNING" == "true" ]]; then
+    start_process "${PHP_BIN} scripts/mrc_daemon.php --daemon --pid-file=${MRC_PID}" "mrc_daemon"
+fi
+
 # Restart multiplexing server only if it was running
 if [[ "$MULTIPLEX_WAS_RUNNING" == "true" ]]; then
     start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"
+fi
+
+# Restart Gemini daemon only if it was running
+if [[ "$GEMINI_WAS_RUNNING" == "true" ]]; then
+    start_process "${PHP_BIN} scripts/gemini_daemon.php --daemon --pid-file=${GEMINI_PID}" "gemini_daemon"
 fi
 
 echo "Done."

@@ -123,18 +123,48 @@ Pipe codes are compatible with:
 
 ## Special Pipe Codes
 
-Some BBS software uses special pipe codes for terminal control:
-- `|CL` - Clear screen
-- `|PA` - Pause (wait for keypress)
-- `|DE` - Delete
-- `|RD` - Read
+BBS software uses letter-based pipe codes for terminal control, dynamic content substitution, and display-file behaviour. These fall into three categories:
 
-These codes are **automatically stripped** during rendering, as they are designed for interactive terminal sessions and don't make sense in the context of viewing archived messages.
+### Rendered
+A small number of letter codes have a meaningful equivalent in the web viewer:
+- `|PI` - Literal pipe character (`|`) — Mystic BBS escape for a pipe symbol
+- `|CD` - Reset colour to default — converted to ANSI reset (`\x1b[0m`)
+
+### Stripped (control codes)
+These are interactive terminal control codes that have no meaning when viewing archived messages:
+- `|AA` / `|AO` - Abort on / Abort off (Mystic display-file control)
+- `|BE` - Beep / bell character
+- `|BS` - Destructive backspace
+- `|CL` - Clear screen
+- `|CN` / `|CY` - iCE colours off / on
+- `|CR` - Carriage return + line feed
+- `|DE` - Half-second delay
+- `|LC` - Load last colour mode
+- `|LF` - Load last font
+- `|PA` - Pause prompt
+- `|PB` - Purge input buffer
+- `|PE` / `|PN` - Pause for Enter / wait for key (no prompt)
+- `|PO` - Pause off (Mystic display-file control)
+- `|RA` / `|RS` / `|SA` / `|SS` - Save/restore attribute and screen
+- `|RD` - Read
+- Cursor/screen codes: `|[0`, `|[1`, `|[K`, `|[A##`, `|[X##`, etc.
+
+### Stripped (information codes)
+These codes are substituted by the BBS at display time. In archived messages there is no live BBS context to resolve them, so they are removed:
+- `|BN` - BBS name, `|SN` - Sysop name, `|DN` - Domain name
+- `|UN` - User real name, `|UH` - User handle
+- `|TI` / `|TM` / `|TS` - Current time variants
+- `|DA` - Current date
+- `|CS` / `|CT` - Total calls / calls today
+- `|SL` - Security level
+- All other unrecognised two-letter codes
+
+Mystic BBS theme colour codes (`|T0`–`|T9`) are also stripped as they are theme-dependent.
 
 ## Notes
 
-- Pipe codes are case-insensitive for hex digits (|0F = |0f)
-- Special codes (|CL, |PA, etc.) are silently removed
-- Invalid pipe codes are passed through unchanged
-- The implementation prioritizes compatibility with common BBS software
-- Blink attribute (codes 16-23) is mapped but may not render in all browsers
+- Pipe codes are case-insensitive (`|0F` = `|0f`, `|CL` = `|cl`)
+- Mystic-style hex colour codes (`|0A`–`|FF`) are parsed as two hex nibbles: upper = background, lower = foreground
+- Renegade-style decimal colour codes (`|00`–`|23`) use decimal values: 00–15 = foreground, 16–23 = background
+- All unrecognised two-letter codes are stripped (rather than passed through as literal text)
+- The implementation covers Renegade, Mystic, Synchronet, and other FTN-compatible BBS software

@@ -392,6 +392,21 @@ class AdminDaemonServer
                     $this->deleteAd((string)$name);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'list_shell_art':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->listShellArt()]);
+                    break;
+                case 'upload_shell_art':
+                    $name = $data['name'] ?? '';
+                    $originalName = $data['original_name'] ?? '';
+                    $contentBase64 = $data['content_base64'] ?? '';
+                    $result = $this->uploadShellArt((string)$contentBase64, (string)$name, (string)$originalName);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'delete_shell_art':
+                    $name = $data['name'] ?? '';
+                    $this->deleteShellArt((string)$name);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'list_custom_templates':
                     $templates = $this->listCustomTemplates();
                     $this->writeResponse($client, ['ok' => true, 'result' => $templates]);
@@ -417,6 +432,70 @@ class AdminDaemonServer
                     $overwrite = !empty($data['overwrite']);
                     $result = $this->installCustomTemplate($source, $overwrite);
                     $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
+                case 'get_mrc_config':
+                    $mrcConfig = \BinktermPHP\Mrc\MrcConfig::getInstance();
+                    $mrcConfig->reloadConfig();
+                    $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
+                    break;
+                case 'set_mrc_config':
+                    $payload = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    if (!is_array($payload)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_config']);
+                        break;
+                    }
+                    $mrcConfig = \BinktermPHP\Mrc\MrcConfig::getInstance();
+                    $mrcConfig->setFullConfig($payload);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $mrcConfig->getFullConfig()]);
+                    break;
+                case 'restart_mrc_daemon':
+                    $defaultPidFile = __DIR__ . '/../../data/run/mrc_daemon.pid';
+                    $pidFile = \BinktermPHP\Config::env('MRC_DAEMON_PID_FILE') ?: $defaultPidFile;
+
+                    // Stop daemon if running
+                    if (file_exists($pidFile)) {
+                        $pid = (int)trim(file_get_contents($pidFile));
+                        if ($pid > 0 && posix_kill($pid, 0)) {
+                            posix_kill($pid, SIGTERM);
+                            // Wait for shutdown
+                            for ($i = 0; $i < 10; $i++) {
+                                usleep(100000); // 100ms
+                                if (!posix_kill($pid, 0)) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Start daemon
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/mrc_daemon.php', '--daemon', "--pid-file=$pidFile"]);
+                    $this->logCommandResult('restart_mrc_daemon', $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                case 'get_appearance_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getAppearanceConfig()]);
+                    break;
+                case 'set_appearance_config':
+                    $config = is_array($data['config'] ?? null) ? $data['config'] : [];
+                    $this->writeAppearanceConfig($config);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getAppearanceConfig()]);
+                    break;
+                case 'set_system_news':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeSystemNews($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
+                case 'set_house_rules':
+                    $text = $data['text'] ?? '';
+                    if (!is_string($text)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_text']);
+                        break;
+                    }
+                    $this->writeHouseRules($text);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
                 case 'stop_services':
                     $results = $this->stopServices();
@@ -1093,6 +1172,182 @@ class AdminDaemonServer
         }
 
         return ['success' => true, 'path' => $target];
+    }
+
+    private function getShellArtDir(): string
+    {
+        return __DIR__ . '/../../data/shell_art';
+    }
+
+    private function sanitizeShellArtFilename(string $name): string
+    {
+        $safe = basename($name);
+        $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $safe);
+        $safe = trim($safe, '._');
+        if ($safe === '') {
+            return '';
+        }
+        if (substr($safe, -4) !== '.ans') {
+            $safe .= '.ans';
+        }
+        return $safe;
+    }
+
+    private function listShellArt(): array
+    {
+        $dir = $this->getShellArtDir();
+        if (!is_dir($dir)) {
+            return [];
+        }
+
+        $files = glob($dir . DIRECTORY_SEPARATOR . '*.ans') ?: [];
+        $result = [];
+        foreach ($files as $file) {
+            $result[] = [
+                'name' => basename($file),
+                'size' => filesize($file) ?: 0,
+                'updated_at' => date('c', filemtime($file) ?: time())
+            ];
+        }
+
+        usort($result, fn($a, $b) => strcmp($a['name'], $b['name']));
+        return $result;
+    }
+
+    private function uploadShellArt(string $contentBase64, string $name, string $originalName): array
+    {
+        if ($contentBase64 === '') {
+            throw new \RuntimeException('Missing content');
+        }
+
+        $content = base64_decode($contentBase64, true);
+        if ($content === false) {
+            throw new \RuntimeException('Invalid content encoding');
+        }
+
+        $maxSize = 1024 * 1024;
+        if (strlen($content) > $maxSize) {
+            throw new \RuntimeException('File is too large (max 1MB)');
+        }
+
+        $safeName = $this->sanitizeShellArtFilename($name !== '' ? $name : $originalName);
+        if ($safeName === '') {
+            throw new \RuntimeException('Invalid file name');
+        }
+
+        $dir = $this->getShellArtDir();
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+            throw new \RuntimeException('Failed to create shell_art directory');
+        }
+
+        $path = $dir . DIRECTORY_SEPARATOR . $safeName;
+        if (@file_put_contents($path, $content) === false) {
+            throw new \RuntimeException('Failed to save shell art file');
+        }
+
+        return [
+            'name' => $safeName,
+            'size' => filesize($path) ?: 0,
+            'updated_at' => date('c', filemtime($path) ?: time())
+        ];
+    }
+
+    private function deleteShellArt(string $name): void
+    {
+        $safeName = $this->sanitizeShellArtFilename($name);
+        if ($safeName === '') {
+            throw new \RuntimeException('Invalid file name');
+        }
+
+        $path = $this->getShellArtDir() . DIRECTORY_SEPARATOR . $safeName;
+        if (!is_file($path)) {
+            throw new \RuntimeException('Shell art file not found');
+        }
+
+        if (!@unlink($path)) {
+            throw new \RuntimeException('Failed to delete shell art file');
+        }
+    }
+
+    private function getAppearanceConfigPath(): string
+    {
+        return __DIR__ . '/../../data/appearance.json';
+    }
+
+    private function getSystemNewsPath(): string
+    {
+        return __DIR__ . '/../../data/systemnews.md';
+    }
+
+    private function getHouseRulesPath(): string
+    {
+        return __DIR__ . '/../../data/houserules.md';
+    }
+
+    private function getAppearanceConfig(): array
+    {
+        $path = $this->getAppearanceConfigPath();
+        $config = null;
+        if (file_exists($path)) {
+            $json = file_get_contents($path);
+            $decoded = json_decode($json, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $config = $decoded;
+            }
+        }
+
+        $systemNewsPath = $this->getSystemNewsPath();
+        $houseRulesPath = $this->getHouseRulesPath();
+
+        return [
+            'config' => $config ?? [],
+            'system_news' => file_exists($systemNewsPath) ? (file_get_contents($systemNewsPath) ?: '') : null,
+            'house_rules' => file_exists($houseRulesPath) ? (file_get_contents($houseRulesPath) ?: '') : null,
+        ];
+    }
+
+    private function writeAppearanceConfig(array $config): void
+    {
+        $path = $this->getAppearanceConfigPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode appearance config');
+        }
+
+        if (@file_put_contents($path, $json . PHP_EOL, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write appearance config');
+        }
+    }
+
+    private function writeSystemNews(string $text): void
+    {
+        $path = $this->getSystemNewsPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write system news');
+        }
+    }
+
+    private function writeHouseRules(string $text): void
+    {
+        $path = $this->getHouseRulesPath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (@file_put_contents($path, $text, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write house rules');
+        }
     }
 
 }

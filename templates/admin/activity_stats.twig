@@ -166,7 +166,7 @@
                             <div class="card-header"><strong>Most Browsed File Areas</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Area ID</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>Area</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="filearea-rows"></tbody>
                                 </table>
                             </div>
@@ -245,7 +245,7 @@
         // Parse as local midnight to avoid UTC offset shifting the date
         const parts = dateStr.split('-');
         const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
-        return localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        return localDate.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
     }
 
     function getTzAbbr(timezone) {
@@ -412,7 +412,7 @@
 
     function renderFiles(data) {
         renderRows('file-download-rows', data.top_files       || [], r => r.name, r => r.count, 'bg-success');
-        renderRows('filearea-rows',      data.top_fileareas   || [], r => 'Area #'+r.area_id, r => r.count, 'bg-info');
+        renderRows('filearea-rows',      data.top_fileareas   || [], r => r.area_name, r => r.count, 'bg-info');
     }
 
     function renderNodelist(data) {

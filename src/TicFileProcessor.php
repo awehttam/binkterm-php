@@ -89,6 +89,9 @@ class TicFileProcessor
                 $this->log("Auto-created file area: {$ticData['Area']} (id={$fileArea['id']})");
             }
 
+            // Validate TIC password if this file area requires it
+            $this->validateTicPassword($ticData, $fileArea);
+
             // Validate file
             if (!$this->validateFile($ticData, $filePath)) {
                 return [
@@ -272,6 +275,26 @@ class TicFileProcessor
     }
 
     /**
+     * Validate TIC file area password if configured.
+     *
+     * @param array $ticData Parsed TIC data
+     * @param array $fileArea File area record
+     * @throws \Exception If password validation fails
+     */
+    protected function validateTicPassword(array $ticData, array $fileArea): void
+    {
+        $expected = $fileArea['password'] ?? null;
+        if ($expected === null || $expected === '') {
+            return;
+        }
+
+        $provided = $ticData['Pw'] ?? '';
+        if ($provided === '' || $provided !== $expected) {
+            throw new \Exception('TIC password rejected for file area');
+        }
+    }
+
+    /**
      * Calculate CRC32 checksum
      *
      * @param string $filePath Path to file
@@ -293,7 +316,7 @@ class TicFileProcessor
     {
         if ($domain === null || $domain === '') {
             $stmt = $this->db->prepare("
-                SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash
+                SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash, password
                 FROM file_areas
                 WHERE tag = ? AND is_active = TRUE
                 LIMIT 1
@@ -301,7 +324,7 @@ class TicFileProcessor
             $stmt->execute([$tag]);
         } else {
             $stmt = $this->db->prepare("
-                SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash
+                SELECT id, tag, max_file_size, is_active, replace_existing, scan_virus, allow_duplicate_hash, password
                 FROM file_areas
                 WHERE tag = ? AND domain = ? AND is_active = TRUE
                 LIMIT 1

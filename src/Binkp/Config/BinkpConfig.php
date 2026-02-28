@@ -117,7 +117,7 @@ class BinkpConfig
     
     public function getSystemAddress()
     {
-        return $this->config['system']['address'] ?? '1:1/0';
+        return $this->config['system']['address'] ?? '1:999/999';
     }
     
     public function getSystemSysop()
@@ -538,6 +538,32 @@ class BinkpConfig
             }
         }
         return null;
+    }
+
+    /**
+     * Check if Markdown is allowed for a given domain.
+     */
+    public function isMarkdownAllowedForDomain(string $domain): bool
+    {
+        $uplink = $this->getUplinkByDomain($domain);
+        return !empty($uplink['allow_markdown']);
+    }
+
+    /**
+     * Check if Markdown is allowed for a given destination address.
+     */
+    public function isMarkdownAllowedForDestination(string $destAddr): bool
+    {
+        if (empty($destAddr)) {
+            return false;
+        }
+
+        if ($this->isMyAddress($destAddr)) {
+            return true;
+        }
+
+        $uplink = $this->getUplinkForDestination($destAddr);
+        return $uplink ? !empty($uplink['allow_markdown']) : false;
     }
 
     /**

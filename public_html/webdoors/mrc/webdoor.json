@@ -1,0 +1,22 @@
+{
+  "webdoor_version": "1.0",
+  "game": {
+    "id": "mrc",
+    "name": "MRC Chat",
+    "version": "1.0.0",
+    "author": "BinktermPHP",
+    "description": "Multi Relay Chat - Real-time IRC-like chat connecting multiple BBSes",
+    "entry_point": "index.php",
+    "icon": "icon.svg"
+  },
+  "requirements": {
+    "min_host_version": "1.0",
+    "features": [],
+    "permissions": [
+      "user_display_name"
+    ]
+  },
+  "config": {
+    "enabled": false
+  }
+}

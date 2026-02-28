@@ -37,6 +37,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
   - [File Area Rules](#file-area-rules)
 - [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
+- [Gemini Support](#gemini-support)
 - [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
 - [License](#license)
@@ -95,14 +96,18 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Web Terminal** - SSH terminal access through the web interface with configurable proxy support
 - **Installable PWA** - Installable both on mobile and desktop for a more seamless application experience
 - **Gateway Tokens** - Provides remote and third party services a means to authenticate a BinktermPHP user for access
+- **MRC Chat** - Real-time multi-BBS chat via the MRC (Multi Relay Chat) network; connects users across BBSes in shared rooms with private messaging support (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
 - **WebDoors** - PHP/HTML5/JavaScript game integration with storage and leaderboards
+- **Gemini Browser** - Built-in Gemini protocol browser for exploring Geminispace
+- **Gemini Capsule Hosting** - Users can publish personal Gemini capsules accessible via `gemini://`
 - **DOS Door support** - Integration with dosbox-x for running DOS based doors
 - **File Areas** - Networked and local file areas with optional automation rules (see `docs/FileAreas.md`)
 - **ANSI Support** - Support for ANSI escape sequences and pipe codes (BBS color codes) in message readers. See [ANSI Support](docs/ANSI_Support.md) and [Pipe Code Support](docs/Pipe_Code_Support.md) for details.
 - **Credit System** - Support for credits and rewards 
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
-- **Nodelist Browsers** - Integrated nodelist updater and browser 
+- **Nodelist Browsers** - Integrated nodelist updater and browser
+- **Markdown Support** - Echomail and netmail can be composed and rendered using Markdown formatting on compatible networks
 
 
 ### Native Binkp Protocol Support
@@ -208,12 +213,64 @@ $reward = UserCredit::getRewardAmount('action_name', $defaultValue);
 
 Set `"enabled": false` in the credits configuration to disable the entire system. When disabled, all credit-related functionality is hidden and no transactions are recorded.
 
+### Markdown Support
+
+BinktermPHP supports Markdown formatting in echomail and netmail messages on networks that allow it. When enabled for an uplink, users can compose messages using standard Markdown syntax and have them rendered with full formatting in the message reader.
+
+**How it works:**
+
+Markdown support is opt-in per uplink via the `allow_markdown` flag in the Binkp configuration. When a user sends a message with Markdown enabled, BinktermPHP adds a `\x01MARKDOWN: 1` kludge line to the outbound packet. Readers that recognise this kludge — including BinktermPHP itself — render the message body as formatted HTML. Readers that don't recognise it see the raw Markdown text, which remains human-readable as plain text.
+
+**Enabling Markdown for an uplink:**
+
+In your Binkp configuration, add `"allow_markdown": true` to the uplink definition:
+
+```json
+{
+  "uplinks": [
+    {
+      "address": "1:123/456",
+      "domain": "lovlynet",
+      "allow_markdown": true
+    }
+  ]
+}
+```
+
+**Composing Markdown messages:**
+
+When a user composes a message to a Markdown-enabled network, a **Send as Markdown** checkbox appears below the message body. Checking it activates the Markdown editor, which includes:
+
+- **Formatting toolbar** — buttons for bold, italic, headings (H1–H3), inline code, code blocks, links, bullet lists, ordered lists, blockquotes, and horizontal rules
+- **Keyboard shortcuts** — Ctrl+B (bold), Ctrl+I (italic), Ctrl+K (link), Tab (indent)
+- **Edit / Preview tabs** — switch between raw Markdown editing and a rendered preview that uses the same server-side renderer as the message reader
+
+**Supported syntax:**
+
+| Syntax | Result |
+|--------|--------|
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `` `code` `` | inline code |
+| `# Heading` | H1 heading |
+| `[text](url)` | hyperlink |
+| `- item` | bullet list |
+| `1. item` | numbered list |
+| `> text` | blockquote |
+| ` ``` ` | fenced code block |
+| `---` | horizontal rule |
+| `\| col \| col \|` | table |
+
+**Rendering:**
+
+Incoming messages with the `MARKDOWN` kludge are rendered server-side by `MarkdownRenderer` and displayed as HTML in the echomail and netmail readers. Messages without the kludge continue to be displayed as plain text. The rendered preview in the composer uses the same renderer, so what you see in Preview is exactly what readers will see.
+
 ## Installation
 
 BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
 ### Requirements
-- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip
+- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
@@ -511,6 +568,7 @@ Each uplink in the `uplinks` array supports the following fields:
 | `default` | No | Whether this is the default uplink for unrouted messages |
 | `compression` | No | Enable compression (not yet implemented) |
 | `crypt` | No | Enable encryption (not yet implemented) |
+| `binkp_zone` | No | DNS zone for crashmail address resolution (e.g. `"binkp.net"`) — see below |
 
 **Network Patterns**: The `networks` field uses wildcard patterns to define which addresses route through this uplink:
 - `1:*/*` - All Zone 1 addresses
@@ -574,6 +632,29 @@ The `crashmail` section controls immediate/direct delivery of netmail:
 | `allow_insecure_crash_delivery` | false | Allow crashmail delivery without password |
 
 **About Crashmail**: Crashmail bypasses normal hub routing and attempts direct delivery to the destination node. This is useful for urgent messages but requires the destination node to be directly reachable. The system uses nodelist IBN/INA flags to determine the destination's hostname and port.
+
+**binkp_zone DNS Fallback**: When a destination node cannot be found in the nodelist, crashmail can fall back to DNS resolution using the `binkp_zone` field on the uplink that handles that address range. The hostname is constructed from the FTN address using the standard FidoNet DNS convention:
+
+```
+f{node}.n{net}.z{zone}.{binkp_zone}
+# Examples:
+#   1:123/456  →  f456.n123.z1.binkp.net
+#   2:250/10   →  f10.n250.z2.binkp.net
+```
+
+If the constructed hostname resolves (A or CNAME record), that host is used for delivery on the configured `fallback_port`. This is compatible with DNS-based binkp address registries such as [binkp.net](https://binkp.net). To enable, set `binkp_zone` on the appropriate uplink:
+
+```json
+{
+    "me": "1:123/456.0",
+    "address": "1:1/23",
+    "hostname": "uplink.example.com",
+    "networks": ["1:*/*"],
+    "binkp_zone": "binkp.net"
+}
+```
+
+The field is optional — if omitted or empty, DNS fallback is disabled and crashmail behaves as before.
 
 ### Nodelist Configuration
 
@@ -720,18 +801,19 @@ php binkterm-installer.phar
 
 Individual versions with specific upgrade documentation:
 
-| Version                                | Date        | Highlights |
-|----------------------------------------|-------------|------------|
-| [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Telnet anti-bot challenge, bind host/port via .env, FTN origin line fix, DOS door improvements |
-| [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation |
-| [1.7.9](docs/UPGRADING_1.7.9.md)       | Feb 8 2026  | LovlyNet, telnet user registration, ANSI AD generator, misc updates |
-| [1.7.8](docs/UPGRADING_1.7.8.md)       | Feb 6 2026  | NetMail enhancements, auto feed RSS poster, sysop notifications to email, echomail cross posting |
-| [1.7.7](docs/UPGRADING_1.7.7.md)       | Feb 4 2026  | Nodelist import fix for ZC/NC, WebDoor updates, signatures and taglines, file area action processing |
-| [1.7.5](docs/UPGRADING_1.7.5.md)       | Feb 2 2026  | Echomail loader optimisations, Bink fixes, file areas, forum-style echoarea list |
-| [1.7.2](docs/UPGRADING_1.7.2.md)       | Jan 30 2026 | Maintenance release |
-| [1.7.1](docs/UPGRADING_1.7.1.md)       | Jan 29 2026 | Online config editing for BinkP, system config, and WebDoors |
-| [1.7.0](docs/UPGRADING_1.7.0.md)       | Jan 28 2026 | New daemon/scheduler cron model |
-| [1.6.7](docs/UPGRADING_1.6.7.md)       | Jan 24 2026 | Multi-network support (FidoNet, FSXNet, etc.) |
+| Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
+|----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [1.8.3](docs/UPGRADING_1.8.3.md)       | Feb 27 2026 | Appearance system & shells, Gemini Capsule Hosting, Gemini echo area exposure, Markdown compose editor, netmail file attachments, file share links, friendly share URLs, address book crashmail preference, crashmail DNS fallback & immediate delivery, scrollable message reader, echomail bulk mark-as-read, MRC Chat WebDoor |
+| [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Gemini Browser WebDoor, CSRF protection, telnet anti-bot, security fixes                                                                                                                                                                                                                                         |
+| [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation                                                                                                                                                                                                       |
+| [1.7.9](docs/UPGRADING_1.7.9.md)       | Feb 8 2026  | LovlyNet, telnet user registration, ANSI AD generator, misc updates                                                                                                                                                                                                                                              |
+| [1.7.8](docs/UPGRADING_1.7.8.md)       | Feb 6 2026  | NetMail enhancements, auto feed RSS poster, sysop notifications to email, echomail cross posting                                                                                                                                                                                                                 |
+| [1.7.7](docs/UPGRADING_1.7.7.md)       | Feb 4 2026  | Nodelist import fix for ZC/NC, WebDoor updates, signatures and taglines, file area action processing                                                                                                                                                                                                             |
+| [1.7.5](docs/UPGRADING_1.7.5.md)       | Feb 2 2026  | Echomail loader optimisations, Bink fixes, file areas, forum-style echoarea list                                                                                                                                                                                                                                 |
+| [1.7.2](docs/UPGRADING_1.7.2.md)       | Jan 30 2026 | Maintenance release                                                                                                                                                                                                                                                                                              |
+| [1.7.1](docs/UPGRADING_1.7.1.md)       | Jan 29 2026 | Online config editing for BinkP, system config, and WebDoors                                                                                                                                                                                                                                                     |
+| [1.7.0](docs/UPGRADING_1.7.0.md)       | Jan 28 2026 | New daemon/scheduler cron model                                                                                                                                                                                                                                                                                  |
+| [1.6.7](docs/UPGRADING_1.6.7.md)       | Jan 24 2026 | Multi-network support (FidoNet, FSXNet, etc.)                                                                                                                                                                                                                                                                    |
 
 ## Database Management
 
@@ -1368,16 +1450,31 @@ See `templates/custom/header.insert.twig.example` for reference with Google Anal
 
 BinktermPHP provides several ways to customize the look and feel without modifying core files:
 
+### Appearance System (Admin UI)
+
+The easiest way to customize your BBS is through **Admin → Appearance**, which provides a point-and-click interface for:
+
+- **Shells** — Choose between the modern `web` shell (Bootstrap 5) or the retro `bbs-menu` shell. The BBS menu shell offers three variants: card grid, text menu, and ANSI art display. You can allow users to choose their own shell or lock everyone to a single choice.
+- **Branding** — Set a custom accent color, logo URL, default theme, and footer text.
+- **Announcements** — Post a dismissible site-wide announcement with an optional expiry date.
+- **System News** — Write dashboard content in Markdown, managed through the admin panel.
+- **Navigation** — Add custom links to the navigation bar.
+- **SEO** — Set a site description and Open Graph image for search engine and social sharing metadata.
+
+All appearance settings are stored in `data/appearance.json` and take effect immediately.
+
+### Manual Customization
+
 - **Custom Stylesheet**: Set `STYLESHEET=/css/mytheme.css` in `.env` (includes built-in dark theme at `/css/dark.css`)
-- **Template Overrides**: Copy any template to `templates/custom/` to override it
+- **Template Overrides**: Copy any template to `templates/custom/` to override it without touching core files
+- **Shell Templates**: Add a `templates/shells/<name>/` directory with a `base.twig` to create a new shell
 - **Custom Routes**: Create `routes/web-routes.local.php` to add new pages
-- **System News**: Create `templates/custom/systemnews.twig` for dashboard content
 - **Header Insertions**: Add CSS/JS via `templates/custom/header.insert.twig`
 - **Welcome Messages**: Customize login page via `config/welcome.txt`
 
 All customizations are upgrade-safe and won't be overwritten when updating BinktermPHP.
 
-For detailed instructions including Bootstrap 5 components, Twig template variables, and code examples, see **[CUSTOMIZING.md](CUSTOMIZING.md)**.
+For detailed instructions including the full appearance configuration reference, shell template structure, Twig variables, and code examples, see **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)**.
 
 ### Performance Tuning
 
@@ -1615,6 +1712,7 @@ BinktermPHP ships with the following WebDoors out of the box:
 - **Wordle** - Popular five-letter word guessing game
 
 **Utilities:**
+- **MRC Chat** - Real-time multi-BBS chat connecting to the MRC network (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
 - **BBSLink** - Gateway to classic DOS door games via BBSLink service
 - **Community Wireless Node List** - Interactive map for discovering and sharing community wireless networks, mesh networks, and grassroots infrastructure
 - **Source Games** - Live server browser for Source engine games (TF2, CS:GO) with real-time stats
@@ -1685,6 +1783,43 @@ Games interact with the BBS through REST endpoints:
 ### Documentation
 
 For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
+
+## Gemini Support
+
+BinktermPHP includes first-class support for the [Gemini protocol](https://geminiprotocol.net/) — a lightweight, privacy-focused alternative to the web that uses a simple text format called gemtext.
+
+### Gemini Browser
+
+A built-in Gemini browser WebDoor lets users explore Geminispace without leaving the BBS. It includes:
+
+- Address bar with history navigation (back/forward)
+- Bookmark management per user
+- Gemtext rendering with headings, links, lists, blockquotes, and preformatted blocks
+- Redirect following and configurable request timeouts
+- SSRF protection (private/reserved address blocking for public deployments)
+
+The browser opens to a curated start page with links to popular Geminispace destinations. The start page can be overridden in Admin → WebDoors → Gemini Browser.
+
+### Gemini Capsule Hosting
+
+BBS users can publish personal Gemini capsules directly from the web interface. The **Gemini Capsule** WebDoor provides:
+
+- Split-pane gemtext editor with live preview
+- Per-file publish/draft controls (only published files are publicly accessible)
+- Gemtext syntax cheat sheet
+- Multiple `.gmi` files per user
+
+Published capsules are accessible at:
+
+```
+gemini://yourdomain.com/home/username/
+```
+
+A directory page at `gemini://yourdomain.com/` lists all users with published capsules and links to the BBS website.
+
+The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) that operators start only if they want to expose Gemini. It generates a self-signed TLS certificate automatically (Gemini uses a Trust On First Use model), or can be configured to use a CA-signed certificate such as one from Let's Encrypt.
+
+See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
 
 ## Frequently Asked Questions
 

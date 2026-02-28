@@ -28,8 +28,12 @@
     100% { opacity: 0.98; }
 }
 
-/* Prevent horizontal overflow on mobile */
-html, body {
+/* Prevent horizontal overflow on mobile.
+   overflow-x must NOT be set on html — doing so turns overflow-y into
+   "auto" on the root element in Chromium, making html the scroll
+   container and allowing the admin dropdown to create a spurious
+   vertical scrollbar. */
+body {
     overflow-x: hidden;
     max-width: 100vw;
 }
@@ -375,6 +379,10 @@ a:hover {
 
 .form-control::placeholder {
     color: var(--term-amber-dark);
+}
+
+.form-text {
+    color: var(--text-color-muted);
 }
 
 .form-control:disabled,
@@ -1423,4 +1431,37 @@ tbody, td, tfoot, th, thead, tr {
     #echolist-page .forum-stats-cell {
         border-top-color: var(--term-amber-dark);
     }
+}
+
+/* Message Reader: scrollable body mode */
+/* Remove modal-body top padding so there is no gap above the sticky header */
+.message-reader-scrollable .modal-body {
+    padding-top: 0;
+}
+.message-reader-scrollable .message-header-full {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -1rem 1rem;
+    padding: 1rem 1rem 0.75rem;
+}
+
+/* Markdown Editor */
+.md-editor-wrapper {
+    border-color: var(--term-amber-dark);
+}
+
+.md-editor-toolbar {
+    background-color: var(--term-black-light);
+    border-bottom-color: var(--term-amber-dark);
+}
+
+.md-editor-textarea {
+    background-color: var(--term-black);
+    color: var(--term-amber);
+}
+
+.md-preview-pane {
+    background-color: var(--term-black);
+    color: var(--term-amber);
 }

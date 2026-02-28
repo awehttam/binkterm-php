@@ -107,11 +107,13 @@ class MarkdownRenderer
                 trim($lines[$i]) !== '' &&
                 !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\|)/', $lines[$i])
             ) {
-                $para[] = self::inlineHtml($lines[$i]);
+                $para[] = $lines[$i];
                 $i++;
             }
             if ($para) {
-                $output[] = '<p>' . implode(' ', $para) . '</p>';
+                // Join lines first so inline links that span a soft wrap are
+                // processed as a single string rather than split across calls.
+                $output[] = '<p>' . self::inlineHtml(implode(' ', $para)) . '</p>';
             }
         }
 
@@ -140,10 +142,16 @@ class MarkdownRenderer
         $text = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $text);
         $text = preg_replace('/_([^_]+)_/', '<em>$1</em>', $text);
 
-        // Markdown links [label](url)
-        $text = preg_replace(
-            '/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/',
-            '<a href="$2" target="_blank" rel="noopener">$1</a>',
+        // Markdown links [label](url) — absolute (https?://) or root-relative (/)
+        $text = preg_replace_callback(
+            '/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\)]+)\)/',
+            function ($m) {
+                $label = $m[1]; // already htmlspecialchars-encoded
+                $url   = $m[2];
+                $isExternal = str_starts_with($url, 'http');
+                $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
+                return '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
+            },
             $text
         );
 

@@ -143,7 +143,7 @@
 
 <!-- Message View Modal -->
 <div class="modal fade" id="messageModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-message-reader">
+    <div class="modal-dialog modal-lg modal-message-reader{% if appearance.message_reader.scrollable_body %} modal-dialog-scrollable message-reader-scrollable{% endif %}">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
@@ -226,9 +226,21 @@
                     
                     <div class="mb-3">
                         <label for="addressBookDescription" class="form-label">Description <small class="text-muted">(optional)</small></label>
-                        <textarea class="form-control" id="addressBookDescription" rows="3" 
+                        <textarea class="form-control" id="addressBookDescription" rows="3"
                                   placeholder="Notes about this contact..."></textarea>
                     </div>
+
+                    {% if crashmail_enabled %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="addressBookAlwaysCrashmail" name="always_crashmail">
+                            <label class="form-check-label" for="addressBookAlwaysCrashmail">
+                                <i class="fas fa-bolt text-warning me-1"></i>Always use crashmail for this Recipient
+                            </label>
+                            <div class="form-text">Automatically enable crashmail when composing messages to this contact.</div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </form>
             </div>
             <div class="modal-footer">

@@ -72,6 +72,17 @@
                         <div class="form-text">Choose your preferred color scheme</div>
                     </div>
 
+                    {% if not appearance.shell.lock_shell %}
+                    <div class="mb-3">
+                        <label for="shellPreference" class="form-label">Interface Style</label>
+                        <select class="form-select" id="shellPreference" name="shell">
+                            <option value="web">Web Interface (default navbar &amp; menus)</option>
+                            <option value="bbs-menu">BBS Menu (hotkey navigation)</option>
+                        </select>
+                        <div class="form-text">Choose your preferred navigation style.</div>
+                    </div>
+                    {% endif %}
+
                     <div class="mb-3">
                         <label for="defaultEchoList" class="form-label">Default Echo Area List</label>
                         <select class="form-select" id="defaultEchoList" name="default_echo_list">
@@ -352,6 +363,7 @@ function loadSettings() {
             if (data.timezone) $('#timezone').val(data.timezone);
             if (data.date_format) $('#dateFormat').val(data.date_format);
             if (data.theme) $('#theme').val(data.theme);
+            if (data.shell) $('#shellPreference').val(data.shell);
             if (data.default_echo_list) $('#defaultEchoList').val(data.default_echo_list);
             if (data.font_family) $('#fontFamily').val(data.font_family);
             if (data.font_size) $('#fontSize').val(data.font_size);
@@ -396,6 +408,7 @@ function saveSettings() {
         timezone: $('#timezone').val(),
         date_format: $('#dateFormat').val(),
         theme: $('#theme').val(),
+        shell: $('#shellPreference').val() || undefined,
         default_echo_list: $('#defaultEchoList').val(),
         font_family: $('#fontFamily').val(),
         font_size: parseInt($('#fontSize').val()),

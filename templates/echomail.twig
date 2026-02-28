@@ -94,21 +94,24 @@
                         {% endif %}
                     </h6>
                     <div class="d-flex align-items-center gap-2">
-                        {% if current_user.is_admin %}
                         <div id="bulkActions" class="d-none">
+                            <span class="me-2 text-muted">Selected: <span id="selectedCount">0</span></span>
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="markSelectedAsRead()" disabled>
+                                <i class="fas fa-envelope-open"></i>
+                                Mark as Read
+                            </button>
+                            {% if current_user.is_admin %}
                             <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteSelectedMessages()" disabled>
                                 <i class="fas fa-trash"></i>
-                                Delete Selected (<span id="selectedCount">0</span>)
+                                Delete Selected
                             </button>
+                            {% endif %}
                         </div>
-                        {% endif %}
                         <div class="btn-group btn-group-sm" role="group">
-                            {% if current_user.is_admin %}
                             <button type="button" class="btn btn-outline-secondary" onclick="toggleSelectMode()" id="selectModeBtn">
                                 <i class="fas fa-check-square"></i>
                                 Select
                             </button>
-                            {% endif %}
                             <button type="button" class="btn btn-outline-secondary" onclick="refreshMessages()">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
@@ -261,7 +264,7 @@
 
 <!-- Message View Modal -->
 <div class="modal fade" id="messageModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-message-reader">
+    <div class="modal-dialog modal-lg modal-message-reader{% if appearance.message_reader.scrollable_body %} modal-dialog-scrollable message-reader-scrollable{% endif %}">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
@@ -381,6 +384,10 @@
                 <button type="button" class="btn btn-primary" id="createShareBtn">
                     <i class="fas fa-share-alt"></i>
                     Create Share Link
+                </button>
+                <button type="button" class="btn btn-outline-primary d-none" id="friendlyUrlBtn" title="Generate a readable URL based on the echo area and subject">
+                    <i class="fas fa-link"></i>
+                    Get Friendly URL
                 </button>
                 <button type="button" class="btn btn-danger d-none" id="revokeShareBtn">
                     <i class="fas fa-trash"></i>

@@ -1,0 +1,2 @@
+ALTER TABLE address_book
+    ADD COLUMN IF NOT EXISTS always_crashmail BOOLEAN NOT NULL DEFAULT FALSE;

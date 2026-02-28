@@ -17,6 +17,7 @@
 namespace BinktermPHP;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\AppearanceConfig;
 use BinktermPHP\BbsConfig;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
@@ -26,32 +27,64 @@ class Template
 {
     private $twig;
     private $auth;
+    private string $activeShell = 'web';
 
     public function __construct()
     {
-        // Set up filesystem loader with multiple template paths
-        // Order matters: first path found wins, allowing custom overrides
+        $this->auth = new Auth();
+        $currentUser = $this->auth->getCurrentUser();
+
+        $this->activeShell = $this->resolveActiveShell($currentUser);
+
+        // Set up filesystem loader with multiple template paths.
+        // Order matters: first path found wins, allowing custom overrides.
         $templatePaths = [
-            Config::TEMPLATE_PATH . '/custom',  // Custom overrides (checked first)
-            Config::TEMPLATE_PATH,              // Primary templates directory
+            Config::TEMPLATE_PATH . '/custom',                        // Custom overrides (highest priority)
+            Config::TEMPLATE_PATH . '/shells/' . $this->activeShell,  // Active shell chrome
+            Config::TEMPLATE_PATH,                                     // Original templates (never modified)
         ];
 
         // Filter out non-existent paths to avoid Twig warnings
-        $templatePaths = array_filter($templatePaths, 'is_dir');
+        $templatePaths = array_values(array_filter($templatePaths, 'is_dir'));
 
         $loader = new FilesystemLoader($templatePaths);
         $this->twig = new Environment($loader, [
             'cache' => false, // Disable for development
             'debug' => true
         ]);
-        
-        $this->auth = new Auth();
-        $this->addGlobalVariables();
+
+        $this->addGlobalVariables($currentUser);
     }
 
-    private function addGlobalVariables()
+    /**
+     * Determine which shell to use for the current request.
+     * Priority: user preference (when not locked) → sysop default → 'web'.
+     */
+    private function resolveActiveShell(?array $currentUser): string
     {
-        $currentUser = $this->auth->getCurrentUser();
+        if (!AppearanceConfig::isShellLocked() && $currentUser) {
+            try {
+                $userId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+                if ($userId > 0) {
+                    $meta = new UserMeta();
+                    $userShell = $meta->getValue($userId, 'shell');
+                    if ($userShell && in_array($userShell, ['web', 'bbs-menu'], true)) {
+                        return $userShell;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Fall through to sysop default
+            }
+        }
+
+        return AppearanceConfig::getActiveShell();
+    }
+
+    private function addGlobalVariables(?array $currentUser = null)
+    {
+        if ($currentUser === null) {
+            $currentUser = $this->auth->getCurrentUser();
+        }
 
         // Get dynamic system info from BinkP config
         try {
@@ -122,6 +155,7 @@ class Template
 
         // Is the game system enabled
         $this->twig->addGlobal('webdoors_active', GameConfig::isGameSystemEnabled());
+        $this->twig->addGlobal('mrc_webdoor_enabled', GameConfig::isEnabled('mrc'));
 
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);
@@ -144,8 +178,39 @@ class Template
         $availableThemes = Config::getThemes();
         $this->twig->addGlobal('available_themes', $availableThemes);
 
+        // Appearance configuration
+        $appearanceConfig = AppearanceConfig::getConfig();
+
+        // Resolve announcement active state (Twig has no datetime comparison)
+        $ann = $appearanceConfig['content']['announcement'] ?? [];
+        $annEnabled = !empty($ann['enabled']);
+        $annExpiresAt = $ann['expires_at'] ?? null;
+        $annActive = $annEnabled;
+        if ($annActive && $annExpiresAt) {
+            try {
+                $annActive = new \DateTime($annExpiresAt) > new \DateTime();
+            } catch (\Throwable $e) {
+                $annActive = false;
+            }
+        }
+        $ann['_active'] = $annActive;
+        $ann['_key'] = substr(md5($ann['text'] ?? ''), 0, 8);
+        $appearanceConfig['content']['announcement'] = $ann;
+
+        // Pre-render house rules if data file exists
+        $houseRulesMd = AppearanceConfig::getHouseRulesMarkdown();
+        $houseRulesHtml = $houseRulesMd !== null ? MarkdownRenderer::toHtml($houseRulesMd) : null;
+
+        $this->twig->addGlobal('appearance', $appearanceConfig);
+        $this->twig->addGlobal('appearance_houserules_html', $houseRulesHtml);
+        $this->twig->addGlobal('active_shell', $this->activeShell);
+
         // Determine stylesheet to use - check user's theme preference if logged in
-        $stylesheet = Config::getStylesheet();
+        // When theme is locked by sysop, always use the sysop's default theme.
+        $defaultTheme = AppearanceConfig::getDefaultTheme();
+        $stylesheet = ($defaultTheme !== '' && in_array($defaultTheme, $availableThemes, true))
+            ? $defaultTheme
+            : Config::getStylesheet();
 
         // Get BBS-wide default echo interface (default to 'echolist')
         $bbsConfig = BbsConfig::getConfig();
@@ -156,7 +221,7 @@ class Template
             try {
                 $handler = new MessageHandler();
                 $settings = $handler->getUserSettings($currentUser['user_id']);
-                if (!empty($settings['theme'])) {
+                if (!empty($settings['theme']) && !AppearanceConfig::isThemeLocked()) {
                     // Validate that the user's theme is in the available themes
                     if (in_array($settings['theme'], $availableThemes, true)) {
                         $stylesheet = $settings['theme'];
@@ -196,22 +261,28 @@ class Template
     }
     
     /**
-     * Render system news template if it exists, otherwise return default content
+     * Render system news: checks data/systemnews.md first, then
+     * templates/custom/systemnews.twig, then built-in default.
      */
     public function renderSystemNews($variables = [])
     {
-        $systemNewsPath = Config::TEMPLATE_PATH . '/custom/systemnews.twig';
+        // Priority 1: Markdown file managed via admin UI
+        $systemNewsMd = AppearanceConfig::getSystemNewsMarkdown();
+        if ($systemNewsMd !== null && trim($systemNewsMd) !== '') {
+            return MarkdownRenderer::toHtml($systemNewsMd);
+        }
 
+        // Priority 2: Custom Twig template (backward compat)
+        $systemNewsPath = Config::TEMPLATE_PATH . '/custom/systemnews.twig';
         if (file_exists($systemNewsPath)) {
             try {
                 return $this->render('systemnews.twig', $variables);
             } catch (\Exception $e) {
-                // Log error but don't break the page
                 error_log("Failed to render systemnews.twig: " . $e->getMessage());
             }
         }
 
-        // Fallback content if template doesn't exist or fails to render
+        // Fallback: built-in default
         return $this->getDefaultSystemNews($variables);
     }
     

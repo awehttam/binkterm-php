@@ -81,7 +81,7 @@ function resolveGeminiUrl(base, relative) {
  * @returns {string}       - HTML string
  */
 function renderGemtext(text, baseUrl) {
-    const lines = text.split('\n');
+    const lines = text.split(/\r?\n/);
     let html    = '';
     let inPre   = false;
     let preBuf  = '';

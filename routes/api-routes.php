@@ -1744,6 +1744,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
+            $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
@@ -1761,11 +1762,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, is_sysop_only, domain)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, is_sysop_only, domain, gemini_public)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $isSysopOnly ? 1 : 0, $domain]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
 
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -1800,6 +1801,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isActive = !empty($input['is_active']);
             $isLocal = !empty($input['is_local']);
             $isSysopOnly = !empty($input['is_sysop_only']);
+            $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
 
             if (empty($tag) || empty($description)) {
@@ -1818,11 +1820,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 1 : 0, $isLocal ? 1 : 0, $isSysopOnly ? 1 : 0, $domain, $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);
@@ -2115,6 +2117,131 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         readfile($storagePath);
         exit;
     })->where(['id' => '[0-9]+']);
+
+    /**
+     * POST /api/files/{id}/share
+     * Create a share link for a file (auth required). Returns existing share if one exists.
+     */
+    SimpleRouter::post('/files/{id}/share', function($id) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $expiresHours = isset($input['expires_hours']) && $input['expires_hours'] !== ''
+            ? (int)$input['expires_hours']
+            : null;
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $manager = new \BinktermPHP\FileAreaManager();
+        $result = $manager->createFileShare((int)$id, (int)$userId, $expiresHours);
+
+        if (!$result['success']) {
+            http_response_code(400);
+        }
+        echo json_encode($result);
+    })->where(['id' => '[0-9]+']);
+
+    /**
+     * GET /api/files/shared/check/{fileId}
+     * Check if the current user has an active share for a file (auth required).
+     * Returns the share URL (area/filename format) if found.
+     */
+    SimpleRouter::get('/files/shared/check/{fileId}', function($fileId) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $userId  = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+        $manager = new \BinktermPHP\FileAreaManager();
+        $share   = $manager->getExistingFileShare((int)$fileId);
+
+        if ($share) {
+            // Need the file's area tag and filename to build the URL
+            $file = $manager->getFileById((int)$fileId);
+            $shareUrl = $file
+                ? \BinktermPHP\Config::getSiteUrl()
+                    . '/shared/file/'
+                    . rawurlencode($file['area_tag'])
+                    . '/'
+                    . rawurlencode($file['filename'])
+                : null;
+
+            echo json_encode([
+                'success'    => true,
+                'share_id'   => (int)$share['id'],
+                'share_url'  => $shareUrl,
+                'can_revoke' => $isAdmin || (int)$share['shared_by_user_id'] === (int)$userId,
+            ]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
+    })->where(['fileId' => '[0-9]+']);
+
+    /**
+     * GET /api/files/shared/{area}/{filename}
+     * Get shared file info by area tag and filename (no auth required).
+     */
+    SimpleRouter::get('/files/shared/{area}/{filename}', function($area, $filename) {
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $auth = new \BinktermPHP\Auth();
+        $currentUser = $auth->getCurrentUser();
+        $requestingUserId = $currentUser ? ($currentUser['user_id'] ?? $currentUser['id'] ?? null) : null;
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $result  = $manager->getSharedFile($area, $filename, $requestingUserId);
+
+        if (!$result['success']) {
+            http_response_code(404);
+        }
+        echo json_encode($result);
+    })->where(['area' => '[A-Za-z0-9@._-]+', 'filename' => '[A-Za-z0-9._-]+']);
+
+    /**
+     * DELETE /api/files/shares/{shareId}
+     * Revoke a file share (auth required, owner or admin).
+     */
+    SimpleRouter::delete('/files/shares/{shareId}', function($shareId) {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'File areas feature is disabled']);
+            return;
+        }
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $isAdmin = !empty($user['is_admin']);
+
+        $manager = new \BinktermPHP\FileAreaManager();
+        $revoked = $manager->revokeFileShare((int)$shareId, (int)$userId, $isAdmin);
+
+        if (!$revoked) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Share not found or access denied']);
+            return;
+        }
+        echo json_encode(['success' => true]);
+    })->where(['shareId' => '[0-9]+']);
 
     SimpleRouter::post('/files/upload', function() {
         $user = RouteHelper::requireAuth();
@@ -2471,6 +2598,57 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         // Get messages from subscribed echoareas only
         $result = $handler->getEchomailFromSubscribedAreas($userId, $page, null, $filter, $threaded, $sort);
         echo json_encode($result);
+    });
+
+    // Echomail bulk read endpoint - must come before parameterized routes
+    SimpleRouter::post('/messages/echomail/read', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $messageIds = $input['messageIds'] ?? [];
+
+        if (empty($messageIds) || !is_array($messageIds)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid message IDs']);
+            return;
+        }
+
+        $userId = (int)$user['user_id'];
+        $db = Database::getInstance()->getPdo();
+        $marked = 0;
+
+        try {
+            $db->beginTransaction();
+            $stmt = $db->prepare("
+                INSERT INTO message_read_status (user_id, message_id, message_type, read_at)
+                VALUES (?, ?, 'echomail', NOW())
+                ON CONFLICT (user_id, message_id, message_type) DO UPDATE SET
+                    read_at = EXCLUDED.read_at
+            ");
+
+            foreach ($messageIds as $id) {
+                $stmt->execute([$userId, (int)$id]);
+                $marked++;
+            }
+
+            $db->commit();
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to mark messages as read']);
+            return;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => "Marked $marked message" . ($marked !== 1 ? 's' : '') . " as read",
+            'marked' => $marked,
+            'total' => count($messageIds)
+        ]);
     });
 
     // Echomail bulk delete endpoint - must come before parameterized routes
@@ -2905,6 +3083,62 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['echoarea' => '[A-Za-z0-9._@-]+', 'id' => '[0-9]+']);
 
+    /**
+     * Upload a file for attachment to an outbound netmail.
+     * Returns a token used to reference the file when sending.
+     */
+    SimpleRouter::post('/netmail/attachment/upload', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        if (empty($_FILES['file'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'No file uploaded']);
+            return;
+        }
+
+        $file = $_FILES['file'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Upload error: ' . $file['error']]);
+            return;
+        }
+
+        $maxBytes = (int)\BinktermPHP\Config::env('NETMAIL_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024);
+        if ($file['size'] > $maxBytes) {
+            http_response_code(400);
+            echo json_encode(['error' => 'File exceeds maximum size of ' . round($maxBytes / 1048576) . ' MB']);
+            return;
+        }
+
+        // Sanitise filename: keep only safe characters
+        $originalName = basename($file['name']);
+        $safeName = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $originalName);
+        if ($safeName === '' || $safeName === '.') {
+            $safeName = 'attachment';
+        }
+
+        $token = bin2hex(random_bytes(16));
+        $destDir = __DIR__ . '/../data/netmail_attachments';
+        if (!is_dir($destDir)) {
+            mkdir($destDir, 0777, true);
+        }
+        $destPath = $destDir . '/' . $token . '_' . $safeName;
+
+        if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to store uploaded file']);
+            return;
+        }
+
+        echo json_encode([
+            'token'             => $token,
+            'original_filename' => $safeName,
+            'size'              => $file['size'],
+        ]);
+    });
+
     SimpleRouter::post('/messages/send', function() {
         $user = RouteHelper::requireAuth();
 
@@ -2912,6 +3146,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $input = json_decode(file_get_contents('php://input'), true);
         $type = $input['type'] ?? '';
+        $sendMarkdown = !empty($input['send_markdown']);
 
         $handler = new MessageHandler();
 
@@ -2921,6 +3156,19 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 if(trim($input['to_address'])==""){
                     $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                     $input['to_address'] = $binkpConfig->getSystemAddress();
+                }
+
+                // Resolve attachment token if provided
+                $attachment = null;
+                $attachmentToken = $input['attachment_token'] ?? '';
+                if (!empty($attachmentToken) && preg_match('/^[0-9a-f]{32}$/', $attachmentToken)) {
+                    $attachDir = __DIR__ . '/../data/netmail_attachments';
+                    $matches = glob($attachDir . '/' . $attachmentToken . '_*');
+                    if (!empty($matches)) {
+                        $attachPath = $matches[0];
+                        $attachFilename = substr(basename($attachPath), 33); // strip token + underscore
+                        $attachment = ['file_path' => $attachPath, 'filename' => $attachFilename];
+                    }
                 }
 
                 $crashmailFlag = !empty($input['crashmail']);
@@ -2933,7 +3181,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     null, // fromName
                     $input['reply_to_id'] ?? null,
                     $crashmailFlag,
-                    $input['tagline'] ?? null
+                    $input['tagline'] ?? null,
+                    $attachment,
+                    $sendMarkdown
                 );
             } elseif ($type === 'echomail') {
                 $foo=explode("@", $input['echoarea']);
@@ -2948,7 +3198,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['subject'],
                     $input['message_text'],
                     $input['reply_to_id'],
-                    $input['tagline'] ?? null
+                    $input['tagline'] ?? null,
+                    false,
+                    $sendMarkdown
                 );
 
                 // Handle cross-posting to additional areas
@@ -2980,7 +3232,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                                 $input['message_text'],
                                 null,
                                 $input['tagline'] ?? null,
-                                true // skipCredits
+                                true,
+                                $sendMarkdown
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {
@@ -3010,6 +3263,71 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             http_response_code(500);
             echo json_encode(['error' => $e->getMessage()]);
         }
+    });
+
+    // Markdown support lookup for compose UI
+    SimpleRouter::get('/messages/markdown-support', function() {
+        $user = RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $address = $_GET['address'] ?? null;
+        $domain  = $_GET['domain']  ?? null;
+        $area    = $_GET['area']    ?? null;  // full tag@domain string for echomail
+        $allowed = false;
+
+        try {
+            // Local-only echo areas always allow markdown
+            if (!empty($area)) {
+                $atPos = strpos($area, '@');
+                $tag       = $atPos !== false ? substr($area, 0, $atPos) : $area;
+                $areaDomain = $atPos !== false ? substr($area, $atPos + 1) : '';
+
+                $db = \BinktermPHP\Database::getInstance()->getPdo();
+                if ($areaDomain === '') {
+                    // Area has no domain (local area with NULL/empty domain)
+                    $stmt = $db->prepare("SELECT is_local FROM echoareas WHERE UPPER(tag) = UPPER(?) AND (domain IS NULL OR domain = '')");
+                    $stmt->execute([$tag]);
+                } else {
+                    $stmt = $db->prepare("SELECT is_local FROM echoareas WHERE UPPER(tag) = UPPER(?) AND LOWER(domain) = LOWER(?)");
+                    $stmt->execute([$tag, $areaDomain]);
+                }
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($row && $row['is_local']) {
+                    echo json_encode(['allowed' => true]);
+                    return;
+                }
+            }
+
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            if (!empty($domain)) {
+                $allowed = $binkpConfig->isMarkdownAllowedForDomain((string)$domain);
+            } elseif (!empty($address)) {
+                $allowed = $binkpConfig->isMarkdownAllowedForDestination((string)$address);
+            }
+        } catch (\Exception $e) {
+            $allowed = false;
+        }
+
+        echo json_encode(['allowed' => $allowed]);
+    });
+
+    // Markdown preview render for compose UI
+    SimpleRouter::post('/messages/markdown-preview', function() {
+        RouteHelper::requireAuth();
+
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $text = trim($input['text'] ?? '');
+
+        if ($text === '') {
+            echo json_encode(['html' => '']);
+            return;
+        }
+
+        $html = \BinktermPHP\MarkdownRenderer::toHtml($text);
+        echo json_encode(['html' => $html]);
     });
 
     // Save message draft
@@ -4168,6 +4486,52 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    SimpleRouter::post('/messages/echomail/{id}/share/friendly-url', function($id) {
+        header('Content-Type: application/json');
+
+        $user   = RouteHelper::requireAuth();
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->generateSlugForExistingShare((int)$id, 'echomail', $userId);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                http_response_code(404);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    });
+
+    SimpleRouter::get('/messages/shared/{area}/{slug}', function($area, $slug) {
+        header('Content-Type: application/json');
+
+        $auth   = new Auth();
+        $user   = $auth->getCurrentUser();
+        $userId = $user ? ($user['user_id'] ?? $user['id'] ?? null) : null;
+
+        try {
+            $handler = new MessageHandler();
+            $result  = $handler->getSharedMessageBySlug($area, $slug, $userId);
+
+            if ($result['success']) {
+                echo json_encode($result);
+            } else {
+                $statusCode = ($result['error'] === 'Login required to access this share') ? 401 : 404;
+                http_response_code($statusCode);
+                echo json_encode($result);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
+
     SimpleRouter::get('/messages/shared/{shareKey}', function($shareKey) {
         header('Content-Type: application/json');
 
@@ -4246,6 +4610,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $settings = $handler->getUserSettings($userId);
+
+            // Append shell preference from UserMeta
+            if ($userId) {
+                $meta = new \BinktermPHP\UserMeta();
+                $settings['shell'] = $meta->getValue((int)$userId, 'shell') ?? '';
+            }
+
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
             http_response_code(500);
@@ -4267,8 +4638,20 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         try {
+            $settings = $input['settings'];
+
+            // Handle shell preference separately (stored in UserMeta, not user_settings table)
+            if (isset($settings['shell']) && $userId && !\BinktermPHP\AppearanceConfig::isShellLocked()) {
+                $shellVal = (string)$settings['shell'];
+                if (in_array($shellVal, ['web', 'bbs-menu'], true)) {
+                    $meta = new \BinktermPHP\UserMeta();
+                    $meta->setValue((int)$userId, 'shell', $shellVal);
+                }
+            }
+            unset($settings['shell']);
+
             $handler = new MessageHandler();
-            $result = $handler->updateUserSettings($userId, $input['settings']);
+            $result = $handler->updateUserSettings($userId, $settings);
 
             if ($result) {
                 echo json_encode(['success' => true]);

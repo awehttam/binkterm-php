@@ -1,0 +1,377 @@
+{% extends "base.twig" %}
+
+{% block title %}MRC Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">MRC Chat Settings</h1>
+        <div></div>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> <strong>Note:</strong> MRC (Multi Relay Chat) is available as a WebDoor.
+        Configure daemon settings here, then enable the door in the <a href="/admin/webdoors" class="alert-link">WebDoors admin</a>.
+    </div>
+
+    <div class="row g-4">
+        <!-- General Settings -->
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">General Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div id="mrcGeneralAlert"></div>
+                    <form id="mrcGeneralForm">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="mrcEnabled">
+                            <label class="form-check-label" for="mrcEnabled">Enable MRC Daemon</label>
+                            <small class="form-text d-block text-muted">
+                            </small>
+                        </div>
+
+                        <hr>
+
+                        <h6 class="mb-3">Server Connection</h6>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcServerHost">MRC Server Host</label>
+                            <input type="text" class="form-control" id="mrcServerHost" placeholder="mrc.bottomlessabyss.net">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcServerPort">Server Port (Non-SSL)</label>
+                            <input type="number" class="form-control" id="mrcServerPort" min="1" max="65535" value="50000">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcServerSslPort">Server Port (SSL)</label>
+                            <input type="number" class="form-control" id="mrcServerSslPort" min="1" max="65535" value="50001">
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="mrcUseSsl" checked>
+                            <label class="form-check-label" for="mrcUseSsl">Use SSL Connection</label>
+                            <small class="form-text d-block text-muted">
+                                Recommended for secure communication
+                            </small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
+                            Save General Settings
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- BBS Identity -->
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">BBS Identity</h6>
+                </div>
+                <div class="card-body">
+                    <div id="mrcIdentityAlert"></div>
+                    <form id="mrcIdentityForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcBbsName">BBS Name</label>
+                            <input type="text" class="form-control" id="mrcBbsName" maxlength="64" placeholder="BinktermPHP BBS">
+                            <small class="form-text text-muted">Maximum 64 characters</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcPlatform">Platform Info</label>
+                            <input type="text" class="form-control" id="mrcPlatform" placeholder="BINKTERMPHP/Linux64/1.0.0">
+                            <small class="form-text text-muted">Software and platform identifier</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcSysop">Sysop Name</label>
+                            <input type="text" class="form-control" id="mrcSysop" placeholder="Sysop">
+                        </div>
+
+                        <hr>
+
+                        <h6 class="mb-3">BBS Information</h6>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcWebsite">Website URL</label>
+                            <input type="url" class="form-control" id="mrcWebsite" placeholder="https://example.com">
+                            <small class="form-text text-muted">Optional - for INFO command</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcTelnet">Telnet Address</label>
+                            <input type="text" class="form-control" id="mrcTelnet" placeholder="telnet://bbs.example.com:23">
+                            <small class="form-text text-muted">Optional - for INFO command</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcDescription">BBS Description</label>
+                            <textarea class="form-control" id="mrcDescription" rows="3" placeholder="A modern BBS..."></textarea>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
+                            Save Identity Settings
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connection Settings -->
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">Connection Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div id="mrcConnectionAlert"></div>
+                    <form id="mrcConnectionForm">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="mrcAutoReconnect" checked>
+                            <label class="form-check-label" for="mrcAutoReconnect">Auto-Reconnect</label>
+                            <small class="form-text d-block text-muted">
+                                Automatically reconnect if connection is lost
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcReconnectDelay">Reconnect Delay (seconds)</label>
+                            <input type="number" class="form-control" id="mrcReconnectDelay" min="5" max="300" value="30">
+                            <small class="form-text text-muted">Wait time before reconnecting (5-300 seconds)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcPingInterval">Ping Interval (seconds)</label>
+                            <input type="number" class="form-control" id="mrcPingInterval" min="30" max="300" value="60">
+                            <small class="form-text text-muted">Expected PING interval from server (30-300 seconds)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcKeepaliveTimeout">Keepalive Timeout (seconds)</label>
+                            <input type="number" class="form-control" id="mrcKeepaliveTimeout" min="60" max="600" value="125">
+                            <small class="form-text text-muted">Disconnect if no PING received (60-600 seconds)</small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
+                            Save Connection Settings
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Room Settings -->
+        <div class="col-lg-6">
+            <div class="card shadow h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">Room Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div id="mrcRoomAlert"></div>
+                    <form id="mrcRoomForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcDefaultRoom">Default Room</label>
+                            <input type="text" class="form-control" id="mrcDefaultRoom" value="lobby">
+                            <small class="form-text text-muted">Default room for new connections</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcAutoJoinRooms">Auto-Join Rooms</label>
+                            <input type="text" class="form-control" id="mrcAutoJoinRooms" value="lobby">
+                            <small class="form-text text-muted">Comma-separated list of rooms to join automatically</small>
+                        </div>
+
+                        <hr>
+
+                        <h6 class="mb-3">Message Settings</h6>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcMaxMessageLength">Max Message Length</label>
+                            <input type="number" class="form-control" id="mrcMaxMessageLength" min="80" max="255" value="140">
+                            <small class="form-text text-muted">Maximum characters per message (80-255)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcHistoryLimit">History Limit</label>
+                            <input type="number" class="form-control" id="mrcHistoryLimit" min="100" max="10000" value="1000">
+                            <small class="form-text text-muted">Messages to keep per room (100-10000)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="mrcPruneAfterDays">Prune After (days)</label>
+                            <input type="number" class="form-control" id="mrcPruneAfterDays" min="1" max="365" value="30">
+                            <small class="form-text text-muted">Delete messages older than this (1-365 days)</small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">
+                            Save Room Settings
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global config variable
+let mrcConfig = {};
+
+// Load MRC configuration on page load
+$(document).ready(function() {
+    loadMrcSettings();
+});
+
+/**
+ * Load MRC settings from admin daemon
+ */
+async function loadMrcSettings() {
+    try {
+        const response = await $.ajax({
+            url: '/admin/api/mrc-settings',
+            method: 'GET',
+            dataType: 'json'
+        });
+
+        if (response.success) {
+            mrcConfig = response.config;
+            populateMrcForm();
+        } else {
+            showAlert('mrcGeneralAlert', 'danger', 'Failed to load MRC settings');
+        }
+    } catch (error) {
+        console.error('Failed to load MRC settings:', error);
+        showAlert('mrcGeneralAlert', 'danger', 'Error loading MRC settings');
+    }
+}
+
+/**
+ * Populate form fields with loaded config
+ */
+function populateMrcForm() {
+    // General settings
+    $('#mrcEnabled').prop('checked', mrcConfig.enabled || false);
+    $('#mrcServerHost').val(mrcConfig.server?.host || 'mrc.bottomlessabyss.net');
+    $('#mrcServerPort').val(mrcConfig.server?.port || 50000);
+    $('#mrcServerSslPort').val(mrcConfig.server?.ssl_port || 50001);
+    $('#mrcUseSsl').prop('checked', mrcConfig.server?.use_ssl !== false);
+
+    // BBS identity
+    $('#mrcBbsName').val(mrcConfig.bbs?.name || 'BinktermPHP BBS');
+    $('#mrcPlatform').val(mrcConfig.bbs?.platform || 'BINKTERMPHP/Linux64/1.0.0');
+    $('#mrcSysop').val(mrcConfig.bbs?.sysop || 'Sysop');
+
+    // BBS info
+    $('#mrcWebsite').val(mrcConfig.info?.website || '');
+    $('#mrcTelnet').val(mrcConfig.info?.telnet || '');
+    $('#mrcDescription').val(mrcConfig.info?.description || '');
+
+    // Connection settings
+    $('#mrcAutoReconnect').prop('checked', mrcConfig.connection?.auto_reconnect !== false);
+    $('#mrcReconnectDelay').val(mrcConfig.connection?.reconnect_delay || 30);
+    $('#mrcPingInterval').val(mrcConfig.connection?.ping_interval || 60);
+    $('#mrcKeepaliveTimeout').val(mrcConfig.connection?.keepalive_timeout || 125);
+
+    // Room settings
+    $('#mrcDefaultRoom').val(mrcConfig.rooms?.default || 'lobby');
+    $('#mrcAutoJoinRooms').val((mrcConfig.rooms?.auto_join || ['lobby']).join(', '));
+
+    // Message settings
+    $('#mrcMaxMessageLength').val(mrcConfig.messages?.max_length || 140);
+    $('#mrcHistoryLimit').val(mrcConfig.messages?.history_limit || 1000);
+    $('#mrcPruneAfterDays').val(mrcConfig.messages?.prune_after_days || 30);
+}
+
+/**
+ * Save MRC settings to admin daemon
+ */
+async function saveMrcSettings() {
+    // Collect all form values
+    const config = {
+        enabled: $('#mrcEnabled').is(':checked'),
+        server: {
+            host: $('#mrcServerHost').val(),
+            port: parseInt($('#mrcServerPort').val()),
+            use_ssl: $('#mrcUseSsl').is(':checked'),
+            ssl_port: parseInt($('#mrcServerSslPort').val())
+        },
+        bbs: {
+            name: $('#mrcBbsName').val(),
+            platform: $('#mrcPlatform').val(),
+            sysop: $('#mrcSysop').val()
+        },
+        connection: {
+            auto_reconnect: $('#mrcAutoReconnect').is(':checked'),
+            reconnect_delay: parseInt($('#mrcReconnectDelay').val()),
+            ping_interval: parseInt($('#mrcPingInterval').val()),
+            handshake_timeout: mrcConfig.connection?.handshake_timeout || 1,
+            keepalive_timeout: parseInt($('#mrcKeepaliveTimeout').val())
+        },
+        rooms: {
+            default: $('#mrcDefaultRoom').val(),
+            auto_join: $('#mrcAutoJoinRooms').val().split(',').map(r => r.trim()).filter(r => r)
+        },
+        messages: {
+            max_length: parseInt($('#mrcMaxMessageLength').val()),
+            history_limit: parseInt($('#mrcHistoryLimit').val()),
+            prune_after_days: parseInt($('#mrcPruneAfterDays').val())
+        },
+        info: {
+            website: $('#mrcWebsite').val(),
+            telnet: $('#mrcTelnet').val(),
+            ssh: mrcConfig.info?.ssh || '',
+            description: $('#mrcDescription').val()
+        }
+    };
+
+    try {
+        const response = await $.ajax({
+            url: '/admin/api/mrc-settings',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ config }),
+            dataType: 'json'
+        });
+
+        if (response.success) {
+            showAlert('mrcGeneralAlert', 'success', 'MRC settings saved successfully');
+            mrcConfig = response.config;
+
+            // If enabled status changed, suggest daemon restart
+            if (config.enabled !== mrcConfig.enabled) {
+                showAlert('mrcGeneralAlert', 'warning', 'Settings saved. Restart the daemon to apply changes.');
+            }
+        } else {
+            showAlert('mrcGeneralAlert', 'danger', 'Failed to save MRC settings');
+        }
+    } catch (error) {
+        console.error('Failed to save MRC settings:', error);
+        showAlert('mrcGeneralAlert', 'danger', 'Error saving MRC settings');
+    }
+}
+
+
+/**
+ * Show alert message
+ */
+function showAlert(containerId, type, message) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+
+    $(`#${containerId}`).html(alertHtml);
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        $(`#${containerId} .alert`).alert('close');
+    }, 5000);
+}
+</script>
+{% endblock %}

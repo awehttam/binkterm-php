@@ -1,0 +1,379 @@
+/* MRC Chat Styles
+ *
+ * Colors are driven by the user's selected BBS theme CSS variables.
+ * Dark fallbacks ensure a readable interface even when the default
+ * (light) theme is active, since chat windows benefit from lower
+ * contrast backgrounds.
+ *
+ * Theme variable reference (defined in dark.css / amber.css / etc.):
+ *   --bg-primary    main page background
+ *   --bg-secondary  sidebar / input bar background
+ *   --bg-card       message area / form input background
+ *   --text-color    primary text
+ *   --text-color-muted  secondary / dim text
+ *   --border-color  dividers and borders
+ *   --fidonet-blue  accent / link colour
+ */
+
+/* ------------------------------------------------------------------ */
+/* Layout                                                               */
+/* ------------------------------------------------------------------ */
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--bg-primary, #1e2028);
+    color: var(--text-color, #e0e0e0);
+}
+
+/* Sidebars */
+#mrc-sidebar-left,
+#mrc-sidebar-right {
+    background-color: var(--bg-secondary, #252830);
+    border-color: var(--border-color, #3a3d4a) !important;
+}
+
+#mrc-sidebar-left h5,
+#mrc-sidebar-right h5 {
+    color: var(--text-color, #e0e0e0);
+}
+
+/* Chat header strip */
+#mrc-chat-header {
+    background-color: var(--bg-secondary, #252830);
+    border-color: var(--border-color, #3a3d4a) !important;
+}
+
+#mrc-chat-header h5 {
+    color: var(--text-color, #e0e0e0);
+}
+
+/* Chat message area */
+#chat-messages {
+    background-color: var(--bg-card, #282c35);
+    /* Ensure text colour is set here so all child elements inherit it.
+       parsePipeCodes will still override individual span colours via
+       its own classes; this just establishes a sensible default. */
+    color: var(--text-color, #e0e0e0);
+}
+
+/* Message input bar */
+#mrc-input-bar {
+    background-color: var(--bg-secondary, #252830);
+    border-color: var(--border-color, #3a3d4a) !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Utility class for muted text (replaces Bootstrap text-muted)        */
+/* ------------------------------------------------------------------ */
+
+.mrc-text-muted {
+    color: var(--text-color-muted, #9a9a9a) !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Form Controls                                                        */
+/* ------------------------------------------------------------------ */
+
+#join-room-input,
+#message-input {
+    background-color: var(--bg-card, #282c35);
+    color: var(--text-color, #e0e0e0);
+    border-color: var(--border-color, #3a3d4a);
+}
+
+#join-room-input::placeholder,
+#message-input::placeholder {
+    color: var(--text-color-muted, #9a9a9a);
+}
+
+#join-room-input:focus,
+#message-input:focus {
+    background-color: var(--bg-card, #282c35);
+    color: var(--text-color, #e0e0e0);
+    border-color: var(--fidonet-blue, #4da6ff);
+    box-shadow: 0 0 0 0.2rem rgba(77, 166, 255, 0.2);
+}
+
+#message-input:disabled {
+    background-color: var(--bg-secondary, #252830);
+    color: var(--text-color-muted, #9a9a9a);
+    cursor: not-allowed;
+}
+
+#send-btn:disabled {
+    cursor: not-allowed;
+}
+
+.form-text {
+    color: var(--text-color-muted, #9a9a9a) !important;
+}
+
+/* Join-room button */
+#join-room-btn {
+    border-color: var(--border-color, #3a3d4a);
+    color: var(--fidonet-blue, #4da6ff);
+}
+
+#join-room-btn:hover {
+    background-color: var(--fidonet-blue, #4da6ff);
+    color: #fff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Room List                                                            */
+/* ------------------------------------------------------------------ */
+
+#room-list .list-group-item {
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+    transition: background-color 0.2s;
+    background-color: var(--bg-secondary, #252830);
+    color: var(--text-color, #e0e0e0);
+}
+
+#room-list .list-group-item:hover {
+    background-color: var(--bg-card, #282c35);
+}
+
+#room-list .list-group-item.active {
+    background-color: var(--fidonet-blue, #4da6ff);
+    color: #fff;
+}
+
+#room-list .list-group-item.room-joined {
+    border-left: 3px solid #5cb85c;
+}
+
+#room-list .list-group-item.room-viewed {
+    outline: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#room-list .room-name {
+    font-weight: 500;
+}
+
+#room-list .room-topic {
+    font-size: 0.85rem;
+    color: var(--text-color-muted, #9a9a9a);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#room-list .room-users {
+    font-size: 0.75rem;
+    color: var(--text-color-muted, #9a9a9a);
+}
+
+/* ------------------------------------------------------------------ */
+/* Messages                                                             */
+/* ------------------------------------------------------------------ */
+
+#chat-messages {
+    height: calc(100vh - 200px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.message {
+    margin-bottom: 0;
+    padding: 0;
+    border-radius: 4px;
+    animation: fadeIn 0.3s;
+}
+
+.message:hover {
+    /* Subtle highlight: 6% white tint over whatever the card bg is.
+       Works on dark AND light themes without turning blinding white.
+       !important prevents old cached CSS or Bootstrap from overriding. */
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.message-header {
+    display: none;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    color: var(--text-color-muted, #9a9a9a);
+    margin-right: 0.5rem;
+}
+
+.message-user {
+    font-weight: 600;
+    color: var(--fidonet-blue, #4da6ff);
+    margin-right: 0.5rem;
+}
+
+.message-site {
+    font-size: 0.85rem;
+    color: var(--text-color-muted, #9a9a9a);
+    margin-right: 0.5rem;
+}
+
+.message-body {
+    color: var(--text-color, #e0e0e0);
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    line-height: 1.1;
+}
+
+.message-private {
+    background-color: rgba(255, 193, 7, 0.12);
+    border-left: 3px solid #ffc107;
+}
+
+.message-system {
+    background-color: rgba(13, 202, 240, 0.08);
+    border-left: 3px solid #0dcaf0;
+    font-style: italic;
+    color: var(--text-color-muted, #9a9a9a);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* User List                                                            */
+/* ------------------------------------------------------------------ */
+
+#user-list .list-group-item {
+    border: none;
+    border-radius: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    background-color: transparent;
+    color: var(--text-color, #e0e0e0);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#user-list .list-group-item:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+#user-list .list-group-item.user-dm-active {
+    background-color: rgba(255, 193, 7, 0.16);
+    border-left: 3px solid #ffc107;
+}
+
+#user-list .user-dm-badge {
+    font-size: 0.7rem;
+}
+
+#user-list .user-name {
+    font-weight: 500;
+}
+
+#user-list .user-bbs {
+    font-size: 0.75rem;
+    color: var(--text-color-muted, #9a9a9a);
+}
+
+#user-list .user-afk {
+    color: #dc3545;
+    font-style: italic;
+}
+
+/* ------------------------------------------------------------------ */
+/* Connection Status                                                    */
+/* ------------------------------------------------------------------ */
+
+#connection-status {
+    color: var(--text-color-muted, #9a9a9a);
+}
+
+#connection-status i {
+    font-size: 0.6rem;
+    vertical-align: middle;
+}
+
+/* ------------------------------------------------------------------ */
+/* Private Chat Indicator                                              */
+/* ------------------------------------------------------------------ */
+
+#private-chat-indicator {
+    border: 1px solid rgba(255, 193, 7, 0.35);
+}
+
+#private-chat-indicator .btn-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+#private-chat-indicator .btn-link:hover {
+    color: #000;
+}
+
+/* ------------------------------------------------------------------ */
+/* MOTD Modal                                                          */
+/* ------------------------------------------------------------------ */
+
+.mrc-motd-text {
+    white-space: pre-wrap;
+    font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+    font-size: 0.9rem;
+    color: var(--text-color, #e0e0e0);
+    margin: 0;
+}
+
+.modal-content {
+    background-color: var(--bg-card, #282c35);
+    border-color: var(--border-color, #3a3d4a);
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--border-color, #3a3d4a);
+}
+
+/* ------------------------------------------------------------------ */
+/* Scrollbar                                                            */
+/* ------------------------------------------------------------------ */
+
+#chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+#chat-messages::-webkit-scrollbar-track {
+    background: var(--bg-secondary, #252830);
+}
+
+#chat-messages::-webkit-scrollbar-thumb {
+    background: var(--border-color, #555);
+    border-radius: 4px;
+}
+
+#chat-messages::-webkit-scrollbar-thumb:hover {
+    background: var(--text-color-muted, #777);
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile responsive                                                    */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 768px) {
+    .col-md-2,
+    .col-md-8 {
+        min-width: 100%;
+    }
+
+    #room-list,
+    #user-list {
+        height: auto;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+}

@@ -5,6 +5,16 @@
  * awehttam@gmail.com
  */
 
+/* DOS VGA font for authentic CP437 ANSI art rendering.
+   Place the TTF file at public_html/fonts/PerfectDOSVGA437.ttf */
+@font-face {
+    font-family: 'Perfect DOS VGA 437';
+    src: url('/fonts/PerfectDOSVGA437.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: block;
+}
+
 /* Container for ANSI art */
 .ansi-art-container {
     overflow-x: auto;
@@ -12,6 +22,15 @@
     border-radius: 4px;
     padding: 8px;
     line-height: 1em;
+}
+
+/* Fixed-width character cell: forces each glyph to occupy exactly 1ch of horizontal
+   space, preventing misalignment caused by box-drawing/block characters rendering in
+   a fallback font with different metrics than the primary monospace font. */
+.ansi-c {
+    display: inline-block;
+    width: 1ch;
+    overflow: visible;
 }
 
 /* Ensure pre elements inside container don't wrap */

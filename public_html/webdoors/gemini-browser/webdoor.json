@@ -18,7 +18,7 @@
         "max_size_kb": 64
     },
     "config": {
-        "home_url": "gemini://kennedy.gemi.dev/",
+        "home_url": "about:home",
         "max_redirects": 5,
         "timeout": 15,
         "max_response_bytes": 10485760,

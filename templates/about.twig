@@ -1,0 +1,90 @@
+{% extends "base.twig" %}
+
+{% block title %}About - {{ system_name }}{% endblock %}
+
+{% block meta_tags %}
+{% if appearance.seo.description %}
+<meta name="description" content="{{ appearance.seo.description | e }}">
+<meta property="og:description" content="{{ appearance.seo.description | e }}">
+{% endif %}
+{% if appearance.seo.og_image_url %}
+<meta property="og:image" content="{{ appearance.seo.og_image_url | e }}">
+{% endif %}
+<meta property="og:title" content="About - {{ system_name | e }}">
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="mb-0"><i class="fas fa-info-circle me-2"></i>About {{ system_name }}</h3>
+            </div>
+            <div class="card-body">
+                {% if appearance.seo.description %}
+                <p class="lead">{{ appearance.seo.description | e }}</p>
+                {% endif %}
+
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">System Name</dt>
+                    <dd class="col-sm-9">{{ system_name | e }}</dd>
+
+                    <dt class="col-sm-3">Sysop</dt>
+                    <dd class="col-sm-9">{{ sysop_name | e }}</dd>
+
+                    {% if network_addresses is not empty %}
+                    <dt class="col-sm-3">Network Addresses</dt>
+                    <dd class="col-sm-9">
+                        {% for addr in network_addresses %}
+                            <span class="badge bg-secondary me-1">{{ addr.address | e }}{% if addr.domain is defined and addr.domain != 'unknown' %} ({{ addr.domain | e }}){% endif %}</span>
+                        {% endfor %}
+                    </dd>
+                    {% else %}
+                    <dt class="col-sm-3">Fidonet Address</dt>
+                    <dd class="col-sm-9"><span class="badge bg-secondary">{{ fidonet_origin | e }}</span></dd>
+                    {% endif %}
+
+                    <dt class="col-sm-3">Software</dt>
+                    <dd class="col-sm-9">
+                        <a href="https://github.com/awehttam/binkterm-php" target="_blank" rel="noopener">{{ app_full_version | e }}</a>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        {% if appearance.navigation.custom_links is not empty %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-link me-2"></i>Links</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    {% for link in appearance.navigation.custom_links %}
+                    <li class="mb-1">
+                        <a href="{{ link.url | e }}"{% if link.new_tab %} target="_blank" rel="noopener"{% endif %}>
+                            <i class="fas fa-external-link-alt me-1"></i>{{ link.label | e }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-gavel me-2"></i>House Rules</h5>
+            </div>
+            <div class="card-body">
+                {% if appearance_houserules_html %}
+                    {{ appearance_houserules_html | raw }}
+                {% else %}
+                    {% include 'rules.twig' %}
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
