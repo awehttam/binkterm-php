@@ -37,7 +37,7 @@
                     <dt class="col-sm-3">Network Addresses</dt>
                     <dd class="col-sm-9">
                         {% for addr in network_addresses %}
-                            <span class="badge bg-secondary me-1">{{ addr | e }}</span>
+                            <span class="badge bg-secondary me-1">{{ addr.address | e }}{% if addr.domain is defined and addr.domain != 'unknown' %} ({{ addr.domain | e }}){% endif %}</span>
                         {% endfor %}
                     </dd>
                     {% else %}
