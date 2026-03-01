@@ -1,0 +1,22 @@
+[Unit]
+Description=BinktermPHP DOS Door Bridge (Multiplexing Server)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=binkterm
+WorkingDirectory=/path/to/binktest
+ExecStart=/usr/bin/node /path/to/binktest/scripts/dosbox-bridge/multiplexing-server.js
+Restart=always
+RestartSec=10
+
+# Environment
+Environment=NODE_ENV=production
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dosdoor-bridge
+
+[Install]
+WantedBy=multi-user.target

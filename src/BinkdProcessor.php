@@ -181,6 +181,19 @@ class BinkdProcessor
                 $destAddress = $packetInfo['destZone'] . ':' . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
 
                 $this->log("[BINKD] Processing packet $packetName from $origAddress to $destAddress");
+
+                // Validate packet password if one is configured for this uplink
+                $expectedPktPassword = $binkpConfig->getPktPasswordForAddress($origAddress);
+                if ($expectedPktPassword !== '') {
+                    $incomingPktPassword = $packetInfo['pkt_password'] ?? '';
+                    if (!hash_equals(strtolower($expectedPktPassword), strtolower($incomingPktPassword))) {
+                        fclose($handle);
+                        $error = "Packet password mismatch for $packetName from $origAddress — rejecting packet";
+                        $this->log("[BINKD] SECURITY: $error");
+                        throw new \Exception($error);
+                    }
+                    $this->log("[BINKD] Packet password verified for $origAddress");
+                }
             } catch (\Exception $e) {
                 fclose($handle);
                 $error = "Failed to parse packet header for $packetName: " . $e->getMessage();
@@ -280,19 +293,23 @@ class BinkdProcessor
             echo "funky";exit;
         }
 
+        // Extract 8-byte packet password (bytes 26-33), null-terminated
+        $pktPassword = rtrim(substr($header, 26, 8), "\0");
+
         return [
-            'origNode' => $data['origNode'],
-            'destNode' => $data['destNode'], 
-            'origNet' => $data['origNet'],
-            'destNet' => $data['destNet'],
-            'origZone' => $origZone,
-            'destZone' => $destZone,
-            'year' => $data['year'],
-            'month' => $data['month'],
-            'day' => $data['day'],
-            'hour' => $data['hour'],
-            'minute' => $data['minute'],
-            'second' => $data['second'],
+            'origNode'    => $data['origNode'],
+            'destNode'    => $data['destNode'],
+            'origNet'     => $data['origNet'],
+            'destNet'     => $data['destNet'],
+            'origZone'    => $origZone,
+            'destZone'    => $destZone,
+            'year'        => $data['year'],
+            'month'       => $data['month'],
+            'day'         => $data['day'],
+            'hour'        => $data['hour'],
+            'minute'      => $data['minute'],
+            'second'      => $data['second'],
+            'pkt_password' => $pktPassword,
         ];
     }
 
@@ -1375,8 +1392,9 @@ class BinkdProcessor
         // Bytes 24-25: Product code and revision
         $header .= pack('CC', 0, 0);         // 24-25: prodCode, prodRev
 
-        // Bytes 26-33: Password (8 bytes)
-        $header .= str_pad('', 8, "\0");     // 26-33: Password
+        // Bytes 26-33: Packet password (8 bytes, null-padded)
+        $pktPassword = $this->config->getPktPasswordForAddress($destAddr);
+        $header .= str_pad(substr($pktPassword, 0, 8), 8, "\0");  // 26-33: Password
 
         // Bytes 34-37: Zone information (FSC-0039/0045)
         $header .= pack('vv', $origZone, $destZone);    // 34-37: origZone, destZone

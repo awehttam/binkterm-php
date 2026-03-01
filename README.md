@@ -461,7 +461,7 @@ update_nodelists can be used if you have URL's to update from.  Otherwise nodeli
 ## Configuration
 
 ### Basic System Configuration
-`config/binkp.json` is used to configure your system. See `config/binkp.json.example` for a complete reference.  Settings can be edited through the web interface.
+`config/binkp.json` is used to configure your system. See `config/binkp.json.example` for a complete reference, including uplink-only options like `send_domain_in_addr`. Settings can be edited through the web interface.
 
 Note:  Be sure to restart BBS services after editing binkp.json.  You can use the `scripts/restart_daemons.sh` script for this on Linux.
 
@@ -498,7 +498,12 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
             "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
             "password": "xyzzy",
+            "pkt_password": "",
+            "tic_password": "",
             "poll_schedule": "*/15 * * * *",
+            "allow_markdown": false,
+            "send_domain_in_addr": false,
+            "binkp_zone": "",
             "enabled": true,
             "compression": false,
             "crypt": false,
@@ -564,6 +569,8 @@ Each uplink in the `uplinks` array supports the following fields:
 | `domain` | Yes | Network domain (e.g., "fidonet", "fsxnet", "agoranet") |
 | `networks` | Yes | Array of address patterns this uplink routes (e.g., `["1:*/*", "2:*/*"]`) |
 | `poll_schedule` | No | Cron expression for automated polling (e.g., `"0 */4 * * *"` = every 4 hours) |
+| `allow_markdown` | No | Enables Markdown support for messages routed through this uplink |
+| `send_domain_in_addr` | No | Includes the `@domain` suffix in the ADR address sent to this uplink |
 | `enabled` | No | Whether uplink is active (default: true) |
 | `default` | No | Whether this is the default uplink for unrouted messages |
 | `compression` | No | Enable compression (not yet implemented) |
@@ -587,6 +594,8 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fidonet-hub.example.com",
             "port": 24554,
             "password": "fido_password",
+            "pkt_password": "",
+            "tic_password": "",
             "poll_schedule": "*/15 * * * *",
             "default": true,
             "enabled": true
@@ -599,6 +608,8 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fsxnet-hub.example.com",
             "port": 24554,
             "password": "fsx_password",
+            "pkt_password": "",
+            "tic_password": "",
             "poll_schedule": "*/15 * * * *",
             "enabled": true
         }
@@ -803,6 +814,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [1.8.4](docs/UPGRADING_1.8.4.md)       | Feb 28 2026 | Username/real name cross-collision check, MRC room list fix, collapsible compose sidebar, echolist new-tab support |
 | [1.8.3](docs/UPGRADING_1.8.3.md)       | Feb 27 2026 | Appearance system & shells, Gemini Capsule Hosting, Gemini echo area exposure, Markdown compose editor, netmail file attachments, file share links, friendly share URLs, address book crashmail preference, crashmail DNS fallback & immediate delivery, scrollable message reader, echomail bulk mark-as-read, MRC Chat WebDoor |
 | [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Gemini Browser WebDoor, CSRF protection, telnet anti-bot, security fixes                                                                                                                                                                                                                                         |
 | [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation                                                                                                                                                                                                       |

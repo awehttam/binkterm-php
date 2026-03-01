@@ -228,10 +228,12 @@ class TicFileGenerator
         // Seenby (required by FSC-87) - at least our address
         $lines[] = 'Seenby ' . $fromAddress;
 
-        // Password (required by FSC-87) - file area password, not session password
-        // For files we originate, use the area's password if configured, otherwise empty
-        // NOTE: This is the file echo area password, NOT the binkp session password
+        // Password (FSC-87 Pw field) - per-area password takes precedence,
+        // uplink tic_password is the fallback, empty string if neither is set.
         $password = $fileArea['password'] ?? '';
+        if ($password === '') {
+            $password = $uplink['tic_password'] ?? '';
+        }
         $lines[] = 'Pw ' . $password;
 
         // Created by

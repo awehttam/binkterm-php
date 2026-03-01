@@ -95,11 +95,18 @@ class AdminController
             throw new \Exception('Username and password are required');
         }
 
-        // Check if username already exists
-        $stmt = $this->db->prepare("SELECT id FROM users WHERE username = ?");
-        $stmt->execute([$data['username']]);
+        // Check for username/real_name uniqueness including cross-collisions.
+        // A username must not match any existing username or real_name, and vice versa,
+        // to prevent netmail misrouting.
+        $realName = $data['real_name'] ?? '';
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM users
+            WHERE LOWER(username) = LOWER(?) OR LOWER(username) = LOWER(?)
+               OR LOWER(real_name) = LOWER(?) OR LOWER(real_name) = LOWER(?)
+        ");
+        $stmt->execute([$data['username'], $realName, $data['username'], $realName]);
         if ($stmt->fetch()) {
-            throw new \Exception('Username already exists');
+            throw new \Exception('Username or real name conflicts with an existing user');
         }
 
         // Check if Fidonet address is unique (if provided)
@@ -149,12 +156,29 @@ class AdminController
             throw new \Exception('User not found');
         }
 
-        // Check if username is being changed and if it's unique
+        // Check if username is being changed — must not collide with any existing
+        // username or real_name (cross-check prevents netmail misrouting).
         if (isset($data['username']) && $data['username'] !== $user['username']) {
-            $stmt = $this->db->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
-            $stmt->execute([$data['username'], $userId]);
+            $stmt = $this->db->prepare("
+                SELECT id FROM users
+                WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND id != ?
+            ");
+            $stmt->execute([$data['username'], $data['username'], $userId]);
             if ($stmt->fetch()) {
-                throw new \Exception('Username already exists');
+                throw new \Exception('Username conflicts with an existing username or real name');
+            }
+        }
+
+        // Check if real_name is being changed — must not collide with any existing
+        // username or real_name.
+        if (isset($data['real_name']) && $data['real_name'] !== $user['real_name']) {
+            $stmt = $this->db->prepare("
+                SELECT id FROM users
+                WHERE (LOWER(username) = LOWER(?) OR LOWER(real_name) = LOWER(?)) AND id != ?
+            ");
+            $stmt->execute([$data['real_name'], $data['real_name'], $userId]);
+            if ($stmt->fetch()) {
+                throw new \Exception('Real name conflicts with an existing username or real name');
             }
         }
 

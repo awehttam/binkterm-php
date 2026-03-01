@@ -33,15 +33,14 @@ class MrcClient {
         this.seenMessageIds = new Set();
         this.seenPrivateMessageIds = new Set();
         this.seenSystemMessageIds = new Set();
-        this.motdPendingUntil = 0;
-        this.motdLines = [];
-        this.motdSeenIds = new Set();
-        this.motdIsOpen = false;
         this.lastPresencePingAt = 0;
         this.autoScroll = true;
         this.username = window.mrcCurrentUser || null;
         this.localBbs = window.mrcCurrentBbs || null;
         this.missingPresenceCount = 0;
+        this.inputHistory = [];
+        this.historyIndex = -1;
+        this.historySavedInput = '';
 
         this.init();
     }
@@ -56,6 +55,29 @@ class MrcClient {
         $('#message-input').on('input', () => {
             this.updateCharCount();
         });
+
+        $('#message-input').on('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (this.inputHistory.length === 0) return;
+                if (this.historyIndex === -1) {
+                    this.historySavedInput = $('#message-input').val();
+                }
+                this.historyIndex = Math.min(this.historyIndex + 1, this.inputHistory.length - 1);
+                $('#message-input').val(this.inputHistory[this.historyIndex]);
+                this.updateCharCount();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (this.historyIndex === -1) return;
+                this.historyIndex--;
+                const value = this.historyIndex === -1
+                    ? this.historySavedInput
+                    : this.inputHistory[this.historyIndex];
+                $('#message-input').val(value);
+                this.updateCharCount();
+            }
+        });
+
 
         $('#refresh-btn').on('click', () => {
             this.refreshMessages();
@@ -221,8 +243,7 @@ class MrcClient {
                 // Update UI
                 $('#current-room-name span').text(roomName);
                 $('#current-room-topic').text('');
-                $('#message-input').prop('disabled', false);
-                $('#send-btn').prop('disabled', false);
+                $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
                 $('#join-room-active-btn').addClass('d-none');
 
                 // Update active room in list
@@ -269,11 +290,6 @@ class MrcClient {
         }
 
         messages.forEach(msg => {
-            if (this.motdPendingUntil > 0 && msg.from_user === 'SERVER') {
-                this.captureMotdLine(msg);
-                return;
-            }
-            this.captureMotdLine(msg);
             const msgId = msg.id;
             if (this.viewMode === 'private') {
                 if (this.seenPrivateMessageIds.has(msgId)) {
@@ -312,16 +328,15 @@ class MrcClient {
             .addClass(isPrivate ? 'message-private' : '')
             .addClass(isSystem ? 'message-system' : '');
 
-        let timeText = '';
+        let timeText = msg._localTime || '';
         if (msg.received_at) {
             // Parse as UTC (DB stores CURRENT_TIMESTAMP without tz marker);
             // getHours/Minutes/Seconds then return the user's local time.
             const raw = msg.received_at.replace(' ', 'T');
             const d = new Date(raw.endsWith('Z') || raw.includes('+') ? raw : raw + 'Z');
-            const time = [d.getHours(), d.getMinutes(), d.getSeconds()]
+            timeText = [d.getHours(), d.getMinutes(), d.getSeconds()]
                 .map(n => String(n).padStart(2, '0'))
                 .join(':');
-            timeText = time;
         }
 
         const body = $('<div>').addClass('message-body');
@@ -465,14 +480,12 @@ class MrcClient {
             this.missingPresenceCount += 1;
             if (this.missingPresenceCount >= 2) {
                 this.joinedRoom = null;
-                $('#message-input').prop('disabled', true);
-                $('#send-btn').prop('disabled', true);
+                $('#message-input').attr('placeholder', 'Type a command (e.g. /identify) or join a room to chat...');
                 $('#join-room-active-btn').removeClass('d-none');
             }
         } else {
             this.missingPresenceCount = 0;
-            $('#message-input').prop('disabled', false);
-            $('#send-btn').prop('disabled', false);
+            $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
         }
     }
 
@@ -484,6 +497,10 @@ class MrcClient {
         const message = input.val().trim();
 
         if (!message) return;
+        this.inputHistory.unshift(message);
+        if (this.inputHistory.length > 50) this.inputHistory.pop();
+        this.historyIndex = -1;
+        this.historySavedInput = '';
         if (message.startsWith('/')) {
             this.handleCommand(message);
             input.val('');
@@ -510,8 +527,12 @@ class MrcClient {
                 input.val('');
                 this.updateCharCount();
 
-                // Force immediate message refresh
-                setTimeout(() => this.poll(false), 500);
+                if (this.viewMode === 'private') {
+                    this.echoSentMessage(message);
+                } else {
+                    // Force immediate message refresh for room messages
+                    setTimeout(() => this.poll(false), 500);
+                }
             }
         } catch (error) {
             console.error('Failed to send message:', error);
@@ -568,27 +589,38 @@ class MrcClient {
             case 'rooms':
                 this.sendCommand(command, args);
                 break;
+            case 'msg':
+                if (args.length < 2) {
+                    this.showError('Usage: /msg &lt;username&gt; &lt;message&gt;');
+                    break;
+                }
+                if (!this.joinedRoom) {
+                    this.showError('Join a room before sending private messages.');
+                    break;
+                }
+                this.sendPrivateMessage(args[0], args.slice(1).join(' '));
+                break;
             case 'topic':
                 if (!this.joinedRoom) {
                     this.showError('Join a room before setting the topic.');
                     break;
                 }
                 if (args.length === 0) {
-                    this.showError('Usage: /topic <new topic>');
+                    this.showError('Usage: /topic &lt;new topic&gt;');
                     break;
                 }
                 this.sendCommand(command, args);
                 break;
+            case 'register':
+            case 'identify':
+            case 'update':
+                this.sendCommand(command, args);
+                break;
             case 'help':
-            case 'list':
-            case 'whoon':
-            case 'users':
-            case 'time':
-            case 'version':
-                this.showError(`Command '/${command}' is not implemented yet.`);
+                this.sendCommand(command, args);
                 break;
             default:
-                this.showError(`Unknown command: /${command}`);
+                this.sendCommand(command, args);
                 break;
         }
     }
@@ -596,19 +628,20 @@ class MrcClient {
     /**
      * Send a supported command to the MRC server.
      */
+    /**
+     * Commands that can be sent without being in a room.
+     */
+    static get NO_ROOM_COMMANDS() {
+        return ['rooms', 'motd', 'register', 'identify', 'update', 'help'];
+    }
+
     async sendCommand(command, args) {
-        if (!this.joinedRoom && command !== 'rooms') {
+        if (!this.joinedRoom && !MrcClient.NO_ROOM_COMMANDS.includes(command)) {
             this.showError('Join a room before using commands.');
             return;
         }
 
         try {
-            if (command === 'motd') {
-                this.motdPendingUntil = Date.now() + 3000;
-                this.motdLines = [];
-                this.motdSeenIds.clear();
-                this.motdIsOpen = false;
-            }
             const response = await $.ajax({
                 url: 'api.php?action=command',
                 method: 'POST',
@@ -679,6 +712,59 @@ class MrcClient {
 
         // Auto-dismiss after 5 seconds
         setTimeout(() => errorEl.remove(), 5000);
+    }
+
+    /**
+     * Locally echo a message we just sent (private chat only).
+     * The MRC server does not echo private messages back to the sender.
+     */
+    echoSentMessage(message) {
+        const now = new Date();
+        const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
+            .map(n => String(n).padStart(2, '0')).join(':');
+
+        const msg = {
+            is_private: true,
+            from_user: this.username || 'Me',
+            from_site: this.localBbs || '',
+            message_body: `${this.username || 'Me'} ${message}`,
+            received_at: null,
+            _localTime: time,
+        };
+
+        const el = this.createMessageElement(msg);
+        el.addClass('message-sent');
+        $('#chat-messages').append(el);
+        if (this.autoScroll) this.scrollToBottom();
+    }
+
+    /**
+     * Send a private message and open the DM view.
+     */
+    async sendPrivateMessage(username, message) {
+        try {
+            const response = await $.ajax({
+                url: 'api.php?action=send',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    room: this.joinedRoom,
+                    message: message,
+                    to_user: username
+                }),
+                dataType: 'json'
+            });
+
+            if (response.success) {
+                $('#message-input').val('');
+                this.updateCharCount();
+                await this.startPrivateChat(username);
+                this.echoSentMessage(message);
+            }
+        } catch (error) {
+            console.error('Failed to send private message:', error);
+            this.showError('Failed to send private message. Please try again.');
+        }
     }
 
     /**
@@ -858,7 +944,7 @@ class MrcClient {
                         this.lastPrivateMessageId = Math.max(this.lastPrivateMessageId, maxId);
                         this.syncPrivateUnreadFromMessages(response.messages);
                     }
-                } else {
+                } else if (this.viewedRoom) {
                     const append = this.lastMessageId !== 0;
                     this.renderMessages(response.messages, append);
                     if (response.messages.length > 0) {
@@ -896,51 +982,9 @@ class MrcClient {
                 }
             }
 
-            if (this.motdPendingUntil > 0 && Date.now() > this.motdPendingUntil) {
-                if (this.motdLines.length > 0) {
-                    this.showMotdModal(this.motdLines.join('\n'));
-                } else {
-                    this.showMotdModal('No MOTD received.');
-                }
-                this.motdPendingUntil = 0;
-                this.motdLines = [];
-                this.motdSeenIds.clear();
-            }
         } catch (error) {
             console.error('Poll failed:', error);
         }
-    }
-
-    /**
-     * Capture MOTD lines while a /motd request is pending.
-     */
-    captureMotdLine(msg) {
-        if (this.motdPendingUntil === 0) return;
-        if (Date.now() > this.motdPendingUntil) return;
-        if (msg.from_user !== 'SERVER') return;
-        if (this.joinedRoom && msg.to_room !== this.joinedRoom) return;
-        if (this.motdSeenIds.has(msg.id)) return;
-
-        const body = msg.message_body || '';
-        const clean = body.replace(/\|[0-9A-Fa-f]{2}/g, '').trim();
-        if (clean === '') return;
-        if (/\(Joining\)|\(Parting\)|\(Timeout\)/i.test(clean)) return;
-        if (/No route to a room/i.test(clean)) return;
-
-        this.motdSeenIds.add(msg.id);
-        this.motdLines.push(clean);
-    }
-
-    showMotdModal(content) {
-        const modalEl = document.getElementById('motdModal');
-        if (!modalEl) return;
-        const bodyEl = document.getElementById('motdModalBody');
-        if (bodyEl) {
-            bodyEl.textContent = content;
-        }
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-        this.motdIsOpen = true;
     }
 
     /**
@@ -966,8 +1010,9 @@ class MrcClient {
 
         const needsJoin = !this.joinedRoom || this.joinedRoom !== roomName;
         $('#join-room-active-btn').toggleClass('d-none', !needsJoin);
-        $('#message-input').prop('disabled', needsJoin);
-        $('#send-btn').prop('disabled', needsJoin);
+        $('#message-input').attr('placeholder', needsJoin
+            ? 'Type a command (e.g. /identify) or join a room to chat...'
+            : 'Type a message... (max 140 chars)');
 
         $('#room-list .list-group-item').removeClass('active');
         $(`#room-list .list-group-item[data-room="${roomName}"]`).addClass('active');

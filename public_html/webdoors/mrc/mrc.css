@@ -16,6 +16,22 @@
  */
 
 /* ------------------------------------------------------------------ */
+/* Dark palette defaults                                                */
+/* ------------------------------------------------------------------ */
+/* MRC is always a dark interface. Override any light-theme variables  */
+/* so text is never rendered black on a dark background.               */
+
+:root {
+    --bg-primary:       #1e2028;
+    --bg-secondary:     #252830;
+    --bg-card:          #282c35;
+    --text-color:       #e0e0e0;
+    --text-color-muted: #9a9a9a;
+    --border-color:     #3a3d4a;
+    --fidonet-blue:     #4da6ff;
+}
+
+/* ------------------------------------------------------------------ */
 /* Layout                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -227,6 +243,11 @@ html, body {
     border-left: 3px solid #ffc107;
 }
 
+.message-sent {
+    opacity: 0.75;
+    border-left-color: var(--bs-primary, #0d6efd);
+}
+
 .message-system {
     background-color: rgba(13, 202, 240, 0.08);
     border-left: 3px solid #0dcaf0;
@@ -315,28 +336,6 @@ html, body {
 
 #private-chat-indicator .btn-link:hover {
     color: #000;
-}
-
-/* ------------------------------------------------------------------ */
-/* MOTD Modal                                                          */
-/* ------------------------------------------------------------------ */
-
-.mrc-motd-text {
-    white-space: pre-wrap;
-    font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
-    font-size: 0.9rem;
-    color: var(--text-color, #e0e0e0);
-    margin: 0;
-}
-
-.modal-content {
-    background-color: var(--bg-card, #282c35);
-    border-color: var(--border-color, #3a3d4a);
-}
-
-.modal-header,
-.modal-footer {
-    border-color: var(--border-color, #3a3d4a);
 }
 
 /* ------------------------------------------------------------------ */

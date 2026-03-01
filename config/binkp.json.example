@@ -33,12 +33,15 @@
             "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
             "password": "xyzzy",
+            "pkt_password": "",
+            "tic_password": "",
             "poll_schedule": "*/15 * * * *",
             "enabled": true,
             "compression": false,
             "crypt": false,
             "default": true,
             "allow_markdown": false,
+            "send_domain_in_addr": false,
             "binkp_zone": ""
         }
     ],

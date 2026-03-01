@@ -308,18 +308,20 @@ class BinkpSession
 
             // Continue until session terminates with timeout protection
             $eobWaitStart = time();
-            $eobTimeout = 60; // 60 second timeout for EOB exchange
+            $sessionTimeout = max(30, (int) $this->config->getBinkpTimeout());
+            $eobTimeout = $sessionTimeout; // Idle/EOB exchange timeout
             $lastActivity = time();
-            $activityTimeout = 5; // 30 seconds without any frames
+            $activityTimeout = $sessionTimeout; // Allow slow remotes time to prepare outbound data
 
             $this->log("Waiting for session termination (state: {$this->state})", 'DEBUG');
 
             while ($this->state < self::STATE_TERMINATED) {
                 $elapsed = time() - $eobWaitStart;
                 $inactivity = time() - $lastActivity;
+                $hasActiveTransfer = $this->currentFile !== null;
 
-                // Check for overall timeout
-                if ($elapsed >= $eobTimeout) {
+                // Only enforce the hard EOB timeout when we are not actively receiving a file.
+                if (!$hasActiveTransfer && $elapsed >= $eobTimeout) {
                     $this->log("EOB exchange timeout after {$elapsed} seconds (state: {$this->state})", 'WARNING');
                     break;
                 }
@@ -345,6 +347,10 @@ class BinkpSession
                 }
 
                 $lastActivity = time();
+                if ($hasActiveTransfer) {
+                    // Keep the EOB timeout anchored to idle/EOB time, not active transfer time.
+                    $eobWaitStart = $lastActivity;
+                }
                 $this->log("Received: {$frame}", 'DEBUG');
                 $this->processTransferFrame($frame);
             }
@@ -405,7 +411,7 @@ class BinkpSession
                 }
 
                 // Use first address if no match found (fallback)
-                $fallbackAddress = $addresses[0];
+                $fallbackAddress = !empty($addresses) ? $addresses[0] : '';
                 $fallbackAddressWithDomain = $fallbackAddress;
                 if (strpos($fallbackAddress, '@') !== false) {
                     $fallbackAddress = substr($fallbackAddress, 0, strpos($fallbackAddress, '@'));
@@ -586,6 +592,11 @@ class BinkpSession
         // Otherwise fall back to sending all addresses
         if ($this->currentUplink && !empty($this->currentUplink['me'])) {
             $address = $this->currentUplink['me'];
+            $sendDomain = !empty($this->currentUplink['send_domain_in_addr']);
+            $domain = trim($this->currentUplink['domain'] ?? '');
+            if ($sendDomain && $domain !== '' && strpos($address, '@') === false) {
+                $address .= '@' . $domain;
+            }
         } else {
             $address = trim(implode(" ", $this->config->getMyAddresses()));
         }

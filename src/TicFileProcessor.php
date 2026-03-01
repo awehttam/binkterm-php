@@ -89,8 +89,8 @@ class TicFileProcessor
                 $this->log("Auto-created file area: {$ticData['Area']} (id={$fileArea['id']})");
             }
 
-            // Validate TIC password if this file area requires it
-            $this->validateTicPassword($ticData, $fileArea);
+            // Validate TIC password — area password takes precedence, uplink tic_password is the fallback
+            $this->validateTicPassword($ticData, $fileArea, $ticData['From'] ?? '');
 
             // Validate file
             if (!$this->validateFile($ticData, $filePath)) {
@@ -281,15 +281,20 @@ class TicFileProcessor
      * @param array $fileArea File area record
      * @throws \Exception If password validation fails
      */
-    protected function validateTicPassword(array $ticData, array $fileArea): void
+    protected function validateTicPassword(array $ticData, array $fileArea, string $fromAddress = ''): void
     {
-        $expected = $fileArea['password'] ?? null;
-        if ($expected === null || $expected === '') {
-            return;
+        // Per-area password takes precedence; fall back to uplink-level tic_password
+        $expected = $fileArea['password'] ?? '';
+        if ($expected === '' && $fromAddress !== '') {
+            $expected = BinkpConfig::getInstance()->getTicPasswordForAddress($fromAddress);
+        }
+
+        if ($expected === '') {
+            return; // No password required
         }
 
         $provided = $ticData['Pw'] ?? '';
-        if ($provided === '' || $provided !== $expected) {
+        if (!hash_equals(strtolower($expected), strtolower($provided))) {
             throw new \Exception('TIC password rejected for file area');
         }
     }

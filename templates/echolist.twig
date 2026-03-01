@@ -287,7 +287,11 @@ function buildCategory(id, name, areas, isLocal) {
 function buildEchoAreaRow(area) {
     const color = area.color || '#28a745';
 
-    let html = `<a href="#" class="list-group-item list-group-item-action" onclick="navigateToEchoArea('${escapeHtml(area.tag)}', '${escapeHtml(area.domain || '')}'); return false;">`;
+    let url = '/echomail?echoarea=' + encodeURIComponent(area.tag);
+    if (area.domain) {
+        url += '&domain=' + encodeURIComponent(area.domain);
+    }
+    let html = `<a href="${url}" class="list-group-item list-group-item-action">`;
     html += '<div class="d-flex align-items-start gap-3">';
 
     // Icon
@@ -334,13 +338,6 @@ function buildEchoAreaRow(area) {
     return html;
 }
 
-function navigateToEchoArea(tag, domain) {
-    let url = '/echomail?echoarea=' + encodeURIComponent(tag);
-    if (domain) {
-        url += '&domain=' + encodeURIComponent(domain);
-    }
-    window.location.href = url;
-}
 
 function searchEchoAreas(query) {
     searchQuery = query.toLowerCase().trim();
