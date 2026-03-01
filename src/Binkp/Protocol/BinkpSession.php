@@ -586,6 +586,11 @@ class BinkpSession
         // Otherwise fall back to sending all addresses
         if ($this->currentUplink && !empty($this->currentUplink['me'])) {
             $address = $this->currentUplink['me'];
+            $sendDomain = !empty($this->currentUplink['send_domain_in_addr']);
+            $domain = trim($this->currentUplink['domain'] ?? '');
+            if ($sendDomain && $domain !== '' && strpos($address, '@') === false) {
+                $address .= '@' . $domain;
+            }
         } else {
             $address = trim(implode(" ", $this->config->getMyAddresses()));
         }

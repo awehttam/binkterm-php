@@ -41,6 +41,7 @@
             "crypt": false,
             "default": true,
             "allow_markdown": false,
+            "send_domain_in_addr": false,
             "binkp_zone": ""
         }
     ],

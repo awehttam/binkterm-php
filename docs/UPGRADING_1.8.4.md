@@ -23,6 +23,7 @@ Make sure you've made a backup of your database and files before upgrading.
 **BinkP / Packet Improvements**
 - FTN packet passwords are now supported via a new `pkt_password` field per uplink in `binkp.json` (separate from the BinkP session password)
 - TIC file passwords now support an uplink-level default via a new `tic_password` field per uplink in `binkp.json`; per-area passwords still take precedence when set
+- New uplink option `send_domain_in_addr` (default false) controls whether `@domain` is appended to the `M_ADR` address during BinkP handshake for uplinks that require domain-qualified addresses. See `config/binkp.json.example` for the full schema.
 
 **Bug Fixes**
 - Compose: sidebar panel can now be collapsed sideways to give the editor more width, with state persisted across page loads
