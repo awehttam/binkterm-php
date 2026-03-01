@@ -328,16 +328,15 @@ class MrcClient {
             .addClass(isPrivate ? 'message-private' : '')
             .addClass(isSystem ? 'message-system' : '');
 
-        let timeText = '';
+        let timeText = msg._localTime || '';
         if (msg.received_at) {
             // Parse as UTC (DB stores CURRENT_TIMESTAMP without tz marker);
             // getHours/Minutes/Seconds then return the user's local time.
             const raw = msg.received_at.replace(' ', 'T');
             const d = new Date(raw.endsWith('Z') || raw.includes('+') ? raw : raw + 'Z');
-            const time = [d.getHours(), d.getMinutes(), d.getSeconds()]
+            timeText = [d.getHours(), d.getMinutes(), d.getSeconds()]
                 .map(n => String(n).padStart(2, '0'))
                 .join(':');
-            timeText = time;
         }
 
         const body = $('<div>').addClass('message-body');
@@ -528,8 +527,12 @@ class MrcClient {
                 input.val('');
                 this.updateCharCount();
 
-                // Force immediate message refresh
-                setTimeout(() => this.poll(false), 500);
+                if (this.viewMode === 'private') {
+                    this.echoSentMessage(message);
+                } else {
+                    // Force immediate message refresh for room messages
+                    setTimeout(() => this.poll(false), 500);
+                }
             }
         } catch (error) {
             console.error('Failed to send message:', error);
@@ -712,6 +715,30 @@ class MrcClient {
     }
 
     /**
+     * Locally echo a message we just sent (private chat only).
+     * The MRC server does not echo private messages back to the sender.
+     */
+    echoSentMessage(message) {
+        const now = new Date();
+        const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
+            .map(n => String(n).padStart(2, '0')).join(':');
+
+        const msg = {
+            is_private: true,
+            from_user: this.username || 'Me',
+            from_site: this.localBbs || '',
+            message_body: `${this.username || 'Me'} ${message}`,
+            received_at: null,
+            _localTime: time,
+        };
+
+        const el = this.createMessageElement(msg);
+        el.addClass('message-sent');
+        $('#chat-messages').append(el);
+        if (this.autoScroll) this.scrollToBottom();
+    }
+
+    /**
      * Send a private message and open the DM view.
      */
     async sendPrivateMessage(username, message) {
@@ -732,6 +759,7 @@ class MrcClient {
                 $('#message-input').val('');
                 this.updateCharCount();
                 await this.startPrivateChat(username);
+                this.echoSentMessage(message);
             }
         } catch (error) {
             console.error('Failed to send private message:', error);

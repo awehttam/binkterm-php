@@ -227,6 +227,11 @@ html, body {
     border-left: 3px solid #ffc107;
 }
 
+.message-sent {
+    opacity: 0.75;
+    border-left-color: var(--bs-primary, #0d6efd);
+}
+
 .message-system {
     background-color: rgba(13, 202, 240, 0.08);
     border-left: 3px solid #0dcaf0;
