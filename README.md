@@ -498,6 +498,8 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
             "hostname": "ip.or.hostname.of.uplink",
             "port": 24554,
             "password": "xyzzy",
+            "pkt_password": "",
+            "tic_password": "",
             "poll_schedule": "*/15 * * * *",
             "enabled": true,
             "compression": false,
@@ -587,6 +589,8 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fidonet-hub.example.com",
             "port": 24554,
             "password": "fido_password",
+            "pkt_password": "",
+            "tic_password": "",
             "poll_schedule": "*/15 * * * *",
             "default": true,
             "enabled": true
@@ -599,6 +603,8 @@ Each uplink in the `uplinks` array supports the following fields:
             "hostname": "fsxnet-hub.example.com",
             "port": 24554,
             "password": "fsx_password",
+            "pkt_password": "",
+            "tic_password": "",
             "poll_schedule": "*/15 * * * *",
             "enabled": true
         }

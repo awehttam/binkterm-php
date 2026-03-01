@@ -20,6 +20,10 @@ Make sure you've made a backup of your database and files before upgrading.
 - Fixed: initial room list not populated on daemon connect
 - Fixed: LIST response was misrouted as a private message, preventing room list population
 
+**BinkP / Packet Improvements**
+- FTN packet passwords are now supported via a new `pkt_password` field per uplink in `binkp.json` (separate from the BinkP session password)
+- TIC file passwords now support an uplink-level default via a new `tic_password` field per uplink in `binkp.json`; per-area passwords still take precedence when set
+
 **Bug Fixes**
 - Compose: sidebar panel can now be collapsed sideways to give the editor more width, with state persisted across page loads
 - Echo list: areas can now be opened in a new tab via right-click
