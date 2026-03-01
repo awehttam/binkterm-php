@@ -424,13 +424,15 @@ function handleCommand(PDO $db, array $user): void
     if (!in_array($command, ['motd', 'rooms', 'topic', 'register', 'identify', 'update'], true)) {
         \WebDoorSDK\jsonError('Unsupported command');
     }
-    if ($command !== 'rooms') {
+    // register/identify/update can be sent without a room (f3 will be empty)
+    $roomOptional = in_array($command, ['rooms', 'motd', 'register', 'identify', 'update'], true);
+    if (!$roomOptional) {
         if (empty($room)) {
             \WebDoorSDK\jsonError('Room is required');
         }
-        if (strpos($room, '~') !== false) {
-            \WebDoorSDK\jsonError('Invalid character in room');
-        }
+    }
+    if (!empty($room) && strpos($room, '~') !== false) {
+        \WebDoorSDK\jsonError('Invalid character in room');
     }
 
     $config   = MrcConfig::getInstance();

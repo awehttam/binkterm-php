@@ -128,10 +128,9 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
                             <input type="text"
                                    class="form-control"
                                    id="message-input"
-                                   placeholder="Type a message... (max 140 chars)"
+                                   placeholder="Type a command (e.g. /identify) or join a room to chat..."
                                    maxlength="140"
-                                   autocomplete="off"
-                                   disabled>
+                                   autocomplete="off">
                             <button class="btn btn-primary" type="submit" id="send-btn" disabled>
                                 <i class="bi bi-send"></i> Send
                             </button>
@@ -204,22 +203,5 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
         </div>
     </div>
 
-    <!-- MOTD Modal -->
-    <div class="modal fade" id="motdModal" tabindex="-1" aria-labelledby="motdModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="motdModalLabel">Message of the Day</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <pre id="motdModalBody" class="mrc-motd-text"></pre>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
 </body>
 </html>

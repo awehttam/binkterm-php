@@ -33,10 +33,6 @@ class MrcClient {
         this.seenMessageIds = new Set();
         this.seenPrivateMessageIds = new Set();
         this.seenSystemMessageIds = new Set();
-        this.motdPendingUntil = 0;
-        this.motdLines = [];
-        this.motdSeenIds = new Set();
-        this.motdIsOpen = false;
         this.lastPresencePingAt = 0;
         this.autoScroll = true;
         this.username = window.mrcCurrentUser || null;
@@ -55,6 +51,13 @@ class MrcClient {
 
         $('#message-input').on('input', () => {
             this.updateCharCount();
+        });
+
+        $('#message-input').on('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.sendMessage();
+            }
         });
 
         $('#refresh-btn').on('click', () => {
@@ -221,7 +224,7 @@ class MrcClient {
                 // Update UI
                 $('#current-room-name span').text(roomName);
                 $('#current-room-topic').text('');
-                $('#message-input').prop('disabled', false);
+                $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
                 $('#send-btn').prop('disabled', false);
                 $('#join-room-active-btn').addClass('d-none');
 
@@ -269,11 +272,6 @@ class MrcClient {
         }
 
         messages.forEach(msg => {
-            if (this.motdPendingUntil > 0 && msg.from_user === 'SERVER') {
-                this.captureMotdLine(msg);
-                return;
-            }
-            this.captureMotdLine(msg);
             const msgId = msg.id;
             if (this.viewMode === 'private') {
                 if (this.seenPrivateMessageIds.has(msgId)) {
@@ -465,14 +463,14 @@ class MrcClient {
             this.missingPresenceCount += 1;
             if (this.missingPresenceCount >= 2) {
                 this.joinedRoom = null;
-                $('#message-input').prop('disabled', true);
                 $('#send-btn').prop('disabled', true);
+                $('#message-input').attr('placeholder', 'Type a command (e.g. /identify) or join a room to chat...');
                 $('#join-room-active-btn').removeClass('d-none');
             }
         } else {
             this.missingPresenceCount = 0;
-            $('#message-input').prop('disabled', false);
             $('#send-btn').prop('disabled', false);
+            $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
         }
     }
 
@@ -580,10 +578,6 @@ class MrcClient {
                 this.sendCommand(command, args);
                 break;
             case 'register':
-                if (!this.joinedRoom) {
-                    this.showError('Join a room before registering.');
-                    break;
-                }
                 if (args.length === 0) {
                     this.showError('Usage: /register <password> [email]');
                     break;
@@ -591,10 +585,6 @@ class MrcClient {
                 this.sendCommand(command, args);
                 break;
             case 'identify':
-                if (!this.joinedRoom) {
-                    this.showError('Join a room before identifying.');
-                    break;
-                }
                 if (args.length === 0) {
                     this.showError('Usage: /identify <password>');
                     break;
@@ -602,10 +592,6 @@ class MrcClient {
                 this.sendCommand(command, args);
                 break;
             case 'update':
-                if (!this.joinedRoom) {
-                    this.showError('Join a room before using /update.');
-                    break;
-                }
                 if (args.length < 2) {
                     this.showError('Usage: /update <param> <value>');
                     break;
@@ -629,19 +615,20 @@ class MrcClient {
     /**
      * Send a supported command to the MRC server.
      */
+    /**
+     * Commands that can be sent without being in a room.
+     */
+    static get NO_ROOM_COMMANDS() {
+        return ['rooms', 'motd', 'register', 'identify', 'update'];
+    }
+
     async sendCommand(command, args) {
-        if (!this.joinedRoom && command !== 'rooms') {
+        if (!this.joinedRoom && !MrcClient.NO_ROOM_COMMANDS.includes(command)) {
             this.showError('Join a room before using commands.');
             return;
         }
 
         try {
-            if (command === 'motd') {
-                this.motdPendingUntil = Date.now() + 3000;
-                this.motdLines = [];
-                this.motdSeenIds.clear();
-                this.motdIsOpen = false;
-            }
             const response = await $.ajax({
                 url: 'api.php?action=command',
                 method: 'POST',
@@ -891,7 +878,7 @@ class MrcClient {
                         this.lastPrivateMessageId = Math.max(this.lastPrivateMessageId, maxId);
                         this.syncPrivateUnreadFromMessages(response.messages);
                     }
-                } else {
+                } else if (this.viewedRoom) {
                     const append = this.lastMessageId !== 0;
                     this.renderMessages(response.messages, append);
                     if (response.messages.length > 0) {
@@ -929,51 +916,9 @@ class MrcClient {
                 }
             }
 
-            if (this.motdPendingUntil > 0 && Date.now() > this.motdPendingUntil) {
-                if (this.motdLines.length > 0) {
-                    this.showMotdModal(this.motdLines.join('\n'));
-                } else {
-                    this.showMotdModal('No MOTD received.');
-                }
-                this.motdPendingUntil = 0;
-                this.motdLines = [];
-                this.motdSeenIds.clear();
-            }
         } catch (error) {
             console.error('Poll failed:', error);
         }
-    }
-
-    /**
-     * Capture MOTD lines while a /motd request is pending.
-     */
-    captureMotdLine(msg) {
-        if (this.motdPendingUntil === 0) return;
-        if (Date.now() > this.motdPendingUntil) return;
-        if (msg.from_user !== 'SERVER') return;
-        if (this.joinedRoom && msg.to_room !== this.joinedRoom) return;
-        if (this.motdSeenIds.has(msg.id)) return;
-
-        const body = msg.message_body || '';
-        const clean = body.replace(/\|[0-9A-Fa-f]{2}/g, '').trim();
-        if (clean === '') return;
-        if (/\(Joining\)|\(Parting\)|\(Timeout\)/i.test(clean)) return;
-        if (/No route to a room/i.test(clean)) return;
-
-        this.motdSeenIds.add(msg.id);
-        this.motdLines.push(clean);
-    }
-
-    showMotdModal(content) {
-        const modalEl = document.getElementById('motdModal');
-        if (!modalEl) return;
-        const bodyEl = document.getElementById('motdModalBody');
-        if (bodyEl) {
-            bodyEl.textContent = content;
-        }
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-        this.motdIsOpen = true;
     }
 
     /**
@@ -999,8 +944,10 @@ class MrcClient {
 
         const needsJoin = !this.joinedRoom || this.joinedRoom !== roomName;
         $('#join-room-active-btn').toggleClass('d-none', !needsJoin);
-        $('#message-input').prop('disabled', needsJoin);
         $('#send-btn').prop('disabled', needsJoin);
+        $('#message-input').attr('placeholder', needsJoin
+            ? 'Type a command (e.g. /identify) or join a room to chat...'
+            : 'Type a message... (max 140 chars)');
 
         $('#room-list .list-group-item').removeClass('active');
         $(`#room-list .list-group-item[data-room="${roomName}"]`).addClass('active');

@@ -8,9 +8,14 @@ Make sure you've made a backup of your database and files before upgrading.
 - Username and real name are now cross-checked for uniqueness at the
   database level to prevent misrouting of netmail
 
+**MRC Improvements**
+- Added `/register`, `/identify`, `/update`, and `/motd` commands
+- Trust commands and `/motd` can now be used before joining a room
+- MOTD now displays inline in the chat area instead of a popup modal
+- Fixed: initial room list not populated on daemon connect
+- Fixed: LIST response was misrouted as a private message, preventing room list population
+
 **Bug Fixes**
-- MRC: initial room list not populated on daemon connect
-- MRC: LIST response was misrouted as a private message, preventing room list population
 - Compose: sidebar panel can now be collapsed sideways to give the editor more width, with state persisted across page loads
 - Echo list: areas can now be opened in a new tab via right-click
 

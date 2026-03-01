@@ -318,28 +318,6 @@ html, body {
 }
 
 /* ------------------------------------------------------------------ */
-/* MOTD Modal                                                          */
-/* ------------------------------------------------------------------ */
-
-.mrc-motd-text {
-    white-space: pre-wrap;
-    font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
-    font-size: 0.9rem;
-    color: var(--text-color, #e0e0e0);
-    margin: 0;
-}
-
-.modal-content {
-    background-color: var(--bg-card, #282c35);
-    border-color: var(--border-color, #3a3d4a);
-}
-
-.modal-header,
-.modal-footer {
-    border-color: var(--border-color, #3a3d4a);
-}
-
-/* ------------------------------------------------------------------ */
 /* Scrollbar                                                            */
 /* ------------------------------------------------------------------ */
 
