@@ -325,6 +325,26 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             // Server sends one line per room: "*.:  #roomname  <count>  <topic>"
             // After pipe-code stripping, match "#roomname  <digits>" pattern.
             // Be tolerant of non-word chars (e.g. dashes) and missing counts.
+            //
+            // Check for LIST room-name pattern FIRST — LIST lines carry f4=BBS-name
+            // (non-empty), so testing targetUser before the regex would cause them
+            // to be misrouted as private messages and never populate mrc_rooms.
+            if (
+                preg_match('/#([A-Za-z0-9_-]{1,30})\s+\d+/', $clean, $m) ||
+                preg_match('/#([A-Za-z0-9_-]{1,30})\b/', $clean, $m)
+            ) {
+                $db->prepare("
+                    INSERT INTO mrc_rooms (room_name, last_activity, last_list_seen)
+                    VALUES (:room, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (room_name) DO UPDATE
+                    SET last_list_seen = CURRENT_TIMESTAMP
+                ")->execute(['room' => $m[1]]);
+                error_log("MRC: Added room from LIST: {$m[1]}");
+                return;
+            }
+
+            // Not a LIST line — if targeted at a specific user, store as a
+            // private server notice so the webdoor can display it.
             $targetUser = $packet['f4'] ?? '';
             if ($targetUser !== '') {
                 $targetUser = MrcClient::sanitizeName($targetUser);
@@ -338,19 +358,6 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     'to_user' => $targetUser,
                     'body' => $f7
                 ]);
-                return;
-            }
-            if (
-                preg_match('/#([A-Za-z0-9_-]{1,30})\s+\d+/', $clean, $m) ||
-                preg_match('/#([A-Za-z0-9_-]{1,30})\b/', $clean, $m)
-            ) {
-                $db->prepare("
-                    INSERT INTO mrc_rooms (room_name, last_activity, last_list_seen)
-                    VALUES (:room, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT (room_name) DO UPDATE
-                    SET last_list_seen = CURRENT_TIMESTAMP
-                ")->execute(['room' => $m[1]]);
-                error_log("MRC: Added room from LIST: {$m[1]}");
             }
         }
 
