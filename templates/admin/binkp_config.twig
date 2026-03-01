@@ -242,27 +242,27 @@
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkAllowMarkdown">
-                        <label class="form-check-label" for="uplinkAllowMarkdown">Allow Markdown</label>
+                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="Enables Markdown support on compatible/supporting networks">Allow Markdown</label>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkSendDomainInAddr">
-                        <label class="form-check-label" for="uplinkSendDomainInAddr">Send @Domain In ADR</label>
+                        <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="Include the @Domain portion when sending the ADR address to this uplink">Send @Domain In ADR</label>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkEnabled">
-                        <label class="form-check-label" for="uplinkEnabled">Enabled</label>
+                        <label class="form-check-label" for="uplinkEnabled" data-bs-toggle="tooltip" data-bs-placement="top" title="Enables this uplink for normal routing, polling, and outbound delivery">Enabled</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkCompression">
-                        <label class="form-check-label" for="uplinkCompression">Compression</label>
+                        <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="Requests compressed transfers when the remote system supports them">Compression</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkCrypt">
-                        <label class="form-check-label" for="uplinkCrypt">Crypt</label>
+                        <label class="form-check-label" for="uplinkCrypt" data-bs-toggle="tooltip" data-bs-placement="top" title="Uses CRAM-MD5 style authentication for this uplink when supported">Crypt</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkDefault">
-                        <label class="form-check-label" for="uplinkDefault">Default</label>
+                        <label class="form-check-label" for="uplinkDefault" data-bs-toggle="tooltip" data-bs-placement="top" title="Marks this as the default uplink when no more specific route matches">Default</label>
                     </div>
                 </div>
                 <div id="uplinkModalAlert" class="mt-3"></div>
@@ -283,6 +283,9 @@ let uplinkModal;
 
 document.addEventListener('DOMContentLoaded', function() {
     uplinkModal = new bootstrap.Modal(document.getElementById('uplinkModal'));
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(element) {
+        new bootstrap.Tooltip(element);
+    });
     loadBinkpConfig();
     loadAdminUsers('systemSysop');
 });
