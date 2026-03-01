@@ -15,8 +15,8 @@
     </a>
 </div>
 
-<div class="row">
-    <div class="col-lg-8">
+<div class="row" id="composeRow">
+    <div class="col-lg-8" id="composeMain">
         <div class="compose-form">
             <form id="composeForm">
                 <input type="hidden" id="messageType" value="{{ type }}">
@@ -221,7 +221,13 @@
         </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-4" id="composeSidebar">
+        <div class="d-flex justify-content-end mb-2">
+            <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="Hide panel">
+                <i class="fas fa-angles-right" id="sidebarToggleIcon"></i>
+            </button>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">Message Guidelines</h6>
@@ -249,7 +255,7 @@
                         <li>Follow the echo rules and moderation</li>
                     </ul>
                 {% endif %}
-                
+
                 <h6 class="mt-3">Technical Notes:</h6>
                 <ul class="small">
                     <li>Plain text only (no HTML)</li>
@@ -259,7 +265,6 @@
             </div>
         </div>
 
-        
         <div class="card mt-3">
             <div class="card-header">
                 <h6 class="mb-0">Your Info</h6>
@@ -268,15 +273,21 @@
                 <dl class="row mb-0">
                     <dt class="col-4">Name:</dt>
                     <dd class="col-8">{{ user_name }}</dd>
-                    
+
                     <dt class="col-4">System:</dt>
                     <dd class="col-8">{{ system_name_display }}</dd>
-                    
+
                     <dt class="col-4">Address:</dt>
                     <dd class="col-8">{{ system_address_display }}</dd>
                 </dl>
             </div>
         </div>
+    </div>
+
+    <div id="sidebarShowBtn" class="d-none align-items-start pt-1">
+        <button class="btn btn-sm btn-outline-secondary" title="Show panel" onclick="toggleComposeSidebar()">
+            <i class="fas fa-angles-left"></i>
+        </button>
     </div>
 </div>
 {% endblock %}
@@ -1385,4 +1396,31 @@ code here
         </div>
     </div>
 </div>
+
+<script>
+// Collapsible compose sidebar with localStorage persistence
+const SIDEBAR_KEY = 'compose_sidebar_hidden';
+
+function toggleComposeSidebar() {
+    const sidebar = document.getElementById('composeSidebar');
+    const main = document.getElementById('composeMain');
+    const showBtn = document.getElementById('sidebarShowBtn');
+    const hidden = !sidebar.classList.contains('d-none');
+
+    sidebar.classList.toggle('d-none', hidden);
+    showBtn.classList.toggle('d-none', !hidden);
+    showBtn.classList.toggle('d-flex', !hidden);
+    main.classList.toggle('col-lg-12', hidden);
+    main.classList.toggle('col-lg-8', !hidden);
+
+    localStorage.setItem(SIDEBAR_KEY, hidden ? '1' : '0');
+}
+
+document.getElementById('sidebarToggleBtn').addEventListener('click', toggleComposeSidebar);
+
+// Restore state on load
+if (localStorage.getItem(SIDEBAR_KEY) === '1') {
+    toggleComposeSidebar();
+}
+</script>
 {% endblock %}

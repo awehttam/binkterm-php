@@ -10,6 +10,7 @@ Make sure you've made a backup of your database and files before upgrading.
 
 **Bug Fixes**
 - MRC: initial room list not populated on daemon connect
+- Compose: sidebar panel can now be collapsed sideways to give the editor more width, with state persisted across page loads
 
 ## Upgrade Instructions
 
