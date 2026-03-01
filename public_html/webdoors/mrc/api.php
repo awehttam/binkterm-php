@@ -477,42 +477,36 @@ function handleCommand(PDO $db, array $user): void
 
         case 'register':
             if (empty($commandArgs)) {
-                \WebDoorSDK\jsonError('Password is required');
+                $f7 = 'REGISTER';
+            } else {
+                $password = substr(str_replace(['~', ' '], '', $commandArgs[0]), 0, 20);
+                $email = '';
+                if (!empty($commandArgs[1])) {
+                    $email = substr(str_replace(['~', ' '], '', $commandArgs[1]), 0, 128);
+                }
+                $f7 = 'REGISTER' . ($password !== '' ? ' ' . $password : '') . ($email !== '' ? ' ' . $email : '');
             }
-            $password = substr(str_replace(['~', ' '], '', $commandArgs[0]), 0, 20);
-            if ($password === '') {
-                \WebDoorSDK\jsonError('Invalid password');
-            }
-            $email = '';
-            if (!empty($commandArgs[1])) {
-                $email = substr(str_replace(['~', ' '], '', $commandArgs[1]), 0, 128);
-            }
-            $f7 = 'REGISTER ' . $password . ($email !== '' ? ' ' . $email : '');
             $f6 = '';
             break;
 
         case 'identify':
             if (empty($commandArgs)) {
-                \WebDoorSDK\jsonError('Password is required');
+                $f7 = 'IDENTIFY';
+            } else {
+                $password = substr(str_replace(['~', ' '], '', $commandArgs[0]), 0, 20);
+                $f7 = 'IDENTIFY' . ($password !== '' ? ' ' . $password : '');
             }
-            $password = substr(str_replace(['~', ' '], '', $commandArgs[0]), 0, 20);
-            if ($password === '') {
-                \WebDoorSDK\jsonError('Invalid password');
-            }
-            $f7 = 'IDENTIFY ' . $password;
             $f6 = '';
             break;
 
         case 'update':
-            if (count($commandArgs) < 2) {
-                \WebDoorSDK\jsonError('Usage: /update <param> <value>');
+            if (empty($commandArgs)) {
+                $f7 = 'UPDATE';
+            } else {
+                $param = strtoupper(str_replace(['~', ' '], '', $commandArgs[0]));
+                $value = isset($commandArgs[1]) ? substr(str_replace('~', '', $commandArgs[1]), 0, 128) : '';
+                $f7 = 'UPDATE' . ($param !== '' ? ' ' . $param : '') . ($value !== '' ? ' ' . $value : '');
             }
-            $param = strtoupper(str_replace(['~', ' '], '', $commandArgs[0]));
-            $value = substr(str_replace('~', '', $commandArgs[1]), 0, 128);
-            if ($param === '' || $value === '') {
-                \WebDoorSDK\jsonError('Invalid parameters');
-            }
-            $f7 = 'UPDATE ' . $param . ' ' . $value;
             $f6 = '';
             break;
     }

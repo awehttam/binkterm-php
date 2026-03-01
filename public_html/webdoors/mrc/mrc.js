@@ -580,24 +580,8 @@ class MrcClient {
                 this.sendCommand(command, args);
                 break;
             case 'register':
-                if (args.length === 0) {
-                    this.showError('Usage: /register &lt;password&gt; [email]');
-                    break;
-                }
-                this.sendCommand(command, args);
-                break;
             case 'identify':
-                if (args.length === 0) {
-                    this.showError('Usage: /identify &lt;password&gt;');
-                    break;
-                }
-                this.sendCommand(command, args);
-                break;
             case 'update':
-                if (args.length < 2) {
-                    this.showError('Usage: /update &lt;param&gt; &lt;value&gt;');
-                    break;
-                }
                 this.sendCommand(command, args);
                 break;
             case 'help':
