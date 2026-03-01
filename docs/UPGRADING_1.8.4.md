@@ -9,9 +9,14 @@ Make sure you've made a backup of your database and files before upgrading.
   database level to prevent misrouting of netmail
 
 **MRC Improvements**
-- Added `/register`, `/identify`, `/update`, and `/motd` commands
-- Trust commands and `/motd` can now be used before joining a room
+- Added `/register`, `/identify`, `/update`, `/motd`, `/help`, and `/msg` commands
+- Trust commands, `/motd`, and `/help` can now be used before joining a room
+- Unknown `/commands` are passed through to the server instead of showing an error
 - MOTD now displays inline in the chat area instead of a popup modal
+- Sent private messages are echoed locally so you can see what you sent
+- Input history: use up/down arrow keys to scroll through previously sent messages
+- Removed "MRC Under Development" warning modal
+- Fixed: black text on dark background when using the default theme
 - Fixed: initial room list not populated on daemon connect
 - Fixed: LIST response was misrouted as a private message, preventing room list population
 
