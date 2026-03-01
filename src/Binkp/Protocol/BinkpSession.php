@@ -405,7 +405,7 @@ class BinkpSession
                 }
 
                 // Use first address if no match found (fallback)
-                $fallbackAddress = $addresses[0];
+                $fallbackAddress = !empty($addresses) ? $addresses[0] : '';
                 $fallbackAddressWithDomain = $fallbackAddress;
                 if (strpos($fallbackAddress, '@') !== false) {
                     $fallbackAddress = substr($fallbackAddress, 0, strpos($fallbackAddress, '@'));
