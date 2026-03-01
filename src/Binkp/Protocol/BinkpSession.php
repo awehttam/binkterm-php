@@ -308,9 +308,10 @@ class BinkpSession
 
             // Continue until session terminates with timeout protection
             $eobWaitStart = time();
-            $eobTimeout = 60; // 60 second timeout for idle/EOB exchange only
+            $sessionTimeout = max(30, (int) $this->config->getBinkpTimeout());
+            $eobTimeout = $sessionTimeout; // Idle/EOB exchange timeout
             $lastActivity = time();
-            $activityTimeout = 5; // 5 seconds without any frames
+            $activityTimeout = $sessionTimeout; // Allow slow remotes time to prepare outbound data
 
             $this->log("Waiting for session termination (state: {$this->state})", 'DEBUG');
 
