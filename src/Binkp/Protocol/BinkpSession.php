@@ -308,18 +308,19 @@ class BinkpSession
 
             // Continue until session terminates with timeout protection
             $eobWaitStart = time();
-            $eobTimeout = 60; // 60 second timeout for EOB exchange
+            $eobTimeout = 60; // 60 second timeout for idle/EOB exchange only
             $lastActivity = time();
-            $activityTimeout = 5; // 30 seconds without any frames
+            $activityTimeout = 5; // 5 seconds without any frames
 
             $this->log("Waiting for session termination (state: {$this->state})", 'DEBUG');
 
             while ($this->state < self::STATE_TERMINATED) {
                 $elapsed = time() - $eobWaitStart;
                 $inactivity = time() - $lastActivity;
+                $hasActiveTransfer = $this->currentFile !== null;
 
-                // Check for overall timeout
-                if ($elapsed >= $eobTimeout) {
+                // Only enforce the hard EOB timeout when we are not actively receiving a file.
+                if (!$hasActiveTransfer && $elapsed >= $eobTimeout) {
                     $this->log("EOB exchange timeout after {$elapsed} seconds (state: {$this->state})", 'WARNING');
                     break;
                 }
@@ -345,6 +346,10 @@ class BinkpSession
                 }
 
                 $lastActivity = time();
+                if ($hasActiveTransfer) {
+                    // Keep the EOB timeout anchored to idle/EOB time, not active transfer time.
+                    $eobWaitStart = $lastActivity;
+                }
                 $this->log("Received: {$frame}", 'DEBUG');
                 $this->processTransferFrame($frame);
             }
