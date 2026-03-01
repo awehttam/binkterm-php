@@ -421,11 +421,11 @@ function handleCommand(PDO $db, array $user): void
     if (strpos($command, '~') !== false) {
         \WebDoorSDK\jsonError('Invalid character in command');
     }
-    if (!in_array($command, ['motd', 'rooms', 'topic', 'register', 'identify', 'update'], true)) {
+    if (!in_array($command, ['motd', 'rooms', 'topic', 'register', 'identify', 'update', 'help'], true)) {
         \WebDoorSDK\jsonError('Unsupported command');
     }
-    // register/identify/update can be sent without a room (f3 will be empty)
-    $roomOptional = in_array($command, ['rooms', 'motd', 'register', 'identify', 'update'], true);
+    // these commands can be sent without a room
+    $roomOptional = in_array($command, ['rooms', 'motd', 'register', 'identify', 'update', 'help'], true);
     if (!$roomOptional) {
         if (empty($room)) {
             \WebDoorSDK\jsonError('Room is required');
@@ -451,6 +451,11 @@ function handleCommand(PDO $db, array $user): void
     $f7 = '';
 
     switch ($command) {
+        case 'help':
+            $topic = !empty($commandArgs[0]) ? ' ' . substr(str_replace(['~', ' '], '', $commandArgs[0]), 0, 20) : '';
+            $f7 = 'HELP' . $topic;
+            break;
+
         case 'motd':
             $f7 = 'MOTD';
             break;

@@ -585,6 +585,8 @@ class MrcClient {
                 this.sendCommand(command, args);
                 break;
             case 'help':
+                this.sendCommand(command, args);
+                break;
             case 'list':
             case 'whoon':
             case 'users':
@@ -605,7 +607,7 @@ class MrcClient {
      * Commands that can be sent without being in a room.
      */
     static get NO_ROOM_COMMANDS() {
-        return ['rooms', 'motd', 'register', 'identify', 'update'];
+        return ['rooms', 'motd', 'register', 'identify', 'update', 'help'];
     }
 
     async sendCommand(command, args) {
