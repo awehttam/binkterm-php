@@ -350,6 +350,12 @@ class BinkpConfig
         $uplink = $this->getUplinkByAddress($address);
         return $uplink['pkt_password'] ?? '';
     }
+
+    public function getTicPasswordForAddress($address)
+    {
+        $uplink = $this->getUplinkByAddress($address);
+        return $uplink['tic_password'] ?? '';
+    }
     
     public function addUplink($address, $hostname, $port = 24554, $password = '', $options = [])
     {
