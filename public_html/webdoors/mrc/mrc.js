@@ -616,15 +616,8 @@ class MrcClient {
             case 'help':
                 this.sendCommand(command, args);
                 break;
-            case 'list':
-            case 'whoon':
-            case 'users':
-            case 'time':
-            case 'version':
-                this.showError(`Command '/${command}' is not implemented yet.`);
-                break;
             default:
-                this.showError(`Unknown command: /${command}`);
+                this.sendCommand(command, args);
                 break;
         }
     }

@@ -418,11 +418,8 @@ function handleCommand(PDO $db, array $user): void
     if ($command === '') {
         \WebDoorSDK\jsonError('Command is required');
     }
-    if (strpos($command, '~') !== false) {
-        \WebDoorSDK\jsonError('Invalid character in command');
-    }
-    if (!in_array($command, ['motd', 'rooms', 'topic', 'register', 'identify', 'update', 'help'], true)) {
-        \WebDoorSDK\jsonError('Unsupported command');
+    if (!preg_match('/^[a-z]{1,20}$/', $command)) {
+        \WebDoorSDK\jsonError('Invalid command');
     }
     // these commands can be sent without a room
     $roomOptional = in_array($command, ['rooms', 'motd', 'register', 'identify', 'update', 'help'], true);
@@ -513,6 +510,14 @@ function handleCommand(PDO $db, array $user): void
                 $f7 = 'UPDATE' . ($param !== '' ? ' ' . $param : '') . ($value !== '' ? ' ' . $value : '');
             }
             $f6 = '';
+            break;
+
+        default:
+            // Generic passthrough: uppercase the command word and append any args
+            $safeArgs = array_map(function($a) {
+                return substr(str_replace('~', '', $a), 0, 140);
+            }, $commandArgs);
+            $f7 = strtoupper($command) . (!empty($safeArgs) ? ' ' . implode(' ', $safeArgs) : '');
             break;
     }
 
