@@ -16,6 +16,22 @@
  */
 
 /* ------------------------------------------------------------------ */
+/* Dark palette defaults                                                */
+/* ------------------------------------------------------------------ */
+/* MRC is always a dark interface. Override any light-theme variables  */
+/* so text is never rendered black on a dark background.               */
+
+:root {
+    --bg-primary:       #1e2028;
+    --bg-secondary:     #252830;
+    --bg-card:          #282c35;
+    --text-color:       #e0e0e0;
+    --text-color-muted: #9a9a9a;
+    --border-color:     #3a3d4a;
+    --fidonet-blue:     #4da6ff;
+}
+
+/* ------------------------------------------------------------------ */
 /* Layout                                                               */
 /* ------------------------------------------------------------------ */
 
