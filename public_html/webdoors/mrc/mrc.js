@@ -53,12 +53,6 @@ class MrcClient {
             this.updateCharCount();
         });
 
-        $('#message-input').on('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.sendMessage();
-            }
-        });
 
         $('#refresh-btn').on('click', () => {
             this.refreshMessages();
@@ -225,7 +219,6 @@ class MrcClient {
                 $('#current-room-name span').text(roomName);
                 $('#current-room-topic').text('');
                 $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
-                $('#send-btn').prop('disabled', false);
                 $('#join-room-active-btn').addClass('d-none');
 
                 // Update active room in list
@@ -463,13 +456,11 @@ class MrcClient {
             this.missingPresenceCount += 1;
             if (this.missingPresenceCount >= 2) {
                 this.joinedRoom = null;
-                $('#send-btn').prop('disabled', true);
                 $('#message-input').attr('placeholder', 'Type a command (e.g. /identify) or join a room to chat...');
                 $('#join-room-active-btn').removeClass('d-none');
             }
         } else {
             this.missingPresenceCount = 0;
-            $('#send-btn').prop('disabled', false);
             $('#message-input').attr('placeholder', 'Type a message... (max 140 chars)');
         }
     }
@@ -566,34 +557,45 @@ class MrcClient {
             case 'rooms':
                 this.sendCommand(command, args);
                 break;
+            case 'msg':
+                if (args.length < 2) {
+                    this.showError('Usage: /msg &lt;username&gt; &lt;message&gt;');
+                    break;
+                }
+                if (!this.joinedRoom) {
+                    this.showError('Join a room before sending private messages.');
+                    break;
+                }
+                this.sendPrivateMessage(args[0], args.slice(1).join(' '));
+                break;
             case 'topic':
                 if (!this.joinedRoom) {
                     this.showError('Join a room before setting the topic.');
                     break;
                 }
                 if (args.length === 0) {
-                    this.showError('Usage: /topic <new topic>');
+                    this.showError('Usage: /topic &lt;new topic&gt;');
                     break;
                 }
                 this.sendCommand(command, args);
                 break;
             case 'register':
                 if (args.length === 0) {
-                    this.showError('Usage: /register <password> [email]');
+                    this.showError('Usage: /register &lt;password&gt; [email]');
                     break;
                 }
                 this.sendCommand(command, args);
                 break;
             case 'identify':
                 if (args.length === 0) {
-                    this.showError('Usage: /identify <password>');
+                    this.showError('Usage: /identify &lt;password&gt;');
                     break;
                 }
                 this.sendCommand(command, args);
                 break;
             case 'update':
                 if (args.length < 2) {
-                    this.showError('Usage: /update <param> <value>');
+                    this.showError('Usage: /update &lt;param&gt; &lt;value&gt;');
                     break;
                 }
                 this.sendCommand(command, args);
@@ -699,6 +701,34 @@ class MrcClient {
 
         // Auto-dismiss after 5 seconds
         setTimeout(() => errorEl.remove(), 5000);
+    }
+
+    /**
+     * Send a private message and open the DM view.
+     */
+    async sendPrivateMessage(username, message) {
+        try {
+            const response = await $.ajax({
+                url: 'api.php?action=send',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    room: this.joinedRoom,
+                    message: message,
+                    to_user: username
+                }),
+                dataType: 'json'
+            });
+
+            if (response.success) {
+                $('#message-input').val('');
+                this.updateCharCount();
+                await this.startPrivateChat(username);
+            }
+        } catch (error) {
+            console.error('Failed to send private message:', error);
+            this.showError('Failed to send private message. Please try again.');
+        }
     }
 
     /**
@@ -944,7 +974,6 @@ class MrcClient {
 
         const needsJoin = !this.joinedRoom || this.joinedRoom !== roomName;
         $('#join-room-active-btn').toggleClass('d-none', !needsJoin);
-        $('#send-btn').prop('disabled', needsJoin);
         $('#message-input').attr('placeholder', needsJoin
             ? 'Type a command (e.g. /identify) or join a room to chat...'
             : 'Type a message... (max 140 chars)');

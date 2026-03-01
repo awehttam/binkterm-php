@@ -131,7 +131,7 @@ if ($currentUser && !empty($currentUser['user_id']) && !AppearanceConfig::isThem
                                    placeholder="Type a command (e.g. /identify) or join a room to chat..."
                                    maxlength="140"
                                    autocomplete="off">
-                            <button class="btn btn-primary" type="submit" id="send-btn" disabled>
+                            <button class="btn btn-primary" type="submit" id="send-btn">
                                 <i class="bi bi-send"></i> Send
                             </button>
                         </div>
