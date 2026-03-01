@@ -501,6 +501,9 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
             "pkt_password": "",
             "tic_password": "",
             "poll_schedule": "*/15 * * * *",
+            "allow_markdown": false,
+            "send_domain_in_addr": false,
+            "binkp_zone": "",
             "enabled": true,
             "compression": false,
             "crypt": false,
@@ -566,6 +569,8 @@ Each uplink in the `uplinks` array supports the following fields:
 | `domain` | Yes | Network domain (e.g., "fidonet", "fsxnet", "agoranet") |
 | `networks` | Yes | Array of address patterns this uplink routes (e.g., `["1:*/*", "2:*/*"]`) |
 | `poll_schedule` | No | Cron expression for automated polling (e.g., `"0 */4 * * *"` = every 4 hours) |
+| `allow_markdown` | No | Enables Markdown support for messages routed through this uplink |
+| `send_domain_in_addr` | No | Includes the `@domain` suffix in the ADR address sent to this uplink |
 | `enabled` | No | Whether uplink is active (default: true) |
 | `default` | No | Whether this is the default uplink for unrouted messages |
 | `compression` | No | Enable compression (not yet implemented) |
