@@ -38,6 +38,9 @@ class MrcClient {
         this.username = window.mrcCurrentUser || null;
         this.localBbs = window.mrcCurrentBbs || null;
         this.missingPresenceCount = 0;
+        this.inputHistory = [];
+        this.historyIndex = -1;
+        this.historySavedInput = '';
 
         this.init();
     }
@@ -51,6 +54,28 @@ class MrcClient {
 
         $('#message-input').on('input', () => {
             this.updateCharCount();
+        });
+
+        $('#message-input').on('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (this.inputHistory.length === 0) return;
+                if (this.historyIndex === -1) {
+                    this.historySavedInput = $('#message-input').val();
+                }
+                this.historyIndex = Math.min(this.historyIndex + 1, this.inputHistory.length - 1);
+                $('#message-input').val(this.inputHistory[this.historyIndex]);
+                this.updateCharCount();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (this.historyIndex === -1) return;
+                this.historyIndex--;
+                const value = this.historyIndex === -1
+                    ? this.historySavedInput
+                    : this.inputHistory[this.historyIndex];
+                $('#message-input').val(value);
+                this.updateCharCount();
+            }
         });
 
 
@@ -473,6 +498,10 @@ class MrcClient {
         const message = input.val().trim();
 
         if (!message) return;
+        this.inputHistory.unshift(message);
+        if (this.inputHistory.length > 50) this.inputHistory.pop();
+        this.historyIndex = -1;
+        this.historySavedInput = '';
         if (message.startsWith('/')) {
             this.handleCommand(message);
             input.val('');
