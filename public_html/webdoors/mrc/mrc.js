@@ -579,6 +579,39 @@ class MrcClient {
                 }
                 this.sendCommand(command, args);
                 break;
+            case 'register':
+                if (!this.joinedRoom) {
+                    this.showError('Join a room before registering.');
+                    break;
+                }
+                if (args.length === 0) {
+                    this.showError('Usage: /register <password> [email]');
+                    break;
+                }
+                this.sendCommand(command, args);
+                break;
+            case 'identify':
+                if (!this.joinedRoom) {
+                    this.showError('Join a room before identifying.');
+                    break;
+                }
+                if (args.length === 0) {
+                    this.showError('Usage: /identify <password>');
+                    break;
+                }
+                this.sendCommand(command, args);
+                break;
+            case 'update':
+                if (!this.joinedRoom) {
+                    this.showError('Join a room before using /update.');
+                    break;
+                }
+                if (args.length < 2) {
+                    this.showError('Usage: /update <param> <value>');
+                    break;
+                }
+                this.sendCommand(command, args);
+                break;
             case 'help':
             case 'list':
             case 'whoon':

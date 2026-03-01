@@ -421,7 +421,7 @@ function handleCommand(PDO $db, array $user): void
     if (strpos($command, '~') !== false) {
         \WebDoorSDK\jsonError('Invalid character in command');
     }
-    if (!in_array($command, ['motd', 'rooms', 'topic'], true)) {
+    if (!in_array($command, ['motd', 'rooms', 'topic', 'register', 'identify', 'update'], true)) {
         \WebDoorSDK\jsonError('Unsupported command');
     }
     if ($command !== 'rooms') {
@@ -442,20 +442,77 @@ function handleCommand(PDO $db, array $user): void
     $commandArgs = is_array($commandArgs) ? $commandArgs : [];
     $commandArgs = array_map('trim', $commandArgs);
     $commandArgs = array_values(array_filter($commandArgs, 'strlen'));
-    $topicText = '';
-    if ($command === 'topic') {
-        if (empty($commandArgs)) {
-            \WebDoorSDK\jsonError('Topic text is required');
-        }
-        $topicText = implode(' ', $commandArgs);
-        $topicText = str_replace('~', '', $topicText);
-        $topicText = preg_replace('/\\|[0-9A-Fa-f]{2}/', '', $topicText);
-        $topicText = preg_replace('/\\|[A-Za-z]{2}/', '', $topicText);
-        $topicText = trim($topicText);
-        if ($topicText === '') {
-            \WebDoorSDK\jsonError('Topic text is required');
-        }
-        $topicText = substr($topicText, 0, 55);
+
+    // Build f7 and f6 per command.
+    // REGISTER/IDENTIFY/UPDATE use f6='' (personal commands, not room-targeted).
+    $f6 = $room;
+    $f7 = '';
+
+    switch ($command) {
+        case 'motd':
+            $f7 = 'MOTD';
+            break;
+
+        case 'rooms':
+            $f7 = 'LIST';
+            $f6 = '';
+            break;
+
+        case 'topic':
+            if (empty($commandArgs)) {
+                \WebDoorSDK\jsonError('Topic text is required');
+            }
+            $topicText = implode(' ', $commandArgs);
+            $topicText = str_replace('~', '', $topicText);
+            $topicText = preg_replace('/\\|[0-9A-Fa-f]{2}/', '', $topicText);
+            $topicText = preg_replace('/\\|[A-Za-z]{2}/', '', $topicText);
+            $topicText = trim(substr($topicText, 0, 55));
+            if ($topicText === '') {
+                \WebDoorSDK\jsonError('Topic text is required');
+            }
+            $f7 = "NEWTOPIC:{$room}:{$topicText}";
+            break;
+
+        case 'register':
+            if (empty($commandArgs)) {
+                \WebDoorSDK\jsonError('Password is required');
+            }
+            $password = substr(str_replace(['~', ' '], '', $commandArgs[0]), 0, 20);
+            if ($password === '') {
+                \WebDoorSDK\jsonError('Invalid password');
+            }
+            $email = '';
+            if (!empty($commandArgs[1])) {
+                $email = substr(str_replace(['~', ' '], '', $commandArgs[1]), 0, 128);
+            }
+            $f7 = 'REGISTER ' . $password . ($email !== '' ? ' ' . $email : '');
+            $f6 = '';
+            break;
+
+        case 'identify':
+            if (empty($commandArgs)) {
+                \WebDoorSDK\jsonError('Password is required');
+            }
+            $password = substr(str_replace(['~', ' '], '', $commandArgs[0]), 0, 20);
+            if ($password === '') {
+                \WebDoorSDK\jsonError('Invalid password');
+            }
+            $f7 = 'IDENTIFY ' . $password;
+            $f6 = '';
+            break;
+
+        case 'update':
+            if (count($commandArgs) < 2) {
+                \WebDoorSDK\jsonError('Usage: /update <param> <value>');
+            }
+            $param = strtoupper(str_replace(['~', ' '], '', $commandArgs[0]));
+            $value = substr(str_replace('~', '', $commandArgs[1]), 0, 128);
+            if ($param === '' || $value === '') {
+                \WebDoorSDK\jsonError('Invalid parameters');
+            }
+            $f7 = 'UPDATE ' . $param . ' ' . $value;
+            $f6 = '';
+            break;
     }
 
     $db->prepare("
@@ -467,8 +524,8 @@ function handleCommand(PDO $db, array $user): void
         'f3' => $room,
         'f4' => 'SERVER',
         'f5' => '',
-        'f6' => $room,
-        'f7' => $command === 'rooms' ? 'LIST' : ($command === 'topic' ? "NEWTOPIC:{$room}:{$topicText}" : 'MOTD'),
+        'f6' => $f6,
+        'f7' => $f7,
         'priority' => 5
     ]);
 
