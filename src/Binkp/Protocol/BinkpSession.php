@@ -418,14 +418,6 @@ class BinkpSession
                 $this->remoteAddressWithDomain = $matchedAddressWithDomain ?: $fallbackAddressWithDomain;
                 $this->log("Using remote address: {$this->remoteAddress}", 'DEBUG');
 
-                // Empty M_ADR — some implementations (e.g. clrghouz binkp/1.1) send a
-                // blank M_ADR as an initial ready-signal and follow up with the real one
-                // after receiving ours.  Don't send M_PWD yet; wait for the real M_ADR.
-                if (empty($addresses)) {
-                    $this->log("Received empty M_ADR, deferring authentication", 'DEBUG');
-                    break;
-                }
-
                 if ($this->state === self::STATE_INIT) {
                     // Answerer hasn't sent ADR yet (rare path)
                     $this->sendAddress();
