@@ -131,8 +131,17 @@ class MarkdownRenderer
         // Escape HTML first (except we handle < > carefully)
         $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
 
-        // Inline code  (`...`)
-        $text = preg_replace('/`([^`]+)`/', '<code>$1</code>', $text);
+        // Protect inline code spans from later emphasis/link parsing.
+        $codeSpans = [];
+        $text = preg_replace_callback(
+            '/`([^`]+)`/',
+            function ($matches) use (&$codeSpans) {
+                $token = '%%CODE' . count($codeSpans) . '%%';
+                $codeSpans[$token] = '<code>' . $matches[1] . '</code>';
+                return $token;
+            },
+            $text
+        );
 
         // Bold (**...** or __...__)
         $text = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $text);
@@ -154,6 +163,10 @@ class MarkdownRenderer
             },
             $text
         );
+
+        if (!empty($codeSpans)) {
+            $text = strtr($text, $codeSpans);
+        }
 
         return $text;
     }
