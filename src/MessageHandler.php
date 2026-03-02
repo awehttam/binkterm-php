@@ -1473,6 +1473,10 @@ class MessageHandler
             $packetFile = $binkdProcessor->createOutboundPacket([$message], $routeAddress);
             $packetName = basename($packetFile);
 
+            if ($uplink) {
+                $this->triggerImmediateOutboundPoll($routeAddress, "netmail #{$messageId}");
+            }
+
             // Mark message as sent
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
@@ -1533,6 +1537,7 @@ class MessageHandler
                 $message['to_address'] = $uplinkAddress;
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
+                $this->triggerImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
                 error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
@@ -1594,6 +1599,22 @@ class MessageHandler
         
         // Ultimate fallback if config fails (was '1:123/1';
         return false;
+    }
+
+    private function triggerImmediateOutboundPoll(string $uplinkAddress, string $context): void
+    {
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $pollResult = $client->binkPoll($uplinkAddress);
+
+            if (($pollResult['exit_code'] ?? 1) === 0) {
+                $client->processPackets();
+            }
+
+            $client->close();
+        } catch (\Throwable $e) {
+            error_log("[SPOOL] Could not trigger immediate outbound poll for {$context} via {$uplinkAddress}: " . $e->getMessage());
+        }
     }
 
     public function deleteEchomail($messageIds, $userId)

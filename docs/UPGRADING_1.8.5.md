@@ -8,6 +8,17 @@ Make sure you've made a backup of your database and files before upgrading.
 - Markdown renderer: fixed inline code parsing so identifiers with
   underscores such as `send_domain_in_addr` and `M_ADR` render correctly
   in upgrade notes and other locally rendered Markdown documents
+- Binkp scheduler: fixed outbound-triggered polling so the scheduler no
+  longer polls every enabled uplink once per minute whenever any outbound
+  packet exists; outbound polls now only target uplinks that actually have
+  queued outbound traffic for them
+- Outbound dispatch: newly spooled netmail and echomail now trigger an
+  immediate poll of the specific routed uplink instead of waiting for the
+  scheduler's next loop
+- Scheduler logging: corrected outbound polling log messages so "triggering
+  poll" is only logged when an uplink will actually be polled
+- Cron schedule clarification: `* */1 * * *` means every minute of every
+  hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
 
 ## Upgrade Instructions
 

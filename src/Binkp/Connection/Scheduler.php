@@ -142,10 +142,11 @@ class Scheduler
             return [];
         }
         
-        $this->log("Found " . count($files) . " outbound files, triggering poll");
+        $this->log("Found " . count($files) . " outbound files, checking which uplinks need polling");
         
         $uplinks = $this->config->getEnabledUplinks();
         $results = [];
+        $uplinksToPoll = [];
         
         foreach ($uplinks as $uplink) {
             $address = $uplink['address'];
@@ -160,6 +161,18 @@ class Scheduler
                 $this->log("Recent outbound poll for {$address}, skipping duplicate outbound poll", 'DEBUG');
                 continue;
             }
+
+            $uplinksToPoll[] = $uplink;
+        }
+
+        if (empty($uplinksToPoll)) {
+            $this->log("Outbound files found, but no uplinks currently require polling", 'DEBUG');
+            return [];
+        }
+
+        foreach ($uplinksToPoll as $uplink) {
+            $address = $uplink['address'];
+            $this->log("Triggering outbound poll for uplink {$address}");
             
             try {
                 $pollResult = $this->client->binkPoll($address);
