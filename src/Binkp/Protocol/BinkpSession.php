@@ -343,11 +343,16 @@ class BinkpSession
                 $inactivity = time() - $lastActivity;
                 $hasActiveTransfer = $this->currentFile !== null;
 
-                // If remote's EOB was received and answered, and no file is in flight, we're done.
+                // After the remote's EOB has been acknowledged, keep the session open
+                // briefly so the remote's tosser can queue a response (e.g. areafix) and
+                // send it as M_FILE.  Terminate once 30 s of inactivity have passed with
+                // no active transfer in progress.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
-                    $this->log("EOB exchange complete, no active transfer - terminating", 'DEBUG');
-                    $this->state = self::STATE_TERMINATED;
-                    break;
+                    if ($inactivity >= 30) {
+                        $this->log("EOB exchange complete, no activity for {$inactivity}s - terminating", 'DEBUG');
+                        $this->state = self::STATE_TERMINATED;
+                        break;
+                    }
                 }
 
                 // Only enforce the hard EOB timeout when we are not actively receiving a file.
@@ -577,14 +582,11 @@ class BinkpSession
                     } else {
                         $this->log("Received EOB first - sending our EOB", 'DEBUG');
                         $this->sendEOB();
-                        // M_EOB from the remote means they are done; session ends once
-                        // both sides have sent EOB. Only stay open if we are mid-transfer
-                        // of an incoming file — M_GOT status is irrelevant here.
-                        if ($this->currentFile) {
-                            $this->state = self::STATE_EOB_RECEIVED;
-                        } else {
-                            $this->state = self::STATE_TERMINATED;
-                        }
+                        // Always move to EOB_RECEIVED so the EOB wait loop keeps running.
+                        // Some remotes (e.g. areafix systems) process our inbound packet and
+                        // then send M_FILE in the same session after already having sent M_EOB.
+                        // The EOB wait loop will terminate cleanly via the inactivity check.
+                        $this->state = self::STATE_EOB_RECEIVED;
                     }
                     break;
 
