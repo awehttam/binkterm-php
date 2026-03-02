@@ -6,6 +6,8 @@ Make sure you've made a backup of your database and files before upgrading.
 
 **New Features**
 - Native Doors: run native Linux binaries and Windows executables as BBS doors via PTY — no emulator required; manage via Admin → Native Doors (see below)
+- Door `launch_command`: all door types (DOS and native) now support a `{user_number}` placeholder that is substituted with the BBS user's numeric ID at launch time; native doors also receive it as the `DOOR_USER_NUMBER` environment variable
+- Telnet gateway: native doors now appear alongside DOS doors in the telnet door menu
 
 **Improvements**
 - Outbound dispatch: newly spooled netmail and echomail now trigger an
@@ -66,6 +68,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - BinkP server: fixed inbound sessions not including the network domain in
   the `M_ADR` address; the `send_domain_in_addr` flag was only applied to
   outbound calls — inbound connections now respect it too
+- Native doors: fixed icon and screenshot assets not being served; the
+  `/door-assets/` route was only looking in the DOS door directory
 
 ## Native Door Support
 
