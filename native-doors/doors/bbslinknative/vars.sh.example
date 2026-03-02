@@ -1,0 +1,4 @@
+host="games.bbslink.net" 		# Server address, usually 'games.bbslink.net'
+syscode=""					    # Your system code
+authcode=""				 		# Your system's authorisation code
+schemecode=""					# Scheme code
