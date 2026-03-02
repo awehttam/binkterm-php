@@ -23,6 +23,7 @@ class MessageHandler
     private const ECHOMAIL_DATE_FIELD = 'date_received';    // Related to USE_DATE_FIELD in echomail.js
 
     private $db;
+    private $pendingImmediateOutboundPolls = [];
 
     public function __construct()
     {
@@ -1474,7 +1475,7 @@ class MessageHandler
             $packetName = basename($packetFile);
 
             if ($uplink) {
-                $this->triggerImmediateOutboundPoll($routeAddress, "netmail #{$messageId}");
+                $this->queueImmediateOutboundPoll($routeAddress, "netmail #{$messageId}");
             }
 
             // Mark message as sent
@@ -1537,7 +1538,7 @@ class MessageHandler
                 $message['to_address'] = $uplinkAddress;
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
-                $this->triggerImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
+                $this->queueImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
                 error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
@@ -1601,19 +1602,43 @@ class MessageHandler
         return false;
     }
 
-    private function triggerImmediateOutboundPoll(string $uplinkAddress, string $context): void
+    private function queueImmediateOutboundPoll(string $uplinkAddress, string $context): void
     {
+        if (!isset($this->pendingImmediateOutboundPolls[$uplinkAddress])) {
+            $this->pendingImmediateOutboundPolls[$uplinkAddress] = [];
+        }
+
+        $this->pendingImmediateOutboundPolls[$uplinkAddress][] = $context;
+    }
+
+    public function flushImmediateOutboundPolls(): void
+    {
+        if (empty($this->pendingImmediateOutboundPolls)) {
+            return;
+        }
+
         try {
             $client = new \BinktermPHP\Admin\AdminDaemonClient();
-            $pollResult = $client->binkPoll($uplinkAddress);
 
-            if (($pollResult['exit_code'] ?? 1) === 0) {
-                $client->processPackets();
+            foreach (array_keys($this->pendingImmediateOutboundPolls) as $uplinkAddress) {
+                $pollResult = $client->binkPoll($uplinkAddress);
+
+                if (($pollResult['exit_code'] ?? 1) === 0) {
+                    $client->processPackets();
+                }
             }
 
             $client->close();
         } catch (\Throwable $e) {
-            error_log("[SPOOL] Could not trigger immediate outbound poll for {$context} via {$uplinkAddress}: " . $e->getMessage());
+            $contexts = [];
+            foreach ($this->pendingImmediateOutboundPolls as $uplinkAddress => $items) {
+                foreach ($items as $context) {
+                    $contexts[] = "{$context} via {$uplinkAddress}";
+                }
+            }
+            error_log("[SPOOL] Could not trigger immediate outbound poll for " . implode(', ', $contexts) . ": " . $e->getMessage());
+        } finally {
+            $this->pendingImmediateOutboundPolls = [];
         }
     }
 

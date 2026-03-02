@@ -18,6 +18,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - Outbound dispatch: newly spooled netmail and echomail now trigger an
   immediate poll of the specific routed uplink instead of waiting for the
   scheduler's next loop
+- Outbound dispatch: web message sends no longer wait for that immediate
+  outbound poll to finish before returning success to the browser
 - Scheduler logging: corrected outbound polling log messages so "triggering
   poll" is only logged when an uplink will actually be polled
 - Scheduler shutdown: fixed `Ctrl-C`/`SIGINT` handling so

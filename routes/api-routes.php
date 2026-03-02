@@ -3257,6 +3257,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
                 }
                 echo json_encode(['success' => true, 'areas_posted' => $totalAreas]);
+
+                if (function_exists('session_write_close')) {
+                    session_write_close();
+                }
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                }
+
+                $handler->flushImmediateOutboundPolls();
             } else {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to send message']);
