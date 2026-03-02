@@ -137,7 +137,7 @@ The door will now appear in the `/games` game library.
 |-------|------|----------|-------------|
 | `executable` | string | Yes | Filename of the main executable relative to the door directory |
 | `launch_command` | string | No | Full command to run. Supports `{node}` and `{dropfile}` placeholders (see below). Defaults to `executable` |
-| `dropfile_format` | string | No | Drop file format. Currently only `"DOOR.SYS"` is supported. Defaults to `"DOOR.SYS"` |
+| `dropfile_format` | string | No | Drop file format. `"DOOR.SYS"` (default) or `"DOOR32.SYS"` |
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
 | `ansi_required` | boolean | No | Whether ANSI is required. Defaults to `true` |
 | `time_per_day` | integer | No | Time limit in minutes per day. Defaults to `30` |
@@ -198,11 +198,43 @@ The process also inherits the environment of the multiplexing bridge, including 
 
 ---
 
-## Drop File (DOOR.SYS)
+## Drop File
 
-A DOOR.SYS file is generated and written to `native-doors/drops/NODE{n}/DOOR.SYS` before the door is launched. The drop file contains user and session information in the standard DOOR.SYS format compatible with most classic BBS door games.
+A drop file is generated and written to `native-doors/drops/NODE{n}/` before the door is launched. Two formats are supported, selected via `dropfile_format` in the manifest:
 
-The same user data is also available via environment variables (see above), so simple doors do not need to parse DOOR.SYS at all.
+### DOOR.SYS (default)
+
+The classic 52-line format compatible with most traditional BBS door games. Written to `DOOR.SYS`.
+
+```json
+"dropfile_format": "DOOR.SYS"
+```
+
+### DOOR32.SYS
+
+An 11-line format designed for modern doors running over telnet/socket connections. Written to `DOOR32.SYS`. Use this for doors that expect a socket-style connection rather than a serial/FOSSIL interface.
+
+```json
+"dropfile_format": "DOOR32.SYS"
+```
+
+The DOOR32.SYS fields are:
+
+| Line | Field | Value |
+|------|-------|-------|
+| 1 | Comm type | `2` (telnet/socket) |
+| 2 | Comm handle | `0` |
+| 3 | Baud rate | `0` |
+| 4 | BBS name | From user data |
+| 5 | User record number | From user data |
+| 6 | User's real name | From user data |
+| 7 | User's handle/alias | From user data |
+| 8 | Security level | From user data |
+| 9 | Time left (minutes) | From user data |
+| 10 | ANSI | `1` (always) |
+| 11 | Node number | Session node number |
+
+The same user data is also available via environment variables (see above), so simple doors do not need to parse either drop file format at all.
 
 ---
 

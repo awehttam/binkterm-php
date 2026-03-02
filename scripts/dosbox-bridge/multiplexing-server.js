@@ -411,10 +411,25 @@ class SessionManager {
                 console.log(`[DROPFILE] Created drop directory: ${dropPath}`);
             }
 
-            console.log(`[DROPFILE] Writing DOOR.SYS to: ${dropPath}`);
+            // Determine dropfile format (native doors can specify DOOR32.SYS)
+            let dropfileFormat = 'DOOR.SYS';
+            if (emulatorName === 'Native') {
+                const nativeManifestPath = path.join(BASE_PATH, 'native-doors', 'doors', sessionData.door_id, 'nativedoor.json');
+                if (fs.existsSync(nativeManifestPath)) {
+                    const nativeManifest = JSON.parse(fs.readFileSync(nativeManifestPath, 'utf8'));
+                    dropfileFormat = (nativeManifest.door && nativeManifest.door.dropfile_format) || 'DOOR.SYS';
+                }
+            }
+
+            console.log(`[DROPFILE] Writing ${dropfileFormat} to: ${dropPath}`);
             console.log(`[DROPFILE] User data:`, JSON.stringify(userData).substring(0, 200));
-            this.generateDoorSys(dropPath, userData, sessionData.node_number);
-            console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
+            if (dropfileFormat === 'DOOR32.SYS') {
+                this.generateDoor32Sys(dropPath, userData, sessionData.node_number);
+                console.log(`[DROPFILE] Generated DOOR32.SYS in ${dropPath}`);
+            } else {
+                this.generateDoorSys(dropPath, userData, sessionData.node_number);
+                console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
+            }
         } else {
             console.warn(`[DROPFILE] No user_data found for session ${sessionId}`);
         }
@@ -535,6 +550,45 @@ class SessionManager {
             }
         } catch (err) {
             console.error(`[DROPFILE] Failed to write DOOR.SYS: ${err.message}`);
+            throw err;
+        }
+    }
+
+    /**
+     * Generate DOOR32.SYS drop file from user_data
+     * Format: https://wiki.bbsdev.net/index.php/DOOR32.SYS
+     * 11-line format used by modern door games
+     */
+    generateDoor32Sys(dropPath, userData, nodeNumber) {
+        const door32Path = path.join(dropPath, 'DOOR32.SYS');
+
+        // DOOR32.SYS 11-line format
+        const lines = [
+            '2',                                                    // 1: Comm type (0=local, 1=serial, 2=telnet/socket)
+            '0',                                                    // 2: Comm handle/socket (0 for telnet/PTY)
+            '0',                                                    // 3: Baud rate (0 for telnet/socket)
+            userData.bbs_name || 'BinktermPHP BBS',                 // 4: BBS software name
+            userData.user_id || '1',                                // 5: User record number
+            userData.real_name || 'Guest',                          // 6: User's real name
+            userData.alias || userData.real_name || 'Guest',        // 7: User's handle/alias
+            userData.security_level || '10',                        // 8: Security level
+            userData.minutes_remaining || '120',                    // 9: Time left (minutes)
+            '1',                                                    // 10: ANSI (1=yes, 0=no)
+            String(nodeNumber || 1),                                // 11: Node number
+        ];
+
+        const content = lines.join('\r\n') + '\r\n';
+        try {
+            fs.writeFileSync(door32Path, content, 'ascii');
+            console.log(`[DROPFILE] Wrote ${content.length} bytes to ${door32Path}`);
+
+            const stats = fs.statSync(door32Path);
+            console.log(`[DROPFILE] Verification: file size is ${stats.size} bytes`);
+            if (stats.size !== content.length) {
+                console.error(`[DROPFILE] WARNING: Size mismatch! Expected ${content.length}, got ${stats.size}`);
+            }
+        } catch (err) {
+            console.error(`[DROPFILE] Failed to write DOOR32.SYS: ${err.message}`);
             throw err;
         }
     }
