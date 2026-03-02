@@ -224,6 +224,32 @@ class BinkpConfig
     }
 
     /**
+     * Get addresses formatted for the BinkP M_ADR command, respecting each
+     * uplink's send_domain_in_addr flag.  Used when answering an inbound
+     * connection where we don't yet know which uplink is calling.
+     *
+     * @return string Space-separated address list, e.g. "1:2/3@fidonet 12:1/14"
+     */
+    public function getMyAddressesForAdr(): string
+    {
+        $parts = [];
+        foreach ($this->getUplinks() as $uplink) {
+            $me = $uplink['me'] ?? null;
+            if (!$me) {
+                continue;
+            }
+            $sendDomain = !empty($uplink['send_domain_in_addr']);
+            $domain = trim($uplink['domain'] ?? '');
+            if ($sendDomain && $domain !== '' && strpos($me, '@') === false) {
+                $parts[] = $me . '@' . $domain;
+            } else {
+                $parts[] = $me;
+            }
+        }
+        return implode(' ', array_unique($parts));
+    }
+
+    /**
      * Get all addresses with their network domains
      *
      * @return array Array of ['address' => string, 'domain' => string] entries

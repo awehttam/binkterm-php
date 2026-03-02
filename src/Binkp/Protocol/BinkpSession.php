@@ -598,7 +598,9 @@ class BinkpSession
                 $address .= '@' . $domain;
             }
         } else {
-            $address = trim(implode(" ", $this->config->getMyAddresses()));
+            // Answerer path: we don't know which uplink is calling yet, so
+            // build the address list respecting each uplink's send_domain_in_addr flag.
+            $address = $this->config->getMyAddressesForAdr();
         }
         $frame = BinkpFrame::createCommand(BinkpFrame::M_ADR, $address);
         $frame->writeToSocket($this->socket);
