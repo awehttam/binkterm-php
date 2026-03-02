@@ -4,6 +4,7 @@ namespace BinktermPHP\TelnetServer;
 
 use BinktermPHP\Config;
 use BinktermPHP\DoorManager;
+use BinktermPHP\NativeDoorManager;
 
 /**
  * DoorHandler - DOS door game access via telnet
@@ -40,8 +41,11 @@ class DoorHandler
      */
     public function show($conn, array &$state, string $session): void
     {
-        $doorManager = new DoorManager();
-        $allDoors = $doorManager->getEnabledDoors();
+        $dosDoors = (new DoorManager())->getEnabledDoors();
+        $nativeDoors = (new NativeDoorManager())->getEnabledDoors();
+
+        // Merge both lists; native doors take precedence on ID collision
+        $allDoors = array_merge($dosDoors, $nativeDoors);
 
         // Hide admin-only doors from non-admin users
         if (empty($state['is_admin'])) {
@@ -96,7 +100,7 @@ class DoorHandler
         $cols = $state['cols'] ?? 80;
 
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize('=== DOS Door Games ===', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize('=== Door Games ===', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, '');
 
         foreach ($doorList as $i => $entry) {
