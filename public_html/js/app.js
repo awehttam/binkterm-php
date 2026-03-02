@@ -131,7 +131,7 @@ function formatMessageText(messageText, searchTerms = []) {
         if (searchTerms && searchTerms.length > 0) {
             rendered = highlightSearchTerms(rendered, searchTerms);
         }
-        return `<pre class="ansi-art">${rendered}</pre>`;
+        return `<div class="ansi-art-container"><pre class="ansi-art">${rendered}</pre></div>`;
     }
 
     // Format as readable text with preserved line breaks and quote coloring
