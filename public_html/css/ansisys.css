@@ -146,10 +146,13 @@
     background: transparent;
     border-radius: 0;
     padding: 0;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
 }
 .message-text .ansi-art-container pre,
 .message-text .ansi-art {
     background: transparent;
-    font-size: inherit !important;
-    line-height: inherit !important;
+    border: none !important;
+    white-space: pre !important;
+    overflow: visible !important;
 }
