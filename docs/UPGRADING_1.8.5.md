@@ -44,6 +44,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Packet processor: fixed echomail misclassified as netmail when the incoming packet is missing its `AREA:` line; the secondary scan loop had a logic error causing it to exit after one iteration, and `SEEN-BY`/`PATH` detection now scans the full message instead of only the first ten lines
 - Mobile message reader: fixed swipe-to-navigate triggering while scrolling wide ANSI art horizontally; the boundary check now uses the scroll position captured at touch start rather than the position after native scrolling has already occurred
 - BinkP server: fixed inbound sessions not including the network domain in the `M_ADR` address; the `send_domain_in_addr` flag was only applied to outbound calls — inbound connections now respect it too
+- MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of the PHP error log; log level is controllable via `--log-level`
 
 ## Native Door Support
 
