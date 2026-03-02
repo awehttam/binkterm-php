@@ -571,10 +571,15 @@ class NativeAdapter extends EmulatorAdapter {
         // Build drop file path
         const dropPath = path.join(this.basePath, 'native-doors', 'drops', `NODE${node_number}`);
 
+        // Determine drop file filename from manifest format
+        const dropfileFormat = (manifest.door && manifest.door.dropfile_format) || 'DOOR.SYS';
+        const dropfileName = dropfileFormat === 'DOOR32.SYS' ? 'DOOR32.SYS' : 'DOOR.SYS';
+        const dropfileFull = path.join(dropPath, dropfileName);
+
         // Build launch command - replace {node} and {dropfile} placeholders
         let launchCmd = manifest.door.launch_command || manifest.door.executable;
         launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
-        launchCmd = launchCmd.replace(/\{dropfile\}/g, path.join(dropPath, 'DOOR.SYS'));
+        launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
 
         const parts = launchCmd.split(' ');
         const cmd = parts[0];
@@ -592,7 +597,7 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
             DOOR_NODE: String(node_number),
             DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
-            DOOR_DROPFILE: path.join(dropPath, 'DOOR.SYS'),
+            DOOR_DROPFILE: dropfileFull,
             DOOR_ANSI: '1',
             TERM: 'xterm-256color'
         };
