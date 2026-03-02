@@ -7,6 +7,30 @@ Make sure you've made a backup of your database and files before upgrading.
 **New Features**
 - Native Doors: run native Linux binaries and Windows executables as BBS doors via PTY — no emulator required; manage via Admin → Native Doors (see below)
 
+**Improvements**
+- Outbound dispatch: newly spooled netmail and echomail now trigger an
+  immediate poll of the specific routed uplink instead of waiting for the
+  scheduler's next loop
+- Outbound dispatch: web message sends no longer block waiting for the
+  outbound poll to complete before returning success to the browser
+- Scheduler config reload: `binkp_scheduler.php` now reloads
+  `config/binkp.json` during its daemon loop so schedule and uplink
+  changes are picked up without restarting the scheduler
+- Admin daemon: now forks a child process per connection so long-running
+  commands such as manual polls no longer block other admin requests
+- MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of
+  the PHP error log; log level is controllable via `--log-level`
+- Message reader: ANSI art in message bodies no longer displays inside a
+  black box with a scrollbar; styling is now consistent with standalone
+  ANSI art displays
+- BinkP session: `binkp_poll` now completes promptly after sending mail
+  to non-conformant remotes (those that send `M_EOB` without `M_GOT`);
+  sessions terminate after 30 seconds of inactivity rather than the full
+  session timeout, while preserving a window for areafix and similar
+  systems to process an inbound packet and return a response in the same
+  session; sent packets are cleaned up correctly regardless of whether the
+  remote sends `M_GOT` before or after `M_EOB`
+
 **Bug Fixes**
 - Markdown renderer: fixed inline code parsing so identifiers with
   underscores such as `send_domain_in_addr` and `M_ADR` render correctly
@@ -14,23 +38,15 @@ Make sure you've made a backup of your database and files before upgrading.
 - Markdown renderer: fixed wrapped unordered-list items so Upgrade Notes
   render correctly in the admin viewer instead of splitting a single bullet
   into separate paragraphs
-- Binkp scheduler: fixed outbound-triggered polling so the scheduler no
+- BinkP scheduler: fixed outbound-triggered polling so the scheduler no
   longer polls every enabled uplink once per minute whenever any outbound
   packet exists; outbound polls now only target uplinks that actually have
   queued outbound traffic for them
-- Outbound dispatch: newly spooled netmail and echomail now trigger an
-  immediate poll of the specific routed uplink instead of waiting for the
-  scheduler's next loop
-- Outbound dispatch: web message sends no longer wait for that immediate
-  outbound poll to finish before returning success to the browser
 - Scheduler logging: corrected outbound polling log messages so "triggering
   poll" is only logged when an uplink will actually be polled
 - Scheduler shutdown: fixed `Ctrl-C`/`SIGINT` handling so
   `binkp_scheduler.php` exits immediately instead of continuing into the
   next polling loop
-- Scheduler config reload: `binkp_scheduler.php` now reloads
-  `config/binkp.json` during its daemon loop so schedule and uplink
-  changes are picked up without restarting the scheduler
 - Admin daemon client: fixed stale reused connections that could produce
   intermittent "Admin daemon closed connection" errors after the daemon
   timed out an idle socket
@@ -39,13 +55,17 @@ Make sure you've made a backup of your database and files before upgrading.
   an unknown bundle format
 - Cron schedule clarification: `* */1 * * *` means every minute of every
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
-- Message reader: ANSI-decoded message bodies no longer display inside a black box; the art container styling is now only applied to standalone ANSI art displays
-- Message reader: fixed spurious border and vertical scrollbar on ANSI art in message bodies caused by Bootstrap's global `pre { overflow: auto; border }` Reboot styles leaking into the ANSI renderer
-- Packet processor: fixed echomail misclassified as netmail when the incoming packet is missing its `AREA:` line; the secondary scan loop had a logic error causing it to exit after one iteration, and `SEEN-BY`/`PATH` detection now scans the full message instead of only the first ten lines
-- Mobile message reader: fixed swipe-to-navigate triggering while scrolling wide ANSI art horizontally; the boundary check now uses the scroll position captured at touch start rather than the position after native scrolling has already occurred
-- BinkP server: fixed inbound sessions not including the network domain in the `M_ADR` address; the `send_domain_in_addr` flag was only applied to outbound calls — inbound connections now respect it too
-- MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of the PHP error log; log level is controllable via `--log-level`
-- BinkP session: fixed `binkp_poll` taking up to 5 minutes to complete after sending mail; sessions with non-conformant remotes (those that send `M_EOB` without `M_GOT`) now terminate after 30 seconds of inactivity rather than the full session timeout; a 30-second window is preserved so that areafix and similar systems can process an inbound packet and send a response `M_FILE` in the same session; sent packets are correctly deleted after the EOB wait so that late `M_GOT` frames (remotes that send `M_GOT` after `M_EOB`) are handled without spurious warnings
+- Packet processor: fixed echomail misclassified as netmail when the
+  incoming packet is missing its `AREA:` line; the secondary scan loop had
+  a logic error causing it to exit after one iteration, and `SEEN-BY`/`PATH`
+  detection now scans the full message instead of only the first ten lines
+- Mobile message reader: fixed swipe-to-navigate triggering while scrolling
+  wide ANSI art horizontally; the boundary check now uses the scroll
+  position captured at touch start rather than the position after native
+  scrolling has already occurred
+- BinkP server: fixed inbound sessions not including the network domain in
+  the `M_ADR` address; the `send_domain_in_addr` flag was only applied to
+  outbound calls — inbound connections now respect it too
 
 ## Native Door Support
 
