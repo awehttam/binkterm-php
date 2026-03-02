@@ -138,6 +138,10 @@ try {
         $logger->info("  - {$uplink['address']} [{$status}] ({$schedule})");
     }
     
+    if (function_exists('pcntl_async_signals')) {
+        pcntl_async_signals(true);
+    }
+
     if (function_exists('pcntl_signal')) {
         pcntl_signal(SIGTERM, function() use ($logger) {
             $logger->info("Received SIGTERM, shutting down...");

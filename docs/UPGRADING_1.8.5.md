@@ -17,6 +17,9 @@ Make sure you've made a backup of your database and files before upgrading.
   scheduler's next loop
 - Scheduler logging: corrected outbound polling log messages so "triggering
   poll" is only logged when an uplink will actually be polled
+- Scheduler shutdown: fixed `Ctrl-C`/`SIGINT` handling so
+  `binkp_scheduler.php` exits immediately instead of continuing into the
+  next polling loop
 - Cron schedule clarification: `* */1 * * *` means every minute of every
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
 
