@@ -146,6 +146,32 @@ SimpleRouter::get('/games', function() {
         ];
     }
 
+    // Get Native Doors
+    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+    $nativeDoors = $nativeDoorManager->getEnabledDoors();
+    foreach ($nativeDoors as $doorId => $door) {
+        // Skip admin-only doors for non-admin users
+        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            continue;
+        }
+        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        if (!empty($door['icon'])) {
+            $iconUrl = "/door-assets/{$doorId}/icon";
+        }
+
+        $games[] = [
+            'id' => $doorId,
+            'name' => $door['name'],
+            'description' => $door['description'] ?? '',
+            'author' => $door['author'] ?? 'Unknown',
+            'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
+            'icon_url' => $iconUrl,
+            'type' => 'nativedoor',
+            'genre' => $door['genre'] ?? [],
+            'players' => $door['players'] ?? 'Unknown'
+        ];
+    }
+
     // Sort all games by name
     usort($games, function($a, $b) {
         return strcasecmp($a['name'], $b['name']);
@@ -252,6 +278,51 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
     require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
 });
 
+// GET /games/nativedoors/{doorid} - Play a native Linux door game
+SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+    if (GameConfig::isGameSystemEnabled() == false) {
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error' => 'Sorry, the game system is not enabled.'
+        ]);
+        exit;
+    }
+
+    // Verify door exists and is enabled
+    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+    $door = $nativeDoorManager->getDoor($doorid);
+
+    if (!$door || empty($door['config']['enabled'])) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig', [
+            'requested_url' => "/games/nativedoors/{$doorid}"
+        ]);
+        return;
+    }
+
+    // Block admin-only doors for non-admins
+    if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title' => 'Access Denied',
+            'error' => 'This door is restricted to administrators.'
+        ]);
+        return;
+    }
+
+    // Reuse the DOS door terminal player (same WebSocket protocol)
+    $doorId = $doorid;
+    require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
+});
+
 // GET /games/{game} - Play a specific game (DOS door or web door)
 SimpleRouter::get('/games/{game}', function($game) {
     $auth = new Auth();
@@ -288,7 +359,33 @@ SimpleRouter::get('/games/{game}', function($game) {
         $template = new Template();
         $template->renderResponse('dosdoor_play.twig', [
             'door' => $door,
-            'door_id' => $game
+            'door_id' => $game,
+            'player_url' => "/games/dosdoors/{$game}"
+        ]);
+        return;
+    }
+
+    // Check if this is a native door
+    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+    $nativeDoor = $nativeDoorManager->getDoor($game);
+
+    if ($nativeDoor && !empty($nativeDoor['config']['enabled'])) {
+        // Block admin-only doors for non-admins
+        if (!empty($nativeDoor['admin_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('error.twig', [
+                'error_title' => 'Access Denied',
+                'error' => 'This door is restricted to administrators.'
+            ]);
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('dosdoor_play.twig', [
+            'door' => $nativeDoor,
+            'door_id' => $game,
+            'player_url' => "/games/nativedoors/{$game}"
         ]);
         return;
     }

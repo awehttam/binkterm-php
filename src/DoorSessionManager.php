@@ -69,15 +69,20 @@ class DoorSessionManager
      * @param int $userId User ID
      * @param string $doorName Door game name (e.g., 'lord')
      * @param array $userData User data for drop file
+     * @param string $doorType Door type: 'dos' or 'native'
      * @return array Session information
      * @throws Exception If session cannot be started
      */
-    public function startSession(int $userId, string $doorName, array $userData): array
+    public function startSession(int $userId, string $doorName, array $userData, string $doorType = 'dos'): array
     {
-        error_log("DOSDOOR: [StartSession] BEGIN - User: $userId, Door: $doorName");
+        error_log("DOSDOOR: [StartSession] BEGIN - User: $userId, Door: $doorName, Type: $doorType");
 
         // Get door information from manifest to get the display name
-        $doorManager = new DoorManager();
+        if ($doorType === 'native') {
+            $doorManager = new NativeDoorManager();
+        } else {
+            $doorManager = new DoorManager();
+        }
         $doorInfo = $doorManager->getDoor($doorName);
 
         if (!$doorInfo) {
@@ -125,8 +130,8 @@ class DoorSessionManager
         $stmt = $this->db->prepare("
             INSERT INTO door_sessions (
                 session_id, user_id, door_id, node_number,
-                ws_port, expires_at, ws_token, user_data
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ws_port, expires_at, ws_token, user_data, door_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $stmt->execute([
@@ -137,7 +142,8 @@ class DoorSessionManager
             $wsPort,
             $expiresAt,
             $wsToken,
-            json_encode($userData)
+            json_encode($userData),
+            $doorType
         ]);
 
         // Commit transaction (releases node allocation lock)

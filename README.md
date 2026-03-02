@@ -35,6 +35,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Security Considerations](#security-considerations)
 - [File Areas](#file-areas)
   - [File Area Rules](#file-area-rules)
+- [Native Doors](#native-doors---native-linux--windows-door-programs)
 - [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
 - [Gemini Support](#gemini-support)
@@ -1671,6 +1672,46 @@ if ($userIdFromUrl && $tokenFromUrl) {
     }
 }
 ```
+---
+
+## Native Doors - Native Linux / Windows Door Programs
+
+BinktermPHP supports running native Linux binaries and Windows executables as BBS doors. Native doors run directly via PTY (pseudo-terminal) with no emulator overhead, making them suitable for modern programs, shell scripts, or compiled binaries.
+
+### How It Works
+
+- **Browser Terminal** - xterm.js terminal in the web browser
+- **Multiplexing Bridge** - Same Node.js bridge used by DOS doors; spawns the door executable via `node-pty`
+- **PTY Execution** - Door runs in a pseudo-terminal with full ANSI/VT100 support
+- **Drop Files & Environment Variables** - DOOR.SYS written to `native-doors/drops/NODE{n}/`; user data also injected as environment variables
+
+### Key Features
+
+- **No Emulator Required** - Doors launch instantly with no DOSBox overhead
+- **Multi-Node Support** - Isolated sessions per node with DOOR.SYS drop files written per-session, same as DOS doors
+- **Environment Variable Injection** - `DOOR_USER_NAME`, `DOOR_NODE`, `DOOR_BBS_NAME`, `DOOR_DROPFILE`, `TERM`, and more
+- **Cross-Platform** - Supports Linux shell scripts, compiled binaries, and Windows `.bat` / `.exe` files
+
+### Installation
+
+1. Create a subdirectory under `native-doors/doors/` for your door.
+2. Add a `nativedoor.json` manifest (see `UPGRADING_1.8.3.md` for the full format).
+3. Place your executable in the same directory.
+4. Go to **Admin → Native Doors** and click **Sync Doors**, then enable the door.
+
+### Requirements
+
+- **Node.js** with `node-pty` — already required by the DOS door bridge
+
+### Documentation
+
+See **[docs/NativeDoors.md](docs/NativeDoors.md)** for complete documentation including:
+- Manifest format reference
+- Creating and installing doors
+- Environment variables and drop file details
+- Platform notes (Linux and Windows)
+- Troubleshooting
+
 ---
 
 ## DOS Doors - Classic BBS Door Games

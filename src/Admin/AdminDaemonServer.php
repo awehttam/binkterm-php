@@ -334,6 +334,23 @@ class AdminDaemonServer
                 case 'get_dosdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getDosdoorsConfig()]);
                     break;
+                case 'get_native_doors_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getNativeDoorsConfig()]);
+                    break;
+                case 'save_native_doors_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeNativeDoorsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getNativeDoorsConfig()]);
+                    break;
                 case 'save_dosdoors_config':
                     $json = $data['json'] ?? null;
                     if (!is_string($json) || trim($json) === '') {
@@ -870,6 +887,40 @@ class AdminDaemonServer
     private function getDosdoorsConfigPath(): string
     {
         return __DIR__ . '/../../config/dosdoors.json';
+    }
+
+    private function getNativeDoorsConfig(): array
+    {
+        $configPath = $this->getNativeDoorsConfigPath();
+
+        $active = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+
+        return [
+            'active' => $active,
+            'config_json' => $configJson
+        ];
+    }
+
+    private function writeNativeDoorsConfig(array $config): void
+    {
+        $configPath = $this->getNativeDoorsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0755, true);
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode native doors config');
+        }
+
+        file_put_contents($configPath, $json . PHP_EOL);
+    }
+
+    private function getNativeDoorsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/nativedoors.json';
     }
 
     private function mergeUplinks(array $existing, array $incoming): array

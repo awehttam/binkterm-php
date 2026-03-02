@@ -67,6 +67,8 @@
                             {{ game.name }}
                             {% if game.type == 'dosdoor' %}
                                 <span class="badge bg-info text-white" style="font-size: 0.65rem;">DOS</span>
+                            {% elseif game.type == 'nativedoor' %}
+                                <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">NATIVE</span>
                             {% else %}
                                 <span class="badge bg-success text-white" style="font-size: 0.65rem;">WEB</span>
                             {% endif %}
@@ -74,7 +76,7 @@
                         <p class="card-text text-muted small mb-2">{{ game.description }}</p>
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
-                                {% if game.type == 'dosdoor' %}
+                                {% if game.type == 'dosdoor' or game.type == 'nativedoor' %}
                                     {% if game.players %}Players: {{ game.players }}{% endif %}
                                     {% if game.author %} • {{ game.author }}{% endif %}
                                 {% else %}

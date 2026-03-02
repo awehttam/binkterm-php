@@ -542,10 +542,117 @@ ${launchCmd}
 }
 
 /**
- * Factory function to select appropriate emulator
+ * Native Linux Door Adapter
+ * Runs native Linux binaries directly via PTY (pseudo-terminal)
+ * User data is passed via DOOR.SYS drop file and environment variables
  */
-function createEmulatorAdapter(basePath) {
-    // Check environment variable
+class NativeAdapter extends EmulatorAdapter {
+    constructor(basePath) {
+        super(basePath);
+        this.ptyProcess = null;
+    }
+
+    getName() {
+        return 'Native';
+    }
+
+    async launch(session, sessionData) {
+        const { session_id, node_number, door_id } = sessionData;
+
+        console.log(`[${this.getName()}] Launching door '${door_id}' for session ${session_id} on node ${node_number}`);
+
+        // Load nativedoor.json manifest
+        const manifestPath = path.join(this.basePath, 'native-doors', 'doors', door_id, 'nativedoor.json');
+        if (!fs.existsSync(manifestPath)) {
+            throw new Error(`Native door manifest not found: ${manifestPath}`);
+        }
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+        // Build drop file path
+        const dropPath = path.join(this.basePath, 'native-doors', 'drops', `NODE${node_number}`);
+
+        // Build launch command - replace {node} and {dropfile} placeholders
+        let launchCmd = manifest.door.launch_command || manifest.door.executable;
+        launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
+        launchCmd = launchCmd.replace(/\{dropfile\}/g, path.join(dropPath, 'DOOR.SYS'));
+
+        const parts = launchCmd.split(' ');
+        const cmd = parts[0];
+        const args = parts.slice(1);
+        const doorDir = path.join(this.basePath, 'native-doors', 'doors', door_id);
+
+        // Parse user data for environment variables
+        const userData = typeof sessionData.user_data === 'string'
+            ? JSON.parse(sessionData.user_data)
+            : (sessionData.user_data || {});
+
+        const env = {
+            ...process.env,
+            DOOR_USER_NAME: userData.real_name || 'Guest',
+            DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
+            DOOR_NODE: String(node_number),
+            DOOR_SECURITY_LEVEL: String(userData.security_level || 10),
+            DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
+            DOOR_DROPFILE: path.join(dropPath, 'DOOR.SYS'),
+            DOOR_ANSI: '1',
+            TERM: 'xterm-256color'
+        };
+
+        console.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir}`);
+
+        this.ptyProcess = pty.spawn(cmd, args, {
+            name: 'xterm-256color',
+            cols: 80,
+            rows: 25,
+            cwd: doorDir,
+            env
+        });
+
+        this.ptyProcess.onExit(({ exitCode, signal }) => {
+            console.log(`[${this.getName()}] Process exited: code=${exitCode}, signal=${signal}`);
+            if (this.exitCallback) {
+                this.exitCallback(exitCode, signal);
+            }
+        });
+
+        return { process: this.ptyProcess, pid: this.ptyProcess.pid };
+    }
+
+    onData(callback) {
+        if (this.ptyProcess) {
+            this.ptyProcess.onData(callback);
+        }
+    }
+
+    write(data) {
+        if (this.ptyProcess) {
+            this.ptyProcess.write(data.toString('utf8'));
+        }
+    }
+
+    close() {
+        if (this.ptyProcess) {
+            console.log(`[${this.getName()}] Killing PTY process`);
+            this.ptyProcess.kill();
+            this.ptyProcess = null;
+        }
+    }
+}
+
+/**
+ * Factory function to select appropriate emulator
+ *
+ * @param {string} basePath - Base path for BinktermPHP
+ * @param {string} [doorType='dos'] - Door type: 'dos' or 'native'
+ */
+function createEmulatorAdapter(basePath, doorType) {
+    // Native Linux doors use PTY directly - no emulator needed
+    if (doorType === 'native') {
+        console.log('[EMULATOR] Door type: native, using NativeAdapter');
+        return new NativeAdapter(basePath);
+    }
+
+    // DOS doors: check environment variable for emulator preference
     const preferredEmulator = process.env.DOOR_EMULATOR || 'auto';
 
     // Windows: only DOSBox supported
@@ -575,5 +682,6 @@ module.exports = {
     EmulatorAdapter,
     DOSBoxAdapter,
     DOSEMUAdapter,
+    NativeAdapter,
     createEmulatorAdapter
 };

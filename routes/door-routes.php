@@ -7,6 +7,8 @@
 
 use BinktermPHP\ActivityTracker;
 use BinktermPHP\DoorSessionManager;
+use BinktermPHP\DoorManager;
+use BinktermPHP\NativeDoorManager;
 use BinktermPHP\Database;
 use BinktermPHP\RouteHelper;
 use Pecee\SimpleRouter\SimpleRouter;
@@ -88,16 +90,24 @@ SimpleRouter::post('/api/door/launch', function() {
             return;
         }
 
-        // Ensure door exists in database (fallback sync)
+        // Determine door type: check native doors first, then DOS doors
         $db = \BinktermPHP\Database::getInstance()->getPdo();
+        $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
         $doorManager = new \BinktermPHP\DoorManager();
 
+        $nativeDoor = $nativeDoorManager->getDoor($doorName);
+        $doorType = $nativeDoor ? 'native' : 'dos';
+        $activeDoorManager = $nativeDoor ? $nativeDoorManager : $doorManager;
+
+        error_log("DOSDOOR: [API] Door '$doorName' detected as type: $doorType");
+
+        // Ensure door exists in database (fallback sync)
         $stmt = $db->prepare("SELECT id FROM dosbox_doors WHERE door_id = ?");
         $stmt->execute([$doorName]);
         if (!$stmt->fetch()) {
             // Door not in database - try to sync it
             error_log("DOSDOOR: [API] Door '$doorName' not in database, attempting sync...");
-            $syncResult = $doorManager->syncDoorsToDatabase();
+            $syncResult = $activeDoorManager->syncDoorsToDatabase();
             error_log("DOSDOOR: [API] Sync result: synced={$syncResult['synced']}, errors=" . json_encode($syncResult['errors']));
 
             // Check again after sync
@@ -108,7 +118,7 @@ SimpleRouter::post('/api/door/launch', function() {
         }
 
         // Block admin-only doors for non-admins
-        $doorManifestCheck = $doorManager->getDoor($doorName);
+        $doorManifestCheck = $activeDoorManager->getDoor($doorName);
         if ($doorManifestCheck && !empty($doorManifestCheck['admin_only']) && empty($user['is_admin'])) {
             http_response_code(403);
             echo json_encode(['error' => 'Access denied', 'message' => 'This door is restricted to administrators.']);
@@ -116,9 +126,12 @@ SimpleRouter::post('/api/door/launch', function() {
         }
 
         // Check credits requirement
-        $doorConfigPath = __DIR__ . '/../config/dosdoors.json';
-        if (file_exists($doorConfigPath)) {
-            $doorConfigs = json_decode(file_get_contents($doorConfigPath), true);
+        $configFile = $doorType === 'native'
+            ? __DIR__ . '/../config/nativedoors.json'
+            : __DIR__ . '/../config/dosdoors.json';
+
+        if (file_exists($configFile)) {
+            $doorConfigs = json_decode(file_get_contents($configFile), true);
             $doorConfig = $doorConfigs[$doorName] ?? null;
 
             if ($doorConfig && isset($doorConfig['credit_cost']) && $doorConfig['credit_cost'] > 0) {
@@ -154,7 +167,7 @@ SimpleRouter::post('/api/door/launch', function() {
         }
 
         // Check door's max_nodes limit (per-door concurrency limit)
-        $doorManifest = $doorManager->getDoor($doorName);
+        $doorManifest = $activeDoorManager->getDoor($doorName);
         if ($doorManifest && isset($doorManifest['max_nodes'])) {
             $maxNodes = (int)$doorManifest['max_nodes'];
 
@@ -185,7 +198,7 @@ SimpleRouter::post('/api/door/launch', function() {
         }
 
         // Start new session
-        $session = $sessionManager->startSession($userId, $doorName, $userData);
+        $session = $sessionManager->startSession($userId, $doorName, $userData, $doorType);
 
         ActivityTracker::track($userId, ActivityTracker::TYPE_DOSDOOR_PLAY, null, $doorName);
 

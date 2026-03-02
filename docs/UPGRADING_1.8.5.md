@@ -4,6 +4,9 @@ Make sure you've made a backup of your database and files before upgrading.
 
 ## Summary of Changes
 
+**New Features**
+- Native Doors: run native Linux binaries and Windows executables as BBS doors via PTY — no emulator required; manage via Admin → Native Doors (see below)
+
 **Bug Fixes**
 - Markdown renderer: fixed inline code parsing so identifiers with
   underscores such as `send_domain_in_addr` and `M_ADR` render correctly
@@ -36,6 +39,16 @@ Make sure you've made a backup of your database and files before upgrading.
   an unknown bundle format
 - Cron schedule clarification: `* */1 * * *` means every minute of every
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
+
+## Native Door Support
+
+BinktermPHP now supports **native doors** — Linux binaries, shell scripts, and Windows executables that run directly as BBS doors via PTY with no emulator required. User data is passed via DOOR.SYS drop file and environment variables.
+
+Install doors by dropping a subdirectory with a `nativedoor.json` manifest into `native-doors/doors/`, then enable them via **Admin → Native Doors**. The database migration (`v1.10.16_native_doors.sql`, applied by `php scripts/setup.php`) adds a `door_type` column to `dosbox_doors` and `door_sessions`. Two test doors (`linuxdoortest`, `windoortest`) are included and disabled by default.
+
+See **[docs/NativeDoors.md](NativeDoors.md)** for the full manifest format reference, environment variable list, and setup instructions.
+
+---
 
 ## Upgrade Instructions
 
