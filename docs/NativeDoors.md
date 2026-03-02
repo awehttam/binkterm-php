@@ -136,7 +136,7 @@ The door will now appear in the `/games` game library.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `executable` | string | Yes | Filename of the main executable relative to the door directory |
-| `launch_command` | string | No | Full command to run. Supports `{node}` and `{dropfile}` placeholders (see below). Defaults to `executable` |
+| `launch_command` | string | No | Full command to run. Supports `{node}`, `{dropfile}`, and `{user_number}` placeholders (see below). Defaults to `executable` |
 | `dropfile_format` | string | No | Drop file format. `"DOOR.SYS"` (default) or `"DOOR32.SYS"` |
 | `output_encoding` | string | No | Character encoding of the door's output. `"utf8"` (default) or `"cp437"`. Use `"cp437"` for legacy DOS-style doors that output CP437 box-drawing and ANSI art |
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
@@ -151,6 +151,7 @@ The `launch_command` string may contain the following placeholders, which are su
 |-------------|---------------|
 | `{node}` | Node number (e.g. `1`) |
 | `{dropfile}` | Full path to the DOOR.SYS file (e.g. `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS`) |
+| `{user_number}` | BBS user ID (numeric) |
 
 **Examples:**
 
@@ -189,6 +190,7 @@ The following environment variables are set in the door process at launch:
 |----------|-------------|---------|
 | `DOOR_USER_NAME` | User's handle | `Sysop` |
 | `DOOR_USER_REAL_NAME` | User's real name | `John Smith` |
+| `DOOR_USER_NUMBER` | BBS user ID (numeric) | `42` |
 | `DOOR_NODE` | Node number | `1` |
 | `DOOR_BBS_NAME` | BBS name from configuration | `My BBS` |
 | `DOOR_DROPFILE` | Full path to the DOOR.SYS file | `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS` |

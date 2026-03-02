@@ -236,6 +236,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
         let launchCmd = manifest.door.launch_command || `call ${manifest.door.executable}`;
         launchCmd = launchCmd.replace('{node}', node_number);
         launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
+        launchCmd = launchCmd.replace('{user_number}', String(sessionData.user_id || ''));
 
         // Check if door requires FOSSIL driver (default true for backwards compatibility)
         const fossilRequired = manifest.door.fossil_required !== false;
@@ -490,6 +491,7 @@ $_sound = "0"
         let launchCmd = manifest.door.launch_command || manifest.door.executable;
         launchCmd = launchCmd.replace('{node}', node_number);
         launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
+        launchCmd = launchCmd.replace('{user_number}', String(sessionData.user_id || ''));
 
         // Create DOS batch file to launch door
         // First use lredir to map our Linux directory, then run door commands
@@ -581,10 +583,11 @@ class NativeAdapter extends EmulatorAdapter {
         this.outputEncoding = (manifest.door && manifest.door.output_encoding) || 'utf8';
         const ptyEncoding = this.outputEncoding === 'cp437' ? 'binary' : 'utf8';
 
-        // Build launch command - replace {node} and {dropfile} placeholders
+        // Build launch command - replace {node}, {dropfile}, and {user_number} placeholders
         let launchCmd = manifest.door.launch_command || manifest.door.executable;
         launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
         launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
+        launchCmd = launchCmd.replace(/\{user_number\}/g, String(sessionData.user_id || ''));
 
         const parts = launchCmd.split(' ');
         const cmd = parts[0];
@@ -600,6 +603,7 @@ class NativeAdapter extends EmulatorAdapter {
             ...process.env,
             DOOR_USER_NAME: userData.real_name || 'Guest',
             DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
+            DOOR_USER_NUMBER: String(sessionData.user_id || ''),
             DOOR_NODE: String(node_number),
             DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
             DOOR_DROPFILE: dropfileFull,
