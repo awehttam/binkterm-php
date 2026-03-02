@@ -45,6 +45,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Mobile message reader: fixed swipe-to-navigate triggering while scrolling wide ANSI art horizontally; the boundary check now uses the scroll position captured at touch start rather than the position after native scrolling has already occurred
 - BinkP server: fixed inbound sessions not including the network domain in the `M_ADR` address; the `send_domain_in_addr` flag was only applied to outbound calls — inbound connections now respect it too
 - MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of the PHP error log; log level is controllable via `--log-level`
+- BinkP session: fixed `binkp_poll` taking up to 5 minutes to complete after sending mail; the EOB exchange now terminates immediately when the remote sends `M_EOB` without a preceding `M_GOT`, instead of waiting for the full session timeout
 
 ## Native Door Support
 

@@ -208,6 +208,12 @@ class BinkpSession
                         $this->log("Received while waiting for M_GOT: {$frame}", 'DEBUG');
                         $this->processTransferFrame($frame);
 
+                        // If remote sent M_EOB, no more M_GOTs are coming - exit wait loop
+                        if ($this->state >= self::STATE_EOB_SENT) {
+                            $this->log("Remote sent EOB during M_GOT wait, exiting wait loop", 'DEBUG');
+                            break;
+                        }
+
                         // Remove confirmed files from pending list
                         if ($frame->isCommand() && $frame->getCommand() === BinkpFrame::M_GOT) {
                             $gotData = $frame->getData();
@@ -319,6 +325,13 @@ class BinkpSession
                 $elapsed = time() - $eobWaitStart;
                 $inactivity = time() - $lastActivity;
                 $hasActiveTransfer = $this->currentFile !== null;
+
+                // If remote's EOB was received and answered, and no file is in flight, we're done.
+                if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
+                    $this->log("EOB exchange complete, no active transfer - terminating", 'DEBUG');
+                    $this->state = self::STATE_TERMINATED;
+                    break;
+                }
 
                 // Only enforce the hard EOB timeout when we are not actively receiving a file.
                 if (!$hasActiveTransfer && $elapsed >= $eobTimeout) {
@@ -547,11 +560,13 @@ class BinkpSession
                     } else {
                         $this->log("Received EOB first - sending our EOB", 'DEBUG');
                         $this->sendEOB();
-                        // Only terminate if we have no files waiting for confirmation
-                        if (empty($this->filesSent)) {
-                            $this->state = self::STATE_TERMINATED;
-                        } else {
+                        // M_EOB from the remote means they are done; session ends once
+                        // both sides have sent EOB. Only stay open if we are mid-transfer
+                        // of an incoming file — M_GOT status is irrelevant here.
+                        if ($this->currentFile) {
                             $this->state = self::STATE_EOB_RECEIVED;
+                        } else {
+                            $this->state = self::STATE_TERMINATED;
                         }
                     }
                     break;
