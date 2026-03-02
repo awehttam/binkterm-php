@@ -351,9 +351,16 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
         return;
     }
 
-    // Load door manifest to get the actual filename
-    $doorManager = new \BinktermPHP\DoorManager();
-    $door = $doorManager->getDoor($doorid);
+    // Load door manifest — check native doors first, then DOS doors
+    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+    $door = $nativeDoorManager->getDoor($doorid);
+
+    if ($door) {
+        $doorBasePath = __DIR__ . "/../native-doors/doors/{$doorid}";
+    } else {
+        $door = (new \BinktermPHP\DoorManager())->getDoor($doorid);
+        $doorBasePath = __DIR__ . "/../dosbox-bridge/dos/DOORS/" . strtoupper($doorid);
+    }
 
     if (!$door) {
         http_response_code(404);
@@ -372,8 +379,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     // Build path to asset file (only using manifest-declared filename)
     $filename = basename($filename); // Extra safety
-    $dooridUpper = strtoupper($doorid);
-    $doorPath = __DIR__ . "/../dosbox-bridge/dos/DOORS/{$dooridUpper}/{$filename}";
+    $doorPath = $doorBasePath . "/{$filename}";
 
     // Verify file exists
     if (!file_exists($doorPath) || !is_file($doorPath)) {
@@ -384,8 +390,8 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     // Verify file is in the door directory (prevent traversal)
     $realPath = realpath($doorPath);
-    $allowedBase = realpath(__DIR__ . "/../dosbox-bridge/dos/DOORS/{$dooridUpper}");
-    if (strpos($realPath, $allowedBase) !== 0) {
+    $allowedBase = realpath($doorBasePath);
+    if ($allowedBase === false || strpos($realPath, $allowedBase) !== 0) {
         http_response_code(403);
         echo "Access denied";
         return;
