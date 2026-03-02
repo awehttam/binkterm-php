@@ -142,7 +142,7 @@ SimpleRouter::get('/games', function() {
             'icon_url' => $iconUrl,
             'type' => 'dosdoor',
             'genre' => $door['genre'] ?? [],
-            'players' => $door['players'] ?? 'Unknown'
+            'players' => $door['players'] ?? null
         ];
     }
 
@@ -168,7 +168,7 @@ SimpleRouter::get('/games', function() {
             'icon_url' => $iconUrl,
             'type' => 'nativedoor',
             'genre' => $door['genre'] ?? [],
-            'players' => $door['players'] ?? 'Unknown'
+            'players' => $door['players'] ?? null
         ];
     }
 
