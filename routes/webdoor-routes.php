@@ -137,7 +137,8 @@ SimpleRouter::get('/games', function() {
             'id' => $doorId,
             'name' => $door['name'],
             'description' => $door['description'] ?? '',
-            'author' => $door['author'] ?? 'Unknown',
+            'author' => $door['author'] ?? null,
+            'version' => $door['game_version'] ?? null,
             'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
             'icon_url' => $iconUrl,
             'type' => 'dosdoor',
@@ -163,7 +164,8 @@ SimpleRouter::get('/games', function() {
             'id' => $doorId,
             'name' => $door['name'],
             'description' => $door['description'] ?? '',
-            'author' => $door['author'] ?? 'Unknown',
+            'author' => $door['author'] ?? null,
+            'version' => $door['game_version'] ?? null,
             'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
             'icon_url' => $iconUrl,
             'type' => 'nativedoor',
