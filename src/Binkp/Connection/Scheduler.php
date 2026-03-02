@@ -23,6 +23,8 @@ use BinktermPHP\Database;
 
 class Scheduler
 {
+    /** @var array<string,int> Unix timestamps of last outbound-triggered polls by uplink */
+    private $lastOutboundPollTimes;
     private $config;
     private $logger;
     private $client;
@@ -40,6 +42,7 @@ class Scheduler
         $this->logger = $logger;
         $this->client = new AdminDaemonClient();
         $this->lastPollTimes = [];
+        $this->lastOutboundPollTimes = [];
         $this->crashmailService = new CrashmailService();
         $this->db = Database::getInstance()->getPdo();
     }
@@ -127,7 +130,12 @@ class Scheduler
     public function pollIfOutbound()
     {
         $outboundPath = $this->config->getOutboundPath();
-        $files = glob($outboundPath . '/*.pkt');
+        $files = array_merge(
+            glob($outboundPath . '/*.pkt') ?: [],
+            glob($outboundPath . '/*.PKT') ?: [],
+            glob($outboundPath . '/*.tic') ?: [],
+            glob($outboundPath . '/*.TIC') ?: []
+        );
         
         if (empty($files)) {
             $this->log("No outbound packets found, skipping outbound poll", 'DEBUG');
@@ -141,6 +149,17 @@ class Scheduler
         
         foreach ($uplinks as $uplink) {
             $address = $uplink['address'];
+
+            if (!$this->hasOutboundFilesForUplink($uplink, $files)) {
+                $this->log("No outbound files for uplink {$address}, skipping outbound poll", 'DEBUG');
+                continue;
+            }
+
+            $lastOutboundPoll = $this->lastOutboundPollTimes[$address] ?? 0;
+            if ((time() - $lastOutboundPoll) < 60) {
+                $this->log("Recent outbound poll for {$address}, skipping duplicate outbound poll", 'DEBUG');
+                continue;
+            }
             
             try {
                 $pollResult = $this->client->binkPoll($address);
@@ -154,6 +173,7 @@ class Scheduler
                 }
 
                 $this->lastPollTimes[$address] = time();
+                $this->lastOutboundPollTimes[$address] = time();
                 $results[$address] = [
                     'success' => $pollSuccess,
                     'poll_result' => $pollResult,
@@ -245,6 +265,85 @@ class Scheduler
         }
         
         return (int) $cronField === $currentValue;
+    }
+
+    private function hasOutboundFilesForUplink(array $uplink, array $files): bool
+    {
+        foreach ($files as $file) {
+            if (!is_file($file) || !is_readable($file)) {
+                continue;
+            }
+
+            $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+            if ($extension === 'pkt') {
+                $destAddr = $this->getPacketDestination($file);
+                if ($destAddr !== null && $this->config->isDestinationForUplink($destAddr, $uplink)) {
+                    return true;
+                }
+                continue;
+            }
+
+            if ($extension === 'tic') {
+                $destAddr = $this->getTicDestination($file);
+                if ($destAddr !== null && $this->config->isDestinationForUplink($destAddr, $uplink)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function getPacketDestination(string $filePath): ?string
+    {
+        $handle = @fopen($filePath, 'rb');
+        if (!$handle) {
+            $this->log("Cannot open outbound packet for destination lookup: " . basename($filePath), 'WARNING');
+            return null;
+        }
+
+        $header = fread($handle, 58);
+        fclose($handle);
+
+        if (strlen($header) < 58) {
+            $this->log("Outbound packet header too short: " . basename($filePath), 'WARNING');
+            return null;
+        }
+
+        $data = unpack('vorigNode/vdestNode', substr($header, 0, 4));
+        $netData = unpack('vorigNet/vdestNet', substr($header, 20, 4));
+        if (!$data || !$netData) {
+            $this->log("Failed to parse outbound packet header: " . basename($filePath), 'WARNING');
+            return null;
+        }
+
+        $destZone = 1;
+        if (strlen($header) >= 38) {
+            $zoneData = unpack('vorigZone/vdestZone', substr($header, 34, 4));
+            if ($zoneData && $zoneData['destZone'] > 0) {
+                $destZone = $zoneData['destZone'];
+            }
+        }
+
+        return $destZone . ':' . $netData['destNet'] . '/' . $data['destNode'];
+    }
+
+    private function getTicDestination(string $filePath): ?string
+    {
+        $content = @file_get_contents($filePath);
+        if ($content === false) {
+            $this->log("Cannot read outbound TIC for destination lookup: " . basename($filePath), 'WARNING');
+            return null;
+        }
+
+        foreach (preg_split('/\r\n|\r|\n/', $content) as $line) {
+            $line = trim($line);
+            if (preg_match('/^To\s+(.+)$/i', $line, $matches)) {
+                return trim($matches[1]);
+            }
+        }
+
+        return null;
     }
 
     private function keepDbAlive(): void
