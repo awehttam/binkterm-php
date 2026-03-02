@@ -60,6 +60,15 @@ class Scheduler
             echo "[" . date('Y-m-d H:i:s') . "] [{$level}] [SCHEDULER] {$message}\n";
         }
     }
+
+    private function refreshConfig(): void
+    {
+        try {
+            $this->config->reloadConfig();
+        } catch (\Throwable $e) {
+            $this->log("Failed to reload binkp configuration: " . $e->getMessage(), 'ERROR');
+        }
+    }
     
     public function checkScheduledPolls()
     {
@@ -395,6 +404,7 @@ class Scheduler
         
         while (true) {
             try {
+                $this->refreshConfig();
                 $this->keepDbAlive();
 
                 $results = $this->processScheduledPolls();

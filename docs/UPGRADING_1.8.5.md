@@ -20,6 +20,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - Scheduler shutdown: fixed `Ctrl-C`/`SIGINT` handling so
   `binkp_scheduler.php` exits immediately instead of continuing into the
   next polling loop
+- Scheduler config reload: `binkp_scheduler.php` now reloads
+  `config/binkp.json` during its daemon loop so schedule and uplink
+  changes are picked up without restarting the scheduler
 - Cron schedule clarification: `* */1 * * *` means every minute of every
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
 
