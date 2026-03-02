@@ -687,6 +687,8 @@ try {
     if (isset($args['daemon']) && function_exists('pcntl_fork')) {
         $masterPid = getmypid(); // Store parent PID
         daemonize();
+        // daemonize() closes STDERR; stop logger from writing to it
+        $logger->setLogToConsole(false);
     } else {
         setConsoleTitle('BinktermPHP MRC Daemon');
     }
