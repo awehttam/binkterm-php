@@ -338,11 +338,12 @@ class BinkpSession
 
                 // After the remote's EOB has been acknowledged, keep the session open
                 // briefly so the remote's tosser can queue a response (e.g. areafix) and
-                // send it as M_FILE.  Terminate once 30 s of inactivity have passed with
-                // no active transfer in progress.
+                // send it as M_FILE.  Only wait if we actually sent something — if we sent
+                // nothing, the remote has nothing to process and there will be no response.
                 if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
-                    if ($inactivity >= 30) {
-                        $this->log("EOB exchange complete, no activity for {$inactivity}s - terminating", 'DEBUG');
+                    if (empty($this->filesSent) || $inactivity >= 30) {
+                        $reason = empty($this->filesSent) ? 'nothing sent' : "no activity for {$inactivity}s";
+                        $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
                         $this->state = self::STATE_TERMINATED;
                         break;
                     }
