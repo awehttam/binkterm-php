@@ -48,6 +48,8 @@ Install doors by dropping a subdirectory with a `nativedoor.json` manifest into 
 
 See **[docs/NativeDoors.md](NativeDoors.md)** for the full manifest format reference, environment variable list, and setup instructions.
 
+> **Security note:** Native doors run as the same OS user as the BinktermPHP bridge. Only install doors from trusted sources, and never install a door that can drop to a shell. See the Security Warning section in NativeDoors.md for details.
+
 ---
 
 ## Upgrade Instructions

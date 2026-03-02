@@ -269,6 +269,20 @@ Both are disabled by default. Enable them through **Admin → Native Doors** to 
 
 ---
 
+## Security Warning
+
+> **Only install native doors from sources you trust.**
+
+Native doors run as the same operating system user as the BinktermPHP web server and multiplexing bridge. A door that drops to a shell, spawns subprocesses, or reads arbitrary files on disk does so with the full permissions of that user — including access to your database credentials, configuration files, private keys, and all BBS data.
+
+**Key risks to be aware of:**
+
+- **Shell escape** — if a door provides any mechanism to execute shell commands (e.g. a built-in editor, help viewer using `less`, or debug mode), a user can break out and run arbitrary commands on the server.
+- **File system access** — the door can read and write any file the web server user can access, including `.env`, `config/binkp.json`, and the database.
+- **Network access** — the door can make outbound network connections.
+
+---
+
 ## Troubleshooting
 
 **Door does not appear in the game library after sync**
