@@ -247,7 +247,24 @@ class BinkpSession
                     }
 
                     if (!empty($pendingFiles)) {
-                        $this->log(count($pendingFiles) . " files not confirmed after timeout", 'WARNING');
+                        if ($this->state >= self::STATE_EOB_SENT) {
+                            // Remote sent M_EOB without M_GOT — treat as implicit confirmation
+                            // and delete the unacknowledged sent files.
+                            $outboundPath = $this->config->getOutboundPath();
+                            foreach (array_keys($pendingFiles) as $pendingFile) {
+                                $filepath = $outboundPath . '/' . basename($pendingFile);
+                                if (file_exists($filepath)) {
+                                    if (unlink($filepath)) {
+                                        $this->log("Deleted sent file (implicit M_EOB confirm): " . basename($pendingFile), 'DEBUG');
+                                    } else {
+                                        $this->log("Failed to delete sent file: " . basename($pendingFile), 'ERROR');
+                                    }
+                                }
+                            }
+                            $this->log(count($pendingFiles) . " file(s) implicitly confirmed by remote M_EOB", 'INFO');
+                        } else {
+                            $this->log(count($pendingFiles) . " files not confirmed after timeout", 'WARNING');
+                        }
                     } else {
                         $this->log("All sent files confirmed by remote", 'DEBUG');
                     }
