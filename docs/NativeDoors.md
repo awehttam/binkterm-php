@@ -138,6 +138,7 @@ The door will now appear in the `/games` game library.
 | `executable` | string | Yes | Filename of the main executable relative to the door directory |
 | `launch_command` | string | No | Full command to run. Supports `{node}` and `{dropfile}` placeholders (see below). Defaults to `executable` |
 | `dropfile_format` | string | No | Drop file format. `"DOOR.SYS"` (default) or `"DOOR32.SYS"` |
+| `output_encoding` | string | No | Character encoding of the door's output. `"utf8"` (default) or `"cp437"`. Use `"cp437"` for legacy DOS-style doors that output CP437 box-drawing and ANSI art |
 | `max_nodes` | integer | No | Maximum simultaneous sessions. Defaults to `10` |
 | `ansi_required` | boolean | No | Whether ANSI is required. Defaults to `true` |
 | `time_per_day` | integer | No | Time limit in minutes per day. Defaults to `30` |

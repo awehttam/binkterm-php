@@ -775,11 +775,17 @@ class SessionManager {
             session.bytesFromEmulator += data.length;
 
             try {
-                // For DOSBox: convert CP437 to UTF-8
-                // For DOSEMU: data is already in correct format from PTY
-                const utf8Data = (emulatorName === 'DOSBox')
-                    ? iconv.decode(data, 'cp437')
-                    : data.toString('utf8');
+                // DOSBox: CP437 bytes via TCP socket -> decode to UTF-8
+                // Native (cp437): binary string from PTY -> decode to UTF-8
+                // DOSEMU / Native (utf8): already UTF-8
+                let utf8Data;
+                if (emulatorName === 'DOSBox') {
+                    utf8Data = iconv.decode(data, 'cp437');
+                } else if (emulatorName === 'Native' && session.emulator.outputEncoding === 'cp437') {
+                    utf8Data = iconv.decode(Buffer.from(data, 'binary'), 'cp437');
+                } else {
+                    utf8Data = typeof data === 'string' ? data : data.toString('utf8');
+                }
 
                 if (session.ws && session.ws.readyState === WebSocket.OPEN) {
                     session.ws.send(utf8Data);
@@ -834,12 +840,18 @@ class SessionManager {
             try {
                 const dataStr = data.toString('utf8');
 
-                // For DOSBox: convert UTF-8 to CP437
-                // For DOSEMU: pass through as UTF-8
+                // DOSBox: encode UTF-8 input to CP437 for the emulator
+                // Native (cp437): encode UTF-8 input to CP437 for the door
+                // DOSEMU / Native (utf8): pass through as UTF-8
                 const emulatorName = session.emulator ? session.emulator.getName() : 'Unknown';
-                const emulatorData = (emulatorName === 'DOSBox')
-                    ? iconv.encode(dataStr, 'cp437')
-                    : Buffer.from(dataStr, 'utf8');
+                let emulatorData;
+                if (emulatorName === 'DOSBox') {
+                    emulatorData = iconv.encode(dataStr, 'cp437');
+                } else if (emulatorName === 'Native' && session.emulator.outputEncoding === 'cp437') {
+                    emulatorData = iconv.encode(dataStr, 'cp437');
+                } else {
+                    emulatorData = Buffer.from(dataStr, 'utf8');
+                }
 
                 // Forward to emulator
                 if (session.emulator) {

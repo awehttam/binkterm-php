@@ -550,6 +550,7 @@ class NativeAdapter extends EmulatorAdapter {
     constructor(basePath) {
         super(basePath);
         this.ptyProcess = null;
+        this.outputEncoding = 'utf8';
     }
 
     getName() {
@@ -575,6 +576,10 @@ class NativeAdapter extends EmulatorAdapter {
         const dropfileFormat = (manifest.door && manifest.door.dropfile_format) || 'DOOR.SYS';
         const dropfileName = dropfileFormat === 'DOOR32.SYS' ? 'DOOR32.SYS' : 'DOOR.SYS';
         const dropfileFull = path.join(dropPath, dropfileName);
+
+        // Determine output encoding (cp437 for legacy DOS-style doors, utf8 for modern)
+        this.outputEncoding = (manifest.door && manifest.door.output_encoding) || 'utf8';
+        const ptyEncoding = this.outputEncoding === 'cp437' ? 'binary' : 'utf8';
 
         // Build launch command - replace {node} and {dropfile} placeholders
         let launchCmd = manifest.door.launch_command || manifest.door.executable;
@@ -602,13 +607,14 @@ class NativeAdapter extends EmulatorAdapter {
             TERM: 'xterm-256color'
         };
 
-        console.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir}`);
+        console.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
 
         this.ptyProcess = pty.spawn(cmd, args, {
             name: 'xterm-256color',
             cols: 80,
             rows: 25,
             cwd: doorDir,
+            encoding: ptyEncoding,
             env
         });
 

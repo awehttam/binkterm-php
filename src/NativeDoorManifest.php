@@ -148,6 +148,7 @@ class NativeDoorManifest
             'launch_command' => $data['door']['launch_command'] ?? null,
             'directory' => 'native-doors/doors/' . $doorId,
             'dropfile_format' => $data['door']['dropfile_format'] ?? 'DOOR.SYS',
+            'output_encoding' => $data['door']['output_encoding'] ?? 'utf8',
             'node_support' => true,
             'max_nodes' => $data['door']['max_nodes'] ?? 10,
             'ansi_required' => $data['door']['ansi_required'] ?? true,
