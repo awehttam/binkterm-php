@@ -23,6 +23,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - Scheduler config reload: `binkp_scheduler.php` now reloads
   `config/binkp.json` during its daemon loop so schedule and uplink
   changes are picked up without restarting the scheduler
+- Admin daemon client: fixed stale reused connections that could produce
+  intermittent "Admin daemon closed connection" errors after the daemon
+  timed out an idle socket
 - Cron schedule clarification: `* */1 * * *` means every minute of every
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
 

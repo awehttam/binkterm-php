@@ -298,7 +298,9 @@ class AdminDaemonClient
                     throw new \RuntimeException("Admin daemon error: {$error}");
                 }
 
-                return $response['result'] ?? [];
+                $result = $response['result'] ?? [];
+                $this->close();
+                return $result;
             } catch (\RuntimeException $e) {
                 $this->close();
                 if ($attempt === 1) {
