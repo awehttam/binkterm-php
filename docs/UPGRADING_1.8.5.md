@@ -39,6 +39,7 @@ Make sure you've made a backup of your database and files before upgrading.
   an unknown bundle format
 - Cron schedule clarification: `* */1 * * *` means every minute of every
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
+- Message reader: ANSI-decoded message bodies no longer display inside a black box; the art container styling is now only applied to standalone ANSI art displays
 
 ## Native Door Support
 
