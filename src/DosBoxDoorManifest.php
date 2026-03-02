@@ -146,7 +146,7 @@ class DosBoxDoorManifest
             'release_year' => $data['game']['release_year'] ?? null,
             'description' => $data['game']['description'] ?? '',
             'genre' => $data['game']['genre'] ?? [],
-            'players' => $data['game']['players'] ?? 'Single-player',
+            'players' => $data['game']['players'] ?? null,
             'icon' => $data['game']['icon'] ?? null,
             'screenshot' => $data['game']['screenshot'] ?? null,
 
