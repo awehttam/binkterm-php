@@ -77,6 +77,8 @@ BinktermPHP now supports **native doors** — Linux binaries, shell scripts, and
 
 Install doors by dropping a subdirectory with a `nativedoor.json` manifest into `native-doors/doors/`, then enable them via **Admin → Native Doors**. Two test doors (`linuxdoortest`, `windoortest`) are included and disabled by default.
 
+**BBSLink** is included as a native door (`bbslinknative`). Copy `native-doors/doors/bbslinknative/vars.sh.example` to `vars.sh` and fill in your BBSLink credentials before enabling it.
+
 See **[docs/NativeDoors.md](NativeDoors.md)** for the full manifest format reference, environment variable list, and setup instructions.
 
 > **Security note:** Native doors run as the same OS user as the BinktermPHP bridge. Only install doors from trusted sources, and never install a door that can drop to a shell. See the Security Warning section in NativeDoors.md for details.
