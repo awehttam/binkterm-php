@@ -1945,16 +1945,17 @@ class BinkdProcessor
 
     private function isFidonetDayBundle($extension)
     {
-        // Check for Fidonet daily bundle extensions: su0-su9, mo0-mo9, etc.
+        // Check for Fidonet daily bundle extensions: su0-suz, mo0-moz, etc.
+        // ArcMail bundle sequence characters are base-36, not just decimal digits.
         if (strlen($extension) !== 3) {
             return false;
         }
         
         $dayPrefix = substr($extension, 0, 2);
-        $dayNumber = substr($extension, 2, 1);
+        $daySequence = substr($extension, 2, 1);
         
         $validPrefixes = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
-        return in_array($dayPrefix, $validPrefixes) && ctype_digit($dayNumber);
+        return in_array($dayPrefix, $validPrefixes) && ctype_alnum($daySequence);
     }
 
     private function moveToErrorDir($file)

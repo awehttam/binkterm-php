@@ -31,6 +31,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - Admin daemon client: fixed stale reused connections that could produce
   intermittent "Admin daemon closed connection" errors after the daemon
   timed out an idle socket
+- Bundle processing: fixed inbound ArcMail day-bundle detection so files
+  such as `.sua` are recognized and extracted instead of being rejected as
+  an unknown bundle format
 - Cron schedule clarification: `* */1 * * *` means every minute of every
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
 
