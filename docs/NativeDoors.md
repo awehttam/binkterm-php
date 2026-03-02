@@ -189,7 +189,6 @@ The following environment variables are set in the door process at launch:
 | `DOOR_USER_NAME` | User's handle | `Sysop` |
 | `DOOR_USER_REAL_NAME` | User's real name | `John Smith` |
 | `DOOR_NODE` | Node number | `1` |
-| `DOOR_SECURITY_LEVEL` | User's security level | `100` |
 | `DOOR_BBS_NAME` | BBS name from configuration | `My BBS` |
 | `DOOR_DROPFILE` | Full path to the DOOR.SYS file | `/srv/bbs/native-doors/drops/NODE1/DOOR.SYS` |
 | `DOOR_ANSI` | Always `1` (ANSI assumed) | `1` |

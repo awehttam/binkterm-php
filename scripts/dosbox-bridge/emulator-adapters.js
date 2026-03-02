@@ -591,7 +591,6 @@ class NativeAdapter extends EmulatorAdapter {
             DOOR_USER_NAME: userData.real_name || 'Guest',
             DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
             DOOR_NODE: String(node_number),
-            DOOR_SECURITY_LEVEL: String(userData.security_level || 10),
             DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
             DOOR_DROPFILE: path.join(dropPath, 'DOOR.SYS'),
             DOOR_ANSI: '1',
