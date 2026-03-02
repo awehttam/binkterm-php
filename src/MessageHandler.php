@@ -2866,7 +2866,7 @@ class MessageHandler
         $kludgeLines[] = "\x01CHRS: UTF-8 4";
 
         if ($markdown) {
-            $kludgeLines[] = "\x01MARKDOWN: 1";
+            $kludgeLines[] = "\x01MARKUP: Markdown 1.0";
         }
 
         // Add TZUTC kludge line for netmail
@@ -2934,7 +2934,7 @@ class MessageHandler
         $kludgeLines[] = "\x01CHRS: UTF-8 4 ";
 
         if ($markdown) {
-            $kludgeLines[] = "\x01MARKDOWN: 1";
+            $kludgeLines[] = "\x01MARKUP: Markdown 1.0";
         }
 
         // Add TZUTC kludge line for echomail
@@ -3159,10 +3159,14 @@ class MessageHandler
     }
 
     /**
-     * Detect MARKDOWN kludge version from message data.
+     * Detect whether a message is Markdown-formatted via MARKUP or MARKDOWN kludge.
+     *
+     * Supports:
+     *   ^AMARKUP: Markdown <version>  (LSC-001 Draft 2 — preferred)
+     *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge)
      *
      * @param array $message
-     * @return int|null
+     * @return int|null Version number if markdown detected, null otherwise
      */
     private function detectMarkdownKludgeVersion(array $message): ?int
     {
@@ -3190,6 +3194,12 @@ class MessageHandler
             return null;
         }
 
+        // LSC-001 Draft 2: ^AMARKUP: Markdown <version>
+        if (preg_match('/^\x01MARKUP:\s+Markdown\s+([\d.]+)/mi', $kludgeText, $matches)) {
+            return (int)$matches[1];
+        }
+
+        // Legacy backwards-compatibility: ^AMARKDOWN: <version>
         if (preg_match('/^\x01MARKDOWN:\s*(\d+)/mi', $kludgeText, $matches)) {
             return (int)$matches[1];
         }

@@ -71,7 +71,11 @@ function filterKludgeLinesPreserveEmptyLines($messageText) {
 }
 
 /**
- * Check if a message contains a MARKDOWN kludge.
+ * Check if a message contains a Markdown markup kludge.
+ *
+ * Recognises:
+ *   ^AMARKUP: Markdown <version>  (LSC-001 Draft 2 — preferred)
+ *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge)
  *
  * @param array $message Message array with kludge_lines/bottom_kludges/message_text
  * @return bool
@@ -84,7 +88,10 @@ function hasMarkdownKludge(array $message): bool {
     if (!empty($message['bottom_kludges'])) {
         $kludgeText .= ($kludgeText !== '' ? "\n" : '') . $message['bottom_kludges'];
     }
-    if ($kludgeText !== '' && preg_match('/^\x01MARKDOWN:\s*\d+/mi', $kludgeText)) {
+    if ($kludgeText !== '' && (
+        preg_match('/^\x01MARKUP:\s+Markdown\s+[\d.]+/mi', $kludgeText) ||
+        preg_match('/^\x01MARKDOWN:\s*\d+/mi', $kludgeText)
+    )) {
         return true;
     }
 
@@ -94,7 +101,8 @@ function hasMarkdownKludge(array $message): bool {
     }
     $lines = preg_split('/\r\n|\r|\n/', $messageText);
     foreach ($lines as $line) {
-        if (preg_match('/^\x01MARKDOWN:\s*\d+/i', $line)) {
+        if (preg_match('/^\x01MARKUP:\s+Markdown\s+[\d.]+/i', $line) ||
+            preg_match('/^\x01MARKDOWN:\s*\d+/i', $line)) {
             return true;
         }
     }
