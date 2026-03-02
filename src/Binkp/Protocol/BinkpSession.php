@@ -181,10 +181,12 @@ class BinkpSession
             $this->state = self::STATE_FILE_TRANSFER;
             $this->log("Entering file transfer phase", 'DEBUG');
 
+            $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
+
             if ($this->isOriginator) {
                 $this->log("As originator, checking for outbound files", 'DEBUG');
                 $this->sendFiles();
-                
+
                 // Wait for M_GOT responses before sending EOB
                 if (!empty($this->filesSent)) {
                     $this->log("Waiting for M_GOT responses for " . count($this->filesSent) . " sent files", 'DEBUG');
@@ -248,20 +250,11 @@ class BinkpSession
 
                     if (!empty($pendingFiles)) {
                         if ($this->state >= self::STATE_EOB_SENT) {
-                            // Remote sent M_EOB without M_GOT — treat as implicit confirmation
-                            // and delete the unacknowledged sent files.
-                            $outboundPath = $this->config->getOutboundPath();
-                            foreach (array_keys($pendingFiles) as $pendingFile) {
-                                $filepath = $outboundPath . '/' . basename($pendingFile);
-                                if (file_exists($filepath)) {
-                                    if (unlink($filepath)) {
-                                        $this->log("Deleted sent file (implicit M_EOB confirm): " . basename($pendingFile), 'DEBUG');
-                                    } else {
-                                        $this->log("Failed to delete sent file: " . basename($pendingFile), 'ERROR');
-                                    }
-                                }
-                            }
-                            $this->log(count($pendingFiles) . " file(s) implicitly confirmed by remote M_EOB", 'INFO');
+                            // Remote sent M_EOB without M_GOT yet.  Defer the actual file
+                            // deletion until after the EOB wait loop so that M_GOT frames
+                            // arriving in that window (some remotes send M_EOB before M_GOT)
+                            // can delete the files via handleGotCommand normally.
+                            $this->log(count($pendingFiles) . " file(s) pending M_GOT after remote M_EOB — deferring cleanup", 'DEBUG');
                         } else {
                             $this->log(count($pendingFiles) . " files not confirmed after timeout", 'WARNING');
                         }
@@ -388,6 +381,29 @@ class BinkpSession
                 }
                 $this->log("Received: {$frame}", 'DEBUG');
                 $this->processTransferFrame($frame);
+            }
+
+            // Deferred implicit-confirm cleanup: delete any sent files that the remote
+            // never acknowledged with M_GOT.  Running this after the EOB wait loop ensures
+            // that late M_GOT frames (remotes that send M_GOT after M_EOB) have already
+            // been processed by handleGotCommand and the files deleted before we get here.
+            if (!empty($pendingFiles)) {
+                $outboundPath = $this->config->getOutboundPath();
+                $implicitCount = 0;
+                foreach (array_keys($pendingFiles) as $pendingFile) {
+                    $filepath = $outboundPath . '/' . basename($pendingFile);
+                    if (file_exists($filepath)) {
+                        if (unlink($filepath)) {
+                            $implicitCount++;
+                            $this->log("Deleted sent file (implicit M_EOB confirm): " . basename($pendingFile), 'DEBUG');
+                        } else {
+                            $this->log("Failed to delete sent file: " . basename($pendingFile), 'ERROR');
+                        }
+                    }
+                }
+                if ($implicitCount > 0) {
+                    $this->log("{$implicitCount} file(s) implicitly confirmed by remote M_EOB", 'INFO');
+                }
             }
 
             $this->cleanup();
