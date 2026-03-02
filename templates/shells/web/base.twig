@@ -525,16 +525,25 @@
         }
 
         function activateUpdate() {
-            if (swRegistration && swRegistration.waiting) {
-                // Tell the waiting service worker to activate
-                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            if (!swRegistration) { window.location.reload(); return; }
 
-                // Reload the page when the new service worker takes control
+            const doSkip = () => {
+                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     window.location.reload();
+                }, { once: true });
+            };
+
+            if (swRegistration.waiting) {
+                doSkip();
+            } else if (swRegistration.installing) {
+                swRegistration.installing.addEventListener('statechange', function handler() {
+                    if (this.state === 'installed') {
+                        this.removeEventListener('statechange', handler);
+                        doSkip();
+                    }
                 });
             } else {
-                // Fallback: just reload
                 window.location.reload();
             }
         }

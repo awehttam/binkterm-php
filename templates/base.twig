@@ -443,19 +443,26 @@
         }
 
         function activateUpdate() {
-            if (swRegistration && swRegistration.waiting) {
-                // Tell the waiting service worker to activate
-                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            if (!swRegistration) { window.location.reload(); return; }
 
-                // Reload once when the new service worker takes control.
-                // Use { once: true } to ensure only a single reload fires
-                // even if controllerchange is emitted more than once
-                // (e.g. via clients.claim() during activation).
+            const doSkip = () => {
+                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     window.location.reload();
                 }, { once: true });
+            };
+
+            if (swRegistration.waiting) {
+                doSkip();
+            } else if (swRegistration.installing) {
+                // SW still installing — wait for it to reach 'installed' before skipping
+                swRegistration.installing.addEventListener('statechange', function handler() {
+                    if (this.state === 'installed') {
+                        this.removeEventListener('statechange', handler);
+                        doSkip();
+                    }
+                });
             } else {
-                // Fallback: just reload
                 window.location.reload();
             }
         }
