@@ -52,16 +52,66 @@ class AdminDaemonServer
 
         $this->logger->info('Admin daemon started', ['socket' => $this->socketTarget]);
 
+        $canFork = function_exists('pcntl_fork')
+            && function_exists('posix_getppid')
+            && function_exists('posix_kill');
+
+        $parentPid = getmypid();
+
+        if ($canFork && function_exists('pcntl_signal')) {
+            // Reap zombie child processes
+            pcntl_signal(SIGCHLD, function () {
+                while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {
+                    // reaped
+                }
+            });
+            // Allow a child handling stop_services to signal us to shut down
+            pcntl_signal(SIGTERM, function () {
+                $this->shutdownRequested = true;
+            });
+        }
+
         while (true) {
+            if (function_exists('pcntl_signal_dispatch')) {
+                pcntl_signal_dispatch();
+            }
+
+            if ($this->shutdownRequested) {
+                break;
+            }
+
             $client = @stream_socket_accept($this->serverSocket, 1);
             if ($client === false) {
                 continue;
             }
 
-            $this->handleClient($client);
-
-            if ($this->shutdownRequested) {
-                break;
+            if ($canFork) {
+                $pid = pcntl_fork();
+                if ($pid === -1) {
+                    // Fork failed — fall back to synchronous handling
+                    $this->handleClient($client);
+                    if ($this->shutdownRequested) {
+                        break;
+                    }
+                } elseif ($pid === 0) {
+                    // Child: close the server socket and handle the client
+                    fclose($this->serverSocket);
+                    $this->handleClient($client);
+                    if ($this->shutdownRequested) {
+                        // stop_services was issued — tell the parent to shut down
+                        posix_kill($parentPid, SIGTERM);
+                    }
+                    exit(0);
+                } else {
+                    // Parent: close our copy of the client socket and keep accepting
+                    fclose($client);
+                }
+            } else {
+                // pcntl not available — handle synchronously
+                $this->handleClient($client);
+                if ($this->shutdownRequested) {
+                    break;
+                }
             }
         }
 
