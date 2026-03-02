@@ -41,6 +41,7 @@ Make sure you've made a backup of your database and files before upgrading.
   hour, not hourly; use `0 * * * *` or `0 */1 * * *` for hourly polling
 - Message reader: ANSI-decoded message bodies no longer display inside a black box; the art container styling is now only applied to standalone ANSI art displays
 - Message reader: fixed spurious border and vertical scrollbar on ANSI art in message bodies caused by Bootstrap's global `pre { overflow: auto; border }` Reboot styles leaking into the ANSI renderer
+- Packet processor: fixed echomail misclassified as netmail when the incoming packet is missing its `AREA:` line; the secondary scan loop had a logic error causing it to exit after one iteration, and `SEEN-BY`/`PATH` detection now scans the full message instead of only the first ten lines
 
 ## Native Door Support
 
