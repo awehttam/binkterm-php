@@ -8,6 +8,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Native Doors: run native Linux binaries and Windows executables as BBS doors via PTY — no emulator required; manage via Admin → Native Doors (see below)
 - Door `launch_command`: all door types (DOS and native) now support a `{user_number}` placeholder that is substituted with the BBS user's numeric ID at launch time; native doors also receive it as the `DOOR_USER_NUMBER` environment variable
 - Telnet gateway: native doors now appear alongside DOS doors in the telnet door menu
+- Markup kludge: outbound messages now use `^AMARKUP: Markdown 1.0` per LSC-001 Draft 2; the legacy `^AMARKDOWN:` kludge continues to be recognised in received messages for backwards compatibility
 
 **Improvements**
 - Outbound dispatch: newly spooled netmail and echomail now trigger an
