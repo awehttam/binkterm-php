@@ -446,8 +446,8 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         `;
     }
 
-    const bodyHtml = (message.is_markdown == 1 && message.markdown_html)
-        ? message.markdown_html
+    const bodyHtml = message.markup_html
+        ? message.markup_html
         : formatMessageText(parsedMessage.messageBody);
 
     const html = `

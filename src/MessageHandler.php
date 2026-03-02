@@ -3159,16 +3159,12 @@ class MessageHandler
     }
 
     /**
-     * Detect whether a message is Markdown-formatted via MARKUP or MARKDOWN kludge.
-     *
-     * Supports:
-     *   ^AMARKUP: Markdown <version>  (LSC-001 Draft 2 — preferred)
-     *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge)
+     * Extract all kludge lines from a message into a single string for pattern matching.
      *
      * @param array $message
-     * @return int|null Version number if markdown detected, null otherwise
+     * @return string
      */
-    private function detectMarkdownKludgeVersion(array $message): ?int
+    private function getKludgeText(array $message): string
     {
         $kludgeText = '';
         if (!empty($message['kludge_lines'])) {
@@ -3190,40 +3186,87 @@ class MessageHandler
             $kludgeText = implode("\n", $kludgeLines);
         }
 
+        return $kludgeText;
+    }
+
+    /**
+     * Detect the MARKUP format declared in the message kludges.
+     *
+     * Recognises:
+     *   ^AMARKUP: <format> <version>  (LSC-001 Draft 2)
+     *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge → treated as Markdown)
+     *
+     * @param array $message
+     * @return array{format: string, version: string}|null
+     */
+    private function detectMarkupKludge(array $message): ?array
+    {
+        $kludgeText = $this->getKludgeText($message);
+
         if ($kludgeText === '') {
             return null;
         }
 
-        // LSC-001 Draft 2: ^AMARKUP: Markdown <version>
-        if (preg_match('/^\x01MARKUP:\s+Markdown\s+([\d.]+)/mi', $kludgeText, $matches)) {
-            return (int)$matches[1];
+        // LSC-001 Draft 2: ^AMARKUP: <format> <version>
+        if (preg_match('/^\x01MARKUP:\s+(\S+)\s+([\d.]+)/mi', $kludgeText, $matches)) {
+            return ['format' => strtolower($matches[1]), 'version' => $matches[2]];
         }
 
-        // Legacy backwards-compatibility: ^AMARKDOWN: <version>
+        // Legacy: ^AMARKDOWN: <version>
         if (preg_match('/^\x01MARKDOWN:\s*(\d+)/mi', $kludgeText, $matches)) {
-            return (int)$matches[1];
+            return ['format' => 'markdown', 'version' => $matches[1]];
         }
 
         return null;
     }
 
     /**
-     * Add Markdown rendering data to a message if MARKDOWN kludge is present.
+     * Add rendered markup data to a message if a recognised MARKUP kludge is present.
+     *
+     * Sets markup_format and markup_html on the message for all recognised formats.
+     * For Markdown specifically, also sets the legacy is_markdown/markdown_html fields
+     * for backwards compatibility with any consumers that predate the general markup system.
+     *
+     * Supported formats:
+     *   markdown   — rendered by MarkdownRenderer
+     *   stylecodes — rendered by StyleCodesRenderer (MARKUP: StyleCodes 1.0)
      *
      * @param array $message
      * @return array
      */
     private function appendMarkdownRendering(array $message): array
     {
-        $version = $this->detectMarkdownKludgeVersion($message);
-        if ($version !== null) {
-            $message['is_markdown'] = 1;
-            $message['markdown_version'] = $version;
-            $rawText = (string)($message['message_text'] ?? '');
-            $cleanText = \filterKludgeLinesPreserveEmptyLines($rawText);
-            $message['markdown_html'] = \BinktermPHP\MarkdownRenderer::toHtml($cleanText);
-        } else {
+        $markup = $this->detectMarkupKludge($message);
+
+        if ($markup === null) {
             $message['is_markdown'] = 0;
+            return $message;
+        }
+
+        $rawText   = (string)($message['message_text'] ?? '');
+        $cleanText = \filterKludgeLinesPreserveEmptyLines($rawText);
+
+        $message['markup_format'] = $markup['format'];
+
+        switch ($markup['format']) {
+            case 'markdown':
+                $html = \BinktermPHP\MarkdownRenderer::toHtml($cleanText);
+                $message['markup_html']      = $html;
+                // Legacy fields for backwards compatibility
+                $message['is_markdown']      = 1;
+                $message['markdown_version'] = (int)$markup['version'];
+                $message['markdown_html']    = $html;
+                break;
+
+            case 'stylecodes':
+                $message['markup_html'] = \BinktermPHP\StyleCodesRenderer::toHtml($cleanText);
+                $message['is_markdown'] = 0;
+                break;
+
+            default:
+                // Unknown format — do not attempt rendering; display as plain text
+                $message['is_markdown'] = 0;
+                break;
         }
 
         return $message;

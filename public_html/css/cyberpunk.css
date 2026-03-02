@@ -1561,3 +1561,8 @@ tbody, td, tfoot, th, thead, tr {
     background-color: var(--cyber-dark);
     color: var(--text-color);
 }
+
+/* StyleCodes (MARKUP: StyleCodes 1.0) */
+.sc-inverse {
+    filter: invert(1);
+}

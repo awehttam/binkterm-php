@@ -887,3 +887,13 @@ body {
     opacity: 0.5;
     pointer-events: none;
 }
+
+/* StyleCodes (MARKUP: StyleCodes 1.0) */
+.sc-body {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.sc-inverse {
+    filter: invert(1);
+}

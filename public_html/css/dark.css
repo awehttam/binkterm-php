@@ -1086,3 +1086,8 @@ a:hover {
     background-color: var(--bg-card);
     color: var(--text-color);
 }
+
+/* StyleCodes (MARKUP: StyleCodes 1.0) */
+.sc-inverse {
+    filter: invert(1);
+}
