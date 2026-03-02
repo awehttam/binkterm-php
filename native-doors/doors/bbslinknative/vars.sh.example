@@ -1,3 +1,6 @@
+# Copy this file to vars.sh, and adjust the settings below to match your
+# configuration
+
 host="games.bbslink.net" 		# Server address, usually 'games.bbslink.net'
 syscode=""		# Your system code
 authcode=""		# Your system's authorisation code
