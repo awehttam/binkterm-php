@@ -9,6 +9,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Door `launch_command`: all door types (DOS and native) now support a `{user_number}` placeholder that is substituted with the BBS user's numeric ID at launch time; native doors also receive it as the `DOOR_USER_NUMBER` environment variable
 - Telnet gateway: native doors now appear alongside DOS doors in the telnet door menu
 - Markup kludge: outbound messages now use `^AMARKUP: Markdown 1.0` per LSC-001 Draft 2; the legacy `^AMARKDOWN:` kludge continues to be recognised in received messages for backwards compatibility
+- StyleCodes rendering: messages with `^AMARKUP: StyleCodes 1.0` (Synchronet Message Markup) are now rendered in the message reader; supported codes: `*bold*`, `/italics/`, `_underlined_`, `#inverse#`
 
 **Improvements**
 - Outbound dispatch: newly spooled netmail and echomail now trigger an
