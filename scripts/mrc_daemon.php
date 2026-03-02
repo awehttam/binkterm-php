@@ -16,6 +16,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\Database;
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Mrc\MrcConfig;
 use BinktermPHP\Mrc\MrcClient;
 
@@ -286,7 +287,7 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
     if ($f7 === '' || !ctype_alpha($f7[0])) {
         $room  = $packet['f6'] ?? '';
         $clean = preg_replace('/\|[0-9]{2}/', '', $f7);
-        error_log("MRC: Room message" . ($room ? " [{$room}]" : '') . ": {$clean}");
+        mrcLog("MRC: Room message" . ($room ? " [{$room}]" : '') . ": {$clean}");
 
         if ($room) {
             $suppressAnnouncement = false;
@@ -339,7 +340,7 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     ON CONFLICT (room_name) DO UPDATE
                     SET last_list_seen = CURRENT_TIMESTAMP
                 ")->execute(['room' => $m[1]]);
-                error_log("MRC: Added room from LIST: {$m[1]}");
+                mrcLog("MRC: Added room from LIST: {$m[1]}");
                 return;
             }
 
@@ -395,13 +396,13 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             // Server confirms which room the client is in
             // Format: USERROOM:room
             $room = $params;
-            error_log("MRC: Server confirmed room: {$room}");
+            mrcLog("MRC: Server confirmed room: {$room}");
             break;
 
         case 'USERNICK':
             // Server assigned/confirmed nick (may have suffix to resolve conflicts)
             // Format: USERNICK:nick
-            error_log("MRC: Server assigned nick: {$params}");
+            mrcLog("MRC: Server assigned nick: {$params}");
             break;
 
         case 'USERLIST':
@@ -411,7 +412,7 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             if ($room && $params !== '') {
                 $users = array_values(array_filter(array_map('trim', explode(',', $params)), 'strlen'));
                 if (count($users) === 0) {
-                    error_log("MRC: USERLIST empty/invalid for room {$room} (raw={$params})");
+                    mrcLog("MRC: USERLIST empty/invalid for room {$room} (raw={$params})");
                     break;
                 }
                 // Ensure room exists before inserting users (foreign key requirement)
@@ -445,9 +446,9 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
                     if ($db->inTransaction()) {
                         $db->rollBack();
                     }
-                    error_log("MRC: USERLIST update failed for room {$room}: " . $e->getMessage());
+                    mrcLog("MRC: USERLIST update failed for room {$room}: " . $e->getMessage(), 'ERROR');
                 }
-                error_log("MRC: Room {$room} users (" . count($users) . "): {$params}");
+                mrcLog("MRC: Room {$room} users (" . count($users) . "): {$params}");
             }
             break;
 
@@ -457,17 +458,17 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
 
         case 'NOTIFY':
             // System notification - Format: NOTIFY:message
-            error_log("MRC: Server notification: {$params}");
+            mrcLog("MRC: Server notification: {$params}");
             break;
 
         case 'TERMINATE':
             // Server requesting graceful shutdown - Format: TERMINATE:msg
-            error_log("MRC: Server terminate request: {$params}");
+            mrcLog("MRC: Server terminate request: {$params}");
             break;
 
         case 'OLDVERSION':
             // Server rejected our version - Format: OLDVERSION:minversion
-            error_log("MRC: Version rejected, server requires >= {$params}");
+            mrcLog("MRC: Version rejected, server requires >= {$params}");
             break;
 
         default:
@@ -475,9 +476,9 @@ function handleServerCommand(string $verb, string $f7, array $packet): void
             // display notice directed at a specific user, not a command verb.
             if (!empty($packet['f4']) && $packet['f4'] !== 'CLIENT') {
                 $clean = preg_replace('/\|[0-9]{2}/', '', $f7);
-                error_log("MRC: Server notice to {$packet['f4']}: {$clean}");
+                mrcLog("MRC: Server notice to {$packet['f4']}: {$clean}");
             } else {
-                error_log("MRC: Unhandled server verb: {$verb} (f7={$f7})");
+                mrcLog("MRC: Unhandled server verb: {$verb} (f7={$f7})");
             }
             break;
     }
@@ -573,7 +574,7 @@ function maintainLocalUserSessions(MrcClient $client): void
     foreach ($rows as $row) {
         if ($row['is_stale']) {
             $client->sendLogoff($row['username'], $row['room_name']);
-            error_log("MRC: LOGOFF stale user {$row['username']} from {$row['room_name']}");
+            mrcLog("MRC: LOGOFF stale user {$row['username']} from {$row['room_name']}");
             $staleCount++;
         } else {
             $client->sendIamHere($row['username'], $row['room_name']);
@@ -585,7 +586,7 @@ function maintainLocalUserSessions(MrcClient $client): void
             DELETE FROM mrc_local_presence
             WHERE last_seen < CURRENT_TIMESTAMP - INTERVAL '10 minutes'
         ");
-        error_log("MRC: Pruned {$staleCount} stale local user(s)");
+        mrcLog("MRC: Pruned {$staleCount} stale local user(s)");
     }
 }
 
@@ -636,7 +637,21 @@ function rejoinLocalUserRooms(MrcClient $client): void
     $stmt = $db->query("SELECT username, room_name FROM mrc_local_presence");
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $client->joinRoom($row['room_name'], $row['username']);
-        error_log("MRC: Re-joined {$row['username']} into room: {$row['room_name']}");
+        mrcLog("MRC: Re-joined {$row['username']} into room: {$row['room_name']}");
+    }
+}
+
+/**
+ * Log a message to the MRC daemon log.
+ * Uses the global $logger once initialized; falls back to error_log() before that.
+ */
+function mrcLog(string $message, string $level = 'INFO'): void
+{
+    global $logger;
+    if ($logger instanceof Logger) {
+        $logger->log($level, $message);
+    } else {
+        error_log($message);
     }
 }
 
@@ -652,6 +667,10 @@ if (isset($args['help'])) {
 }
 
 try {
+    // Initialize logger
+    $logLevel = $args['log-level'] ?? 'INFO';
+    $logger = new Logger(\BinktermPHP\Config::getLogPath('mrc_daemon.log'), $logLevel, true);
+
     // Setup paths
     $defaultPidFile = __DIR__ . '/../data/run/mrc_daemon.pid';
     $pidFile = $args['pid-file'] ?? $defaultPidFile;
@@ -688,19 +707,19 @@ try {
 
     if (function_exists('pcntl_signal')) {
         pcntl_signal(SIGTERM, function() use (&$shutdown) {
-            error_log("MRC: Received SIGTERM, shutting down...");
+            mrcLog("MRC: Received SIGTERM, shutting down...");
             $shutdown = true;
         });
 
         pcntl_signal(SIGINT, function() use (&$shutdown) {
-            error_log("MRC: Received SIGINT, shutting down...");
+            mrcLog("MRC: Received SIGINT, shutting down...");
             $shutdown = true;
         });
     }
 
     $debugMode = isset($args['debug']);
 
-    error_log("MRC: Daemon started (PID: " . getmypid() . ")" . ($debugMode ? " [DEBUG MODE]" : ""));
+    mrcLog("MRC: Daemon started (PID: " . getmypid() . ")" . ($debugMode ? " [DEBUG MODE]" : ""));
 
     $client = new MrcClient($config);
     $client->setDebug($debugMode);
@@ -715,7 +734,7 @@ try {
         // Check if still enabled
         $config->reloadConfig();
         if (!$config->isEnabled()) {
-            error_log("MRC: Disabled in config, shutting down");
+            mrcLog("MRC: Disabled in config, shutting down");
             break;
         }
 
@@ -724,7 +743,7 @@ try {
             $now = time();
 
             if ($now - $lastReconnectAttempt >= $config->getReconnectDelay()) {
-                error_log("MRC: Attempting to connect...");
+                mrcLog("MRC: Attempting to connect...");
 
                 if ($client->connect()) {
                     updateConnectionState(true);
@@ -825,7 +844,7 @@ try {
 
         // Check keepalive timeout
         if ($client->isKeepaliveExpired()) {
-            error_log("MRC: Keepalive timeout, reconnecting...");
+            mrcLog("MRC: Keepalive timeout, reconnecting...");
             $client->disconnect();
             updateConnectionState(false);
             continue;
@@ -836,7 +855,7 @@ try {
     }
 
     // Cleanup
-    error_log("MRC: Shutting down...");
+    mrcLog("MRC: Shutting down...");
 
     if ($client->isConnected()) {
         $client->disconnect();
@@ -849,10 +868,10 @@ try {
         @unlink($pidFile);
     }
 
-    error_log("MRC: Daemon stopped");
+    mrcLog("MRC: Daemon stopped");
     exit(0);
 
 } catch (Exception $e) {
-    error_log("MRC: Fatal error: " . $e->getMessage());
+    mrcLog("MRC: Fatal error: " . $e->getMessage(), 'ERROR');
     exit(1);
 }
