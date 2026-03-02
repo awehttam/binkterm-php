@@ -87,8 +87,20 @@ class MarkdownRenderer
             if (preg_match('/^[-*]\s+(.+)$/', $line, $m)) {
                 $items = [];
                 while ($i < $total && preg_match('/^[-*]\s+(.+)$/', $lines[$i], $lm)) {
-                    $items[] = '<li>' . self::inlineHtml($lm[1]) . '</li>';
+                    $itemLines = [$lm[1]];
                     $i++;
+
+                    while (
+                        $i < $total &&
+                        trim($lines[$i]) !== '' &&
+                        preg_match('/^\s+(.+)$/', $lines[$i], $continuation) &&
+                        !preg_match('/^\s*[-*]\s+/', $lines[$i])
+                    ) {
+                        $itemLines[] = trim($continuation[1]);
+                        $i++;
+                    }
+
+                    $items[] = '<li>' . self::inlineHtml(implode(' ', $itemLines)) . '</li>';
                 }
                 $output[] = '<ul>' . implode('', $items) . '</ul>';
                 continue;

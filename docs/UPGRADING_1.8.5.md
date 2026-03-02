@@ -8,6 +8,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - Markdown renderer: fixed inline code parsing so identifiers with
   underscores such as `send_domain_in_addr` and `M_ADR` render correctly
   in upgrade notes and other locally rendered Markdown documents
+- Markdown renderer: fixed wrapped unordered-list items so Upgrade Notes
+  render correctly in the admin viewer instead of splitting a single bullet
+  into separate paragraphs
 - Binkp scheduler: fixed outbound-triggered polling so the scheduler no
   longer polls every enabled uplink once per minute whenever any outbound
   packet exists; outbound polls now only target uplinks that actually have
