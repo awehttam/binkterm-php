@@ -197,12 +197,22 @@ class TicFileProcessor
         }
 
         $content = file_get_contents($ticPath);
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
         $lines = explode("\n", $content);
 
         $ticData = [
             'Path' => [],
             'Seenby' => [],
             'LDesc' => []
+        ];
+
+        // Canonical field name map - TIC field names are case-insensitive (DOS-era software uses all-caps)
+        $keyMap = [
+            'area' => 'Area', 'file' => 'File', 'from' => 'From',
+            'pw' => 'Pw', 'desc' => 'Desc', 'ldesc' => 'LDesc',
+            'size' => 'Size', 'crc' => 'Crc', 'path' => 'Path',
+            'seenby' => 'Seenby', 'created' => 'Created', 'origin' => 'Origin',
+            'to' => 'To', 'areadesc' => 'Areadesc',
         ];
 
         foreach ($lines as $line) {
@@ -213,7 +223,7 @@ class TicFileProcessor
 
             // Parse key value pairs
             if (preg_match('/^(\w+)\s+(.+)$/i', $line, $matches)) {
-                $key = $matches[1];
+                $key = $keyMap[strtolower($matches[1])] ?? $matches[1];
                 $value = trim($matches[2]);
 
                 // Multi-line fields
