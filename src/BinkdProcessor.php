@@ -212,7 +212,7 @@ class BinkdProcessor
 
                     if ($message) {
                         // Security check: reject echomail from insecure sessions
-                        if ($isInsecureSession && !$this->isNetmailMessage($message)) {
+                        if ($isInsecureSession && !$this->isNetmailMessage($message, true)) {
                             $echomailRejected = true;
                             $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName");
                             break; // Stop processing this packet
@@ -596,7 +596,7 @@ class BinkdProcessor
     {
         // Determine if this is netmail or echomail based on FidoNet standards
         // Use comprehensive detection that works with raw message text
-        $isNetmail = $this->isNetmailMessage($message);
+        $isNetmail = $this->isNetmailMessage($message, true);
 
         if ($isNetmail) {
             $this->storeNetmail($message, $packetInfo, $isInsecureSession);
@@ -608,12 +608,25 @@ class BinkdProcessor
     /**
      * Determine if a message is netmail or echomail based on FidoNet standards
      * This function examines the raw message text before any processing
-     * 
-     * @param array $message The message array with 'text' and 'attributes'
+     *
+     * @param array $message The message array with 'text', 'attributes', 'toName', etc.
+     * @param bool $isIncomingPacket Whether this message came from an incoming FTN packet
      * @return bool true if netmail, false if echomail
      */
-    private function isNetmailMessage($message)
+    private function isNetmailMessage($message, bool $isIncomingPacket = false)
     {
+        // These checks are only reliable for externally-received packets.
+        // Internally-composed netmail may lack the Private attribute or have no toName set.
+        if ($isIncomingPacket) {
+            // Echomail broadcast: toName is "All" AND Private bit (0x0001) is not set.
+            // A real person named "All" receiving legitimate netmail would have the Private bit set.
+            $toName = $message['toName'] ?? '';
+            $privateFlag = ($message['attributes'] ?? 0) & 0x0001;
+            if (strcasecmp($toName, 'All') === 0 && !$privateFlag) {
+                return false; // Echomail broadcast without proper AREA:/SEEN-BY: headers
+            }
+        }
+
         $messageText = $message['text'] ?? '';
 
         // Normalize line endings for consistent parsing
@@ -906,6 +919,7 @@ class BinkdProcessor
         
         $lines = explode("\n", $messageText);
         $echoareaTag = 'UNKNOWN';
+        $hasAreaLine = false;
         $cleanedLines = [];
         $kludgeLines = [];
         $bottomKludges = [];
@@ -925,6 +939,8 @@ class BinkdProcessor
                 // Ensure we have a valid echoarea tag
                 if (empty($echoareaTag) || strlen($echoareaTag) > 50) {
                     $echoareaTag = 'MALFORMED';
+                } else {
+                    $hasAreaLine = true;
                 }
                 $kludgeLines[] = "AREA:" . $areaLine;   // No space after AREA:
                 continue; // Don't include AREA: line in message body
@@ -1010,6 +1026,12 @@ class BinkdProcessor
         }
         
         $messageText = implode("\n", $cleanedLines);
+
+        // Drop if no valid AREA: line was found — malformed echomail with no area tag
+        if (!$hasAreaLine) {
+            $this->log("[BINKD] Dropping echomail with no valid AREA: line from " . ($message['fromName'] ?? '?') . " <" . ($message['origAddr'] ?? '?') . "> subject=\"" . ($message['subject'] ?? '') . "\"");
+            return;
+        }
 
         // Get or create echoarea
         $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
