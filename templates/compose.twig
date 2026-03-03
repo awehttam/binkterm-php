@@ -122,11 +122,21 @@
 
                 <div class="mb-3" id="messageTextGroup">
                     <label for="messageText" class="form-label">Message *</label>
-                    <textarea class="form-control" id="messageText" name="message_text" 
+                    <!-- StyleCodes Toolbar (shown when StyleCodes markup is selected) -->
+                    <div id="stylecodesToolbar" style="display: none;" class="sc-editor-toolbar mb-1" role="toolbar" aria-label="StyleCodes formatting">
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('bold')" title="Bold (*bold*)"><strong>B</strong></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('italic')" title="Italic (/italic/)"><em>I</em></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('underline')" title="Underline (_underline_)"><u>U</u></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('inverse')" title="Inverse (#inverse#)">Inv</button>
+                        </div>
+                    </div>
+                    <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
-                    <div class="form-text">
+                    <div class="form-text" id="messageTextHint">
                         Use plain text. Fidonet standard formatting applies.
                     </div>
+                    <div class="form-text" id="scHint" style="display: none;">StyleCodes active — <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
 
                 <!-- Markdown Editor (shown when "Send as Markdown" is checked) -->
@@ -300,6 +310,7 @@ let markdownSupportTimer = null;
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;
+let scToolbarActive = false;
 const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
 
 function updateMarkdownSection(allowed) {
@@ -311,11 +322,16 @@ function updateMarkdownSection(allowed) {
             markdownPrefilled = true;
             if (replyMarkupType === 'markdown') {
                 initMarkdownEditor();
+            } else if (replyMarkupType === 'stylecodes') {
+                initStyleCodesToolbar();
             }
         }
     } else {
         if (mdEditorActive) {
             destroyMarkdownEditor();
+        }
+        if (scToolbarActive) {
+            destroyStyleCodesToolbar();
         }
         $('#markupType').val('');
         section.hide();
@@ -458,6 +474,66 @@ function destroyMarkdownEditor() {
     $('#messageTextGroup').show();
 
     mdEditorActive = false;
+}
+
+/**
+ * Show the StyleCodes toolbar above the plain textarea and attach shortcuts.
+ */
+function initStyleCodesToolbar() {
+    if (scToolbarActive) return;
+    scToolbarActive = true;
+    $('#stylecodesToolbar').show();
+    $('#scHint').show();
+    $('#messageTextHint').hide();
+
+    $('#messageText').off('keydown.sc').on('keydown.sc', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === 'b') { e.preventDefault(); scAction('bold'); }
+            if (e.key === 'i') { e.preventDefault(); scAction('italic'); }
+        }
+    });
+}
+
+/**
+ * Hide the StyleCodes toolbar and remove its keyboard shortcuts.
+ */
+function destroyStyleCodesToolbar() {
+    if (!scToolbarActive) return;
+    scToolbarActive = false;
+    $('#stylecodesToolbar').hide();
+    $('#scHint').hide();
+    $('#messageTextHint').show();
+    $('#messageText').off('keydown.sc');
+}
+
+/**
+ * Apply a StyleCode wrapper around the current selection in #messageText.
+ * @param {string} action - 'bold', 'italic', 'underline', or 'inverse'
+ */
+function scAction(action) {
+    const ta = document.getElementById('messageText');
+    if (!ta) return;
+
+    const ch = { bold: '*', italic: '/', underline: '_', inverse: '#' }[action];
+    if (!ch) return;
+    const ph = { bold: 'bold text', italic: 'italic text', underline: 'underlined text', inverse: 'inverse text' }[action];
+
+    const start = ta.selectionStart;
+    const end   = ta.selectionEnd;
+    const sel   = ta.value.substring(start, end);
+    const before = ta.value.substring(0, start);
+    const after  = ta.value.substring(end);
+
+    if (sel) {
+        ta.value = before + ch + sel + ch + after;
+        ta.selectionStart = start + 1;
+        ta.selectionEnd   = end + 1;
+    } else {
+        ta.value = before + ch + ph + ch + after;
+        ta.selectionStart = start + 1;
+        ta.selectionEnd   = start + 1 + ph.length;
+    }
+    ta.focus();
 }
 
 /**
@@ -710,14 +786,18 @@ $(document).ready(function() {
         sendMessage();
     });
 
-    // Markup type selector — show/hide markdown editor based on selection
+    // Markup type selector — show/hide editors based on selection
     $('#markupType').on('change', function() {
-        if ($(this).val() === 'markdown') {
+        const val = $(this).val();
+        if (val === 'markdown') {
+            if (scToolbarActive) destroyStyleCodesToolbar();
             initMarkdownEditor();
+        } else if (val === 'stylecodes') {
+            if (mdEditorActive) destroyMarkdownEditor();
+            initStyleCodesToolbar();
         } else {
-            if (mdEditorActive) {
-                destroyMarkdownEditor();
-            }
+            if (mdEditorActive) destroyMarkdownEditor();
+            if (scToolbarActive) destroyStyleCodesToolbar();
         }
     });
 
