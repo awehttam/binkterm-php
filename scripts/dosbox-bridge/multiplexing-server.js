@@ -392,10 +392,22 @@ class SessionManager {
                 if (fs.existsSync(manifestPath)) {
                     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
                     if (manifest.door && manifest.door.dropfile_path) {
-                        // Use custom dropfile path from manifest (e.g., "\DOORS\BRE")
-                        const customPath = manifest.door.dropfile_path.replace(/\\/g, '/');
-                        dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', customPath);
-                        console.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
+                        // Sanitize custom dropfile_path to prevent directory traversal
+                        // Replace backslashes, strip leading slashes, normalize
+                        const rawPath = manifest.door.dropfile_path.replace(/\\/g, '/').replace(/^\/+/, '');
+                        const normalized = path.normalize(rawPath);
+                        const safeBase = path.resolve(BASE_PATH, 'dosbox-bridge', 'dos');
+                        const segments = normalized.split(path.sep);
+                        const resolved = path.resolve(safeBase, normalized);
+                        if (!path.isAbsolute(normalized) &&
+                            segments.every(seg => seg !== '..') &&
+                            (resolved === safeBase || resolved.startsWith(safeBase + path.sep))) {
+                            dropPath = resolved;
+                            console.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
+                        } else {
+                            console.warn(`[DROPFILE] Custom dropfile_path '${rawPath}' rejected (traversal or absolute), using default`);
+                            dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
+                        }
                     } else {
                         dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
                         console.log(`[DROPFILE] Using default node-based dropfile path: ${dropPath}`);

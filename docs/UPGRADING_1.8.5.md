@@ -42,6 +42,12 @@ Make sure you've made a backup of your database and files before upgrading.
 **Configuration Changes**
 - `binkp.json`: the uplink key `allow_markdown` has been renamed to `allow_markup` to reflect that the setting controls all markup formats, not just Markdown. The upgrade migration (`v1.10.17`) renames the key automatically in `data/binkp.json`. If you manage your config manually, update any `allow_markdown` keys to `allow_markup`.
 
+**Security Fixes**
+- DOS door bridge: `dropfile_path` values in `dosdoor.jsn` manifests are now validated to prevent directory traversal; paths containing `..` segments or absolute paths are rejected and fall back to the default per-node drop directory
+- Admin daemon: `save_native_doors_config` and `save_dosdoors_config` now reject non-object JSON payloads (e.g. scalars such as `true` or `1`) that would previously cause a fatal error when passed to the config writer
+- Admin daemon: config write helpers now throw on `mkdir` or `file_put_contents` failure instead of silently returning success to the caller
+- BBSLink native door: `bbslink.sh` now validates that both required arguments (door code and user number) are provided before proceeding, and checks for `telnet` at startup alongside the existing `curl` check; `vars.sh` is now resolved relative to the script's own directory rather than the working directory
+
 **Bug Fixes**
 - Markdown renderer: fixed inline code parsing so identifiers with
   underscores such as `send_domain_in_addr` and `M_ADR` render correctly

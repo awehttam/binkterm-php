@@ -395,7 +395,7 @@ class AdminDaemonServer
                         break;
                     }
                     $decoded = json_decode($json, true);
-                    if (json_last_error() !== JSON_ERROR_NONE) {
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
                         break;
                     }
@@ -409,7 +409,7 @@ class AdminDaemonServer
                         break;
                     }
                     $decoded = json_decode($json, true);
-                    if (json_last_error() !== JSON_ERROR_NONE) {
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
                         break;
                     }
@@ -923,8 +923,8 @@ class AdminDaemonServer
     {
         $configPath = $this->getDosdoorsConfigPath();
         $configDir = dirname($configPath);
-        if (!is_dir($configDir)) {
-            mkdir($configDir, 0755, true);
+        if (!is_dir($configDir) && mkdir($configDir, 0755, true) === false && !is_dir($configDir)) {
+            throw new \RuntimeException("Failed to create config directory: $configDir");
         }
 
         $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -932,7 +932,9 @@ class AdminDaemonServer
             throw new \RuntimeException('Failed to encode dosdoors config');
         }
 
-        file_put_contents($configPath, $json . PHP_EOL);
+        if (file_put_contents($configPath, $json . PHP_EOL) === false) {
+            throw new \RuntimeException("Failed to write dosdoors config: $configPath");
+        }
     }
 
     private function getDosdoorsConfigPath(): string
@@ -957,8 +959,8 @@ class AdminDaemonServer
     {
         $configPath = $this->getNativeDoorsConfigPath();
         $configDir = dirname($configPath);
-        if (!is_dir($configDir)) {
-            mkdir($configDir, 0755, true);
+        if (!is_dir($configDir) && mkdir($configDir, 0755, true) === false && !is_dir($configDir)) {
+            throw new \RuntimeException("Failed to create config directory: $configDir");
         }
 
         $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -966,7 +968,9 @@ class AdminDaemonServer
             throw new \RuntimeException('Failed to encode native doors config');
         }
 
-        file_put_contents($configPath, $json . PHP_EOL);
+        if (file_put_contents($configPath, $json . PHP_EOL) === false) {
+            throw new \RuntimeException("Failed to write native doors config: $configPath");
+        }
     }
 
     private function getNativeDoorsConfigPath(): string

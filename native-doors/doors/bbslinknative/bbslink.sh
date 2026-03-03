@@ -61,12 +61,19 @@ if ! command -v curl &> /dev/null; then
 	exit 1
 fi
 
-if [ ! -r ./vars.sh ]; then
+if ! command -v telnet &> /dev/null; then
+	echo "SYSOP: telnet is not installed"
+	exit 1
+fi
+
+DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+if [ ! -r "$DIR/vars.sh" ]; then
 	echo "SYSOP: copy vars.sh.example to vars.sh and edit with your settings"
 	exit 1
 fi
 
-source ./vars.sh
+source "$DIR/vars.sh"
 
 # *******************************************************
 # * DO NOT EDIT BELOW THIS LINE 			*
@@ -78,8 +85,17 @@ scriptver="$version"
 # *******************************************************
 # * PROCESS ARRGUMENTS		                        *
 # *******************************************************
-if [ "$#" -lt 3 ]; then
- 	# *******************************************************
+if [ "$#" -lt 2 ]; then
+        echo ""
+        echo "Usage: bbslink.sh [Door Code] [User Number]"
+        echo "Requires 2 arguments: door code and user number"
+        echo ""
+        echo "Example:"
+        echo "bbslink.sh lord 27"
+        echo ""
+        exit 1
+else
+	# *******************************************************
 	# * GET COMMAND-LINE PARAMETERS                         *
 	# *******************************************************
 	doorcode="$1"
@@ -87,7 +103,7 @@ if [ "$#" -lt 3 ]; then
 	# *******************************************************
 	# * Generate random 32 character alphanumeric string 	*
 	# * (upper and lowercase)				*
-	# ******************************************************* 
+	# *******************************************************
 	xkey=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 6 | head -n 1)
 	# *******************************************************
 	# * Get Token from BBSLink				*
@@ -124,15 +140,6 @@ if [ "$#" -lt 3 ]; then
 		echo "Error: $result"
 		exit 1
 	fi
-else
-        echo ""
-        echo "Usage: bbslink.sh [Door Code] [User Number]"
-        echo ""
-        echo ""
-	echo "Mystic BBS Example:"
-	echo "bbslink.sh lord %#"
-        echo ""
-        exit 1
 fi
 
 exit 0
