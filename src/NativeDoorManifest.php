@@ -70,6 +70,17 @@ class NativeDoorManifest
     }
 
     /**
+     * Validate a door ID against a strict whitelist to prevent directory traversal.
+     *
+     * @param string $doorId
+     * @return bool
+     */
+    private function isValidDoorId(string $doorId): bool
+    {
+        return $doorId !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $doorId) === 1;
+    }
+
+    /**
      * Get manifest for a specific door
      *
      * @param string $doorId Door identifier (directory name)
@@ -77,6 +88,10 @@ class NativeDoorManifest
      */
     public function getDoorManifest(string $doorId): ?array
     {
+        if (!$this->isValidDoorId($doorId)) {
+            return null;
+        }
+
         if (isset($this->manifestCache[$doorId])) {
             return $this->manifestCache[$doorId];
         }
@@ -176,6 +191,10 @@ class NativeDoorManifest
      */
     public function isDoorInstalled(string $doorId): bool
     {
+        if (!$this->isValidDoorId($doorId)) {
+            return false;
+        }
+
         $doorPath = $this->doorsBasePath . '/' . $doorId;
         $manifestPath = $doorPath . '/nativedoor.json';
 

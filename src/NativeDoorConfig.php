@@ -59,7 +59,7 @@ class NativeDoorConfig
     public static function isDoorSystemEnabled(): bool
     {
         self::load();
-        return self::$config !== null;
+        return !empty(self::$config);
     }
 
     /**

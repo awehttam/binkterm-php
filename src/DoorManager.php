@@ -185,8 +185,14 @@ class DoorManager
         $errors = [];
 
         foreach ($allDoors as $doorId => $door) {
-            // Only sync enabled doors
             if (empty($door['config']['enabled'])) {
+                // Door is disabled — remove from dosbox_doors if it was previously synced
+                try {
+                    $stmt = $db->prepare("DELETE FROM dosbox_doors WHERE door_id = ? AND door_type = 'dos'");
+                    $stmt->execute([$doorId]);
+                } catch (\Exception $e) {
+                    $errors[] = "Failed to remove disabled door '$doorId': " . $e->getMessage();
+                }
                 continue;
             }
 

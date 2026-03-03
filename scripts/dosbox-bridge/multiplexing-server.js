@@ -411,6 +411,9 @@ class SessionManager {
                 console.log(`[DROPFILE] Created drop directory: ${dropPath}`);
             }
 
+            // Store so cleanupSessionFiles can remove the right drop file
+            session.dropPath = dropPath;
+
             // Determine dropfile format (native doors can specify DOOR32.SYS)
             let dropfileFormat = 'DOOR.SYS';
             if (emulatorName === 'Native') {
@@ -1030,7 +1033,8 @@ class SessionManager {
             }
 
             // Remove DOOR.SYS file from drop directory
-            const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
+            const dropPath = session.dropPath ||
+                path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
             const doorSysPath = path.join(dropPath, 'DOOR.SYS');
             if (fs.existsSync(doorSysPath)) {
                 fs.unlinkSync(doorSysPath);

@@ -589,9 +589,31 @@ class NativeAdapter extends EmulatorAdapter {
         launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
         launchCmd = launchCmd.replace(/\{user_number\}/g, String(sessionData.user_id || ''));
 
-        const parts = launchCmd.split(' ');
-        const cmd = parts[0];
-        const args = parts.slice(1);
+        // Shell-style tokenizer: respects single/double-quoted segments so paths
+        // with spaces (e.g. basePath or substituted {dropfile}) are kept intact.
+        const argv = [];
+        let token = '';
+        let inSingle = false;
+        let inDouble = false;
+        for (let i = 0; i < launchCmd.length; i++) {
+            const ch = launchCmd[i];
+            if (inSingle) {
+                if (ch === "'") inSingle = false; else token += ch;
+            } else if (inDouble) {
+                if (ch === '"') inDouble = false; else token += ch;
+            } else if (ch === "'") {
+                inSingle = true;
+            } else if (ch === '"') {
+                inDouble = true;
+            } else if (ch === ' ' || ch === '\t') {
+                if (token.length > 0) { argv.push(token); token = ''; }
+            } else {
+                token += ch;
+            }
+        }
+        if (token.length > 0) argv.push(token);
+        const cmd = argv.shift();
+        const args = argv;
         const doorDir = path.join(this.basePath, 'native-doors', 'doors', door_id);
 
         // Parse user data for environment variables
@@ -601,7 +623,7 @@ class NativeAdapter extends EmulatorAdapter {
 
         const env = {
             ...process.env,
-            DOOR_USER_NAME: userData.real_name || 'Guest',
+            DOOR_USER_NAME: userData.handle || userData.username || 'Guest',
             DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
             DOOR_USER_NUMBER: String(sessionData.user_id || ''),
             DOOR_NODE: String(node_number),
