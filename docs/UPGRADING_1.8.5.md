@@ -5,6 +5,7 @@ Make sure you've made a backup of your database and files before upgrading.
 ## Summary of Changes
 
 **New Features**
+- Economy viewer: admins now have a dedicated **Admin -> Economy Viewer** page that summarizes the credits economy with circulation totals, period transaction flow, transaction-type breakdowns, top earners/spenders, richest accounts, and recent ledger activity
 - Native Doors: run Linux programs natively as BBS doors with no emulator required; manage via Admin → Native Doors (see below)
 - Door `launch_command`: all door types (DOS and native) now support a `{user_number}` placeholder that is substituted with the BBS user's numeric ID at launch time; native doors also receive it as the `DOOR_USER_NUMBER` environment variable
 - Telnet gateway: native doors now appear alongside DOS doors in the telnet door menu
