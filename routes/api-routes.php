@@ -3148,7 +3148,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $input = json_decode(file_get_contents('php://input'), true);
         $type = $input['type'] ?? '';
-        $sendMarkdown = !empty($input['send_markdown']);
+        // Support both new markup_type and legacy send_markdown for backwards compatibility
+        $markupType = $input['markup_type'] ?? (empty($input['send_markdown']) ? null : 'markdown');
 
         $handler = new MessageHandler();
 
@@ -3185,7 +3186,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $crashmailFlag,
                     $input['tagline'] ?? null,
                     $attachment,
-                    $sendMarkdown
+                    $markupType
                 );
             } elseif ($type === 'echomail') {
                 $foo=explode("@", $input['echoarea']);
@@ -3202,7 +3203,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $input['reply_to_id'],
                     $input['tagline'] ?? null,
                     false,
-                    $sendMarkdown
+                    $markupType
                 );
 
                 // Handle cross-posting to additional areas
@@ -3235,7 +3236,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                                 null,
                                 $input['tagline'] ?? null,
                                 true,
-                                $sendMarkdown
+                                $markupType
                             );
                             $crossPostCount++;
                         } catch (\Exception $e) {

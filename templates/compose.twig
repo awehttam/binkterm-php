@@ -177,13 +177,13 @@
                 </div>
 
                 <div class="mb-3" id="markdownSection" style="display: none;">
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="sendMarkdown" name="send_markdown">
-                        <label class="form-check-label" for="sendMarkdown">
-                            <i class="fab fa-markdown me-1"></i>Send as Markdown
-                        </label>
-                        <div class="form-text">Adds the MARKDOWN kludge for compatible networks.</div>
-                    </div>
+                    <label class="form-label" for="markupType">Markup Format</label>
+                    <select class="form-select" id="markupType" name="markup_type">
+                        <option value="">Plain text</option>
+                        <option value="markdown">Markdown</option>
+                        <option value="stylecodes">StyleCodes (GoldEd, SemPoint Rich Text, Synchronet Markup)</option>
+                    </select>
+                    <div class="form-text">Send with markup formatting. Markdown and StyleCodes are supported on compatible networks.</div>
                 </div>
 
                 <div class="mb-3">
@@ -300,22 +300,24 @@ let markdownSupportTimer = null;
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;
-const replyIsMarkdown = {{ reply_is_markdown ? 'true' : 'false' }};
+const replyMarkupType = '{{ reply_markup_type|default("") }}';
 
 function updateMarkdownSection(allowed) {
     const section = $('#markdownSection');
     if (allowed) {
         section.show();
-        if (replyIsMarkdown && !markdownPrefilled) {
-            $('#sendMarkdown').prop('checked', true);
+        if (replyMarkupType && !markdownPrefilled) {
+            $('#markupType').val(replyMarkupType);
             markdownPrefilled = true;
-            initMarkdownEditor();
+            if (replyMarkupType === 'markdown') {
+                initMarkdownEditor();
+            }
         }
     } else {
         if (mdEditorActive) {
             destroyMarkdownEditor();
         }
-        $('#sendMarkdown').prop('checked', false);
+        $('#markupType').val('');
         section.hide();
     }
 }
@@ -708,12 +710,14 @@ $(document).ready(function() {
         sendMessage();
     });
 
-    // Markdown editor toggle
-    $('#sendMarkdown').on('change', function() {
-        if ($(this).is(':checked')) {
+    // Markup type selector — show/hide markdown editor based on selection
+    $('#markupType').on('change', function() {
+        if ($(this).val() === 'markdown') {
             initMarkdownEditor();
         } else {
-            destroyMarkdownEditor();
+            if (mdEditorActive) {
+                destroyMarkdownEditor();
+            }
         }
     });
 
@@ -917,7 +921,7 @@ function sendMessage() {
             crashmail: $('#crashmail').is(':checked'),
             tagline: $('#taglineSelect').val(),
             cross_post_areas: crossPostAreas,
-            send_markdown: $('#sendMarkdown').length ? $('#sendMarkdown').is(':checked') : false
+            markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null
         };
 
     // Show sending status

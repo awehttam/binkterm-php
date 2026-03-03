@@ -689,7 +689,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $sendMarkdown = false)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -713,13 +713,14 @@ class MessageHandler
 
         $messageText = $this->applyUserSignatureAndTagline($messageText, $fromUserId, $tagline ?? null);
 
-        $sendMarkdown = !empty($sendMarkdown);
-        $markdownAllowed = false;
+        $markupAllowed = null;
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $markdownAllowed = $sendMarkdown && $binkpConfig->isMarkdownAllowedForDestination($toAddress);
+            if ($markupType !== null && $binkpConfig->isMarkdownAllowedForDestination($toAddress)) {
+                $markupAllowed = $markupType;
+            }
         } catch (\Exception $e) {
-            $markdownAllowed = false;
+            $markupAllowed = null;
         }
 
         // Special case: if sending to "sysop" at our local system, route to local sysop user
@@ -728,7 +729,7 @@ class MessageHandler
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                 // Only route locally if destination is one of our addresses (or no address specified)
                 if (empty($toAddress) || $binkpConfig->isMyAddress($toAddress)) {
-                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null, $markdownAllowed);
+                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null, $markupAllowed);
                 }
             } catch (\Exception $e) {
                 // If we can't get config, fall through to normal send
@@ -795,7 +796,7 @@ class MessageHandler
         }
 
         // Generate kludges for this netmail
-        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId, null, $markdownAllowed);
+        $kludgeLines = $this->generateNetmailKludges($originAddress, $toAddress, $senderName, $toName, $subject, $replyToId, null, $markupAllowed);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -878,7 +879,7 @@ class MessageHandler
         return $result;
     }
 
-    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $sendMarkdown = false)
+    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $markupType = null)
     {
         // Get sysop name from config
         try {
@@ -918,7 +919,7 @@ class MessageHandler
         $senderName = $fromName ?: ($senderUser['real_name'] ?: $senderUser['username']);
 
         // Generate kludges for this local netmail
-        $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId, null, !empty($sendMarkdown));
+        $kludgeLines = $this->generateNetmailKludges($systemAddress, $systemAddress, $senderName, $sysopName, $subject, $replyToId, null, $markupType);
 
         // Extract MSGID from generated kludges to ensure consistency
         $msgId = null;
@@ -965,7 +966,7 @@ class MessageHandler
     /**
      * @param bool $skipCredits If true, skip awarding credits (used for cross-posted copies)
      */
-    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $sendMarkdown = false)
+    public function postEchomail($fromUserId, $echoareaTag, $domain, $toName, $subject, $messageText, $replyToId = null, $tagline = null, $skipCredits = false, $markupType = null)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -1003,15 +1004,17 @@ class MessageHandler
         // Generate kludges for this echomail
         $fromName = $user['real_name'] ?: $user['username'];
         $toName = $toName ?: 'All';
-        $markdownAllowed = false;
+        $markupAllowed = null;
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
-            $markdownAllowed = !empty($sendMarkdown) && ($isLocalArea || $binkpConfig->isMarkdownAllowedForDomain($domain));
+            if ($markupType !== null && ($isLocalArea || $binkpConfig->isMarkdownAllowedForDomain($domain))) {
+                $markupAllowed = $markupType;
+            }
         } catch (\Exception $e) {
-            $markdownAllowed = false;
+            $markupAllowed = null;
         }
 
-        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markdownAllowed);
+        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -2858,15 +2861,17 @@ class MessageHandler
     /**
      * Generate kludge lines for netmail messages
      */
-    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null, $replyToAddress = null, $markdown = false)
+    private function generateNetmailKludges($fromAddress, $toAddress, $fromName, $toName, $subject, $replyToId = null, $replyToAddress = null, $markupType = null)
     {
         $kludgeLines = [];
-        
+
         // Add CHRS kludge for UTF-8 encoding
         $kludgeLines[] = "\x01CHRS: UTF-8 4";
 
-        if ($markdown) {
+        if ($markupType === 'markdown') {
             $kludgeLines[] = "\x01MARKUP: Markdown 1.0";
+        } elseif ($markupType === 'stylecodes') {
+            $kludgeLines[] = "\x01MARKUP: StyleCodes 1.0";
         }
 
         // Add TZUTC kludge line for netmail
@@ -2926,15 +2931,17 @@ class MessageHandler
     /**
      * Generate kludge lines for echomail messages
      */
-    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null, $markdown = false)
+    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null, $markupType = null)
     {
         $kludgeLines = [];
 
         // Add CHRS kludge for UTF-8 encoding
         $kludgeLines[] = "\x01CHRS: UTF-8 4 ";
 
-        if ($markdown) {
+        if ($markupType === 'markdown') {
             $kludgeLines[] = "\x01MARKUP: Markdown 1.0";
+        } elseif ($markupType === 'stylecodes') {
+            $kludgeLines[] = "\x01MARKUP: StyleCodes 1.0";
         }
 
         // Add TZUTC kludge line for echomail

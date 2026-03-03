@@ -111,6 +111,51 @@ function hasMarkdownKludge(array $message): bool {
 }
 
 /**
+ * Get the markup type of a message based on its kludge lines.
+ *
+ * Returns the format string (e.g. 'markdown', 'stylecodes') or null if no
+ * markup kludge is present.  Recognises:
+ *   ^AMARKUP: <Format> <version>  (LSC-001 Draft 2)
+ *   ^AMARKDOWN: <version>         (legacy — treated as 'markdown')
+ *
+ * @param array $message Message array with kludge_lines/bottom_kludges/message_text
+ * @return string|null
+ */
+function getMessageMarkupType(array $message): ?string {
+    $kludgeText = '';
+    if (!empty($message['kludge_lines'])) {
+        $kludgeText .= $message['kludge_lines'];
+    }
+    if (!empty($message['bottom_kludges'])) {
+        $kludgeText .= ($kludgeText !== '' ? "\n" : '') . $message['bottom_kludges'];
+    }
+
+    if ($kludgeText !== '') {
+        if (preg_match('/^\x01MARKUP:\s+([\w]+)\s+[\d.]+/mi', $kludgeText, $m)) {
+            return strtolower($m[1]);
+        }
+        if (preg_match('/^\x01MARKDOWN:\s*\d+/mi', $kludgeText)) {
+            return 'markdown';
+        }
+    }
+
+    $messageText = $message['message_text'] ?? '';
+    if ($messageText !== '') {
+        $lines = preg_split('/\r\n|\r|\n/', $messageText);
+        foreach ($lines as $line) {
+            if (preg_match('/^\x01MARKUP:\s+([\w]+)\s+[\d.]+/i', $line, $m)) {
+                return strtolower($m[1]);
+            }
+            if (preg_match('/^\x01MARKDOWN:\s*\d+/i', $line)) {
+                return 'markdown';
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
  * Generate initials from a person's name for echomail quoting
  * Examples: "Mark Anderson" -> "MA", "John" -> "JO", "Mary Jane Smith" -> "MS"
  */

@@ -10,6 +10,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Telnet gateway: native doors now appear alongside DOS doors in the telnet door menu
 - Markup kludge: outbound messages now use `^AMARKUP: Markdown 1.0` per LSC-001 Draft 2; the legacy `^AMARKDOWN:` kludge continues to be recognised in received messages for backwards compatibility
 - StyleCodes rendering: messages with `^AMARKUP: StyleCodes 1.0` (Synchronet Message Markup) are now rendered in the message reader; supported codes: `*bold*`, `/italics/`, `_underlined_`, `#inverse#`
+- Compose screen: the "Send as Markdown" checkbox is replaced with a **Markup Format** selector that lets you choose Plain text, Markdown, or StyleCodes when composing messages
 
 **Improvements**
 - Outbound dispatch: newly spooled netmail and echomail now trigger an
@@ -34,6 +35,9 @@ Make sure you've made a backup of your database and files before upgrading.
   systems to process an inbound packet and return a response in the same
   session; sent packets are cleaned up correctly regardless of whether the
   remote sends `M_GOT` before or after `M_EOB`
+
+**Removed**
+- BBSLink WebDoor (`public_html/webdoors/bbslink/`) has been removed. It is replaced by the BBSLink native door (`bbslinknative`), which connects directly via PTY. If you had BBSLink configured as a WebDoor, disable it in Admin → WebDoors before upgrading, then set up the native door version as described in the Native Door Support section below.
 
 **Configuration Changes**
 - `binkp.json`: the uplink key `allow_markdown` has been renamed to `allow_markup` to reflect that the setting controls all markup formats, not just Markdown. The upgrade migration (`v1.10.17`) renames the key automatically in `data/binkp.json`. If you manage your config manually, update any `allow_markdown` keys to `allow_markup`.
