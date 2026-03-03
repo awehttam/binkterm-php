@@ -198,7 +198,7 @@ class DoorManager
 
             try {
                 // Check if door exists in database
-                $stmt = $db->prepare("SELECT id FROM dosbox_doors WHERE door_id = ?");
+                $stmt = $db->prepare("SELECT id FROM dosbox_doors WHERE door_id = ? AND door_type = 'dos'");
                 $stmt->execute([$doorId]);
                 $exists = $stmt->fetch();
 
@@ -215,7 +215,7 @@ class DoorManager
                             config = ?,
                             enabled = ?,
                             updated_at = NOW()
-                        WHERE door_id = ?
+                        WHERE door_id = ? AND door_type = 'dos'
                     ");
                     $stmt->execute([
                         $door['name'],
@@ -230,8 +230,8 @@ class DoorManager
                     // Insert new door
                     $stmt = $db->prepare("
                         INSERT INTO dosbox_doors
-                        (door_id, name, description, executable, path, config, enabled)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (door_id, name, description, executable, path, config, enabled, door_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'dos')
                     ");
                     $stmt->execute([
                         $doorId,

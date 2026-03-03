@@ -300,7 +300,7 @@ let markdownSupportTimer = null;
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;
-const replyMarkupType = '{{ reply_markup_type|default("") }}';
+const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
 
 function updateMarkdownSection(allowed) {
     const section = $('#markdownSection');
