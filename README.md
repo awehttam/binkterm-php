@@ -1569,7 +1569,7 @@ credentials with the remote system.
 
 ## Authentication Flow
 
-1.  **Handshake Initiation**: A user visits the BBS and hits (for example) a link like `/bbslink/`.
+1.  **Handshake Initiation**: A user visits the BBS and hits (for example).
 2.  **Redirect**: The BBS generates a temporary, single-use token and redirects the user to the remote gateway URL (e.g., `https://remote-door.com/login?userid=123&token=abc...`).
 3.  **Back-Channel Validation**: The remote gateway receives the user. Before granting access, it makes a server-to-server POST request back to the BBS with its **API Key**, the **UserID**, and the **Token**.
 4.  **Verification**: The BBS validates the request. If successful, the gateway receives the user's profile information and initiates a local session.
@@ -1767,7 +1767,6 @@ BinktermPHP ships with the following WebDoors out of the box:
 
 **Utilities:**
 - **MRC Chat** - Real-time multi-BBS chat connecting to the MRC network (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
-- **BBSLink** - Gateway to classic DOS door games via BBSLink service
 - **Community Wireless Node List** - Interactive map for discovering and sharing community wireless networks, mesh networks, and grassroots infrastructure
 - **Source Games** - Live server browser for Source engine games (TF2, CS:GO) with real-time stats
 - **Terminal** - Web-based SSH terminal for system access
