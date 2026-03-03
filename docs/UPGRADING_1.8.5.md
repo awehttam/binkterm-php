@@ -21,6 +21,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of the PHP error log; log level is controllable via `--log-level`
 - Message reader: ANSI art in message bodies no longer displays inside a black box with a scrollbar; styling is now consistent with standalone ANSI art displays
 - BinkP session: `binkp_poll` now completes promptly after sending mail to non-conformant remotes (those that send `M_EOB` without `M_GOT`); sessions terminate after 30 seconds of inactivity rather than the full session timeout, while preserving a window for areafix and similar systems to process an inbound packet and return a response in the same session; sent packets are cleaned up correctly regardless of whether the remote sends `M_GOT` before or after `M_EOB`
+- TIC processor: `FILE_ID.DIZ` inside ZIP archives is now read (case-insensitively) to populate file descriptions when the TIC file provides none
 
 **Removed**
 - BBSLink WebDoor (`public_html/webdoors/bbslink/`) has been removed. It is replaced by the BBSLink native door (`bbslinknative`), which runs natively. If you had BBSLink configured as a WebDoor, disable it in Admin → WebDoors before upgrading, then set up the native door version as described in the Native Door Support section below.
@@ -46,10 +47,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - Packet processor: fixed echomail misclassified as netmail when the incoming packet is missing its `AREA:` line; the secondary scan loop had a logic error causing it to exit after one iteration, and `SEEN-BY`/`PATH` detection now scans the full message instead of only the first ten lines
 - Packet processor: fixed broadcast echomail (addressed `To: All` with no Private attribute) from newsletter-style gateways being stored as netmail when the message lacks `AREA:`/`SEEN-BY:`/`PATH:` headers; such messages are now correctly identified as echomail and dropped with a log entry rather than polluting the netmail inbox
 - TIC processor: fixed TIC files from DOS-era FTN software being rejected with "Missing required TIC field: Area" when field names are uppercase (e.g. `AREA` instead of `Area`); field names are now matched case-insensitively; also fixed TIC files with bare `\r` line endings failing to parse
-- TIC processor: `FILE_ID.DIZ` inside ZIP archives is now read (case-insensitively) to populate file descriptions when the TIC file provides none
 - Mobile message reader: fixed swipe-to-navigate triggering while scrolling wide ANSI art horizontally; the boundary check now uses the scroll position captured at touch start rather than the position after native scrolling has already occurred
 - BinkP server: fixed inbound sessions not including the network domain in the `M_ADR` address; the `send_domain_in_addr` flag was only applied to outbound calls — inbound connections now respect it too
-- Native doors: fixed icon and screenshot assets not being served; the `/door-assets/` route was only looking in the DOS door directory
 
 ## Native Door Support
 
