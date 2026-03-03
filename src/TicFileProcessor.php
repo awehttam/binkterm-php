@@ -69,6 +69,9 @@ class TicFileProcessor
             // Parse TIC file
             $ticData = $this->parseTicFile($ticPath);
 
+            // Supplement missing descriptions from FILE_ID.DIZ inside the archive
+            $this->enrichFromFileIdDiz($ticData, $filePath);
+
             // Determine domain for this TIC (based on From address)
             $domain = $this->getDomainFromTicData($ticData);
 
@@ -190,6 +193,60 @@ class TicFileProcessor
      * @return array Parsed TIC data
      * @throws \Exception If TIC file is invalid
      */
+
+    /**
+     * Supplement $ticData descriptions from FILE_ID.DIZ inside a ZIP archive.
+     * Only fills fields that are absent or empty in the TIC data; explicit TIC
+     * Desc/LDesc values always take precedence.
+     *
+     * @param array  $ticData   TIC data array, modified in place
+     * @param string $filePath  Path to the data file accompanying the TIC
+     */
+    protected function enrichFromFileIdDiz(array &$ticData, string $filePath): void
+    {
+        if (strtolower(pathinfo($filePath, PATHINFO_EXTENSION)) !== 'zip') {
+            return;
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($filePath) !== true) {
+            return;
+        }
+
+        // Locate FILE_ID.DIZ case-insensitively (may appear as file_id.diz, FILE_ID.DIZ, etc.)
+        $dizContent = null;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (strcasecmp(basename($name), 'FILE_ID.DIZ') === 0) {
+                $dizContent = $zip->getFromIndex($i);
+                break;
+            }
+        }
+        $zip->close();
+
+        if ($dizContent === false || $dizContent === null || trim($dizContent) === '') {
+            return;
+        }
+
+        $dizContent = str_replace(["\r\n", "\r"], "\n", $dizContent);
+        $lines = array_values(array_filter(array_map('rtrim', explode("\n", $dizContent)), fn($l) => $l !== ''));
+
+        if (empty($lines)) {
+            return;
+        }
+
+        // Use first line as short description if TIC provided none
+        if (empty($ticData['Desc'])) {
+            $ticData['Desc'] = mb_substr($lines[0], 0, 255);
+        }
+
+        // Use full DIZ content as long description if TIC provided none
+        if (empty($ticData['LDesc'])) {
+            $ticData['LDesc'] = $lines;
+            $this->log("Populated description from FILE_ID.DIZ in " . basename($filePath));
+        }
+    }
+
     protected function parseTicFile(string $ticPath): array
     {
         if (!file_exists($ticPath)) {
