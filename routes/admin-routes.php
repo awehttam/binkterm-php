@@ -200,6 +200,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
     });
 
+    SimpleRouter::get('/economy', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/economy.twig');
+    });
+
     // API routes for admin
     SimpleRouter::group(['prefix' => '/api'], function() {
 
@@ -327,6 +334,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
             $stats = $adminController->getSystemStats();
             echo json_encode($stats);
+        });
+
+        SimpleRouter::get('/economy', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            $period = $_GET['period'] ?? '30d';
+
+            header('Content-Type: application/json');
+            echo json_encode($adminController->getEconomyStats($period));
         });
 
         // Chat rooms

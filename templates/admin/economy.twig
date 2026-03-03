@@ -1,0 +1,425 @@
+{% extends "base.twig" %}
+
+{% block title %}Economy Viewer{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Economy Viewer</h1>
+        <div class="d-flex align-items-center gap-2">
+            <label class="me-1 mb-0 text-muted small" for="period-select">Period:</label>
+            <select id="period-select" class="form-select form-select-sm" style="width:auto">
+                <option value="7d">Last 7 Days</option>
+                <option value="30d" selected>Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="all">All Time</option>
+            </select>
+            <a href="/admin" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div id="economy-alert"></div>
+
+    <div id="loading-indicator" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Loading economy statistics...</p>
+    </div>
+
+    <div id="economy-content" style="display:none">
+        <div class="row mb-4" id="summary-cards"></div>
+
+        <div class="row mb-4">
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Period Snapshot</strong></div>
+                    <div class="card-body">
+                        <div class="row gy-3">
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Transactions</div>
+                                <div class="h4 mb-0" id="snapshot-transactions">0</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Active Users</div>
+                                <div class="h4 mb-0" id="snapshot-users">0</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Credits Earned</div>
+                                <div class="h4 mb-0 text-success" id="snapshot-earned">0</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Credits Spent</div>
+                                <div class="h4 mb-0 text-danger" id="snapshot-spent">0</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="text-muted small text-uppercase">Net Flow</div>
+                                <div class="h4 mb-0" id="snapshot-net">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Current Distribution</strong></div>
+                    <div class="card-body">
+                        <div class="row gy-3">
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Funded Users</div>
+                                <div class="h4 mb-0" id="distribution-funded">0</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Average Balance</div>
+                                <div class="h4 mb-0" id="distribution-average">0</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Median Balance</div>
+                                <div class="h4 mb-0" id="distribution-median">0</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="text-muted small text-uppercase">Largest Balance</div>
+                                <div class="h4 mb-0" id="distribution-largest">0</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="text-muted small text-uppercase">Richest User</div>
+                                <div class="h5 mb-0" id="distribution-richest-user">n/a</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-xl-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Transaction Types</strong></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th class="text-end">Count</th>
+                                        <th class="text-end">Net</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="type-rows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Top Earners</strong></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th class="text-end">Earned</th>
+                                        <th class="text-end">Tx</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="earner-rows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Top Spenders</strong></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th class="text-end">Spent</th>
+                                        <th class="text-end">Tx</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="spender-rows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Richest Accounts</strong></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th class="text-end">Balance</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="richest-rows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Recent Transactions</strong></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Description</th>
+                                        <th class="text-end">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-rows"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const periodSelect = document.getElementById('period-select');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const economyContent = document.getElementById('economy-content');
+    const economyAlert = document.getElementById('economy-alert');
+    let creditsSymbol = '$';
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function formatNumber(value) {
+        return new Intl.NumberFormat().format(Number(value || 0));
+    }
+
+    function formatAmount(value) {
+        return `${creditsSymbol}${formatNumber(value)}`;
+    }
+
+    function formatSignedAmount(value) {
+        const numericValue = Number(value || 0);
+        const prefix = numericValue > 0 ? '+' : '';
+        return `${prefix}${creditsSymbol}${formatNumber(numericValue)}`;
+    }
+
+    function formatUser(user) {
+        if (!user) {
+            return 'n/a';
+        }
+
+        const username = user.username ? escapeHtml(user.username) : 'unknown';
+        const realName = user.real_name ? ` <span class="text-muted">(${escapeHtml(user.real_name)})</span>` : '';
+        return `${username}${realName}`;
+    }
+
+    function setAlert(message, type) {
+        economyAlert.innerHTML = `<div class="alert alert-${type}">${escapeHtml(message)}</div>`;
+    }
+
+    function clearAlert() {
+        economyAlert.innerHTML = '';
+    }
+
+    function renderSummaryCards(data) {
+        const summary = data.summary || {};
+        const cards = [
+            { label: 'Credits In Circulation', value: formatAmount(summary.total_credits), accent: 'success', icon: 'fa-coins' },
+            { label: 'Funded Wallets', value: formatNumber(summary.funded_users), accent: 'primary', icon: 'fa-wallet' },
+            { label: 'Average Balance', value: formatAmount(Math.round(summary.avg_balance || 0)), accent: 'info', icon: 'fa-chart-line' },
+            { label: 'Median Balance', value: formatAmount(Math.round(summary.median_balance || 0)), accent: 'warning', icon: 'fa-scale-balanced' }
+        ];
+
+        document.getElementById('summary-cards').innerHTML = cards.map(card => `
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-start border-4 border-${card.accent} shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="text-muted small text-uppercase mb-1">${escapeHtml(card.label)}</div>
+                                <div class="h4 mb-0">${escapeHtml(card.value)}</div>
+                            </div>
+                            <i class="fas ${card.icon} fa-2x text-muted opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderRows(tbodyId, rows, renderFn, emptyMessage, colspan) {
+        const tbody = document.getElementById(tbodyId);
+        if (!tbody) {
+            return;
+        }
+
+        if (!rows || rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted py-3">${escapeHtml(emptyMessage)}</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = rows.map(renderFn).join('');
+    }
+
+    function renderData(data) {
+        creditsSymbol = data.credits_symbol || '$';
+        clearAlert();
+
+        if (!data.credits_enabled) {
+            setAlert('Credits are currently disabled. Historical balances and ledger data are still shown.', 'warning');
+        }
+
+        renderSummaryCards(data);
+
+        const summary = data.summary || {};
+        const periodSummary = data.period_summary || {};
+        const richestUser = data.richest_user || null;
+
+        document.getElementById('snapshot-transactions').textContent = formatNumber(periodSummary.transaction_count);
+        document.getElementById('snapshot-users').textContent = formatNumber(periodSummary.active_users);
+        document.getElementById('snapshot-earned').textContent = formatAmount(periodSummary.credits_earned);
+        document.getElementById('snapshot-spent').textContent = formatAmount(periodSummary.credits_spent);
+        document.getElementById('snapshot-net').textContent = formatSignedAmount(periodSummary.net_flow);
+        document.getElementById('snapshot-net').className = `h4 mb-0 ${periodSummary.net_flow > 0 ? 'text-success' : (periodSummary.net_flow < 0 ? 'text-danger' : 'text-muted')}`;
+
+        document.getElementById('distribution-funded').textContent = `${formatNumber(summary.funded_users)} / ${formatNumber(summary.total_users)}`;
+        document.getElementById('distribution-average').textContent = formatAmount(Math.round(summary.avg_balance || 0));
+        document.getElementById('distribution-median').textContent = formatAmount(Math.round(summary.median_balance || 0));
+        document.getElementById('distribution-largest').textContent = formatAmount(summary.max_balance);
+        document.getElementById('distribution-richest-user').innerHTML = richestUser
+            ? `${formatUser(richestUser)} <span class="text-success ms-1">${escapeHtml(formatAmount(richestUser.credit_balance))}</span>`
+            : 'n/a';
+
+        renderRows(
+            'type-rows',
+            data.transaction_types,
+            row => `
+                <tr>
+                    <td>
+                        <div class="fw-semibold">${escapeHtml(row.transaction_type)}</div>
+                        <div class="small text-muted">${formatNumber(row.unique_users)} users</div>
+                    </td>
+                    <td class="text-end">${formatNumber(row.transaction_count)}</td>
+                    <td class="text-end ${row.net_amount > 0 ? 'text-success' : (row.net_amount < 0 ? 'text-danger' : 'text-muted')}">${escapeHtml(formatSignedAmount(row.net_amount))}</td>
+                </tr>
+            `,
+            'No transactions for this period',
+            3
+        );
+
+        renderRows(
+            'earner-rows',
+            data.top_earners,
+            row => `
+                <tr>
+                    <td>${formatUser(row)}</td>
+                    <td class="text-end text-success">${escapeHtml(formatAmount(row.total_earned))}</td>
+                    <td class="text-end">${formatNumber(row.transaction_count)}</td>
+                </tr>
+            `,
+            'No earning activity for this period',
+            3
+        );
+
+        renderRows(
+            'spender-rows',
+            data.top_spenders,
+            row => `
+                <tr>
+                    <td>${formatUser(row)}</td>
+                    <td class="text-end text-danger">${escapeHtml(formatAmount(row.total_spent))}</td>
+                    <td class="text-end">${formatNumber(row.transaction_count)}</td>
+                </tr>
+            `,
+            'No spending activity for this period',
+            3
+        );
+
+        renderRows(
+            'richest-rows',
+            data.richest_users,
+            row => `
+                <tr>
+                    <td>${formatUser(row)}</td>
+                    <td class="text-end fw-semibold">${escapeHtml(formatAmount(row.credit_balance))}</td>
+                </tr>
+            `,
+            'No funded users yet',
+            2
+        );
+
+        renderRows(
+            'recent-rows',
+            data.recent_transactions,
+            row => `
+                <tr>
+                    <td>
+                        <div>${formatUser(row)}</div>
+                        <div class="small text-muted">${escapeHtml(row.transaction_type)}</div>
+                    </td>
+                    <td>
+                        <div>${escapeHtml(row.description || 'No description')}</div>
+                        <div class="small text-muted">${escapeHtml(new Date(row.created_at).toLocaleString())}</div>
+                    </td>
+                    <td class="text-end ${row.amount > 0 ? 'text-success' : 'text-danger'}">
+                        <div>${escapeHtml(formatSignedAmount(row.amount))}</div>
+                        <div class="small text-muted">Bal ${escapeHtml(formatAmount(row.balance_after))}</div>
+                    </td>
+                </tr>
+            `,
+            'No recent transactions in this period',
+            3
+        );
+    }
+
+    function loadEconomy() {
+        loadingIndicator.style.display = '';
+        economyContent.style.display = 'none';
+
+        fetch(`/admin/api/economy?period=${encodeURIComponent(periodSelect.value)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load economy statistics');
+                }
+                return response.json();
+            })
+            .then(data => {
+                renderData(data);
+                loadingIndicator.style.display = 'none';
+                economyContent.style.display = '';
+            })
+            .catch(error => {
+                loadingIndicator.style.display = 'none';
+                economyContent.style.display = 'none';
+                setAlert(error.message || 'Failed to load economy statistics', 'danger');
+            });
+    }
+
+    periodSelect.addEventListener('change', loadEconomy);
+    loadEconomy();
+})();
+</script>
+{% endblock %}
