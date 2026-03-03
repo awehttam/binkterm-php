@@ -108,7 +108,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
 - **Nodelist Browsers** - Integrated nodelist updater and browser
-- **Markdown Support** - Echomail and netmail can be composed and rendered using Markdown formatting on compatible networks
+- **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
 
 
 ### Native Binkp Protocol Support
@@ -214,17 +214,17 @@ $reward = UserCredit::getRewardAmount('action_name', $defaultValue);
 
 Set `"enabled": false` in the credits configuration to disable the entire system. When disabled, all credit-related functionality is hidden and no transactions are recorded.
 
-### Markdown Support
+### Markup Support
 
-BinktermPHP supports Markdown formatting in echomail and netmail messages on networks that allow it. When enabled for an uplink, users can compose messages using standard Markdown syntax and have them rendered with full formatting in the message reader.
+BinktermPHP supports rich text formatting in echomail and netmail messages on networks that allow it. When enabled for an uplink, users can compose messages using Markdown or StyleCodes and have them rendered with full formatting in the message reader.
 
 **How it works:**
 
-Markdown support is opt-in per uplink via the `allow_markdown` flag in the Binkp configuration. When a user sends a message with Markdown enabled, BinktermPHP adds a `\x01MARKDOWN: 1` kludge line to the outbound packet. Readers that recognise this kludge — including BinktermPHP itself — render the message body as formatted HTML. Readers that don't recognise it see the raw Markdown text, which remains human-readable as plain text.
+Markup support is opt-in per uplink via the `allow_markup` flag in the Binkp configuration. When a user sends a message with a markup format selected, BinktermPHP adds a `\x01MARKUP: <Format> 1.0` kludge line to the outbound packet per LSC-001 Draft 2. Readers that recognise the kludge render the message body with formatting. Readers that don't see the raw text, which remains human-readable as plain text.
 
-**Enabling Markdown for an uplink:**
+**Enabling markup for an uplink:**
 
-In your Binkp configuration, add `"allow_markdown": true` to the uplink definition:
+In your Binkp configuration, add `"allow_markup": true` to the uplink definition:
 
 ```json
 {
@@ -232,21 +232,27 @@ In your Binkp configuration, add `"allow_markdown": true` to the uplink definiti
     {
       "address": "1:123/456",
       "domain": "lovlynet",
-      "allow_markdown": true
+      "allow_markup": true
     }
   ]
 }
 ```
 
-**Composing Markdown messages:**
+**Composing messages with markup:**
 
-When a user composes a message to a Markdown-enabled network, a **Send as Markdown** checkbox appears below the message body. Checking it activates the Markdown editor, which includes:
+When a user composes a message to a markup-enabled network, a **Markup Format** selector appears below the message body with three options:
+
+- **Plain text** — no markup kludge added (default)
+- **Markdown** — activates the split-pane Markdown editor with toolbar and live preview
+- **StyleCodes** — adds the `^AMARKUP: StyleCodes 1.0` kludge; use inline codes directly in the plain text editor
+
+**Markdown editor features:**
 
 - **Formatting toolbar** — buttons for bold, italic, headings (H1–H3), inline code, code blocks, links, bullet lists, ordered lists, blockquotes, and horizontal rules
 - **Keyboard shortcuts** — Ctrl+B (bold), Ctrl+I (italic), Ctrl+K (link), Tab (indent)
 - **Edit / Preview tabs** — switch between raw Markdown editing and a rendered preview that uses the same server-side renderer as the message reader
 
-**Supported syntax:**
+**Supported Markdown syntax:**
 
 | Syntax | Result |
 |--------|--------|
@@ -262,9 +268,20 @@ When a user composes a message to a Markdown-enabled network, a **Send as Markdo
 | `---` | horizontal rule |
 | `\| col \| col \|` | table |
 
+**Supported StyleCodes syntax:**
+
+StyleCodes (also known as GoldEd Rich Text, SemPoint Rich Text, or Synchronet Message Markup) use single-character delimiters around words or phrases:
+
+| Syntax | Result |
+|--------|--------|
+| `*bold*` | **bold** |
+| `/italics/` | *italics* |
+| `_underlined_` | underlined |
+| `#inverse#` | inverse video |
+
 **Rendering:**
 
-Incoming messages with the `MARKDOWN` kludge are rendered server-side by `MarkdownRenderer` and displayed as HTML in the echomail and netmail readers. Messages without the kludge continue to be displayed as plain text. The rendered preview in the composer uses the same renderer, so what you see in Preview is exactly what readers will see.
+Incoming messages are rendered based on the `^AMARKUP` kludge in the message. Markdown messages are rendered server-side by `MarkdownRenderer`; StyleCodes messages are rendered by `StyleCodesRenderer`. Messages without a markup kludge are displayed as plain text. The legacy `^AMARKDOWN:` kludge (Draft 1) is still recognised for backwards compatibility.
 
 ## Installation
 
@@ -502,7 +519,7 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
             "pkt_password": "",
             "tic_password": "",
             "poll_schedule": "*/15 * * * *",
-            "allow_markdown": false,
+            "allow_markup": false,
             "send_domain_in_addr": false,
             "binkp_zone": "",
             "enabled": true,
@@ -570,7 +587,7 @@ Each uplink in the `uplinks` array supports the following fields:
 | `domain` | Yes | Network domain (e.g., "fidonet", "fsxnet", "agoranet") |
 | `networks` | Yes | Array of address patterns this uplink routes (e.g., `["1:*/*", "2:*/*"]`) |
 | `poll_schedule` | No | Cron expression for automated polling (e.g., `"0 */4 * * *"` = every 4 hours) |
-| `allow_markdown` | No | Enables Markdown support for messages routed through this uplink |
+| `allow_markup` | No | Enables Markdown and StyleCodes markup support for messages routed through this uplink |
 | `send_domain_in_addr` | No | Includes the `@domain` suffix in the ADR address sent to this uplink |
 | `enabled` | No | Whether uplink is active (default: true) |
 | `default` | No | Whether this is the default uplink for unrouted messages |
@@ -815,7 +832,7 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [1.8.5](docs/UPGRADING_1.8.5.md)       | TBD         | Markdown renderer fix for inline code with underscores in locally rendered upgrade/help documents |
+| [1.8.5](docs/UPGRADING_1.8.5.md)       | TBD         | Native doors (PTY), StyleCodes rendering, LSC-001 Draft 2 MARKUP kludge, markup format composer selector, allow_markup uplink config key |
 | [1.8.4](docs/UPGRADING_1.8.4.md)       | Mar 1 2026  | Username/real name cross-collision check, MRC room list fix, collapsible compose sidebar, echolist new-tab support |
 | [1.8.3](docs/UPGRADING_1.8.3.md)       | Feb 27 2026 | Appearance system & shells, Gemini Capsule Hosting, Gemini echo area exposure, Markdown compose editor, netmail file attachments, file share links, friendly share URLs, address book crashmail preference, crashmail DNS fallback & immediate delivery, scrollable message reader, echomail bulk mark-as-read, MRC Chat WebDoor |
 | [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Gemini Browser WebDoor, CSRF protection, telnet anti-bot, security fixes                                                                                                                                                                                                                                         |
