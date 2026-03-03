@@ -1620,6 +1620,7 @@ class MessageHandler
             return;
         }
 
+        $client = null;
         try {
             $client = new \BinktermPHP\Admin\AdminDaemonClient();
 
@@ -1630,8 +1631,6 @@ class MessageHandler
                     $client->processPackets();
                 }
             }
-
-            $client->close();
         } catch (\Throwable $e) {
             $contexts = [];
             foreach ($this->pendingImmediateOutboundPolls as $uplinkAddress => $items) {
@@ -1641,6 +1640,13 @@ class MessageHandler
             }
             error_log("[SPOOL] Could not trigger immediate outbound poll for " . implode(', ', $contexts) . ": " . $e->getMessage());
         } finally {
+            if (isset($client) && is_object($client)) {
+                try {
+                    $client->close();
+                } catch (\Throwable $closeEx) {
+                    error_log("[SPOOL] Error closing admin daemon client: " . $closeEx->getMessage());
+                }
+            }
             $this->pendingImmediateOutboundPolls = [];
         }
     }

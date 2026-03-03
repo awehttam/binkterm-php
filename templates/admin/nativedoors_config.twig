@@ -181,6 +181,15 @@ function renderDoorsList() {
         currentConfig = doorsState.config;
     }
 
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     let html = '<div class="list-group list-group-flush">';
 
     doorsState.availableDoors.forEach(door => {
@@ -197,17 +206,18 @@ function renderDoorsList() {
                     <div class="flex-grow-1">
                         <div class="d-flex align-items-center gap-2 mb-1">
                             <i class="fas ${statusIcon} text-${statusClass}"></i>
-                            <strong>${door.name}</strong>
+                            <strong>${escHtml(door.name)}</strong>
                         </div>
-                        <div class="small text-muted">${door.description || 'No description'}</div>
+                        <div class="small text-muted">${escHtml(door.description || 'No description')}</div>
                         <div class="small mt-1">
-                            <span class="badge bg-secondary">${door.id}</span>
+                            <span class="badge bg-secondary">${escHtml(door.id)}</span>
                             ${cost > 0 ? `<span class="badge bg-info">${cost} credits</span>` : '<span class="badge bg-success">Free</span>'}
                         </div>
                     </div>
                     <div class="btn-group-vertical btn-group-sm">
-                        <button class="btn btn-outline-${enabled ? 'success' : 'secondary'}"
-                                onclick="toggleDoor('${door.id}', ${!enabled})"
+                        <button class="btn btn-outline-${enabled ? 'success' : 'secondary'} toggle-door-btn"
+                                data-door-id="${escHtml(door.id)}"
+                                data-enable="${!enabled}"
                                 title="${enabled ? 'Disable' : 'Enable'}">
                             <i class="fas fa-power-off"></i>
                         </button>
@@ -219,6 +229,12 @@ function renderDoorsList() {
 
     html += '</div>';
     container.innerHTML = html;
+
+    container.querySelectorAll('.toggle-door-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            toggleDoor(this.dataset.doorId, this.dataset.enable === 'true');
+        });
+    });
 }
 
 function toggleDoor(doorId, enable) {
