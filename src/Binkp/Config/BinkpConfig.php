@@ -579,16 +579,22 @@ class BinkpConfig
     }
 
     /**
-     * Check if Markdown is allowed for a given domain.
+     * Check if Markup is allowed for a given domain.
+     *
+     * Reads allow_markup; falls back to allow_markdown for backwards compatibility
+     * with configs written before the rename.
      */
     public function isMarkdownAllowedForDomain(string $domain): bool
     {
         $uplink = $this->getUplinkByDomain($domain);
-        return !empty($uplink['allow_markdown']);
+        return !empty($uplink['allow_markup']) || !empty($uplink['allow_markdown']);
     }
 
     /**
-     * Check if Markdown is allowed for a given destination address.
+     * Check if Markup is allowed for a given destination address.
+     *
+     * Reads allow_markup; falls back to allow_markdown for backwards compatibility
+     * with configs written before the rename.
      */
     public function isMarkdownAllowedForDestination(string $destAddr): bool
     {
@@ -601,7 +607,7 @@ class BinkpConfig
         }
 
         $uplink = $this->getUplinkForDestination($destAddr);
-        return $uplink ? !empty($uplink['allow_markdown']) : false;
+        return $uplink ? (!empty($uplink['allow_markup']) || !empty($uplink['allow_markdown'])) : false;
     }
 
     /**

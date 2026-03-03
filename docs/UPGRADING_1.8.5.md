@@ -35,6 +35,9 @@ Make sure you've made a backup of your database and files before upgrading.
   session; sent packets are cleaned up correctly regardless of whether the
   remote sends `M_GOT` before or after `M_EOB`
 
+**Configuration Changes**
+- `binkp.json`: the uplink key `allow_markdown` has been renamed to `allow_markup` to reflect that the setting controls all markup formats, not just Markdown. The upgrade migration (`v1.10.17`) renames the key automatically in `data/binkp.json`. If you manage your config manually, update any `allow_markdown` keys to `allow_markup`.
+
 **Bug Fixes**
 - Markdown renderer: fixed inline code parsing so identifiers with
   underscores such as `send_domain_in_addr` and `M_ADR` render correctly
