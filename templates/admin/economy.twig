@@ -232,8 +232,12 @@
         }
 
         const username = user.username ? escapeHtml(user.username) : 'unknown';
+        const profileUrl = user.username ? `/profile/${encodeURIComponent(user.username)}` : null;
+        const usernameHtml = profileUrl
+            ? `<a href="${profileUrl}" class="text-decoration-none">${username}</a>`
+            : username;
         const realName = user.real_name ? ` <span class="text-muted">(${escapeHtml(user.real_name)})</span>` : '';
-        return `${username}${realName}`;
+        return `${usernameHtml}${realName}`;
     }
 
     function setAlert(message, type) {
