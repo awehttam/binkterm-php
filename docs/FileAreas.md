@@ -12,6 +12,28 @@ File areas are categorized by:
 
 File areas can be managed via `/fileareas` in the web UI.
 
+## File Permissions
+
+File areas are written to by two different OS users:
+
+- **Web server** (e.g. `www-data`) — handles user uploads through the web interface
+- **BinkP daemon** (e.g. `binktermphp`) — handles inbound TIC file imports
+
+Both users must be able to read and write each other's files. The recommended approach is to add the BinkP daemon user to the `www-data` group and ensure `data/files/` is group-owned by `www-data`:
+
+```bash
+sudo usermod -aG www-data binktermphp
+sudo chgrp -R www-data data/files/
+```
+
+Substitute `binktermphp` with whatever user the BinkP daemon runs as on your system.
+
+`setup.php` sets `data/files/` and its subdirectories to mode `02775` (setgid + group-writable). The setgid bit causes all new files and subdirectories to inherit the `www-data` group automatically, so no manual `chgrp` is needed after new file areas are created.
+
+All stored files are set to mode `0664` (group-writable) by both the web upload and TIC import code paths.
+
+> **Note:** Group membership changes do not take effect in already-running processes. After adding the daemon user to `www-data`, restart the BinkP daemons with `scripts/restart_daemons.sh` and log out/in on any shell sessions running as that user.
+
 ## Storage Layout
 
 File area storage directories use the naming convention:
