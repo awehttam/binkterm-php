@@ -1,10 +1,9 @@
-# Telnet Daemon (Alpha)
+# Telnet Daemon
 
-This directory contains an **alpha-quality** telnet daemon for BinktermPHP. It provides a classic BBS terminal interface with message browsing, reading, and composition capabilities that reuses the existing web API endpoints for netmail and echomail.
+This directory contains a telnet daemon for BinktermPHP. It provides a classic BBS terminal interface with message browsing, reading, and composition capabilities that reuses the existing web API endpoints for netmail and echomail.
 
 ## Status
 
-- **Alpha Quality** - Early release with ongoing improvements
 - **Message Browsing** - Navigate netmail and echomail with screen-aware pagination
 - **Full-Screen Editor** - Write and edit messages with arrow key navigation
 - **Reply Support** - Quote and reply to messages
@@ -254,7 +253,6 @@ SyncTERM provides the best experience with full ANSI color support:
 - ANSI color support depends on terminal emulator capabilities
 
 ### Feature Scope
-- **Alpha Quality**: This is an early release with ongoing development
 - **Read Focus**: Primarily designed for message browsing and basic composition
 - **Limited Features**: Not all web interface features are available via telnet
 - **API Dependent**: All functionality requires working web API access

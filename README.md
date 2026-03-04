@@ -130,7 +130,7 @@ Here are some screen shots showing various aspects of the interface with differe
 
 ### Telnet Interface
 
-A basic telnet service is available in alpha state.  
+A basic telnet service is available.  
 
 - **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
 - **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
