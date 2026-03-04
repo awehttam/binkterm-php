@@ -122,14 +122,21 @@ class BinkpSession
             $this->state = self::STATE_ADDR_SENT;
 
             while ($this->state < self::STATE_AUTHENTICATED) {
-                $frame = BinkpFrame::parseFromSocket($this->socket);
+                try {
+                    $frame = BinkpFrame::parseFromSocket($this->socket);
+                } catch (\Exception $e) {
+                    throw new \Exception(
+                        $e->getMessage() . ' ' . $this->buildHandshakeSocketDiagnostics(),
+                        0,
+                        $e
+                    );
+                }
+
                 if (!$frame) {
-                    // Get stream metadata for diagnostic info
-                    $meta = stream_get_meta_data($this->socket);
-                    $timedOut = $meta['timed_out'] ? 'yes' : 'no';
-                    $eof = $meta['eof'] ? 'yes' : 'no';
-                    $blocked = $meta['blocked'] ? 'yes' : 'no';
-                    throw new \Exception("Failed to read frame during handshake (state={$this->state}, timed_out={$timedOut}, eof={$eof}, blocked={$blocked})");
+                    throw new \Exception(
+                        "Failed to read frame during handshake (state={$this->state}) " .
+                        $this->buildHandshakeSocketDiagnostics()
+                    );
                 }
 
                 $this->log("Received: {$frame}", 'DEBUG');
@@ -173,6 +180,35 @@ class BinkpSession
         $frame = BinkpFrame::createCommand(BinkpFrame::M_NUL, $data);
         $frame->writeToSocket($this->socket);
         $this->log("Sent NUL: {$data}", 'DEBUG');
+    }
+
+    private function buildHandshakeSocketDiagnostics(): string
+    {
+        $meta = stream_get_meta_data($this->socket);
+        $timedOut = !empty($meta['timed_out']) ? 'yes' : 'no';
+        $eof = !empty($meta['eof']) ? 'yes' : 'no';
+        $blocked = !empty($meta['blocked']) ? 'yes' : 'no';
+        $preview = $this->getHandshakeSocketPreview();
+
+        return "(timed_out={$timedOut}, eof={$eof}, blocked={$blocked}, {$preview})";
+    }
+
+    private function getHandshakeSocketPreview(int $maxBytes = 24): string
+    {
+        if (!is_resource($this->socket) || !defined('STREAM_PEEK')) {
+            return 'preview=unavailable';
+        }
+
+        $peeked = @stream_socket_recvfrom($this->socket, $maxBytes, STREAM_PEEK);
+        if (!is_string($peeked) || $peeked === '') {
+            return 'preview=none';
+        }
+
+        $hexPairs = str_split(bin2hex($peeked), 2);
+        $hex = implode(' ', $hexPairs);
+        $ascii = preg_replace('/[^\x20-\x7E]/', '.', $peeked);
+
+        return 'preview_hex=' . $hex . ', preview_ascii="' . $ascii . '"';
     }
 
     public function processSession()
