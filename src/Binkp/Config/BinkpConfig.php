@@ -591,6 +591,34 @@ class BinkpConfig
     }
 
     /**
+     * Get posting name policy for a given domain.
+     *
+     * Supported values:
+     * - real_name (default)
+     * - username
+     */
+    public function getPostingNamePolicyForDomain(string $domain): string
+    {
+        $uplink = $this->getUplinkByDomain($domain);
+        $policy = strtolower(trim((string)($uplink['posting_name_policy'] ?? '')));
+        return in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name';
+    }
+
+    /**
+     * Get posting name policy for a destination address.
+     *
+     * Uses the routed uplink for the destination and returns:
+     * - real_name (default)
+     * - username
+     */
+    public function getPostingNamePolicyForDestination(string $destAddr): string
+    {
+        $uplink = $this->getUplinkForDestination($destAddr);
+        $policy = strtolower(trim((string)($uplink['posting_name_policy'] ?? '')));
+        return in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name';
+    }
+
+    /**
      * Check if Markup is allowed for a given destination address.
      *
      * Reads allow_markup; falls back to allow_markdown for backwards compatibility

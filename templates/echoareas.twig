@@ -180,6 +180,16 @@
                         <input type="text" class="form-control" id="echoareaModerator" name="moderator" maxlength="100">
                         <div class="form-text">Name of the echo area moderator</div>
                     </div>
+
+                    <div class="mb-3">
+                        <label for="echoareaPostingNamePolicy" class="form-label">Posting Name Policy</label>
+                        <select class="form-select" id="echoareaPostingNamePolicy" name="posting_name_policy">
+                            <option value="inherit">Use Uplink Default</option>
+                            <option value="real_name">Real Name</option>
+                            <option value="username">Username</option>
+                        </select>
+                        <div class="form-text">Overrides uplink posting name policy for this echo area.</div>
+                    </div>
                     
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="echoareaActive" name="is_active" checked>
@@ -444,6 +454,7 @@ function showAddEchoareaModal() {
     $('#echoareaLocal').prop('checked', false);
     $('#echoareaSysopOnly').prop('checked', false);
     $('#echoareaGeminiPublic').prop('checked', false);
+    $('#echoareaPostingNamePolicy').val('inherit');
     updateColorSelection('#28a745');
     $('#echoareaModal').modal('show');
 }
@@ -466,6 +477,7 @@ function editEchoarea(id) {
             $('#echoareaLocal').prop('checked', area.is_local);
             $('#echoareaSysopOnly').prop('checked', area.is_sysop_only);
             $('#echoareaGeminiPublic').prop('checked', area.gemini_public);
+            $('#echoareaPostingNamePolicy').val(area.posting_name_policy || 'inherit');
             updateColorSelection(area.color || '#28a745');
             $('#echoareaModal').modal('show');
         })
@@ -491,7 +503,8 @@ function saveEchoarea() {
         is_local: $('#echoareaLocal').is(':checked'),
         is_sysop_only: $('#echoareaSysopOnly').is(':checked'),
         gemini_public: $('#echoareaGeminiPublic').is(':checked'),
-        domain: $("#echoareaDomain").val() || null
+        domain: $("#echoareaDomain").val() || null,
+        posting_name_policy: $('#echoareaPostingNamePolicy').val()
     };
     
     const url = currentEchoareaId ? `/api/echoareas/${currentEchoareaId}` : '/api/echoareas';

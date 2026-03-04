@@ -161,7 +161,8 @@ function displayEchoareas(echoareas) {
         `;
 
         echoareas.forEach(function(area) {
-            const fullTag = `${area.tag}@${area.domain}`;
+            const areaDomain = (area.domain || '').toString().trim();
+            const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
@@ -212,7 +213,8 @@ function displayMobileEchoareas(echoareas) {
         `;
 
         echoareas.forEach(function(area) {
-            const fullTag = `${area.tag}@${area.domain}`;
+            const areaDomain = (area.domain || '').toString().trim();
+            const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
@@ -948,13 +950,15 @@ function updateEchoareaCountsWithSearchResults() {
     // Create a map of echoarea counts by tag@domain
     const countMap = {};
     searchResultCounts.forEach(area => {
-        const fullTag = `${area.tag}@${area.domain}`;
+        const areaDomain = (area.domain || '').toString().trim();
+        const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
         countMap[fullTag] = area.message_count;
     });
 
     // Update the allEchoareas array with search counts
     allEchoareas.forEach(area => {
-        const fullTag = `${area.tag}@${area.domain}`;
+        const areaDomain = (area.domain || '').toString().trim();
+        const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
         area.search_count = countMap[fullTag] || 0;
     });
 

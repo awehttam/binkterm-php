@@ -736,8 +736,8 @@ class MessageHandler
             }
         }
 
-        // Use provided fromName or fall back to user's real name
-        $senderName = $fromName ?: ($user['real_name'] ?: $user['username']);
+        // Use provided fromName or resolve sender identity from netmail posting policy
+        $senderName = $fromName ?: $this->resolveNetmailPostingName($user, (string)$toAddress);
 
         // Get the appropriate origin address for the destination network
         try {
@@ -1002,7 +1002,7 @@ class MessageHandler
         }
 
         // Generate kludges for this echomail
-        $fromName = $user['real_name'] ?: $user['username'];
+        $fromName = $this->resolveEchomailPostingName($user, $echoarea, (string)$domain);
         $toName = $toName ?: 'All';
         $markupAllowed = null;
         try {
@@ -1339,6 +1339,78 @@ class MessageHandler
             $stmt->execute([$tag, $domain]);
         }
         return $stmt->fetch();
+    }
+
+    /**
+     * Resolve the display/sender name used for outbound echomail posting.
+     *
+     * Priority:
+     * 1) Echo area override (posting_name_policy on echoareas)
+     * 2) Uplink policy by domain (posting_name_policy on uplink config)
+     * 3) Default: real_name
+     */
+    private function resolveEchomailPostingName(array $user, array $echoarea, string $domain): string
+    {
+        $realName = trim((string)($user['real_name'] ?? ''));
+        $username = trim((string)($user['username'] ?? ''));
+
+        $selectByPolicy = static function (string $policy) use ($realName, $username): string {
+            if ($policy === 'username') {
+                return $username !== '' ? $username : $realName;
+            }
+            return $realName !== '' ? $realName : $username;
+        };
+
+        $echoPolicy = strtolower(trim((string)($echoarea['posting_name_policy'] ?? '')));
+        if (in_array($echoPolicy, ['real_name', 'username'], true)) {
+            return $selectByPolicy($echoPolicy);
+        }
+
+        $uplinkPolicy = 'real_name';
+        if ($domain !== '') {
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $uplinkPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
+            } catch (\Throwable $e) {
+                $uplinkPolicy = 'real_name';
+            }
+        }
+
+        return $selectByPolicy($uplinkPolicy);
+    }
+
+    /**
+     * Resolve the display/sender name used for outbound netmail posting.
+     *
+     * Priority:
+     * 1) Uplink policy for destination routing
+     * 2) Default: real_name
+     */
+    private function resolveNetmailPostingName(array $user, string $toAddress): string
+    {
+        $realName = trim((string)($user['real_name'] ?? ''));
+        $username = trim((string)($user['username'] ?? ''));
+
+        $selectByPolicy = static function (string $policy) use ($realName, $username): string {
+            if ($policy === 'username') {
+                return $username !== '' ? $username : $realName;
+            }
+            return $realName !== '' ? $realName : $username;
+        };
+
+        if (trim($toAddress) === '') {
+            return $selectByPolicy('real_name');
+        }
+
+        $policy = 'real_name';
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+            $policy = $binkpConfig->getPostingNamePolicyForDestination($toAddress);
+        } catch (\Throwable $e) {
+            $policy = 'real_name';
+        }
+
+        return $selectByPolicy($policy);
     }
 
     public function deleteNetmail($messageId, $userId)

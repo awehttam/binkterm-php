@@ -23,6 +23,8 @@ Make sure you've made a backup of your database and files before upgrading.
 - MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of the PHP error log; log level is controllable via `--log-level`
 - BBS menu shell: when polls or shoutbox are enabled, the main menu now exposes links to their dedicated pages without changing the standard web shell dashboard layout, which continues to show those features inline
 - Games page leaderboard: Top Scores (All Games) now includes month navigation arrows so users can browse previous months; the table reflects the selected month and shows an empty-state row when no scores exist
+- Echomail and netmail posting identity: outbound posting now supports per-uplink `posting_name_policy` (`real_name` or `username`/alias); echomail additionally supports per-echoarea override; default behavior remains posting with real name
+- Compose guidelines: composition now shows whether the selected echomail area or netmail destination will post using Real Name or Username/Alias based on the effective posting-name policy
 - Outgoing MSGID: newly generated outbound netmail and echomail `MSGID` kludges now append `@domain` when the network domain is known, and inbound parsing accepts the suffixed format
 - Message reader: ANSI art in message bodies no longer displays inside a black box with a scrollbar; styling is now consistent with standalone ANSI art displays
 - BinkP session: `binkp_poll` now completes promptly after sending mail to non-conformant remotes (those that send `M_EOB` without `M_GOT`); sessions terminate after 30 seconds of inactivity rather than the full session timeout, while preserving a window for areafix and similar systems to process an inbound packet and return a response in the same session; sent packets are cleaned up correctly regardless of whether the remote sends `M_GOT` before or after `M_EOB`
@@ -58,6 +60,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Mobile message reader: fixed swipe-to-navigate triggering while scrolling wide ANSI art horizontally; the boundary check now uses the scroll position captured at touch start rather than the position after native scrolling has already occurred
 - BinkP server: fixed inbound sessions not including the network domain in the `M_ADR` address; the `send_domain_in_addr` flag was only applied to outbound calls — inbound connections now respect it too
 - Echomail compose: fixed posting to local echo areas with no domain association from the compose screen; local areas no longer submit as `@null`, and server-side parsing now treats blank or missing domains correctly
+- Echomail area navigation: fixed local echo area links in `/echomail` appending a trailing `@` (`%40`) when the area has no domain; local areas now navigate using tag-only identifiers
 
 ## Native Door Support
 

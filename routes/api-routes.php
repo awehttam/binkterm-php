@@ -1608,6 +1608,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     e.description,
                     e.moderator,
                     e.uplink_address,
+                    e.posting_name_policy,
                     e.color,
                     e.is_active,
                     e.created_at,
@@ -1697,6 +1698,36 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $stmt->execute($params);
         $echoareas = $stmt->fetchAll();
 
+        $binkpConfig = null;
+        try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+        } catch (\Throwable $e) {
+            $binkpConfig = null;
+        }
+
+        foreach ($echoareas as &$echoarea) {
+            $echoPolicy = strtolower(trim((string)($echoarea['posting_name_policy'] ?? '')));
+            if (in_array($echoPolicy, ['real_name', 'username'], true)) {
+                $echoarea['effective_posting_name_policy'] = $echoPolicy;
+                continue;
+            }
+
+            $resolvedPolicy = 'real_name';
+            $domain = trim((string)($echoarea['domain'] ?? ''));
+            if ($domain !== '' && $binkpConfig !== null) {
+                try {
+                    $resolvedPolicy = $binkpConfig->getPostingNamePolicyForDomain($domain);
+                } catch (\Throwable $e) {
+                    $resolvedPolicy = 'real_name';
+                }
+            }
+
+            $echoarea['effective_posting_name_policy'] = in_array($resolvedPolicy, ['real_name', 'username'], true)
+                ? $resolvedPolicy
+                : 'real_name';
+        }
+        unset($echoarea);
+
         echo json_encode(['echoareas' => $echoareas]);
     });
 
@@ -1748,6 +1779,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isSysopOnly = !empty($input['is_sysop_only']);
             $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
+            $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
+
+            if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
+                $postingNamePolicy = null;
+            } elseif (!in_array($postingNamePolicy, ['real_name', 'username'], true)) {
+                throw new \Exception('Invalid posting name policy');
+            }
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -1764,11 +1802,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, color, is_active, is_local, is_sysop_only, domain, gemini_public)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, color, is_active, is_local, is_sysop_only, domain, gemini_public)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
 
             if ($result) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -1805,6 +1843,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $isSysopOnly = !empty($input['is_sysop_only']);
             $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
+            $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
+
+            if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
+                $postingNamePolicy = null;
+            } elseif (!in_array($postingNamePolicy, ['real_name', 'username'], true)) {
+                throw new \Exception('Invalid posting name policy');
+            }
 
             if (empty($tag) || empty($description)) {
                 throw new \Exception('Tag and description are required');
@@ -1822,11 +1867,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true]);
@@ -3293,8 +3338,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $domain  = $_GET['domain']  ?? null;
         $area    = $_GET['area']    ?? null;  // full tag@domain string for echomail
         $allowed = false;
+        $postingNamePolicy = 'real_name';
 
         try {
+            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+
             // Local-only echo areas always allow markdown
             if (!empty($area)) {
                 $atPos = strpos($area, '@');
@@ -3304,30 +3352,45 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $db = \BinktermPHP\Database::getInstance()->getPdo();
                 if ($areaDomain === '') {
                     // Area has no domain (local area with NULL/empty domain)
-                    $stmt = $db->prepare("SELECT is_local FROM echoareas WHERE UPPER(tag) = UPPER(?) AND (domain IS NULL OR domain = '')");
+                    $stmt = $db->prepare("SELECT is_local, posting_name_policy FROM echoareas WHERE UPPER(tag) = UPPER(?) AND (domain IS NULL OR domain = '')");
                     $stmt->execute([$tag]);
                 } else {
-                    $stmt = $db->prepare("SELECT is_local FROM echoareas WHERE UPPER(tag) = UPPER(?) AND LOWER(domain) = LOWER(?)");
+                    $stmt = $db->prepare("SELECT is_local, posting_name_policy FROM echoareas WHERE UPPER(tag) = UPPER(?) AND LOWER(domain) = LOWER(?)");
                     $stmt->execute([$tag, $areaDomain]);
                 }
                 $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                $echoPolicy = strtolower(trim((string)($row['posting_name_policy'] ?? '')));
+                if (in_array($echoPolicy, ['real_name', 'username'], true)) {
+                    $postingNamePolicy = $echoPolicy;
+                } elseif ($areaDomain !== '') {
+                    $postingNamePolicy = $binkpConfig->getPostingNamePolicyForDomain((string)$areaDomain);
+                }
+
                 if ($row && $row['is_local']) {
-                    echo json_encode(['allowed' => true]);
+                    echo json_encode([
+                        'allowed' => true,
+                        'posting_name_policy' => $postingNamePolicy
+                    ]);
                     return;
                 }
             }
 
-            $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
             if (!empty($domain)) {
                 $allowed = $binkpConfig->isMarkdownAllowedForDomain((string)$domain);
+                $postingNamePolicy = $binkpConfig->getPostingNamePolicyForDomain((string)$domain);
             } elseif (!empty($address)) {
                 $allowed = $binkpConfig->isMarkdownAllowedForDestination((string)$address);
+                $postingNamePolicy = $binkpConfig->getPostingNamePolicyForDestination((string)$address);
             }
         } catch (\Exception $e) {
             $allowed = false;
+            $postingNamePolicy = 'real_name';
         }
 
-        echo json_encode(['allowed' => $allowed]);
+        echo json_encode([
+            'allowed' => $allowed,
+            'posting_name_policy' => $postingNamePolicy
+        ]);
     });
 
     // Markdown preview render for compose UI
