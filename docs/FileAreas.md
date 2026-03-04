@@ -14,7 +14,7 @@ File areas can be managed via `/fileareas` in the web UI.
 
 ## File Permissions
 
-File areas are written to by two different OS users:
+File areas are typically written to by two different OS users:
 
 - **Web server** (e.g. `www-data`) — handles user uploads through the web interface
 - **BinkP daemon** (e.g. `binktermphp`) — handles inbound TIC file imports
@@ -76,7 +76,6 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
     "NODELIST@fidonet": [
       {
         "name": "Import FidoNet Nodelist",
-        "domain": "fidonet",
         "pattern": "/^NODELIST\\.(Z|A|L|R|J)[0-9]{2}$/i",
         "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force",
         "success_action": "delete",
@@ -100,8 +99,12 @@ Examples:
 - `"FILES@lovlynet"` - LOVLYNET FILES area
 - `"INBOUND@fsxnet"` - fsxNet INBOUND area
 
+Using `TAG@DOMAIN` as the key fully scopes the rules to that domain. Individual rules within the group do not need a `domain` field — it would be redundant.
+
 For local file areas without a network domain, use the tag alone:
 - `"LOCAL_FILES"` - Local area
+
+When using a plain `TAG` key (no `@DOMAIN`), you can optionally add a `domain` field to individual rules to restrict them to a specific domain — useful if multiple networks share the same area tag.
 
 ```json
 "area_rules": {
@@ -124,7 +127,7 @@ For local file areas without a network domain, use the tag alone:
 - `fail_action` (string): Action(s) when script exits non-zero or times out.
 - `enabled` (bool): Toggle rule execution.
 - `timeout` (int): Script timeout in seconds.
-- `domain` (string, optional): If provided, rule only applies to file areas in that domain.
+- `domain` (string, optional): If provided, rule only applies to file areas in that domain. This is only needed when using a plain `TAG` key and you want different rules within that group to apply to different domains. When using `TAG@DOMAIN` keys, the domain is already scoped by the key and this field is redundant.
 
 ### Actions
 
