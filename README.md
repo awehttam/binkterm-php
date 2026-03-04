@@ -1926,6 +1926,7 @@ The Developer Guide is essential reading for anyone contributing code, developin
 We welcome contributions to BinktermPHP! Before contributing, please review:
 
 - **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Essential reading for understanding the codebase
+- **[Help Wanted](HELP_WANTED.md)** - Current areas where contributions are especially needed
 - **[Contributing Guide](CONTRIBUTING.md)** - Detailed information on:
   - Development setup and code conventions
   - Pull request workflow
