@@ -35,6 +35,9 @@ Make sure you've made a backup of your database and files before upgrading.
 - Admin daemon: config write helpers now throw on `mkdir` or `file_put_contents` failure instead of silently returning success to the caller
 - BBSLink native door: `bbslink.sh` now validates that both required arguments (door code and user number) are provided before proceeding, and checks for `telnet` at startup alongside the existing `curl` check; `vars.sh` is now resolved relative to the script's own directory rather than the working directory
 
+**Documentation**
+- `docs/FileAreas.md`: updated with file system permissions and group ownership requirements for shared web server and BinkP daemon access to file areas; clarified `TAG@DOMAIN` key usage for file area rules
+
 **Bug Fixes**
 - Markdown renderer: fixed inline code parsing so identifiers with underscores such as `send_domain_in_addr` and `M_ADR` render correctly in upgrade notes and other locally rendered Markdown documents
 - Markdown renderer: fixed wrapped unordered-list items so Upgrade Notes render correctly in the admin viewer instead of splitting a single bullet into separate paragraphs

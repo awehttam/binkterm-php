@@ -90,29 +90,44 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
 
 ### Area Tag Syntax
 
-Area rule keys should use the domain syntax to ensure rules target the correct file area:
+The rule key format depends on whether the file area belongs to a network domain.
 
-**Format:** `TAG@DOMAIN`
+#### Network areas (recommended): `TAG@DOMAIN`
 
-Examples:
-- `"NODELIST@fidonet"` - FidoNet NODELIST area
-- `"FILES@lovlynet"` - LOVLYNET FILES area
-- `"INBOUND@fsxnet"` - fsxNet INBOUND area
-
-Using `TAG@DOMAIN` as the key fully scopes the rules to that domain. Individual rules within the group do not need a `domain` field — it would be redundant.
-
-For local file areas without a network domain, use the tag alone:
-- `"LOCAL_FILES"` - Local area
-
-When using a plain `TAG` key (no `@DOMAIN`), you can optionally add a `domain` field to individual rules to restrict them to a specific domain — useful if multiple networks share the same area tag.
+> **Always use `TAG@DOMAIN` for file areas linked to a network domain.** The processor looks up rules by constructing `TAG@DOMAIN` from the file's actual domain at runtime, so the match is exact. Two networks can share the same area tag (e.g. `NODELIST@fidonet` and `NODELIST@fsxnet`) and each will only trigger its own rules.
 
 ```json
 "area_rules": {
-  "NODELIST": [
+  "NODELIST@fidonet": [
     {
       "name": "Import FidoNet Nodelist",
-      "pattern": "/^NODELIST\\.(Z|A)[0-9]{2}$/i",
-      "script": "php scripts/import_nodelist.php %filepath% fidonet"
+      "pattern": "/^NODELIST\\.(Z|A|L|R|J)[0-9]{2}$/i",
+      "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force"
+    }
+  ],
+  "NODELIST@fsxnet": [
+    {
+      "name": "Import fsxNet Nodelist",
+      "pattern": "/^NODELIST\\.[0-9]{3}$/i",
+      "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force"
+    }
+  ]
+}
+```
+
+Individual rules within a `TAG@DOMAIN` group do not need a `domain` field — it is redundant.
+
+#### Local areas: `TAG`
+
+For file areas that are not linked to any network domain, use the plain tag:
+
+```json
+"area_rules": {
+  "LOCAL_FILES": [
+    {
+      "name": "Scan uploaded files",
+      "pattern": "/.*$/",
+      "script": "php %basedir%/scripts/scan_file.php %filepath%"
     }
   ]
 }
@@ -127,7 +142,7 @@ When using a plain `TAG` key (no `@DOMAIN`), you can optionally add a `domain` f
 - `fail_action` (string): Action(s) when script exits non-zero or times out.
 - `enabled` (bool): Toggle rule execution.
 - `timeout` (int): Script timeout in seconds.
-- `domain` (string, optional): If provided, rule only applies to file areas in that domain. This is only needed when using a plain `TAG` key and you want different rules within that group to apply to different domains. When using `TAG@DOMAIN` keys, the domain is already scoped by the key and this field is redundant.
+- `domain` (string, optional): Restricts the rule to a specific domain. Only useful under a plain `TAG` key — when using `TAG@DOMAIN` keys this field is redundant and can be omitted.
 
 ### Actions
 
