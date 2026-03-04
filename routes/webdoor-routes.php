@@ -188,6 +188,24 @@ SimpleRouter::get('/games', function() {
         ];
     }
 
+    $monthOffset = 0;
+    if (isset($_GET['month_offset'])) {
+        $monthOffset = (int)$_GET['month_offset'];
+        if ($monthOffset < 0) {
+            $monthOffset = 0;
+        }
+        if ($monthOffset > 120) {
+            $monthOffset = 120;
+        }
+    }
+
+    $monthStart = new \DateTimeImmutable('first day of this month 00:00:00');
+    if ($monthOffset > 0) {
+        $monthStart = $monthStart->modify("-{$monthOffset} months");
+    }
+    $monthEnd = $monthStart->modify('+1 month');
+    $leaderboardMonthLabel = $monthStart->format('F Y');
+
     $leaderboard = [];
     try {
         $db = \BinktermPHP\Database::getInstance()->getPdo();
@@ -197,7 +215,8 @@ SimpleRouter::get('/games', function() {
                 SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
                     l.user_id, l.game_id, l.board, l.score, l.created_at
                 FROM webdoor_leaderboards l
-                WHERE l.created_at >= DATE_TRUNC(\'month\', CURRENT_DATE)
+                WHERE l.created_at >= ?
+                  AND l.created_at < ?
                 ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
             )
             SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
@@ -206,7 +225,9 @@ SimpleRouter::get('/games', function() {
             ORDER BY b.score DESC, b.created_at DESC
             LIMIT ?
         ');
-        $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
+        $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
+        $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
+        $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
@@ -231,7 +252,9 @@ SimpleRouter::get('/games', function() {
     $template = new Template();
     $template->renderResponse('webdoors.twig', [
         'games' => $games,
-        'leaderboard' => $leaderboard
+        'leaderboard' => $leaderboard,
+        'leaderboard_month_label' => $leaderboardMonthLabel,
+        'leaderboard_month_offset' => $monthOffset
     ]);
 });
 
