@@ -169,6 +169,9 @@ class Auth
             $meta     = new UserMeta();
             $expected = $meta->getValue($userId, 'csrf_token');
             $token    = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if ($token === '' && isset($_POST['csrf_token'])) {
+                $token = (string)$_POST['csrf_token'];
+            }
             if ($expected === null || $token === '' || !hash_equals($expected, $token)) {
                 http_response_code(403);
                 header('Content-Type: application/json');

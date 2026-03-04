@@ -672,6 +672,47 @@ SimpleRouter::get('/echoareas', function() {
     $template->renderResponse('echoareas.twig');
 });
 
+SimpleRouter::get('/echoareas/import', function() {
+    $user = RouteHelper::requireAdmin();
+
+    $template = new Template();
+    $template->renderResponse('echoareas_import.twig');
+});
+
+SimpleRouter::post('/echoareas/import', function() {
+    $user = RouteHelper::requireAdmin();
+
+    $summary = null;
+    $error = null;
+
+    try {
+        if (!isset($_FILES['echoareas_csv']) || !is_array($_FILES['echoareas_csv'])) {
+            throw new \RuntimeException('Please choose a CSV file to import.');
+        }
+
+        $upload = $_FILES['echoareas_csv'];
+        if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('The upload failed. Please try again.');
+        }
+
+        $tmpName = $upload['tmp_name'] ?? '';
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('Invalid uploaded file.');
+        }
+
+        $importer = new \BinktermPHP\EchoareaImporter();
+        $summary = $importer->importCsv($tmpName);
+    } catch (\Throwable $e) {
+        $error = $e->getMessage();
+    }
+
+    $template = new Template();
+    $template->renderResponse('echoareas_import.twig', [
+        'import_summary' => $summary,
+        'import_error' => $error,
+    ]);
+});
+
 SimpleRouter::get('/echolist', function() {
     $user = RouteHelper::requireAuth();
 
