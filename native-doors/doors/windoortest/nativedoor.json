@@ -1,0 +1,33 @@
+{
+  "type": "nativedoor",
+  "version": "1.0",
+  "game": {
+    "name": "Window Door Test",
+    "short_name": "WINDOORTEST",
+    "author": "BinktermPHP",
+    "version": "1.0",
+    "release_year": 2026,
+    "description": "A simple test native door that displays hello world and exits.",
+    "genre": ["Test"],
+    "players": "Single-player",
+    "icon": null,
+    "screenshot": null
+  },
+  "door": {
+    "executable": "windoortest.bat",
+    "launch_command": "cmd.exe /c windoortest.bat",
+    "dropfile_format": "DOOR.SYS",
+    "max_nodes": 10,
+    "ansi_required": false,
+    "time_per_day": 30
+  },
+  "requirements": {
+    "admin_only": false
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_time_minutes": 30,
+    "max_sessions": 10
+  }
+}

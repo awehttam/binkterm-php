@@ -137,12 +137,40 @@ SimpleRouter::get('/games', function() {
             'id' => $doorId,
             'name' => $door['name'],
             'description' => $door['description'] ?? '',
-            'author' => $door['author'] ?? 'Unknown',
+            'author' => $door['author'] ?? null,
+            'version' => $door['game_version'] ?? null,
             'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
             'icon_url' => $iconUrl,
             'type' => 'dosdoor',
             'genre' => $door['genre'] ?? [],
-            'players' => $door['players'] ?? 'Unknown'
+            'players' => $door['players'] ?? null
+        ];
+    }
+
+    // Get Native Doors
+    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+    $nativeDoors = $nativeDoorManager->getEnabledDoors();
+    foreach ($nativeDoors as $doorId => $door) {
+        // Skip admin-only doors for non-admin users
+        if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+            continue;
+        }
+        $iconUrl = '/images/dos-door-icon.png'; // Default icon
+        if (!empty($door['icon'])) {
+            $iconUrl = "/door-assets/{$doorId}/icon";
+        }
+
+        $games[] = [
+            'id' => $doorId,
+            'name' => $door['name'],
+            'description' => $door['description'] ?? '',
+            'author' => $door['author'] ?? null,
+            'version' => $door['game_version'] ?? null,
+            'path' => $doorId,  // Will become /games/{doorid} (uses iframe wrapper)
+            'icon_url' => $iconUrl,
+            'type' => 'nativedoor',
+            'genre' => $door['genre'] ?? [],
+            'players' => $door['players'] ?? null
         ];
     }
 
@@ -160,6 +188,24 @@ SimpleRouter::get('/games', function() {
         ];
     }
 
+    $monthOffset = 0;
+    if (isset($_GET['month_offset'])) {
+        $monthOffset = (int)$_GET['month_offset'];
+        if ($monthOffset < 0) {
+            $monthOffset = 0;
+        }
+        if ($monthOffset > 120) {
+            $monthOffset = 120;
+        }
+    }
+
+    $monthStart = new \DateTimeImmutable('first day of this month 00:00:00');
+    if ($monthOffset > 0) {
+        $monthStart = $monthStart->modify("-{$monthOffset} months");
+    }
+    $monthEnd = $monthStart->modify('+1 month');
+    $leaderboardMonthLabel = $monthStart->format('F Y');
+
     $leaderboard = [];
     try {
         $db = \BinktermPHP\Database::getInstance()->getPdo();
@@ -169,7 +215,8 @@ SimpleRouter::get('/games', function() {
                 SELECT DISTINCT ON (l.user_id, l.game_id, l.board)
                     l.user_id, l.game_id, l.board, l.score, l.created_at
                 FROM webdoor_leaderboards l
-                WHERE l.created_at >= DATE_TRUNC(\'month\', CURRENT_DATE)
+                WHERE l.created_at >= ?
+                  AND l.created_at < ?
                 ORDER BY l.user_id, l.game_id, l.board, l.score DESC, l.created_at DESC
             )
             SELECT b.game_id, b.board, u.real_name, u.username, b.score, b.created_at
@@ -178,7 +225,9 @@ SimpleRouter::get('/games', function() {
             ORDER BY b.score DESC, b.created_at DESC
             LIMIT ?
         ');
-        $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
+        $stmt->bindValue(1, $monthStart->format('Y-m-d H:i:s'));
+        $stmt->bindValue(2, $monthEnd->format('Y-m-d H:i:s'));
+        $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
@@ -203,7 +252,9 @@ SimpleRouter::get('/games', function() {
     $template = new Template();
     $template->renderResponse('webdoors.twig', [
         'games' => $games,
-        'leaderboard' => $leaderboard
+        'leaderboard' => $leaderboard,
+        'leaderboard_month_label' => $leaderboardMonthLabel,
+        'leaderboard_month_offset' => $monthOffset
     ]);
 });
 
@@ -252,6 +303,51 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
     require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
 });
 
+// GET /games/nativedoors/{doorid} - Play a native Linux door game
+SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
+    $auth = new Auth();
+    $user = $auth->getCurrentUser();
+
+    if (!$user) {
+        return SimpleRouter::response()->redirect('/login');
+    }
+    if (GameConfig::isGameSystemEnabled() == false) {
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error' => 'Sorry, the game system is not enabled.'
+        ]);
+        exit;
+    }
+
+    // Verify door exists and is enabled
+    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+    $door = $nativeDoorManager->getDoor($doorid);
+
+    if (!$door || empty($door['config']['enabled'])) {
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('404.twig', [
+            'requested_url' => "/games/nativedoors/{$doorid}"
+        ]);
+        return;
+    }
+
+    // Block admin-only doors for non-admins
+    if (!empty($door['admin_only']) && empty($user['is_admin'])) {
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title' => 'Access Denied',
+            'error' => 'This door is restricted to administrators.'
+        ]);
+        return;
+    }
+
+    // Reuse the DOS door terminal player (same WebSocket protocol)
+    $doorId = $doorid;
+    require __DIR__ . '/../public_html/webdoors/dosdoors/index.php';
+});
+
 // GET /games/{game} - Play a specific game (DOS door or web door)
 SimpleRouter::get('/games/{game}', function($game) {
     $auth = new Auth();
@@ -288,7 +384,33 @@ SimpleRouter::get('/games/{game}', function($game) {
         $template = new Template();
         $template->renderResponse('dosdoor_play.twig', [
             'door' => $door,
-            'door_id' => $game
+            'door_id' => $game,
+            'player_url' => "/games/dosdoors/{$game}"
+        ]);
+        return;
+    }
+
+    // Check if this is a native door
+    $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+    $nativeDoor = $nativeDoorManager->getDoor($game);
+
+    if ($nativeDoor && !empty($nativeDoor['config']['enabled'])) {
+        // Block admin-only doors for non-admins
+        if (!empty($nativeDoor['admin_only']) && empty($user['is_admin'])) {
+            http_response_code(403);
+            $template = new Template();
+            $template->renderResponse('error.twig', [
+                'error_title' => 'Access Denied',
+                'error' => 'This door is restricted to administrators.'
+            ]);
+            return;
+        }
+
+        $template = new Template();
+        $template->renderResponse('dosdoor_play.twig', [
+            'door' => $nativeDoor,
+            'door_id' => $game,
+            'player_url' => "/games/nativedoors/{$game}"
         ]);
         return;
     }

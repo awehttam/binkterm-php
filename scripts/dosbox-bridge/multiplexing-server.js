@@ -201,7 +201,7 @@ class SessionManager {
             await client.connect();
 
             const result = await client.query(
-                `SELECT session_id, user_id, door_id, node_number, ws_port, ws_token, session_path, user_data
+                `SELECT session_id, user_id, door_id, node_number, ws_port, ws_token, session_path, user_data, door_type
                  FROM door_sessions
                  WHERE ws_token = $1 AND ended_at IS NULL
                  LIMIT 1`,
@@ -348,11 +348,12 @@ class SessionManager {
     async launchEmulator(session) {
         const { sessionId, sessionData } = session;
 
-        // Create emulator adapter (auto-selects DOSBox or DOSEMU)
-        session.emulator = createEmulatorAdapter(BASE_PATH);
+        // Create emulator adapter based on door_type
+        const doorType = sessionData.door_type || 'dos';
+        session.emulator = createEmulatorAdapter(BASE_PATH, doorType);
         const emulatorName = session.emulator.getName();
 
-        console.log(`[SESSION] Using ${emulatorName} for session ${sessionId}`);
+        console.log(`[SESSION] Using ${emulatorName} for session ${sessionId} (door_type=${doorType})`);
 
         // Set up exit handler for emulator process
         session.emulator.onExit((code, signal) => {
@@ -377,28 +378,44 @@ class SessionManager {
                 userData = JSON.parse(userData);
             }
 
-            // Load door manifest to check for custom dropfile_path
-            // DOORS directory is uppercase - Linux filesystem is case-sensitive
-            const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', sessionData.door_id.toUpperCase(), 'dosdoor.jsn');
             let dropPath;
 
-            if (fs.existsSync(manifestPath)) {
-                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-                if (manifest.door && manifest.door.dropfile_path) {
-                    // Use custom dropfile path from manifest (e.g., "\DOORS\BRE")
-                    // Convert to actual filesystem path
-                    const customPath = manifest.door.dropfile_path.replace(/\\/g, '/');
-                    dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', customPath);
-                    console.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
-                } else {
-                    // Default: node-specific drop directory
-                    dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
-                    console.log(`[DROPFILE] Using default node-based dropfile path: ${dropPath}`);
-                }
+            if (emulatorName === 'Native') {
+                // Native doors: drop file goes in native-doors/drops/NODE{n}/
+                dropPath = path.join(BASE_PATH, 'native-doors', 'drops', `NODE${sessionData.node_number}`);
+                console.log(`[DROPFILE] Native door drop path: ${dropPath}`);
             } else {
-                // Manifest not found, use default
-                dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
-                console.log(`[DROPFILE] Manifest not found, using default path: ${dropPath}`);
+                // DOS doors: check manifest for custom dropfile_path
+                // DOORS directory is uppercase - Linux filesystem is case-sensitive
+                const manifestPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DOORS', sessionData.door_id.toUpperCase(), 'dosdoor.jsn');
+
+                if (fs.existsSync(manifestPath)) {
+                    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                    if (manifest.door && manifest.door.dropfile_path) {
+                        // Sanitize custom dropfile_path to prevent directory traversal
+                        // Replace backslashes, strip leading slashes, normalize
+                        const rawPath = manifest.door.dropfile_path.replace(/\\/g, '/').replace(/^\/+/, '');
+                        const normalized = path.normalize(rawPath);
+                        const safeBase = path.resolve(BASE_PATH, 'dosbox-bridge', 'dos');
+                        const segments = normalized.split(path.sep);
+                        const resolved = path.resolve(safeBase, normalized);
+                        if (!path.isAbsolute(normalized) &&
+                            segments.every(seg => seg !== '..') &&
+                            (resolved === safeBase || resolved.startsWith(safeBase + path.sep))) {
+                            dropPath = resolved;
+                            console.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
+                        } else {
+                            console.warn(`[DROPFILE] Custom dropfile_path '${rawPath}' rejected (traversal or absolute), using default`);
+                            dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
+                        }
+                    } else {
+                        dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
+                        console.log(`[DROPFILE] Using default node-based dropfile path: ${dropPath}`);
+                    }
+                } else {
+                    dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
+                    console.log(`[DROPFILE] Manifest not found, using default path: ${dropPath}`);
+                }
             }
 
             if (!fs.existsSync(dropPath)) {
@@ -406,10 +423,28 @@ class SessionManager {
                 console.log(`[DROPFILE] Created drop directory: ${dropPath}`);
             }
 
-            console.log(`[DROPFILE] Writing DOOR.SYS to: ${dropPath}`);
+            // Store so cleanupSessionFiles can remove the right drop file
+            session.dropPath = dropPath;
+
+            // Determine dropfile format (native doors can specify DOOR32.SYS)
+            let dropfileFormat = 'DOOR.SYS';
+            if (emulatorName === 'Native') {
+                const nativeManifestPath = path.join(BASE_PATH, 'native-doors', 'doors', sessionData.door_id, 'nativedoor.json');
+                if (fs.existsSync(nativeManifestPath)) {
+                    const nativeManifest = JSON.parse(fs.readFileSync(nativeManifestPath, 'utf8'));
+                    dropfileFormat = (nativeManifest.door && nativeManifest.door.dropfile_format) || 'DOOR.SYS';
+                }
+            }
+
+            console.log(`[DROPFILE] Writing ${dropfileFormat} to: ${dropPath}`);
             console.log(`[DROPFILE] User data:`, JSON.stringify(userData).substring(0, 200));
-            this.generateDoorSys(dropPath, userData, sessionData.node_number);
-            console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
+            if (dropfileFormat === 'DOOR32.SYS') {
+                this.generateDoor32Sys(dropPath, userData, sessionData.node_number);
+                console.log(`[DROPFILE] Generated DOOR32.SYS in ${dropPath}`);
+            } else {
+                this.generateDoorSys(dropPath, userData, sessionData.node_number);
+                console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
+            }
         } else {
             console.warn(`[DROPFILE] No user_data found for session ${sessionId}`);
         }
@@ -417,7 +452,8 @@ class SessionManager {
         // Update database with session_path
         await this.updateSessionPath(sessionId, sessionPath);
 
-        // For DOSBox and DOSEMU: allocate port and create TCP listener
+        // For DOS emulators (DOSBox/DOSEMU): allocate TCP port and create listener
+        // Native doors use PTY directly - no TCP port needed
         if (emulatorName === 'DOSBox' || emulatorName === 'DOSEMU') {
             const tcpPort = this.portPool.allocate();
             session.tcpPort = tcpPort;
@@ -441,8 +477,11 @@ class SessionManager {
 
         console.log(`[${emulatorName}] Launched PID ${result.pid} for session ${sessionId}`);
 
-        // Note: For both DOSBox and DOSEMU, we wait for TCP connection
-        // setupEmulatorHandlers will be called in handleEmulatorConnection
+        if (emulatorName === 'Native') {
+            // Native doors connect immediately via PTY - set up handlers now
+            this.setupEmulatorHandlers(session);
+        }
+        // For DOSBox/DOSEMU: setupEmulatorHandlers will be called in handleEmulatorConnection
 
         // Update database
         await this.updateSessionPorts(sessionId, session.tcpPort || 0, result.pid);
@@ -526,6 +565,45 @@ class SessionManager {
             }
         } catch (err) {
             console.error(`[DROPFILE] Failed to write DOOR.SYS: ${err.message}`);
+            throw err;
+        }
+    }
+
+    /**
+     * Generate DOOR32.SYS drop file from user_data
+     * Format: https://wiki.bbsdev.net/index.php/DOOR32.SYS
+     * 11-line format used by modern door games
+     */
+    generateDoor32Sys(dropPath, userData, nodeNumber) {
+        const door32Path = path.join(dropPath, 'DOOR32.SYS');
+
+        // DOOR32.SYS 11-line format
+        const lines = [
+            '2',                                                    // 1: Comm type (0=local, 1=serial, 2=telnet/socket)
+            '0',                                                    // 2: Comm handle/socket (0 for telnet/PTY)
+            '0',                                                    // 3: Baud rate (0 for telnet/socket)
+            userData.bbs_name || 'BinktermPHP BBS',                 // 4: BBS software name
+            userData.user_id || '1',                                // 5: User record number
+            userData.real_name || 'Guest',                          // 6: User's real name
+            userData.alias || userData.real_name || 'Guest',        // 7: User's handle/alias
+            userData.security_level || '10',                        // 8: Security level
+            userData.minutes_remaining || '120',                    // 9: Time left (minutes)
+            '1',                                                    // 10: ANSI (1=yes, 0=no)
+            String(nodeNumber || 1),                                // 11: Node number
+        ];
+
+        const content = lines.join('\r\n') + '\r\n';
+        try {
+            fs.writeFileSync(door32Path, content, 'ascii');
+            console.log(`[DROPFILE] Wrote ${content.length} bytes to ${door32Path}`);
+
+            const stats = fs.statSync(door32Path);
+            console.log(`[DROPFILE] Verification: file size is ${stats.size} bytes`);
+            if (stats.size !== content.length) {
+                console.error(`[DROPFILE] WARNING: Size mismatch! Expected ${content.length}, got ${stats.size}`);
+            }
+        } catch (err) {
+            console.error(`[DROPFILE] Failed to write DOOR32.SYS: ${err.message}`);
             throw err;
         }
     }
@@ -712,11 +790,17 @@ class SessionManager {
             session.bytesFromEmulator += data.length;
 
             try {
-                // For DOSBox: convert CP437 to UTF-8
-                // For DOSEMU: data is already in correct format from PTY
-                const utf8Data = (emulatorName === 'DOSBox')
-                    ? iconv.decode(data, 'cp437')
-                    : data.toString('utf8');
+                // DOSBox: CP437 bytes via TCP socket -> decode to UTF-8
+                // Native (cp437): binary string from PTY -> decode to UTF-8
+                // DOSEMU / Native (utf8): already UTF-8
+                let utf8Data;
+                if (emulatorName === 'DOSBox') {
+                    utf8Data = iconv.decode(data, 'cp437');
+                } else if (emulatorName === 'Native' && session.emulator.outputEncoding === 'cp437') {
+                    utf8Data = iconv.decode(Buffer.from(data, 'binary'), 'cp437');
+                } else {
+                    utf8Data = typeof data === 'string' ? data : data.toString('utf8');
+                }
 
                 if (session.ws && session.ws.readyState === WebSocket.OPEN) {
                     session.ws.send(utf8Data);
@@ -771,12 +855,18 @@ class SessionManager {
             try {
                 const dataStr = data.toString('utf8');
 
-                // For DOSBox: convert UTF-8 to CP437
-                // For DOSEMU: pass through as UTF-8
+                // DOSBox: encode UTF-8 input to CP437 for the emulator
+                // Native (cp437): encode UTF-8 input to CP437 for the door
+                // DOSEMU / Native (utf8): pass through as UTF-8
                 const emulatorName = session.emulator ? session.emulator.getName() : 'Unknown';
-                const emulatorData = (emulatorName === 'DOSBox')
-                    ? iconv.encode(dataStr, 'cp437')
-                    : Buffer.from(dataStr, 'utf8');
+                let emulatorData;
+                if (emulatorName === 'DOSBox') {
+                    emulatorData = iconv.encode(dataStr, 'cp437');
+                } else if (emulatorName === 'Native' && session.emulator.outputEncoding === 'cp437') {
+                    emulatorData = iconv.encode(dataStr, 'cp437');
+                } else {
+                    emulatorData = Buffer.from(dataStr, 'utf8');
+                }
 
                 // Forward to emulator
                 if (session.emulator) {
@@ -955,7 +1045,8 @@ class SessionManager {
             }
 
             // Remove DOOR.SYS file from drop directory
-            const dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
+            const dropPath = session.dropPath ||
+                path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
             const doorSysPath = path.join(dropPath, 'DOOR.SYS');
             if (fs.existsSync(doorSysPath)) {
                 fs.unlinkSync(doorSysPath);

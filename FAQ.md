@@ -183,12 +183,6 @@ in the queue.
 4. External service calls back to verify the token via API
 5. Token is marked as used (single-use)
 
-Configure in `.env`:
-```
-BBSLINK_GATEWAY_URL=https://gateway.example.com/
-BBSLINK_API_KEY=your-secret-api-key
-```
-Note that BBSLINK support is experimental and not enabled in the code base.  The above is provided as an example for how gateway tokens work and the gateway token facility itself may be used and developed for.
 
 ### Q: How do I make a user an admin?
 **A:** Set the 'admin' flag when editing the user through the web interface

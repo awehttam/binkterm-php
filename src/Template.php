@@ -180,6 +180,7 @@ class Template
 
         // Appearance configuration
         $appearanceConfig = AppearanceConfig::getConfig();
+        $bbsMenuItems = $this->buildBbsMenuItems($appearanceConfig);
 
         // Resolve announcement active state (Twig has no datetime comparison)
         $ann = $appearanceConfig['content']['announcement'] ?? [];
@@ -202,6 +203,7 @@ class Template
         $houseRulesHtml = $houseRulesMd !== null ? MarkdownRenderer::toHtml($houseRulesMd) : null;
 
         $this->twig->addGlobal('appearance', $appearanceConfig);
+        $this->twig->addGlobal('bbs_menu_items', $bbsMenuItems);
         $this->twig->addGlobal('appearance_houserules_html', $houseRulesHtml);
         $this->twig->addGlobal('active_shell', $this->activeShell);
 
@@ -247,6 +249,107 @@ class Template
         $this->twig->addFunction(new TwigFunction('bbs_feature_enabled', function(string $feature): bool {
             return BbsConfig::isFeatureEnabled($feature);
         }));
+    }
+
+    /**
+     * Build the menu item list used by the BBS menu shell.
+     * Feature pages are injected at render time so existing saved appearance
+     * config remains unchanged.
+     */
+    private function buildBbsMenuItems(array $appearanceConfig): array
+    {
+        $items = $appearanceConfig['shell']['bbs_menu']['menu_items'] ?? [];
+        if (!is_array($items)) {
+            $items = [];
+        }
+
+        $normalizedItems = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $key = strtoupper(trim((string)($item['key'] ?? '')));
+            $label = trim((string)($item['label'] ?? ''));
+            $url = trim((string)($item['url'] ?? ''));
+
+            if ($key === '' || $label === '' || $url === '') {
+                continue;
+            }
+
+            $normalizedItems[] = [
+                'key' => $key,
+                'label' => $label,
+                'icon' => trim((string)($item['icon'] ?? 'circle')),
+                'url' => $url,
+            ];
+        }
+
+        if (BbsConfig::isFeatureEnabled('voting_booth')) {
+            $normalizedItems = $this->appendBbsMenuFeatureItem(
+                $normalizedItems,
+                '/polls',
+                'Polls',
+                'vote-yea',
+                ['P', 'O', 'L']
+            );
+        }
+
+        if (BbsConfig::isFeatureEnabled('shoutbox')) {
+            $normalizedItems = $this->appendBbsMenuFeatureItem(
+                $normalizedItems,
+                '/shoutbox',
+                'Shoutbox',
+                'bullhorn',
+                ['H', 'U', 'B', 'X']
+            );
+        }
+
+        return $normalizedItems;
+    }
+
+    private function appendBbsMenuFeatureItem(array $items, string $url, string $label, string $icon, array $preferredKeys): array
+    {
+        foreach ($items as $item) {
+            if (($item['url'] ?? '') === $url) {
+                return $items;
+            }
+        }
+
+        $items[] = [
+            'key' => $this->selectBbsMenuKey($items, $preferredKeys),
+            'label' => $label,
+            'icon' => $icon,
+            'url' => $url,
+        ];
+
+        return $items;
+    }
+
+    private function selectBbsMenuKey(array $items, array $preferredKeys): string
+    {
+        $usedKeys = [];
+        foreach ($items as $item) {
+            $key = strtoupper((string)($item['key'] ?? ''));
+            if ($key !== '') {
+                $usedKeys[$key] = true;
+            }
+        }
+
+        foreach ($preferredKeys as $key) {
+            $candidate = strtoupper((string)$key);
+            if ($candidate !== '' && !isset($usedKeys[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        foreach (range('A', 'Z') as $candidate) {
+            if (!isset($usedKeys[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        return '1';
     }
 
     public function render($template, $variables = [])

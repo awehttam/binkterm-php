@@ -1,0 +1,137 @@
+{% extends "base.twig" %}
+
+{% block title %}Shoutbox - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-8 col-lg-9">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bullhorn me-2"></i>
+                    Shoutbox
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="shoutboxMessages" class="mb-3">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Loading shouts...
+                    </div>
+                </div>
+                <div class="d-flex justify-content-center mb-3">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="shoutboxLoadMore" onclick="loadMoreShouts()">
+                        Load older shouts
+                    </button>
+                </div>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="Leave a shout...">
+                    <button class="btn btn-primary" type="button" onclick="postShout()">Post</button>
+                </div>
+                <div class="form-text text-muted">280 characters max.</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let shoutboxOffset = 0;
+const shoutboxPageSize = 20;
+
+$(document).ready(function() {
+    loadShoutbox();
+});
+
+function loadShoutbox() {
+    shoutboxOffset = 0;
+    $.get(`/api/shoutbox?limit=${shoutboxPageSize}&offset=${shoutboxOffset}`)
+        .done(function(data) {
+            const items = data.messages || [];
+            if (items.length === 0) {
+                $('#shoutboxMessages').html('<p class="text-muted mb-0">No shouts yet. Be the first!</p>');
+                $('#shoutboxLoadMore').prop('disabled', true);
+                return;
+            }
+            let html = '';
+            items.forEach(function(msg) {
+                html += `
+                    <div class="mb-3 border-bottom pb-3">
+                        <strong>${escapeHtml(msg.username)}</strong>
+                        <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <div class="mt-1">${escapeHtml(msg.message)}</div>
+                    </div>
+                `;
+            });
+            $('#shoutboxMessages').html(html);
+            shoutboxOffset += items.length;
+            $('#shoutboxLoadMore').prop('disabled', items.length < shoutboxPageSize);
+        })
+        .fail(function() {
+            $('#shoutboxMessages').html('<p class="text-danger mb-0">Failed to load shouts.</p>');
+            $('#shoutboxLoadMore').prop('disabled', true);
+        });
+}
+
+function loadMoreShouts() {
+    const button = document.getElementById('shoutboxLoadMore');
+    if (button.disabled) {
+        return;
+    }
+    button.disabled = true;
+    $.get(`/api/shoutbox?limit=${shoutboxPageSize}&offset=${shoutboxOffset}`)
+        .done(function(data) {
+            const items = data.messages || [];
+            if (items.length === 0) {
+                return;
+            }
+            let html = '';
+            items.forEach(function(msg) {
+                html += `
+                    <div class="mb-3 border-bottom pb-3">
+                        <strong>${escapeHtml(msg.username)}</strong>
+                        <span class="text-muted small ms-2">${new Date(msg.created_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <div class="mt-1">${escapeHtml(msg.message)}</div>
+                    </div>
+                `;
+            });
+            $('#shoutboxMessages').append(html);
+            shoutboxOffset += items.length;
+            button.disabled = items.length < shoutboxPageSize;
+        })
+        .fail(function() {
+            button.disabled = false;
+        });
+}
+
+function postShout() {
+    const input = document.getElementById('shoutboxInput');
+    const message = input.value.trim();
+    if (!message) {
+        return;
+    }
+
+    fetch('/api/shoutbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            input.value = '';
+            loadShoutbox();
+        } else {
+            alert(data.error || 'Failed to post shout.');
+        }
+    })
+    .catch(() => alert('Failed to post shout.'));
+}
+
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+</script>
+{% endblock %}

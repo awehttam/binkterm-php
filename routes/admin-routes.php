@@ -97,6 +97,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/dosdoors_config.twig');
     });
 
+    // Native Doors config page
+    SimpleRouter::get('/native-doors', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/nativedoors_config.twig');
+    });
+
     // File area rules page
     SimpleRouter::get('/filearea-rules', function() {
         $user = RouteHelper::requireAdmin();
@@ -190,6 +198,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         $template = new Template();
         $template->renderResponse('admin/activity_stats.twig', ['user_timezone' => $timezone]);
+    });
+
+    SimpleRouter::get('/economy', function() {
+        RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/economy.twig');
     });
 
     // API routes for admin
@@ -319,6 +334,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             header('Content-Type: application/json');
             $stats = $adminController->getSystemStats();
             echo json_encode($stats);
+        });
+
+        SimpleRouter::get('/economy', function() {
+            $auth = new Auth();
+            $user = $auth->requireAuth();
+
+            $adminController = new AdminController();
+            $adminController->requireAdmin($user);
+
+            $period = $_GET['period'] ?? '30d';
+
+            header('Content-Type: application/json');
+            echo json_encode($adminController->getEconomyStats($period));
         });
 
         // Chat rooms
@@ -1429,6 +1457,110 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        // Native Doors API endpoints
+        SimpleRouter::get('/native-doors', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+            $allDoors = $nativeDoorManager->getAllDoors();
+
+            $doors = [];
+            foreach ($allDoors as $doorId => $door) {
+                $doors[] = [
+                    'id' => $doorId,
+                    'name' => $door['name'],
+                    'short_name' => $door['short_name'] ?? $door['name'],
+                    'author' => $door['author'] ?? 'Unknown',
+                    'description' => $door['description'] ?? '',
+                    'config' => $door['config'] ?? []
+                ];
+            }
+
+            echo json_encode(['success' => true, 'doors' => $doors]);
+        });
+
+        SimpleRouter::get('/native-doors/config', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $result = $client->getNativeDoorsConfig();
+
+                $configData = null;
+                if (!empty($result['config_json'])) {
+                    $configData = json_decode($result['config_json'], true);
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $configData ?? [],
+                    'exists' => $result['active'] ?? false
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/native-doors/config', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $payload = json_decode(file_get_contents('php://input'), true);
+                $config = $payload['config'] ?? null;
+
+                if (!is_array($config)) {
+                    throw new Exception('Invalid config data');
+                }
+
+                $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                if ($json === false) {
+                    throw new Exception('Failed to encode config as JSON');
+                }
+
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->saveNativeDoorsConfig($json);
+
+                // Reload config class cache and sync enabled doors to database
+                \BinktermPHP\NativeDoorConfig::reload();
+
+                $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+                $syncResult = $nativeDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'config' => $config,
+                    'synced' => $syncResult['synced'],
+                    'sync_errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        SimpleRouter::post('/native-doors/sync', function() {
+            $user = RouteHelper::requireAdmin();
+            header('Content-Type: application/json');
+
+            try {
+                $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+                $syncResult = $nativeDoorManager->syncDoorsToDatabase();
+
+                echo json_encode([
+                    'success' => true,
+                    'synced' => $syncResult['synced'],
+                    'errors' => $syncResult['errors']
+                ]);
+            } catch (Exception $e) {
+                http_response_code(500);
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
         });

@@ -122,14 +122,21 @@ class BinkpSession
             $this->state = self::STATE_ADDR_SENT;
 
             while ($this->state < self::STATE_AUTHENTICATED) {
-                $frame = BinkpFrame::parseFromSocket($this->socket);
+                try {
+                    $frame = BinkpFrame::parseFromSocket($this->socket);
+                } catch (\Exception $e) {
+                    throw new \Exception(
+                        $e->getMessage() . ' ' . $this->buildHandshakeSocketDiagnostics(),
+                        0,
+                        $e
+                    );
+                }
+
                 if (!$frame) {
-                    // Get stream metadata for diagnostic info
-                    $meta = stream_get_meta_data($this->socket);
-                    $timedOut = $meta['timed_out'] ? 'yes' : 'no';
-                    $eof = $meta['eof'] ? 'yes' : 'no';
-                    $blocked = $meta['blocked'] ? 'yes' : 'no';
-                    throw new \Exception("Failed to read frame during handshake (state={$this->state}, timed_out={$timedOut}, eof={$eof}, blocked={$blocked})");
+                    throw new \Exception(
+                        "Failed to read frame during handshake (state={$this->state}) " .
+                        $this->buildHandshakeSocketDiagnostics()
+                    );
                 }
 
                 $this->log("Received: {$frame}", 'DEBUG');
@@ -175,16 +182,47 @@ class BinkpSession
         $this->log("Sent NUL: {$data}", 'DEBUG');
     }
 
+    private function buildHandshakeSocketDiagnostics(): string
+    {
+        $meta = stream_get_meta_data($this->socket);
+        $timedOut = !empty($meta['timed_out']) ? 'yes' : 'no';
+        $eof = !empty($meta['eof']) ? 'yes' : 'no';
+        $blocked = !empty($meta['blocked']) ? 'yes' : 'no';
+        $preview = $this->getHandshakeSocketPreview();
+
+        return "(timed_out={$timedOut}, eof={$eof}, blocked={$blocked}, {$preview})";
+    }
+
+    private function getHandshakeSocketPreview(int $maxBytes = 24): string
+    {
+        if (!is_resource($this->socket) || !defined('STREAM_PEEK')) {
+            return 'preview=unavailable';
+        }
+
+        $peeked = @stream_socket_recvfrom($this->socket, $maxBytes, STREAM_PEEK);
+        if (!is_string($peeked) || $peeked === '') {
+            return 'preview=none';
+        }
+
+        $hexPairs = str_split(bin2hex($peeked), 2);
+        $hex = implode(' ', $hexPairs);
+        $ascii = preg_replace('/[^\x20-\x7E]/', '.', $peeked);
+
+        return 'preview_hex=' . $hex . ', preview_ascii="' . $ascii . '"';
+    }
+
     public function processSession()
     {
         try {
             $this->state = self::STATE_FILE_TRANSFER;
             $this->log("Entering file transfer phase", 'DEBUG');
 
+            $pendingFiles = []; // Tracks sent files awaiting M_GOT; used for deferred cleanup
+
             if ($this->isOriginator) {
                 $this->log("As originator, checking for outbound files", 'DEBUG');
                 $this->sendFiles();
-                
+
                 // Wait for M_GOT responses before sending EOB
                 if (!empty($this->filesSent)) {
                     $this->log("Waiting for M_GOT responses for " . count($this->filesSent) . " sent files", 'DEBUG');
@@ -207,6 +245,12 @@ class BinkpSession
                         $lastActivity = time();
                         $this->log("Received while waiting for M_GOT: {$frame}", 'DEBUG');
                         $this->processTransferFrame($frame);
+
+                        // If remote sent M_EOB, no more M_GOTs are coming - exit wait loop
+                        if ($this->state >= self::STATE_EOB_SENT) {
+                            $this->log("Remote sent EOB during M_GOT wait, exiting wait loop", 'DEBUG');
+                            break;
+                        }
 
                         // Remove confirmed files from pending list
                         if ($frame->isCommand() && $frame->getCommand() === BinkpFrame::M_GOT) {
@@ -241,7 +285,15 @@ class BinkpSession
                     }
 
                     if (!empty($pendingFiles)) {
-                        $this->log(count($pendingFiles) . " files not confirmed after timeout", 'WARNING');
+                        if ($this->state >= self::STATE_EOB_SENT) {
+                            // Remote sent M_EOB without M_GOT yet.  Defer the actual file
+                            // deletion until after the EOB wait loop so that M_GOT frames
+                            // arriving in that window (some remotes send M_EOB before M_GOT)
+                            // can delete the files via handleGotCommand normally.
+                            $this->log(count($pendingFiles) . " file(s) pending M_GOT after remote M_EOB — deferring cleanup", 'DEBUG');
+                        } else {
+                            $this->log(count($pendingFiles) . " files not confirmed after timeout", 'WARNING');
+                        }
                     } else {
                         $this->log("All sent files confirmed by remote", 'DEBUG');
                     }
@@ -320,6 +372,19 @@ class BinkpSession
                 $inactivity = time() - $lastActivity;
                 $hasActiveTransfer = $this->currentFile !== null;
 
+                // After the remote's EOB has been acknowledged, keep the session open
+                // briefly so the remote's tosser can queue a response (e.g. areafix) and
+                // send it as M_FILE.  Only wait if we actually sent something — if we sent
+                // nothing, the remote has nothing to process and there will be no response.
+                if ($this->state === self::STATE_EOB_RECEIVED && !$hasActiveTransfer) {
+                    if (empty($this->filesSent) || $inactivity >= 30) {
+                        $reason = empty($this->filesSent) ? 'nothing sent' : "no activity for {$inactivity}s";
+                        $this->log("EOB exchange complete, terminating ({$reason})", 'DEBUG');
+                        $this->state = self::STATE_TERMINATED;
+                        break;
+                    }
+                }
+
                 // Only enforce the hard EOB timeout when we are not actively receiving a file.
                 if (!$hasActiveTransfer && $elapsed >= $eobTimeout) {
                     $this->log("EOB exchange timeout after {$elapsed} seconds (state: {$this->state})", 'WARNING');
@@ -353,6 +418,29 @@ class BinkpSession
                 }
                 $this->log("Received: {$frame}", 'DEBUG');
                 $this->processTransferFrame($frame);
+            }
+
+            // Deferred implicit-confirm cleanup: delete any sent files that the remote
+            // never acknowledged with M_GOT.  Running this after the EOB wait loop ensures
+            // that late M_GOT frames (remotes that send M_GOT after M_EOB) have already
+            // been processed by handleGotCommand and the files deleted before we get here.
+            if (!empty($pendingFiles)) {
+                $outboundPath = $this->config->getOutboundPath();
+                $implicitCount = 0;
+                foreach (array_keys($pendingFiles) as $pendingFile) {
+                    $filepath = $outboundPath . '/' . basename($pendingFile);
+                    if (file_exists($filepath)) {
+                        if (unlink($filepath)) {
+                            $implicitCount++;
+                            $this->log("Deleted sent file (implicit M_EOB confirm): " . basename($pendingFile), 'DEBUG');
+                        } else {
+                            $this->log("Failed to delete sent file: " . basename($pendingFile), 'ERROR');
+                        }
+                    }
+                }
+                if ($implicitCount > 0) {
+                    $this->log("{$implicitCount} file(s) implicitly confirmed by remote M_EOB", 'INFO');
+                }
             }
 
             $this->cleanup();
@@ -547,12 +635,11 @@ class BinkpSession
                     } else {
                         $this->log("Received EOB first - sending our EOB", 'DEBUG');
                         $this->sendEOB();
-                        // Only terminate if we have no files waiting for confirmation
-                        if (empty($this->filesSent)) {
-                            $this->state = self::STATE_TERMINATED;
-                        } else {
-                            $this->state = self::STATE_EOB_RECEIVED;
-                        }
+                        // Always move to EOB_RECEIVED so the EOB wait loop keeps running.
+                        // Some remotes (e.g. areafix systems) process our inbound packet and
+                        // then send M_FILE in the same session after already having sent M_EOB.
+                        // The EOB wait loop will terminate cleanly via the inactivity check.
+                        $this->state = self::STATE_EOB_RECEIVED;
                     }
                     break;
 
@@ -598,7 +685,9 @@ class BinkpSession
                 $address .= '@' . $domain;
             }
         } else {
-            $address = trim(implode(" ", $this->config->getMyAddresses()));
+            // Answerer path: we don't know which uplink is calling yet, so
+            // build the address list respecting each uplink's send_domain_in_addr flag.
+            $address = $this->config->getMyAddressesForAdr();
         }
         $frame = BinkpFrame::createCommand(BinkpFrame::M_ADR, $address);
         $frame->writeToSocket($this->socket);

@@ -52,16 +52,66 @@ class AdminDaemonServer
 
         $this->logger->info('Admin daemon started', ['socket' => $this->socketTarget]);
 
+        $canFork = function_exists('pcntl_fork')
+            && function_exists('posix_getppid')
+            && function_exists('posix_kill');
+
+        $parentPid = getmypid();
+
+        if ($canFork && function_exists('pcntl_signal')) {
+            // Reap zombie child processes
+            pcntl_signal(SIGCHLD, function () {
+                while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {
+                    // reaped
+                }
+            });
+            // Allow a child handling stop_services to signal us to shut down
+            pcntl_signal(SIGTERM, function () {
+                $this->shutdownRequested = true;
+            });
+        }
+
         while (true) {
+            if (function_exists('pcntl_signal_dispatch')) {
+                pcntl_signal_dispatch();
+            }
+
+            if ($this->shutdownRequested) {
+                break;
+            }
+
             $client = @stream_socket_accept($this->serverSocket, 1);
             if ($client === false) {
                 continue;
             }
 
-            $this->handleClient($client);
-
-            if ($this->shutdownRequested) {
-                break;
+            if ($canFork) {
+                $pid = pcntl_fork();
+                if ($pid === -1) {
+                    // Fork failed — fall back to synchronous handling
+                    $this->handleClient($client);
+                    if ($this->shutdownRequested) {
+                        break;
+                    }
+                } elseif ($pid === 0) {
+                    // Child: close the server socket and handle the client
+                    fclose($this->serverSocket);
+                    $this->handleClient($client);
+                    if ($this->shutdownRequested) {
+                        // stop_services was issued — tell the parent to shut down
+                        posix_kill($parentPid, SIGTERM);
+                    }
+                    exit(0);
+                } else {
+                    // Parent: close our copy of the client socket and keep accepting
+                    fclose($client);
+                }
+            } else {
+                // pcntl not available — handle synchronously
+                $this->handleClient($client);
+                if ($this->shutdownRequested) {
+                    break;
+                }
             }
         }
 
@@ -182,7 +232,8 @@ class AdminDaemonServer
                         'binkp_poll.log' => \BinktermPHP\Config::getLogPath('binkp_poll.log'),
                         'binkp_server.log' => \BinktermPHP\Config::getLogPath('binkp_server.log'),
                         'binkp_scheduler.log' => \BinktermPHP\Config::getLogPath('binkp_scheduler.log'),
-                        'admin_daemon.log' => \BinktermPHP\Config::getLogPath('admin_daemon.log')
+                        'admin_daemon.log' => \BinktermPHP\Config::getLogPath('admin_daemon.log'),
+                        'mrc_daemon.log' => \BinktermPHP\Config::getLogPath('mrc_daemon.log')
                     ];
                     $logs = $this->logger->getRecentLogs($lines, $logFiles);
                     $this->writeResponse($client, ['ok' => true, 'result' => $logs]);
@@ -334,6 +385,23 @@ class AdminDaemonServer
                 case 'get_dosdoors_config':
                     $this->writeResponse($client, ['ok' => true, 'result' => $this->getDosdoorsConfig()]);
                     break;
+                case 'get_native_doors_config':
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getNativeDoorsConfig()]);
+                    break;
+                case 'save_native_doors_config':
+                    $json = $data['json'] ?? null;
+                    if (!is_string($json) || trim($json) === '') {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_json']);
+                        break;
+                    }
+                    $decoded = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
+                        break;
+                    }
+                    $this->writeNativeDoorsConfig($decoded);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getNativeDoorsConfig()]);
+                    break;
                 case 'save_dosdoors_config':
                     $json = $data['json'] ?? null;
                     if (!is_string($json) || trim($json) === '') {
@@ -341,7 +409,7 @@ class AdminDaemonServer
                         break;
                     }
                     $decoded = json_decode($json, true);
-                    if (json_last_error() !== JSON_ERROR_NONE) {
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
                         $this->writeResponse($client, ['ok' => false, 'error' => 'invalid_json']);
                         break;
                     }
@@ -855,8 +923,8 @@ class AdminDaemonServer
     {
         $configPath = $this->getDosdoorsConfigPath();
         $configDir = dirname($configPath);
-        if (!is_dir($configDir)) {
-            mkdir($configDir, 0755, true);
+        if (!is_dir($configDir) && mkdir($configDir, 0755, true) === false && !is_dir($configDir)) {
+            throw new \RuntimeException("Failed to create config directory: $configDir");
         }
 
         $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -864,12 +932,50 @@ class AdminDaemonServer
             throw new \RuntimeException('Failed to encode dosdoors config');
         }
 
-        file_put_contents($configPath, $json . PHP_EOL);
+        if (file_put_contents($configPath, $json . PHP_EOL) === false) {
+            throw new \RuntimeException("Failed to write dosdoors config: $configPath");
+        }
     }
 
     private function getDosdoorsConfigPath(): string
     {
         return __DIR__ . '/../../config/dosdoors.json';
+    }
+
+    private function getNativeDoorsConfig(): array
+    {
+        $configPath = $this->getNativeDoorsConfigPath();
+
+        $active = file_exists($configPath);
+        $configJson = $active ? file_get_contents($configPath) : null;
+
+        return [
+            'active' => $active,
+            'config_json' => $configJson
+        ];
+    }
+
+    private function writeNativeDoorsConfig(array $config): void
+    {
+        $configPath = $this->getNativeDoorsConfigPath();
+        $configDir = dirname($configPath);
+        if (!is_dir($configDir) && mkdir($configDir, 0755, true) === false && !is_dir($configDir)) {
+            throw new \RuntimeException("Failed to create config directory: $configDir");
+        }
+
+        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode native doors config');
+        }
+
+        if (file_put_contents($configPath, $json . PHP_EOL) === false) {
+            throw new \RuntimeException("Failed to write native doors config: $configPath");
+        }
+    }
+
+    private function getNativeDoorsConfigPath(): string
+    {
+        return __DIR__ . '/../../config/nativedoors.json';
     }
 
     private function mergeUplinks(array $existing, array $incoming): array

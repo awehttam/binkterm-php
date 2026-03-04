@@ -1,0 +1,32 @@
+{
+  "type": "nativedoor",
+  "version": "1.0",
+  "game": {
+    "name": "BBSLink",
+    "short_name": "BBSLink",
+    "author": "BinktermPHP",
+    "version": "1.0",
+    "release_year": 2026,
+    "description": "Connect to BBSLink Door Gateway",
+    "players": "Multi-player",
+    "icon": "img.png",
+    "screenshot": null
+  },
+  "door": {
+    "executable": "bbslink.sh",
+    "launch_command": "/bin/bash bbslink.sh menu {user_number}",
+    "dropfile_format": "DOOR.SYS",
+    "max_nodes": 10,
+    "ansi_required": false,
+    "time_per_day": 30,
+    "output_encoding": "cp437"
+  },
+  "requirements": {
+    "admin_only": false
+  },
+  "config": {
+    "enabled": false,
+    "credit_cost": 0,
+    "max_sessions": 10
+  }
+}

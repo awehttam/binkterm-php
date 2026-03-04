@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v159';
+const CACHE_NAME = 'binkcache-v169';
 
 // Static assets to precache
 const staticAssets = [
@@ -31,15 +31,6 @@ self.addEventListener('install', (event) => {
             })
             .then(() => {
                 console.log('[SW] New version installed, waiting for activation');
-                // Notify all clients that an update is available
-                return self.clients.matchAll().then(clients => {
-                    clients.forEach(client => {
-                        client.postMessage({
-                            type: 'UPDATE_AVAILABLE',
-                            version: CACHE_NAME
-                        });
-                    });
-                });
             })
     );
 });

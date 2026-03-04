@@ -87,8 +87,20 @@ class MarkdownRenderer
             if (preg_match('/^[-*]\s+(.+)$/', $line, $m)) {
                 $items = [];
                 while ($i < $total && preg_match('/^[-*]\s+(.+)$/', $lines[$i], $lm)) {
-                    $items[] = '<li>' . self::inlineHtml($lm[1]) . '</li>';
+                    $itemLines = [$lm[1]];
                     $i++;
+
+                    while (
+                        $i < $total &&
+                        trim($lines[$i]) !== '' &&
+                        preg_match('/^\s+(.+)$/', $lines[$i], $continuation) &&
+                        !preg_match('/^\s*[-*]\s+/', $lines[$i])
+                    ) {
+                        $itemLines[] = trim($continuation[1]);
+                        $i++;
+                    }
+
+                    $items[] = '<li>' . self::inlineHtml(implode(' ', $itemLines)) . '</li>';
                 }
                 $output[] = '<ul>' . implode('', $items) . '</ul>';
                 continue;
@@ -131,8 +143,17 @@ class MarkdownRenderer
         // Escape HTML first (except we handle < > carefully)
         $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
 
-        // Inline code  (`...`)
-        $text = preg_replace('/`([^`]+)`/', '<code>$1</code>', $text);
+        // Protect inline code spans from later emphasis/link parsing.
+        $codeSpans = [];
+        $text = preg_replace_callback(
+            '/`([^`]+)`/',
+            function ($matches) use (&$codeSpans) {
+                $token = '%%CODE' . count($codeSpans) . '%%';
+                $codeSpans[$token] = '<code>' . $matches[1] . '</code>';
+                return $token;
+            },
+            $text
+        );
 
         // Bold (**...** or __...__)
         $text = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $text);
@@ -154,6 +175,10 @@ class MarkdownRenderer
             },
             $text
         );
+
+        if (!empty($codeSpans)) {
+            $text = strtr($text, $codeSpans);
+        }
 
         return $text;
     }

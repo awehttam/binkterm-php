@@ -632,45 +632,6 @@ SimpleRouter::get('/whosonline', function() {
     ]);
 });
 
-// BBSLink Gateway redirect - generates token and redirects to external gateway
-SimpleRouter::get('/bbslink', function() {
-    /*
-Uses settings in .ennv:
-
-#  BBSLink Gateway Configuration
-# BBSLINK_GATEWAY_URL=https://gateway.example.com/
-# BBSLINK_API_KEY=your-secret-api-key
-*/
-
-    // This method is disabled because the bbslinkgateway doesn't work correctly.  Keep this function until someone
-    // sorts out the gateway (if it's possible) and this can be used as an example for redirecting to a third party
-    // service that does a call back verification to verify a gateway token
-    throw new Exception("Disabled");
-
-    $auth = new Auth();
-    $user = $auth->getCurrentUser();
-
-    if (!$user) {
-        return SimpleRouter::response()->redirect('/login');
-    }
-
-    $gatewayUrl = \BinktermPHP\Config::env('BBSLINK_GATEWAY_URL');
-    if (empty($gatewayUrl)) {
-        http_response_code(503);
-        echo "BBSLink gateway not configured";
-        return;
-    }
-
-    // Generate gateway token
-    $token = $auth->generateGatewayToken($user['user_id'], 'menu', 300);
-
-    // Build redirect URL with userid and token
-    $separator = (strpos($gatewayUrl, '?') !== false) ? '&' : '?';
-    $redirectUrl = $gatewayUrl . $separator . 'userid=' . $user['user_id'] . '&token=' . $token;
-
-    return SimpleRouter::response()->redirect($redirectUrl);
-});
-
 SimpleRouter::get('/admin/users', function() {
     $auth = new Auth();
     $user = $auth->getCurrentUser();
@@ -709,6 +670,47 @@ SimpleRouter::get('/echoareas', function() {
 
     $template = new Template();
     $template->renderResponse('echoareas.twig');
+});
+
+SimpleRouter::get('/echoareas/import', function() {
+    $user = RouteHelper::requireAdmin();
+
+    $template = new Template();
+    $template->renderResponse('echoareas_import.twig');
+});
+
+SimpleRouter::post('/echoareas/import', function() {
+    $user = RouteHelper::requireAdmin();
+
+    $summary = null;
+    $error = null;
+
+    try {
+        if (!isset($_FILES['echoareas_csv']) || !is_array($_FILES['echoareas_csv'])) {
+            throw new \RuntimeException('Please choose a CSV file to import.');
+        }
+
+        $upload = $_FILES['echoareas_csv'];
+        if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('The upload failed. Please try again.');
+        }
+
+        $tmpName = $upload['tmp_name'] ?? '';
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('Invalid uploaded file.');
+        }
+
+        $importer = new \BinktermPHP\EchoareaImporter();
+        $summary = $importer->importCsv($tmpName);
+    } catch (\Throwable $e) {
+        $error = $e->getMessage();
+    }
+
+    $template = new Template();
+    $template->renderResponse('echoareas_import.twig', [
+        'import_summary' => $summary,
+        'import_error' => $error,
+    ]);
 });
 
 SimpleRouter::get('/echolist', function() {
@@ -828,7 +830,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
           $originalMessage = $handler->getMessage($replyId, $type, $userId);
   
           if ($originalMessage) {
-              $templateVars['reply_is_markdown'] = hasMarkdownKludge($originalMessage);
+              $templateVars['reply_markup_type'] = getMessageMarkupType($originalMessage) ?? '';
               if ($type === 'netmail') {
                   $templateVars['reply_to_id'] = $replyId;
 
@@ -992,6 +994,28 @@ SimpleRouter::get('/polls/create', function() {
         'poll_cost' => $pollCost,
         'credit_balance' => $balance
     ]);
+});
+
+SimpleRouter::get('/polls', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!BbsConfig::isFeatureEnabled('voting_booth')) {
+        return SimpleRouter::response()->httpCode(404);
+    }
+
+    $template = new Template();
+    $template->renderResponse('polls.twig');
+});
+
+SimpleRouter::get('/shoutbox', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!BbsConfig::isFeatureEnabled('shoutbox')) {
+        return SimpleRouter::response()->httpCode(404);
+    }
+
+    $template = new Template();
+    $template->renderResponse('shoutbox.twig');
 });
 
 // Serve shell art files from data/shell_art/ (public read, admin-only write)

@@ -174,11 +174,13 @@
                         <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> Doors</a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="/admin/dosdoors"><i class="fas fa-terminal"></i> DOS Doors</a></li>
+                            <li><a class="dropdown-item" href="/admin/native-doors"><i class="fas fa-door-open"></i> Native Doors</a></li>
                             <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-globe"></i> Web Doors</a></li>
                         </ul>
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> Activity Statistics</a></li>
+                    <li><a class="dropdown-item" href="/admin/economy"><i class="fas fa-coins"></i> Economy Viewer</a></li>
                     <li class="dropdown-submenu">
                         <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a>
                         <ul class="dropdown-menu">
@@ -277,7 +279,7 @@
         });
 
         // BBS-style keyboard navigation
-        const bbsKeymap = {{ appearance.shell.bbs_menu.menu_items | json_encode | raw }};
+        const bbsKeymap = {{ bbs_menu_items | json_encode | raw }};
 
         function bbsNavigate(key) {
             if (key === 'q' || key === 'Q' || key === 'Escape') {

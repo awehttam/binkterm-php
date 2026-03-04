@@ -9,11 +9,26 @@
     </div>
 
     <p class="text-muted mb-4">Access classic DOS door games and modern web-based games. </p>
-    {% if leaderboard|length > 0 %}
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="fas fa-trophy text-warning me-2"></i>Top Scores (All Games)</span>
-            <small class="text-muted">Best overall scores</small>
+            <div class="d-flex align-items-center gap-2">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Leaderboard month navigation">
+                    <a class="btn btn-outline-secondary btn-sm" href="/games?month_offset={{ leaderboard_month_offset + 1 }}" title="Previous month">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                    {% if leaderboard_month_offset > 0 %}
+                    <a class="btn btn-outline-secondary btn-sm" href="/games?month_offset={{ leaderboard_month_offset - 1 }}" title="Next month">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                    {% else %}
+                    <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Current month">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                <small class="text-muted">{{ leaderboard_month_label }}</small>
+            </div>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -29,6 +44,11 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% if leaderboard|length == 0 %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-3">No scores recorded for {{ leaderboard_month_label }}.</td>
+                    </tr>
+                    {% else %}
                     {% for entry in leaderboard %}
                     <tr>
                         <td class="text-muted">#{{ entry.rank }}</td>
@@ -45,12 +65,12 @@
                         <td class="text-muted">{{ entry.date }}</td>
                     </tr>
                     {% endfor %}
+                    {% endif %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-    {% endif %}
     {% if games|length > 0 %}
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for game in games %}
@@ -67,6 +87,8 @@
                             {{ game.name }}
                             {% if game.type == 'dosdoor' %}
                                 <span class="badge bg-info text-white" style="font-size: 0.65rem;">DOS</span>
+                            {% elseif game.type == 'nativedoor' %}
+                                <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">NATIVE</span>
                             {% else %}
                                 <span class="badge bg-success text-white" style="font-size: 0.65rem;">WEB</span>
                             {% endif %}
@@ -74,9 +96,13 @@
                         <p class="card-text text-muted small mb-2">{{ game.description }}</p>
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
-                                {% if game.type == 'dosdoor' %}
+                                {% if game.type == 'dosdoor' or game.type == 'nativedoor' %}
                                     {% if game.players %}Players: {{ game.players }}{% endif %}
-                                    {% if game.author %} • {{ game.author }}{% endif %}
+                                    {% if game.version or game.author %}
+                                        {% if game.players %} • {% endif %}
+                                        {% if game.version %}v{{ game.version }} {% endif %}
+                                        {% if game.author %}by {{ game.author }}{% endif %}
+                                    {% endif %}
                                 {% else %}
                                     v{{ game.version }} by {{ game.author }}
                                 {% endif %}

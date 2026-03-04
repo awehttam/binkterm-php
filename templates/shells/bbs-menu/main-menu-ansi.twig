@@ -16,7 +16,7 @@
         the ANSI art above. Using display:none (not a Bootstrap breakpoint class)
         so it never auto-shows based on viewport width alone.
     #}
-    {% set menuItems = appearance.shell.bbs_menu.menu_items %}
+    {% set menuItems = bbs_menu_items %}
     <div id="ansiTouchLinks" class="mt-3" style="display:none;">
         <div class="list-group">
             {% for item in menuItems %}

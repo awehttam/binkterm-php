@@ -121,6 +121,16 @@ class AdminDaemonClient
         return $this->sendCommand('save_dosdoors_config', ['json' => $json]);
     }
 
+    public function getNativeDoorsConfig(): array
+    {
+        return $this->sendCommand('get_native_doors_config');
+    }
+
+    public function saveNativeDoorsConfig(string $json): array
+    {
+        return $this->sendCommand('save_native_doors_config', ['json' => $json]);
+    }
+
     public function getFileAreaRulesConfig(): array
     {
         return $this->sendCommand('get_filearea_rules');
@@ -298,7 +308,9 @@ class AdminDaemonClient
                     throw new \RuntimeException("Admin daemon error: {$error}");
                 }
 
-                return $response['result'] ?? [];
+                $result = $response['result'] ?? [];
+                $this->close();
+                return $result;
             } catch (\RuntimeException $e) {
                 $this->close();
                 if ($attempt === 1) {

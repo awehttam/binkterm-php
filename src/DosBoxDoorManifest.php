@@ -74,6 +74,17 @@ class DosBoxDoorManifest
     }
 
     /**
+     * Validate a door ID against a strict whitelist to prevent directory traversal.
+     *
+     * @param string $doorId
+     * @return bool
+     */
+    private function isValidDoorId(string $doorId): bool
+    {
+        return $doorId !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $doorId) === 1;
+    }
+
+    /**
      * Get manifest for a specific door
      *
      * @param string $doorId Door identifier (directory name)
@@ -81,6 +92,10 @@ class DosBoxDoorManifest
      */
     public function getDoorManifest(string $doorId): ?array
     {
+        if (!$this->isValidDoorId($doorId)) {
+            return null;
+        }
+
         // Check cache first
         if (isset($this->manifestCache[$doorId])) {
             return $this->manifestCache[$doorId];
@@ -146,7 +161,7 @@ class DosBoxDoorManifest
             'release_year' => $data['game']['release_year'] ?? null,
             'description' => $data['game']['description'] ?? '',
             'genre' => $data['game']['genre'] ?? [],
-            'players' => $data['game']['players'] ?? 'Single-player',
+            'players' => $data['game']['players'] ?? null,
             'icon' => $data['game']['icon'] ?? null,
             'screenshot' => $data['game']['screenshot'] ?? null,
 
@@ -184,6 +199,10 @@ class DosBoxDoorManifest
      */
     public function isDoorInstalled(string $doorId): bool
     {
+        if (!$this->isValidDoorId($doorId)) {
+            return false;
+        }
+
         $doorPath = $this->doorsBasePath . '/' . $doorId;
         $manifestPath = $doorPath . '/dosdoor.jsn';
 

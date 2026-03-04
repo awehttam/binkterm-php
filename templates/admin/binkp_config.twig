@@ -168,6 +168,7 @@
                             <th>Port</th>
                             <th>Schedule</th>
                             <th>Markdown</th>
+                            <th>Posting Name</th>
                             <th>ADR @Domain</th>
                             <th>Enabled</th>
                             <th>Default</th>
@@ -242,7 +243,14 @@
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkAllowMarkdown">
-                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="Enables Markdown support on compatible/supporting networks">Allow Markdown</label>
+                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="Enables Markup support (Markdown, StyleCodes, etc.) on compatible/supporting networks">Allow Markup</label>
+                    </div>
+                    <div class="col-md-4 mt-1">
+                        <label class="form-label" for="uplinkPostingNamePolicy">Posting Name Policy</label>
+                        <select class="form-select form-select-sm" id="uplinkPostingNamePolicy">
+                            <option value="real_name">Real Name</option>
+                            <option value="username">Username</option>
+                        </select>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkSendDomainInAddr">
@@ -454,7 +462,7 @@ function renderUplinks() {
     tbody.innerHTML = '';
     const uplinks = binkpConfig.uplinks || [];
     if (uplinks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-muted">No uplinks configured.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-muted">No uplinks configured.</td></tr>';
         return;
     }
     uplinks.forEach((uplink, index) => {
@@ -466,7 +474,8 @@ function renderUplinks() {
             <td>${escapeHtml(uplink.hostname || '')}</td>
             <td>${uplink.port ?? ''}</td>
             <td><code>${escapeHtml(uplink.poll_schedule || '')}</code></td>
-            <td>${uplink.allow_markdown ? 'Yes' : 'No'}</td>
+            <td>${uplink.allow_markup ? 'Yes' : 'No'}</td>
+            <td>${(uplink.posting_name_policy || 'real_name') === 'username' ? 'Username' : 'Real Name'}</td>
             <td>${uplink.send_domain_in_addr ? 'Yes' : 'No'}</td>
             <td>${uplink.enabled ? 'Yes' : 'No'}</td>
             <td>${uplink.default ? 'Yes' : 'No'}</td>
@@ -495,6 +504,7 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkSchedule').value = '0 */4 * * *';
         document.getElementById('uplinkNetworks').value = '';
         document.getElementById('uplinkAllowMarkdown').checked = false;
+        document.getElementById('uplinkPostingNamePolicy').value = 'real_name';
         document.getElementById('uplinkSendDomainInAddr').checked = false;
         document.getElementById('uplinkEnabled').checked = true;
         document.getElementById('uplinkCompression').checked = false;
@@ -517,7 +527,8 @@ function openUplinkModal(index = null) {
         document.getElementById('uplinkTicPassword').value = uplink.tic_password || '';
         document.getElementById('uplinkSchedule').value = uplink.poll_schedule || '';
         document.getElementById('uplinkNetworks').value = Array.isArray(uplink.networks) ? uplink.networks.join('\n') : '';
-        document.getElementById('uplinkAllowMarkdown').checked = !!uplink.allow_markdown;
+        document.getElementById('uplinkAllowMarkdown').checked = !!(uplink.allow_markup ?? uplink.allow_markdown);
+        document.getElementById('uplinkPostingNamePolicy').value = (uplink.posting_name_policy === 'username') ? 'username' : 'real_name';
         document.getElementById('uplinkSendDomainInAddr').checked = !!uplink.send_domain_in_addr;
         document.getElementById('uplinkEnabled').checked = !!uplink.enabled;
         document.getElementById('uplinkCompression').checked = !!uplink.compression;
@@ -541,7 +552,8 @@ function saveUplink() {
         tic_password: document.getElementById('uplinkTicPassword').value.trim(),
         poll_schedule: document.getElementById('uplinkSchedule').value.trim(),
         networks: document.getElementById('uplinkNetworks').value.split('\n').map(v => v.trim()).filter(Boolean),
-        allow_markdown: document.getElementById('uplinkAllowMarkdown').checked,
+        allow_markup: document.getElementById('uplinkAllowMarkdown').checked,
+        posting_name_policy: document.getElementById('uplinkPostingNamePolicy').value,
         send_domain_in_addr: document.getElementById('uplinkSendDomainInAddr').checked,
         enabled: document.getElementById('uplinkEnabled').checked,
         compression: document.getElementById('uplinkCompression').checked,

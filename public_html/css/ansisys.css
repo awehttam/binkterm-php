@@ -141,6 +141,18 @@
 .ansi-bold.ansi-cyan { color: #55ffff; }
 .ansi-bold.ansi-white { color: #ffffff; }
 
-/* For inline ANSI in regular messages (not full art) */
-.message-body .ansi-black { color: #555; }
-.message-body .ansi-white { color: #ddd; }
+/* In message bodies: keep overflow scrolling but remove the black box */
+.message-text .ansi-art-container {
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}
+.message-text .ansi-art-container pre,
+.message-text .ansi-art {
+    background: transparent;
+    border: none !important;
+    white-space: pre !important;
+    overflow: visible !important;
+}

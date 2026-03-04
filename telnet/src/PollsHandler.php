@@ -50,6 +50,60 @@ class PollsHandler
             return;
         }
 
+        while (true) {
+            $polls = $this->getActivePolls($session);
+            if (!$polls) {
+                TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Polls', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+                TelnetUtils::writeLine($conn, '');
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize('No active polls.', TelnetUtils::ANSI_YELLOW));
+                TelnetUtils::writeLine($conn, '');
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to return...', TelnetUtils::ANSI_YELLOW));
+                $this->server->readKeyWithIdleCheck($conn, $state);
+                return;
+            }
+
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Polls', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, '');
+
+            foreach ($polls as $index => $poll) {
+                $num = $index + 1;
+                $status = !empty($poll['has_voted']) ? 'voted' : 'open';
+                $question = (string)($poll['question'] ?? '');
+                TelnetUtils::writeLine(
+                    $conn,
+                    sprintf(
+                        ' %2d) %s %s',
+                        $num,
+                        TelnetUtils::colorize(strtoupper($status), !empty($poll['has_voted']) ? TelnetUtils::ANSI_GREEN : TelnetUtils::ANSI_YELLOW),
+                        $question
+                    )
+                );
+            }
+
+            TelnetUtils::writeLine($conn, '');
+            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize('Enter poll # or Q to return: ', TelnetUtils::ANSI_CYAN), true);
+            if ($choice === null) {
+                return;
+            }
+
+            $choice = trim($choice);
+            if ($choice === '' || strtolower($choice) === 'q') {
+                return;
+            }
+
+            $selectedIndex = (int)$choice - 1;
+            if (!isset($polls[$selectedIndex])) {
+                continue;
+            }
+
+            $this->showPollDetail($conn, $state, $session, $polls[$selectedIndex]);
+        }
+    }
+
+    private function getActivePolls(string $session): array
+    {
         $response = TelnetUtils::apiRequest(
             $this->apiBase,
             'GET',
@@ -57,37 +111,87 @@ class PollsHandler
             null,
             $session
         );
-        $polls = $response['data']['polls'] ?? [];
-        if (!$polls) {
-            TelnetUtils::writeLine($conn, 'No active polls.');
-            return;
-        }
 
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, 'Active Polls');
-        foreach ($polls as $poll) {
-            $question = $poll['question'] ?? '';
-            TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, 'Q: ' . $question);
-            $options = $poll['options'] ?? [];
-            foreach ($options as $idx => $opt) {
-                $num = $idx + 1;
-                $text = $opt['option_text'] ?? '';
-                TelnetUtils::writeLine($conn, "  {$num}) {$text}");
-            }
-            if (!empty($poll['has_voted']) && !empty($poll['results'])) {
-                TelnetUtils::writeLine($conn, 'Results:');
-                $total = (int)($poll['total_votes'] ?? 0);
-                foreach ($poll['results'] as $result) {
-                    $text = $result['option_text'] ?? '';
-                    $votes = (int)($result['votes'] ?? 0);
-                    TelnetUtils::writeLine($conn, sprintf('  %s - %d', $text, $votes));
+        return $response['data']['polls'] ?? [];
+    }
+
+    private function showPollDetail($conn, array &$state, string $session, array $poll): void
+    {
+        while (true) {
+            $polls = $this->getActivePolls($session);
+            $freshPoll = null;
+            foreach ($polls as $item) {
+                if ((int)($item['id'] ?? 0) === (int)($poll['id'] ?? 0)) {
+                    $freshPoll = $item;
+                    break;
                 }
-                TelnetUtils::writeLine($conn, 'Total votes: ' . $total);
             }
+
+            if ($freshPoll === null) {
+                return;
+            }
+
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Poll Detail', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeWrapped($conn, 'Q: ' . (string)($freshPoll['question'] ?? ''), max(40, (int)($state['cols'] ?? 80) - 2));
+            TelnetUtils::writeLine($conn, '');
+
+            if (!empty($freshPoll['has_voted'])) {
+                $totalVotes = (int)($freshPoll['total_votes'] ?? 0);
+                foreach ($freshPoll['results'] ?? [] as $index => $result) {
+                    $votes = (int)($result['votes'] ?? 0);
+                    $percent = $totalVotes > 0 ? (int)round(($votes / $totalVotes) * 100) : 0;
+                    $line = sprintf(' %2d) %s - %d vote(s) [%d%%]', $index + 1, $result['option_text'] ?? '', $votes, $percent);
+                    TelnetUtils::writeLine($conn, TelnetUtils::colorize($line, TelnetUtils::ANSI_GREEN));
+                }
+                TelnetUtils::writeLine($conn, '');
+                TelnetUtils::writeLine($conn, 'Total votes: ' . $totalVotes);
+                TelnetUtils::writeLine($conn, '');
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to return...', TelnetUtils::ANSI_YELLOW));
+                $this->server->readKeyWithIdleCheck($conn, $state);
+                return;
+            }
+
+            foreach ($freshPoll['options'] ?? [] as $index => $option) {
+                TelnetUtils::writeLine($conn, sprintf(' %2d) %s', $index + 1, $option['option_text'] ?? ''));
+            }
+
+            TelnetUtils::writeLine($conn, '');
+            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize('Vote with option # or Q to return: ', TelnetUtils::ANSI_CYAN), true);
+            if ($choice === null) {
+                return;
+            }
+
+            $choice = trim($choice);
+            if ($choice === '' || strtolower($choice) === 'q') {
+                return;
+            }
+
+            $selectedIndex = (int)$choice - 1;
+            $options = $freshPoll['options'] ?? [];
+            if (!isset($options[$selectedIndex]['id'])) {
+                continue;
+            }
+
+            $response = TelnetUtils::apiRequest(
+                $this->apiBase,
+                'POST',
+                '/api/polls/' . (int)$freshPoll['id'] . '/vote',
+                ['option_id' => (int)$options[$selectedIndex]['id']],
+                $session,
+                3,
+                $state['csrf_token'] ?? null
+            );
+
+            TelnetUtils::writeLine($conn, '');
+            if (($response['data']['success'] ?? false) === true) {
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Vote recorded.', TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
+            } else {
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? 'Vote failed.'), TelnetUtils::ANSI_RED));
+            }
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to continue...', TelnetUtils::ANSI_YELLOW));
+            $this->server->readKeyWithIdleCheck($conn, $state);
         }
-        TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, 'Press Enter to return.');
-        $this->server->readLineWithIdleCheck($conn, $state);
     }
 }

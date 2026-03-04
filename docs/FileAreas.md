@@ -12,6 +12,28 @@ File areas are categorized by:
 
 File areas can be managed via `/fileareas` in the web UI.
 
+## File Permissions
+
+File areas are typically written to by two different OS users:
+
+- **Web server** (e.g. `www-data`) — handles user uploads through the web interface
+- **BinkP daemon** (e.g. `binktermphp`) — handles inbound TIC file imports
+
+Both users must be able to read and write each other's files. The recommended approach is to add the BinkP daemon user to the `www-data` group and ensure `data/files/` is group-owned by `www-data`:
+
+```bash
+sudo usermod -aG www-data binktermphp
+sudo chgrp -R www-data data/files/
+```
+
+Substitute `binktermphp` with whatever user the BinkP daemon runs as on your system.
+
+`setup.php` sets `data/files/` and its subdirectories to mode `02775` (setgid + group-writable). The setgid bit causes all new files and subdirectories to inherit the `www-data` group automatically, so no manual `chgrp` is needed after new file areas are created.
+
+All stored files are set to mode `0664` (group-writable) by both the web upload and TIC import code paths.
+
+> **Note:** Group membership changes do not take effect in already-running processes. After adding the daemon user to `www-data`, restart the BinkP daemons with `scripts/restart_daemons.sh` and log out/in on any shell sessions running as that user.
+
 ## Storage Layout
 
 File area storage directories use the naming convention:
@@ -54,7 +76,6 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
     "NODELIST@fidonet": [
       {
         "name": "Import FidoNet Nodelist",
-        "domain": "fidonet",
         "pattern": "/^NODELIST\\.(Z|A|L|R|J)[0-9]{2}$/i",
         "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force",
         "success_action": "delete",
@@ -69,25 +90,44 @@ Rules are evaluated by regex against the filename. Each matching rule runs its s
 
 ### Area Tag Syntax
 
-Area rule keys should use the domain syntax to ensure rules target the correct file area:
+The rule key format depends on whether the file area belongs to a network domain.
 
-**Format:** `TAG@DOMAIN`
+#### Network areas (recommended): `TAG@DOMAIN`
 
-Examples:
-- `"NODELIST@fidonet"` - FidoNet NODELIST area
-- `"FILES@lovlynet"` - LOVLYNET FILES area
-- `"INBOUND@fsxnet"` - fsxNet INBOUND area
-
-For local file areas without a network domain, use the tag alone:
-- `"LOCAL_FILES"` - Local area
+> **Always use `TAG@DOMAIN` for file areas linked to a network domain.** The processor looks up rules by constructing `TAG@DOMAIN` from the file's actual domain at runtime, so the match is exact. Two networks can share the same area tag (e.g. `NODELIST@fidonet` and `NODELIST@fsxnet`) and each will only trigger its own rules.
 
 ```json
 "area_rules": {
-  "NODELIST": [
+  "NODELIST@fidonet": [
     {
       "name": "Import FidoNet Nodelist",
-      "pattern": "/^NODELIST\\.(Z|A)[0-9]{2}$/i",
-      "script": "php scripts/import_nodelist.php %filepath% fidonet"
+      "pattern": "/^NODELIST\\.(Z|A|L|R|J)[0-9]{2}$/i",
+      "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force"
+    }
+  ],
+  "NODELIST@fsxnet": [
+    {
+      "name": "Import fsxNet Nodelist",
+      "pattern": "/^NODELIST\\.[0-9]{3}$/i",
+      "script": "php %basedir%/scripts/import_nodelist.php %filepath% %domain% --force"
+    }
+  ]
+}
+```
+
+Individual rules within a `TAG@DOMAIN` group do not need a `domain` field — it is redundant.
+
+#### Local areas: `TAG`
+
+For file areas that are not linked to any network domain, use the plain tag:
+
+```json
+"area_rules": {
+  "LOCAL_FILES": [
+    {
+      "name": "Scan uploaded files",
+      "pattern": "/.*$/",
+      "script": "php %basedir%/scripts/scan_file.php %filepath%"
     }
   ]
 }
@@ -102,7 +142,7 @@ For local file areas without a network domain, use the tag alone:
 - `fail_action` (string): Action(s) when script exits non-zero or times out.
 - `enabled` (bool): Toggle rule execution.
 - `timeout` (int): Script timeout in seconds.
-- `domain` (string, optional): If provided, rule only applies to file areas in that domain.
+- `domain` (string, optional): Restricts the rule to a specific domain. Only useful under a plain `TAG` key — when using `TAG@DOMAIN` keys this field is redundant and can be omitted.
 
 ### Actions
 

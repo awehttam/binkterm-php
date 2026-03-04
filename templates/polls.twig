@@ -1,0 +1,184 @@
+{% extends "base.twig" %}
+
+{% block title %}Polls - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-8 col-lg-9">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-vote-yea me-2"></i>
+                    Polls
+                </h5>
+                <a href="/polls/create" class="btn btn-sm btn-primary">
+                    <i class="fas fa-file-circle-plus me-1"></i>
+                    Create Poll
+                </a>
+            </div>
+            <div class="card-body" id="votingBoothBody">
+                <div class="text-center">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Loading poll...
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <div class="small text-muted">Browse active polls and vote to reveal results.</div>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="Previous poll">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="Next poll">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let votingPolls = [];
+let votingPollIndex = 0;
+
+$(document).ready(function() {
+    loadVotingBooth();
+});
+
+function loadVotingBooth(keepPollId = null) {
+    $.get('/api/polls/active')
+        .done(function(data) {
+            votingPolls = data.polls || [];
+            if (votingPolls.length === 0) {
+                $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+                updateVotingPollNav();
+                return;
+            }
+            if (keepPollId) {
+                const idx = votingPolls.findIndex(p => p.id === keepPollId);
+                votingPollIndex = idx >= 0 ? idx : 0;
+            } else {
+                const unansweredIndex = votingPolls.findIndex(p => !p.has_voted);
+                votingPollIndex = unansweredIndex >= 0 ? unansweredIndex : 0;
+            }
+            renderVotingBooth();
+        })
+        .fail(function() {
+            $('#votingBoothBody').html('<p class="text-danger mb-0">Failed to load poll.</p>');
+            updateVotingPollNav();
+        });
+}
+
+function renderVotingBooth() {
+    if (votingPolls.length === 0) {
+        $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+        updateVotingPollNav();
+        return;
+    }
+
+    const poll = votingPolls[votingPollIndex];
+    const hasVoted = !!poll.has_voted;
+    if (hasVoted) {
+        const totalVotes = poll.total_votes || 0;
+        let resultsHtml = `<h5 class="mb-3">${escapeHtml(poll.question)}</h5>`;
+        resultsHtml += '<div class="small text-muted mb-3">Results</div>';
+        if (totalVotes === 0) {
+            resultsHtml += '<p class="text-muted mb-0">No votes yet.</p>';
+        } else {
+            (poll.results || []).forEach(result => {
+                const percent = totalVotes > 0 ? Math.round((result.votes / totalVotes) * 100) : 0;
+                resultsHtml += `
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between small">
+                            <span>${escapeHtml(result.option_text)}</span>
+                            <span>${result.votes} (${percent}%)</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar" role="progressbar" style="width: ${percent}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        $('#votingBoothBody').html(resultsHtml);
+        updateVotingPollNav();
+        return;
+    }
+
+    let optionsHtml = `<h5 class="mb-3">${escapeHtml(poll.question)}</h5>`;
+    optionsHtml += '<div class="small text-muted mb-3">Vote to see results</div>';
+    optionsHtml += '<form id="votingBoothForm">';
+    (poll.options || []).forEach(option => {
+        optionsHtml += `
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="radio" name="poll_option" id="pollOption${option.id}" value="${option.id}">
+                <label class="form-check-label" for="pollOption${option.id}">
+                    ${escapeHtml(option.option_text)}
+                </label>
+            </div>
+        `;
+    });
+    optionsHtml += `
+        <button type="button" class="btn btn-primary" onclick="submitPollVote(${poll.id})">
+            Submit Vote
+        </button>
+    `;
+    optionsHtml += '</form>';
+    $('#votingBoothBody').html(optionsHtml);
+    updateVotingPollNav();
+}
+
+function changeVotingPoll(delta) {
+    if (votingPolls.length <= 1) {
+        return;
+    }
+    const nextIndex = votingPollIndex + delta;
+    if (nextIndex < 0 || nextIndex >= votingPolls.length) {
+        return;
+    }
+    votingPollIndex = nextIndex;
+    renderVotingBooth();
+}
+
+function updateVotingPollNav() {
+    const hasMultiple = votingPolls.length > 1;
+    const prevBtn = document.getElementById('pollPrevBtn');
+    const nextBtn = document.getElementById('pollNextBtn');
+    if (!prevBtn || !nextBtn) {
+        return;
+    }
+    prevBtn.disabled = !hasMultiple || votingPollIndex === 0;
+    nextBtn.disabled = !hasMultiple || votingPollIndex === (votingPolls.length - 1);
+}
+
+function submitPollVote(pollId) {
+    const selected = document.querySelector('input[name="poll_option"]:checked');
+    if (!selected) {
+        alert('Please select an option.');
+        return;
+    }
+
+    fetch(`/api/polls/${pollId}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ option_id: selected.value })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadVotingBooth(pollId);
+        } else {
+            alert(data.error || 'Failed to submit vote.');
+        }
+    })
+    .catch(() => alert('Failed to submit vote.'));
+}
+
+function escapeHtml(text) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+</script>
+{% endblock %}

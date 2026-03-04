@@ -236,6 +236,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
         let launchCmd = manifest.door.launch_command || `call ${manifest.door.executable}`;
         launchCmd = launchCmd.replace('{node}', node_number);
         launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
+        launchCmd = launchCmd.replace('{user_number}', String(sessionData.user_id || ''));
 
         // Check if door requires FOSSIL driver (default true for backwards compatibility)
         const fossilRequired = manifest.door.fossil_required !== false;
@@ -490,6 +491,7 @@ $_sound = "0"
         let launchCmd = manifest.door.launch_command || manifest.door.executable;
         launchCmd = launchCmd.replace('{node}', node_number);
         launchCmd = launchCmd.replace('{dropfile}', 'DOOR.SYS');
+        launchCmd = launchCmd.replace('{user_number}', String(sessionData.user_id || ''));
 
         // Create DOS batch file to launch door
         // First use lredir to map our Linux directory, then run door commands
@@ -542,10 +544,151 @@ ${launchCmd}
 }
 
 /**
- * Factory function to select appropriate emulator
+ * Native Linux Door Adapter
+ * Runs native Linux binaries directly via PTY (pseudo-terminal)
+ * User data is passed via DOOR.SYS drop file and environment variables
  */
-function createEmulatorAdapter(basePath) {
-    // Check environment variable
+class NativeAdapter extends EmulatorAdapter {
+    constructor(basePath) {
+        super(basePath);
+        this.ptyProcess = null;
+        this.outputEncoding = 'utf8';
+    }
+
+    getName() {
+        return 'Native';
+    }
+
+    async launch(session, sessionData) {
+        const { session_id, node_number, door_id } = sessionData;
+
+        console.log(`[${this.getName()}] Launching door '${door_id}' for session ${session_id} on node ${node_number}`);
+
+        // Load nativedoor.json manifest
+        const manifestPath = path.join(this.basePath, 'native-doors', 'doors', door_id, 'nativedoor.json');
+        if (!fs.existsSync(manifestPath)) {
+            throw new Error(`Native door manifest not found: ${manifestPath}`);
+        }
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+        // Build drop file path
+        const dropPath = path.join(this.basePath, 'native-doors', 'drops', `NODE${node_number}`);
+
+        // Determine drop file filename from manifest format
+        const dropfileFormat = (manifest.door && manifest.door.dropfile_format) || 'DOOR.SYS';
+        const dropfileName = dropfileFormat === 'DOOR32.SYS' ? 'DOOR32.SYS' : 'DOOR.SYS';
+        const dropfileFull = path.join(dropPath, dropfileName);
+
+        // Determine output encoding (cp437 for legacy DOS-style doors, utf8 for modern)
+        this.outputEncoding = (manifest.door && manifest.door.output_encoding) || 'utf8';
+        const ptyEncoding = this.outputEncoding === 'cp437' ? 'binary' : 'utf8';
+
+        // Build launch command - replace {node}, {dropfile}, and {user_number} placeholders
+        let launchCmd = manifest.door.launch_command || manifest.door.executable;
+        launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
+        launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
+        launchCmd = launchCmd.replace(/\{user_number\}/g, String(sessionData.user_id || ''));
+
+        // Shell-style tokenizer: respects single/double-quoted segments so paths
+        // with spaces (e.g. basePath or substituted {dropfile}) are kept intact.
+        const argv = [];
+        let token = '';
+        let inSingle = false;
+        let inDouble = false;
+        for (let i = 0; i < launchCmd.length; i++) {
+            const ch = launchCmd[i];
+            if (inSingle) {
+                if (ch === "'") inSingle = false; else token += ch;
+            } else if (inDouble) {
+                if (ch === '"') inDouble = false; else token += ch;
+            } else if (ch === "'") {
+                inSingle = true;
+            } else if (ch === '"') {
+                inDouble = true;
+            } else if (ch === ' ' || ch === '\t') {
+                if (token.length > 0) { argv.push(token); token = ''; }
+            } else {
+                token += ch;
+            }
+        }
+        if (token.length > 0) argv.push(token);
+        const cmd = argv.shift();
+        const args = argv;
+        const doorDir = path.join(this.basePath, 'native-doors', 'doors', door_id);
+
+        // Parse user data for environment variables
+        const userData = typeof sessionData.user_data === 'string'
+            ? JSON.parse(sessionData.user_data)
+            : (sessionData.user_data || {});
+
+        const env = {
+            ...process.env,
+            DOOR_USER_NAME: userData.handle || userData.username || 'Guest',
+            DOOR_USER_REAL_NAME: userData.real_name || 'Guest',
+            DOOR_USER_NUMBER: String(sessionData.user_id || ''),
+            DOOR_NODE: String(node_number),
+            DOOR_BBS_NAME: userData.bbs_name || 'BinktermPHP BBS',
+            DOOR_DROPFILE: dropfileFull,
+            DOOR_ANSI: '1',
+            TERM: 'xterm-256color'
+        };
+
+        console.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
+
+        this.ptyProcess = pty.spawn(cmd, args, {
+            name: 'xterm-256color',
+            cols: 80,
+            rows: 25,
+            cwd: doorDir,
+            encoding: ptyEncoding,
+            env
+        });
+
+        this.ptyProcess.onExit(({ exitCode, signal }) => {
+            console.log(`[${this.getName()}] Process exited: code=${exitCode}, signal=${signal}`);
+            if (this.exitCallback) {
+                this.exitCallback(exitCode, signal);
+            }
+        });
+
+        return { process: this.ptyProcess, pid: this.ptyProcess.pid };
+    }
+
+    onData(callback) {
+        if (this.ptyProcess) {
+            this.ptyProcess.onData(callback);
+        }
+    }
+
+    write(data) {
+        if (this.ptyProcess) {
+            this.ptyProcess.write(data.toString('utf8'));
+        }
+    }
+
+    close() {
+        if (this.ptyProcess) {
+            console.log(`[${this.getName()}] Killing PTY process`);
+            this.ptyProcess.kill();
+            this.ptyProcess = null;
+        }
+    }
+}
+
+/**
+ * Factory function to select appropriate emulator
+ *
+ * @param {string} basePath - Base path for BinktermPHP
+ * @param {string} [doorType='dos'] - Door type: 'dos' or 'native'
+ */
+function createEmulatorAdapter(basePath, doorType) {
+    // Native Linux doors use PTY directly - no emulator needed
+    if (doorType === 'native') {
+        console.log('[EMULATOR] Door type: native, using NativeAdapter');
+        return new NativeAdapter(basePath);
+    }
+
+    // DOS doors: check environment variable for emulator preference
     const preferredEmulator = process.env.DOOR_EMULATOR || 'auto';
 
     // Windows: only DOSBox supported
@@ -575,5 +718,6 @@ module.exports = {
     EmulatorAdapter,
     DOSBoxAdapter,
     DOSEMUAdapter,
+    NativeAdapter,
     createEmulatorAdapter
 };

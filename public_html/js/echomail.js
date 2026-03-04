@@ -161,7 +161,8 @@ function displayEchoareas(echoareas) {
         `;
 
         echoareas.forEach(function(area) {
-            const fullTag = `${area.tag}@${area.domain}`;
+            const areaDomain = (area.domain || '').toString().trim();
+            const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
@@ -212,7 +213,8 @@ function displayMobileEchoareas(echoareas) {
         `;
 
         echoareas.forEach(function(area) {
-            const fullTag = `${area.tag}@${area.domain}`;
+            const areaDomain = (area.domain || '').toString().trim();
+            const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
             const isActive = currentEchoarea === fullTag;
             const unreadCount = area.unread_count || 0;
             const totalCount = area.message_count || 0;
@@ -770,8 +772,8 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         `;
     }
 
-    const bodyHtml = (message.is_markdown == 1 && message.markdown_html)
-        ? message.markdown_html
+    const bodyHtml = message.markup_html
+        ? message.markup_html
         : formatMessageText(parsedMessage.messageBody);
 
     const html = `
@@ -948,13 +950,15 @@ function updateEchoareaCountsWithSearchResults() {
     // Create a map of echoarea counts by tag@domain
     const countMap = {};
     searchResultCounts.forEach(area => {
-        const fullTag = `${area.tag}@${area.domain}`;
+        const areaDomain = (area.domain || '').toString().trim();
+        const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
         countMap[fullTag] = area.message_count;
     });
 
     // Update the allEchoareas array with search counts
     allEchoareas.forEach(area => {
-        const fullTag = `${area.tag}@${area.domain}`;
+        const areaDomain = (area.domain || '').toString().trim();
+        const fullTag = areaDomain ? `${area.tag}@${areaDomain}` : area.tag;
         area.search_count = countMap[fullTag] || 0;
     });
 
@@ -1498,35 +1502,10 @@ function setupModalSwipeNavigation() {
     let touchEndY = 0;
     let isDragging = false;
     let startElement = null;
+    let startScrollableElement = null;
+    let startScrollLeft = 0;
 
     const modal = document.getElementById('messageModal');
-
-    // Helper function to check if an element or its parents have horizontal scroll
-    function hasHorizontalScroll(element) {
-        let current = element;
-        while (current && current !== modal) {
-            const hasOverflow = current.scrollWidth > current.clientWidth;
-            const overflowX = window.getComputedStyle(current).overflowX;
-
-            if (hasOverflow && (overflowX === 'auto' || overflowX === 'scroll')) {
-                return true;
-            }
-            current = current.parentElement;
-        }
-        return false;
-    }
-
-    // Helper function to check if element is at scroll boundary
-    function isAtScrollBoundary(element, direction) {
-        // direction: -1 for left boundary, 1 for right boundary
-        if (direction < 0) {
-            // Swiping right, check if at left edge
-            return element.scrollLeft <= 0;
-        } else {
-            // Swiping left, check if at right edge
-            return element.scrollLeft + element.clientWidth >= element.scrollWidth - 1;
-        }
-    }
 
     // Touch start
     modal.addEventListener('touchstart', function(e) {
@@ -1537,6 +1516,25 @@ function setupModalSwipeNavigation() {
         touchStartY = e.touches[0].clientY;
         startElement = e.target;
         isDragging = false;
+
+        // Snapshot the scrollLeft of the nearest scrollable parent at touch start.
+        // By touchend the browser will have already scrolled the element, so we
+        // need this value to correctly determine whether the gesture was a scroll
+        // within content or a navigation swipe.
+        startScrollableElement = null;
+        startScrollLeft = 0;
+        let el = startElement;
+        while (el && el !== modal) {
+            if (el.scrollWidth > el.clientWidth) {
+                const ox = window.getComputedStyle(el).overflowX;
+                if (ox === 'auto' || ox === 'scroll') {
+                    startScrollableElement = el;
+                    startScrollLeft = el.scrollLeft;
+                    break;
+                }
+            }
+            el = el.parentElement;
+        }
     }, { passive: true });
 
     // Touch move - track dragging to avoid accidental swipes during scrolling
@@ -1577,26 +1575,21 @@ function setupModalSwipeNavigation() {
         // Require significantly more horizontal than vertical movement
         const horizontalRatio = 2.5;
 
-        // Check if touch started on horizontally scrollable content
-        const hasHScroll = hasHorizontalScroll(startElement);
-
         // Must be significantly more horizontal than vertical movement
         // And must exceed minimum distance
         if (absDeltaX > (absDeltaY * horizontalRatio) && absDeltaX > minSwipeDistance) {
-            // If the element has horizontal scroll, only trigger swipe at boundaries
-            if (hasHScroll) {
-                let scrollableElement = startElement;
-                while (scrollableElement && scrollableElement !== modal) {
-                    if (scrollableElement.scrollWidth > scrollableElement.clientWidth) {
-                        const swipeDirection = deltaX > 0 ? -1 : 1;
-                        if (!isAtScrollBoundary(scrollableElement, swipeDirection)) {
-                            // User is scrolling content, don't trigger swipe
-                            resetValues();
-                            return;
-                        }
-                        break;
-                    }
-                    scrollableElement = scrollableElement.parentElement;
+            // If the touch started within a horizontally scrollable element, use the
+            // scroll position captured at touchstart (not the current position, which
+            // has already been updated by native scrolling during touchmove).
+            if (startScrollableElement) {
+                const swipeDirection = deltaX > 0 ? -1 : 1;
+                const atBoundary = swipeDirection < 0
+                    ? startScrollLeft <= 0
+                    : startScrollLeft + startScrollableElement.clientWidth >= startScrollableElement.scrollWidth - 1;
+                if (!atBoundary) {
+                    // User was scrolling content, not navigating
+                    resetValues();
+                    return;
                 }
             }
 
@@ -1620,6 +1613,8 @@ function setupModalSwipeNavigation() {
         touchEndY = 0;
         isDragging = false;
         startElement = null;
+        startScrollableElement = null;
+        startScrollLeft = 0;
     }
 }
 

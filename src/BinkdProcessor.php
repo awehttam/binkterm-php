@@ -212,7 +212,7 @@ class BinkdProcessor
 
                     if ($message) {
                         // Security check: reject echomail from insecure sessions
-                        if ($isInsecureSession && !$this->isNetmailMessage($message)) {
+                        if ($isInsecureSession && !$this->isNetmailMessage($message, true)) {
                             $echomailRejected = true;
                             $this->log("[BINKD] SECURITY: Rejecting echomail from insecure session - packet $packetName");
                             break; // Stop processing this packet
@@ -596,7 +596,7 @@ class BinkdProcessor
     {
         // Determine if this is netmail or echomail based on FidoNet standards
         // Use comprehensive detection that works with raw message text
-        $isNetmail = $this->isNetmailMessage($message);
+        $isNetmail = $this->isNetmailMessage($message, true);
 
         if ($isNetmail) {
             $this->storeNetmail($message, $packetInfo, $isInsecureSession);
@@ -608,65 +608,65 @@ class BinkdProcessor
     /**
      * Determine if a message is netmail or echomail based on FidoNet standards
      * This function examines the raw message text before any processing
-     * 
-     * @param array $message The message array with 'text' and 'attributes'
+     *
+     * @param array $message The message array with 'text', 'attributes', 'toName', etc.
+     * @param bool $isIncomingPacket Whether this message came from an incoming FTN packet
      * @return bool true if netmail, false if echomail
      */
-    private function isNetmailMessage($message)
+    private function isNetmailMessage($message, bool $isIncomingPacket = false)
     {
+        // These checks are only reliable for externally-received packets.
+        // Internally-composed netmail may lack the Private attribute or have no toName set.
+        if ($isIncomingPacket) {
+            // Echomail broadcast: toName is "All" AND Private bit (0x0001) is not set.
+            // A real person named "All" receiving legitimate netmail would have the Private bit set.
+            $toName = $message['toName'] ?? '';
+            $privateFlag = ($message['attributes'] ?? 0) & 0x0001;
+            if (strcasecmp($toName, 'All') === 0 && !$privateFlag) {
+                return false; // Echomail broadcast without proper AREA:/SEEN-BY: headers
+            }
+        }
+
         $messageText = $message['text'] ?? '';
-        $attributes = $message['attributes'] ?? 0;
-        
+
         // Normalize line endings for consistent parsing
         $messageText = str_replace("\r\n", "\n", $messageText);
         $messageText = str_replace("\r", "\n", $messageText);
-        
+
         $lines = explode("\n", $messageText);
         if (empty($lines)) {
             // Empty message - default to netmail for safety
             return true;
         }
-        
+
         $firstLine = trim($lines[0]);
-        
+
         // Primary check: Echomail ALWAYS has AREA: as the first line
         if (strpos($firstLine, 'AREA:') === 0) {
             return false; // This is echomail
         }
-        
-        // Secondary check: Look for other echomail indicators
-        // Some malformed echomail might have the AREA: line elsewhere
+
+        // Secondary check: scan entire message for AREA: line
+        // Handles malformed echomail where AREA: is not exactly the first line
         foreach ($lines as $line) {
-            $line = trim($line);
-            if (strpos($line, 'AREA:') === 0) {
+            if (strpos(trim($line), 'AREA:') === 0) {
                 return false; // Found AREA: line, this is echomail
             }
-            // Stop checking after reasonable number of lines to avoid processing entire message
-            if (count($lines) > 10) break;
         }
-        
-        // Tertiary check: FTN kludge lines that indicate echomail
-        // Look for common echomail kludges in first few lines
-        foreach (array_slice($lines, 0, 10) as $line) {
-            if (strlen($line) > 1 && ord($line[0]) === 0x01) {
-                $kludge = strtoupper(substr($line, 1));
-                
-                // These kludges are typically found in echomail
-                if (strpos($kludge, 'MSGID:') === 0 || 
-                    strpos($kludge, 'REPLY:') === 0 ||
-                    strpos($kludge, 'PID:') === 0) {
-                    // These can be in both, but combined with no AREA: suggests netmail
-                    continue;
-                }
-                
-                // These are more echomail-specific
-                if (strpos($kludge, 'SEEN-BY:') === 0 || 
-                    strpos($kludge, 'PATH:') === 0) {
-                    return false; // This is echomail
-                }
+
+        // Tertiary check: SEEN-BY and PATH lines appear at the end of echomail,
+        // after the message body (with or without SOH prefix depending on software)
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            // Strip SOH prefix if present
+            if (strlen($trimmed) > 0 && ord($trimmed[0]) === 0x01) {
+                $trimmed = substr($trimmed, 1);
+            }
+            if (strpos($trimmed, 'SEEN-BY:') === 0 || strpos($trimmed, 'PATH:') === 0) {
+                return false; // This is echomail
             }
         }
-        
+
         // Final fallback: If no clear indicators, assume netmail
         // In FidoNet, when in doubt, treat as netmail for security/privacy
         return true;
@@ -739,10 +739,13 @@ class BinkdProcessor
                     $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
                     
                     // Extract original author address from MSGID
-                    // MSGID formats: 
+                    // MSGID formats:
                     // 1. Standard: "1:123/456 12345678"
-                    // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
-                    if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                    // 2. With point: "1:123/456.7 12345678"
+                    // 3. Opaque@addr: "244652.syncdata@1:103/705 2d1da177"
+                    // 4. Addr@domain: "618:618/1@micronet 6695bee3"
+                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)(?:@\S+)?\s+/', $messageId, $matches) ||
+                        preg_match('/^(?:[^@\s]+@)(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
                         //error_log("DEBUG: Extracted original author address from netmail MSGID: " . $originalAuthorAddress);
                     }
@@ -919,6 +922,7 @@ class BinkdProcessor
         
         $lines = explode("\n", $messageText);
         $echoareaTag = 'UNKNOWN';
+        $hasAreaLine = false;
         $cleanedLines = [];
         $kludgeLines = [];
         $bottomKludges = [];
@@ -938,6 +942,8 @@ class BinkdProcessor
                 // Ensure we have a valid echoarea tag
                 if (empty($echoareaTag) || strlen($echoareaTag) > 50) {
                     $echoareaTag = 'MALFORMED';
+                } else {
+                    $hasAreaLine = true;
                 }
                 $kludgeLines[] = "AREA:" . $areaLine;   // No space after AREA:
                 continue; // Don't include AREA: line in message body
@@ -1023,6 +1029,12 @@ class BinkdProcessor
         }
         
         $messageText = implode("\n", $cleanedLines);
+
+        // Drop if no valid AREA: line was found — malformed echomail with no area tag
+        if (!$hasAreaLine) {
+            $this->log("[BINKD] Dropping echomail with no valid AREA: line from " . ($message['fromName'] ?? '?') . " <" . ($message['origAddr'] ?? '?') . "> subject=\"" . ($message['subject'] ?? '') . "\"");
+            return;
+        }
 
         // Get or create echoarea
         $echoarea = $this->getOrCreateEchoarea($echoareaTag, $domain);
@@ -1516,7 +1528,8 @@ class BinkdProcessor
                 
                 // Add MSGID kludge (required for netmail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
-                $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
+                $msgidAddress = $this->buildMsgidAddress($fromAddress, $message['from_domain'] ?? null);
+                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r\n";
                 
                 // Add reply address information - REPLYADDR is always the sender
                 $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r\n";
@@ -1569,7 +1582,8 @@ class BinkdProcessor
                 
                 // Add MSGID kludge (required for echomail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
-                $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
+                $msgidAddress = $this->buildMsgidAddress($fromAddress, $message['echoarea_domain'] ?? $message['from_domain'] ?? null);
+                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r\n";
                 
                 // Add REPLY kludge if this is a reply to another message
                 if (!empty($message['reply_to_id'])) {
@@ -1945,16 +1959,17 @@ class BinkdProcessor
 
     private function isFidonetDayBundle($extension)
     {
-        // Check for Fidonet daily bundle extensions: su0-su9, mo0-mo9, etc.
+        // Check for Fidonet daily bundle extensions: su0-suz, mo0-moz, etc.
+        // ArcMail bundle sequence characters are base-36, not just decimal digits.
         if (strlen($extension) !== 3) {
             return false;
         }
         
         $dayPrefix = substr($extension, 0, 2);
-        $dayNumber = substr($extension, 2, 1);
+        $daySequence = substr($extension, 2, 1);
         
         $validPrefixes = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
-        return in_array($dayPrefix, $validPrefixes) && ctype_digit($dayNumber);
+        return in_array($dayPrefix, $validPrefixes) && ctype_alnum($daySequence);
     }
 
     private function moveToErrorDir($file)
@@ -2080,6 +2095,24 @@ class BinkdProcessor
         }
 
         return null;
+    }
+
+    private function buildMsgidAddress(string $fromAddress, ?string $domain = null): string
+    {
+        if (strpos($fromAddress, '@') !== false) {
+            return $fromAddress;
+        }
+
+        $resolvedDomain = trim((string)($domain ?? ''));
+        if ($resolvedDomain === '') {
+            try {
+                $resolvedDomain = (string)($this->config->getDomainByAddress($fromAddress) ?: '');
+            } catch (\Throwable $e) {
+                $resolvedDomain = '';
+            }
+        }
+
+        return $resolvedDomain !== '' ? $fromAddress . '@' . $resolvedDomain : $fromAddress;
     }
 }
 

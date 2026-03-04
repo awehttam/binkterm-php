@@ -797,8 +797,11 @@ If you need longer sessions, you can register Doorway with the original sharewar
 
 ### Macro Replacements in launch_command
 
-- `{node}`: Replaced with node number (1-100)
-- `{dropfile}`: Replaced with drop file name (e.g., "DOOR1.SYS")
+| Placeholder | Replaced with |
+|-------------|---------------|
+| `{node}` | Node number (e.g. `1`) |
+| `{dropfile}` | Drop file name (e.g. `DOOR.SYS`) |
+| `{user_number}` | BBS user ID (numeric) |
 
 ### Examples
 

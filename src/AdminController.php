@@ -297,6 +297,201 @@ class AdminController
         return $stats;
     }
 
+    public function getEconomyStats(string $period = '30d'): array
+    {
+        $creditsConfig = UserCredit::getCreditsConfig();
+        $periodMap = [
+            '7d' => "NOW() - INTERVAL '7 days'",
+            '30d' => "NOW() - INTERVAL '30 days'",
+            '90d' => "NOW() - INTERVAL '90 days'",
+            'all' => null
+        ];
+        $periodKey = array_key_exists($period, $periodMap) ? $period : '30d';
+        $periodSql = $periodMap[$periodKey];
+        $periodWhere = $periodSql ? "WHERE created_at >= {$periodSql}" : '';
+
+        $summary = $this->db->query("
+            SELECT
+                COUNT(*) AS total_users,
+                COUNT(*) FILTER (WHERE credit_balance > 0) AS funded_users,
+                COALESCE(SUM(credit_balance), 0) AS total_credits,
+                COALESCE(AVG(credit_balance), 0) AS avg_balance,
+                COALESCE(MAX(credit_balance), 0) AS max_balance
+            FROM users
+        ")->fetch(\PDO::FETCH_ASSOC);
+
+        $medianStmt = $this->db->query("
+            SELECT COALESCE(
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY credit_balance),
+                0
+            ) AS median_balance
+            FROM users
+        ");
+        $medianBalance = $medianStmt->fetchColumn();
+
+        $richestUser = $this->db->query("
+            SELECT id, username, real_name, credit_balance
+            FROM users
+            ORDER BY credit_balance DESC, username ASC
+            LIMIT 1
+        ")->fetch(\PDO::FETCH_ASSOC) ?: null;
+
+        $periodSummary = $this->db->query("
+            SELECT
+                COUNT(*) AS transaction_count,
+                COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS credits_earned,
+                COALESCE(SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END), 0) AS credits_spent,
+                COALESCE(SUM(amount), 0) AS net_flow,
+                COUNT(DISTINCT user_id) AS active_users
+            FROM user_transactions
+            {$periodWhere}
+        ")->fetch(\PDO::FETCH_ASSOC);
+
+        $transactionTypes = $this->db->query("
+            SELECT
+                transaction_type,
+                COUNT(*) AS transaction_count,
+                COUNT(DISTINCT user_id) AS unique_users,
+                COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS inflow,
+                COALESCE(SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END), 0) AS outflow,
+                COALESCE(SUM(amount), 0) AS net_amount
+            FROM user_transactions
+            {$periodWhere}
+            GROUP BY transaction_type
+            ORDER BY transaction_count DESC, transaction_type ASC
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        $topEarners = $this->db->query("
+            SELECT
+                u.id,
+                u.username,
+                u.real_name,
+                COALESCE(SUM(ut.amount), 0) AS total_earned,
+                COUNT(*) AS transaction_count
+            FROM user_transactions ut
+            INNER JOIN users u ON u.id = ut.user_id
+            " . ($periodSql ? "WHERE ut.created_at >= {$periodSql} AND ut.amount > 0" : "WHERE ut.amount > 0") . "
+            GROUP BY u.id, u.username, u.real_name
+            ORDER BY total_earned DESC, transaction_count DESC, u.username ASC
+            LIMIT 10
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        $topSpenders = $this->db->query("
+            SELECT
+                u.id,
+                u.username,
+                u.real_name,
+                COALESCE(SUM(ABS(ut.amount)), 0) AS total_spent,
+                COUNT(*) AS transaction_count
+            FROM user_transactions ut
+            INNER JOIN users u ON u.id = ut.user_id
+            " . ($periodSql ? "WHERE ut.created_at >= {$periodSql} AND ut.amount < 0" : "WHERE ut.amount < 0") . "
+            GROUP BY u.id, u.username, u.real_name
+            ORDER BY total_spent DESC, transaction_count DESC, u.username ASC
+            LIMIT 10
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        $richestUsers = $this->db->query("
+            SELECT id, username, real_name, credit_balance
+            FROM users
+            WHERE credit_balance > 0
+            ORDER BY credit_balance DESC, username ASC
+            LIMIT 10
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        $recentTransactions = $this->db->query("
+            SELECT
+                ut.id,
+                ut.amount,
+                ut.balance_after,
+                ut.description,
+                ut.transaction_type,
+                ut.created_at,
+                u.username,
+                u.real_name
+            FROM user_transactions ut
+            INNER JOIN users u ON u.id = ut.user_id
+            " . ($periodSql ? "WHERE ut.created_at >= {$periodSql}" : '') . "
+            ORDER BY ut.created_at DESC
+            LIMIT 15
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        return [
+            'credits_enabled' => (bool)$creditsConfig['enabled'],
+            'credits_symbol' => (string)$creditsConfig['symbol'],
+            'period' => $periodKey,
+            'summary' => [
+                'total_users' => (int)($summary['total_users'] ?? 0),
+                'funded_users' => (int)($summary['funded_users'] ?? 0),
+                'total_credits' => (int)($summary['total_credits'] ?? 0),
+                'avg_balance' => (float)($summary['avg_balance'] ?? 0),
+                'median_balance' => (float)$medianBalance,
+                'max_balance' => (int)($summary['max_balance'] ?? 0)
+            ],
+            'period_summary' => [
+                'transaction_count' => (int)($periodSummary['transaction_count'] ?? 0),
+                'credits_earned' => (int)($periodSummary['credits_earned'] ?? 0),
+                'credits_spent' => (int)($periodSummary['credits_spent'] ?? 0),
+                'net_flow' => (int)($periodSummary['net_flow'] ?? 0),
+                'active_users' => (int)($periodSummary['active_users'] ?? 0)
+            ],
+            'richest_user' => $richestUser ? [
+                'id' => (int)$richestUser['id'],
+                'username' => $richestUser['username'],
+                'real_name' => $richestUser['real_name'],
+                'credit_balance' => (int)$richestUser['credit_balance']
+            ] : null,
+            'transaction_types' => array_map(static function(array $row): array {
+                return [
+                    'transaction_type' => $row['transaction_type'],
+                    'transaction_count' => (int)$row['transaction_count'],
+                    'unique_users' => (int)$row['unique_users'],
+                    'inflow' => (int)$row['inflow'],
+                    'outflow' => (int)$row['outflow'],
+                    'net_amount' => (int)$row['net_amount']
+                ];
+            }, $transactionTypes),
+            'top_earners' => array_map(static function(array $row): array {
+                return [
+                    'id' => (int)$row['id'],
+                    'username' => $row['username'],
+                    'real_name' => $row['real_name'],
+                    'total_earned' => (int)$row['total_earned'],
+                    'transaction_count' => (int)$row['transaction_count']
+                ];
+            }, $topEarners),
+            'top_spenders' => array_map(static function(array $row): array {
+                return [
+                    'id' => (int)$row['id'],
+                    'username' => $row['username'],
+                    'real_name' => $row['real_name'],
+                    'total_spent' => (int)$row['total_spent'],
+                    'transaction_count' => (int)$row['transaction_count']
+                ];
+            }, $topSpenders),
+            'richest_users' => array_map(static function(array $row): array {
+                return [
+                    'id' => (int)$row['id'],
+                    'username' => $row['username'],
+                    'real_name' => $row['real_name'],
+                    'credit_balance' => (int)$row['credit_balance']
+                ];
+            }, $richestUsers),
+            'recent_transactions' => array_map(static function(array $row): array {
+                return [
+                    'id' => (int)$row['id'],
+                    'amount' => (int)$row['amount'],
+                    'balance_after' => (int)$row['balance_after'],
+                    'description' => $row['description'],
+                    'transaction_type' => $row['transaction_type'],
+                    'created_at' => $row['created_at'],
+                    'username' => $row['username'],
+                    'real_name' => $row['real_name']
+                ];
+            }, $recentTransactions)
+        ];
+    }
+
     public function getDatabaseVersion(): string
     {
         try {

@@ -35,6 +35,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Security Considerations](#security-considerations)
 - [File Areas](#file-areas)
   - [File Area Rules](#file-area-rules)
+- [Native Doors](#native-doors---native-linux--windows-door-programs)
 - [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
 - [Gemini Support](#gemini-support)
@@ -107,7 +108,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Voting Booth** - Voting Booth supports multiple polls.  Users can submit new polls for credits
 - **Shoutbox** - Shoutbox support
 - **Nodelist Browsers** - Integrated nodelist updater and browser
-- **Markdown Support** - Echomail and netmail can be composed and rendered using Markdown formatting on compatible networks
+- **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
 
 
 ### Native Binkp Protocol Support
@@ -213,17 +214,17 @@ $reward = UserCredit::getRewardAmount('action_name', $defaultValue);
 
 Set `"enabled": false` in the credits configuration to disable the entire system. When disabled, all credit-related functionality is hidden and no transactions are recorded.
 
-### Markdown Support
+### Markup Support
 
-BinktermPHP supports Markdown formatting in echomail and netmail messages on networks that allow it. When enabled for an uplink, users can compose messages using standard Markdown syntax and have them rendered with full formatting in the message reader.
+BinktermPHP supports rich text formatting in echomail and netmail messages on networks that allow it. When enabled for an uplink, users can compose messages using Markdown or StyleCodes and have them rendered with full formatting in the message reader.
 
 **How it works:**
 
-Markdown support is opt-in per uplink via the `allow_markdown` flag in the Binkp configuration. When a user sends a message with Markdown enabled, BinktermPHP adds a `\x01MARKDOWN: 1` kludge line to the outbound packet. Readers that recognise this kludge — including BinktermPHP itself — render the message body as formatted HTML. Readers that don't recognise it see the raw Markdown text, which remains human-readable as plain text.
+Markup support is opt-in per uplink via the `allow_markup` flag in the Binkp configuration. When a user sends a message with a markup format selected, BinktermPHP adds a `\x01MARKUP: <Format> 1.0` kludge line to the outbound packet per LSC-001 Draft 2. Readers that recognise the kludge render the message body with formatting. Readers that don't see the raw text, which remains human-readable as plain text.
 
-**Enabling Markdown for an uplink:**
+**Enabling markup for an uplink:**
 
-In your Binkp configuration, add `"allow_markdown": true` to the uplink definition:
+In your Binkp configuration, add `"allow_markup": true` to the uplink definition:
 
 ```json
 {
@@ -231,21 +232,27 @@ In your Binkp configuration, add `"allow_markdown": true` to the uplink definiti
     {
       "address": "1:123/456",
       "domain": "lovlynet",
-      "allow_markdown": true
+      "allow_markup": true
     }
   ]
 }
 ```
 
-**Composing Markdown messages:**
+**Composing messages with markup:**
 
-When a user composes a message to a Markdown-enabled network, a **Send as Markdown** checkbox appears below the message body. Checking it activates the Markdown editor, which includes:
+When a user composes a message to a markup-enabled network, a **Markup Format** selector appears below the message body with three options:
+
+- **Plain text** — no markup kludge added (default)
+- **Markdown** — activates the split-pane Markdown editor with toolbar and live preview
+- **StyleCodes** — adds the `^AMARKUP: StyleCodes 1.0` kludge; use inline codes directly in the plain text editor
+
+**Markdown editor features:**
 
 - **Formatting toolbar** — buttons for bold, italic, headings (H1–H3), inline code, code blocks, links, bullet lists, ordered lists, blockquotes, and horizontal rules
 - **Keyboard shortcuts** — Ctrl+B (bold), Ctrl+I (italic), Ctrl+K (link), Tab (indent)
 - **Edit / Preview tabs** — switch between raw Markdown editing and a rendered preview that uses the same server-side renderer as the message reader
 
-**Supported syntax:**
+**Supported Markdown syntax:**
 
 | Syntax | Result |
 |--------|--------|
@@ -261,9 +268,20 @@ When a user composes a message to a Markdown-enabled network, a **Send as Markdo
 | `---` | horizontal rule |
 | `\| col \| col \|` | table |
 
+**Supported StyleCodes syntax:**
+
+StyleCodes (also known as GoldEd Rich Text, SemPoint Rich Text, or Synchronet Message Markup) use single-character delimiters around words or phrases:
+
+| Syntax | Result |
+|--------|--------|
+| `*bold*` | **bold** |
+| `/italics/` | *italics* |
+| `_underlined_` | underlined |
+| `#inverse#` | inverse video |
+
 **Rendering:**
 
-Incoming messages with the `MARKDOWN` kludge are rendered server-side by `MarkdownRenderer` and displayed as HTML in the echomail and netmail readers. Messages without the kludge continue to be displayed as plain text. The rendered preview in the composer uses the same renderer, so what you see in Preview is exactly what readers will see.
+Incoming messages are rendered based on the `^AMARKUP` kludge in the message. Markdown messages are rendered server-side by `MarkdownRenderer`; StyleCodes messages are rendered by `StyleCodesRenderer`. Messages without a markup kludge are displayed as plain text. The legacy `^AMARKDOWN:` kludge (Draft 1) is still recognised for backwards compatibility.
 
 ## Installation
 
@@ -438,7 +456,7 @@ php -S localhost:8080
 ```
 
 ### Set Up Cron Jobs (Recommended)
-Start the long-running services at boot and keep cron for periodic maintenance tasks:
+Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as telnet, Gemini, or DOS doors, see the [Operation](#operation) section for the additional `@reboot` entries for those daemons.
 
 ```cron
 # Start admin daemon on boot
@@ -454,7 +472,7 @@ Start the long-running services at boot and keep cron for periodic maintenance t
 #0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
 ```
 
-Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for additional cron examples.
+Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for the full daemon list and additional cron examples.
 
 update_nodelists can be used if you have URL's to update from.  Otherwise nodelists can be updated using file area actions.  
 
@@ -501,7 +519,7 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
             "pkt_password": "",
             "tic_password": "",
             "poll_schedule": "*/15 * * * *",
-            "allow_markdown": false,
+            "allow_markup": false,
             "send_domain_in_addr": false,
             "binkp_zone": "",
             "enabled": true,
@@ -569,7 +587,7 @@ Each uplink in the `uplinks` array supports the following fields:
 | `domain` | Yes | Network domain (e.g., "fidonet", "fsxnet", "agoranet") |
 | `networks` | Yes | Array of address patterns this uplink routes (e.g., `["1:*/*", "2:*/*"]`) |
 | `poll_schedule` | No | Cron expression for automated polling (e.g., `"0 */4 * * *"` = every 4 hours) |
-| `allow_markdown` | No | Enables Markdown support for messages routed through this uplink |
+| `allow_markup` | No | Enables Markdown and StyleCodes markup support for messages routed through this uplink |
 | `send_domain_in_addr` | No | Includes the `@domain` suffix in the ADR address sent to this uplink |
 | `enabled` | No | Whether uplink is active (default: true) |
 | `default` | No | Whether this is the default uplink for unrouted messages |
@@ -814,7 +832,8 @@ Individual versions with specific upgrade documentation:
 
 | Version                                | Date        | Highlights                                                                                                                                                                                                                                                                                                       |
 |----------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [1.8.4](docs/UPGRADING_1.8.4.md)       | Feb 28 2026 | Username/real name cross-collision check, MRC room list fix, collapsible compose sidebar, echolist new-tab support |
+| [1.8.5](docs/UPGRADING_1.8.5.md)       | TBD         | Native doors (PTY), StyleCodes rendering, LSC-001 Draft 2 MARKUP kludge, markup format composer selector, allow_markup uplink config key |
+| [1.8.4](docs/UPGRADING_1.8.4.md)       | Mar 1 2026  | Username/real name cross-collision check, MRC room list fix, collapsible compose sidebar, echolist new-tab support |
 | [1.8.3](docs/UPGRADING_1.8.3.md)       | Feb 27 2026 | Appearance system & shells, Gemini Capsule Hosting, Gemini echo area exposure, Markdown compose editor, netmail file attachments, file share links, friendly share URLs, address book crashmail preference, crashmail DNS fallback & immediate delivery, scrollable message reader, echomail bulk mark-as-read, MRC Chat WebDoor |
 | [1.8.2](docs/UPGRADING_1.8.2.md)       | Feb 23 2026 | Gemini Browser WebDoor, CSRF protection, telnet anti-bot, security fixes                                                                                                                                                                                                                                         |
 | [1.8.0/1.8.1](docs/UPGRADING_1.8.0.md) | Feb 15 2026 | DOS door integration, activity tracking & stats, referral system, WebDoor SDK, UTC timestamp normalisation                                                                                                                                                                                                       |
@@ -1257,7 +1276,11 @@ php scripts/update_nodelists.php --help
 2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
 3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
 4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
-5. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
+5. **Optional Service Daemons**: start these only if you use the related features:
+   - `php telnet/telnet_daemon.php --daemon`
+   - `php scripts/gemini_daemon.php --daemon`
+   - `node scripts/dosbox-bridge/multiplexing-server.js --daemon`
+6. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
 
 ### Daily Operations
 
@@ -1298,7 +1321,7 @@ php scripts/generate_ad.php --stdout
 For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
 
 ### Cron Job Setup
-The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
+The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
 # Start admin daemon on boot (pid defaults to data/run/admin_daemon.pid)
@@ -1309,6 +1332,15 @@ The recommended approach is to start these services at boot (systemd or `@reboot
 
 # Start binkp server on boot (Linux/macOS; pid defaults to data/run/binkp_server.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/binkp_server.php --daemon
+
+# Optional: start telnet daemon on boot
+@reboot /usr/bin/php /path/to/binktest/telnet/telnet_daemon.php --daemon
+
+# Optional: start Gemini daemon on boot
+@reboot /usr/bin/php /path/to/binktest/scripts/gemini_daemon.php --daemon
+
+# Optional: start DOS door multiplexing bridge on boot
+@reboot /usr/bin/node /path/to/binktest/scripts/dosbox-bridge/multiplexing-server.js --daemon
 
 # Update nodelists daily at 4am
 0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
@@ -1567,7 +1599,7 @@ credentials with the remote system.
 
 ## Authentication Flow
 
-1.  **Handshake Initiation**: A user visits the BBS and hits (for example) a link like `/bbslink/`.
+1.  **Handshake Initiation**: A user visits the BBS and hits (for example).
 2.  **Redirect**: The BBS generates a temporary, single-use token and redirects the user to the remote gateway URL (e.g., `https://remote-door.com/login?userid=123&token=abc...`).
 3.  **Back-Channel Validation**: The remote gateway receives the user. Before granting access, it makes a server-to-server POST request back to the BBS with its **API Key**, the **UserID**, and the **Token**.
 4.  **Verification**: The BBS validates the request. If successful, the gateway receives the user's profile information and initiates a local session.
@@ -1672,6 +1704,46 @@ if ($userIdFromUrl && $tokenFromUrl) {
 ```
 ---
 
+## Native Doors - Native Linux / Windows Door Programs
+
+BinktermPHP supports running native Linux binaries and Windows executables as BBS doors. Native doors run directly via PTY (pseudo-terminal) with no emulator overhead, making them suitable for modern programs, shell scripts, or compiled binaries.
+
+### How It Works
+
+- **Browser Terminal** - xterm.js terminal in the web browser
+- **Multiplexing Bridge** - Same Node.js bridge used by DOS doors; spawns the door executable via `node-pty`
+- **PTY Execution** - Door runs in a pseudo-terminal with full ANSI/VT100 support
+- **Drop Files & Environment Variables** - DOOR.SYS written to `native-doors/drops/NODE{n}/`; user data also injected as environment variables
+
+### Key Features
+
+- **No Emulator Required** - Doors launch instantly with no DOSBox overhead
+- **Multi-Node Support** - Isolated sessions per node with DOOR.SYS drop files written per-session, same as DOS doors
+- **Environment Variable Injection** - `DOOR_USER_NAME`, `DOOR_NODE`, `DOOR_BBS_NAME`, `DOOR_DROPFILE`, `TERM`, and more
+- **Cross-Platform** - Supports Linux shell scripts, compiled binaries, and Windows `.bat` / `.exe` files
+
+### Installation
+
+1. Create a subdirectory under `native-doors/doors/` for your door.
+2. Add a `nativedoor.json` manifest (see `UPGRADING_1.8.3.md` for the full format).
+3. Place your executable in the same directory.
+4. Go to **Admin → Native Doors** and click **Sync Doors**, then enable the door.
+
+### Requirements
+
+- **Node.js** with `node-pty` — already required by the DOS door bridge
+
+### Documentation
+
+See **[docs/NativeDoors.md](docs/NativeDoors.md)** for complete documentation including:
+- Manifest format reference
+- Creating and installing doors
+- Environment variables and drop file details
+- Platform notes (Linux and Windows)
+- Troubleshooting
+
+---
+
 ## DOS Doors - Classic BBS Door Games
 
 BinktermPHP supports running classic DOS door games through DOSBox-X emulation. This brings authentic retro BBS door games like Legend of the Red Dragon (LORD), Trade Wars, and other DOS classics to your web-based BBS.
@@ -1725,7 +1797,6 @@ BinktermPHP ships with the following WebDoors out of the box:
 
 **Utilities:**
 - **MRC Chat** - Real-time multi-BBS chat connecting to the MRC network (see [docs/MRC_Chat.md](docs/MRC_Chat.md))
-- **BBSLink** - Gateway to classic DOS door games via BBSLink service
 - **Community Wireless Node List** - Interactive map for discovering and sharing community wireless networks, mesh networks, and grassroots infrastructure
 - **Source Games** - Live server browser for Source engine games (TF2, CS:GO) with real-time stats
 - **Terminal** - Web-based SSH terminal for system access
@@ -1855,6 +1926,7 @@ The Developer Guide is essential reading for anyone contributing code, developin
 We welcome contributions to BinktermPHP! Before contributing, please review:
 
 - **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Essential reading for understanding the codebase
+- **[Help Wanted](HELP_WANTED.md)** - Current areas where contributions are especially needed
 - **[Contributing Guide](CONTRIBUTING.md)** - Detailed information on:
   - Development setup and code conventions
   - Pull request workflow

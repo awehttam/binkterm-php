@@ -224,6 +224,32 @@ class BinkpConfig
     }
 
     /**
+     * Get addresses formatted for the BinkP M_ADR command, respecting each
+     * uplink's send_domain_in_addr flag.  Used when answering an inbound
+     * connection where we don't yet know which uplink is calling.
+     *
+     * @return string Space-separated address list, e.g. "1:2/3@fidonet 12:1/14"
+     */
+    public function getMyAddressesForAdr(): string
+    {
+        $parts = [];
+        foreach ($this->getUplinks() as $uplink) {
+            $me = $uplink['me'] ?? null;
+            if (!$me) {
+                continue;
+            }
+            $sendDomain = !empty($uplink['send_domain_in_addr']);
+            $domain = trim($uplink['domain'] ?? '');
+            if ($sendDomain && $domain !== '' && strpos($me, '@') === false) {
+                $parts[] = $me . '@' . $domain;
+            } else {
+                $parts[] = $me;
+            }
+        }
+        return implode(' ', array_unique($parts));
+    }
+
+    /**
      * Get all addresses with their network domains
      *
      * @return array Array of ['address' => string, 'domain' => string] entries
@@ -553,16 +579,50 @@ class BinkpConfig
     }
 
     /**
-     * Check if Markdown is allowed for a given domain.
+     * Check if Markup is allowed for a given domain.
+     *
+     * Reads allow_markup; falls back to allow_markdown for backwards compatibility
+     * with configs written before the rename.
      */
     public function isMarkdownAllowedForDomain(string $domain): bool
     {
         $uplink = $this->getUplinkByDomain($domain);
-        return !empty($uplink['allow_markdown']);
+        return !empty($uplink['allow_markup']) || !empty($uplink['allow_markdown']);
     }
 
     /**
-     * Check if Markdown is allowed for a given destination address.
+     * Get posting name policy for a given domain.
+     *
+     * Supported values:
+     * - real_name (default)
+     * - username
+     */
+    public function getPostingNamePolicyForDomain(string $domain): string
+    {
+        $uplink = $this->getUplinkByDomain($domain);
+        $policy = strtolower(trim((string)($uplink['posting_name_policy'] ?? '')));
+        return in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name';
+    }
+
+    /**
+     * Get posting name policy for a destination address.
+     *
+     * Uses the routed uplink for the destination and returns:
+     * - real_name (default)
+     * - username
+     */
+    public function getPostingNamePolicyForDestination(string $destAddr): string
+    {
+        $uplink = $this->getUplinkForDestination($destAddr);
+        $policy = strtolower(trim((string)($uplink['posting_name_policy'] ?? '')));
+        return in_array($policy, ['real_name', 'username'], true) ? $policy : 'real_name';
+    }
+
+    /**
+     * Check if Markup is allowed for a given destination address.
+     *
+     * Reads allow_markup; falls back to allow_markdown for backwards compatibility
+     * with configs written before the rename.
      */
     public function isMarkdownAllowedForDestination(string $destAddr): bool
     {
@@ -575,7 +635,7 @@ class BinkpConfig
         }
 
         $uplink = $this->getUplinkForDestination($destAddr);
-        return $uplink ? !empty($uplink['allow_markdown']) : false;
+        return $uplink ? (!empty($uplink['allow_markup']) || !empty($uplink['allow_markdown'])) : false;
     }
 
     /**

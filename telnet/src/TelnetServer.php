@@ -482,7 +482,7 @@ class TelnetServer
         $doorHandler = new \BinktermPHP\TelnetServer\DoorHandler($this, $this->apiBase);
 
         // Show shoutbox if enabled
-        $shoutboxHandler->show($conn, $state, $session, 5);
+        $shoutboxHandler->show($conn, $state, $session, 5, false);
 
         // Get message counts once per session
         $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);

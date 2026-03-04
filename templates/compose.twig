@@ -122,11 +122,21 @@
 
                 <div class="mb-3" id="messageTextGroup">
                     <label for="messageText" class="form-label">Message *</label>
-                    <textarea class="form-control" id="messageText" name="message_text" 
+                    <!-- StyleCodes Toolbar (shown when StyleCodes markup is selected) -->
+                    <div id="stylecodesToolbar" style="display: none;" class="sc-editor-toolbar mb-1" role="toolbar" aria-label="StyleCodes formatting">
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('bold')" title="Bold (*bold*)"><strong>B</strong></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('italic')" title="Italic (/italic/)"><em>I</em></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('underline')" title="Underline (_underline_)"><u>U</u></button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('inverse')" title="Inverse (#inverse#)">Inv</button>
+                        </div>
+                    </div>
+                    <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
-                    <div class="form-text">
+                    <div class="form-text" id="messageTextHint">
                         Use plain text. Fidonet standard formatting applies.
                     </div>
+                    <div class="form-text" id="scHint" style="display: none;">StyleCodes active — <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
 
                 <!-- Markdown Editor (shown when "Send as Markdown" is checked) -->
@@ -177,13 +187,13 @@
                 </div>
 
                 <div class="mb-3" id="markdownSection" style="display: none;">
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="sendMarkdown" name="send_markdown">
-                        <label class="form-check-label" for="sendMarkdown">
-                            <i class="fab fa-markdown me-1"></i>Send as Markdown
-                        </label>
-                        <div class="form-text">Adds the MARKDOWN kludge for compatible networks.</div>
-                    </div>
+                    <label class="form-label" for="markupType">Markup Format</label>
+                    <select class="form-select" id="markupType" name="markup_type">
+                        <option value="">Plain text</option>
+                        <option value="markdown">Markdown</option>
+                        <option value="stylecodes">StyleCodes (GoldEd, SemPoint Rich Text, Synchronet Markup)</option>
+                    </select>
+                    <div class="form-text">Send with markup formatting. Markdown and StyleCodes are supported on compatible networks.</div>
                 </div>
 
                 <div class="mb-3">
@@ -237,7 +247,7 @@
                     <h6>Netmail Guidelines:</h6>
                     <ul class="small">
                         <li>Private messages between nodes</li>
-                        <li>Your real name is used</li>
+                        <li id="netmailPostingIdentityGuideline">Posting identity: Real Name</li>
                         <li>Use proper Fidonet addressing</li>
                         <li>Be respectful and professional</li>
                         <li>Messages are routed through the network</li>
@@ -248,7 +258,7 @@
                 {% else %}
                     <h6>Echomail Guidelines:</h6>
                     <ul class="small">
-                        <li>Your real name is used</li>
+                        <li id="echomailPostingIdentityGuideline">Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias</li>
                         <li>Public forum messages</li>
                         <li>Stay on-topic for the echo area</li>
                         <li>Be respectful to all participants</li>
@@ -300,22 +310,30 @@ let markdownSupportTimer = null;
 let markdownPrefilled = false;
 let mdEditorActive = false;
 let mdPreviewTimer = null;
-const replyIsMarkdown = {{ reply_is_markdown ? 'true' : 'false' }};
+let scToolbarActive = false;
+const replyMarkupType = {{ reply_markup_type|default("")|json_encode|raw }};
 
 function updateMarkdownSection(allowed) {
     const section = $('#markdownSection');
     if (allowed) {
         section.show();
-        if (replyIsMarkdown && !markdownPrefilled) {
-            $('#sendMarkdown').prop('checked', true);
+        if (replyMarkupType && !markdownPrefilled) {
+            $('#markupType').val(replyMarkupType);
             markdownPrefilled = true;
-            initMarkdownEditor();
+            if (replyMarkupType === 'markdown') {
+                initMarkdownEditor();
+            } else if (replyMarkupType === 'stylecodes') {
+                initStyleCodesToolbar();
+            }
         }
     } else {
         if (mdEditorActive) {
             destroyMarkdownEditor();
         }
-        $('#sendMarkdown').prop('checked', false);
+        if (scToolbarActive) {
+            destroyStyleCodesToolbar();
+        }
+        $('#markupType').val('');
         section.hide();
     }
 }
@@ -324,9 +342,17 @@ function fetchMarkdownSupport(params) {
     $.get('/api/messages/markdown-support', params)
         .done(function(response) {
             updateMarkdownSection(!!response.allowed);
+            const messageType = $('#messageType').val();
+            if (messageType === 'netmail') {
+                updateNetmailGuidelinesPostingName((response && response.posting_name_policy) || 'real_name');
+            }
         })
         .fail(function() {
             updateMarkdownSection(false);
+            const messageType = $('#messageType').val();
+            if (messageType === 'netmail') {
+                updateNetmailGuidelinesPostingName('real_name');
+            }
         });
 }
 
@@ -346,13 +372,75 @@ function refreshMarkdownSupportForEchomail() {
     fetchMarkdownSupport({ area: selected, domain: domain });
 }
 
+function getSelectedEchoarea() {
+    const selected = ($('#echoarea').val() || '').trim();
+    if (!selected) {
+        return null;
+    }
+
+    const atIdx = selected.indexOf('@');
+    const tag = atIdx >= 0 ? selected.substring(0, atIdx) : selected;
+    const domain = atIdx >= 0 ? selected.substring(atIdx + 1) : '';
+
+    return allEchoareas.find(function(area) {
+        const areaTag = (area.tag || '').toString();
+        const areaDomain = (area.domain || '').toString();
+        return areaTag.toLowerCase() === tag.toLowerCase() && areaDomain.toLowerCase() === domain.toLowerCase();
+    }) || null;
+}
+
+function resolveEchomailPostingNamePolicy(area) {
+    const policy = ((area && area.posting_name_policy) ? area.posting_name_policy : '').toString().trim().toLowerCase();
+    if (policy === 'real_name' || policy === 'username') {
+        return policy;
+    }
+
+    const effectivePolicy = ((area && area.effective_posting_name_policy) ? area.effective_posting_name_policy : '').toString().trim().toLowerCase();
+    if (effectivePolicy === 'real_name' || effectivePolicy === 'username') {
+        return effectivePolicy;
+    }
+
+    return 'real_name';
+}
+
+function updateEchomailGuidelinesPostingName() {
+    const guideline = $('#echomailPostingIdentityGuideline');
+    if (!guideline.length) {
+        return;
+    }
+
+    const selectedArea = getSelectedEchoarea();
+    if (!selectedArea) {
+        guideline.text('Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias');
+        return;
+    }
+
+    const policy = resolveEchomailPostingNamePolicy(selectedArea);
+    guideline.text(policy === 'username'
+        ? 'Posting identity for this area: Username/Alias'
+        : 'Posting identity for this area: Real Name');
+}
+
 function refreshMarkdownSupportForNetmail() {
     const address = ($('#toAddress').val() || '').trim();
     if (!address) {
         updateMarkdownSection(false);
+        updateNetmailGuidelinesPostingName('real_name');
         return;
     }
     fetchMarkdownSupport({ address: address });
+}
+
+function updateNetmailGuidelinesPostingName(policy) {
+    const guideline = $('#netmailPostingIdentityGuideline');
+    if (!guideline.length) {
+        return;
+    }
+
+    const normalizedPolicy = (policy || '').toString().trim().toLowerCase();
+    guideline.text(normalizedPolicy === 'username'
+        ? 'Posting identity for this destination: Username/Alias'
+        : 'Posting identity for this destination: Real Name');
 }
 
 /**
@@ -456,6 +544,66 @@ function destroyMarkdownEditor() {
     $('#messageTextGroup').show();
 
     mdEditorActive = false;
+}
+
+/**
+ * Show the StyleCodes toolbar above the plain textarea and attach shortcuts.
+ */
+function initStyleCodesToolbar() {
+    if (scToolbarActive) return;
+    scToolbarActive = true;
+    $('#stylecodesToolbar').show();
+    $('#scHint').show();
+    $('#messageTextHint').hide();
+
+    $('#messageText').off('keydown.sc').on('keydown.sc', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === 'b') { e.preventDefault(); scAction('bold'); }
+            if (e.key === 'i') { e.preventDefault(); scAction('italic'); }
+        }
+    });
+}
+
+/**
+ * Hide the StyleCodes toolbar and remove its keyboard shortcuts.
+ */
+function destroyStyleCodesToolbar() {
+    if (!scToolbarActive) return;
+    scToolbarActive = false;
+    $('#stylecodesToolbar').hide();
+    $('#scHint').hide();
+    $('#messageTextHint').show();
+    $('#messageText').off('keydown.sc');
+}
+
+/**
+ * Apply a StyleCode wrapper around the current selection in #messageText.
+ * @param {string} action - 'bold', 'italic', 'underline', or 'inverse'
+ */
+function scAction(action) {
+    const ta = document.getElementById('messageText');
+    if (!ta) return;
+
+    const ch = { bold: '*', italic: '/', underline: '_', inverse: '#' }[action];
+    if (!ch) return;
+    const ph = { bold: 'bold text', italic: 'italic text', underline: 'underlined text', inverse: 'inverse text' }[action];
+
+    const start = ta.selectionStart;
+    const end   = ta.selectionEnd;
+    const sel   = ta.value.substring(start, end);
+    const before = ta.value.substring(0, start);
+    const after  = ta.value.substring(end);
+
+    if (sel) {
+        ta.value = before + ch + sel + ch + after;
+        ta.selectionStart = start + 1;
+        ta.selectionEnd   = end + 1;
+    } else {
+        ta.value = before + ch + ph + ch + after;
+        ta.selectionStart = start + 1;
+        ta.selectionEnd   = start + 1 + ph.length;
+    }
+    ta.focus();
 }
 
 /**
@@ -708,12 +856,18 @@ $(document).ready(function() {
         sendMessage();
     });
 
-    // Markdown editor toggle
-    $('#sendMarkdown').on('change', function() {
-        if ($(this).is(':checked')) {
+    // Markup type selector — show/hide editors based on selection
+    $('#markupType').on('change', function() {
+        const val = $(this).val();
+        if (val === 'markdown') {
+            if (scToolbarActive) destroyStyleCodesToolbar();
             initMarkdownEditor();
+        } else if (val === 'stylecodes') {
+            if (mdEditorActive) destroyMarkdownEditor();
+            initStyleCodesToolbar();
         } else {
-            destroyMarkdownEditor();
+            if (mdEditorActive) destroyMarkdownEditor();
+            if (scToolbarActive) destroyStyleCodesToolbar();
         }
     });
 
@@ -772,7 +926,8 @@ function loadEchoareas() {
                 allEchoareas = data.echoareas;
                 data.echoareas.forEach(function(area) {
                     const label = area.domain ? area.tag + '@' + area.domain : area.tag;
-                    select.append(`<option value="${area.tag}@${area.domain}" data-color="${area.color || '#28a745'}">${label}</option>`);
+                    const value = area.domain ? area.tag + '@' + area.domain : area.tag;
+                    select.append(`<option value="${value}" data-color="${area.color || '#28a745'}">${label}</option>`);
                 });
 
                 // Add color styling to select options and refresh cross-post list
@@ -784,6 +939,7 @@ function loadEchoareas() {
                     }
                     populateCrossPostAreas();
                     refreshMarkdownSupportForEchomail();
+                    updateEchomailGuidelinesPostingName();
                 });
             }
             // Pre-select if specified in URL or template, or from loaded draft
@@ -804,6 +960,8 @@ function loadEchoareas() {
                 select.val(preselect);
                 // Trigger change event to apply color styling
                 select.trigger('change');
+            } else {
+                updateEchomailGuidelinesPostingName();
             }
 
             // Clear the temporary draft echoarea after using it
@@ -826,7 +984,7 @@ function populateCrossPostAreas() {
     container.empty();
 
     allEchoareas.forEach(function(area) {
-        const val = area.tag + '@' + area.domain;
+        const val = area.domain ? area.tag + '@' + area.domain : area.tag;
         if (val === primaryVal) return;
 
         const id = 'crosspost_' + val.replace(/[@.]/g, '_');
@@ -917,7 +1075,7 @@ function sendMessage() {
             crashmail: $('#crashmail').is(':checked'),
             tagline: $('#taglineSelect').val(),
             cross_post_areas: crossPostAreas,
-            send_markdown: $('#sendMarkdown').length ? $('#sendMarkdown').is(':checked') : false
+            markup_type: $('#markupType').length ? ($('#markupType').val() || null) : null
         };
 
     // Show sending status

@@ -192,11 +192,13 @@
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> Doors</a>
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="/admin/dosdoors"><i class="fas fa-terminal"></i> DOS Doors</a></li>
+                                        <li><a class="dropdown-item" href="/admin/native-doors"><i class="fas fa-door-open"></i> Native Doors</a></li>
                                         <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-globe"></i> Web Doors</a></li>
                                     </ul>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> Activity Statistics</a></li>
+                                <li><a class="dropdown-item" href="/admin/economy"><i class="fas fa-coins"></i> Economy Viewer</a></li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a>
                                     <ul class="dropdown-menu">
@@ -435,19 +437,25 @@
         }
 
         function activateUpdate() {
-            if (swRegistration && swRegistration.waiting) {
-                // Tell the waiting service worker to activate
-                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            if (!swRegistration) { window.location.reload(); return; }
 
-                // Reload once when the new service worker takes control.
-                // Use { once: true } to ensure only a single reload fires
-                // even if controllerchange is emitted more than once
-                // (e.g. via clients.claim() during activation).
+            const doSkip = () => {
+                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     window.location.reload();
                 }, { once: true });
+            };
+
+            if (swRegistration.waiting) {
+                doSkip();
+            } else if (swRegistration.installing) {
+                swRegistration.installing.addEventListener('statechange', function handler() {
+                    if (this.state === 'installed') {
+                        this.removeEventListener('statechange', handler);
+                        doSkip();
+                    }
+                });
             } else {
-                // Fallback: just reload
                 window.location.reload();
             }
         }

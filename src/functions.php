@@ -71,7 +71,11 @@ function filterKludgeLinesPreserveEmptyLines($messageText) {
 }
 
 /**
- * Check if a message contains a MARKDOWN kludge.
+ * Check if a message contains a Markdown markup kludge.
+ *
+ * Recognises:
+ *   ^AMARKUP: Markdown <version>  (LSC-001 Draft 2 — preferred)
+ *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge)
  *
  * @param array $message Message array with kludge_lines/bottom_kludges/message_text
  * @return bool
@@ -84,7 +88,10 @@ function hasMarkdownKludge(array $message): bool {
     if (!empty($message['bottom_kludges'])) {
         $kludgeText .= ($kludgeText !== '' ? "\n" : '') . $message['bottom_kludges'];
     }
-    if ($kludgeText !== '' && preg_match('/^\x01MARKDOWN:\s*\d+/mi', $kludgeText)) {
+    if ($kludgeText !== '' && (
+        preg_match('/^\x01MARKUP:\s+Markdown\s+[\d.]+/mi', $kludgeText) ||
+        preg_match('/^\x01MARKDOWN:\s*\d+/mi', $kludgeText)
+    )) {
         return true;
     }
 
@@ -94,12 +101,58 @@ function hasMarkdownKludge(array $message): bool {
     }
     $lines = preg_split('/\r\n|\r|\n/', $messageText);
     foreach ($lines as $line) {
-        if (preg_match('/^\x01MARKDOWN:\s*\d+/i', $line)) {
+        if (preg_match('/^\x01MARKUP:\s+Markdown\s+[\d.]+/i', $line) ||
+            preg_match('/^\x01MARKDOWN:\s*\d+/i', $line)) {
             return true;
         }
     }
 
     return false;
+}
+
+/**
+ * Get the markup type of a message based on its kludge lines.
+ *
+ * Returns the format string (e.g. 'markdown', 'stylecodes') or null if no
+ * markup kludge is present.  Recognises:
+ *   ^AMARKUP: <Format> <version>  (LSC-001 Draft 2)
+ *   ^AMARKDOWN: <version>         (legacy — treated as 'markdown')
+ *
+ * @param array $message Message array with kludge_lines/bottom_kludges/message_text
+ * @return string|null
+ */
+function getMessageMarkupType(array $message): ?string {
+    $kludgeText = '';
+    if (!empty($message['kludge_lines'])) {
+        $kludgeText .= $message['kludge_lines'];
+    }
+    if (!empty($message['bottom_kludges'])) {
+        $kludgeText .= ($kludgeText !== '' ? "\n" : '') . $message['bottom_kludges'];
+    }
+
+    if ($kludgeText !== '') {
+        if (preg_match('/^\x01MARKUP:\s+([\w]+)\s+[\d.]+/mi', $kludgeText, $m)) {
+            return strtolower($m[1]);
+        }
+        if (preg_match('/^\x01MARKDOWN:\s*\d+/mi', $kludgeText)) {
+            return 'markdown';
+        }
+    }
+
+    $messageText = $message['message_text'] ?? '';
+    if ($messageText !== '') {
+        $lines = preg_split('/\r\n|\r|\n/', $messageText);
+        foreach ($lines as $line) {
+            if (preg_match('/^\x01MARKUP:\s+([\w]+)\s+[\d.]+/i', $line, $m)) {
+                return strtolower($m[1]);
+            }
+            if (preg_match('/^\x01MARKDOWN:\s*\d+/i', $line)) {
+                return 'markdown';
+            }
+        }
+    }
+
+    return null;
 }
 
 /**

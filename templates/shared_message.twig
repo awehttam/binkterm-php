@@ -229,8 +229,8 @@ function displaySharedMessage(message, shareInfo) {
     
     // Parse message to separate kludge lines from body
     const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
-    const bodyHtml = (message.is_markdown == 1 && message.markdown_html)
-        ? message.markdown_html
+    const bodyHtml = message.markup_html
+        ? message.markup_html
         : formatMessageText(parsedMessage.messageBody);
     
     // Build message content
