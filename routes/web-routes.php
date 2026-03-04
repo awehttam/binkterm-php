@@ -955,6 +955,28 @@ SimpleRouter::get('/polls/create', function() {
     ]);
 });
 
+SimpleRouter::get('/polls', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!BbsConfig::isFeatureEnabled('voting_booth')) {
+        return SimpleRouter::response()->httpCode(404);
+    }
+
+    $template = new Template();
+    $template->renderResponse('polls.twig');
+});
+
+SimpleRouter::get('/shoutbox', function() {
+    $user = RouteHelper::requireAuth();
+
+    if (!BbsConfig::isFeatureEnabled('shoutbox')) {
+        return SimpleRouter::response()->httpCode(404);
+    }
+
+    $template = new Template();
+    $template->renderResponse('shoutbox.twig');
+});
+
 // Serve shell art files from data/shell_art/ (public read, admin-only write)
 SimpleRouter::get('/shell-art/{name}', function(string $name) {
     // Sanitize: only allow safe filenames, no path traversal

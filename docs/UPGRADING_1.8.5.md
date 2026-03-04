@@ -9,6 +9,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Native Doors: run Linux programs natively as BBS doors with no emulator required; manage via Admin → Native Doors (see below)
 - Door `launch_command`: all door types (DOS and native) now support a `{user_number}` placeholder that is substituted with the BBS user's numeric ID at launch time; native doors also receive it as the `DOOR_USER_NUMBER` environment variable
 - Telnet gateway: native doors now appear alongside DOS doors in the telnet door menu
+- Polls and shoutbox: both features now have dedicated user pages (`/polls` and `/shoutbox`) and telnet equivalents; the telnet interface now supports reading and voting in polls plus viewing and posting shoutbox messages
 - Markup kludge: outbound messages now use `^AMARKUP: Markdown 1.0` per [LSC-001 Draft 2](https://github.com/awehttam/binkterm-php/issues/161); the legacy `^AMARKDOWN:` kludge continues to be recognised in received messages for backwards compatibility
 - StyleCodes rendering: messages with `^AMARKUP: StyleCodes 1.0` (Synchronet Message Markup) are now rendered in the message reader; supported codes: `*bold*`, `/italics/`, `_underlined_`, `#inverse#`
 - Compose screen: the "Send as Markdown" checkbox is replaced with a **Markup Format** selector that lets you choose Plain text, Markdown, or StyleCodes when composing messages
@@ -19,6 +20,7 @@ Make sure you've made a backup of your database and files before upgrading.
 - Scheduler config reload: `binkp_scheduler.php` now reloads `config/binkp.json` during its daemon loop so schedule and uplink changes are picked up without restarting the scheduler
 - Admin daemon: now forks a child process per connection so long-running commands such as manual polls no longer block other admin requests
 - MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of the PHP error log; log level is controllable via `--log-level`
+- BBS menu shell: when polls or shoutbox are enabled, the main menu now exposes links to their dedicated pages without changing the standard web shell dashboard layout, which continues to show those features inline
 - Message reader: ANSI art in message bodies no longer displays inside a black box with a scrollbar; styling is now consistent with standalone ANSI art displays
 - BinkP session: `binkp_poll` now completes promptly after sending mail to non-conformant remotes (those that send `M_EOB` without `M_GOT`); sessions terminate after 30 seconds of inactivity rather than the full session timeout, while preserving a window for areafix and similar systems to process an inbound packet and return a response in the same session; sent packets are cleaned up correctly regardless of whether the remote sends `M_GOT` before or after `M_EOB`
 - TIC processor: `FILE_ID.DIZ` inside ZIP archives is now read (case-insensitively) to populate file descriptions when the TIC file provides none

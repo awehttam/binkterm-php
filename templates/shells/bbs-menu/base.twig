@@ -279,7 +279,7 @@
         });
 
         // BBS-style keyboard navigation
-        const bbsKeymap = {{ appearance.shell.bbs_menu.menu_items | json_encode | raw }};
+        const bbsKeymap = {{ bbs_menu_items | json_encode | raw }};
 
         function bbsNavigate(key) {
             if (key === 'q' || key === 'Q' || key === 'Escape') {
