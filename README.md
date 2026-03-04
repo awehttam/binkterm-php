@@ -456,7 +456,7 @@ php -S localhost:8080
 ```
 
 ### Set Up Cron Jobs (Recommended)
-Start the long-running services at boot and keep cron for periodic maintenance tasks:
+Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as telnet, Gemini, or DOS doors, see the [Operation](#operation) section for the additional `@reboot` entries for those daemons.
 
 ```cron
 # Start admin daemon on boot
@@ -472,7 +472,7 @@ Start the long-running services at boot and keep cron for periodic maintenance t
 #0 3 * * * /usr/bin/php /path/to/binkterm/scripts/update_nodelists.php --quiet
 ```
 
-Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for additional cron examples.
+Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported. See the [Operation](#operation) section for the full daemon list and additional cron examples.
 
 update_nodelists can be used if you have URL's to update from.  Otherwise nodelists can be updated using file area actions.  
 
@@ -1276,7 +1276,11 @@ php scripts/update_nodelists.php --help
 2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
 3. **Start Scheduler**: `php scripts/binkp_scheduler.php --daemon`
 4. **Start Binkp Server**: `php scripts/binkp_server.php --daemon` (Linux/macOS; Windows should run in foreground)
-5. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
+5. **Optional Service Daemons**: start these only if you use the related features:
+   - `php telnet/telnet_daemon.php --daemon`
+   - `php scripts/gemini_daemon.php --daemon`
+   - `node scripts/dosbox-bridge/multiplexing-server.js --daemon`
+6. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
 
 ### Daily Operations
 
@@ -1317,7 +1321,7 @@ php scripts/generate_ad.php --stdout
 For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
 
 ### Cron Job Setup
-The recommended approach is to start these services at boot (systemd or `@reboot` cron). Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
+The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
 # Start admin daemon on boot (pid defaults to data/run/admin_daemon.pid)
@@ -1328,6 +1332,15 @@ The recommended approach is to start these services at boot (systemd or `@reboot
 
 # Start binkp server on boot (Linux/macOS; pid defaults to data/run/binkp_server.pid)
 @reboot /usr/bin/php /path/to/binktest/scripts/binkp_server.php --daemon
+
+# Optional: start telnet daemon on boot
+@reboot /usr/bin/php /path/to/binktest/telnet/telnet_daemon.php --daemon
+
+# Optional: start Gemini daemon on boot
+@reboot /usr/bin/php /path/to/binktest/scripts/gemini_daemon.php --daemon
+
+# Optional: start DOS door multiplexing bridge on boot
+@reboot /usr/bin/node /path/to/binktest/scripts/dosbox-bridge/multiplexing-server.js --daemon
 
 # Update nodelists daily at 4am
 0 4 * * * /usr/bin/php /path/to/binktest/scripts/update_nodelists.php --quiet
