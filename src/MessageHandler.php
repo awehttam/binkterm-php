@@ -1014,7 +1014,7 @@ class MessageHandler
             $markupAllowed = null;
         }
 
-        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed);
+        $kludgeLines = $this->generateEchomailKludges($myAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId, $markupAllowed, $domain);
 
         // Extract MSGID from generated kludges to ensure consistency
         // The kludges contain the authoritative MSGID that will be sent in packets
@@ -2886,7 +2886,8 @@ class MessageHandler
 
         // Add MSGID kludge (required for netmail)
         $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);
-        $kludgeLines[] = "\x01MSGID: {$fromAddress} {$msgId}";
+        $msgidAddress = $this->buildMsgidAddress($fromAddress);
+        $kludgeLines[] = "\x01MSGID: {$msgidAddress} {$msgId}";
         
         // Add REPLY kludge if this is a reply to another message
         if (!empty($replyToId)) {
@@ -2937,7 +2938,7 @@ class MessageHandler
     /**
      * Generate kludge lines for echomail messages
      */
-    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null, $markupType = null)
+    private function generateEchomailKludges($fromAddress, $fromName, $toName, $subject, $echoareaTag, $replyToId = null, $markupType = null, $domain = null)
     {
         $kludgeLines = [];
 
@@ -2956,7 +2957,8 @@ class MessageHandler
 
         // Add MSGID kludge (required for echomail)
         $msgId = $this->generateMessageId($fromName, $toName, $subject, $fromAddress);
-        $kludgeLines[] = "\x01MSGID: {$fromAddress} {$msgId}";
+        $msgidAddress = $this->buildMsgidAddress($fromAddress, $domain);
+        $kludgeLines[] = "\x01MSGID: {$msgidAddress} {$msgId}";
         
         // Add REPLY kludge if this is a reply to another message
         if (!empty($replyToId)) {
@@ -2967,6 +2969,25 @@ class MessageHandler
         }
         
         return implode("\n", $kludgeLines);
+    }
+
+    private function buildMsgidAddress(string $fromAddress, ?string $domain = null): string
+    {
+        if (strpos($fromAddress, '@') !== false) {
+            return $fromAddress;
+        }
+
+        $resolvedDomain = trim((string)($domain ?? ''));
+        if ($resolvedDomain === '') {
+            try {
+                $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
+                $resolvedDomain = (string)($binkpConfig->getDomainByAddress($fromAddress) ?: '');
+            } catch (\Throwable $e) {
+                $resolvedDomain = '';
+            }
+        }
+
+        return $resolvedDomain !== '' ? $fromAddress . '@' . $resolvedDomain : $fromAddress;
     }
 
     /**

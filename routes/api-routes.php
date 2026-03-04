@@ -3189,9 +3189,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $markupType
                 );
             } elseif ($type === 'echomail') {
-                $foo=explode("@", $input['echoarea']);
-                $echoarea = $foo[0];
-                $domain = $foo[1];
+                $foo = explode("@", (string)($input['echoarea'] ?? ''), 2);
+                $echoarea = trim((string)($foo[0] ?? ''));
+                $domain = trim((string)($foo[1] ?? ''));
+                if ($domain === 'null' || $domain === 'undefined') {
+                    $domain = '';
+                }
 
                 $result = $handler->postEchomail(
                     $user['user_id'],
@@ -3215,12 +3218,15 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $crossPostAreas = array_slice($crossPostAreas, 0, $maxCrossPost);
 
                     foreach ($crossPostAreas as $areaTag) {
-                        $parts = explode("@", $areaTag);
-                        if (count($parts) !== 2) {
+                        $parts = explode("@", (string)$areaTag, 2);
+                        $xEchoarea = trim((string)($parts[0] ?? ''));
+                        $xDomain = trim((string)($parts[1] ?? ''));
+                        if ($xDomain === 'null' || $xDomain === 'undefined') {
+                            $xDomain = '';
+                        }
+                        if ($xEchoarea === '') {
                             continue;
                         }
-                        $xEchoarea = $parts[0];
-                        $xDomain = $parts[1];
                         // Skip if same as primary area
                         if ($xEchoarea === $echoarea && $xDomain === $domain) {
                             continue;

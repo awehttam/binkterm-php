@@ -739,10 +739,13 @@ class BinkdProcessor
                     $messageId = trim(substr($line, 7)); // Remove "\x01MSGID:" prefix
                     
                     // Extract original author address from MSGID
-                    // MSGID formats: 
+                    // MSGID formats:
                     // 1. Standard: "1:123/456 12345678"
-                    // 2. Alternate: "244652.syncdata@1:103/705 2d1da177"
-                    if (preg_match('/^(?:.*@)?(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
+                    // 2. With point: "1:123/456.7 12345678"
+                    // 3. Opaque@addr: "244652.syncdata@1:103/705 2d1da177"
+                    // 4. Addr@domain: "618:618/1@micronet 6695bee3"
+                    if (preg_match('/^(\d+:\d+\/\d+(?:\.\d+)?)(?:@\S+)?\s+/', $messageId, $matches) ||
+                        preg_match('/^(?:[^@\s]+@)(\d+:\d+\/\d+(?:\.\d+)?)\s+/', $messageId, $matches)) {
                         $originalAuthorAddress = $matches[1];
                         //error_log("DEBUG: Extracted original author address from netmail MSGID: " . $originalAuthorAddress);
                     }
@@ -1525,7 +1528,8 @@ class BinkdProcessor
                 
                 // Add MSGID kludge (required for netmail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
-                $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
+                $msgidAddress = $this->buildMsgidAddress($fromAddress, $message['from_domain'] ?? null);
+                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r\n";
                 
                 // Add reply address information - REPLYADDR is always the sender
                 $kludgeLines .= "\x01REPLYADDR {$fromAddress}\r\n";
@@ -1578,7 +1582,8 @@ class BinkdProcessor
                 
                 // Add MSGID kludge (required for echomail)
                 $msgId = $this->generateMessageId($message['from_name'], $message['to_name'], $message['subject'], $fromAddress);
-                $kludgeLines .= "\x01MSGID: {$fromAddress} {$msgId}\r\n";
+                $msgidAddress = $this->buildMsgidAddress($fromAddress, $message['echoarea_domain'] ?? $message['from_domain'] ?? null);
+                $kludgeLines .= "\x01MSGID: {$msgidAddress} {$msgId}\r\n";
                 
                 // Add REPLY kludge if this is a reply to another message
                 if (!empty($message['reply_to_id'])) {
@@ -2090,6 +2095,24 @@ class BinkdProcessor
         }
 
         return null;
+    }
+
+    private function buildMsgidAddress(string $fromAddress, ?string $domain = null): string
+    {
+        if (strpos($fromAddress, '@') !== false) {
+            return $fromAddress;
+        }
+
+        $resolvedDomain = trim((string)($domain ?? ''));
+        if ($resolvedDomain === '') {
+            try {
+                $resolvedDomain = (string)($this->config->getDomainByAddress($fromAddress) ?: '');
+            } catch (\Throwable $e) {
+                $resolvedDomain = '';
+            }
+        }
+
+        return $resolvedDomain !== '' ? $fromAddress . '@' . $resolvedDomain : $fromAddress;
     }
 }
 

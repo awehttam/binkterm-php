@@ -22,9 +22,11 @@ Make sure you've made a backup of your database and files before upgrading.
 - Admin daemon: now forks a child process per connection so long-running commands such as manual polls no longer block other admin requests
 - MRC daemon: logging now goes to `data/logs/mrc_daemon.log` instead of the PHP error log; log level is controllable via `--log-level`
 - BBS menu shell: when polls or shoutbox are enabled, the main menu now exposes links to their dedicated pages without changing the standard web shell dashboard layout, which continues to show those features inline
+- Outgoing MSGID: newly generated outbound netmail and echomail `MSGID` kludges now append `@domain` when the network domain is known, and inbound parsing accepts the suffixed format
 - Message reader: ANSI art in message bodies no longer displays inside a black box with a scrollbar; styling is now consistent with standalone ANSI art displays
 - BinkP session: `binkp_poll` now completes promptly after sending mail to non-conformant remotes (those that send `M_EOB` without `M_GOT`); sessions terminate after 30 seconds of inactivity rather than the full session timeout, while preserving a window for areafix and similar systems to process an inbound packet and return a response in the same session; sent packets are cleaned up correctly regardless of whether the remote sends `M_GOT` before or after `M_EOB`
 - TIC processor: `FILE_ID.DIZ` inside ZIP archives is now read (case-insensitively) to populate file descriptions when the TIC file provides none
+- Echomail compose: fixed posting to local echo areas with no domain association from the compose screen; local areas no longer submit as `@null`, and server-side parsing now treats blank or missing domains correctly
 
 **Removed**
 - BBSLink WebDoor (`public_html/webdoors/bbslink/`) has been removed. It is replaced by the BBSLink native door (`bbslinknative`), which runs natively. If you had BBSLink configured as a WebDoor, disable it in Admin → WebDoors before upgrading, then set up the native door version as described in the Native Door Support section below.

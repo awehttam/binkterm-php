@@ -856,7 +856,8 @@ function loadEchoareas() {
                 allEchoareas = data.echoareas;
                 data.echoareas.forEach(function(area) {
                     const label = area.domain ? area.tag + '@' + area.domain : area.tag;
-                    select.append(`<option value="${area.tag}@${area.domain}" data-color="${area.color || '#28a745'}">${label}</option>`);
+                    const value = area.domain ? area.tag + '@' + area.domain : area.tag;
+                    select.append(`<option value="${value}" data-color="${area.color || '#28a745'}">${label}</option>`);
                 });
 
                 // Add color styling to select options and refresh cross-post list
@@ -910,7 +911,7 @@ function populateCrossPostAreas() {
     container.empty();
 
     allEchoareas.forEach(function(area) {
-        const val = area.tag + '@' + area.domain;
+        const val = area.domain ? area.tag + '@' + area.domain : area.tag;
         if (val === primaryVal) return;
 
         const id = 'crosspost_' + val.replace(/[@.]/g, '_');
