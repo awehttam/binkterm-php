@@ -8,15 +8,22 @@ class Translator
 {
     private string $basePath;
     private string $defaultLocale;
+    private bool $logMissingKeys;
+    private ?string $missingKeysLogFile;
     /** @var array<string, bool> */
     private array $supportedLocales = [];
     /** @var array<string, array<string, array<string, string>>> */
     private array $catalogCache = [];
+    /** @var array<string, bool> */
+    private array $missingKeyLogCache = [];
 
     public function __construct(?string $basePath = null, ?string $defaultLocale = null, ?array $supportedLocales = null)
     {
         $this->basePath = $basePath ?? (__DIR__ . '/../../config/i18n');
         $this->defaultLocale = $this->normalizeLocale($defaultLocale ?? (string)Config::env('I18N_DEFAULT_LOCALE', 'en'));
+        $this->logMissingKeys = $this->parseBooleanEnv((string)Config::env('I18N_LOG_MISSING_KEYS', 'false'));
+        $logFile = trim((string)Config::env('I18N_MISSING_KEYS_LOG_FILE', ''));
+        $this->missingKeysLogFile = ($logFile !== '') ? $logFile : null;
 
         if (is_array($supportedLocales) && !empty($supportedLocales)) {
             foreach ($supportedLocales as $locale) {
@@ -85,6 +92,7 @@ class Translator
             $value = $this->lookupInNamespaces($key, $this->defaultLocale, $namespaces);
         }
         if ($value === null) {
+            $this->logMissingKey($key, $resolvedLocale, $namespaces);
             $value = $key;
         }
 
@@ -230,5 +238,43 @@ class Translator
         $parts = explode('-', $locale);
         return strtolower($parts[0] ?? '');
     }
-}
 
+    /**
+     * Logs missing translation keys once per request.
+     *
+     * @param string[] $namespaces
+     */
+    private function logMissingKey(string $key, string $resolvedLocale, array $namespaces): void
+    {
+        if (!$this->logMissingKeys) {
+            return;
+        }
+
+        $signature = $resolvedLocale . '|' . implode(',', $namespaces) . '|' . $key;
+        if (isset($this->missingKeyLogCache[$signature])) {
+            return;
+        }
+        $this->missingKeyLogCache[$signature] = true;
+
+        $message = sprintf(
+            '[i18n] missing_key key="%s" locale="%s" default_locale="%s" namespaces="%s"',
+            $key,
+            $resolvedLocale,
+            $this->defaultLocale,
+            implode(',', $namespaces)
+        );
+
+        if ($this->missingKeysLogFile !== null) {
+            error_log($message . PHP_EOL, 3, $this->missingKeysLogFile);
+            return;
+        }
+
+        error_log($message);
+    }
+
+    private function parseBooleanEnv(string $value): bool
+    {
+        $normalized = strtolower(trim($value));
+        return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+    }
+}
