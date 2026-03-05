@@ -4295,7 +4295,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(403);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Admin access required']);
+            apiError('errors.binkp.admin_required', 'Admin access required', 403);
             return;
         }
 
@@ -4339,7 +4339,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.poll_failed', 'Failed to poll BinkP uplink', 500);
         }
     });
 
@@ -4359,7 +4359,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.poll_all_failed', 'Failed to poll all BinkP uplinks', 500);
         }
     });
 
@@ -4379,7 +4379,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.process_packets_failed', 'Failed to process packets', 500);
         }
     });
 
@@ -4491,7 +4491,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.process_packets_failed', 'Failed to process packets', 500);
         }
     });
 
@@ -4512,7 +4512,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ob_clean();
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.binkp.process_outbound_failed', 'Failed to process outbound queue', 500);
         }
     });
 
@@ -4652,7 +4652,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.shared.lookup_failed', 'Failed to load shared message', 500, ['success' => false]);
         }
     })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
@@ -4677,7 +4677,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.shared.lookup_failed', 'Failed to load shared message', 500, ['success' => false]);
         }
     });
 
@@ -4693,7 +4693,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'shares' => $shares]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.messages.shared.user_shares_failed', 'Failed to load user shares', 500);
         }
     });
 
@@ -4720,7 +4720,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'taglines' => $taglines]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.taglines.load_failed', 'Failed to load taglines', 500);
         }
     });
 
@@ -4785,7 +4785,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.settings.load_failed', 'Failed to load user settings', 500, ['success' => false]);
         }
     });
 
@@ -4831,7 +4831,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         } catch (Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            apiError('errors.settings.update_failed', 'Failed to update settings', 500, ['success' => false]);
         }
     });
 

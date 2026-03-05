@@ -1331,7 +1331,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'message' => $result]);
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.admin.binkp_config.reload_failed', 'Failed to reload BinkP configuration', 500);
             }
         });
 
@@ -1440,7 +1440,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.admin.dosdoors_config.load_failed', 'Failed to load DOS doors configuration', 500);
             }
         });
 
@@ -1501,7 +1501,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.admin.dosdoors_config.save_failed', 'Failed to save DOS doors configuration', 400);
             }
         });
 
@@ -1548,7 +1548,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.admin.native_doors.load_failed', 'Failed to load native doors configuration', 500);
             }
         });
 
@@ -1586,7 +1586,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.admin.native_doors.save_failed', 'Failed to save native doors configuration', 400);
             }
         });
 
@@ -1605,7 +1605,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.admin.native_doors.sync_failed', 'Failed to sync native doors', 500);
             }
         });
 
@@ -2035,7 +2035,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'result' => $result]);
             } catch (Exception $e) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.admin.crashmail.poll_failed', 'Failed to run crashmail poll', 400);
             }
         });
 
