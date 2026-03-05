@@ -219,10 +219,10 @@
             <!-- Hourly Distribution Tab -->
             <div class="tab-pane fade" id="pane-hourly" role="tabpanel">
                 <div class="card shadow-sm">
-                    <div class="card-header"><strong>{{ t('ui.admin.activity_stats.activity_by_hour_of_day') }} (<span id="hourly-tz-label">UTC</span>)</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.activity_stats.activity_by_hour_of_day') }} (<span id="hourly-tz-label">{{ t('ui.admin.activity_stats.utc', {}, 'UTC') }}</span>)</strong></div>
                     <div class="card-body p-0">
                         <table class="table table-sm table-hover mb-0">
-                            <thead><tr><th>{{ t('ui.admin.activity_stats.hour') }} (<span class="hourly-tz-col">UTC</span>)</th><th class="text-end">{{ t('ui.admin.activity_stats.events') }}</th><th style="width:50%"></th></tr></thead>
+                            <thead><tr><th>{{ t('ui.admin.activity_stats.hour') }} (<span class="hourly-tz-col">{{ t('ui.admin.activity_stats.utc', {}, 'UTC') }}</span>)</th><th class="text-end">{{ t('ui.admin.activity_stats.events') }}</th><th style="width:50%"></th></tr></thead>
                             <tbody id="hourly-rows"></tbody>
                         </table>
                     </div>

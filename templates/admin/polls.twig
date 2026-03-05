@@ -1,13 +1,13 @@
 {% extends "base.twig" %}
 
-{% block title %}Polls{% endblock %}
+{% block title %}{{ t('ui.admin.polls.page_title', {}, 'Polls') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Polls</h1>
+        <h1 class="h2">{{ t('ui.admin.polls.heading', {}, 'Polls') }}</h1>
         <button type="button" class="btn btn-primary" onclick="showCreatePollModal()">
-            <i class="fas fa-plus me-2"></i>Add Poll
+            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.polls.add_poll', {}, 'Add Poll') }}
         </button>
     </div>
 
@@ -17,13 +17,13 @@
                 <table class="table table-hover" id="pollsTable">
                     <thead class="table-dark">
                         <tr>
-                            <th>ID</th>
-                            <th>Question</th>
-                            <th>Status</th>
-                            <th>Votes</th>
-                            <th>Created By</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>{{ t('ui.common.id', {}, 'ID') }}</th>
+                            <th>{{ t('ui.admin.polls.question', {}, 'Question') }}</th>
+                            <th>{{ t('ui.admin.polls.status', {}, 'Status') }}</th>
+                            <th>{{ t('ui.admin.polls.votes', {}, 'Votes') }}</th>
+                            <th>{{ t('ui.admin.polls.created_by', {}, 'Created By') }}</th>
+                            <th>{{ t('ui.admin.polls.created', {}, 'Created') }}</th>
+                            <th>{{ t('ui.admin.polls.actions', {}, 'Actions') }}</th>
                         </tr>
                     </thead>
                     <tbody id="pollsTableBody">
@@ -39,43 +39,43 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="pollModalLabel">Add Poll</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="pollModalLabel">{{ t('ui.admin.polls.add_poll', {}, 'Add Poll') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'Close') }}"></button>
             </div>
             <div class="modal-body">
                 <form id="pollForm">
                     <input type="hidden" id="pollId" name="pollId">
                     <div class="mb-3" id="createdByContainer" style="display: none;">
-                        <label class="form-label">Created By</label>
+                        <label class="form-label">{{ t('ui.admin.polls.created_by', {}, 'Created By') }}</label>
                         <input type="text" class="form-control" id="pollCreatedBy" readonly>
                     </div>
                     <div class="mb-3">
-                        <label for="pollQuestion" class="form-label">Question <span class="text-danger">*</span></label>
+                        <label for="pollQuestion" class="form-label">{{ t('ui.admin.polls.question', {}, 'Question') }} <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="pollQuestion" name="question" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Options <span class="text-danger">*</span></label>
+                        <label class="form-label">{{ t('ui.admin.polls.options', {}, 'Options') }} <span class="text-danger">*</span></label>
                         <div id="pollOptions">
                             <!-- Option inputs -->
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addPollOption()">
-                            <i class="fas fa-plus me-1"></i>Add Option
+                            <i class="fas fa-plus me-1"></i>{{ t('ui.admin.polls.add_option', {}, 'Add Option') }}
                         </button>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="pollActive" name="is_active" checked>
                         <label class="form-check-label" for="pollActive">
-                            Active poll
+                            {{ t('ui.admin.polls.active_poll', {}, 'Active poll') }}
                         </label>
                     </div>
                     <div class="form-text text-muted mt-2">
-                        Editing options will reset votes for this poll.
+                        {{ t('ui.admin.polls.editing_options_resets_votes', {}, 'Editing options will reset votes for this poll.') }}
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="savePoll()">Save Poll</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
+                <button type="button" class="btn btn-primary" onclick="savePoll()">{{ t('ui.admin.polls.save_poll', {}, 'Save Poll') }}</button>
             </div>
         </div>
     </div>
@@ -125,18 +125,18 @@ function displayPolls(polls) {
             <td>${escapeHtml(poll.question)}</td>
             <td>
                 <span class="badge bg-${poll.is_active ? 'success' : 'secondary'}">
-                    ${poll.is_active ? 'Active' : 'Inactive'}
+                    ${poll.is_active ? uiT('ui.admin.polls.active', 'Active') : uiT('ui.admin.polls.inactive', 'Inactive')}
                 </span>
             </td>
             <td>${poll.vote_count || 0}</td>
-            <td>${escapeHtml(poll.created_by_username || 'Unknown')}</td>
+            <td>${escapeHtml(poll.created_by_username || uiT('ui.common.unknown', 'Unknown'))}</td>
             <td>${new Date(poll.created_at).toLocaleDateString()}</td>
             <td>
                 <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-primary" onclick="editPoll(${poll.id})" title="Edit">
+                    <button type="button" class="btn btn-outline-primary" onclick="editPoll(${poll.id})" title="${uiT('ui.common.edit', 'Edit')}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-danger" onclick="deletePoll(${poll.id})" title="Delete">
+                    <button type="button" class="btn btn-outline-danger" onclick="deletePoll(${poll.id})" title="${uiT('ui.common.delete', 'Delete')}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -147,7 +147,7 @@ function displayPolls(polls) {
 }
 
 function showCreatePollModal() {
-    document.getElementById('pollModalLabel').textContent = 'Add Poll';
+    document.getElementById('pollModalLabel').textContent = uiT('ui.admin.polls.add_poll', 'Add Poll');
     document.getElementById('pollForm').reset();
     document.getElementById('pollId').value = '';
     document.getElementById('pollActive').checked = true;
@@ -165,7 +165,7 @@ function editPoll(pollId) {
                 showAlert(uiT('ui.admin.polls.not_found', 'Poll not found'), 'danger');
                 return;
             }
-            document.getElementById('pollModalLabel').textContent = 'Edit Poll';
+            document.getElementById('pollModalLabel').textContent = uiT('ui.admin.polls.edit_poll', 'Edit Poll');
             document.getElementById('pollId').value = poll.id;
             document.getElementById('pollQuestion').value = poll.question;
             document.getElementById('pollActive').checked = !!poll.is_active;
@@ -196,7 +196,7 @@ function addPollOption(value = '') {
     const optionRow = document.createElement('div');
     optionRow.className = 'input-group mb-2';
     optionRow.innerHTML = `
-        <input type="text" class="form-control poll-option" value="${escapeHtml(value)}" placeholder="Option text">
+        <input type="text" class="form-control poll-option" value="${escapeHtml(value)}" placeholder="${escapeHtml(uiT('ui.admin.polls.option_text_placeholder', 'Option text'))}">
         <button class="btn btn-outline-danger" type="button" onclick="removePollOption(this)">
             <i class="fas fa-times"></i>
         </button>

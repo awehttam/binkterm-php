@@ -1,26 +1,26 @@
 {% extends "base.twig" %}
 
-{% block title %}User Management{% endblock %}
+{% block title %}{{ t('ui.admin_users.page_title', {}, 'User Management') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-users me-2"></i>User Management</h2>
+                <h2><i class="fas fa-users me-2"></i>{{ t('ui.admin_users.heading', {}, 'User Management') }}</h2>
                 <div>
                     <button class="btn btn-success me-2" onclick="createNewUser()">
-                        <i class="fas fa-user-plus me-2"></i>Create New User
+                        <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, 'Create New User') }}
                     </button>
                     <button class="btn btn-info me-2" onclick="showUsersNeedingReminders()">
-                        <i class="fas fa-bell me-2"></i>Need Reminders
+                        <i class="fas fa-bell me-2"></i>{{ t('ui.admin_users.need_reminders', {}, 'Need Reminders') }}
                         <span id="reminders-count" class="badge bg-light text-dark ms-1" style="display: none;">0</span>
                     </button>
                     <button class="btn btn-warning me-2" onclick="cleanupRegistrations()">
-                        <i class="fas fa-broom me-2"></i>Cleanup
+                        <i class="fas fa-broom me-2"></i>{{ t('ui.admin_users.cleanup', {}, 'Cleanup') }}
                     </button>
                     <button class="btn btn-primary" onclick="refreshData()">
-                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                        <i class="fas fa-sync-alt me-2"></i>{{ t('ui.common.refresh', {}, 'Refresh') }}
                     </button>
                 </div>
             </div>
@@ -29,7 +29,7 @@
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-user-clock me-2"></i>Pending Registrations
+                        <i class="fas fa-user-clock me-2"></i>{{ t('ui.admin_users.pending_registrations', {}, 'Pending Registrations') }}
                         <span id="pending-count" class="badge bg-warning ms-2">0</span>
                     </h5>
                 </div>
@@ -37,9 +37,9 @@
                     <div id="pending-users-container">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                                <span class="visually-hidden">{{ t('ui.common.loading', {}, 'Loading...') }}</span>
                             </div>
-                            <p class="mt-2">Loading pending registrations...</p>
+                            <p class="mt-2">{{ t('ui.admin_users.loading_pending_registrations', {}, 'Loading pending registrations...') }}</p>
                         </div>
                     </div>
                 </div>
@@ -49,7 +49,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-users me-2"></i>All Users
+                        <i class="fas fa-users me-2"></i>{{ t('ui.admin_users.all_users', {}, 'All Users') }}
                         <span id="users-count" class="badge bg-info ms-2">0</span>
                     </h5>
                 </div>
@@ -58,7 +58,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <div class="input-group">
-                                <input type="text" class="form-control" id="user-search" placeholder="Search users...">
+                                <input type="text" class="form-control" id="user-search" placeholder="{{ t('ui.admin_users.search_users_placeholder', {}, 'Search users...') }}">
                                 <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
                                     <i class="fas fa-search"></i>
                                 </button>
@@ -67,9 +67,9 @@
                         <div class="col-md-6">
                             <div class="d-flex justify-content-end">
                                 <select class="form-select" id="users-per-page" onchange="changeUsersPerPage()" style="width: auto;">
-                                    <option value="25">25 per page</option>
-                                    <option value="50">50 per page</option>
-                                    <option value="100">100 per page</option>
+                                    <option value="25">{{ t('ui.admin_users.per_page_25', {}, '25 per page') }}</option>
+                                    <option value="50">{{ t('ui.admin_users.per_page_50', {}, '50 per page') }}</option>
+                                    <option value="100">{{ t('ui.admin_users.per_page_100', {}, '100 per page') }}</option>
                                 </select>
                             </div>
                         </div>
@@ -78,9 +78,9 @@
                     <div id="users-container">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                                <span class="visually-hidden">{{ t('ui.common.loading', {}, 'Loading...') }}</span>
                             </div>
-                            <p class="mt-2">Loading users...</p>
+                            <p class="mt-2">{{ t('ui.admin_users.loading_users', {}, 'Loading users...') }}</p>
                         </div>
                     </div>
                     
@@ -101,7 +101,7 @@
             <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="fas fa-user-check me-2"></i>
-                    <span id="approval-action-title">Approve User</span>
+                    <span id="approval-action-title">{{ t('ui.admin_users.approve_user', {}, 'Approve User') }}</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -109,18 +109,18 @@
                 <div id="user-details"></div>
                 
                 <div class="mt-4">
-                    <label for="admin-notes" class="form-label">Admin Notes</label>
+                    <label for="admin-notes" class="form-label">{{ t('ui.admin_users.admin_notes', {}, 'Admin Notes') }}</label>
                     <textarea class="form-control" id="admin-notes" rows="3" 
-                              placeholder="Optional notes about this decision..."></textarea>
+                              placeholder="{{ t('ui.admin_users.optional_notes_placeholder', {}, 'Optional notes about this decision...') }}"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
                 <button type="button" class="btn btn-success" id="approve-btn" onclick="processUser('approve')">
-                    <i class="fas fa-check me-2"></i>Approve
+                    <i class="fas fa-check me-2"></i>{{ t('ui.admin_users.approve', {}, 'Approve') }}
                 </button>
                 <button type="button" class="btn btn-danger" id="reject-btn" onclick="processUser('reject')">
-                    <i class="fas fa-times me-2"></i>Reject
+                    <i class="fas fa-times me-2"></i>{{ t('ui.admin_users.reject', {}, 'Reject') }}
                 </button>
             </div>
         </div>
@@ -133,7 +133,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-user-plus me-2"></i>Create New User
+                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, 'Create New User') }}
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -142,34 +142,34 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="create-username" class="form-label">Username</label>
+                                <label for="create-username" class="form-label">{{ t('ui.common.username', {}, 'Username') }}</label>
                                 <input type="text" class="form-control" id="create-username" required
-                                       pattern="[a-zA-Z0-9_]{3,20}" title="3-20 characters, letters, numbers, and underscores only">
-                                <div class="form-text">3-20 characters, letters, numbers, and underscores only</div>
+                                       pattern="[a-zA-Z0-9_]{3,20}" title="{{ t('ui.admin_users.username_validation', {}, 'Username must be 3-20 characters, letters, numbers, and underscores only') }}">
+                                <div class="form-text">{{ t('ui.admin_users.username_validation', {}, 'Username must be 3-20 characters, letters, numbers, and underscores only') }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="create-real-name" class="form-label">Real Name</label>
+                                <label for="create-real-name" class="form-label">{{ t('ui.common.real_name', {}, 'Real Name') }}</label>
                                 <input type="text" class="form-control" id="create-real-name" required>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-email" class="form-label">Email Address</label>
+                        <label for="create-email" class="form-label">{{ t('ui.common.email_address', {}, 'Email Address') }}</label>
                         <input type="email" class="form-control" id="create-email">
-                        <div class="form-text">Optional - for account recovery and notifications</div>
+                        <div class="form-text">{{ t('ui.admin_users.email_optional_help', {}, 'Optional - for account recovery and notifications') }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-password" class="form-label">Password</label>
+                        <label for="create-password" class="form-label">{{ t('ui.common.password', {}, 'Password') }}</label>
                         <input type="password" class="form-control" id="create-password" required minlength="8">
-                        <div class="form-text">Minimum 8 characters</div>
+                        <div class="form-text">{{ t('ui.admin_users.min_8_characters', {}, 'Minimum 8 characters') }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-confirm-password" class="form-label">Confirm Password</label>
+                        <label for="create-confirm-password" class="form-label">{{ t('ui.register.confirm_password', {}, 'Confirm Password') }}</label>
                         <input type="password" class="form-control" id="create-confirm-password" required>
                     </div>
                     
@@ -178,27 +178,27 @@
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="create-is-active" checked>
                                 <label class="form-check-label" for="create-is-active">
-                                    Account is active
+                                    {{ t('ui.admin_users.account_is_active', {}, 'Account is active') }}
                                 </label>
-                                <div class="form-text">Inactive users cannot log in</div>
+                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, 'Inactive users cannot log in') }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="create-is-admin">
                                 <label class="form-check-label" for="create-is-admin">
-                                    Administrator privileges
+                                    {{ t('ui.admin_users.admin_privileges', {}, 'Administrator privileges') }}
                                 </label>
-                                <div class="form-text">Admins can manage users and system settings</div>
+                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, 'Admins can manage users and system settings') }}</div>
                             </div>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
                 <button type="button" class="btn btn-success" onclick="saveNewUser()">
-                    <i class="fas fa-user-plus me-2"></i>Create User
+                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_user', {}, 'Create User') }}
                 </button>
             </div>
         </div>
@@ -211,7 +211,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-user-edit me-2"></i>Edit User
+                    <i class="fas fa-user-edit me-2"></i>{{ t('ui.admin_users.edit_user', {}, 'Edit User') }}
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -222,22 +222,22 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="edit-username" class="form-label">Username</label>
+                                <label for="edit-username" class="form-label">{{ t('ui.common.username', {}, 'Username') }}</label>
                                 <input type="text" class="form-control" id="edit-username" readonly>
-                                <div class="form-text">Username cannot be changed</div>
+                                <div class="form-text">{{ t('ui.admin_users.username_cannot_change', {}, 'Username cannot be changed') }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="edit-real-name" class="form-label">Real Name</label>
+                                <label for="edit-real-name" class="form-label">{{ t('ui.common.real_name', {}, 'Real Name') }}</label>
                                 <input type="text" class="form-control" id="edit-real-name" readonly>
-                                <div class="form-text">Real name cannot be changed</div>
+                                <div class="form-text">{{ t('ui.admin_users.real_name_cannot_change', {}, 'Real name cannot be changed') }}</div>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="edit-email" class="form-label">Email Address</label>
+                        <label for="edit-email" class="form-label">{{ t('ui.common.email_address', {}, 'Email Address') }}</label>
                         <input type="email" class="form-control" id="edit-email">
                     </div>
                     
@@ -246,33 +246,33 @@
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-active">
                                 <label class="form-check-label" for="edit-is-active">
-                                    Account is active
+                                    {{ t('ui.admin_users.account_is_active', {}, 'Account is active') }}
                                 </label>
-                                <div class="form-text">Inactive users cannot log in</div>
+                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, 'Inactive users cannot log in') }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-admin">
                                 <label class="form-check-label" for="edit-is-admin">
-                                    Administrator privileges
+                                    {{ t('ui.admin_users.admin_privileges', {}, 'Administrator privileges') }}
                                 </label>
-                                <div class="form-text">Admins can manage users and system settings</div>
+                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, 'Admins can manage users and system settings') }}</div>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="edit-new-password" class="form-label">New Password</label>
+                        <label for="edit-new-password" class="form-label">{{ t('ui.admin_users.new_password', {}, 'New Password') }}</label>
                         <input type="password" class="form-control" id="edit-new-password" minlength="8">
-                        <div class="form-text">Leave blank to keep current password. Minimum 8 characters if changing.</div>
+                        <div class="form-text">{{ t('ui.admin_users.new_password_help', {}, 'Leave blank to keep current password. Minimum 8 characters if changing.') }}</div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveUserChanges()">
-                    <i class="fas fa-save me-2"></i>Save Changes
+                    <i class="fas fa-save me-2"></i>{{ t('ui.common.save_changes', {}, 'Save Changes') }}
                 </button>
             </div>
         </div>
@@ -386,7 +386,7 @@ function renderPendingUsers(users) {
         container.html(`
             <div class="text-center py-4 text-muted">
                 <i class="fas fa-inbox fa-3x mb-3"></i>
-                <p>No pending registrations</p>
+                <p>${uiT('ui.admin_users.no_pending_registrations', 'No pending registrations')}</p>
             </div>
         `);
         return;
@@ -396,12 +396,12 @@ function renderPendingUsers(users) {
     html += `
         <thead>
             <tr>
-                <th>Username</th>
-                <th>Real Name</th>
-                <th>Email</th>
-                <th>Requested</th>
-                <th>IP Address</th>
-                <th>Actions</th>
+                <th>${uiT('ui.common.username', 'Username')}</th>
+                <th>${uiT('ui.common.real_name', 'Real Name')}</th>
+                <th>${uiT('ui.common.email', 'Email')}</th>
+                <th>${uiT('ui.admin_users.requested', 'Requested')}</th>
+                <th>${uiT('ui.common.ip_address', 'IP Address')}</th>
+                <th>${uiT('ui.common.actions', 'Actions')}</th>
             </tr>
         </thead>
         <tbody>
@@ -413,18 +413,18 @@ function renderPendingUsers(users) {
             <tr>
                 <td><strong>${escapeHtml(user.username)}</strong></td>
                 <td>${escapeHtml(user.real_name || '')}</td>
-                <td>${escapeHtml(user.email || 'Not provided')}</td>
+                <td>${escapeHtml(user.email || uiT('ui.admin_users.not_provided', 'Not provided'))}</td>
                 <td>${requestedDate}</td>
                 <td><code>${escapeHtml(user.ip_address || '')}</code></td>
                 <td>
                     <button class="btn btn-sm btn-info me-1" onclick="viewUser(${user.id})">
-                        <i class="fas fa-eye"></i> View
+                        <i class="fas fa-eye"></i> ${uiT('ui.common.view', 'View')}
                     </button>
                     <button class="btn btn-sm btn-success me-1" onclick="approveUserModal(${user.id}, 'approve')">
-                        <i class="fas fa-check"></i> Approve
+                        <i class="fas fa-check"></i> ${uiT('ui.admin_users.approve', 'Approve')}
                     </button>
                     <button class="btn btn-sm btn-danger" onclick="approveUserModal(${user.id}, 'reject')">
-                        <i class="fas fa-times"></i> Reject
+                        <i class="fas fa-times"></i> ${uiT('ui.admin_users.reject', 'Reject')}
                     </button>
                 </td>
             </tr>
@@ -444,41 +444,41 @@ function renderAllUsers(users) {
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Username</th>
-                <th>Real Name</th>
-                <th>Status</th>
-                <th>Admin</th>
-                <th>Created</th>
-                <th>Last Login</th>
-                <th>Last Reminded</th>
-                <th>Actions</th>
+                <th>${uiT('ui.common.username', 'Username')}</th>
+                <th>${uiT('ui.common.real_name', 'Real Name')}</th>
+                <th>${uiT('ui.common.status', 'Status')}</th>
+                <th>${uiT('ui.common.admin', 'Admin')}</th>
+                <th>${uiT('ui.common.created', 'Created')}</th>
+                <th>${uiT('ui.common.last_login', 'Last Login')}</th>
+                <th>${uiT('ui.admin_users.last_reminded', 'Last Reminded')}</th>
+                <th>${uiT('ui.common.actions', 'Actions')}</th>
             </tr>
         </thead>
         <tbody>
     `;
     
     users.forEach(user => {
-        const createdDate = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
-        const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
-        let lastReminded = 'Never';
+        const createdDate = user.created_at ? new Date(user.created_at).toLocaleDateString() : uiT('ui.common.unknown', 'Unknown');
+        const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : uiT('ui.common.never', 'Never');
+        let lastReminded = uiT('ui.common.never', 'Never');
         if (user.days_since_reminder !== null && user.days_since_reminder !== undefined) {
             if (user.days_since_reminder === 0) {
-                lastReminded = 'Today';
+                lastReminded = uiT('ui.common.today', 'Today');
             } else if (user.days_since_reminder === 1) {
-                lastReminded = '1 day ago';
+                lastReminded = uiT('ui.common.one_day_ago', '1 day ago');
             } else {
-                lastReminded = `${user.days_since_reminder} days ago`;
+                lastReminded = uiT('ui.common.days_ago', '{count} days ago', { count: user.days_since_reminder });
             }
         }
         
         // Debug logging
         console.log('User:', user.username, 'days_since_reminder:', user.days_since_reminder, 'display:', lastReminded);
         const statusBadge = user.is_active ? 
-            '<span class="badge bg-success">Active</span>' : 
-            '<span class="badge bg-danger">Inactive</span>';
+            `<span class="badge bg-success">${uiT('ui.common.active', 'Active')}</span>` :
+            `<span class="badge bg-danger">${uiT('ui.common.inactive', 'Inactive')}</span>`;
         const adminBadge = user.is_admin ? 
-            '<span class="badge bg-warning">Admin</span>' : 
-            '<span class="badge bg-secondary">User</span>';
+            `<span class="badge bg-warning">${uiT('ui.common.admin', 'Admin')}</span>` :
+            `<span class="badge bg-secondary">${uiT('ui.common.user', 'User')}</span>`;
             
         html += `
             <tr>
@@ -491,21 +491,21 @@ function renderAllUsers(users) {
                 <td>${lastLogin}</td>
                 <td>${lastReminded}</td>
                 <td>
-                    <a href="/profile/${encodeURIComponent(user.username)}" class="btn btn-sm btn-secondary me-1" target="_blank" title="View Profile">
-                        <i class="fas fa-user"></i> View Profile
+                    <a href="/profile/${encodeURIComponent(user.username)}" class="btn btn-sm btn-secondary me-1" target="_blank" title="${uiT('ui.admin_users.view_profile', 'View Profile')}">
+                        <i class="fas fa-user"></i> ${uiT('ui.admin_users.view_profile', 'View Profile')}
                     </a>
                     <button class="btn btn-sm btn-primary me-1" onclick="editUser(${user.id})">
-                        <i class="fas fa-edit"></i> Edit
+                        <i class="fas fa-edit"></i> ${uiT('ui.common.edit', 'Edit')}
                     </button>
                     <button class="btn btn-sm btn-${user.is_active ? 'warning' : 'success'} me-1" onclick="toggleUserStatus(${user.id}, ${user.is_active ? 'false' : 'true'})">
-                        <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i> ${user.is_active ? 'Disable' : 'Enable'}
+                        <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i> ${user.is_active ? uiT('ui.common.disable', 'Disable') : uiT('ui.common.enable', 'Enable')}
                     </button>`;
         
         // Add reminder button if user hasn't logged in yet
         if (!user.last_login && user.is_active) {
             html += `
-                    <button class="btn btn-sm btn-info me-1" onclick="sendAccountReminder(${user.id}, '${escapeHtml(user.username)}')" title="Send account reminder">
-                        <i class="fas fa-bell"></i> Remind
+                    <button class="btn btn-sm btn-info me-1" onclick="sendAccountReminder(${user.id}, '${escapeHtml(user.username)}')" title="${uiT('ui.admin_users.send_account_reminder', 'Send account reminder')}">
+                        <i class="fas fa-bell"></i> ${uiT('ui.admin_users.remind', 'Remind')}
                     </button>`;
         }
         
@@ -532,38 +532,38 @@ function viewUser(userId) {
                 
                 let referrerInfo = '';
                 if (user.referrer_username) {
-                    referrerInfo = `<tr><th>Referred By:</th><td><strong>${escapeHtml(user.referrer_username)}</strong> (${escapeHtml(user.referrer_real_name || '')})</td></tr>`;
+                    referrerInfo = `<tr><th>${uiT('ui.admin_users.referred_by', 'Referred By:')}</th><td><strong>${escapeHtml(user.referrer_username)}</strong> (${escapeHtml(user.referrer_real_name || '')})</td></tr>`;
                 }
 
                 let details = `
                     <div class="row">
                         <div class="col-md-6">
-                            <h6>Basic Information</h6>
+                            <h6>${uiT('ui.admin_users.basic_information', 'Basic Information')}</h6>
                             <table class="table table-sm">
-                                <tr><th>Username:</th><td>${escapeHtml(user.username)}</td></tr>
-                                <tr><th>Real Name:</th><td>${escapeHtml(user.real_name || 'Not provided')}</td></tr>
-                                <tr><th>Email:</th><td>${escapeHtml(user.email || 'Not provided')}</td></tr>
-                                <tr><th>Location:</th><td>${escapeHtml(user.location || 'Not provided')}</td></tr>
-                                <tr><th>Requested:</th><td>${requestedDate}</td></tr>
-                                <tr><th>IP Address:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
+                                <tr><th>${uiT('ui.common.username', 'Username')}:</th><td>${escapeHtml(user.username)}</td></tr>
+                                <tr><th>${uiT('ui.common.real_name', 'Real Name')}:</th><td>${escapeHtml(user.real_name || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
+                                <tr><th>${uiT('ui.common.email', 'Email')}:</th><td>${escapeHtml(user.email || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
+                                <tr><th>${uiT('ui.common.location', 'Location')}:</th><td>${escapeHtml(user.location || uiT('ui.admin_users.not_provided', 'Not provided'))}</td></tr>
+                                <tr><th>${uiT('ui.admin_users.requested', 'Requested')}:</th><td>${requestedDate}</td></tr>
+                                <tr><th>${uiT('ui.common.ip_address', 'IP Address')}:</th><td><code>${escapeHtml(user.ip_address || '')}</code></td></tr>
                                 ${referrerInfo}
                             </table>
                         </div>
                         <div class="col-md-6">
-                            <h6>Request Details</h6>
-                            <p><strong>Reason for joining:</strong></p>
+                            <h6>${uiT('ui.admin_users.request_details', 'Request Details')}</h6>
+                            <p><strong>${uiT('ui.admin_users.reason_for_joining', 'Reason for joining:')}</strong></p>
                             <div class="border p-2 bg-light">
-                                ${escapeHtml(user.reason || 'No reason provided').replace(/\n/g, '<br>')}
+                                ${escapeHtml(user.reason || uiT('ui.admin_users.no_reason_provided', 'No reason provided')).replace(/\n/g, '<br>')}
                             </div>
-                            <p class="mt-2"><strong>User Agent:</strong></p>
-                            <small class="text-muted">${escapeHtml(user.user_agent || 'Not available')}</small>
+                            <p class="mt-2"><strong>${uiT('ui.admin_users.user_agent', 'User Agent:')}</strong></p>
+                            <small class="text-muted">${escapeHtml(user.user_agent || uiT('ui.admin_users.not_available', 'Not available'))}</small>
                         </div>
                     </div>
                 `;
                 
                 $('#user-details').html(details);
                 currentPendingUserId = userId;
-                $('#approval-action-title').text('User Details');
+                $('#approval-action-title').text(uiT('ui.admin_users.user_details', 'User Details'));
                 $('#approve-btn, #reject-btn').hide();
                 new bootstrap.Modal(document.getElementById('approvalModal')).show();
             }
@@ -576,11 +576,11 @@ function approveUserModal(userId, action) {
     // Show appropriate buttons after user details are loaded
     setTimeout(() => {
         if (action === 'approve') {
-            $('#approval-action-title').text('Approve User Registration');
+            $('#approval-action-title').text(uiT('ui.admin_users.approve_user_registration', 'Approve User Registration'));
             $('#approve-btn').show();
             $('#reject-btn').hide();
         } else {
-            $('#approval-action-title').text('Reject User Registration');
+            $('#approval-action-title').text(uiT('ui.admin_users.reject_user_registration', 'Reject User Registration'));
             $('#approve-btn').hide();
             $('#reject-btn').show();
         }
@@ -995,13 +995,13 @@ function renderUsersPagination(pagination) {
         return;
     }
     
-    let html = '<nav aria-label="Users pagination"><ul class="pagination">';
+    let html = `<nav aria-label="${uiT('ui.admin_users.users_pagination_aria', 'Users pagination')}"><ul class="pagination">`;
     
     // Previous button
     if (pagination.page > 1) {
         html += `<li class="page-item">
             <a class="page-link" href="#" onclick="loadAllUsers(${pagination.page - 1}); return false;">
-                <i class="fas fa-chevron-left"></i> Previous
+                <i class="fas fa-chevron-left"></i> ${uiT('ui.common.previous', 'Previous')}
             </a>
         </li>`;
     }
@@ -1038,7 +1038,7 @@ function renderUsersPagination(pagination) {
     if (pagination.page < pagination.pages) {
         html += `<li class="page-item">
             <a class="page-link" href="#" onclick="loadAllUsers(${pagination.page + 1}); return false;">
-                Next <i class="fas fa-chevron-right"></i>
+                ${uiT('ui.common.next', 'Next')} <i class="fas fa-chevron-right"></i>
             </a>
         </li>`;
     }
@@ -1049,7 +1049,7 @@ function renderUsersPagination(pagination) {
     const start = (pagination.page - 1) * pagination.limit + 1;
     const end = Math.min(pagination.page * pagination.limit, pagination.total);
     html += `<small class="text-muted ms-3">
-        Showing ${start}-${end} of ${pagination.total} users
+        ${uiT('ui.admin_users.showing_users_range', 'Showing {start}-{end} of {total} users', { start, end, total: pagination.total })}
     </small>`;
     
     container.html(html).show();

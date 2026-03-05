@@ -37,7 +37,7 @@
 
                         <div class="mb-3">
                             <label class="form-label" for="mrcServerHost">{{ t('ui.admin.mrc_settings.server_host') }}</label>
-                            <input type="text" class="form-control" id="mrcServerHost" placeholder="mrc.bottomlessabyss.net">
+                            <input type="text" class="form-control" id="mrcServerHost" placeholder="{{ t('ui.admin.mrc_settings.placeholder.server_host', {}, 'mrc.bottomlessabyss.net') }}">
                         </div>
 
                         <div class="mb-3">
@@ -77,19 +77,19 @@
                     <form id="mrcIdentityForm">
                         <div class="mb-3">
                             <label class="form-label" for="mrcBbsName">{{ t('ui.admin.mrc_settings.bbs_name') }}</label>
-                            <input type="text" class="form-control" id="mrcBbsName" maxlength="64" placeholder="BinktermPHP BBS">
+                            <input type="text" class="form-control" id="mrcBbsName" maxlength="64" placeholder="{{ t('ui.admin.mrc_settings.placeholder.bbs_name', {}, 'BinktermPHP BBS') }}">
                             <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.bbs_name_help') }}</small>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" for="mrcPlatform">{{ t('ui.admin.mrc_settings.platform_info') }}</label>
-                            <input type="text" class="form-control" id="mrcPlatform" placeholder="BINKTERMPHP/Linux64/1.0.0">
+                            <input type="text" class="form-control" id="mrcPlatform" placeholder="{{ t('ui.admin.mrc_settings.placeholder.platform', {}, 'BINKTERMPHP/Linux64/1.0.0') }}">
                             <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.platform_info_help') }}</small>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" for="mrcSysop">{{ t('ui.admin.mrc_settings.sysop_name') }}</label>
-                            <input type="text" class="form-control" id="mrcSysop" placeholder="Sysop">
+                            <input type="text" class="form-control" id="mrcSysop" placeholder="{{ t('ui.admin.mrc_settings.placeholder.sysop', {}, 'Sysop') }}">
                         </div>
 
                         <hr>
@@ -98,19 +98,19 @@
 
                         <div class="mb-3">
                             <label class="form-label" for="mrcWebsite">{{ t('ui.admin.mrc_settings.website_url') }}</label>
-                            <input type="url" class="form-control" id="mrcWebsite" placeholder="https://example.com">
+                            <input type="url" class="form-control" id="mrcWebsite" placeholder="{{ t('ui.admin.mrc_settings.placeholder.website', {}, 'https://example.com') }}">
                             <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.info_optional_help') }}</small>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" for="mrcTelnet">{{ t('ui.admin.mrc_settings.telnet_address') }}</label>
-                            <input type="text" class="form-control" id="mrcTelnet" placeholder="telnet://bbs.example.com:23">
+                            <input type="text" class="form-control" id="mrcTelnet" placeholder="{{ t('ui.admin.mrc_settings.placeholder.telnet', {}, 'telnet://bbs.example.com:23') }}">
                             <small class="form-text text-muted">{{ t('ui.admin.mrc_settings.info_optional_help') }}</small>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" for="mrcDescription">{{ t('ui.admin.mrc_settings.bbs_description') }}</label>
-                            <textarea class="form-control" id="mrcDescription" rows="3" placeholder="A modern BBS..."></textarea>
+                            <textarea class="form-control" id="mrcDescription" rows="3" placeholder="{{ t('ui.admin.mrc_settings.placeholder.description', {}, 'A modern BBS...') }}"></textarea>
                         </div>
 
                         <button type="button" class="btn btn-primary" onclick="saveMrcSettings()">

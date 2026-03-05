@@ -1,11 +1,11 @@
 {% extends "base.twig" %}
 
-{% block title %}Admin Dashboard{% endblock %}
+{% block title %}{{ t('ui.admin.dashboard.page_title', {}, 'Admin Dashboard') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Admin Dashboard</h1>
+        <h1 class="h2">{{ t('ui.admin.dashboard.heading', {}, 'Admin Dashboard') }}</h1>
     </div>
 
     <!-- System Statistics -->
@@ -15,7 +15,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Users</div>
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">{{ t('ui.admin.dashboard.total_users', {}, 'Total Users') }}</div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_users }}</div>
                         </div>
                         <div class="col-auto">
@@ -31,7 +31,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Users</div>
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.dashboard.active_users', {}, 'Active Users') }}</div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.active_users }}</div>
                         </div>
                         <div class="col-auto">
@@ -47,7 +47,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Netmail</div>
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.dashboard.total_netmail', {}, 'Total Netmail') }}</div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_netmail }}</div>
                         </div>
                         <div class="col-auto">
@@ -63,7 +63,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Echomail</div>
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">{{ t('ui.admin.dashboard.total_echomail', {}, 'Total Echomail') }}</div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_echomail }}</div>
                         </div>
                         <div class="col-auto">
@@ -80,33 +80,33 @@
         <div class="col-lg-6 mb-4">
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.dashboard.quick_actions', {}, 'Quick Actions') }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
                         <a href="/admin/users" class="btn btn-primary">
-                            <i class="fas fa-users me-2"></i>Manage Users
+                            <i class="fas fa-users me-2"></i>{{ t('ui.base.admin.manage_users', {}, 'Manage Users') }}
                         </a>
                         <a href="/binkp" class="btn btn-secondary">
-                            <i class="fas fa-network-wired me-2"></i>BinkP Status
+                            <i class="fas fa-network-wired me-2"></i>{{ t('ui.base.admin.binkp_status', {}, 'Binkp Status') }}
                         </a>
                         <a href="/echoareas" class="btn btn-info">
-                            <i class="fas fa-comments me-2"></i>Manage Echo Areas
+                            <i class="fas fa-comments me-2"></i>{{ t('ui.base.admin.echo_areas', {}, 'Echo Areas') }}
                         </a>
                         <a href="/admin/crashmail" class="btn btn-warning">
-                            <i class="fas fa-bolt me-2"></i>Crashmail Queue
+                            <i class="fas fa-bolt me-2"></i>{{ t('ui.admin.crashmail_queue.heading', {}, 'Crashmail Queue') }}
                         </a>
                         <a href="/admin/insecure-nodes" class="btn btn-outline-secondary">
-                            <i class="fas fa-shield-alt me-2"></i>Insecure Nodes
+                            <i class="fas fa-shield-alt me-2"></i>{{ t('ui.admin.insecure_nodes.heading', {}, 'Insecure Node Allowlist') }}
                         </a>
                         <a href="/admin/binkp-sessions" class="btn btn-outline-info">
-                            <i class="fas fa-history me-2"></i>Session Log
+                            <i class="fas fa-history me-2"></i>{{ t('ui.admin.binkp_sessions.heading', {}, 'Binkp Session Log') }}
                         </a>
                         <a href="/admin/activity-stats" class="btn btn-outline-primary">
-                            <i class="fas fa-chart-bar me-2"></i>Activity Statistics
+                            <i class="fas fa-chart-bar me-2"></i>{{ t('ui.base.admin.activity_stats', {}, 'Activity Statistics') }}
                         </a>
                         <a href="/admin/economy" class="btn btn-outline-success">
-                            <i class="fas fa-coins me-2"></i>Economy Viewer
+                            <i class="fas fa-coins me-2"></i>{{ t('ui.base.admin.economy_viewer', {}, 'Economy Viewer') }}
                         </a>
                     </div>
                 </div>
@@ -116,12 +116,12 @@
         <div class="col-lg-6 mb-4">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">System Information</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.dashboard.system_information', {}, 'System Information') }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>Admin Users:</strong>
+                            <strong>{{ t('ui.admin.dashboard.admin_users', {}, 'Admin Users:') }}</strong>
                         </div>
                         <div class="col-sm-6">
                             {{ stats.admin_users }}
@@ -130,7 +130,7 @@
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>Active Sessions:</strong>
+                            <strong>{{ t('ui.admin.dashboard.active_sessions', {}, 'Active Sessions:') }}</strong>
                         </div>
                         <div class="col-sm-6">
                             {{ stats.active_sessions }}
@@ -139,7 +139,7 @@
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>System Address:</strong>
+                            <strong>{{ t('ui.admin.dashboard.system_address', {}, 'System Address:') }}</strong>
                         </div>
                         <div class="col-sm-6">
                             {% if system_addresses is defined and system_addresses|length > 0 %}
@@ -152,7 +152,7 @@
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>Version:</strong>
+                            <strong>{{ t('ui.admin.dashboard.version', {}, 'Version:') }}</strong>
                         </div>
                         <div class="col-sm-6">
                             {{ app_version }}
@@ -161,7 +161,7 @@
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>Git Branch / Commit:</strong>
+                            <strong>{{ t('ui.admin.dashboard.git_branch_commit', {}, 'Git Branch / Commit:') }}</strong>
                         </div>
                         <div class="col-sm-6">
                             {% if git_branch %}
@@ -170,20 +170,20 @@
                             {% if git_commit %}
                                 <span class="text-muted">{{ git_commit|slice(0, 8) }}</span>
                             {% else %}
-                                <span class="text-muted">n/a</span>
+                                <span class="text-muted">{{ t('ui.common.not_applicable', {}, 'n/a') }}</span>
                             {% endif %}
                         </div>
                     </div>
                     <hr>
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>Database Version:</strong>
+                            <strong>{{ t('ui.admin.dashboard.database_version', {}, 'Database Version:') }}</strong>
                         </div>
                         <div class="col-sm-6">
                             {% if db_version %}
                                 <span class="text-muted">{{ db_version }}</span>
                             {% else %}
-                                <span class="text-muted">n/a</span>
+                                <span class="text-muted">{{ t('ui.common.not_applicable', {}, 'n/a') }}</span>
                             {% endif %}
                         </div>
                     </div>
@@ -191,14 +191,14 @@
             </div>
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Service Status</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.dashboard.service_status', {}, 'Service Status') }}</h6>
                 </div>
                 <div class="card-body">
                     {% set services = {
-                        'admin_daemon': 'Admin Daemon',
-                        'binkp_scheduler': 'Binkp Scheduler',
-                        'binkp_server': 'Binkp Server',
-                        'telnetd': 'Telnet Server'
+                        'admin_daemon': t('ui.admin.dashboard.service.admin_daemon', {}, 'Admin Daemon'),
+                        'binkp_scheduler': t('ui.admin.dashboard.service.binkp_scheduler', {}, 'Binkp Scheduler'),
+                        'binkp_server': t('ui.admin.dashboard.service.binkp_server', {}, 'Binkp Server'),
+                        'telnetd': t('ui.admin.dashboard.service.telnetd', {}, 'Telnet Server')
                     } %}
                     {% for key, label in services %}
                         {% set info = daemon_status[key] ?? null %}
@@ -208,12 +208,12 @@
                             </div>
                             <div class="col-sm-6">
                                 {% if info and info.running %}
-                                    <span class="badge bg-success">Running</span>
+                                    <span class="badge bg-success">{{ t('ui.admin.dashboard.running', {}, 'Running') }}</span>
                                 {% else %}
-                                    <span class="badge bg-danger">Stopped</span>
+                                    <span class="badge bg-danger">{{ t('ui.admin.dashboard.stopped', {}, 'Stopped') }}</span>
                                 {% endif %}
                                 {% if info and info.pid %}
-                                    <small class="text-muted ms-2">PID {{ info.pid }}</small>
+                                    <small class="text-muted ms-2">{{ t('ui.admin.dashboard.pid', {}, 'PID') }} {{ info.pid }}</small>
                                 {% endif %}
                             </div>
                         </div>

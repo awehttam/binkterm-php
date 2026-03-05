@@ -1,17 +1,17 @@
 {% extends "base.twig" %}
 
-{% block title %}Binkp Sessions - Admin{% endblock %}
+{% block title %}{{ t('ui.admin.binkp_sessions.page_title', {}, 'Binkp Sessions - Admin') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2"><i class="fas fa-network-wired me-2"></i>Binkp Session Log</h1>
+        <h1 class="h2"><i class="fas fa-network-wired me-2"></i>{{ t('ui.admin.binkp_sessions.heading', {}, 'Binkp Session Log') }}</h1>
         <div class="btn-toolbar">
             <button class="btn btn-outline-primary me-2" id="refreshSessions">
-                <i class="fas fa-sync-alt me-1"></i>Refresh
+                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, 'Refresh') }}
             </button>
             <a href="/admin" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.binkp_sessions.back_to_dashboard', {}, 'Back to Dashboard') }}
             </a>
         </div>
     </div>
@@ -21,7 +21,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-primary shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total (24h)</div>
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.total_24h', {}, 'Total (24h)') }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statTotal">-</div>
                 </div>
             </div>
@@ -29,7 +29,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-success shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Secure</div>
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.secure', {}, 'Secure') }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statSecure">-</div>
                 </div>
             </div>
@@ -37,7 +37,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-warning shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Insecure</div>
+                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.insecure', {}, 'Insecure') }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statInsecure">-</div>
                 </div>
             </div>
@@ -45,7 +45,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-info shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Crash Out</div>
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.crash_out', {}, 'Crash Out') }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statCrash">-</div>
                 </div>
             </div>
@@ -53,7 +53,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-success shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Successful</div>
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.successful', {}, 'Successful') }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statSuccessful">-</div>
                 </div>
             </div>
@@ -61,7 +61,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-danger shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Failed</div>
+                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.failed', {}, 'Failed') }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statFailed">-</div>
                 </div>
             </div>
@@ -71,35 +71,35 @@
     <!-- Filter -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Filter Sessions</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.filter_sessions', {}, 'Filter Sessions') }}</h6>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-3">
-                    <label class="form-label">Session Type</label>
+                    <label class="form-label">{{ t('ui.admin.binkp_sessions.session_type', {}, 'Session Type') }}</label>
                     <select class="form-select" id="filterType">
-                        <option value="">All</option>
-                        <option value="secure">Secure</option>
-                        <option value="insecure">Insecure</option>
-                        <option value="crash_outbound">Crash Outbound</option>
+                        <option value="">{{ t('ui.common.all', {}, 'All') }}</option>
+                        <option value="secure">{{ t('ui.admin.binkp_sessions.secure', {}, 'Secure') }}</option>
+                        <option value="insecure">{{ t('ui.admin.binkp_sessions.insecure', {}, 'Insecure') }}</option>
+                        <option value="crash_outbound">{{ t('ui.admin.binkp_sessions.crash_outbound', {}, 'Crash Outbound') }}</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Status</label>
+                    <label class="form-label">{{ t('ui.common.status', {}, 'Status') }}</label>
                     <select class="form-select" id="filterStatus">
-                        <option value="">All</option>
-                        <option value="success">Success</option>
-                        <option value="failed">Failed</option>
-                        <option value="rejected">Rejected</option>
+                        <option value="">{{ t('ui.common.all', {}, 'All') }}</option>
+                        <option value="success">{{ t('ui.admin.binkp_sessions.success', {}, 'Success') }}</option>
+                        <option value="failed">{{ t('ui.admin.binkp_sessions.failed', {}, 'Failed') }}</option>
+                        <option value="rejected">{{ t('ui.admin.binkp_sessions.rejected', {}, 'Rejected') }}</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Remote Address</label>
-                    <input type="text" class="form-control" id="filterAddress" placeholder="1:123/456">
+                    <label class="form-label">{{ t('ui.admin.binkp_sessions.remote_address', {}, 'Remote Address') }}</label>
+                    <input type="text" class="form-control" id="filterAddress" placeholder="{{ t('ui.admin.binkp_sessions.remote_address_placeholder', {}, '1:123/456') }}">
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <button class="btn btn-primary" id="applyFilter">
-                        <i class="fas fa-filter me-1"></i>Apply Filter
+                        <i class="fas fa-filter me-1"></i>{{ t('ui.admin.binkp_sessions.apply_filter', {}, 'Apply Filter') }}
                     </button>
                 </div>
             </div>
@@ -109,27 +109,27 @@
     <!-- Sessions Table -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Recent Sessions</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.recent_sessions', {}, 'Recent Sessions') }}</h6>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover table-sm" id="sessionsTable">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Remote Address</th>
-                            <th>IP</th>
-                            <th>Type</th>
-                            <th>Direction</th>
-                            <th>Msgs In</th>
-                            <th>Msgs Out</th>
-                            <th>Status</th>
-                            <th>Duration</th>
+                            <th>{{ t('ui.admin.binkp_sessions.time', {}, 'Time') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.remote_address', {}, 'Remote Address') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.ip', {}, 'IP') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.type', {}, 'Type') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.direction', {}, 'Direction') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.msgs_in', {}, 'Msgs In') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.msgs_out', {}, 'Msgs Out') }}</th>
+                            <th>{{ t('ui.common.status', {}, 'Status') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.duration', {}, 'Duration') }}</th>
                         </tr>
                     </thead>
                     <tbody id="sessionsTableBody">
                         <tr>
-                            <td colspan="9" class="text-center">Loading...</td>
+                            <td colspan="9" class="text-center">{{ t('ui.common.loading', {}, 'Loading...') }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -147,6 +147,13 @@
 </style>
 
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadSessions();
@@ -171,7 +178,7 @@ function loadStats() {
             document.getElementById('statFailed').textContent = data.failed || 0;
         })
         .catch(error => {
-            console.error('Error loading stats:', error);
+            console.error(uiT('ui.admin.binkp_sessions.load_stats_failed', 'Error loading stats') + ':', error);
         });
 }
 
@@ -191,19 +198,19 @@ function loadSessions() {
             const tbody = document.getElementById('sessionsTableBody');
 
             if (!data.sessions || data.sessions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No sessions found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">' + uiT('ui.admin.binkp_sessions.no_sessions_found', 'No sessions found') + '</td></tr>';
                 return;
             }
 
             tbody.innerHTML = data.sessions.map(session => `
                 <tr>
                     <td><small>${formatDate(session.started_at)}</small></td>
-                    <td><code>${escapeHtml(session.remote_address || 'Unknown')}</code></td>
+                    <td><code>${escapeHtml(session.remote_address || uiT('ui.common.unknown', 'Unknown'))}</code></td>
                     <td><small>${escapeHtml(session.remote_ip || '-')}</small></td>
                     <td>${getTypeBadge(session.session_type)}</td>
                     <td>${session.is_inbound
-                        ? '<span class="badge bg-info"><i class="fas fa-arrow-down"></i> In</span>'
-                        : '<span class="badge bg-secondary"><i class="fas fa-arrow-up"></i> Out</span>'}</td>
+                        ? '<span class="badge bg-info"><i class="fas fa-arrow-down"></i> ' + uiT('ui.admin.binkp_sessions.in', 'In') + '</span>'
+                        : '<span class="badge bg-secondary"><i class="fas fa-arrow-up"></i> ' + uiT('ui.admin.binkp_sessions.out', 'Out') + '</span>'}</td>
                     <td>${session.messages_received || 0}</td>
                     <td>${session.messages_sent || 0}</td>
                     <td>${getStatusBadge(session.status)}
@@ -213,27 +220,27 @@ function loadSessions() {
             `).join('');
         })
         .catch(error => {
-            console.error('Error loading sessions:', error);
+            console.error(uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + ':', error);
             document.getElementById('sessionsTableBody').innerHTML =
-                '<tr><td colspan="9" class="text-center text-danger">Error loading sessions</td></tr>';
+                '<tr><td colspan="9" class="text-center text-danger">' + uiT('ui.admin.binkp_sessions.load_sessions_failed', 'Error loading sessions') + '</td></tr>';
         });
 }
 
 function getTypeBadge(type) {
     const badges = {
-        'secure': '<span class="badge bg-success">Secure</span>',
-        'insecure': '<span class="badge bg-warning">Insecure</span>',
-        'crash_outbound': '<span class="badge bg-info">Crash</span>'
+        'secure': '<span class="badge bg-success">' + uiT('ui.admin.binkp_sessions.secure', 'Secure') + '</span>',
+        'insecure': '<span class="badge bg-warning">' + uiT('ui.admin.binkp_sessions.insecure', 'Insecure') + '</span>',
+        'crash_outbound': '<span class="badge bg-info">' + uiT('ui.admin.binkp_sessions.crash', 'Crash') + '</span>'
     };
     return badges[type] || `<span class="badge bg-secondary">${type}</span>`;
 }
 
 function getStatusBadge(status) {
     const badges = {
-        'active': '<span class="badge bg-primary">Active</span>',
-        'success': '<span class="badge bg-success">Success</span>',
-        'failed': '<span class="badge bg-danger">Failed</span>',
-        'rejected': '<span class="badge bg-warning">Rejected</span>'
+        'active': '<span class="badge bg-primary">' + uiT('ui.admin.binkp_sessions.active', 'Active') + '</span>',
+        'success': '<span class="badge bg-success">' + uiT('ui.admin.binkp_sessions.success', 'Success') + '</span>',
+        'failed': '<span class="badge bg-danger">' + uiT('ui.admin.binkp_sessions.failed', 'Failed') + '</span>',
+        'rejected': '<span class="badge bg-warning">' + uiT('ui.admin.binkp_sessions.rejected', 'Rejected') + '</span>'
     };
     return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
 }

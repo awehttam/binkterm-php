@@ -1,37 +1,37 @@
 {% extends "base.twig" %}
 
-{% block title %}BBS Settings{% endblock %}
+{% block title %}{{ t('ui.admin.bbs_settings.page_title', {}, 'BBS Settings') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">BBS Settings</h1>
+        <h1 class="h2">{{ t('ui.admin.bbs_settings.heading', {}, 'BBS Settings') }}</h1>
     </div>
 
     <div class="row g-4">
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">System Settings</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.system.title', {}, 'System Settings') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsSystemAlert"></div>
                     <form id="bbsSystemForm">
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemName">System Name</label>
+                            <label class="form-label" for="bbsSystemName">{{ t('ui.admin.bbs_settings.system.system_name', {}, 'System Name') }}</label>
                             <input type="text" class="form-control" id="bbsSystemName">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemSysop">Sysop Name</label>
+                            <label class="form-label" for="bbsSystemSysop">{{ t('ui.admin.bbs_settings.system.sysop_name', {}, 'Sysop Name') }}</label>
                             <select class="form-select" id="bbsSystemSysop"></select>
-                            <small class="text-muted">Select an admin user.</small>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.system.select_admin_user', {}, 'Select an admin user.') }}</small>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemLocation">Location</label>
+                            <label class="form-label" for="bbsSystemLocation">{{ t('ui.admin.bbs_settings.system.location', {}, 'Location') }}</label>
                             <input type="text" class="form-control" id="bbsSystemLocation">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemTimezone">Timezone</label>
+                            <label class="form-label" for="bbsSystemTimezone">{{ t('ui.admin.bbs_settings.system.timezone', {}, 'Timezone') }}</label>
                             <select class="form-select" id="bbsSystemTimezone">
                                 {% for tz in timezone_list %}
                                     <option value="{{ tz }}">{{ tz }}</option>
@@ -39,14 +39,14 @@
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemAddress">System Address</label>
+                            <label class="form-label" for="bbsSystemAddress">{{ t('ui.admin.bbs_settings.system.system_address', {}, 'System Address') }}</label>
                             <input type="text" class="form-control" id="bbsSystemAddress">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemOrigin">Origin Line</label>
+                            <label class="form-label" for="bbsSystemOrigin">{{ t('ui.admin.bbs_settings.system.origin_line', {}, 'Origin Line') }}</label>
                             <input type="text" class="form-control" id="bbsSystemOrigin">
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">Save System Settings</button>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">{{ t('ui.admin.bbs_settings.system.save', {}, 'Save System Settings') }}</button>
                     </form>
                 </div>
             </div>
@@ -54,56 +54,56 @@
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">BBS Features</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.features.title', {}, 'BBS Features') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsSettingsAlert"></div>
                     <form id="bbsSettingsForm">
                         <div class="form-check mb-2 d-flex align-items-center gap-2">
                             <input class="form-check-input" type="checkbox" id="bbsWebdoors">
-                            <label class="form-check-label" for="bbsWebdoors">Enable Webdoors</label>
+                            <label class="form-check-label" for="bbsWebdoors">{{ t('ui.admin.bbs_settings.features.enable_webdoors', {}, 'Enable Webdoors') }}</label>
                             {% if not webdoors_active %}
                                 <small class="text-muted">
-                                    (inactive)
-                                    <a href="/admin/webdoors" class="ms-1">Activate</a>
+                                    ({{ t('ui.admin.bbs_settings.features.inactive', {}, 'inactive') }})
+                                    <a href="/admin/webdoors" class="ms-1">{{ t('ui.admin.bbs_settings.features.activate', {}, 'Activate') }}</a>
                                 </small>
                             {% endif %}
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsShoutbox">
-                            <label class="form-check-label" for="bbsShoutbox">Enable Shoutbox</label>
+                            <label class="form-check-label" for="bbsShoutbox">{{ t('ui.admin.bbs_settings.features.enable_shoutbox', {}, 'Enable Shoutbox') }}</label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsAdvertising">
-                            <label class="form-check-label" for="bbsAdvertising">Enable Advertising</label>
+                            <label class="form-check-label" for="bbsAdvertising">{{ t('ui.admin.bbs_settings.features.enable_advertising', {}, 'Enable Advertising') }}</label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsVoting">
-                            <label class="form-check-label" for="bbsVoting">Enable Voting Booth</label>
+                            <label class="form-check-label" for="bbsVoting">{{ t('ui.admin.bbs_settings.features.enable_voting_booth', {}, 'Enable Voting Booth') }}</label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsChat">
-                            <label class="form-check-label" for="bbsChat">Enable Chat</label>
+                            <label class="form-check-label" for="bbsChat">{{ t('ui.admin.bbs_settings.features.enable_chat', {}, 'Enable Chat') }}</label>
                         </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="bbsFileAreas">
-                            <label class="form-check-label" for="bbsFileAreas">Enable File Areas</label>
+                            <label class="form-check-label" for="bbsFileAreas">{{ t('ui.admin.bbs_settings.features.enable_file_areas', {}, 'Enable File Areas') }}</label>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsDefaultEchoInterface">Default Echo Interface</label>
+                            <label class="form-label" for="bbsDefaultEchoInterface">{{ t('ui.admin.bbs_settings.features.default_echo_interface', {}, 'Default Echo Interface') }}</label>
                             <select class="form-select" id="bbsDefaultEchoInterface">
-                                <option value="echolist">Echo List (Forum view)</option>
-                                <option value="reader">Reader (Message list)</option>
+                                <option value="echolist">{{ t('ui.admin.bbs_settings.features.echo_list_forum', {}, 'Echo List (Forum view)') }}</option>
+                                <option value="reader">{{ t('ui.admin.bbs_settings.features.reader_message_list', {}, 'Reader (Message list)') }}</option>
                             </select>
-                            <small class="text-muted">Default interface for viewing echomail. Users can override this in their settings.</small>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.default_echo_help', {}, 'Default interface for viewing echomail. Users can override this in their settings.') }}</small>
                         </div>
                         <hr>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsMaxCrossPost">Max Cross-Post Areas</label>
+                            <label class="form-label" for="bbsMaxCrossPost">{{ t('ui.admin.bbs_settings.features.max_cross_post_areas', {}, 'Max Cross-Post Areas') }}</label>
                             <input type="number" class="form-control" id="bbsMaxCrossPost" min="2" max="20" step="1" value="5">
-                            <small class="text-muted">Maximum number of additional areas a user can cross-post to (2-20).</small>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.max_cross_post_help', {}, 'Maximum number of additional areas a user can cross-post to (2-20).') }}</small>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">{{ t('ui.admin.bbs_settings.features.save', {}, 'Save Settings') }}</button>
                     </form>
                 </div>
             </div>
@@ -111,7 +111,7 @@
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">Credits System Configuration</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.credits.title', {}, 'Credits System Configuration') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsCreditsAlert"></div>
@@ -119,90 +119,90 @@
                         <div class="col-lg-6">
                             <div class="mb-3 form-check">
                                 <input class="form-check-input" type="checkbox" id="bbsCreditsEnabled">
-                                <label class="form-check-label" for="bbsCreditsEnabled">Credits System Enabled</label>
+                                <label class="form-check-label" for="bbsCreditsEnabled">{{ t('ui.admin.bbs_settings.credits.enabled', {}, 'Credits System Enabled') }}</label>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsSymbol">Currency Symbol</label>
+                                <label class="form-label" for="bbsCreditsSymbol">{{ t('ui.admin.bbs_settings.credits.currency_symbol', {}, 'Currency Symbol') }}</label>
                                 <input type="text" class="form-control" id="bbsCreditsSymbol" maxlength="5">
-                                <small class="text-muted">Example: $, USD (max 5 characters). Leave blank for no symbol.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.currency_symbol_help', {}, 'Example: $, USD (max 5 characters). Leave blank for no symbol.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsDailyAmount">Daily Login Bonus Amount</label>
+                                <label class="form-label" for="bbsCreditsDailyAmount">{{ t('ui.admin.bbs_settings.credits.daily_login_bonus_amount', {}, 'Daily Login Bonus Amount') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsDailyAmount" min="0" step="1">
-                                <small class="text-muted">Amount of credits awarded to users on daily login.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.daily_login_bonus_help', {}, 'Amount of credits awarded to users on daily login.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsDailyDelay">Daily Login Delay (minutes)</label>
+                                <label class="form-label" for="bbsCreditsDailyDelay">{{ t('ui.admin.bbs_settings.credits.daily_login_delay_minutes', {}, 'Daily Login Delay (minutes)') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsDailyDelay" min="0" step="1">
-                                <small class="text-muted">Minutes after login before daily bonus is awarded.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.daily_login_delay_help', {}, 'Minutes after login before daily bonus is awarded.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsApprovalBonus">New User Approval Bonus</label>
+                                <label class="form-label" for="bbsCreditsApprovalBonus">{{ t('ui.admin.bbs_settings.credits.new_user_approval_bonus', {}, 'New User Approval Bonus') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsApprovalBonus" min="0" step="1">
-                                <small class="text-muted">Credits awarded when a pending user is approved.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.new_user_approval_bonus_help', {}, 'Credits awarded when a pending user is approved.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsNew14Days">New User 14-Day Milestone Bonus</label>
+                                <label class="form-label" for="bbsCreditsNew14Days">{{ t('ui.admin.bbs_settings.credits.new_user_14_day_bonus', {}, 'New User 14-Day Milestone Bonus') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsNew14Days" min="0" step="1">
-                                <small class="text-muted">One-time bonus awarded when user logs in 14+ days after account creation.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.new_user_14_day_bonus_help', {}, 'One-time bonus awarded when user logs in 14+ days after account creation.') }}</small>
                             </div>
                         </div>
                         <div class="col-lg-6">
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsNetmailCost">Netmail Cost</label>
+                                <label class="form-label" for="bbsCreditsNetmailCost">{{ t('ui.admin.bbs_settings.credits.netmail_cost', {}, 'Netmail Cost') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsNetmailCost" min="0" step="1">
-                                <small class="text-muted">Credits charged when sending a netmail message.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.netmail_cost_help', {}, 'Credits charged when sending a netmail message.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsEchomailReward">Echomail Reward</label>
+                                <label class="form-label" for="bbsCreditsEchomailReward">{{ t('ui.admin.bbs_settings.credits.echomail_reward', {}, 'Echomail Reward') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
-                                <small class="text-muted">Credits earned when posting an echomail message. Doubled when >= 1200 characters long.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.echomail_reward_help', {}, 'Credits earned when posting an echomail message. Doubled when >= 1200 characters long.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsCrashmailCost">Crashmail Cost</label>
+                                <label class="form-label" for="bbsCreditsCrashmailCost">{{ t('ui.admin.bbs_settings.credits.crashmail_cost', {}, 'Crashmail Cost') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsCrashmailCost" min="0" step="1">
-                                <small class="text-muted">Credits charged when sending direct/crashmail delivery.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.crashmail_cost_help', {}, 'Credits charged when sending direct/crashmail delivery.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsPollCreationCost">Poll Creation Cost</label>
+                                <label class="form-label" for="bbsCreditsPollCreationCost">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost', {}, 'Poll Creation Cost') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
-                                <small class="text-muted">Credits charged when creating a new poll.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost_help', {}, 'Credits charged when creating a new poll.') }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsTransferFee">Transfer Fee Percentage</label>
+                                <label class="form-label" for="bbsCreditsTransferFee">{{ t('ui.admin.bbs_settings.credits.transfer_fee_percentage', {}, 'Transfer Fee Percentage') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsTransferFee" min="0" max="1" step="0.01">
-                                <small class="text-muted">Percentage of credit transfers taken as fee (0.05 = 5%). Distributed to sysops.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.transfer_fee_help', {}, 'Percentage of credit transfers taken as fee (0.05 = 5%). Distributed to sysops.') }}</small>
                             </div>
                             <hr>
-                            <h6 class="mb-3">Referral System</h6>
+                            <h6 class="mb-3">{{ t('ui.admin.bbs_settings.credits.referral_system', {}, 'Referral System') }}</h6>
                             <div class="mb-3 form-check">
                                 <input class="form-check-input" type="checkbox" id="bbsCreditsReferralEnabled">
-                                <label class="form-check-label" for="bbsCreditsReferralEnabled">Enable Referral System</label>
+                                <label class="form-check-label" for="bbsCreditsReferralEnabled">{{ t('ui.admin.bbs_settings.credits.enable_referral_system', {}, 'Enable Referral System') }}</label>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsReferralBonus">Referral Bonus</label>
+                                <label class="form-label" for="bbsCreditsReferralBonus">{{ t('ui.admin.bbs_settings.credits.referral_bonus', {}, 'Referral Bonus') }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsReferralBonus" min="0" step="1">
-                                <small class="text-muted">Credits awarded when a referred user is approved by admin.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.referral_bonus_help', {}, 'Credits awarded when a referred user is approved by admin.') }}</small>
                             </div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">Save Credit Settings</button>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">{{ t('ui.admin.bbs_settings.credits.save', {}, 'Save Credit Settings') }}</button>
                 </div>
             </div>
         </div>
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">Taglines</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.taglines.title', {}, 'Taglines') }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsTaglinesAlert"></div>
                     <div class="mb-3">
-                        <label class="form-label" for="bbsTaglinesText">Taglines (one per line)</label>
-                        <textarea class="form-control" id="bbsTaglinesText" rows="8" placeholder="One tagline per line."></textarea>
-                        <small class="text-muted">These appear as selectable taglines when users compose messages.</small>
+                        <label class="form-label" for="bbsTaglinesText">{{ t('ui.admin.bbs_settings.taglines.one_per_line', {}, 'Taglines (one per line)') }}</label>
+                        <textarea class="form-control" id="bbsTaglinesText" rows="8" placeholder="{{ t('ui.admin.bbs_settings.taglines.placeholder', {}, 'One tagline per line.') }}"></textarea>
+                        <small class="text-muted">{{ t('ui.admin.bbs_settings.taglines.help', {}, 'These appear as selectable taglines when users compose messages.') }}</small>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="saveBbsTaglines()">Save Taglines</button>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsTaglines()">{{ t('ui.admin.bbs_settings.taglines.save', {}, 'Save Taglines') }}</button>
                 </div>
             </div>
         </div>
@@ -278,7 +278,7 @@ function loadBbsSettings() {
 function saveBbsSettings() {
     const maxCrossPost = parseInt(document.getElementById('bbsMaxCrossPost').value, 10);
     if (Number.isNaN(maxCrossPost) || maxCrossPost < 2 || maxCrossPost > 20) {
-        showBbsSettingsAlert('Max cross-post areas must be an integer between 2 and 20.', 'danger');
+        showBbsSettingsAlert(uiT('ui.admin.bbs_settings.validation.max_cross_post_areas_range', 'Max cross-post areas must be an integer between 2 and 20.'), 'danger');
         return;
     }
 
@@ -371,67 +371,67 @@ function saveBbsSystem() {
 function saveBbsCredits() {
     const symbol = document.getElementById('bbsCreditsSymbol').value.trim();
     if (symbol.length > 5) {
-        showBbsCreditsAlert('Currency symbol must be 0-5 characters.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.currency_symbol_length', 'Currency symbol must be 0-5 characters.'), 'danger');
         return;
     }
 
     const dailyAmount = parseInt(document.getElementById('bbsCreditsDailyAmount').value, 10);
     if (Number.isNaN(dailyAmount) || dailyAmount < 0) {
-        showBbsCreditsAlert('Daily login amount must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.daily_login_amount_non_negative', 'Daily login amount must be a non-negative integer.'), 'danger');
         return;
     }
 
     const dailyDelay = parseInt(document.getElementById('bbsCreditsDailyDelay').value, 10);
     if (Number.isNaN(dailyDelay) || dailyDelay < 0) {
-        showBbsCreditsAlert('Daily login delay must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.daily_login_delay_non_negative', 'Daily login delay must be a non-negative integer.'), 'danger');
         return;
     }
 
     const approvalBonus = parseInt(document.getElementById('bbsCreditsApprovalBonus').value, 10);
     if (Number.isNaN(approvalBonus) || approvalBonus < 0) {
-        showBbsCreditsAlert('Approval bonus must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.approval_bonus_non_negative', 'Approval bonus must be a non-negative integer.'), 'danger');
         return;
     }
 
     const netmailCost = parseInt(document.getElementById('bbsCreditsNetmailCost').value, 10);
     if (Number.isNaN(netmailCost) || netmailCost < 0) {
-        showBbsCreditsAlert('Netmail cost must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.netmail_cost_non_negative', 'Netmail cost must be a non-negative integer.'), 'danger');
         return;
     }
 
     const echomailReward = parseInt(document.getElementById('bbsCreditsEchomailReward').value, 10);
     if (Number.isNaN(echomailReward) || echomailReward < 0) {
-        showBbsCreditsAlert('Echomail reward must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.echomail_reward_non_negative', 'Echomail reward must be a non-negative integer.'), 'danger');
         return;
     }
 
     const crashmailCost = parseInt(document.getElementById('bbsCreditsCrashmailCost').value, 10);
     if (Number.isNaN(crashmailCost) || crashmailCost < 0) {
-        showBbsCreditsAlert('Crashmail cost must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.crashmail_cost_non_negative', 'Crashmail cost must be a non-negative integer.'), 'danger');
         return;
     }
 
     const pollCreationCost = parseInt(document.getElementById('bbsCreditsPollCreationCost').value, 10);
     if (Number.isNaN(pollCreationCost) || pollCreationCost < 0) {
-        showBbsCreditsAlert('Poll creation cost must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.poll_creation_cost_non_negative', 'Poll creation cost must be a non-negative integer.'), 'danger');
         return;
     }
 
     const new14Days = parseInt(document.getElementById('bbsCreditsNew14Days').value, 10);
     if (Number.isNaN(new14Days) || new14Days < 0) {
-        showBbsCreditsAlert('14-day return bonus must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.return_14_days_non_negative', '14-day return bonus must be a non-negative integer.'), 'danger');
         return;
     }
 
     const transferFee = parseFloat(document.getElementById('bbsCreditsTransferFee').value);
     if (Number.isNaN(transferFee) || transferFee < 0 || transferFee > 1) {
-        showBbsCreditsAlert('Transfer fee must be between 0 and 1 (0% to 100%).', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.transfer_fee_range', 'Transfer fee must be between 0 and 1 (0% to 100%).'), 'danger');
         return;
     }
 
     const referralBonus = parseInt(document.getElementById('bbsCreditsReferralBonus').value, 10);
     if (Number.isNaN(referralBonus) || referralBonus < 0) {
-        showBbsCreditsAlert('Referral bonus must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.referral_bonus_non_negative', 'Referral bonus must be a non-negative integer.'), 'danger');
         return;
     }
 
@@ -580,7 +580,7 @@ function syncSysopSelect(selectId) {
     if (!exists) {
         const option = document.createElement('option');
         option.value = current;
-        option.textContent = `${current} (current)`;
+        option.textContent = `${current} (${uiT('ui.admin.bbs_settings.current', 'current')})`;
         select.insertBefore(option, select.firstChild);
     }
     select.value = current;
