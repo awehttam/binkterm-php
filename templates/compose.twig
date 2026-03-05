@@ -304,6 +304,13 @@
 
 {% block scripts %}
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
 let allEchoareas = [];
 let markdownSupportTimer = null;
@@ -1186,7 +1193,7 @@ function saveDraft(silent = false) {
     // Only save if there's actual content
     if (!formData.subject.trim() && !formData.message_text.trim()) {
         if (!silent) {
-            showError('Please add some content before saving draft');
+            showError(uiT('ui.compose.draft.empty_content', 'Please add some content before saving draft'));
         }
         return;
     }
@@ -1196,7 +1203,7 @@ function saveDraft(silent = false) {
     const originalButtonHtml = saveButton.html();
 
     if (!silent && saveButton.length) {
-        saveButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+        saveButton.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.common.saving', 'Saving...')}`);
     }
 
     $.ajax({
@@ -1217,7 +1224,7 @@ function saveDraft(silent = false) {
                             .prop('disabled', false).html(originalButtonHtml);
                     }, 2000);
                 } else {
-                    showSuccess('Draft saved successfully');
+                    showSuccess(uiT('ui.compose.draft.saved_success', 'Draft saved successfully'));
                 }
             } else {
                 // For silent saves, just reset button if it was showing loading
@@ -1233,7 +1240,7 @@ function saveDraft(silent = false) {
                     saveButton.removeClass('btn-success').addClass('btn-outline-primary')
                         .prop('disabled', false).html(originalButtonHtml);
                 }
-                showError('Failed to save draft');
+                showError(uiT('errors.messages.drafts.save_failed', 'Failed to save draft'));
             }
         }
     });
@@ -1265,12 +1272,12 @@ function loadDraft(draftId) {
                     console.log('Draft loaded successfully:', draft);
                     resolve(draft);
                 } else {
-                    showError('Failed to load draft');
+                    showError(uiT('errors.messages.drafts.get_failed', 'Failed to load draft'));
                     reject('Draft not found');
                 }
             },
             error: function() {
-                showError('Failed to load draft');
+                showError(uiT('errors.messages.drafts.get_failed', 'Failed to load draft'));
                 reject('API error');
             }
         });
@@ -1298,11 +1305,11 @@ function loadComposeAddressBook(search = '') {
             if (response.success) {
                 renderComposeAddressBook(response.entries);
             } else {
-                $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
+                $('#composeAddressList').html(`<li><div class="text-danger py-2">${uiT('ui.compose.address_book.load_failed_short', 'Failed to load')}</div></li>`);
             }
         })
         .fail(function(xhr, status, error) {
-            $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
+            $('#composeAddressList').html(`<li><div class="text-danger py-2">${uiT('ui.compose.address_book.load_failed_short', 'Failed to load')}</div></li>`);
         });
 }
 
@@ -1464,7 +1471,7 @@ function saveComposeAddressBookEntry() {
     
     // Basic validation
     if (!data.name || !data.messaging_user_id || !data.node_address) {
-        showError('Name, user ID, and node address are required');
+        showError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
         return;
     }
     
@@ -1477,23 +1484,23 @@ function saveComposeAddressBookEntry() {
             if (response.success) {
                 $('#addressBookModal').modal('hide');
                 loadComposeAddressBook();
-                showSuccess('Entry added successfully');
+                showSuccess(uiT('ui.compose.address_book.entry_added', 'Entry added successfully'));
                 // Optionally populate the compose form
-                if (confirm('Use this entry for the current message?')) {
+                if (confirm(uiT('ui.compose.address_book.use_entry_confirm', 'Use this entry for the current message?'))) {
                     $('#toName').val(data.messaging_user_id);
                     $('#toAddress').val(data.node_address);
                 }
             } else {
                 const error = window.getApiErrorMessage
-                    ? window.getApiErrorMessage(response, 'Failed to save entry')
-                    : 'Failed to save entry';
+                    ? window.getApiErrorMessage(response, uiT('errors.address_book.create_failed', 'Failed to save entry'))
+                    : uiT('errors.address_book.create_failed', 'Failed to save entry');
                 showError(error);
             }
         },
         error: function(xhr) {
             const error = window.getApiErrorMessage
-                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to save entry')
-                : 'Failed to save entry';
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save entry'))
+                : uiT('errors.address_book.create_failed', 'Failed to save entry');
             showError(error);
         }
     });

@@ -225,6 +225,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadDashboardData();
     {% if bbs_feature_enabled('voting_booth') %}
@@ -258,7 +265,7 @@ function loadVotingBooth(keepPollId = null) {
         .done(function(data) {
             votingPolls = data.polls || [];
             if (votingPolls.length === 0) {
-                $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+                $('#votingBoothBody').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.polls.none_active', 'No active polls right now.')}</p>`);
                 updateVotingPollNav();
                 return;
             }
@@ -272,14 +279,14 @@ function loadVotingBooth(keepPollId = null) {
             renderVotingBooth();
         })
         .fail(function() {
-            $('#votingBoothBody').html('<p class="text-danger mb-0">Failed to load poll.</p>');
+            $('#votingBoothBody').html(`<p class="text-danger mb-0">${uiT('ui.dashboard.polls.load_failed', 'Failed to load poll.')}</p>`);
             updateVotingPollNav();
         });
 }
 
 function renderVotingBooth() {
     if (votingPolls.length === 0) {
-        $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+        $('#votingBoothBody').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.polls.none_active', 'No active polls right now.')}</p>`);
         updateVotingPollNav();
         return;
     }
@@ -289,9 +296,9 @@ function renderVotingBooth() {
     if (hasVoted) {
         const totalVotes = poll.total_votes || 0;
         let resultsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
-        resultsHtml += '<div class="small text-muted mb-2">Results</div>';
+        resultsHtml += `<div class="small text-muted mb-2">${uiT('ui.dashboard.polls.results', 'Results')}</div>`;
         if (totalVotes === 0) {
-            resultsHtml += '<p class="text-muted mb-0">No votes yet.</p>';
+            resultsHtml += `<p class="text-muted mb-0">${uiT('ui.dashboard.polls.no_votes', 'No votes yet.')}</p>`;
         } else {
             (poll.results || []).forEach(result => {
                 const percent = totalVotes > 0 ? Math.round((result.votes / totalVotes) * 100) : 0;
@@ -314,7 +321,7 @@ function renderVotingBooth() {
     }
 
     let optionsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
-    optionsHtml += '<div class="small text-muted mb-2">Vote to see results</div>';
+    optionsHtml += `<div class="small text-muted mb-2">${uiT('ui.dashboard.polls.vote_to_see_results', 'Vote to see results')}</div>`;
     optionsHtml += '<form id="votingBoothForm">';
     (poll.options || []).forEach(option => {
         optionsHtml += `
@@ -328,7 +335,7 @@ function renderVotingBooth() {
     });
     optionsHtml += `
         <button type="button" class="btn btn-sm btn-primary mt-2" onclick="submitPollVote(${poll.id})">
-            Submit Vote
+            ${uiT('ui.dashboard.polls.submit_vote', 'Submit Vote')}
         </button>
     `;
     optionsHtml += '</form>';
@@ -362,7 +369,7 @@ function updateVotingPollNav() {
 function submitPollVote(pollId) {
     const selected = document.querySelector('input[name="poll_option"]:checked');
     if (!selected) {
-        alert('Please select an option.');
+        alert(uiT('errors.polls.option_required', 'Please select an option.'));
         return;
     }
 
@@ -376,10 +383,10 @@ function submitPollVote(pollId) {
         if (data.success) {
             loadVotingBooth(pollId);
         } else {
-            alert(apiError(data, 'Failed to submit vote.'));
+            alert(apiError(data, uiT('errors.polls.vote_failed', 'Failed to submit vote.')));
         }
     })
-    .catch(() => alert('Failed to submit vote.'));
+    .catch(() => alert(uiT('errors.polls.vote_failed', 'Failed to submit vote.')));
 }
 
 function escapeHtml(text) {
@@ -422,7 +429,7 @@ function loadEchoareas() {
                     `;
                 });
             } else {
-                html = '<p class="text-muted">No echo areas available</p>';
+                html = `<p class="text-muted">${uiT('ui.dashboard.echoareas.none_available', 'No echo areas available')}</p>`;
             }
             $('#echoareaList').html(html);
         });
@@ -434,7 +441,7 @@ function loadShoutbox() {
         .done(function(data) {
             const items = data.messages || [];
             if (items.length === 0) {
-                $('#shoutboxMessages').html('<p class="text-muted mb-0">No shouts yet. Be the first!</p>');
+                $('#shoutboxMessages').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.shoutbox.none_yet', 'No shouts yet. Be the first!')}</p>`);
                 $('#shoutboxLoadMore').prop('disabled', true);
                 return;
             }
@@ -453,7 +460,7 @@ function loadShoutbox() {
             $('#shoutboxLoadMore').prop('disabled', items.length < shoutboxPageSize);
         })
         .fail(function() {
-            $('#shoutboxMessages').html('<p class="text-danger mb-0">Failed to load shouts.</p>');
+            $('#shoutboxMessages').html(`<p class="text-danger mb-0">${uiT('ui.dashboard.shoutbox.load_failed', 'Failed to load shouts.')}</p>`);
             $('#shoutboxLoadMore').prop('disabled', true);
         });
 }
@@ -507,10 +514,10 @@ function postShout() {
             input.value = '';
             loadShoutbox();
         } else {
-            alert(apiError(data, 'Failed to post shout.'));
+            alert(apiError(data, uiT('ui.dashboard.shoutbox.post_failed', 'Failed to post shout.')));
         }
     })
-    .catch(() => alert('Failed to post shout.'));
+    .catch(() => alert(uiT('ui.dashboard.shoutbox.post_failed', 'Failed to post shout.')));
 }
 
 function loadReferralStats() {
@@ -518,7 +525,7 @@ function loadReferralStats() {
         .then(r => r.json())
         .then(data => {
             if (data['error_code'] || ('error' in data)) {
-                console.error('Referral stats error:', apiError(data, 'Failed to load referral stats'));
+                console.error(uiT('ui.dashboard.referrals.error_prefix', 'Referral stats error:'), apiError(data, uiT('errors.referrals.stats_failed', 'Failed to load referral stats')));
                 return;
             }
 
@@ -536,11 +543,11 @@ function loadReferralStats() {
                     </div>`;
                 }).join('');
                 document.getElementById('referralList').innerHTML =
-                    '<h6 class="mt-2 mb-2 small">Recent Referrals</h6>' + list;
+                    `<h6 class="mt-2 mb-2 small">${uiT('ui.dashboard.referrals.recent', 'Recent Referrals')}</h6>` + list;
             }
         })
         .catch(err => {
-            console.error('Failed to load referral stats:', err);
+            console.error(uiT('errors.referrals.stats_failed', 'Failed to load referral stats:'), err);
         });
 }
 

@@ -26,6 +26,13 @@ function apiError(payload, fallback) {
     return fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 // Date display configuration: 'written' or 'received'
 // TODO: Add user toggle in settings
 const USE_DATE_FIELD = 'received';   // related to ECHOMAIL_DATE_FIELD in backend
@@ -894,7 +901,7 @@ function searchMessages() {
     }
 
     if (query.length < 2) {
-        showError('Please enter at least 2 characters to search');
+        showError(uiT('errors.messages.search.query_too_short', 'Please enter at least 2 characters to search'));
         return;
     }
 
@@ -943,7 +950,7 @@ function searchMessages() {
             $('#mobileSearchCollapse').collapse('hide');
         })
         .fail(function() {
-            showError('Search failed');
+            showError(uiT('ui.echomail.search.failed', 'Search failed'));
         });
 }
 
@@ -1064,7 +1071,7 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
                     loadMessages();
                 }
             } else {
-                showError(response.message || 'Failed to update save status');
+                showError(response.message || uiT('ui.echomail.save_status.update_failed', 'Failed to update save status'));
             }
         },
         error: function(xhr) {
@@ -1074,7 +1081,7 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
             } catch (e) {
                 response = xhr.responseJSON || {};
             }
-            showError(apiError(response, 'Failed to update save status'));
+            showError(apiError(response, uiT('ui.echomail.save_status.update_failed', 'Failed to update save status')));
         }
     });
 }
@@ -1204,7 +1211,7 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                     loadMessages();
                 }
             } else {
-                showError(response.message || 'Failed to update save status');
+                showError(response.message || uiT('ui.echomail.save_status.update_failed', 'Failed to update save status'));
             }
         },
         error: function(xhr) {
@@ -1214,7 +1221,7 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
             } catch (e) {
                 response = xhr.responseJSON || {};
             }
-            showError(apiError(response, 'Failed to update save status'));
+            showError(apiError(response, uiT('ui.echomail.save_status.update_failed', 'Failed to update save status')));
         }
     });
 }
@@ -1360,7 +1367,7 @@ function clearSelection() {
 
 function markSelectedAsRead() {
     if (selectedMessages.size === 0) {
-        showError('No messages selected');
+        showError(uiT('ui.messages.none_selected', 'No messages selected'));
         return;
     }
 
@@ -1381,7 +1388,7 @@ function markSelectedAsRead() {
                 loadMessages();
                 loadStats();
             } else {
-                showError(apiError(response, 'Failed to mark messages as read'));
+                showError(apiError(response, uiT('errors.messages.echomail.bulk_read.failed', 'Failed to mark messages as read')));
             }
         },
         error: function(xhr) {
@@ -1402,12 +1409,12 @@ function markSelectedAsRead() {
 
 function deleteSelectedMessages() {
     if (!window.isAdmin) {
-        showError('Admin privileges required to delete echomail messages');
+        showError(uiT('errors.messages.echomail.bulk_delete.admin_required', 'Admin privileges required to delete echomail messages'));
         return;
     }
 
     if (selectedMessages.size === 0) {
-        showError('No messages selected');
+        showError(uiT('ui.messages.none_selected', 'No messages selected'));
         return;
     }
 
@@ -1438,7 +1445,7 @@ function deleteSelectedMessages() {
                 loadMessages(); // Reload messages
                 loadStats(); // Update statistics
             } else {
-                showError(apiError(response, 'Failed to delete messages'));
+                showError(apiError(response, uiT('ui.echomail.bulk_delete.failed', 'Failed to delete messages')));
             }
         },
         error: function(xhr) {
@@ -1767,7 +1774,7 @@ function showShareDialog(messageId) {
             $('#shareModal').modal('show');
         })
         .fail(function() {
-            showError('Failed to check existing shares');
+            showError(uiT('ui.echomail.shares.check_failed', 'Failed to check existing shares'));
         });
 }
 
@@ -1804,12 +1811,12 @@ function createShare() {
                     showSuccess('Share link created successfully!');
                 }
             } else {
-                $('#shareErrorMessage').text(apiError(data, 'Failed to create share link'));
+                $('#shareErrorMessage').text(apiError(data, uiT('errors.messages.share_create_failed', 'Failed to create share link')));
                 $('#shareError').removeClass('d-none');
             }
         },
         error: function(xhr) {
-            let errorMessage = 'Failed to create share link';
+            let errorMessage = uiT('errors.messages.share_create_failed', 'Failed to create share link');
             try {
                 const response = JSON.parse(xhr.responseText);
                 errorMessage = apiError(response, errorMessage);
@@ -1837,18 +1844,18 @@ function generateFriendlyUrl() {
                 $('#friendlyUrlBtn').addClass('d-none');
                 showSuccess('Friendly URL generated!');
             } else {
-                showError(apiError(data, 'Failed to generate friendly URL'));
+                showError(apiError(data, uiT('ui.echomail.shares.friendly_url_failed', 'Failed to generate friendly URL')));
                 btn.prop('disabled', false).html(originalHtml);
             }
         })
         .fail(function() {
-            showError('Failed to generate friendly URL');
+            showError(uiT('ui.echomail.shares.friendly_url_failed', 'Failed to generate friendly URL'));
             btn.prop('disabled', false).html(originalHtml);
         });
 }
 
 function revokeShare() {
-    if (!confirm('Are you sure you want to revoke this share link? It will no longer be accessible to others.')) {
+    if (!confirm(uiT('ui.echomail.shares.revoke_confirm', 'Are you sure you want to revoke this share link? It will no longer be accessible to others.'))) {
         return;
     }
 
@@ -1866,11 +1873,11 @@ function revokeShare() {
                 $('#revokeShareBtn').addClass('d-none');
                 showSuccess('Share link revoked');
             } else {
-                showError(apiError(data, 'Failed to revoke share link'));
+                showError(apiError(data, uiT('errors.messages.share_revoke_failed', 'Failed to revoke share link')));
             }
         },
         error: function() {
-            showError('Failed to revoke share link');
+            showError(uiT('errors.messages.share_revoke_failed', 'Failed to revoke share link'));
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
@@ -1915,10 +1922,10 @@ function fallbackCopyTextToClipboard(text) {
         if (successful) {
             showSuccess('Share URL copied to clipboard!');
         } else {
-            showError('Copy to clipboard failed. Please copy manually.');
+            showError(uiT('ui.common.copy_failed_manual', 'Copy to clipboard failed. Please copy manually.'));
         }
     } catch (err) {
-        showError('Copy to clipboard not supported. Please copy manually.');
+        showError(uiT('ui.common.copy_not_supported_manual', 'Copy to clipboard not supported. Please copy manually.'));
     }
 
     document.body.removeChild(textArea);
@@ -1966,7 +1973,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                           .html('<i class="fas fa-check"></i> <i class="fas fa-address-book"></i>')
                           .attr('title', 'Already in address book')
                           .prop('disabled', true);
-                    showError('This contact is already in your address book');
+                    showError(uiT('ui.address_book.already_exists', 'This contact is already in your address book'));
                     return;
                 }
 
@@ -2015,7 +2022,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                                   .html(originalHtml)
                                   .attr('title', 'Error - click to retry')
                                   .prop('disabled', false);
-                            showError(apiError(response, 'Failed to save to address book'));
+                            showError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                         }
                     },
                     error: function(xhr) {
@@ -2024,19 +2031,19 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                               .html(originalHtml)
                               .attr('title', 'Error - click to retry')
                               .prop('disabled', false);
-                        showError(apiError(xhr.responseJSON, 'Failed to save to address book'));
+                        showError(apiError(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                     }
                 });
             } else {
                 // Reset button on error
                 button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
-                showError('Failed to check existing contacts');
+                showError(uiT('ui.address_book.check_existing_failed', 'Failed to check existing contacts'));
             }
         })
         .fail(function() {
             // Reset button on error
             button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
-            showError('Failed to check existing contacts');
+            showError(uiT('ui.address_book.check_existing_failed', 'Failed to check existing contacts'));
         });
 }
 
@@ -2077,7 +2084,7 @@ function continueDraft(draftId) {
 }
 
 function deleteDraftConfirm(draftId) {
-    if (confirm('Are you sure you want to delete this draft? This cannot be undone.')) {
+    if (confirm(uiT('ui.drafts.delete_confirm', 'Are you sure you want to delete this draft? This cannot be undone.'))) {
         deleteDraft(draftId);
     }
 }
@@ -2092,11 +2099,11 @@ function deleteDraft(draftId) {
                 loadDrafts();
                 showSuccess('Draft deleted successfully');
             } else {
-                showError('Failed to delete draft');
+                showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
             }
         },
         error: function() {
-            showError('Failed to delete draft');
+            showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
         }
     });
 }

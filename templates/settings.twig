@@ -341,6 +341,13 @@
 
 {% block scripts %}
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadSettings();
     loadSystemStatus();
@@ -397,7 +404,7 @@ function loadSettings() {
             $('#autoRefresh').prop('checked', data.auto_refresh === true);
         })
         .fail(function() {
-            console.log('Failed to load settings');
+            console.log(uiT('ui.settings.load_failed_console', 'Failed to load settings'));
         });
 }
 
@@ -437,7 +444,7 @@ function saveSettings() {
     $('#settingsStatus').show().html(`
         <div class="alert alert-info">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Saving settings...
+            ${uiT('ui.settings.saving', 'Saving settings...')}
         </div>
     `);
     
@@ -450,7 +457,7 @@ function saveSettings() {
             $('#settingsStatus').html(`
                 <div class="alert alert-success">
                     <i class="fas fa-check me-2"></i>
-                    Settings saved successfully!
+                    ${uiT('ui.settings.saved_successfully', 'Settings saved successfully!')}
                 </div>
             `);
             
@@ -465,8 +472,8 @@ function saveSettings() {
         },
         error: function(xhr) {
             const error = window.getApiErrorMessage
-                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to save settings')
-                : 'Failed to save settings';
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.settings.update_failed', 'Failed to save settings'))
+                : uiT('errors.settings.update_failed', 'Failed to save settings');
             $('#settingsStatus').html(`
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle me-2"></i>
@@ -516,33 +523,33 @@ function showActiveSessions() {
                     `;
                 });
             } else {
-                html = '<p class="text-muted">No active sessions found.</p>';
+                html = `<p class="text-muted">${uiT('ui.settings.sessions.none_active', 'No active sessions found.')}</p>`;
             }
             $('#sessionsList').html(html);
         })
         .fail(function() {
-            $('#sessionsList').html('<div class="alert alert-danger">Failed to load sessions</div>');
+            $('#sessionsList').html(`<div class="alert alert-danger">${uiT('ui.settings.sessions.load_failed', 'Failed to load sessions')}</div>`);
         });
 }
 
 function revokeSession(sessionId) {
-    if (!confirm('Are you sure you want to revoke this session?')) return;
+    if (!confirm(uiT('ui.settings.sessions.revoke_confirm', 'Are you sure you want to revoke this session?'))) return;
     
     $.ajax({
         url: `/api/user/sessions/${sessionId}`,
         method: 'DELETE',
         success: function() {
             showActiveSessions(); // Refresh the list
-            showSuccess('Session revoked successfully');
+            showSuccess(uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully'));
         },
         error: function() {
-            showError('Failed to revoke session');
+            showError(uiT('errors.user.sessions.revoke_failed', 'Failed to revoke session'));
         }
     });
 }
 
 function logoutAllSessions() {
-    if (!confirm('Are you sure you want to logout from all devices? You will need to login again.')) return;
+    if (!confirm(uiT('ui.settings.sessions.logout_all_confirm', 'Are you sure you want to logout from all devices? You will need to login again.'))) return;
     
     $.ajax({
         url: '/api/user/sessions/all',
@@ -551,23 +558,23 @@ function logoutAllSessions() {
             window.location.href = '/login';
         },
         error: function() {
-            showError('Failed to logout all sessions');
+            showError(uiT('errors.user.sessions.revoke_all_failed', 'Failed to logout all sessions'));
         }
     });
 }
 
 function pollUplinks() {
-    showSuccess('Polling uplinks... (this may take a moment)');
+    showSuccess(uiT('ui.settings.polling_uplinks', 'Polling uplinks... (this may take a moment)'));
     
     $.post('/api/binkp/poll')
         .done(function(data) {
-            showSuccess('Uplink poll completed: ' + (data.message || 'Success'));
+            showSuccess(uiT('ui.settings.poll_complete_prefix', 'Uplink poll completed: ') + (data.message || uiT('ui.common.success', 'Success')));
         })
         .fail(function(xhr) {
             const error = window.getApiErrorMessage
-                ? window.getApiErrorMessage(xhr.responseJSON, 'Poll failed')
-                : 'Poll failed';
-            showError('Poll failed: ' + error);
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.binkp.poll_failed', 'Poll failed'))
+                : uiT('errors.binkp.poll_failed', 'Poll failed');
+            showError(uiT('ui.settings.poll_failed_prefix', 'Poll failed: ') + error);
         });
 }
 </script>

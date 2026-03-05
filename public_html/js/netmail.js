@@ -21,6 +21,13 @@ function apiError(payload, fallback) {
     return fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
         loadMessages();
@@ -590,7 +597,7 @@ function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {
 function searchMessages() {
     const query = $('#searchInput').val().trim();
     if (query.length < 2) {
-        showError('Please enter at least 2 characters to search');
+        showError(uiT('errors.messages.search.query_too_short', 'Please enter at least 2 characters to search'));
         return;
     }
 
@@ -605,7 +612,7 @@ function searchMessages() {
             $('#pagination').empty();
         })
         .fail(function() {
-            showError('Search failed');
+            showError(uiT('ui.netmail.search.failed', 'Search failed'));
         });
 }
 
@@ -628,7 +635,7 @@ function loadStats() {
 }
 
 function deleteMessage(messageId) {
-    if (!confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
+    if (!confirm(uiT('ui.netmail.delete_message_confirm', 'Are you sure you want to delete this message? This action cannot be undone.'))) {
         return;
     }
 
@@ -642,7 +649,7 @@ function deleteMessage(messageId) {
             loadStats();
         },
         error: function(xhr) {
-            const errorMsg = apiError(xhr.responseJSON, 'Failed to delete message');
+            const errorMsg = apiError(xhr.responseJSON, uiT('errors.messages.netmail.delete_failed', 'Failed to delete message'));
             showError(errorMsg);
         }
     });
@@ -805,11 +812,11 @@ function editAddressBookEntry(entryId) {
                 $('#addressBookAlwaysCrashmail').prop('checked', !!entry.always_crashmail);
                 $('#addressBookModal').modal('show');
             } else {
-                showError('Failed to load entry: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.netmail.address_book.load_entry_failed_prefix', 'Failed to load entry: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         })
         .fail(function() {
-            showError('Failed to load entry');
+            showError(uiT('errors.address_book.get_failed', 'Failed to load entry'));
         });
 }
 
@@ -826,7 +833,7 @@ function saveAddressBookEntry() {
 
     // Basic validation
     if (!data.name || !data.messaging_user_id || !data.node_address) {
-        showError('Name, user ID, and node address are required');
+        showError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
         return;
     }
 
@@ -844,11 +851,11 @@ function saveAddressBookEntry() {
                 loadAddressBook();
                 showSuccess(entryId ? 'Entry updated successfully' : 'Entry added successfully');
             } else {
-                showError(apiError(response, 'Failed to save entry'));
+                showError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save entry')));
             }
         },
         error: function(xhr) {
-            showError(apiError(xhr.responseJSON, 'Failed to save entry'));
+            showError(apiError(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save entry')));
         }
     });
 }
@@ -866,11 +873,11 @@ function deleteAddressBookEntry(entryId, entryName) {
                 loadAddressBook();
                 showSuccess('Entry deleted successfully');
             } else {
-                showError(apiError(response, 'Failed to delete entry'));
+                showError(apiError(response, uiT('errors.address_book.delete_failed', 'Failed to delete entry')));
             }
         },
         error: function() {
-            showError('Failed to delete entry');
+            showError(uiT('errors.address_book.delete_failed', 'Failed to delete entry'));
         }
     });
 }
@@ -905,7 +912,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                           .html('<i class="fas fa-check"></i> <i class="fas fa-address-book"></i>')
                           .attr('title', 'Already in address book')
                           .prop('disabled', true);
-                    showError('This contact is already in your address book');
+                    showError(uiT('ui.address_book.already_exists', 'This contact is already in your address book'));
                     return;
                 }
 
@@ -954,7 +961,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                                   .html(originalHtml)
                                   .attr('title', 'Error - click to retry')
                                   .prop('disabled', false);
-                            showError(apiError(response, 'Failed to save to address book'));
+                            showError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                         }
                     },
                     error: function(xhr) {
@@ -963,19 +970,19 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                               .html(originalHtml)
                               .attr('title', 'Error - click to retry')
                               .prop('disabled', false);
-                        showError(apiError(xhr.responseJSON, 'Failed to save to address book'));
+                        showError(apiError(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                     }
                 });
             } else {
                 // Reset button on error
                 button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
-                showError('Failed to check existing contacts');
+                showError(uiT('ui.address_book.check_existing_failed', 'Failed to check existing contacts'));
             }
         })
         .fail(function() {
             // Reset button on error
             button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
-            showError('Failed to check existing contacts');
+            showError(uiT('ui.address_book.check_existing_failed', 'Failed to check existing contacts'));
         });
 }
 
@@ -998,7 +1005,7 @@ function continueDraft(draftId) {
 }
 
 function deleteDraftConfirm(draftId) {
-    if (confirm('Are you sure you want to delete this draft? This cannot be undone.')) {
+    if (confirm(uiT('ui.drafts.delete_confirm', 'Are you sure you want to delete this draft? This cannot be undone.'))) {
         deleteDraft(draftId);
     }
 }
@@ -1013,11 +1020,11 @@ function deleteDraft(draftId) {
                 loadDrafts();
                 showSuccess('Draft deleted successfully');
             } else {
-                showError('Failed to delete draft');
+                showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
             }
         },
         error: function() {
-            showError('Failed to delete draft');
+            showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
         }
     });
 }
@@ -1193,7 +1200,7 @@ function clearSelection() {
 
 function deleteSelectedMessages() {
     if (selectedMessages.size === 0) {
-        showError('No messages selected');
+        showError(uiT('ui.messages.none_selected', 'No messages selected'));
         return;
     }
 
@@ -1214,7 +1221,7 @@ function deleteSelectedMessages() {
             loadMessages();
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Failed to delete messages');
+            const error = apiError(xhr.responseJSON, uiT('ui.netmail.bulk_delete.failed', 'Failed to delete messages'));
             showError(error);
         }
     });
