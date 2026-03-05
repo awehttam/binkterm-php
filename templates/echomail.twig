@@ -1,19 +1,19 @@
 {% extends "base.twig" %}
 
-{% block title %}Echomail{% if echoarea %} - {{ echoarea }}{% endif %} - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.echomail.title', {}, locale, ['common']) }}{% if echoarea %} - {{ echoarea }}{% endif %} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-comments"></i>
-        Echomail
+        {{ t('ui.echomail.title', {}, locale, ['common']) }}
         {% if echoarea %}
             <small class="text-muted">/ {{ echoarea }}</small>
         {% endif %}
     </h2>
     <button class="btn btn-fidonet" onclick="composeMessage('echomail')">
         <i class="fas fa-plus"></i>
-        Post Message
+        {{ t('ui.echomail.post_message', {}, locale, ['common']) }}
     </button>
 </div>
 
@@ -27,9 +27,9 @@
                     <i class="fas fa-list me-2"></i>
                     <span id="mobileAccordionText">
                         {% if echoarea %}
-                            Viewing: {{ echoarea }}
+                            {{ t('ui.echomail.viewing_prefix', {}, locale, ['common']) }} {{ echoarea }}
                         {% else %}
-                            Viewing: All Messages
+                            {{ t('ui.echomail.viewing_all', {}, locale, ['common']) }}
                         {% endif %}
                     </span>
                 </button>
@@ -38,19 +38,19 @@
                 <div class="accordion-body">
                     <div class="d-flex gap-2 mb-2">
                         <a href="/echolist" class="btn btn-sm btn-outline-primary flex-fill">
-                            <i class="fa-solid fa-list me-1"></i> Echo List
+                            <i class="fa-solid fa-list me-1"></i> {{ t('ui.echomail.echo_list', {}, locale, ['common']) }}
                         </a>
                         <a href="/subscriptions" class="btn btn-sm btn-outline-secondary flex-fill">
-                            <i class="fa-solid fa-wrench me-1"></i> Manage
+                            <i class="fa-solid fa-wrench me-1"></i> {{ t('ui.common.manage', {}, locale, ['common']) }}
                         </a>
                     </div>
                     <input type="text" class="form-control form-control-sm mb-2" id="mobileEchoareaSearchInput"
-                           placeholder="Search areas..." onkeyup="searchEchoareas(this.value)">
+                           placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
                     <div style="max-height: 300px; overflow-y: auto;">
                         <div id="mobileEchoareasList">
                             <div class="loading-spinner">
                                 <i class="fas fa-spinner fa-spin me-2"></i>
-                                Loading areas...
+                                {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
                             </div>
                         </div>
                     </div>
@@ -62,17 +62,17 @@
             <h2 class="accordion-header" id="mobileSearchHeading">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mobileSearchCollapse" aria-expanded="false">
                     <i class="fas fa-search me-2"></i>
-                    Search Messages
+                    {{ t('ui.common.search_messages', {}, locale, ['common']) }}
                 </button>
             </h2>
             <div id="mobileSearchCollapse" class="accordion-collapse collapse" data-bs-parent="#mobileControlsAccordion">
                 <div class="accordion-body">
                     <div class="mb-3">
-                        <input type="text" class="form-control" id="mobileSearchInput" placeholder="Search messages...">
+                        <input type="text" class="form-control" id="mobileSearchInput" placeholder="{{ t('ui.common.search_messages_placeholder', {}, locale, ['common']) }}">
                     </div>
                     <button class="btn btn-outline-primary w-100" onclick="searchMessagesFromMobile()">
                         <i class="fas fa-search"></i>
-                        Search
+                        {{ t('ui.common.search', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -90,27 +90,27 @@
                         {% if echoarea %}
                             {{ echoarea }} Messages
                         {% else %}
-                            Recent Messages
+                            {{ t('ui.echomail.recent_messages', {}, locale, ['common']) }}
                         {% endif %}
                     </h6>
                     <div class="d-flex align-items-center gap-2">
                         <div id="bulkActions" class="d-none">
-                            <span class="me-2 text-muted">Selected: <span id="selectedCount">0</span></span>
+                            <span class="me-2 text-muted">{{ t('ui.common.selected', {}, locale, ['common']) }}: <span id="selectedCount">0</span></span>
                             <button type="button" class="btn btn-outline-primary btn-sm" onclick="markSelectedAsRead()" disabled>
                                 <i class="fas fa-envelope-open"></i>
-                                Mark as Read
+                                {{ t('ui.common.mark_as_read', {}, locale, ['common']) }}
                             </button>
                             {% if current_user.is_admin %}
                             <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteSelectedMessages()" disabled>
                                 <i class="fas fa-trash"></i>
-                                Delete Selected
+                                {{ t('ui.netmail.delete_selected', {}, locale, ['common']) }}
                             </button>
                             {% endif %}
                         </div>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary" onclick="toggleSelectMode()" id="selectModeBtn">
                                 <i class="fas fa-check-square"></i>
-                                Select
+                                {{ t('ui.common.select', {}, locale, ['common']) }}
                             </button>
                             <button type="button" class="btn btn-outline-secondary" onclick="refreshMessages()">
                                 <i class="fas fa-sync-alt"></i>
@@ -119,14 +119,14 @@
                                 <i class="fas fa-sort"></i>
                             </button>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">Newest First</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">Oldest First</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">By Subject</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">By Author</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_desc')">{{ t('ui.common.sort.newest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('date_asc')">{{ t('ui.common.sort.oldest_first', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('subject')">{{ t('ui.common.sort.by_subject', {}, locale, ['common']) }}</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortMessages('author')">{{ t('ui.common.sort.by_author', {}, locale, ['common']) }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="#" onclick="toggleThreading()">
                                     <i class="fas fa-project-diagram"></i>
-                                    <span id="threadingToggleText">Show Threaded</span>
+                                    <span id="threadingToggleText">{{ t('ui.common.threading.show_threaded', {}, locale, ['common']) }}</span>
                                 </a></li>
                             </ul>
                         </div>
@@ -136,37 +136,37 @@
                 <ul class="nav nav-tabs card-header-tabs mt-2">
                     <li class="nav-item">
                         <a class="nav-link active" href="#" onclick="setFilter('all')" id="allTab">
-                            <i class="fas fa-list"></i> All Messages
+                            <i class="fas fa-list"></i> {{ t('ui.common.all_messages', {}, locale, ['common']) }}
                             <span class="badge bg-secondary ms-1" id="allCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('unread')" id="unreadTab">
-                            <i class="fas fa-envelope"></i> Unread
+                            <i class="fas fa-envelope"></i> {{ t('ui.common.unread', {}, locale, ['common']) }}
                             <span class="badge bg-primary ms-1" id="unreadCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('read')" id="readTab">
-                            <i class="far fa-envelope-open"></i> Read
+                            <i class="far fa-envelope-open"></i> {{ t('ui.common.read', {}, locale, ['common']) }}
                             <span class="badge bg-success ms-1" id="readCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('tome')" id="toMeTab">
-                            <i class="fas fa-user"></i> To Me
+                            <i class="fas fa-user"></i> {{ t('ui.echomail.to_me', {}, locale, ['common']) }}
                             <span class="badge bg-info ms-1" id="toMeCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('saved')" id="savedTab">
-                            <i class="fas fa-bookmark"></i> Saved Items
+                            <i class="fas fa-bookmark"></i> {{ t('ui.echomail.saved_items', {}, locale, ['common']) }}
                             <span class="badge bg-warning ms-1" id="savedCount">0</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="setFilter('drafts')" id="draftsTab">
-                            <i class="fas fa-edit"></i> Drafts
+                            <i class="fas fa-edit"></i> {{ t('ui.common.drafts', {}, locale, ['common']) }}
                             <span class="badge bg-secondary ms-1" id="draftsCount">0</span>
                         </a>
                     </li>
@@ -176,7 +176,7 @@
                 <div id="messagesContainer">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading messages...
+                        {{ t('ui.common.loading_messages', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -193,7 +193,7 @@
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0">Echo Areas</h6>
+                    <h6 class="mb-0">{{ t('ui.echomail.echo_areas', {}, locale, ['common']) }}</h6>
                     <div class="d-flex gap-2">
                         <a href="/echolist" class="" title="Echo List View">
                             <i class="fa-solid fa-list"></i>
@@ -204,13 +204,13 @@
                     </div>
                 </div>
                 <input type="text" class="form-control form-control-sm" id="echoareaSearchInput"
-                       placeholder="Search areas..." onkeyup="searchEchoareas(this.value)">
+                       placeholder="{{ t('ui.echomail.search_areas_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
             </div>
             <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
                 <div id="echoareasList">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading areas...
+                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -218,35 +218,35 @@
         
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Search Messages</h6>
+                <h6 class="mb-0">{{ t('ui.common.search_messages', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search...">
+                    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="{{ t('ui.common.search_placeholder', {}, locale, ['common']) }}">
                 </div>
                 <button class="btn btn-outline-primary btn-sm w-100" onclick="searchMessages()">
                     <i class="fas fa-search"></i>
-                    Search
+                    {{ t('ui.common.search', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
 
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Statistics</h6>
+                <h6 class="mb-0">{{ t('ui.common.statistics', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-6">Total:</dt>
+                    <dt class="col-6">{{ t('ui.common.total', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="totalMessages">-</dd>
                     
-                    <dt class="col-6">Unread:</dt>
+                    <dt class="col-6">{{ t('ui.common.unread', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="unreadMessages">-</dd>
                     
-                    <dt class="col-6">Recent:</dt>
+                    <dt class="col-6">{{ t('ui.common.recent', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="recentMessages">-</dd>
                     
-                    <dt class="col-6">Areas:</dt>
+                    <dt class="col-6">{{ t('ui.echomail.areas', {}, locale, ['common']) }}:</dt>
                     <dd class="col-6" id="totalAreas">-</dd>
                 </dl>
             </div>
@@ -258,7 +258,7 @@
 <div class="text-center mt-4 mb-4">
     <a href="/subscriptions" class="btn btn-outline-primary">
         <i class="fa-solid fa-wrench me-2"></i>
-        Manage Subscriptions
+        {{ t('ui.echomail.manage_subscriptions', {}, locale, ['common']) }}
     </a>
 </div>
 
@@ -275,7 +275,7 @@
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
-                <h5 class="modal-title" id="messageSubject">Message</h5>
+                <h5 class="modal-title" id="messageSubject">{{ t('ui.common.message', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
                     <i class="fas fa-expand"></i>
                 </button>
@@ -285,27 +285,27 @@
                 <div id="messageContent">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading message...
+                        {{ t('ui.common.loading_message', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary btn-compact-label" data-bs-dismiss="modal">
                     <i class="fas fa-times"></i>
-                    <span class="btn-text">Close</span>
+                    <span class="btn-text">{{ t('ui.common.close', {}, locale, ['common']) }}</span>
                 </button>
                 <div class="btn-group">
                     <button type="button" class="btn btn-outline-warning btn-compact-label" id="modalSaveButton">
                         <i class="fas fa-bookmark"></i>
-                        <span class="btn-text" id="modalSaveText">Save</span>
+                        <span class="btn-text" id="modalSaveText">{{ t('ui.common.save', {}, locale, ['common']) }}</span>
                     </button>
                     <button type="button" class="btn btn-outline-info btn-compact-label" id="shareButton">
                         <i class="fas fa-share-alt"></i>
-                        <span class="btn-text">Share</span>
+                        <span class="btn-text">{{ t('ui.common.share', {}, locale, ['common']) }}</span>
                     </button>
                     <button type="button" class="btn btn-fidonet btn-compact-label" id="replyButton">
                         <i class="fas fa-reply"></i>
-                        <span class="btn-text">Reply</span>
+                        <span class="btn-text">{{ t('ui.common.reply', {}, locale, ['common']) }}</span>
                     </button>
                 </div>
             </div>
@@ -318,41 +318,41 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Share Message</h5>
+                <h5 class="modal-title">{{ t('ui.echomail.share_message', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
-                    Share this echomail message with others via a web link.
+                    {{ t('ui.echomail.share_message_help', {}, locale, ['common']) }}
                 </div>
                 
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="publicShare" checked>
                     <label class="form-check-label" for="publicShare">
-                        <strong>Allow anonymous access</strong>
-                        <br><small class="text-muted">Anyone with the link can view without logging in</small>
+                        <strong>{{ t('ui.echomail.allow_anonymous_access', {}, locale, ['common']) }}</strong>
+                        <br><small class="text-muted">{{ t('ui.echomail.allow_anonymous_access_help', {}, locale, ['common']) }}</small>
                     </label>
                 </div>
                 
                 <div class="mb-3" id="shareExpirySection">
-                    <label for="shareExpiry" class="form-label">Link expires after:</label>
+                    <label for="shareExpiry" class="form-label">{{ t('ui.echomail.link_expires_after', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="shareExpiry">
-                        <option value="" selected>Never expires</option>
-                        <option value="1">1 hour</option>
-                        <option value="24">24 hours</option>
-                        <option value="168">1 week</option>
-                        <option value="720">30 days</option>
+                        <option value="" selected>{{ t('ui.echomail.never_expires', {}, locale, ['common']) }}</option>
+                        <option value="1">{{ t('ui.common.time.1_hour', {}, locale, ['common']) }}</option>
+                        <option value="24">{{ t('ui.common.time.24_hours', {}, locale, ['common']) }}</option>
+                        <option value="168">{{ t('ui.common.time.1_week', {}, locale, ['common']) }}</option>
+                        <option value="720">{{ t('ui.common.time.30_days', {}, locale, ['common']) }}</option>
                     </select>
                 </div>
                 
                 <div id="shareResult" class="d-none">
-                    <label class="form-label">Share URL:</label>
+                    <label class="form-label">{{ t('ui.common.share_url', {}, locale, ['common']) }}</label>
                     <div class="input-group mb-3">
                         <input type="text" class="form-control" id="shareUrl" readonly>
                         <button class="btn btn-outline-secondary" type="button" onclick="copyShareUrl()">
                             <i class="fas fa-copy"></i>
-                            Copy
+                            {{ t('ui.common.copy', {}, locale, ['common']) }}
                         </button>
                     </div>
                     
@@ -368,7 +368,7 @@
                     
                     <div class="alert alert-success">
                         <i class="fas fa-check-circle me-2"></i>
-                        Share link created successfully! You can now copy and share this URL.
+                        {{ t('ui.echomail.share_link_created_success', {}, locale, ['common']) }}
                     </div>
                 </div>
                 
@@ -380,18 +380,18 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" id="createShareBtn">
                     <i class="fas fa-share-alt"></i>
-                    Create Share Link
+                    {{ t('ui.echomail.create_share_link', {}, locale, ['common']) }}
                 </button>
                 <button type="button" class="btn btn-outline-primary d-none" id="friendlyUrlBtn" title="Generate a readable URL based on the echo area and subject">
                     <i class="fas fa-link"></i>
-                    Get Friendly URL
+                    {{ t('ui.echomail.get_friendly_url', {}, locale, ['common']) }}
                 </button>
                 <button type="button" class="btn btn-danger d-none" id="revokeShareBtn">
                     <i class="fas fa-trash"></i>
-                    Revoke Share
+                    {{ t('ui.echomail.revoke_share', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
