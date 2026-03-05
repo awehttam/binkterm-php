@@ -5388,21 +5388,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $entryId = $addressBook->createEntry($userId, $data);
 
                 echo json_encode(['success' => true, 'entry_id' => $entryId]);
+            } catch (\BinktermPHP\AddressBookException $e) {
+                apiError($e->getErrorCode(), $e->getMessage(), $e->getHttpStatus());
+                return;
             } catch (Exception $e) {
-                $message = $e->getMessage();
-                if (str_contains($message, 'Invalid Fidonet address format')) {
-                    apiError('errors.address_book.invalid_fidonet_format', $message, 400);
-                    return;
-                }
-                if (str_contains($message, 'Name, user ID, and node address are required')) {
-                    apiError('errors.address_book.required_fields', $message, 400);
-                    return;
-                }
-                if (str_contains($message, 'already exists')) {
-                    apiError('errors.address_book.duplicate_entry', $message, 409);
-                    return;
-                }
-                apiError('errors.address_book.create_failed', $message, 400);
+                apiError('errors.address_book.create_failed', $e->getMessage(), 400);
                 return;
             }
         });
@@ -5426,25 +5416,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     apiError('errors.address_book.update_failed', 'Failed to update entry', 400);
                     return;
                 }
+            } catch (\BinktermPHP\AddressBookException $e) {
+                apiError($e->getErrorCode(), $e->getMessage(), $e->getHttpStatus());
+                return;
             } catch (Exception $e) {
-                $message = $e->getMessage();
-                if (str_contains($message, 'Address book entry not found')) {
-                    apiError('errors.address_book.not_found', $message, 404);
-                    return;
-                }
-                if (str_contains($message, 'Invalid Fidonet address format')) {
-                    apiError('errors.address_book.invalid_fidonet_format', $message, 400);
-                    return;
-                }
-                if (str_contains($message, 'Name, user ID, and node address are required')) {
-                    apiError('errors.address_book.required_fields', $message, 400);
-                    return;
-                }
-                if (str_contains($message, 'already exists')) {
-                    apiError('errors.address_book.duplicate_entry', $message, 409);
-                    return;
-                }
-                apiError('errors.address_book.update_failed', $message, 400);
+                apiError('errors.address_book.update_failed', $e->getMessage(), 400);
                 return;
             }
         })->where(['id' => '[0-9]+']);

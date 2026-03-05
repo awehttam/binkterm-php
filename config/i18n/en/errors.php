@@ -16,6 +16,7 @@ return [
     'errors.auth.token_required' => 'Token is required',
     'errors.auth.invalid_or_expired_token' => 'Invalid or expired token',
     'errors.auth.token_and_password_required' => 'Token and new password are required',
+    'errors.auth.weak_password' => 'Password must be at least 8 characters long',
     'errors.auth.reset_failed' => 'Failed to reset password',
 
     // Registration
@@ -203,6 +204,22 @@ return [
     'errors.binkp.files_inbound_failed' => 'Failed to load inbound BinkP files',
     'errors.binkp.files_outbound_failed' => 'Failed to load outbound BinkP files',
     'errors.binkp.process_outbound_failed' => 'Failed to process outbound queue',
+    'errors.binkp.connection_test_failed' => 'Failed to test BinkP connection',
+    'errors.binkp.logs.failed' => 'Failed to load BinkP logs',
+    'errors.binkp.uplink.address_hostname_required' => 'Address and hostname are required',
+    'errors.binkp.uplink.poll_failed' => 'Failed to poll BinkP uplink',
+    'errors.binkp.uplink.poll_all_failed' => 'Failed to poll all BinkP uplinks',
+    'errors.binkp.uplink.add_failed' => 'Failed to add BinkP uplink',
+    'errors.binkp.uplink.update_failed' => 'Failed to update BinkP uplink',
+    'errors.binkp.uplink.remove_failed' => 'Failed to remove BinkP uplink',
+    'errors.binkp.files.inbound_failed' => 'Failed to load inbound BinkP files',
+    'errors.binkp.files.outbound_failed' => 'Failed to load outbound BinkP files',
+    'errors.binkp.files.process_inbound_failed' => 'Failed to process inbound BinkP queue',
+    'errors.binkp.files.process_outbound_failed' => 'Failed to process outbound BinkP queue',
+    'errors.binkp.files.delete_outbound_failed' => 'Failed to delete outbound BinkP file',
+    'errors.binkp.files.retry_error_failed' => 'Failed to retry inbound error file',
+    'errors.binkp.config.invalid_section' => 'Invalid BinkP configuration section',
+    'errors.binkp.config.update_failed' => 'Failed to update BinkP configuration',
 
     // Admin Pending Users
     'errors.admin.pending_users.admin_required' => 'Admin privileges are required',
@@ -326,6 +343,18 @@ return [
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Failed to load shared message',
     'errors.messages.shared.user_shares_failed' => 'Failed to load user shares',
+
+    // Subscriptions
+    'errors.subscriptions.echoarea_id_required' => 'Echoarea ID required',
+    'errors.subscriptions.invalid_action' => 'Invalid action',
+    'errors.subscriptions.admin_required' => 'Admin access required',
+
+    // Nodelist API
+    'errors.nodelist.api.endpoint_not_found' => 'API endpoint not found',
+    'errors.nodelist.api.address_required' => 'Address parameter required',
+    'errors.nodelist.api.node_not_found' => 'Node not found',
+    'errors.nodelist.api.zone_required' => 'Zone parameter required',
+    'errors.nodelist.api.internal_error' => 'Failed to process nodelist API request',
 
     // Settings / Taglines
     'errors.settings.load_failed' => 'Failed to load user settings',

@@ -142,6 +142,8 @@ class PasswordResetController
         if (!$tokenData) {
             return [
                 'success' => false,
+                'error_code' => 'errors.auth.invalid_or_expired_token',
+                'error' => 'Invalid or expired reset token.',
                 'message' => 'Invalid or expired reset token.'
             ];
         }
@@ -150,6 +152,8 @@ class PasswordResetController
         if (strlen($newPassword) < 8) {
             return [
                 'success' => false,
+                'error_code' => 'errors.auth.weak_password',
+                'error' => 'Password must be at least 8 characters long.',
                 'message' => 'Password must be at least 8 characters long.'
             ];
         }
@@ -196,6 +200,8 @@ class PasswordResetController
 
             return [
                 'success' => false,
+                'error_code' => 'errors.auth.reset_failed',
+                'error' => 'Failed to reset password. Please try again.',
                 'message' => 'Failed to reset password. Please try again.'
             ];
         }

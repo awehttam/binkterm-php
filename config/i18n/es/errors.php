@@ -16,6 +16,7 @@ return [
     'errors.auth.token_required' => 'Se requiere token',
     'errors.auth.invalid_or_expired_token' => 'Token invalido o expirado',
     'errors.auth.token_and_password_required' => 'Se requieren token y nueva contrasena',
+    'errors.auth.weak_password' => 'La contrasena debe tener al menos 8 caracteres',
     'errors.auth.reset_failed' => 'No se pudo restablecer la contrasena',
 
     // Registration
@@ -203,6 +204,22 @@ return [
     'errors.binkp.files_inbound_failed' => 'No se pudieron cargar los archivos de entrada de BinkP',
     'errors.binkp.files_outbound_failed' => 'No se pudieron cargar los archivos de salida de BinkP',
     'errors.binkp.process_outbound_failed' => 'No se pudo procesar la cola de salida',
+    'errors.binkp.connection_test_failed' => 'No se pudo probar la conexion BinkP',
+    'errors.binkp.logs.failed' => 'No se pudieron cargar los registros de BinkP',
+    'errors.binkp.uplink.address_hostname_required' => 'Se requieren direccion y hostname',
+    'errors.binkp.uplink.poll_failed' => 'No se pudo consultar el uplink BinkP',
+    'errors.binkp.uplink.poll_all_failed' => 'No se pudieron consultar todos los uplinks BinkP',
+    'errors.binkp.uplink.add_failed' => 'No se pudo agregar el uplink BinkP',
+    'errors.binkp.uplink.update_failed' => 'No se pudo actualizar el uplink BinkP',
+    'errors.binkp.uplink.remove_failed' => 'No se pudo eliminar el uplink BinkP',
+    'errors.binkp.files.inbound_failed' => 'No se pudieron cargar los archivos de entrada de BinkP',
+    'errors.binkp.files.outbound_failed' => 'No se pudieron cargar los archivos de salida de BinkP',
+    'errors.binkp.files.process_inbound_failed' => 'No se pudo procesar la cola de entrada de BinkP',
+    'errors.binkp.files.process_outbound_failed' => 'No se pudo procesar la cola de salida de BinkP',
+    'errors.binkp.files.delete_outbound_failed' => 'No se pudo eliminar el archivo saliente de BinkP',
+    'errors.binkp.files.retry_error_failed' => 'No se pudo reintentar el archivo de error entrante',
+    'errors.binkp.config.invalid_section' => 'Seccion de configuracion BinkP invalida',
+    'errors.binkp.config.update_failed' => 'No se pudo actualizar la configuracion de BinkP',
 
     // Admin Pending Users
     'errors.admin.pending_users.admin_required' => 'Se requieren privilegios de administrador',
@@ -326,6 +343,18 @@ return [
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'No se pudo cargar el mensaje compartido',
     'errors.messages.shared.user_shares_failed' => 'No se pudieron cargar los recursos compartidos del usuario',
+
+    // Subscriptions
+    'errors.subscriptions.echoarea_id_required' => 'Se requiere el ID del area de eco',
+    'errors.subscriptions.invalid_action' => 'Accion invalida',
+    'errors.subscriptions.admin_required' => 'Se requiere acceso de administrador',
+
+    // Nodelist API
+    'errors.nodelist.api.endpoint_not_found' => 'Punto final de API no encontrado',
+    'errors.nodelist.api.address_required' => 'Se requiere el parametro de direccion',
+    'errors.nodelist.api.node_not_found' => 'Nodo no encontrado',
+    'errors.nodelist.api.zone_required' => 'Se requiere el parametro de zona',
+    'errors.nodelist.api.internal_error' => 'No se pudo procesar la solicitud de API de nodelist',
 
     // Settings / Taglines
     'errors.settings.load_failed' => 'No se pudo cargar la configuracion del usuario',

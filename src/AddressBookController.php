@@ -16,6 +16,29 @@
 
 namespace BinktermPHP;
 
+class AddressBookException extends \RuntimeException
+{
+    private string $errorCode;
+    private int $httpStatus;
+
+    public function __construct(string $errorCode, string $message, int $httpStatus = 400)
+    {
+        parent::__construct($message);
+        $this->errorCode = $errorCode;
+        $this->httpStatus = $httpStatus;
+    }
+
+    public function getErrorCode(): string
+    {
+        return $this->errorCode;
+    }
+
+    public function getHttpStatus(): int
+    {
+        return $this->httpStatus;
+    }
+}
+
 class AddressBookController
 {
     private $db;
@@ -77,12 +100,20 @@ class AddressBookController
     {
         // Validate required fields
         if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
-            throw new \Exception('Name, user ID, and node address are required');
+            throw new AddressBookException(
+                'errors.address_book.required_fields',
+                'Name, user ID, and node address are required',
+                400
+            );
         }
 
         // Validate Fidonet address format
         if (!$this->isValidFidonetAddress($data['node_address'])) {
-            throw new \Exception('Invalid Fidonet address format. Use format like 1:234/567 or 1:234/567.0');
+            throw new AddressBookException(
+                'errors.address_book.invalid_fidonet_format',
+                'Invalid Fidonet address format. Use format like 1:234/567 or 1:234/567.0',
+                400
+            );
         }
 
         // Check for duplicate entry
@@ -93,7 +124,11 @@ class AddressBookController
         $checkStmt->execute([$userId, $data['messaging_user_id'], $data['node_address']]);
         
         if ($checkStmt->fetch()) {
-            throw new \Exception('An entry with this name and address already exists');
+            throw new AddressBookException(
+                'errors.address_book.duplicate_entry',
+                'An entry with this name and address already exists',
+                409
+            );
         }
 
         $alwaysCrashmail = !empty($data['always_crashmail']);
@@ -117,7 +152,11 @@ class AddressBookController
             return $this->db->lastInsertId();
         }
         
-        throw new \Exception('Failed to create address book entry');
+        throw new AddressBookException(
+            'errors.address_book.create_failed',
+            'Failed to create address book entry',
+            400
+        );
     }
 
     /**
@@ -128,17 +167,29 @@ class AddressBookController
         // Verify entry exists and belongs to user
         $entry = $this->getEntry($entryId, $userId);
         if (!$entry) {
-            throw new \Exception('Address book entry not found');
+            throw new AddressBookException(
+                'errors.address_book.not_found',
+                'Address book entry not found',
+                404
+            );
         }
 
         // Validate required fields
         if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
-            throw new \Exception('Name, user ID, and node address are required');
+            throw new AddressBookException(
+                'errors.address_book.required_fields',
+                'Name, user ID, and node address are required',
+                400
+            );
         }
 
         // Validate Fidonet address format
         if (!$this->isValidFidonetAddress($data['node_address'])) {
-            throw new \Exception('Invalid Fidonet address format. Use format like 1:234/567 or 1:234/567.0');
+            throw new AddressBookException(
+                'errors.address_book.invalid_fidonet_format',
+                'Invalid Fidonet address format. Use format like 1:234/567 or 1:234/567.0',
+                400
+            );
         }
 
         // Check for duplicate entry (excluding current entry)
@@ -149,7 +200,11 @@ class AddressBookController
         $checkStmt->execute([$userId, $data['messaging_user_id'], $data['node_address'], $entryId]);
         
         if ($checkStmt->fetch()) {
-            throw new \Exception('An entry with this name and address already exists');
+            throw new AddressBookException(
+                'errors.address_book.duplicate_entry',
+                'An entry with this name and address already exists',
+                409
+            );
         }
 
         $alwaysCrashmail = !empty($data['always_crashmail']);
