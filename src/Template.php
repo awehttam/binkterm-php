@@ -205,7 +205,7 @@ class Template
 
         // Appearance configuration
         $appearanceConfig = AppearanceConfig::getConfig();
-        $bbsMenuItems = $this->buildBbsMenuItems($appearanceConfig);
+        $bbsMenuItems = $this->buildBbsMenuItems($appearanceConfig, $locale);
 
         // Resolve announcement active state (Twig has no datetime comparison)
         $ann = $appearanceConfig['content']['announcement'] ?? [];
@@ -284,11 +284,6 @@ class Template
                     $looksLikeLocale = (bool)preg_match('/^[a-z]{2}(?:-[A-Z]{2})?$/', $third);
                     if ($this->translator->isSupportedLocale($third) || $looksLikeLocale) {
                         $resolvedLocale = $third;
-                    } elseif (isset($args[1]) && is_array($args[1])) {
-                        // Modern style: t(key, params, localeOrNamespace, [namespaces])
-                        if ($third !== 'common') {
-                            array_unshift($namespaces, $third);
-                        }
                     } elseif ((bool)preg_match('/^[a-z0-9_]+$/i', $third)) {
                         // Legacy namespace style: t(key, params, 'errors')
                         if ($third !== 'common') {
@@ -320,7 +315,7 @@ class Template
      * Feature pages are injected at render time so existing saved appearance
      * config remains unchanged.
      */
-    private function buildBbsMenuItems(array $appearanceConfig): array
+    private function buildBbsMenuItems(array $appearanceConfig, string $locale = ''): array
     {
         $items = $appearanceConfig['shell']['bbs_menu']['menu_items'] ?? [];
         if (!is_array($items)) {
@@ -353,7 +348,7 @@ class Template
             $normalizedItems = $this->appendBbsMenuFeatureItem(
                 $normalizedItems,
                 '/polls',
-                'Polls',
+                $this->translator->translate('ui.polls.title', [], $locale ?: null),
                 'vote-yea',
                 ['P', 'O', 'L']
             );
@@ -363,7 +358,7 @@ class Template
             $normalizedItems = $this->appendBbsMenuFeatureItem(
                 $normalizedItems,
                 '/shoutbox',
-                'Shoutbox',
+                $this->translator->translate('ui.shoutbox.title', [], $locale ?: null),
                 'bullhorn',
                 ['H', 'U', 'B', 'X']
             );
