@@ -225,7 +225,7 @@ function loadBbsSettings() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load settings');
+                throw new Error(apiError(data, 'Failed to load settings'));
             }
             const features = data.config?.features || {};
             const credits = data.config?.credits || {};
@@ -304,7 +304,7 @@ function saveBbsSettings() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to save settings');
+                throw new Error(apiError(data, 'Failed to save settings'));
             }
             showBbsSettingsAlert('BBS features saved successfully.', 'success');
         })
@@ -318,7 +318,7 @@ function loadBbsSystem() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load system settings');
+                throw new Error(apiError(data, 'Failed to load system settings'));
             }
             const config = data.config || {};
             document.getElementById('bbsSystemName').value = config.name || '';
@@ -352,7 +352,7 @@ function saveBbsSystem() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(data.error || 'Failed to save system settings');
+            throw new Error(apiError(data, 'Failed to save system settings'));
         }
         showBbsSystemAlert('System settings saved successfully.', 'success');
     })
@@ -462,7 +462,7 @@ function saveBbsCredits() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to save credits settings');
+                throw new Error(apiError(data, 'Failed to save credits settings'));
             }
             showBbsCreditsAlert('Credits settings saved successfully.', 'success');
         })
@@ -476,7 +476,7 @@ function loadBbsTaglines() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load taglines');
+                throw new Error(apiError(data, 'Failed to load taglines'));
             }
             document.getElementById('bbsTaglinesText').value = data.taglines || '';
         })
@@ -495,7 +495,7 @@ function saveBbsTaglines() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(data.error || 'Failed to save taglines');
+            throw new Error(apiError(data, 'Failed to save taglines'));
         }
         showBbsTaglinesAlert('Taglines saved successfully.', 'success');
     })
@@ -577,6 +577,16 @@ function syncSysopSelect(selectId) {
         select.insertBefore(option, select.firstChild);
     }
     select.value = current;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 </script>
 {% endblock %}

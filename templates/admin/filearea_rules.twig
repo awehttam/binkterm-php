@@ -103,7 +103,7 @@ function loadRulesConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load rules');
+                throw new Error(apiError(data, 'Failed to load rules'));
             }
             const cfg = data.config || {};
             rulesState.configJson = cfg.config_json || '{"global_rules": [], "area_rules": {}}';
@@ -139,7 +139,7 @@ function saveRules() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to save rules');
+                throw new Error(apiError(data, 'Failed to save rules'));
             }
             const cfg = data.config || {};
             rulesState.configJson = cfg.config_json || editor.value;
@@ -177,5 +177,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveRulesBtn').addEventListener('click', saveRules);
     document.getElementById('resetRulesBtn').addEventListener('click', resetRules);
 });
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
 </script>
 {% endblock %}

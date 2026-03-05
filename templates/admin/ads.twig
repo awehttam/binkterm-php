@@ -88,8 +88,8 @@ function loadAds() {
     fetch('/admin/api/ads')
         .then(response => readJsonResponse(response))
         .then(({ response, data }) => {
-            if (!response.ok || data.error) {
-                throw new Error(data.error || `Failed to load ads (${response.status})`);
+            if (!response.ok || data['error_code'] || ('error' in data)) {
+                throw new Error(apiError(data, `Failed to load ads (${response.status})`));
             }
             renderAdsTable(Array.isArray(data.ads) ? data.ads : []);
         })
@@ -151,7 +151,7 @@ function uploadAd() {
     .then(response => readJsonResponse(response))
     .then(({ response, data }) => {
         if (!response.ok || !data.success) {
-            throw new Error(data.error || `Upload failed (${response.status})`);
+            throw new Error(apiError(data, `Upload failed (${response.status})`));
         }
         fileInput.value = '';
         document.getElementById('adName').value = '';
@@ -172,7 +172,7 @@ function deleteAd(encodedName, displayName) {
         .then(response => readJsonResponse(response))
         .then(({ response, data }) => {
             if (!response.ok || !data.success) {
-                throw new Error(data.error || `Delete failed (${response.status})`);
+                throw new Error(apiError(data, `Delete failed (${response.status})`));
             }
             showAdsAlert('Advertisement deleted.', 'success');
             loadAds();
@@ -207,6 +207,16 @@ function escapeHtml(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 
 function readJsonResponse(response) {

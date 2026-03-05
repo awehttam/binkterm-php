@@ -298,6 +298,13 @@ let currentEchoareaId = null;
 let allEchoareas = [];
 let searchQuery = '';
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadEchoareas();
     loadStats();
@@ -522,7 +529,7 @@ function saveEchoarea() {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Operation failed';
+            const error = apiError(xhr.responseJSON, 'Operation failed');
             showError(error);
         }
     });
@@ -549,7 +556,7 @@ function deleteEchoarea() {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Delete failed';
+            const error = apiError(xhr.responseJSON, 'Delete failed');
             showError(error);
         }
     });

@@ -18,6 +18,15 @@
     };
 
     let dbPromise = null;
+    function apiError(payload, fallback) {
+        if (window.getApiErrorMessage) {
+            return window.getApiErrorMessage(payload, fallback);
+        }
+        if (payload && payload.error) {
+            return String(payload.error);
+        }
+        return fallback;
+    }
 
     function openDb() {
         if (dbPromise) return dbPromise;
@@ -381,7 +390,7 @@
                 appendMessage(data.local_message);
             }
             if (!data.success) {
-                alert(data.error || 'Failed to send message');
+                alert(apiError(data, 'Failed to send message'));
             }
         }).catch(() => {
             alert('Failed to send message');
@@ -568,7 +577,7 @@
                 })
             }).then(res => res.json()).then(data => {
                 if (!data.success) {
-                    alert(data.error || 'Moderation failed');
+                    alert(apiError(data, 'Moderation failed'));
                 }
             }).catch(() => {
                 alert('Moderation failed');

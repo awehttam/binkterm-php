@@ -218,6 +218,13 @@ let votingPollIndex = 0;
 let shoutboxOffset = 0;
 const shoutboxPageSize = 5;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadDashboardData();
     {% if bbs_feature_enabled('voting_booth') %}
@@ -369,7 +376,7 @@ function submitPollVote(pollId) {
         if (data.success) {
             loadVotingBooth(pollId);
         } else {
-            alert(data.error || 'Failed to submit vote.');
+            alert(apiError(data, 'Failed to submit vote.'));
         }
     })
     .catch(() => alert('Failed to submit vote.'));
@@ -500,7 +507,7 @@ function postShout() {
             input.value = '';
             loadShoutbox();
         } else {
-            alert(data.error || 'Failed to post shout.');
+            alert(apiError(data, 'Failed to post shout.'));
         }
     })
     .catch(() => alert('Failed to post shout.'));
@@ -510,8 +517,8 @@ function loadReferralStats() {
     fetch('/api/referrals/my-stats')
         .then(r => r.json())
         .then(data => {
-            if (data.error) {
-                console.error('Referral stats error:', data.error);
+            if (data['error_code'] || ('error' in data)) {
+                console.error('Referral stats error:', apiError(data, 'Failed to load referral stats'));
                 return;
             }
 

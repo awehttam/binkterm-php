@@ -289,6 +289,13 @@ let currentLimit = 25;
 let currentSearch = '';
 let totalUsers = 0;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadPendingUsers();
     loadAllUsers();
@@ -319,8 +326,8 @@ function loadPendingUsers() {
             if (response.success) {
                 renderPendingUsers(response.users);
             } else {
-                console.error('Pending users error:', response.error);
-                showError('Failed to load pending users: ' + (response.error || 'Unknown error'));
+                console.error('Pending users error:', apiError(response, 'Unknown error'));
+                showError('Failed to load pending users: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
@@ -353,8 +360,8 @@ function loadAllUsers(page = 1) {
                     totalUsers = response.pagination.total;
                 }
             } else {
-                console.error('All users error:', response.error);
-                showError('Failed to load users: ' + (response.error || 'Unknown error'));
+                console.error('All users error:', apiError(response, 'Unknown error'));
+                showError('Failed to load users: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
@@ -594,7 +601,7 @@ function processUser(action) {
                 refreshData();
                 $('#admin-notes').val('');
             } else {
-                showError('Failed to ' + action + ' user: ' + (response.error || 'Unknown error'));
+                showError('Failed to ' + action + ' user: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
@@ -650,7 +657,7 @@ function editUser(userId) {
                 // Show modal
                 new bootstrap.Modal(document.getElementById('editUserModal')).show();
             } else {
-                showError('Failed to load user data: ' + (response.error || 'Unknown error'));
+                showError('Failed to load user data: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
@@ -697,7 +704,7 @@ function saveUserChanges() {
                 $('#editUserModal').modal('hide');
                 refreshData();
             } else {
-                showError('Failed to update user: ' + (response.error || 'Unknown error'));
+                showError('Failed to update user: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
@@ -727,7 +734,7 @@ function toggleUserStatus(userId, newStatus) {
                 showSuccess(`User ${action}d successfully!`);
                 refreshData();
             } else {
-                showError(`Failed to ${action} user: ` + (response.error || 'Unknown error'));
+                showError(`Failed to ${action} user: ` + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
@@ -808,15 +815,13 @@ function saveNewUser() {
                 $('#createUserModal').modal('hide');
                 refreshData();
             } else {
-                showError('Failed to create user: ' + (response.error || 'Unknown error'));
+                showError('Failed to create user: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for create user:', xhr.status, xhr.statusText, xhr.responseText);
             let errorMsg = 'Failed to create user';
-            if (xhr.responseJSON && xhr.responseJSON.error) {
-                errorMsg += ': ' + xhr.responseJSON.error;
-            } else {
+            errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText); else {
                 errorMsg += ': ' + xhr.status + ' ' + xhr.statusText;
             }
             showError(errorMsg);
@@ -846,7 +851,7 @@ function cleanupRegistrations() {
                 showSuccess(`Cleanup completed! Removed ${result.approved_removed} approved and ${result.old_rejected_removed} old rejected registrations (${result.total_cleaned} total).`);
                 refreshData();
             } else {
-                showError('Failed to cleanup registrations: ' + (response.error || 'Unknown error'));
+                showError('Failed to cleanup registrations: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
@@ -879,15 +884,13 @@ function sendAccountReminder(userId, username) {
                 showSuccess(message);
                 refreshData(); // Refresh to update any status changes
             } else {
-                showError('Failed to send reminder: ' + (response.error || 'Unknown error'));
+                showError('Failed to send reminder: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for send reminder:', xhr.status, xhr.statusText, xhr.responseText);
             let errorMsg = 'Failed to send reminder';
-            if (xhr.responseJSON && xhr.responseJSON.error) {
-                errorMsg += ': ' + xhr.responseJSON.error;
-            } else {
+            errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText); else {
                 errorMsg += ': ' + xhr.status + ' ' + xhr.statusText;
             }
             showError(errorMsg);
@@ -943,7 +946,7 @@ function showUsersNeedingReminders() {
                 
                 alert(message);
             } else {
-                showError('Failed to load users needing reminders: ' + (response.error || 'Unknown error'));
+                showError('Failed to load users needing reminders: ' + apiError(response, 'Unknown error'));
             }
         },
         error: function(xhr) {

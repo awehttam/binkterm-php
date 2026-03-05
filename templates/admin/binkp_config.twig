@@ -303,7 +303,7 @@ function loadBinkpConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load config');
+                throw new Error(apiError(data, 'Failed to load config'));
             }
             binkpConfig = data.config || {};
             populateForm();
@@ -423,7 +423,7 @@ function saveBinkpConfig() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(data.error || 'Failed to save config');
+            throw new Error(apiError(data, 'Failed to save config'));
         }
         binkpConfig = data.config || config;
         renderUplinks();
@@ -448,7 +448,7 @@ function reloadBinkpConfig() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(data.error || 'Failed to reload config');
+            throw new Error(apiError(data, 'Failed to reload config'));
         }
         showBinkpAlert('Configuration reloaded successfully. Daemon has picked up changes.', 'success');
     })
@@ -486,6 +486,16 @@ function renderUplinks() {
         `;
         tbody.appendChild(row);
     });
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 
 function openUplinkModal(index = null) {

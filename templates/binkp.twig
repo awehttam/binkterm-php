@@ -232,6 +232,13 @@
 <script>
 let binkpData = {};
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     refreshStatus();
@@ -458,7 +465,7 @@ function pollUplink(address) {
                     triggerPacketProcessing();
                 }
             } else {
-                showAlert('Poll failed: ' + data.error, 'danger', { persistent: true });
+                showAlert('Poll failed: ' + apiError(data, 'Poll failed'), 'danger', { persistent: true });
             }
             refreshStatus();
         })
@@ -481,7 +488,7 @@ function pollAllUplinks() {
                     triggerPacketProcessing();
                 }
             } else {
-                showAlert('Polling failed: ' + data.error, 'danger', { persistent: true });
+                showAlert('Polling failed: ' + apiError(data, 'Polling failed'), 'danger', { persistent: true });
             }
             refreshStatus();
         })
@@ -499,7 +506,7 @@ function processInbound() {
                 refreshQueues();
                 refreshStatus();
             } else {
-                showAlert('Processing failed: ' + data.error, 'danger');
+                showAlert('Processing failed: ' + apiError(data, 'Processing failed'), 'danger');
             }
         })
         .catch(error => {
@@ -516,7 +523,7 @@ function processOutbound() {
                 refreshQueues();
                 refreshStatus();
             } else {
-                showAlert('Processing failed: ' + data.error, 'danger');
+                showAlert('Processing failed: ' + apiError(data, 'Processing failed'), 'danger');
             }
         })
         .catch(error => {
@@ -544,7 +551,7 @@ function addUplink() {
             refreshUplinks();
             refreshStatus();
         } else {
-            showAlert('Failed to add uplink: ' + result.error, 'danger');
+            showAlert('Failed to add uplink: ' + apiError(result, 'Failed to add uplink'), 'danger');
         }
     })
     .catch(error => {
@@ -563,7 +570,7 @@ function removeUplink(address) {
                 refreshUplinks();
                 refreshStatus();
             } else {
-                showAlert('Failed to remove uplink: ' + data.error, 'danger');
+                showAlert('Failed to remove uplink: ' + apiError(data, 'Failed to remove uplink'), 'danger');
             }
         })
         .catch(error => {
@@ -622,7 +629,7 @@ function triggerPacketProcessing() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                showAlert('Packet processing failed: ' + (data.error || 'Unknown error'), 'danger', { persistent: true });
+                showAlert('Packet processing failed: ' + apiError(data, 'Unknown error'), 'danger', { persistent: true });
                 return;
             }
             const result = data.result || {};

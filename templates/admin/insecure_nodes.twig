@@ -156,6 +156,13 @@
 </div>
 
 <script>
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadNodes();
 
@@ -231,7 +238,7 @@ function addNode() {
             form.reset();
             loadNodes();
         } else {
-            alert('Error: ' + (result.error || 'Failed to add node'));
+            alert('Error: ' + apiError(result, 'Failed to add node'));
         }
     })
     .catch(error => {
@@ -274,7 +281,7 @@ function updateNode() {
             bootstrap.Modal.getInstance(document.getElementById('editNodeModal')).hide();
             loadNodes();
         } else {
-            alert('Error: ' + (result.error || 'Failed to update node'));
+            alert('Error: ' + apiError(result, 'Failed to update node'));
         }
     })
     .catch(error => {
@@ -291,7 +298,7 @@ function deleteNode(id, address) {
             if (result.success) {
                 loadNodes();
             } else {
-                alert('Error: ' + (result.error || 'Failed to delete node'));
+                alert('Error: ' + apiError(result, 'Failed to delete node'));
             }
         })
         .catch(error => {

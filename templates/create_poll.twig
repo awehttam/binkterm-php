@@ -79,6 +79,13 @@
 
 <script>
 $(document).ready(function() {
+    function apiError(payload, fallback) {
+        if (window.getApiErrorMessage) {
+            return window.getApiErrorMessage(payload, fallback);
+        }
+        return payload && payload.error ? payload.error : fallback;
+    }
+
     let optionCount = 2;
 
     // Character counter for question
@@ -197,7 +204,7 @@ $(document).ready(function() {
             window.location.href = '/';
         })
         .fail(function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to create poll';
+            const error = apiError(xhr.responseJSON, 'Failed to create poll');
             alert('Error: ' + error);
             $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Create Poll ({{ poll_cost }} credits)');
         });

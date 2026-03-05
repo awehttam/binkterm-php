@@ -16,6 +16,16 @@ let searchFilterCounts = null;
 let originalFilterCounts = null;
 let isSearchActive = false;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+
 // Date display configuration: 'written' or 'received'
 // TODO: Add user toggle in settings
 const USE_DATE_FIELD = 'received';   // related to ECHOMAIL_DATE_FIELD in backend
@@ -1058,8 +1068,13 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
             }
         },
         error: function(xhr) {
-            const response = JSON.parse(xhr.responseText || '{}');
-            showError(response.error || 'Failed to update save status');
+            let response = {};
+            try {
+                response = JSON.parse(xhr.responseText || '{}');
+            } catch (e) {
+                response = xhr.responseJSON || {};
+            }
+            showError(apiError(response, 'Failed to update save status'));
         }
     });
 }
@@ -1193,8 +1208,13 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
             }
         },
         error: function(xhr) {
-            const response = JSON.parse(xhr.responseText || '{}');
-            showError(response.error || 'Failed to update save status');
+            let response = {};
+            try {
+                response = JSON.parse(xhr.responseText || '{}');
+            } catch (e) {
+                response = xhr.responseJSON || {};
+            }
+            showError(apiError(response, 'Failed to update save status'));
         }
     });
 }
@@ -1361,14 +1381,14 @@ function markSelectedAsRead() {
                 loadMessages();
                 loadStats();
             } else {
-                showError(response.error || 'Failed to mark messages as read');
+                showError(apiError(response, 'Failed to mark messages as read'));
             }
         },
         error: function(xhr) {
             let errorMessage = 'Failed to mark messages as read';
             try {
                 const response = JSON.parse(xhr.responseText);
-                errorMessage = response.error || errorMessage;
+                errorMessage = apiError(response, errorMessage);
             } catch (e) {
                 // Use default error message
             }
@@ -1418,14 +1438,14 @@ function deleteSelectedMessages() {
                 loadMessages(); // Reload messages
                 loadStats(); // Update statistics
             } else {
-                showError(response.error || 'Failed to delete messages');
+                showError(apiError(response, 'Failed to delete messages'));
             }
         },
         error: function(xhr) {
             let errorMessage = 'Failed to delete messages';
             try {
                 const response = JSON.parse(xhr.responseText);
-                errorMessage = response.error || errorMessage;
+                errorMessage = apiError(response, errorMessage);
             } catch (e) {
                 // Use default error message
             }
@@ -1784,7 +1804,7 @@ function createShare() {
                     showSuccess('Share link created successfully!');
                 }
             } else {
-                $('#shareErrorMessage').text(data.error || 'Failed to create share link');
+                $('#shareErrorMessage').text(apiError(data, 'Failed to create share link'));
                 $('#shareError').removeClass('d-none');
             }
         },
@@ -1792,7 +1812,7 @@ function createShare() {
             let errorMessage = 'Failed to create share link';
             try {
                 const response = JSON.parse(xhr.responseText);
-                errorMessage = response.error || errorMessage;
+                errorMessage = apiError(response, errorMessage);
             } catch (e) {
                 // Use default error message
             }
@@ -1817,7 +1837,7 @@ function generateFriendlyUrl() {
                 $('#friendlyUrlBtn').addClass('d-none');
                 showSuccess('Friendly URL generated!');
             } else {
-                showError(data.error || 'Failed to generate friendly URL');
+                showError(apiError(data, 'Failed to generate friendly URL'));
                 btn.prop('disabled', false).html(originalHtml);
             }
         })
@@ -1846,7 +1866,7 @@ function revokeShare() {
                 $('#revokeShareBtn').addClass('d-none');
                 showSuccess('Share link revoked');
             } else {
-                showError(data.error || 'Failed to revoke share link');
+                showError(apiError(data, 'Failed to revoke share link'));
             }
         },
         error: function() {
@@ -1995,7 +2015,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                                   .html(originalHtml)
                                   .attr('title', 'Error - click to retry')
                                   .prop('disabled', false);
-                            showError(response.error || 'Failed to save to address book');
+                            showError(apiError(response, 'Failed to save to address book'));
                         }
                     },
                     error: function(xhr) {
@@ -2004,8 +2024,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                               .html(originalHtml)
                               .attr('title', 'Error - click to retry')
                               .prop('disabled', false);
-                        const response = xhr.responseJSON;
-                        showError(response && response.error ? response.error : 'Failed to save to address book');
+                        showError(apiError(xhr.responseJSON, 'Failed to save to address book'));
                     }
                 });
             } else {

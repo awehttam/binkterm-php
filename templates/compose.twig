@@ -1123,7 +1123,9 @@ function sendMessage() {
                 }, 2000);
             },
             error: function(xhr) {
-                const error = xhr.responseJSON ? xhr.responseJSON.error : `Failed to send ${messageType}`;
+                const error = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(xhr.responseJSON, `Failed to send ${messageType}`)
+                    : `Failed to send ${messageType}`;
                 $('#sendStatus').html(`
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -1151,7 +1153,9 @@ function sendMessage() {
                 doSend(response.token);
             },
             error: function(xhr) {
-                const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to upload attachment';
+                const error = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to upload attachment')
+                    : 'Failed to upload attachment';
                 $('#sendStatus').html(`
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -1480,12 +1484,17 @@ function saveComposeAddressBookEntry() {
                     $('#toAddress').val(data.node_address);
                 }
             } else {
-                showError(response.error || 'Failed to save entry');
+                const error = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(response, 'Failed to save entry')
+                    : 'Failed to save entry';
+                showError(error);
             }
         },
         error: function(xhr) {
-            const response = xhr.responseJSON;
-            showError(response && response.error ? response.error : 'Failed to save entry');
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to save entry')
+                : 'Failed to save entry';
+            showError(error);
         }
     });
 }

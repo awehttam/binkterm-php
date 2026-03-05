@@ -40,6 +40,13 @@
 let shoutboxOffset = 0;
 const shoutboxPageSize = 20;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadShoutbox();
 });
@@ -123,7 +130,7 @@ function postShout() {
             input.value = '';
             loadShoutbox();
         } else {
-            alert(data.error || 'Failed to post shout.');
+            alert(apiError(data, 'Failed to post shout.'));
         }
     })
     .catch(() => alert('Failed to post shout.'));

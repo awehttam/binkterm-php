@@ -226,7 +226,9 @@ function updateProfile() {
             }, 3000);
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to update profile';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to update profile')
+                : 'Failed to update profile';
             $('#profileStatus').html(`
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle me-2"></i>

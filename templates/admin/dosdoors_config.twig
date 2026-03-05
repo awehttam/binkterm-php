@@ -130,7 +130,7 @@ function loadConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load config');
+                throw new Error(apiError(data, 'Failed to load config'));
             }
 
             doorsState.config = data.config || {};
@@ -152,7 +152,7 @@ function loadAvailableDoors() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load doors');
+                throw new Error(apiError(data, 'Failed to load doors'));
             }
 
             doorsState.availableDoors = data.doors || [];
@@ -359,7 +359,7 @@ function saveConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Save failed');
+                throw new Error(apiError(data, 'Save failed'));
             }
 
             doorsState.config = data.config;
@@ -398,6 +398,16 @@ function showEditorAlert(type, message) {
     setTimeout(() => {
         alert.innerHTML = '';
     }, 5000);
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 </script>
 {% endblock %}

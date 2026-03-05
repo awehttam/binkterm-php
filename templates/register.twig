@@ -101,6 +101,13 @@
 {% block scripts %}
 <script>
 $(document).ready(function() {
+    function apiError(payload, fallback) {
+        if (window.getApiErrorMessage) {
+            return window.getApiErrorMessage(payload, fallback);
+        }
+        return payload && payload.error ? payload.error : fallback;
+    }
+
     function showAlert(message, type) {
         const icon = type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle';
         const alert = $(`
@@ -237,14 +244,11 @@ $(document).ready(function() {
                         '</div>'
                     );
                 } else {
-                    showAlert(response.error || 'Registration failed. Please try again.', 'danger');
+                    showAlert(apiError(response, 'Registration failed. Please try again.'), 'danger');
                 }
             },
             error: function(xhr) {
-                let errorMsg = 'Registration failed. Please try again.';
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMsg = xhr.responseJSON.error;
-                }
+                const errorMsg = apiError(xhr.responseJSON, 'Registration failed. Please try again.');
                 showAlert(errorMsg, 'danger');
             },
             complete: function() {

@@ -534,7 +534,7 @@ function loadAppearanceConfig() {
             $('#mrScrollableBody').prop('checked', !!mr.scrollable_body);
         })
         .fail(function(xhr) {
-            showAlert('danger', 'Failed to load appearance config: ' + (xhr.responseJSON?.error || 'Unknown error'));
+            showAlert('danger', 'Failed to load appearance config: ' + apiError(xhr.responseJSON, 'Unknown error'));
         });
 }
 
@@ -587,7 +587,7 @@ function saveBranding() {
         contentType: 'application/json',
         data: JSON.stringify(payload),
         success: function() { showStatus('brandingStatus', 'success', 'Saved!'); },
-        error: function(xhr) { showStatus('brandingStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+        error: function(xhr) { showStatus('brandingStatus', 'danger', apiError(xhr.responseJSON, 'Save failed')); }
     });
 }
 
@@ -612,7 +612,7 @@ function saveContent() {
         contentType: 'application/json',
         data: JSON.stringify(payload),
         success: function() { showStatus('contentStatus', 'success', 'Saved!'); },
-        error: function(xhr) { showStatus('contentStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+        error: function(xhr) { showStatus('contentStatus', 'danger', apiError(xhr.responseJSON, 'Save failed')); }
     });
 }
 
@@ -665,7 +665,7 @@ function saveNavigation() {
         contentType: 'application/json',
         data: JSON.stringify({ custom_links: links }),
         success: function() { showStatus('navStatus', 'success', 'Saved!'); },
-        error: function(xhr) { showStatus('navStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+        error: function(xhr) { showStatus('navStatus', 'danger', apiError(xhr.responseJSON, 'Save failed')); }
     });
 }
 
@@ -685,7 +685,7 @@ function saveSeo() {
         contentType: 'application/json',
         data: JSON.stringify(payload),
         success: function() { showStatus('seoStatus', 'success', 'Saved!'); },
-        error: function(xhr) { showStatus('seoStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+        error: function(xhr) { showStatus('seoStatus', 'danger', apiError(xhr.responseJSON, 'Save failed')); }
     });
 }
 
@@ -742,7 +742,7 @@ function saveShell() {
         contentType: 'application/json',
         data: JSON.stringify(payload),
         success: function() { showStatus('shellStatus', 'success', 'Saved! Reload the page to see the new shell.'); },
-        error: function(xhr) { showStatus('shellStatus', 'danger', xhr.responseJSON?.error || 'Save failed'); }
+        error: function(xhr) { showStatus('shellStatus', 'danger', apiError(xhr.responseJSON, 'Save failed')); }
     });
 }
 
@@ -783,7 +783,7 @@ function uploadShellArtFile(input) {
             input.value = '';
         },
         error: function(xhr) {
-            $status.text('Upload failed: ' + (xhr.responseJSON?.error || 'Unknown error')).addClass('text-danger');
+            $status.text('Upload failed: ' + apiError(xhr.responseJSON, 'Unknown error')).addClass('text-danger');
             input.value = '';
         }
     });
@@ -801,7 +801,7 @@ function deleteSelectedShellArt() {
             loadShellArtList('');
         },
         error: function(xhr) {
-            $('#shellArtUploadStatus').text('Delete failed: ' + (xhr.responseJSON?.error || 'Unknown error')).addClass('text-danger');
+            $('#shellArtUploadStatus').text('Delete failed: ' + apiError(xhr.responseJSON, 'Unknown error')).addClass('text-danger');
         }
     });
 }
@@ -835,11 +835,11 @@ function saveMessageReader() {
                 $('#messageReaderStatus').text('Saved').removeClass('text-danger').addClass('text-success');
                 setTimeout(() => $('#messageReaderStatus').text(''), 3000);
             } else {
-                $('#messageReaderStatus').text('Error: ' + (r.error || 'Unknown')).addClass('text-danger');
+                $('#messageReaderStatus').text('Error: ' + apiError(r, 'Unknown')).addClass('text-danger');
             }
         })
         .fail(function(xhr) {
-            $('#messageReaderStatus').text('Error: ' + (xhr.responseJSON?.error || 'Request failed')).addClass('text-danger');
+            $('#messageReaderStatus').text('Error: ' + apiError(xhr.responseJSON, 'Request failed')).addClass('text-danger');
         });
 }
 
@@ -850,6 +850,16 @@ function showAlert(type, msg) {
 function escHtml(s) {
     if (!s) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 </script>
 {% endblock %}

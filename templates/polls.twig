@@ -43,6 +43,13 @@
 let votingPolls = [];
 let votingPollIndex = 0;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadVotingBooth();
 });
@@ -170,7 +177,7 @@ function submitPollVote(pollId) {
         if (data.success) {
             loadVotingBooth(pollId);
         } else {
-            alert(data.error || 'Failed to submit vote.');
+            alert(apiError(data, 'Failed to submit vote.'));
         }
     })
     .catch(() => alert('Failed to submit vote.'));

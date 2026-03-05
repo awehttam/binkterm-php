@@ -466,7 +466,7 @@ function saveSettings() {
         error: function(xhr) {
             const error = window.getApiErrorMessage
                 ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to save settings')
-                : (xhr.responseJSON ? xhr.responseJSON.error : 'Failed to save settings');
+                : 'Failed to save settings';
             $('#settingsStatus').html(`
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle me-2"></i>
@@ -564,7 +564,9 @@ function pollUplinks() {
             showSuccess('Uplink poll completed: ' + (data.message || 'Success'));
         })
         .fail(function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Poll failed';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, 'Poll failed')
+                : 'Poll failed';
             showError('Poll failed: ' + error);
         });
 }

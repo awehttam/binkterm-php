@@ -249,6 +249,13 @@ let currentShareId = null;
 const currentUserId = {{ current_user.id|default('null') }};
 const isAdmin = {{ current_user.is_admin|default('false') ? 'true' : 'false' }};
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadFileAreas();
     loadStats();
@@ -719,7 +726,7 @@ function uploadFile() {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to upload file';
+            const error = apiError(xhr.responseJSON, 'Failed to upload file');
             $('#uploadErrorBox').removeClass('d-none').text(error);
             $('#uploadProgress').hide();
         }
@@ -742,7 +749,7 @@ function deleteFile(fileId) {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to delete file';
+            const error = apiError(xhr.responseJSON, 'Failed to delete file');
             showError(error);
         }
     });
@@ -816,11 +823,11 @@ function createFileShare() {
                     $('#existingShareInfo').show();
                 }
             } else {
-                $('#shareModalError').text(data.error || 'Failed to create share link').show();
+                $('#shareModalError').text(apiError(data, 'Failed to create share link')).show();
             }
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to create share link';
+            const error = apiError(xhr.responseJSON, 'Failed to create share link');
             $('#shareModalError').text(error).show();
         }
     });
@@ -843,7 +850,7 @@ function revokeFileShare() {
             showSuccess('Share link revoked');
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to revoke share link';
+            const error = apiError(xhr.responseJSON, 'Failed to revoke share link');
             $('#shareModalError').text(error).show();
         }
     });

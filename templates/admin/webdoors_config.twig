@@ -95,7 +95,7 @@ function loadWebdoorsConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load webdoors config');
+                throw new Error(apiError(data, 'Failed to load webdoors config'));
             }
             const cfg = data.config || {};
             webdoorsConfigState.active = !!cfg.active;
@@ -245,7 +245,7 @@ function saveWebdoorsConfig() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(data.error || 'Failed to save config');
+            throw new Error(apiError(data, 'Failed to save config'));
         }
         showEditorAlert('Webdoors config saved.', 'success');
         const cfg = data.config || {};
@@ -263,7 +263,7 @@ function activateWebdoors() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to activate webdoors');
+                throw new Error(apiError(data, 'Failed to activate webdoors'));
             }
             const cfg = data.config || {};
             webdoorsConfigState.active = !!cfg.active;
@@ -308,6 +308,16 @@ function escapeHtml(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 </script>
 {% endblock %}

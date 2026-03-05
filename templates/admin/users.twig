@@ -140,6 +140,15 @@
 let currentPage = 1;
 let currentSearch = '';
 let currentFilter = 'all';
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     loadUsers();
@@ -355,7 +364,7 @@ function saveUser() {
             bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
             loadUsers(currentPage);
         } else {
-            showAlert(data.error || 'Error saving user', 'danger');
+            showAlert(apiError(data, 'Error saving user'), 'danger');
         }
     })
     .catch(error => {
@@ -375,7 +384,7 @@ function deleteUser(userId) {
                 showAlert('User deleted successfully', 'success');
                 loadUsers(currentPage);
             } else {
-                showAlert(data.error || 'Error deleting user', 'danger');
+                showAlert(apiError(data, 'Error deleting user'), 'danger');
             }
         })
         .catch(error => {

@@ -85,6 +85,13 @@ let templates = [];
 let currentTemplate = null;
 let isDirty = false;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadTemplates();
 
@@ -206,7 +213,7 @@ function saveTemplate() {
         .then(response => response.json().then(data => ({ ok: response.ok, data })))
         .then(({ ok, data }) => {
             if (!ok) {
-                throw new Error(data.error || 'Failed to save template');
+                throw new Error(apiError(data, 'Failed to save template'));
             }
             isDirty = false;
             loadTemplates();
@@ -234,7 +241,7 @@ function deleteTemplate() {
         .then(response => response.json().then(data => ({ ok: response.ok, data })))
         .then(({ ok, data }) => {
             if (!ok) {
-                throw new Error(data.error || 'Failed to delete template');
+                throw new Error(apiError(data, 'Failed to delete template'));
             }
             currentTemplate = null;
             isDirty = false;
@@ -265,7 +272,7 @@ function installTemplate() {
         .then(response => response.json().then(data => ({ ok: response.ok, data })))
         .then(({ ok, data }) => {
             if (!ok) {
-                throw new Error(data.error || 'Failed to install template');
+                throw new Error(apiError(data, 'Failed to install template'));
             }
             loadTemplates();
             loadTemplate(data.path);

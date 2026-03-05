@@ -121,7 +121,9 @@ $('#loginForm').on('submit', function(e) {
             }
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Login failed';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, 'Login failed')
+                : 'Login failed';
             $('#loginError').text(error).show();
         }
     });
@@ -174,7 +176,9 @@ $('#reminderForm').on('submit', function(e) {
             }
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to send reminder';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to send reminder')
+                : 'Failed to send reminder';
             $('#reminderError').text(error).show();
         },
         complete: function() {

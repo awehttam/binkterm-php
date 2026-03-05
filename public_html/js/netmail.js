@@ -11,6 +11,16 @@ let currentSearchTerms = [];
 let selectMode = false;
 let selectedMessages = new Set();
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
         loadMessages();
@@ -632,10 +642,7 @@ function deleteMessage(messageId) {
             loadStats();
         },
         error: function(xhr) {
-            let errorMsg = 'Failed to delete message';
-            if (xhr.responseJSON && xhr.responseJSON.error) {
-                errorMsg = xhr.responseJSON.error;
-            }
+            const errorMsg = apiError(xhr.responseJSON, 'Failed to delete message');
             showError(errorMsg);
         }
     });
@@ -798,7 +805,7 @@ function editAddressBookEntry(entryId) {
                 $('#addressBookAlwaysCrashmail').prop('checked', !!entry.always_crashmail);
                 $('#addressBookModal').modal('show');
             } else {
-                showError('Failed to load entry: ' + response.error);
+                showError('Failed to load entry: ' + apiError(response, 'Unknown error'));
             }
         })
         .fail(function() {
@@ -837,12 +844,11 @@ function saveAddressBookEntry() {
                 loadAddressBook();
                 showSuccess(entryId ? 'Entry updated successfully' : 'Entry added successfully');
             } else {
-                showError(response.error || 'Failed to save entry');
+                showError(apiError(response, 'Failed to save entry'));
             }
         },
         error: function(xhr) {
-            const response = xhr.responseJSON;
-            showError(response && response.error ? response.error : 'Failed to save entry');
+            showError(apiError(xhr.responseJSON, 'Failed to save entry'));
         }
     });
 }
@@ -860,7 +866,7 @@ function deleteAddressBookEntry(entryId, entryName) {
                 loadAddressBook();
                 showSuccess('Entry deleted successfully');
             } else {
-                showError(response.error || 'Failed to delete entry');
+                showError(apiError(response, 'Failed to delete entry'));
             }
         },
         error: function() {
@@ -948,7 +954,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                                   .html(originalHtml)
                                   .attr('title', 'Error - click to retry')
                                   .prop('disabled', false);
-                            showError(response.error || 'Failed to save to address book');
+                            showError(apiError(response, 'Failed to save to address book'));
                         }
                     },
                     error: function(xhr) {
@@ -957,8 +963,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                               .html(originalHtml)
                               .attr('title', 'Error - click to retry')
                               .prop('disabled', false);
-                        const response = xhr.responseJSON;
-                        showError(response && response.error ? response.error : 'Failed to save to address book');
+                        showError(apiError(xhr.responseJSON, 'Failed to save to address book'));
                     }
                 });
             } else {
@@ -1209,7 +1214,7 @@ function deleteSelectedMessages() {
             loadMessages();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to delete messages';
+            const error = apiError(xhr.responseJSON, 'Failed to delete messages');
             showError(error);
         }
     });

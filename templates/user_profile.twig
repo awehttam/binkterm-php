@@ -265,11 +265,16 @@ function sendCredits() {
                 );
                 $('#sendCreditsForm')[0].reset();
             } else {
-                showSendCreditsAlert(response.error || 'Failed to send credits', 'danger');
+                const err = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(response, 'Failed to send credits')
+                    : 'Failed to send credits';
+                showSendCreditsAlert(err, 'danger');
             }
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to send credits';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to send credits')
+                : 'Failed to send credits';
             showSendCreditsAlert(error, 'danger');
         },
         complete: function() {

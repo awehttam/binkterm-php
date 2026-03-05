@@ -195,6 +195,13 @@ const shareKey = '{{ shareKey|default('') }}';
 const shareArea = '{{ shareArea|default('')|e('js') }}';
 const shareSlug = '{{ shareSlug|default('')|e('js') }}';
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadSharedMessage();
     loadUserSettings();
@@ -209,7 +216,7 @@ function loadSharedMessage() {
             if (data.success) {
                 displaySharedMessage(data.message, data.share_info);
             } else {
-                showError(data.error);
+                showError(apiError(data, 'Failed to load shared message'));
             }
         })
         .fail(function(xhr) {

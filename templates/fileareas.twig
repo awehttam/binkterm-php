@@ -217,6 +217,13 @@
 <script>
 let currentFileareaId = null;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 $(document).ready(function() {
     loadFileareas();
     loadStats();
@@ -381,7 +388,7 @@ function saveFilearea() {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to save file area';
+            const error = apiError(xhr.responseJSON, 'Failed to save file area');
             showError(error);
         }
     });
@@ -408,7 +415,7 @@ function deleteFilearea() {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON?.error || 'Failed to delete file area';
+            const error = apiError(xhr.responseJSON, 'Failed to delete file area');
             showError(error);
         }
     });

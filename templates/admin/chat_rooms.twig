@@ -69,6 +69,15 @@
 </div>
 
 <script>
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
 document.addEventListener('DOMContentLoaded', function() {
     loadChatRooms();
 });
@@ -177,7 +186,7 @@ function saveChatRoom() {
             bootstrap.Modal.getInstance(document.getElementById('chatRoomModal')).hide();
             loadChatRooms();
         } else {
-            showAlert(data.error || 'Error saving room', 'danger');
+            showAlert(apiError(data, 'Error saving room'), 'danger');
         }
     })
     .catch(error => {
@@ -198,7 +207,7 @@ function deleteChatRoom(roomId) {
                 showAlert('Room deleted successfully', 'success');
                 loadChatRooms();
             } else {
-                showAlert(data.error || 'Error deleting room', 'danger');
+                showAlert(apiError(data, 'Error deleting room'), 'danger');
             }
         })
         .catch(error => {

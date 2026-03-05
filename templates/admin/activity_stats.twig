@@ -264,6 +264,13 @@
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
+    function apiError(payload, fallback) {
+        if (window.getApiErrorMessage) {
+            return window.getApiErrorMessage(payload, fallback);
+        }
+        return payload && payload.error ? payload.error : fallback;
+    }
+
     function progressBar(value, max, cls) {
         const pct = max > 0 ? Math.round((value / max) * 100) : 0;
         return `<div class="progress" style="height:14px"><div class="progress-bar ${cls||''}" style="width:${pct}%"></div></div>`;
@@ -475,7 +482,7 @@
             .fail(function(xhr) {
                 document.getElementById('loading-indicator').innerHTML =
                     '<div class="alert alert-danger">Failed to load statistics. ' +
-                    (xhr.responseJSON && xhr.responseJSON.error ? escapeHtml(xhr.responseJSON.error) : '') + '</div>';
+                    escapeHtml(apiError(xhr.responseJSON, '')) + '</div>';
             });
     }
 

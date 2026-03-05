@@ -337,7 +337,7 @@ function saveFeed() {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Operation failed';
+            const error = apiError(xhr.responseJSON, 'Operation failed');
             showError(error);
         }
     });
@@ -364,7 +364,7 @@ function deleteFeed() {
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Delete failed';
+            const error = apiError(xhr.responseJSON, 'Delete failed');
             showError(error);
         }
     });
@@ -380,7 +380,7 @@ function checkFeed(id) {
             loadStats();
         })
         .fail(function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Check failed';
+            const error = apiError(xhr.responseJSON, 'Check failed');
             showError(error);
         });
 }
@@ -418,6 +418,16 @@ function loadEchoareas() {
                 select.append(`<option value="${area.id}">${escapeHtml(label)}</option>`);
             });
         });
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 </script>
 {% endblock %}

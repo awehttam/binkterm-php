@@ -82,6 +82,15 @@
 </div>
 
 <script>
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
 document.addEventListener('DOMContentLoaded', function() {
     loadPolls();
 });
@@ -230,7 +239,7 @@ function savePoll() {
             bootstrap.Modal.getInstance(document.getElementById('pollModal')).hide();
             loadPolls();
         } else {
-            showAlert(data.error || 'Error saving poll', 'danger');
+            showAlert(apiError(data, 'Error saving poll'), 'danger');
         }
     })
     .catch(error => {
@@ -251,7 +260,7 @@ function deletePoll(pollId) {
                 showAlert('Poll deleted successfully', 'success');
                 loadPolls();
             } else {
-                showAlert(data.error || 'Error deleting poll', 'danger');
+                showAlert(apiError(data, 'Error deleting poll'), 'danger');
             }
         })
         .catch(error => {
