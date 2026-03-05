@@ -1389,6 +1389,7 @@ $(document).ready(function() {
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="addressBookModalError" class="alert alert-danger d-none" role="alert"></div>
                 <form id="addressBookForm">
                     <input type="hidden" id="addressBookEntryId">
                     
@@ -1456,10 +1457,29 @@ function showAddAddressModal() {
     $('#addressBookModalTitle').text('Add Address Book Entry');
     $('#addressBookEntryId').val('');
     $('#addressBookForm')[0].reset();
+    clearAddressBookModalError();
     $('#addressBookModal').modal('show');
 }
 
+function showAddressBookModalError(message) {
+    const fallback = uiT('errors.address_book.create_failed', 'Failed to save entry');
+    const text = (typeof message === 'string' && message.trim() !== '') ? message : fallback;
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length) {
+        errorEl.text(text).removeClass('d-none');
+    }
+    showError(text);
+}
+
+function clearAddressBookModalError() {
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length) {
+        errorEl.addClass('d-none').text('');
+    }
+}
+
 function saveComposeAddressBookEntry() {
+    clearAddressBookModalError();
     const data = {
         name: $('#addressBookName').val().trim(),
         messaging_user_id: $('#addressBookUserId').val().trim(),
@@ -1471,7 +1491,7 @@ function saveComposeAddressBookEntry() {
     
     // Basic validation
     if (!data.name || !data.messaging_user_id || !data.node_address) {
-        showError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
+        showAddressBookModalError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
         return;
     }
     
@@ -1494,14 +1514,14 @@ function saveComposeAddressBookEntry() {
                 const error = window.getApiErrorMessage
                     ? window.getApiErrorMessage(response, uiT('errors.address_book.create_failed', 'Failed to save entry'))
                     : uiT('errors.address_book.create_failed', 'Failed to save entry');
-                showError(error);
+                showAddressBookModalError(error);
             }
         },
         error: function(xhr) {
             const error = window.getApiErrorMessage
                 ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save entry'))
                 : uiT('errors.address_book.create_failed', 'Failed to save entry');
-            showError(error);
+            showAddressBookModalError(error);
         }
     });
 }

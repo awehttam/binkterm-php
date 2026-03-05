@@ -794,10 +794,30 @@ function showAddAddressModal() {
     $('#addressBookModalTitle').text('Add Address Book Entry');
     $('#addressBookEntryId').val('');
     $('#addressBookForm')[0].reset();
+    clearAddressBookModalError();
     $('#addressBookModal').modal('show');
 }
 
+function showAddressBookModalError(message) {
+    const fallback = uiT('errors.address_book.create_failed', 'Failed to save entry');
+    const text = (typeof message === 'string' && message.trim() !== '') ? message : fallback;
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length > 0) {
+        errorEl.text(text).removeClass('d-none');
+    }
+    // Keep global alert as secondary visibility outside modal context.
+    showError(text);
+}
+
+function clearAddressBookModalError() {
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length > 0) {
+        errorEl.addClass('d-none').text('');
+    }
+}
+
 function editAddressBookEntry(entryId) {
+    clearAddressBookModalError();
     $.get(`/api/address-book/${entryId}`)
         .done(function(response) {
             if (response.success) {
@@ -821,6 +841,7 @@ function editAddressBookEntry(entryId) {
 }
 
 function saveAddressBookEntry() {
+    clearAddressBookModalError();
     const entryId = $('#addressBookEntryId').val();
     const data = {
         name: $('#addressBookName').val().trim(),
@@ -833,7 +854,7 @@ function saveAddressBookEntry() {
 
     // Basic validation
     if (!data.name || !data.messaging_user_id || !data.node_address) {
-        showError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
+        showAddressBookModalError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
         return;
     }
 
@@ -851,11 +872,12 @@ function saveAddressBookEntry() {
                 loadAddressBook();
                 showSuccess(entryId ? 'Entry updated successfully' : 'Entry added successfully');
             } else {
-                showError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save entry')));
+                showAddressBookModalError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save entry')));
             }
         },
         error: function(xhr) {
-            showError(apiError(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save entry')));
+            const payload = (xhr && xhr.responseJSON) ? xhr.responseJSON : null;
+            showAddressBookModalError(apiError(payload, uiT('errors.address_book.create_failed', 'Failed to save entry')));
         }
     });
 }
