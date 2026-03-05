@@ -115,6 +115,22 @@ return [
     'ui.echomail.get_friendly_url' => 'Get Friendly URL',
     'ui.echomail.revoke_share' => 'Revoke Share',
 
+    // Polls Page
+    'ui.polls.title' => 'Polls',
+    'ui.polls.create' => 'Create Poll',
+    'ui.polls.loading' => 'Loading poll...',
+    'ui.polls.description' => 'Browse active polls and vote to reveal results.',
+    'ui.polls.previous' => 'Previous poll',
+    'ui.polls.next' => 'Next poll',
+
+    // Shoutbox Page
+    'ui.shoutbox.title' => 'Shoutbox',
+    'ui.shoutbox.loading' => 'Loading shouts...',
+    'ui.shoutbox.load_older' => 'Load older shouts',
+    'ui.shoutbox.leave_shout' => 'Leave a shout...',
+    'ui.shoutbox.post' => 'Post',
+    'ui.shoutbox.max_chars' => '280 characters max.',
+
     // Dashboard
     'ui.dashboard.polls.none_active' => 'No active polls right now.',
     'ui.dashboard.polls.load_failed' => 'Failed to load poll.',

@@ -115,6 +115,22 @@ return [
     'ui.echomail.get_friendly_url' => 'Obtener URL amigable',
     'ui.echomail.revoke_share' => 'Revocar enlace',
 
+    // Polls Page
+    'ui.polls.title' => 'Encuestas',
+    'ui.polls.create' => 'Crear encuesta',
+    'ui.polls.loading' => 'Cargando encuesta...',
+    'ui.polls.description' => 'Explore encuestas activas y vote para ver resultados.',
+    'ui.polls.previous' => 'Encuesta anterior',
+    'ui.polls.next' => 'Siguiente encuesta',
+
+    // Shoutbox Page
+    'ui.shoutbox.title' => 'Shoutbox',
+    'ui.shoutbox.loading' => 'Cargando shouts...',
+    'ui.shoutbox.load_older' => 'Cargar shouts anteriores',
+    'ui.shoutbox.leave_shout' => 'Deja un shout...',
+    'ui.shoutbox.post' => 'Publicar',
+    'ui.shoutbox.max_chars' => 'Maximo 280 caracteres.',
+
     // Dashboard
     'ui.dashboard.polls.none_active' => 'No hay encuestas activas en este momento.',
     'ui.dashboard.polls.load_failed' => 'No se pudo cargar la encuesta.',
