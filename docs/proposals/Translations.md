@@ -92,11 +92,12 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
   - Translator + locale resolver added and wired through Twig `t()`.
   - Locale persistence/resolution path implemented.
   - JS i18n helper and lazy namespace loading endpoint implemented.
-- Phase 1 (Shared Shell/UI Chrome): **In Progress (mostly complete on primary shell)**
-  - `templates/base.twig` largely localized.
-  - Shared chrome in alternate/legacy shells still needs review/coverage.
+- Phase 1 (Shared Shell/UI Chrome): **Completed (with one intentional deferral)**
+  - `templates/base.twig`, `templates/shells/web/base.twig`, and `templates/shells/bbs-menu/base.twig` are localized.
+  - `templates/old.base.twig` is intentionally deferred by project decision.
 - Phase 2 (High-Traffic User Pages): **In Progress (substantial progress)**
-  - Localized pages include: dashboard, netmail, echomail, compose, settings, login, register, forgot/reset password, profile, about, 404, create poll, shoutbox, polls.
+  - Localized pages include: dashboard, netmail, echomail, compose, settings, login, register, forgot/reset password, profile, user profile, about, 404, create poll, shoutbox, polls, shared message, and files.
+  - `public_html/js/netmail.js` and `public_html/js/echomail.js` have additional consumer-side string migration to translation keys.
   - Remaining user/admin surfaces still contain hardcoded literals.
 - Phase 3 (API Error Code Migration): **Completed (functional), hardening ongoing**
   - `apiError(error_code, error, ...)` pattern is in active use.
@@ -108,6 +109,7 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
   - Validation scripts are in place and passing:
     - `scripts/check_i18n_hardcoded_strings.php`
     - `scripts/check_i18n_error_keys.php`
+  - Latest validation snapshot: `Detected hardcoded UI strings: 143`, `New violations: 0`, `Missing keys: 0`.
   - Final cleanup (full admin coverage, remaining literals, eventual API fallback retirement) is still pending.
 
 ## Phase 0: Foundation (No User-Visible Language Changes)
@@ -225,7 +227,7 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 3. Expand locale coverage after API code migration stabilizes.
 
 ## Immediate Next Steps (From Current Status)
-1. Finish Phase 1 shell parity (`templates/shells/web/base.twig`, `templates/shells/bbs-menu/base.twig`, `templates/old.base.twig`).
-2. Continue Phase 4 by localizing high-use admin pages first (users, binkp config, appearance, activity stats).
-3. Keep converting remaining template/JS literals while maintaining zero new violations in i18n check scripts.
+1. Continue Phase 4 by localizing high-use admin pages first (`admin_users.twig`, binkp config, appearance, activity stats).
+2. Continue Phase 2 cleanup by removing remaining hardcoded consumer strings in user-facing JS/templates not yet covered.
+3. Maintain zero new violations in i18n check scripts while reducing total hardcoded count further from the current baseline (`143`).
 4. After full consumer coverage is verified, plan a deprecation window for dropping legacy dependence on plain `error` text.

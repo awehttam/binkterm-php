@@ -16,6 +16,7 @@ return [
     'errors.auth.token_required' => 'Token is required',
     'errors.auth.invalid_or_expired_token' => 'Invalid or expired token',
     'errors.auth.token_and_password_required' => 'Token and new password are required',
+    'errors.auth.reset_failed' => 'Failed to reset password',
 
     // Registration
     'errors.register.invalid_submission' => 'Invalid submission',

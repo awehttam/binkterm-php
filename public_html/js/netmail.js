@@ -644,7 +644,7 @@ function deleteMessage(messageId) {
         method: 'DELETE',
         success: function(data) {
             $('#messageModal').modal('hide');
-            showSuccess('Message deleted successfully');
+            showSuccess(uiT('ui.netmail.message_deleted_success', 'Message deleted successfully'));
             loadMessages();
             loadStats();
         },
@@ -695,9 +695,9 @@ function toggleThreading() {
     // Update toggle text
     const toggleText = $('#threadingToggleText');
     if (threadedView) {
-        toggleText.text('Show Flat');
+        toggleText.text(uiT('ui.common.threading.show_flat', 'Show Flat'));
     } else {
-        toggleText.text('Show Threaded');
+        toggleText.text(uiT('ui.common.threading.show_threaded', 'Show Threaded'));
     }
 
     // Save preference (netmail uses separate setting from echomail)
@@ -717,9 +717,9 @@ function loadNetmailSettings() {
                 threadedView = userSettings.netmail_threaded_view;
                 const toggleText = $('#threadingToggleText');
                 if (threadedView) {
-                    toggleText.text('Show Flat');
+                    toggleText.text(uiT('ui.common.threading.show_flat', 'Show Flat'));
                 } else {
-                    toggleText.text('Show Threaded');
+                    toggleText.text(uiT('ui.common.threading.show_threaded', 'Show Threaded'));
                 }
             }
 
@@ -870,7 +870,9 @@ function saveAddressBookEntry() {
             if (response.success) {
                 $('#addressBookModal').modal('hide');
                 loadAddressBook();
-                showSuccess(entryId ? 'Entry updated successfully' : 'Entry added successfully');
+                showSuccess(entryId
+                    ? uiT('ui.address_book.entry_updated', 'Entry updated successfully')
+                    : uiT('ui.compose.address_book.entry_added', 'Entry added successfully'));
             } else {
                 showAddressBookModalError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save entry')));
             }
@@ -883,7 +885,7 @@ function saveAddressBookEntry() {
 }
 
 function deleteAddressBookEntry(entryId, entryName) {
-    if (!confirm(`Are you sure you want to delete "${entryName}" from your address book?`)) {
+    if (!confirm(uiT('ui.address_book.delete_confirm', `Are you sure you want to delete "${entryName}" from your address book?`, { name: entryName }))) {
         return;
     }
 
@@ -893,7 +895,7 @@ function deleteAddressBookEntry(entryId, entryName) {
         success: function(response) {
             if (response.success) {
                 loadAddressBook();
-                showSuccess('Entry deleted successfully');
+                showSuccess(uiT('ui.address_book.entry_deleted', 'Entry deleted successfully'));
             } else {
                 showError(apiError(response, uiT('errors.address_book.delete_failed', 'Failed to delete entry')));
             }
@@ -971,7 +973,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                                   .attr('title', 'Saved to address book')
                                   .prop('disabled', true);
 
-                            showSuccess(`${fromName} added to address book`);
+                            showSuccess(uiT('ui.address_book.sender_added', `${fromName} added to address book`, { name: fromName }));
 
                             // Refresh address book in sidebar if it exists
                             if (typeof loadAddressBook === 'function') {
@@ -1040,7 +1042,7 @@ function deleteDraft(draftId) {
             if (response.success) {
                 // Reload drafts to show updated list
                 loadDrafts();
-                showSuccess('Draft deleted successfully');
+                showSuccess(uiT('ui.drafts.deleted_success', 'Draft deleted successfully'));
             } else {
                 showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
             }
@@ -1226,7 +1228,7 @@ function deleteSelectedMessages() {
         return;
     }
 
-    if (!confirm(`Are you sure you want to delete ${selectedMessages.size} message(s)?`)) {
+    if (!confirm(uiT('ui.netmail.bulk_delete.confirm', `Are you sure you want to delete ${selectedMessages.size} message(s)?`, { count: selectedMessages.size }))) {
         return;
     }
 
@@ -1238,7 +1240,7 @@ function deleteSelectedMessages() {
         contentType: 'application/json',
         data: JSON.stringify({ message_ids: messageIds }),
         success: function(data) {
-            showSuccess(`Deleted ${messageIds.length} message(s)`);
+            showSuccess(uiT('ui.netmail.bulk_delete.success', `Deleted ${messageIds.length} message(s)`, { count: messageIds.length }));
             clearSelection();
             loadMessages();
         },

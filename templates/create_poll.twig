@@ -1,45 +1,45 @@
 {% extends "base.twig" %}
 
-{% block title %}Create Poll - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.polls.create.title', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-lg-8 offset-lg-2">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-poll"></i> Create New Poll</h5>
-                <span class="badge bg-primary">Cost: {{ poll_cost }} credits</span>
+                <h5 class="mb-0"><i class="fas fa-poll"></i> {{ t('ui.polls.create.heading', {}, locale, ['common']) }}</h5>
+                <span class="badge bg-primary">{{ t('ui.polls.create.cost_badge', {'cost': poll_cost}, locale, ['common']) }}</span>
             </div>
             <div class="card-body">
                 {% if credit_balance < poll_cost %}
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Insufficient Credits</strong><br>
-                    You need {{ poll_cost }} credits to create a poll, but you only have {{ credit_balance }} credits.
+                    <strong>{{ t('ui.polls.create.insufficient_credits', {}, locale, ['common']) }}</strong><br>
+                    {{ t('ui.polls.create.insufficient_credits_help', {'cost': poll_cost, 'balance': credit_balance}, locale, ['common']) }}
                 </div>
                 {% else %}
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
-                    Creating a poll costs <strong>{{ poll_cost }} credits</strong>. Your current balance: <strong>{{ credit_balance }} credits</strong>
+                    {{ t('ui.polls.create.cost_info_prefix', {}, locale, ['common']) }} <strong>{{ poll_cost }} {{ t('ui.polls.create.credits', {}, locale, ['common']) }}</strong>. {{ t('ui.polls.create.current_balance', {}, locale, ['common']) }} <strong>{{ credit_balance }} {{ t('ui.polls.create.credits', {}, locale, ['common']) }}</strong>
                 </div>
 
                 <form id="createPollForm">
                     <div class="mb-3">
-                        <label for="question" class="form-label">Poll Question *</label>
+                        <label for="question" class="form-label">{{ t('ui.polls.create.question_required', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="question" maxlength="500" required
-                               placeholder="What would you like to ask?">
+                               placeholder="{{ t('ui.polls.create.question_placeholder', {}, locale, ['common']) }}">
                         <div class="form-text">
-                            <span id="questionCount">0</span>/500 characters (minimum 10)
+                            <span id="questionCount">0</span>/500 {{ t('ui.polls.create.characters_minimum', {}, locale, ['common']) }}
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Poll Options * (2-10)</label>
+                        <label class="form-label">{{ t('ui.polls.create.options_required', {}, locale, ['common']) }}</label>
                         <div id="optionsContainer">
                             <div class="input-group mb-2 option-row">
                                 <span class="input-group-text">1</span>
                                 <input type="text" class="form-control option-input" maxlength="200" required
-                                       placeholder="Enter option">
+                                       placeholder="{{ t('ui.polls.create.option_placeholder', {}, locale, ['common']) }}">
                                 <button type="button" class="btn btn-outline-danger remove-option" disabled>
                                     <i class="fas fa-times"></i>
                                 </button>
@@ -47,27 +47,27 @@
                             <div class="input-group mb-2 option-row">
                                 <span class="input-group-text">2</span>
                                 <input type="text" class="form-control option-input" maxlength="200" required
-                                       placeholder="Enter option">
+                                       placeholder="{{ t('ui.polls.create.option_placeholder', {}, locale, ['common']) }}">
                                 <button type="button" class="btn btn-outline-danger remove-option" disabled>
                                     <i class="fas fa-times"></i>
                                 </button>
                             </div>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-primary" id="addOption">
-                            <i class="fas fa-plus"></i> Add Option
+                            <i class="fas fa-plus"></i> {{ t('ui.polls.create.add_option', {}, locale, ['common']) }}
                         </button>
-                        <div class="form-text">Each option must be unique and under 200 characters</div>
+                        <div class="form-text">{{ t('ui.polls.create.options_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-circle"></i>
-                        <strong>Note:</strong> Once created, polls cannot be edited or deleted. Make sure your question and options are correct before submitting.
+                        <strong>{{ t('ui.polls.create.note_label', {}, locale, ['common']) }}</strong> {{ t('ui.polls.create.note_text', {}, locale, ['common']) }}
                     </div>
 
                     <div class="d-flex justify-content-between">
-                        <a href="/" class="btn btn-secondary">Cancel</a>
+                        <a href="/" class="btn btn-secondary">{{ t('ui.common.cancel', {}, locale, ['common']) }}</a>
                         <button type="submit" class="btn btn-success" id="submitBtn">
-                            <i class="fas fa-check"></i> Create Poll ({{ poll_cost }} credits)
+                            <i class="fas fa-check"></i> {{ t('ui.polls.create.submit', {'cost': poll_cost}, locale, ['common']) }}
                         </button>
                     </div>
                 </form>
@@ -79,6 +79,13 @@
 
 <script>
 $(document).ready(function() {
+    function uiT(key, fallback, params = {}) {
+        if (window.t) {
+            return window.t(key, params, fallback);
+        }
+        return fallback;
+    }
+
     function apiError(payload, fallback) {
         if (window.getApiErrorMessage) {
             return window.getApiErrorMessage(payload, fallback);
@@ -97,7 +104,7 @@ $(document).ready(function() {
     // Add option button
     $('#addOption').on('click', function() {
         if (optionCount >= 10) {
-            alert('Maximum 10 options allowed');
+            alert(uiT('ui.polls.create.max_options_allowed', 'Maximum 10 options allowed'));
             return;
         }
 
@@ -106,7 +113,7 @@ $(document).ready(function() {
             <div class="input-group mb-2 option-row">
                 <span class="input-group-text">${optionCount}</span>
                 <input type="text" class="form-control option-input" maxlength="200" required
-                       placeholder="Enter option">
+                       placeholder="${uiT('ui.polls.create.option_placeholder', 'Enter option')}">
                 <button type="button" class="btn btn-outline-danger remove-option">
                     <i class="fas fa-times"></i>
                 </button>
@@ -165,29 +172,29 @@ $(document).ready(function() {
 
         // Validation
         if (question.length < 10) {
-            alert('Question must be at least 10 characters');
+            alert(uiT('ui.polls.create.question_min_length', 'Question must be at least 10 characters'));
             return;
         }
 
         if (options.length < 2) {
-            alert('Please provide at least 2 options');
+            alert(uiT('ui.polls.create.min_options_required', 'Please provide at least 2 options'));
             return;
         }
 
         if (options.length > 10) {
-            alert('Maximum 10 options allowed');
+            alert(uiT('ui.polls.create.max_options_allowed', 'Maximum 10 options allowed'));
             return;
         }
 
         // Check for duplicates
         const uniqueOptions = [...new Set(options)];
         if (uniqueOptions.length !== options.length) {
-            alert('All options must be unique');
+            alert(uiT('ui.polls.create.options_unique_required', 'All options must be unique'));
             return;
         }
 
         // Disable submit button
-        $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
+        $('#submitBtn').prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.polls.create.creating', 'Creating...')}`);
 
         // Submit
         $.ajax({
@@ -200,13 +207,15 @@ $(document).ready(function() {
             })
         })
         .done(function(response) {
-            alert(`Poll created successfully! You spent ${response.credits_spent} credits.`);
+            alert(uiT('ui.polls.create.created_success_spent', 'Poll created successfully! You spent {spent} credits.', {
+                spent: response.credits_spent
+            }));
             window.location.href = '/';
         })
         .fail(function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Failed to create poll');
-            alert('Error: ' + error);
-            $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Create Poll ({{ poll_cost }} credits)');
+            const error = apiError(xhr.responseJSON, uiT('errors.polls.create_failed', 'Failed to create poll'));
+            alert(uiT('ui.polls.create.error_prefix', 'Error: ') + error);
+            $('#submitBtn').prop('disabled', false).html(`<i class="fas fa-check"></i> ${uiT('ui.polls.create.submit', 'Create Poll ({cost} credits)', { cost: {{ poll_cost }} })}`);
         });
     });
 

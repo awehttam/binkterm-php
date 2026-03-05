@@ -1,12 +1,12 @@
 {% extends "base.twig" %}
 
-{% block title %}Profile - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.profile.title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-user"></i>
-        My Profile
+        {{ t('ui.profile.my_profile', {}, 'common') }}
     </h2>
 </div>
 
@@ -14,63 +14,63 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Profile Information</h5>
+                <h5 class="mb-0">{{ t('ui.profile.profile_information', {}, 'common') }}</h5>
             </div>
             <div class="card-body">
                 <form id="profileForm">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
+                        <label for="username" class="form-label">{{ t('ui.profile.username', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="username" name="username" value="{{ user_username }}" readonly>
-                        <div class="form-text">Username cannot be changed</div>
+                        <div class="form-text">{{ t('ui.profile.username_readonly_help', {}, 'common') }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="realName" class="form-label">Real Name</label>
+                        <label for="realName" class="form-label">{{ t('ui.profile.real_name', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="realName" name="real_name" value="{{ user_real_name }}" readonly maxlength="100">
-                        <div class="form-text">Your real name as displayed in messages</div>
+                        <div class="form-text">{{ t('ui.profile.real_name_help', {}, 'common') }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="email" class="form-label">Email Address</label>
+                        <label for="email" class="form-label">{{ t('ui.profile.email_address', {}, 'common') }}</label>
                         <input type="email" class="form-control" id="email" name="email" value="{{ user_email }}" maxlength="100">
-                        <div class="form-text">Email address (optional, not shown publicly)</div>
+                        <div class="form-text">{{ t('ui.profile.email_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="location" class="form-label">Location</label>
-                        <input type="text" class="form-control" id="location" name="location" value="{{ user_location }}" maxlength="100" placeholder="City, State/Country">
-                        <div class="form-text">Your location (shown in who's online)</div>
+                        <label for="location" class="form-label">{{ t('ui.profile.location', {}, 'common') }}</label>
+                        <input type="text" class="form-control" id="location" name="location" value="{{ user_location }}" maxlength="100" placeholder="{{ t('ui.profile.location_placeholder', {}, 'common') }}">
+                        <div class="form-text">{{ t('ui.profile.location_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-4">
-                        <h6>Change Password</h6>
+                        <h6>{{ t('ui.profile.change_password', {}, 'common') }}</h6>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="currentPassword" class="form-label">Current Password</label>
+                                    <label for="currentPassword" class="form-label">{{ t('ui.profile.current_password', {}, 'common') }}</label>
                                     <input type="password" class="form-control" id="currentPassword" name="current_password">
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="newPassword" class="form-label">New Password</label>
+                                    <label for="newPassword" class="form-label">{{ t('ui.profile.new_password', {}, 'common') }}</label>
                                     <input type="password" class="form-control" id="newPassword" name="new_password">
                                 </div>
                             </div>
                         </div>
-                        <div class="form-text">Leave password fields blank to keep current password</div>
+                        <div class="form-text">{{ t('ui.profile.password_blank_keep_help', {}, 'common') }}</div>
                     </div>
                     
                     <div class="d-flex justify-content-between">
                         <div>
                             <small class="text-muted">
-                                Account created: {{ user_created_at|date('F j, Y') }}<br>
-                                Last login: {{ user_last_login ? user_last_login|date('F j, Y g:i A') : 'Never' }}
+                                {{ t('ui.profile.account_created', {}, 'common') }}: {{ user_created_at|date('F j, Y') }}<br>
+                                {{ t('ui.profile.last_login', {}, 'common') }}: {{ user_last_login ? user_last_login|date('F j, Y g:i A') : t('ui.profile.never', {}, 'common') }}
                             </small>
                         </div>
                         <button type="submit" class="btn btn-fidonet">
                             <i class="fas fa-save"></i>
-                            Update Profile
+                            {{ t('ui.profile.update_profile', {}, 'common') }}
                         </button>
                     </div>
                 </form>
@@ -83,22 +83,22 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">System Information</h6>
+                <h6 class="mb-0">{{ t('ui.profile.system_information', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-6">System:</dt>
+                    <dt class="col-6">{{ t('ui.profile.system', {}, 'common') }}:</dt>
                     <dd class="col-6">{{ system_name_display }}</dd>
                     
-                    <dt class="col-6">Address:</dt>
+                    <dt class="col-6">{{ t('ui.profile.address', {}, 'common') }}:</dt>
                     <dd class="col-6">{{ system_address_display }}</dd>
                     
-                    <dt class="col-6">Role:</dt>
+                    <dt class="col-6">{{ t('ui.profile.role', {}, 'common') }}:</dt>
                     <dd class="col-6">
                         {% if user_is_admin %}
-                            <span class="badge bg-danger">Administrator</span>
+                            <span class="badge bg-danger">{{ t('ui.profile.role_administrator', {}, 'common') }}</span>
                         {% else %}
-                            <span class="badge bg-primary">User</span>
+                            <span class="badge bg-primary">{{ t('ui.profile.role_user', {}, 'common') }}</span>
                         {% endif %}
                     </dd>
                 </dl>
@@ -107,27 +107,27 @@
         
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Activity Summary</h6>
+                <h6 class="mb-0">{{ t('ui.profile.activity_summary', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-8">Credits:</dt>
+                    <dt class="col-8">{{ t('ui.profile.credits', {}, 'common') }}:</dt>
                     <dd class="col-4">
                         {% if credits_enabled %}
                             {{ credits_symbol }}{{ credit_balance }}
                         {% else %}
-                            <span class="text-muted">Disabled</span>
+                            <span class="text-muted">{{ t('ui.profile.disabled', {}, 'common') }}</span>
                         {% endif %}
                     </dd>
 
-                    <dt class="col-8">Netmail Sent:</dt>
+                    <dt class="col-8">{{ t('ui.profile.netmail_sent', {}, 'common') }}:</dt>
                     <dd class="col-4"><span id="netmailCount">-</span></dd>
                     
-                    <dt class="col-8">Echomail Posted:</dt>
+                    <dt class="col-8">{{ t('ui.profile.echomail_posted', {}, 'common') }}:</dt>
                     <dd class="col-4"><span id="echomailCount">-</span></dd>
                     
 
-                    <dt class="col-8">Total Messages:</dt>
+                    <dt class="col-8">{{ t('ui.profile.total_messages', {}, 'common') }}:</dt>
                     <dd class="col-4"><strong><span id="totalCount">-</span></strong></dd>
                 </dl>
             </div>
@@ -136,26 +136,26 @@
         {% if credits_enabled %}
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Credit System</h6>
+                <h6 class="mb-0">{{ t('ui.profile.credit_system', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
-                <small class="text-muted d-block mb-2">Credit costs and rewards:</small>
+                <small class="text-muted d-block mb-2">{{ t('ui.profile.credit_costs_rewards', {}, 'common') }}</small>
                 <dl class="row mb-2 small">
-                    <dt class="col-8">Daily Login:</dt>
+                    <dt class="col-8">{{ t('ui.profile.daily_login', {}, 'common') }}:</dt>
                     <dd class="col-4 text-success">+{{ credits_config.daily_amount|default(25) }}</dd>
 
-                    <dt class="col-8">Netmail Sent:</dt>
+                    <dt class="col-8">{{ t('ui.profile.netmail_sent', {}, 'common') }}:</dt>
                     <dd class="col-4 text-danger">-{{ credits_config.netmail_cost|default(1) }}</dd>
 
-                    <dt class="col-8">Crashmail:</dt>
+                    <dt class="col-8">{{ t('ui.profile.crashmail', {}, 'common') }}:</dt>
                     <dd class="col-4 text-danger">-{{ credits_config.crashmail_cost|default(10) }}</dd>
 
-                    <dt class="col-8">Echomail Posted:</dt>
+                    <dt class="col-8">{{ t('ui.profile.echomail_posted', {}, 'common') }}:</dt>
                     <dd class="col-4 text-success">+{{ credits_config.echomail_reward|default(3) }}</dd>
                 </dl>
                 <small class="text-muted fst-italic">
                     <i class="fas fa-info-circle me-1"></i>
-                    Web doors and other system elements may have additional costs or rewards.
+                    {{ t('ui.profile.credit_note', {}, 'common') }}
                 </small>
             </div>
         </div>
@@ -166,6 +166,13 @@
 
 {% block scripts %}
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadActivityStats();
     
@@ -194,7 +201,7 @@ function updateProfile() {
     $('#profileStatus').show().html(`
         <div class="alert alert-info">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Updating profile...
+            ${uiT('ui.profile.updating_profile', 'Updating profile...')}
         </div>
     `);
     
@@ -208,7 +215,7 @@ function updateProfile() {
             $('#profileStatus').html(`
                 <div class="alert alert-success">
                     <i class="fas fa-check me-2"></i>
-                    Profile updated successfully!
+                    ${uiT('ui.profile.updated_successfully', 'Profile updated successfully!')}
                 </div>
             `);
             
@@ -227,8 +234,8 @@ function updateProfile() {
         },
         error: function(xhr) {
             const error = window.getApiErrorMessage
-                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to update profile')
-                : 'Failed to update profile';
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.user.profile.update_failed', 'Failed to update profile'))
+                : uiT('errors.user.profile.update_failed', 'Failed to update profile');
             $('#profileStatus').html(`
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle me-2"></i>

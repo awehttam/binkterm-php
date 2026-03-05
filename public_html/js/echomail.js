@@ -563,7 +563,7 @@ function sortMessages(sortBy) {
 
 function refreshMessages() {
     loadMessages();
-    showSuccess('Messages refreshed');
+    showSuccess(uiT('ui.echomail.messages_refreshed', 'Messages refreshed'));
 }
 
 function toggleThreading() {
@@ -1056,14 +1056,14 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
                     icon.attr('title', 'Save for later');
                     icon.attr('data-saved', 'false');
                     icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', false)`);
-                    showSuccess('Message removed from saved items');
+                    showSuccess(uiT('ui.echomail.saved_items.removed', 'Message removed from saved items'));
                 } else {
                     // Message was saved
                     icon.removeClass('text-muted').addClass('text-warning');
                     icon.attr('title', 'Remove from saved');
                     icon.attr('data-saved', 'true');
                     icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', true)`);
-                    showSuccess('Message saved for later');
+                    showSuccess(uiT('ui.echomail.saved_items.saved', 'Message saved for later'));
                 }
 
                 // If we're viewing saved messages, remove the message from view
@@ -1160,7 +1160,7 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                     headerIcon.removeClass('text-warning').addClass('text-muted');
                     headerIcon.attr('title', 'Save for later');
 
-                    showSuccess('Message removed from saved items');
+                    showSuccess(uiT('ui.echomail.saved_items.removed', 'Message removed from saved items'));
 
                     // Update click handlers for next time
                     saveBtn.off('click').on('click', function() {
@@ -1179,7 +1179,7 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                     headerIcon.removeClass('text-muted').addClass('text-warning');
                     headerIcon.attr('title', 'Remove from saved');
 
-                    showSuccess('Message saved for later');
+                    showSuccess(uiT('ui.echomail.saved_items.saved', 'Message saved for later'));
 
                     // Update click handlers for next time
                     saveBtn.off('click').on('click', function() {
@@ -1806,9 +1806,9 @@ function createShare() {
                 $('#revokeShareBtn').removeClass('d-none');
 
                 if (data.existing) {
-                    showSuccess('Using existing share link');
+                    showSuccess(uiT('ui.echomail.shares.using_existing', 'Using existing share link'));
                 } else {
-                    showSuccess('Share link created successfully!');
+                    showSuccess(uiT('ui.echomail.shares.created_success', 'Share link created successfully!'));
                 }
             } else {
                 $('#shareErrorMessage').text(apiError(data, uiT('errors.messages.share_create_failed', 'Failed to create share link')));
@@ -1842,7 +1842,7 @@ function generateFriendlyUrl() {
             if (data.success) {
                 $('#shareUrl').val(data.share_url);
                 $('#friendlyUrlBtn').addClass('d-none');
-                showSuccess('Friendly URL generated!');
+                showSuccess(uiT('ui.echomail.shares.friendly_url_generated', 'Friendly URL generated!'));
             } else {
                 showError(apiError(data, uiT('ui.echomail.shares.friendly_url_failed', 'Failed to generate friendly URL')));
                 btn.prop('disabled', false).html(originalHtml);
@@ -1871,7 +1871,7 @@ function revokeShare() {
                 $('#shareResult').addClass('d-none');
                 $('#createShareBtn').removeClass('d-none');
                 $('#revokeShareBtn').addClass('d-none');
-                showSuccess('Share link revoked');
+                showSuccess(uiT('ui.echomail.shares.revoked', 'Share link revoked'));
             } else {
                 showError(apiError(data, uiT('errors.messages.share_revoke_failed', 'Failed to revoke share link')));
             }
@@ -1890,7 +1890,7 @@ function copyShareUrl() {
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareUrl).then(function() {
-            showSuccess('Share URL copied to clipboard!');
+            showSuccess(uiT('ui.echomail.shares.url_copied', 'Share URL copied to clipboard!'));
 
             // Briefly highlight the input field
             $('#shareUrl').select();
@@ -1920,7 +1920,7 @@ function fallbackCopyTextToClipboard(text) {
     try {
         const successful = document.execCommand('copy');
         if (successful) {
-            showSuccess('Share URL copied to clipboard!');
+            showSuccess(uiT('ui.echomail.shares.url_copied', 'Share URL copied to clipboard!'));
         } else {
             showError(uiT('ui.common.copy_failed_manual', 'Copy to clipboard failed. Please copy manually.'));
         }
@@ -2010,7 +2010,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                                   .attr('title', 'Saved to address book')
                                   .prop('disabled', true);
 
-                            showSuccess(`${fromName} added to address book`);
+                            showSuccess(uiT('ui.address_book.sender_added', `${fromName} added to address book`, { name: fromName }));
 
                             // Refresh address book in sidebar if it exists (for netmail page)
                             if (typeof loadAddressBook === 'function') {
@@ -2097,7 +2097,7 @@ function deleteDraft(draftId) {
             if (response.success) {
                 // Reload drafts to show updated list
                 loadDrafts();
-                showSuccess('Draft deleted successfully');
+                showSuccess(uiT('ui.drafts.deleted_success', 'Draft deleted successfully'));
             } else {
                 showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
             }

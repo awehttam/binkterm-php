@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Dashboard - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.dashboard.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -9,7 +9,7 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-tachometer-alt"></i>
-                    Dashboard
+                    {{ t('ui.dashboard.title', {}, locale, ['common']) }}
                 </h5>
             </div>
             <div class="card-body">
@@ -21,7 +21,7 @@
                                     <h4 id="netmailCount"><i class="fas fa-spinner fa-spin"></i></h4>
                                     <p class="mb-0">
                                         <i class="fas fa-envelope"></i>
-                                        Unread Netmail
+                                        {{ t('ui.dashboard.unread_netmail', {}, locale, ['common']) }}
                                     </p>
                                 </div>
                             </div>
@@ -34,7 +34,7 @@
                                     <h4 id="echomailCount"><i class="fas fa-spinner fa-spin"></i></h4>
                                     <p class="mb-0">
                                         <i class="fas fa-comments"></i>
-                                        Unread Echomail
+                                        {{ t('ui.dashboard.unread_echomail', {}, locale, ['common']) }}
                                     </p>
                                 </div>
                             </div>
@@ -48,7 +48,7 @@
             <div class="card-header">
                 <h6 class="mb-0">
                     <i class="fas fa-newspaper me-2"></i>
-                    System News & Information
+                    {{ t('ui.dashboard.system_news', {}, locale, ['common']) }}
                 </h6>
             </div>
             <div class="card-body">
@@ -63,26 +63,26 @@
             <div class="card-header">
                 <h6 class="mb-0">
                     <i class="fas fa-bullhorn me-2"></i>
-                    Shoutbox
+                    {{ t('ui.shoutbox.title', {}, locale, ['common']) }}
                 </h6>
             </div>
             <div class="card-body">
                 <div id="shoutboxMessages" class="mb-3">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin"></i>
-                        Loading shouts...
+                        {{ t('ui.shoutbox.loading', {}, locale, ['common']) }}
                     </div>
                 </div>
                 <div class="d-flex justify-content-center mb-3">
                     <button class="btn btn-outline-secondary btn-sm" type="button" id="shoutboxLoadMore" onclick="loadMoreShouts()">
-                        Load older shouts
+                        {{ t('ui.shoutbox.load_older', {}, locale, ['common']) }}
                     </button>
                 </div>
                 <div class="input-group">
-                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="Leave a shout...">
-                    <button class="btn btn-primary" type="button" onclick="postShout()">Post</button>
+                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="{{ t('ui.shoutbox.leave_shout', {}, locale, ['common']) }}">
+                    <button class="btn btn-primary" type="button" onclick="postShout()">{{ t('ui.shoutbox.post', {}, locale, ['common']) }}</button>
                 </div>
-                <div class="form-text text-muted">280 characters max.</div>
+                <div class="form-text text-muted">{{ t('ui.shoutbox.max_chars', {}, locale, ['common']) }}</div>
             </div>
         </div>
         {% endif %}
@@ -101,17 +101,17 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">System Information</h6>
+                <h6 class="mb-0">{{ t('ui.dashboard.system_information', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-sm-5">Sysop:</dt>
+                    <dt class="col-sm-5">{{ t('ui.dashboard.sysop', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ sysop_name }}</dd>
 
-                    <dt class="col-sm-5">User:</dt>
+                    <dt class="col-sm-5">{{ t('ui.dashboard.user', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ current_user.username }}</dd>
 
-                    <dt class="col-sm-5">Addresses:</dt>
+                    <dt class="col-sm-5">{{ t('ui.dashboard.addresses', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">
                         {% if network_addresses|length > 0 %}
                             {% for addr in network_addresses %}
@@ -131,10 +131,10 @@
         {% if referral_enabled %}
         <div class="card mt-4">
             <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-user-plus me-2"></i>My Referral Link</h6>
+                <h6 class="mb-0"><i class="fas fa-user-plus me-2"></i>{{ t('ui.dashboard.my_referral_link', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
-                <p class="text-muted small">Invite friends and earn <strong id="referralBonus">25</strong> credits for each approved referral!</p>
+                <p class="text-muted small">{{ t('ui.dashboard.referral_invite_prefix', {}, locale, ['common']) }} <strong id="referralBonus">25</strong> {{ t('ui.dashboard.referral_invite_suffix', {}, locale, ['common']) }}</p>
 
                 <div class="input-group mb-3">
                     <input type="text" class="form-control form-control-sm" id="referralUrl" readonly>
@@ -147,11 +147,11 @@
                     <div class="row text-center">
                         <div class="col-6">
                             <h5 id="referralCount" class="mb-0">-</h5>
-                            <small class="text-muted">Referrals</small>
+                            <small class="text-muted">{{ t('ui.dashboard.referrals.label', {}, locale, ['common']) }}</small>
                         </div>
                         <div class="col-6">
                             <h5 id="referralEarnings" class="mb-0">-</h5>
-                            <small class="text-muted">Earned</small>
+                            <small class="text-muted">{{ t('ui.dashboard.referrals.earned', {}, locale, ['common']) }}</small>
                         </div>
                     </div>
                 </div>
@@ -166,13 +166,13 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
                     <i class="fas fa-vote-yea me-2"></i>
-                    Voting Booth
+                    {{ t('ui.dashboard.voting_booth', {}, locale, ['common']) }}
                 </h6>
                 <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="Previous poll">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="{{ t('ui.polls.previous', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-left"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="Next poll">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="{{ t('ui.polls.next', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
@@ -180,11 +180,11 @@
             <div class="card-body" id="votingBoothBody">
                 <div class="text-center">
                     <i class="fas fa-spinner fa-spin"></i>
-                    Loading poll...
+                    {{ t('ui.polls.loading', {}, locale, ['common']) }}
                 </div>
             </div>
             <div class="card-footer text-end py-2">
-                <a href="/polls/create" title="Create a new poll (15 credits)" style="text-decoration: none; font-size: 1.2rem;">
+                <a href="/polls/create" title="{{ t('ui.dashboard.create_poll_title', {}, locale, ['common']) }}" style="text-decoration: none; font-size: 1.2rem;">
                     <i class="fas fa-file-circle-plus"></i>
                 </a>
             </div>
@@ -193,7 +193,7 @@
 
         <div class="card mt-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Echo Areas</h6>
+                <h6 class="mb-0">{{ t('ui.echomail.echo_areas', {}, locale, ['common']) }}</h6>
                 <a href="/subscriptions"><i class="fa-solid fa-wrench"></i></a>
                 </a>
             </div>
@@ -201,7 +201,7 @@
                 <div id="echoareaList">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin"></i>
-                        Loading echo areas...
+                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>

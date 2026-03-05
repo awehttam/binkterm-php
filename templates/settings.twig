@@ -86,8 +86,8 @@
                     <div class="mb-3">
                         <label for="shellPreference" class="form-label">{{ t('ui.settings.interface_style', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="shellPreference" name="shell">
-                            <option value="web">Web Interface (default navbar &amp; menus)</option>
-                            <option value="bbs-menu">BBS Menu (hotkey navigation)</option>
+                            <option value="web">{{ t('ui.settings.interface_style.web', {}, locale, ['common']) }}</option>
+                            <option value="bbs-menu">{{ t('ui.settings.interface_style.bbs_menu', {}, locale, ['common']) }}</option>
                         </select>
                         <div class="form-text">{{ t('ui.settings.interface_style_help', {}, locale, ['common']) }}</div>
                     </div>
@@ -97,8 +97,8 @@
                         <label for="defaultEchoList" class="form-label">{{ t('ui.settings.default_echo_list', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="defaultEchoList" name="default_echo_list">
                             <option value="system_choice" selected>{{ t('ui.settings.system_default', {}, locale, ['common']) }}</option>
-                            <option value="reader">Reader (Message List)</option>
-                            <option value="echolist">Echo List (Grouped by Network)</option>
+                            <option value="reader">{{ t('ui.settings.default_echo_list.reader', {}, locale, ['common']) }}</option>
+                            <option value="echolist">{{ t('ui.settings.default_echo_list.echolist', {}, locale, ['common']) }}</option>
                         </select>
                         <div class="form-text">{{ t('ui.settings.default_echo_list_help', {}, locale, ['common']) }}</div>
                     </div>
@@ -143,7 +143,7 @@
                         <select class="form-select" id="defaultTagline" name="default_tagline">
                             <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
                             {% if taglines %}
-                                <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>— Random tagline —</option>
+                                <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>{{ t('ui.settings.random_tagline', {}, locale, ['common']) }}</option>
                             {% endif %}
                             {% for tagline in taglines %}
                                 <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
@@ -153,34 +153,34 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Threading Preferences</label>
+                        <label class="form-label">{{ t('ui.settings.threading_preferences', {}, locale, ['common']) }}</label>
                         
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="threadedView" name="threaded_view">
                             <label class="form-check-label" for="threadedView">
-                                Enable threaded view for echomail
+                                {{ t('ui.settings.threaded_view_echomail', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Group echomail messages by conversation threads</div>
+                            <div class="form-text">{{ t('ui.settings.threaded_view_echomail_help', {}, locale, ['common']) }}</div>
                         </div>
                         
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="netmailThreadedView" name="netmail_threaded_view">
                             <label class="form-check-label" for="netmailThreadedView">
-                                Enable threaded view for netmail
+                                {{ t('ui.settings.threaded_view_netmail', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Group netmail messages by conversation threads</div>
+                            <div class="form-text">{{ t('ui.settings.threaded_view_netmail_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Quote Display</label>
+                        <label class="form-label">{{ t('ui.settings.quote_display', {}, locale, ['common']) }}</label>
 
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="quoteColoring" name="quote_coloring" checked>
                             <label class="form-check-label" for="quoteColoring">
-                                Color quoted text by depth
+                                {{ t('ui.settings.quote_coloring', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Show quoted message lines (starting with &gt;) in different colors based on nesting level</div>
+                            <div class="form-text">{{ t('ui.settings.quote_coloring_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
 
@@ -260,17 +260,17 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">System Status</h6>
+                <h6 class="mb-0">{{ t('ui.settings.system_status', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-7">BinkP Status:</dt>
-                    <dd class="col-5"><span class="badge bg-success">Online</span></dd>
+                    <dt class="col-7">{{ t('ui.settings.binkp_status', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-5"><span class="badge bg-success">{{ t('ui.settings.online', {}, locale, ['common']) }}</span></dd>
                     
-                    <dt class="col-7">Last Poll:</dt>
+                    <dt class="col-7">{{ t('ui.settings.last_poll', {}, locale, ['common']) }}:</dt>
                     <dd class="col-5"><span id="lastPoll">-</span></dd>
                     
-                    <dt class="col-7">Messages Today:</dt>
+                    <dt class="col-7">{{ t('ui.settings.messages_today', {}, locale, ['common']) }}:</dt>
                     <dd class="col-5"><span id="messagesToday">-</span></dd>
                 </dl>
             </div>
@@ -323,14 +323,14 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Active Sessions</h5>
+                <h5 class="modal-title">{{ t('ui.settings.active_sessions', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div id="sessionsList">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin"></i>
-                        Loading sessions...
+                        {{ t('ui.settings.sessions.loading', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -411,7 +411,7 @@ function loadSettings() {
 function loadSystemStatus() {
     $.get('/api/system/status')
         .done(function(data) {
-            $('#lastPoll').text(data.last_poll ? formatDate(data.last_poll) : 'Never');
+            $('#lastPoll').text(data.last_poll ? formatDate(data.last_poll) : uiT('ui.settings.never', 'Never'));
             $('#messagesToday').text(data.messages_today || '0');
         })
         .fail(function() {
@@ -509,14 +509,14 @@ function showActiveSessions() {
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <strong>${escapeHtml(session.ip_address)}</strong>
-                                        ${isCurrent ? '<span class="badge bg-success ms-2">Current</span>' : ''}
+                                        ${isCurrent ? `<span class="badge bg-success ms-2">${uiT('ui.settings.sessions.current', 'Current')}</span>` : ''}
                                         <br>
                                         <small class="text-muted">
-                                            Created: ${formatDate(session.created_at)}<br>
-                                            Expires: ${formatDate(session.expires_at)}
+                                            ${uiT('ui.settings.sessions.created', 'Created')}: ${formatDate(session.created_at)}<br>
+                                            ${uiT('ui.settings.sessions.expires', 'Expires')}: ${formatDate(session.expires_at)}
                                         </small>
                                     </div>
-                                    ${!isCurrent ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeSession('${session.id}')">Revoke</button>` : ''}
+                                    ${!isCurrent ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeSession('${session.id}')">${uiT('ui.settings.sessions.revoke', 'Revoke')}</button>` : ''}
                                 </div>
                             </div>
                         </div>

@@ -16,6 +16,7 @@ return [
     'errors.auth.token_required' => 'Se requiere token',
     'errors.auth.invalid_or_expired_token' => 'Token invalido o expirado',
     'errors.auth.token_and_password_required' => 'Se requieren token y nueva contrasena',
+    'errors.auth.reset_failed' => 'No se pudo restablecer la contrasena',
 
     // Registration
     'errors.register.invalid_submission' => 'Envio invalido',

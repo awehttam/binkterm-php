@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Register - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.register.title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
     <div class="row justify-content-center">
@@ -9,14 +9,14 @@
             <div class="card-header">
                 <h4 class="mb-0">
                     <i class="fas fa-user-plus"></i>
-                    Create Account
+                    {{ t('ui.register.create_account', {}, 'common') }}
                 </h4>
             </div>
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
-                    <strong>Registration requires approval.</strong> Your account will be reviewed by an administrator before activation.
-                    All accounts are subject to <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">House Rules</a>.
+                    <strong>{{ t('ui.register.approval_required', {}, 'common') }}</strong> {{ t('ui.register.approval_required_help', {}, 'common') }}
+                    {{ t('ui.register.subject_to_rules', {}, 'common') }} <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">{{ t('ui.about.house_rules', {}, 'common') }}</a>.
                 </div>
 
                 <div id="alert-container"></div>
@@ -24,19 +24,19 @@
                 <form id="registerForm">
                     {# Anti-spam honeypot field - hidden from humans, visible to bots #}
                     <div style="position: absolute; left: -9999px; top: -9999px;" aria-hidden="true">
-                        <label for="website">Website (leave blank)</label>
+                        <label for="website">{{ t('ui.register.honeypot_website_leave_blank', {}, 'common') }}</label>
                         <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
                     </div>
 
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
+                        <label for="username" class="form-label">{{ t('ui.register.username', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="username" name="username" required
-                               pattern="[a-zA-Z0-9_]{3,20}" title="3-20 characters, letters, numbers, and underscores only">
-                        <div class="form-text">3-20 characters, letters, numbers, and underscores only</div>
+                               pattern="[a-zA-Z0-9_]{3,20}" title="{{ t('ui.register.username_help', {}, 'common') }}">
+                        <div class="form-text">{{ t('ui.register.username_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
+                        <label for="password" class="form-label">{{ t('ui.register.password', {}, 'common') }}</label>
                         <input type="password" class="form-control" id="password" name="password" required
                                minlength="8">
                         <div class="password-strength-meter mt-2" id="passwordStrengthMeter" style="display: none;">
@@ -46,42 +46,42 @@
                             </div>
                             <small class="form-text" id="passwordStrengthText"></small>
                         </div>
-                        <div class="form-text">Minimum 8 characters. Use a mix of letters, numbers, and symbols for better security.</div>
+                        <div class="form-text">{{ t('ui.register.password_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="confirmPassword" class="form-label">Confirm Password</label>
+                        <label for="confirmPassword" class="form-label">{{ t('ui.register.confirm_password', {}, 'common') }}</label>
                         <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
                     </div>
 
                     <div class="mb-3">
-                        <label for="email" class="form-label">Email Address</label>
+                        <label for="email" class="form-label">{{ t('ui.register.email_address', {}, 'common') }}</label>
                         <input type="email" class="form-control" id="email" name="email">
-                        <div class="form-text">Optional - for account recovery and notifications</div>
+                        <div class="form-text">{{ t('ui.register.email_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="realName" class="form-label">Real Name</label>
+                        <label for="realName" class="form-label">{{ t('ui.register.real_name', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="realName" name="real_name" required>
-                        <div class="form-text">Your actual name (required for FidoNet)</div>
+                        <div class="form-text">{{ t('ui.register.real_name_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="location" class="form-label">Location</label>
-                        <input type="text" class="form-control" id="location" name="location" placeholder="City, State/Country">
-                        <div class="form-text">Your location (optional, shown in who's online)</div>
+                        <label for="location" class="form-label">{{ t('ui.register.location', {}, 'common') }}</label>
+                        <input type="text" class="form-control" id="location" name="location" placeholder="{{ t('ui.register.location_placeholder', {}, 'common') }}">
+                        <div class="form-text">{{ t('ui.register.location_help', {}, 'common') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="reason" class="form-label">Reason for Joining</label>
+                        <label for="reason" class="form-label">{{ t('ui.register.reason_for_joining', {}, 'common') }}</label>
                         <textarea class="form-control" id="reason" name="reason" rows="3"
-                                  placeholder="Tell us why you'd like to join ..."></textarea>
+                                  placeholder="{{ t('ui.register.reason_placeholder', {}, 'common') }}"></textarea>
                     </div>
 
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-user-plus"></i>
-                            Submit Registration
+                            {{ t('ui.register.submit_registration', {}, 'common') }}
                         </button>
                     </div>
                 </form>
@@ -90,7 +90,7 @@
 
         <div class="text-center mt-3">
             <small class="text-muted">
-                Already have an account? <a href="/login" class="text-decoration-none">Sign In</a>
+                {{ t('ui.register.already_have_account', {}, 'common') }} <a href="/login" class="text-decoration-none">{{ t('ui.register.sign_in', {}, 'common') }}</a>
             </small>
         </div>
 
@@ -101,6 +101,13 @@
 {% block scripts %}
 <script>
 $(document).ready(function() {
+    function uiT(key, fallback, params = {}) {
+        if (window.t) {
+            return window.t(key, params, fallback);
+        }
+        return fallback;
+    }
+
     function apiError(payload, fallback) {
         if (window.getApiErrorMessage) {
             return window.getApiErrorMessage(payload, fallback);
@@ -159,16 +166,16 @@ $(document).ready(function() {
         // Determine strength level
         let text, color;
         if (score < 30) {
-            text = 'Weak - Add more variety';
+            text = uiT('ui.register.password_strength.weak', 'Weak - Add more variety');
             color = 'bg-danger';
         } else if (score < 60) {
-            text = 'Fair - Could be stronger';
+            text = uiT('ui.register.password_strength.fair', 'Fair - Could be stronger');
             color = 'bg-warning';
         } else if (score < 80) {
-            text = 'Good - Nice password!';
+            text = uiT('ui.register.password_strength.good', 'Good - Nice password!');
             color = 'bg-info';
         } else {
-            text = 'Strong - Excellent!';
+            text = uiT('ui.register.password_strength.strong', 'Strong - Excellent!');
             color = 'bg-success';
         }
 
@@ -216,14 +223,14 @@ $(document).ready(function() {
 
         // Validate passwords match
         if ($('#password').val() !== $('#confirmPassword').val()) {
-            showAlert('Passwords do not match.', 'danger');
+            showAlert(uiT('ui.register.passwords_do_not_match', 'Passwords do not match.'), 'danger');
             return;
         }
 
         // Disable submit button
         const submitBtn = $('button[type="submit"]');
         const originalText = submitBtn.html();
-        submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Submitting...');
+        submitBtn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.register.submitting', 'Submitting...')}`);
 
         // Submit registration
         $.ajax({
@@ -233,22 +240,22 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    showAlert('Registration submitted successfully! You will be notified when your account is approved.', 'success');
+                    showAlert(uiT('ui.register.submitted_success', 'Registration submitted successfully! You will be notified when your account is approved.'), 'success');
                     // Hide the form after successful registration
                     $('#registerForm').hide();
                     $('.card-body .alert-info').hide();
                     // Show link to login
                     $('#alert-container').append(
                         '<div class="mt-3 text-center">' +
-                        '<a href="/login" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> Go to Login</a>' +
+                        `<a href="/login" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i> ${uiT('ui.register.go_to_login', 'Go to Login')}</a>` +
                         '</div>'
                     );
                 } else {
-                    showAlert(apiError(response, 'Registration failed. Please try again.'), 'danger');
+                    showAlert(apiError(response, uiT('errors.register.failed', 'Registration failed. Please try again.')), 'danger');
                 }
             },
             error: function(xhr) {
-                const errorMsg = apiError(xhr.responseJSON, 'Registration failed. Please try again.');
+                const errorMsg = apiError(xhr.responseJSON, uiT('errors.register.failed', 'Registration failed. Please try again.'));
                 showAlert(errorMsg, 'danger');
             },
             complete: function() {
