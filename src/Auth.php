@@ -158,7 +158,10 @@ class Auth
         if (!$user) {
             header('HTTP/1.1 401 Unauthorized');
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Authentication required']);
+            echo json_encode([
+                'error_code' => 'errors.auth.authentication_required',
+                'error' => 'Authentication required'
+            ]);
             exit;
         }
 
@@ -175,7 +178,10 @@ class Auth
             if ($expected === null || $token === '' || !hash_equals($expected, $token)) {
                 http_response_code(403);
                 header('Content-Type: application/json');
-                echo json_encode(['error' => 'Invalid CSRF token']);
+                echo json_encode([
+                    'error_code' => 'errors.auth.invalid_csrf_token',
+                    'error' => 'Invalid CSRF token'
+                ]);
                 exit;
             }
         }

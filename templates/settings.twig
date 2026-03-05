@@ -46,6 +46,16 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="locale" class="form-label">Language</label>
+                        <select class="form-select" id="locale" name="locale">
+                            {% for localeCode in supported_locales %}
+                                <option value="{{ localeCode }}">{{ localeCode }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Preferred language for the interface</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="dateFormat" class="form-label">Date Format</label>
                         <select class="form-select" id="dateFormat" name="date_format">
                             <option value="en-US" selected>American (MM/DD/YYYY) - Jan 31, 2026, 10:30 AM</option>
@@ -361,6 +371,7 @@ function loadSettings() {
 
             if (data.messages_per_page) $('#messagesPerPage').val(data.messages_per_page);
             if (data.timezone) $('#timezone').val(data.timezone);
+            if (data.locale) $('#locale').val(data.locale);
             if (data.date_format) $('#dateFormat').val(data.date_format);
             if (data.theme) $('#theme').val(data.theme);
             if (data.shell) $('#shellPreference').val(data.shell);
@@ -406,6 +417,7 @@ function saveSettings() {
     const settings = {
         messages_per_page: parseInt($('#messagesPerPage').val()),
         timezone: $('#timezone').val(),
+        locale: $('#locale').val(),
         date_format: $('#dateFormat').val(),
         theme: $('#theme').val(),
         shell: $('#shellPreference').val() || undefined,
@@ -452,7 +464,9 @@ function saveSettings() {
             }, 3000);
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to save settings';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to save settings')
+                : (xhr.responseJSON ? xhr.responseJSON.error : 'Failed to save settings');
             $('#settingsStatus').html(`
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle me-2"></i>

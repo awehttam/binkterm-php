@@ -415,6 +415,114 @@ function toggleKludgeLines() {
 // Global user settings object
 window.userSettings = {};
 
+// Lightweight i18n client state with lazy namespace loading.
+window.i18n = window.i18n || {
+    locale: window.appLocale || 'en',
+    defaultLocale: window.appDefaultLocale || 'en',
+    catalogs: {},
+    loadedNamespaces: {}
+};
+
+function i18nInterpolate(template, params = {}) {
+    let output = String(template || '');
+    Object.keys(params || {}).forEach(function(key) {
+        const token = new RegExp(`\\{${key}\\}`, 'g');
+        output = output.replace(token, String(params[key]));
+    });
+    return output;
+}
+
+function i18nLookup(key) {
+    const catalogs = window.i18n?.catalogs || {};
+    for (const ns of Object.keys(catalogs)) {
+        if (Object.prototype.hasOwnProperty.call(catalogs[ns], key)) {
+            return catalogs[ns][key];
+        }
+    }
+    return null;
+}
+
+function t(key, params = {}, fallback = '') {
+    const value = i18nLookup(key);
+    if (typeof value === 'string') {
+        return i18nInterpolate(value, params);
+    }
+    if (fallback) {
+        return i18nInterpolate(fallback, params);
+    }
+    return key;
+}
+
+window.t = t;
+
+function getApiErrorMessage(payload, fallback = 'An unexpected error occurred.') {
+    if (!payload || typeof payload !== 'object') {
+        return fallback;
+    }
+    if (payload.error_code) {
+        return t(payload.error_code, {}, payload.error || fallback);
+    }
+    if (payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+
+window.getApiErrorMessage = getApiErrorMessage;
+
+function mergeCatalogs(catalogs) {
+    if (!catalogs || typeof catalogs !== 'object') {
+        return;
+    }
+    Object.keys(catalogs).forEach(function(ns) {
+        if (!window.i18n.catalogs[ns]) {
+            window.i18n.catalogs[ns] = {};
+        }
+        Object.assign(window.i18n.catalogs[ns], catalogs[ns] || {});
+        window.i18n.loadedNamespaces[ns] = true;
+    });
+}
+
+function loadI18nNamespaces(namespaces = []) {
+    const normalized = (namespaces || [])
+        .map(ns => String(ns || '').trim())
+        .filter(ns => ns.length > 0);
+    if (normalized.length === 0) {
+        return Promise.resolve();
+    }
+
+    const missing = normalized.filter(ns => !window.i18n.loadedNamespaces[ns]);
+    if (missing.length === 0) {
+        return Promise.resolve();
+    }
+
+    const nsParam = encodeURIComponent(missing.join(','));
+    const localeParam = encodeURIComponent(window.i18n.locale || window.appLocale || 'en');
+
+    return fetch(`/api/i18n/catalog?ns=${nsParam}&locale=${localeParam}`)
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('i18n catalog load failed');
+            }
+            return response.json();
+        })
+        .then(function(payload) {
+            if (!payload || !payload.success) {
+                throw new Error('invalid i18n payload');
+            }
+            if (payload.locale) {
+                window.i18n.locale = payload.locale;
+            }
+            if (payload.default_locale) {
+                window.i18n.defaultLocale = payload.default_locale;
+            }
+            mergeCatalogs(payload.catalogs || {});
+        })
+        .catch(function() {
+            // Non-fatal in Phase 0: app keeps English literals as fallback.
+        });
+}
+
 $(document).ready(function() {
     // Load user settings on page load
     loadUserSettings();
@@ -476,10 +584,14 @@ function loadUserSettings() {
                     window.userSettings = response;
                     console.log('Loaded user settings (legacy format):', window.userSettings);
                 }
-                
-                // Apply font settings after loading
-                applyFontSettings();
-                resolve(window.userSettings);
+
+                window.i18n.locale = window.userSettings.locale || window.appLocale || window.i18n.locale || 'en';
+
+                loadI18nNamespaces(window.appI18nNamespaces || ['common']).finally(function() {
+                    // Apply font settings after loading
+                    applyFontSettings();
+                    resolve(window.userSettings);
+                });
             })
             .fail(function() {
                 console.log('Failed to load user settings, using defaults');
@@ -491,14 +603,18 @@ function loadUserSettings() {
                     quote_coloring: true,
                     default_sort: 'date_desc',
                     timezone: 'America/Los_Angeles',
+                    locale: window.appLocale || 'en',
                     font_family: 'Courier New, Monaco, Consolas, monospace',
                     font_size: 16,
                     signature_text: ''
                 };
-                
-                // Apply font settings after loading defaults
-                applyFontSettings();
-                resolve(window.userSettings);
+
+                window.i18n.locale = window.userSettings.locale || window.appLocale || 'en';
+                loadI18nNamespaces(window.appI18nNamespaces || ['common']).finally(function() {
+                    // Apply font settings after loading defaults
+                    applyFontSettings();
+                    resolve(window.userSettings);
+                });
             });
     });
 }
@@ -638,26 +754,34 @@ function formatDate(dateString) {
         const absDays = Math.abs(diffDays);
         const absHours = Math.abs(diffHours);
         if (absDays === 0 && absHours === 0) {
-            return 'Soon';
+            return t('time.soon', {}, 'Soon');
         } else if (absDays === 0) {
-            return `In ${absHours} hour${absHours !== 1 ? 's' : ''}`;
+            return t('time.in_hours', {
+                count: absHours,
+                suffix: absHours !== 1 ? t('time.suffix_plural', {}, 's') : t('time.suffix_singular', {}, '')
+            }, `In ${absHours} hour${absHours !== 1 ? 's' : ''}`);
         } else if (absDays === 1) {
-            return 'Tomorrow';
+            return t('time.tomorrow', {}, 'Tomorrow');
         } else {
-            return `In ${absDays} days`;
+            return t('time.in_days', { count: absDays }, `In ${absDays} days`);
         }
     }
     
     if (diffDays === 0) {
         if (diffHours === 0) {
             const diffMins = Math.floor(diffMs / (1000 * 60));
-            return diffMins <= 1 ? 'Just now' : `${diffMins} minutes ago`;
+            return diffMins <= 1
+                ? t('time.just_now', {}, 'Just now')
+                : t('time.minutes_ago', { count: diffMins }, `${diffMins} minutes ago`);
         }
-        return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+        return t('time.hours_ago', {
+            count: diffHours,
+            suffix: diffHours !== 1 ? t('time.suffix_plural', {}, 's') : t('time.suffix_singular', {}, '')
+        }, `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`);
     } else if (diffDays === 1) {
-        return 'Yesterday';
+        return t('time.yesterday', {}, 'Yesterday');
     } else if (diffDays < 7) {
-        return `${diffDays} days ago`;
+        return t('time.days_ago', { count: diffDays }, `${diffDays} days ago`);
     } else {
         // Use user's preferred date format for older dates
         const userDateFormat = window.userSettings?.date_format || 'en-US';
@@ -711,7 +835,7 @@ function loadMessages(type, area = null, page = 1) {
             updatePagination(data.pagination);
         })
         .fail(function() {
-            showError('Failed to load messages');
+            showError(t('errors.failed_load_messages', {}, 'Failed to load messages'));
         });
 }
 
@@ -720,7 +844,7 @@ function displayMessages(messages, type) {
     let html = '';
     
     if (messages.length === 0) {
-        html = '<div class="text-center text-muted py-4">No messages found</div>';
+        html = `<div class="text-center text-muted py-4">${t('messages.none_found', {}, 'No messages found')}</div>`;
     } else {
         messages.forEach(function(msg) {
             html += `
@@ -733,7 +857,7 @@ function displayMessages(messages, type) {
                         </div>
                         <small class="message-date">${type === 'echomail' ? formatFullDate(msg.date_written) : formatDate(msg.date_written)}</small>
                     </div>
-                    <div class="message-subject">${escapeHtml(msg.subject || '(No Subject)')}</div>
+                    <div class="message-subject">${escapeHtml(msg.subject || t('messages.no_subject', {}, '(No Subject)'))}</div>
                     ${msg.to_name ? `<small class="text-muted">To: ${escapeHtml(msg.to_name)}</small>` : ''}
                     ${!msg.is_read && type === 'netmail' ? '<span class="badge bg-primary ms-2">NEW</span>' : ''}
                 </div>

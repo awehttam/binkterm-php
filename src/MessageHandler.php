@@ -1822,8 +1822,8 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format, default_tagline)
-                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US', NULL)
+                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format, locale, default_tagline)
+                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US', 'en', NULL)
                 ON CONFLICT (user_id) DO UPDATE SET
                     messages_per_page = COALESCE(user_settings.messages_per_page, 25),
                     threaded_view = COALESCE(user_settings.threaded_view, FALSE),
@@ -1832,6 +1832,7 @@ class MessageHandler
                     font_family = COALESCE(user_settings.font_family, 'Courier New, Monaco, Consolas, monospace'),
                     font_size = COALESCE(user_settings.font_size, 16),
                     date_format = COALESCE(user_settings.date_format, 'en-US'),
+                    locale = COALESCE(user_settings.locale, 'en'),
                     default_tagline = COALESCE(user_settings.default_tagline, NULL)
             ");
             $insertStmt->execute([$userId]);
@@ -1844,9 +1845,14 @@ class MessageHandler
                 'font_family' => 'Courier New, Monaco, Consolas, monospace',
                 'font_size' => 16,
                 'date_format' => 'en-US',
+                'locale' => 'en',
                 'signature_text' => '',
                 'default_tagline' => ''
             ];
+        }
+
+        if (empty($settings['locale'])) {
+            $settings['locale'] = 'en';
         }
 
         return $settings;
@@ -1876,6 +1882,7 @@ class MessageHandler
             'auto_refresh' => 'BOOLEAN',
             'quote_coloring' => 'BOOLEAN',
             'date_format' => 'STRING',
+            'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE'
         ];
@@ -1921,6 +1928,13 @@ class MessageHandler
                         $taglines = $this->getTaglinesList();
                     }
                     $params[] = in_array($tagline, $taglines, true) ? $tagline : null;
+                    break;
+                case 'LOCALE':
+                    $locale = str_replace('_', '-', trim((string)$value));
+                    if (!preg_match('/^[a-z]{2,3}(?:-[A-Z]{2})?$/', $locale)) {
+                        $locale = 'en';
+                    }
+                    $params[] = $locale;
                     break;
                 default:
                     $params[] = $value;

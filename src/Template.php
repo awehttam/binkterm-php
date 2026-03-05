@@ -19,6 +19,8 @@ namespace BinktermPHP;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\AppearanceConfig;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\TwigFunction;
@@ -27,11 +29,15 @@ class Template
 {
     private $twig;
     private $auth;
+    private Translator $translator;
+    private LocaleResolver $localeResolver;
     private string $activeShell = 'web';
 
     public function __construct()
     {
         $this->auth = new Auth();
+        $this->translator = new Translator();
+        $this->localeResolver = new LocaleResolver($this->translator);
         $currentUser = $this->auth->getCurrentUser();
 
         $this->activeShell = $this->resolveActiveShell($currentUser);
@@ -86,6 +92,21 @@ class Template
             $currentUser = $this->auth->getCurrentUser();
         }
 
+        $currentUserId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+        $userSettings = null;
+        if ($currentUserId > 0) {
+            try {
+                $handler = new MessageHandler();
+                $userSettings = $handler->getUserSettings($currentUserId);
+            } catch (\Throwable $e) {
+                $userSettings = null;
+            }
+        }
+
+        $preferredLocale = is_array($userSettings) ? (string)($userSettings['locale'] ?? '') : '';
+        $locale = $this->localeResolver->resolveLocale($preferredLocale !== '' ? $preferredLocale : null, $currentUser);
+        $this->localeResolver->persistLocale($locale);
+
         // Get dynamic system info from BinkP config
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -109,6 +130,10 @@ class Template
         $this->twig->addGlobal("favicon_svg", $favicon_svg);
         $this->twig->addGlobal("favicon_ico", $favicon_ico);
         $this->twig->addGlobal("favicon_png", $favicon_png);
+        $this->twig->addGlobal('locale', $locale);
+        $this->twig->addGlobal('default_locale', $this->translator->getDefaultLocale());
+        $this->twig->addGlobal('supported_locales', $this->translator->getSupportedLocales());
+        $this->twig->addGlobal('i18n_namespaces', ['common', 'errors']);
 
         // CSRF token — stored per-user in UserMeta so it is shared across web
         // sessions and the telnet daemon.  Generated lazily for users who were
@@ -219,10 +244,9 @@ class Template
         $systemDefaultEchoInterface = $bbsConfig['default_echo_interface'] ?? 'echolist';
         $defaultEchoList = $systemDefaultEchoInterface;
 
-        if ($currentUser && !empty($currentUser['user_id'])) {
+        if ($currentUserId > 0) {
             try {
-                $handler = new MessageHandler();
-                $settings = $handler->getUserSettings($currentUser['user_id']);
+                $settings = is_array($userSettings) ? $userSettings : [];
                 if (!empty($settings['theme']) && !AppearanceConfig::isThemeLocked()) {
                     // Validate that the user's theme is in the available themes
                     if (in_array($settings['theme'], $availableThemes, true)) {
@@ -248,6 +272,13 @@ class Template
 
         $this->twig->addFunction(new TwigFunction('bbs_feature_enabled', function(string $feature): bool {
             return BbsConfig::isFeatureEnabled($feature);
+        }));
+        $this->twig->addFunction(new TwigFunction('t', function(string $key, array $params = [], ?string $namespace = 'common') use ($locale): string {
+            $namespaces = ['common'];
+            if (is_string($namespace) && $namespace !== '' && $namespace !== 'common') {
+                array_unshift($namespaces, $namespace);
+            }
+            return $this->translator->translate($key, $params, $locale, $namespaces);
         }));
     }
 
