@@ -6,10 +6,11 @@
 Add multi-language support (i18n/l10n) to the web application without a destabilizing rewrite, while preserving current behavior for English users.
 
 ## Current State Summary
-- No translation framework is installed or wired into Twig/PHP/JS.
-- User-facing copy is hardcoded across Twig templates, inline scripts, standalone JS files, and API JSON error messages.
-- Locale formatting is partially configurable (`date_format`, `timezone`) but inconsistent and still contains English-only relative time text.
-- `<html lang>` is fixed to English and PWA manifest strings are English-only.
+- Translation framework is installed and wired into Twig/PHP/JS.
+- Catalogs are namespaced and loaded from `config/i18n/<locale>/<namespace>.php` (currently `common.php`, `errors.php`).
+- API error responses now generally use structured error payloads with `error_code` + `error`.
+- Client-side translation helper (`window.t`) and lazy catalog loading (`/api/i18n/catalog`) are active.
+- Hardcoded user-facing strings still exist in some templates/pages, but core shared/user flows have substantial coverage now.
 
 ## Scope
 - In scope:
@@ -86,6 +87,29 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 - Fall back to `en`.
 
 ## Implementation Phases
+### Status Update (March 5, 2026)
+- Phase 0 (Foundation): **Completed**
+  - Translator + locale resolver added and wired through Twig `t()`.
+  - Locale persistence/resolution path implemented.
+  - JS i18n helper and lazy namespace loading endpoint implemented.
+- Phase 1 (Shared Shell/UI Chrome): **In Progress (mostly complete on primary shell)**
+  - `templates/base.twig` largely localized.
+  - Shared chrome in alternate/legacy shells still needs review/coverage.
+- Phase 2 (High-Traffic User Pages): **In Progress (substantial progress)**
+  - Localized pages include: dashboard, netmail, echomail, compose, settings, login, register, forgot/reset password, profile, about, 404, create poll, shoutbox, polls.
+  - Remaining user/admin surfaces still contain hardcoded literals.
+- Phase 3 (API Error Code Migration): **Completed (functional), hardening ongoing**
+  - `apiError(error_code, error, ...)` pattern is in active use.
+  - Frontend consumers use `getApiErrorMessage(...)` broadly.
+  - Legacy-style responses have been reduced significantly; residual endpoints should continue to be normalized.
+- Phase 4 (Admin Surface): **In Progress (early)**
+  - Some admin flows are migrated, but broad admin template/JS localization remains.
+- Phase 5 (Hardening and Cleanup): **In Progress**
+  - Validation scripts are in place and passing:
+    - `scripts/check_i18n_hardcoded_strings.php`
+    - `scripts/check_i18n_error_keys.php`
+  - Final cleanup (full admin coverage, remaining literals, eventual API fallback retirement) is still pending.
+
 ## Phase 0: Foundation (No User-Visible Language Changes)
 - Add translator service and locale resolver.
 - Wire translator into `Template` and Twig (`t()` helper).
@@ -199,3 +223,9 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 1. Ship `en` + one additional locale first.
 2. Enable locale switch behind feature flag for internal testing.
 3. Expand locale coverage after API code migration stabilizes.
+
+## Immediate Next Steps (From Current Status)
+1. Finish Phase 1 shell parity (`templates/shells/web/base.twig`, `templates/shells/bbs-menu/base.twig`, `templates/old.base.twig`).
+2. Continue Phase 4 by localizing high-use admin pages first (users, binkp config, appearance, activity stats).
+3. Keep converting remaining template/JS literals while maintaining zero new violations in i18n check scripts.
+4. After full consumer coverage is verified, plan a deprecation window for dropping legacy dependence on plain `error` text.
