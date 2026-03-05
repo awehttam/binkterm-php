@@ -1,16 +1,16 @@
 {% extends "base.twig" %}
 
-{% block title %}Binkp Configuration{% endblock %}
+{% block title %}{{ t('ui.admin.binkp_config.page_title', {}, 'Binkp Configuration') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Binkp Configuration</h1>
+        <h1 class="h2">{{ t('ui.admin.binkp_config.heading', {}, 'Binkp Configuration') }}</h1>
     </div>
 
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        After saving, restart the daemons to apply changes.
+        {{ t('ui.admin.binkp_config.restart_notice', {}, 'After saving, restart the daemons to apply changes.') }}
     </div>
 
     <div id="binkpConfigAlert"></div>
@@ -19,32 +19,32 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">System</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.system.title', {}, 'System') }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label class="form-label" for="systemName">System Name</label>
+                        <label class="form-label" for="systemName">{{ t('ui.admin.binkp_config.system.system_name', {}, 'System Name') }}</label>
                         <input type="text" class="form-control" id="systemName">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemAddress">System Address</label>
+                        <label class="form-label" for="systemAddress">{{ t('ui.admin.binkp_config.system.system_address', {}, 'System Address') }}</label>
                         <input type="text" class="form-control" id="systemAddress">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemSysop">Sysop Name</label>
+                        <label class="form-label" for="systemSysop">{{ t('ui.admin.binkp_config.system.sysop_name', {}, 'Sysop Name') }}</label>
                         <select class="form-select" id="systemSysop"></select>
-                        <small class="text-muted">Select an admin user.</small>
+                        <small class="text-muted">{{ t('ui.admin.binkp_config.system.select_admin_user', {}, 'Select an admin user.') }}</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemLocation">Location</label>
+                        <label class="form-label" for="systemLocation">{{ t('ui.admin.binkp_config.system.location', {}, 'Location') }}</label>
                         <input type="text" class="form-control" id="systemLocation">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemHostname">Hostname</label>
+                        <label class="form-label" for="systemHostname">{{ t('ui.common.hostname', {}, 'Hostname') }}</label>
                         <input type="text" class="form-control" id="systemHostname">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemTimezone">Timezone</label>
+                        <label class="form-label" for="systemTimezone">{{ t('ui.admin.binkp_config.system.timezone', {}, 'Timezone') }}</label>
                         <select class="form-select" id="systemTimezone">
                             {% for tz in timezone_list %}
                                 <option value="{{ tz }}">{{ tz }}</option>
@@ -52,7 +52,7 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemOrigin">Origin Line</label>
+                        <label class="form-label" for="systemOrigin">{{ t('ui.admin.binkp_config.system.origin_line', {}, 'Origin Line') }}</label>
                         <input type="text" class="form-control" id="systemOrigin">
                     </div>
                 </div>
@@ -61,28 +61,28 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">Binkp</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.binkp.title', {}, 'Binkp') }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label class="form-label" for="binkpPort">Port</label>
+                        <label class="form-label" for="binkpPort">{{ t('ui.common.port', {}, 'Port') }}</label>
                         <input type="number" class="form-control" id="binkpPort" min="1" max="65535">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="binkpTimeout">Timeout (seconds)</label>
+                        <label class="form-label" for="binkpTimeout">{{ t('ui.admin.binkp_config.binkp.timeout_seconds', {}, 'Timeout (seconds)') }}</label>
                         <input type="number" class="form-control" id="binkpTimeout" min="30" max="3600">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="binkpMaxConnections">Max Connections</label>
+                        <label class="form-label" for="binkpMaxConnections">{{ t('ui.admin.binkp_config.binkp.max_connections', {}, 'Max Connections') }}</label>
                         <input type="number" class="form-control" id="binkpMaxConnections" min="1" max="100">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="binkpBindAddress">Bind Address</label>
+                        <label class="form-label" for="binkpBindAddress">{{ t('ui.admin.binkp_config.binkp.bind_address', {}, 'Bind Address') }}</label>
                         <input type="text" class="form-control" id="binkpBindAddress">
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="binkpPreserveProcessed">
-                        <label class="form-check-label" for="binkpPreserveProcessed">Preserve Processed Packets</label>
+                        <label class="form-check-label" for="binkpPreserveProcessed">{{ t('ui.admin.binkp_config.binkp.preserve_processed_packets', {}, 'Preserve Processed Packets') }}</label>
                     </div>
                 </div>
             </div>
@@ -90,28 +90,28 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">Security</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.security.title', {}, 'Security') }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="securityAllowInsecureInbound">
-                        <label class="form-check-label" for="securityAllowInsecureInbound">Allow Insecure Inbound</label>
+                        <label class="form-check-label" for="securityAllowInsecureInbound">{{ t('ui.admin.binkp_config.security.allow_insecure_inbound', {}, 'Allow Insecure Inbound') }}</label>
                     </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="securityInsecureReceiveOnly">
-                        <label class="form-check-label" for="securityInsecureReceiveOnly">Insecure Receive Only</label>
+                        <label class="form-check-label" for="securityInsecureReceiveOnly">{{ t('ui.admin.binkp_config.security.insecure_receive_only', {}, 'Insecure Receive Only') }}</label>
                     </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="securityRequireAllowlist">
-                        <label class="form-check-label" for="securityRequireAllowlist">Require Allowlist For Insecure</label>
+                        <label class="form-check-label" for="securityRequireAllowlist">{{ t('ui.admin.binkp_config.security.require_allowlist_for_insecure', {}, 'Require Allowlist For Insecure') }}</label>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="securityMaxInsecureSessions">Max Insecure Sessions / Hour</label>
+                        <label class="form-label" for="securityMaxInsecureSessions">{{ t('ui.admin.binkp_config.security.max_insecure_sessions_per_hour', {}, 'Max Insecure Sessions / Hour') }}</label>
                         <input type="number" class="form-control" id="securityMaxInsecureSessions" min="1">
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="securityAllowPlaintextFallback">
-                        <label class="form-check-label" for="securityAllowPlaintextFallback">Allow Plaintext Fallback</label>
+                        <label class="form-check-label" for="securityAllowPlaintextFallback">{{ t('ui.admin.binkp_config.security.allow_plaintext_fallback', {}, 'Allow Plaintext Fallback') }}</label>
                     </div>
                 </div>
             </div>
@@ -119,32 +119,32 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">Crashmail</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.crashmail.title', {}, 'Crashmail') }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="crashmailEnabled">
-                        <label class="form-check-label" for="crashmailEnabled">Enable Crashmail</label>
+                        <label class="form-check-label" for="crashmailEnabled">{{ t('ui.admin.binkp_config.crashmail.enable_crashmail', {}, 'Enable Crashmail') }}</label>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="crashmailMaxAttempts">Max Attempts</label>
+                        <label class="form-label" for="crashmailMaxAttempts">{{ t('ui.admin.binkp_config.crashmail.max_attempts', {}, 'Max Attempts') }}</label>
                         <input type="number" class="form-control" id="crashmailMaxAttempts" min="1">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="crashmailRetryInterval">Retry Interval (minutes)</label>
+                        <label class="form-label" for="crashmailRetryInterval">{{ t('ui.admin.binkp_config.crashmail.retry_interval_minutes', {}, 'Retry Interval (minutes)') }}</label>
                         <input type="number" class="form-control" id="crashmailRetryInterval" min="1">
                     </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="crashmailUseNodelist">
-                        <label class="form-check-label" for="crashmailUseNodelist">Use Nodelist For Routing</label>
+                        <label class="form-check-label" for="crashmailUseNodelist">{{ t('ui.admin.binkp_config.crashmail.use_nodelist_for_routing', {}, 'Use Nodelist For Routing') }}</label>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="crashmailFallbackPort">Fallback Port</label>
+                        <label class="form-label" for="crashmailFallbackPort">{{ t('ui.admin.binkp_config.crashmail.fallback_port', {}, 'Fallback Port') }}</label>
                         <input type="number" class="form-control" id="crashmailFallbackPort" min="1" max="65535">
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="crashmailAllowInsecure">
-                        <label class="form-check-label" for="crashmailAllowInsecure">Allow Insecure Crash Delivery</label>
+                        <label class="form-check-label" for="crashmailAllowInsecure">{{ t('ui.admin.binkp_config.crashmail.allow_insecure_crash_delivery', {}, 'Allow Insecure Crash Delivery') }}</label>
                     </div>
                 </div>
             </div>
@@ -153,26 +153,26 @@
 
     <div class="card shadow mt-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">Uplinks</h6>
-            <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal()">Add Uplink</button>
+            <h6 class="mb-0">{{ t('ui.admin.binkp_config.uplinks.title', {}, 'Uplinks') }}</h6>
+            <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal()">{{ t('ui.admin.binkp_config.uplinks.add_uplink', {}, 'Add Uplink') }}</button>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped" id="uplinksTable">
                     <thead>
                         <tr>
-                            <th>Me</th>
-                            <th>Uplink</th>
-                            <th>Domain</th>
-                            <th>Hostname</th>
-                            <th>Port</th>
-                            <th>Schedule</th>
-                            <th>Markdown</th>
-                            <th>Posting Name</th>
-                            <th>ADR @Domain</th>
-                            <th>Enabled</th>
-                            <th>Default</th>
-                            <th>Actions</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.me', {}, 'Me') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.uplink', {}, 'Uplink') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.domain', {}, 'Domain') }}</th>
+                            <th>{{ t('ui.common.hostname', {}, 'Hostname') }}</th>
+                            <th>{{ t('ui.common.port', {}, 'Port') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.schedule', {}, 'Schedule') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.markdown', {}, 'Markdown') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.posting_name', {}, 'Posting Name') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.adr_domain', {}, 'ADR @Domain') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, 'Enabled') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.default', {}, 'Default') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.actions', {}, 'Actions') }}</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -182,9 +182,9 @@
     </div>
 
     <div class="mt-4">
-        <button class="btn btn-primary" type="button" onclick="saveBinkpConfig()">Save Configuration</button>
-        <button class="btn btn-secondary ms-2" type="button" onclick="reloadBinkpConfig()" title="Reload configuration without restarting daemon">
-            <i class="fas fa-sync-alt"></i> Reload Config
+        <button class="btn btn-primary" type="button" onclick="saveBinkpConfig()">{{ t('ui.admin.binkp_config.save_configuration', {}, 'Save Configuration') }}</button>
+        <button class="btn btn-secondary ms-2" type="button" onclick="reloadBinkpConfig()" title="{{ t('ui.admin.binkp_config.reload_title', {}, 'Reload configuration without restarting daemon') }}">
+            <i class="fas fa-sync-alt"></i> {{ t('ui.admin.binkp_config.reload_config', {}, 'Reload Config') }}
         </button>
     </div>
 </div>
@@ -193,91 +193,91 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="uplinkModalLabel">Uplink</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="uplinkModalLabel">{{ t('ui.admin.binkp_config.uplinks.modal.uplink', {}, 'Uplink') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'Close') }}"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="uplinkIndex">
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkMe">Me Address</label>
+                        <label class="form-label" for="uplinkMe">{{ t('ui.admin.binkp_config.uplinks.modal.me_address', {}, 'Me Address') }}</label>
                         <input type="text" class="form-control" id="uplinkMe">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkAddress">Uplink Address</label>
+                        <label class="form-label" for="uplinkAddress">{{ t('ui.admin.binkp_config.uplinks.modal.uplink_address', {}, 'Uplink Address') }}</label>
                         <input type="text" class="form-control" id="uplinkAddress">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkDomain">Domain</label>
+                        <label class="form-label" for="uplinkDomain">{{ t('ui.admin.binkp_config.uplinks.modal.domain', {}, 'Domain') }}</label>
                         <input type="text" class="form-control" id="uplinkDomain">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkHostname">Hostname</label>
+                        <label class="form-label" for="uplinkHostname">{{ t('ui.common.hostname', {}, 'Hostname') }}</label>
                         <input type="text" class="form-control" id="uplinkHostname">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label" for="uplinkPort">Port</label>
+                        <label class="form-label" for="uplinkPort">{{ t('ui.common.port', {}, 'Port') }}</label>
                         <input type="number" class="form-control" id="uplinkPort" min="1" max="65535">
                     </div>
                     <div class="col-md-8">
-                        <label class="form-label" for="uplinkPassword">BinkP Session Password</label>
+                        <label class="form-label" for="uplinkPassword">{{ t('ui.admin.binkp_config.uplinks.modal.binkp_session_password', {}, 'BinkP Session Password') }}</label>
                         <input type="text" class="form-control" id="uplinkPassword">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkPktPassword">Packet Password <small class="text-muted">(optional)</small></label>
+                        <label class="form-label" for="uplinkPktPassword">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password', {}, 'Packet Password') }} <small class="text-muted">({{ t('ui.common.optional', {}, 'optional') }})</small></label>
                         <input type="text" class="form-control" id="uplinkPktPassword" maxlength="8">
-                        <div class="form-text">FTN .pkt header password (max 8 chars)</div>
+                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password_help', {}, 'FTN .pkt header password (max 8 chars)') }}</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkTicPassword">TIC Password <small class="text-muted">(optional)</small></label>
+                        <label class="form-label" for="uplinkTicPassword">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password', {}, 'TIC Password') }} <small class="text-muted">({{ t('ui.common.optional', {}, 'optional') }})</small></label>
                         <input type="text" class="form-control" id="uplinkTicPassword">
-                        <div class="form-text">Default TIC file password; overridden per file area</div>
+                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password_help', {}, 'Default TIC file password; overridden per file area') }}</div>
                     </div>
                     <div class="col-md-12">
-                        <label class="form-label" for="uplinkSchedule">Poll Schedule</label>
+                        <label class="form-label" for="uplinkSchedule">{{ t('ui.admin.binkp_config.uplinks.modal.poll_schedule', {}, 'Poll Schedule') }}</label>
                         <input type="text" class="form-control" id="uplinkSchedule">
                     </div>
                     <div class="col-md-12">
-                        <label class="form-label" for="uplinkNetworks">Networks (one per line)</label>
+                        <label class="form-label" for="uplinkNetworks">{{ t('ui.admin.binkp_config.uplinks.modal.networks_one_per_line', {}, 'Networks (one per line)') }}</label>
                         <textarea class="form-control" id="uplinkNetworks" rows="4"></textarea>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkAllowMarkdown">
-                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="Enables Markup support (Markdown, StyleCodes, etc.) on compatible/supporting networks">Allow Markup</label>
+                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup_help', {}, 'Enables Markup support (Markdown, StyleCodes, etc.) on compatible/supporting networks') }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, 'Allow Markup') }}</label>
                     </div>
                     <div class="col-md-4 mt-1">
-                        <label class="form-label" for="uplinkPostingNamePolicy">Posting Name Policy</label>
+                        <label class="form-label" for="uplinkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, 'Posting Name Policy') }}</label>
                         <select class="form-select form-select-sm" id="uplinkPostingNamePolicy">
-                            <option value="real_name">Real Name</option>
-                            <option value="username">Username</option>
+                            <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, 'Real Name') }}</option>
+                            <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, 'Username') }}</option>
                         </select>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkSendDomainInAddr">
-                        <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="Include the @Domain portion when sending the ADR address to this uplink">Send @Domain In ADR</label>
+                        <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_domain_help', {}, 'Include the @Domain portion when sending the ADR address to this uplink') }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_domain', {}, 'Send @Domain In ADR') }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkEnabled">
-                        <label class="form-check-label" for="uplinkEnabled" data-bs-toggle="tooltip" data-bs-placement="top" title="Enables this uplink for normal routing, polling, and outbound delivery">Enabled</label>
+                        <label class="form-check-label" for="uplinkEnabled" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.enabled_help', {}, 'Enables this uplink for normal routing, polling, and outbound delivery') }}">{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, 'Enabled') }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkCompression">
-                        <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="Requests compressed transfers when the remote system supports them">Compression</label>
+                        <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.compression_help', {}, 'Requests compressed transfers when the remote system supports them') }}">{{ t('ui.admin.binkp_config.uplinks.modal.compression', {}, 'Compression') }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkCrypt">
-                        <label class="form-check-label" for="uplinkCrypt" data-bs-toggle="tooltip" data-bs-placement="top" title="Uses CRAM-MD5 style authentication for this uplink when supported">Crypt</label>
+                        <label class="form-check-label" for="uplinkCrypt" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.crypt_help', {}, 'Uses CRAM-MD5 style authentication for this uplink when supported') }}">{{ t('ui.admin.binkp_config.uplinks.modal.crypt', {}, 'Crypt') }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkDefault">
-                        <label class="form-check-label" for="uplinkDefault" data-bs-toggle="tooltip" data-bs-placement="top" title="Marks this as the default uplink when no more specific route matches">Default</label>
+                        <label class="form-check-label" for="uplinkDefault" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.default_help', {}, 'Marks this as the default uplink when no more specific route matches') }}">{{ t('ui.admin.binkp_config.uplinks.table.default', {}, 'Default') }}</label>
                     </div>
                 </div>
                 <div id="uplinkModalAlert" class="mt-3"></div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" type="button" onclick="saveUplink()">Save Uplink</button>
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
+                <button class="btn btn-primary" type="button" onclick="saveUplink()">{{ t('ui.admin.binkp_config.uplinks.modal.save_uplink', {}, 'Save Uplink') }}</button>
             </div>
         </div>
     </div>
@@ -288,6 +288,13 @@
 <script>
 let binkpConfig = null;
 let uplinkModal;
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     uplinkModal = new bootstrap.Modal(document.getElementById('uplinkModal'));
@@ -303,14 +310,14 @@ function loadBinkpConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Failed to load config'));
+                throw new Error(apiError(data, uiT('ui.admin.binkp_config.load_failed', 'Failed to load config')));
             }
             binkpConfig = data.config || {};
             populateForm();
             renderUplinks();
         })
         .catch(error => {
-            showBinkpAlert(error.message || 'Failed to load config', 'danger');
+            showBinkpAlert(error.message || uiT('ui.admin.binkp_config.load_failed', 'Failed to load config'), 'danger');
         });
 }
 
@@ -389,23 +396,23 @@ function gatherConfig() {
 
 function validateConfig(config) {
     if (!config.system.name || !config.system.address || !config.system.sysop) {
-        return 'System name, address, and sysop are required.';
+        return uiT('ui.admin.binkp_config.validation.system_required', 'System name, address, and sysop are required.');
     }
     if (!Number.isInteger(config.binkp.port) || config.binkp.port < 1 || config.binkp.port > 65535) {
-        return 'Binkp port must be between 1 and 65535.';
+        return uiT('ui.admin.binkp_config.validation.port_range', 'Binkp port must be between 1 and 65535.');
     }
     if (!Number.isInteger(config.binkp.timeout) || config.binkp.timeout < 1) {
-        return 'Binkp timeout must be a positive number.';
+        return uiT('ui.admin.binkp_config.validation.timeout_positive', 'Binkp timeout must be a positive number.');
     }
     if (!Number.isInteger(config.binkp.max_connections) || config.binkp.max_connections < 1) {
-        return 'Max connections must be a positive number.';
+        return uiT('ui.admin.binkp_config.validation.max_connections_positive', 'Max connections must be a positive number.');
     }
     return null;
 }
 
 function saveBinkpConfig() {
     if (!binkpConfig) {
-        showBinkpAlert('Config not loaded.', 'danger');
+        showBinkpAlert(uiT('ui.admin.binkp_config.config_not_loaded', 'Config not loaded.'), 'danger');
         return;
     }
     const config = gatherConfig();
@@ -423,23 +430,23 @@ function saveBinkpConfig() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(apiError(data, 'Failed to save config'));
+            throw new Error(apiError(data, uiT('ui.admin.binkp_config.save_failed', 'Failed to save config')));
         }
         binkpConfig = data.config || config;
         renderUplinks();
-        showBinkpAlert('Configuration saved.', 'success');
+        showBinkpAlert(uiT('ui.admin.binkp_config.configuration_saved', 'Configuration saved.'), 'success');
     })
     .catch(error => {
-        showBinkpAlert(error.message || 'Failed to save config', 'danger');
+        showBinkpAlert(error.message || uiT('ui.admin.binkp_config.save_failed', 'Failed to save config'), 'danger');
     });
 }
 
 function reloadBinkpConfig() {
-    if (!confirm('Reload binkp daemon configuration? This will send SIGHUP to the daemon.')) {
+    if (!confirm(uiT('ui.admin.binkp_config.reload_confirm', 'Reload binkp daemon configuration? This will send SIGHUP to the daemon.'))) {
         return;
     }
 
-    showBinkpAlert('Reloading configuration...', 'info');
+    showBinkpAlert(uiT('ui.admin.binkp_config.reloading', 'Reloading configuration...'), 'info');
 
     fetch('/admin/api/binkp-reload', {
         method: 'POST',
@@ -448,12 +455,12 @@ function reloadBinkpConfig() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(apiError(data, 'Failed to reload config'));
+            throw new Error(apiError(data, uiT('ui.admin.binkp_config.reload_failed', 'Failed to reload config')));
         }
-        showBinkpAlert('Configuration reloaded successfully. Daemon has picked up changes.', 'success');
+        showBinkpAlert(uiT('ui.admin.binkp_config.reloaded_success', 'Configuration reloaded successfully. Daemon has picked up changes.'), 'success');
     })
     .catch(error => {
-        showBinkpAlert(error.message || 'Failed to reload config', 'danger');
+        showBinkpAlert(error.message || uiT('ui.admin.binkp_config.reload_failed', 'Failed to reload config'), 'danger');
     });
 }
 
@@ -462,7 +469,7 @@ function renderUplinks() {
     tbody.innerHTML = '';
     const uplinks = binkpConfig.uplinks || [];
     if (uplinks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="text-muted">No uplinks configured.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-muted">' + escapeHtml(uiT('ui.admin.binkp_config.uplinks.none_configured', 'No uplinks configured.')) + '</td></tr>';
         return;
     }
     uplinks.forEach((uplink, index) => {
@@ -474,14 +481,14 @@ function renderUplinks() {
             <td>${escapeHtml(uplink.hostname || '')}</td>
             <td>${uplink.port ?? ''}</td>
             <td><code>${escapeHtml(uplink.poll_schedule || '')}</code></td>
-            <td>${uplink.allow_markup ? 'Yes' : 'No'}</td>
-            <td>${(uplink.posting_name_policy || 'real_name') === 'username' ? 'Username' : 'Real Name'}</td>
-            <td>${uplink.send_domain_in_addr ? 'Yes' : 'No'}</td>
-            <td>${uplink.enabled ? 'Yes' : 'No'}</td>
-            <td>${uplink.default ? 'Yes' : 'No'}</td>
+            <td>${uplink.allow_markup ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
+            <td>${(uplink.posting_name_policy || 'real_name') === 'username' ? uiT('ui.admin.binkp_config.uplinks.username', 'Username') : uiT('ui.admin.binkp_config.uplinks.real_name', 'Real Name')}</td>
+            <td>${uplink.send_domain_in_addr ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
+            <td>${uplink.enabled ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
+            <td>${uplink.default ? uiT('ui.common.yes', 'Yes') : uiT('ui.common.no', 'No')}</td>
             <td>
-                <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal(${index})">Edit</button>
-                <button class="btn btn-sm btn-outline-danger ms-1" type="button" onclick="deleteUplink(${index})">Delete</button>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal(${index})">${uiT('ui.common.edit', 'Edit')}</button>
+                <button class="btn btn-sm btn-outline-danger ms-1" type="button" onclick="deleteUplink(${index})">${uiT('ui.common.delete', 'Delete')}</button>
             </td>
         `;
         tbody.appendChild(row);
@@ -501,7 +508,7 @@ function apiError(payload, fallback) {
 function openUplinkModal(index = null) {
     document.getElementById('uplinkModalAlert').innerHTML = '';
     if (index === null) {
-        document.getElementById('uplinkModalLabel').textContent = 'Add Uplink';
+        document.getElementById('uplinkModalLabel').textContent = uiT('ui.admin.binkp_config.uplinks.add_uplink', 'Add Uplink');
         document.getElementById('uplinkIndex').value = '';
         document.getElementById('uplinkMe').value = '';
         document.getElementById('uplinkAddress').value = '';
@@ -525,7 +532,7 @@ function openUplinkModal(index = null) {
         if (!uplink) {
             return;
         }
-        document.getElementById('uplinkModalLabel').textContent = 'Edit Uplink';
+        document.getElementById('uplinkModalLabel').textContent = uiT('ui.admin.binkp_config.uplinks.edit_uplink', 'Edit Uplink');
         document.getElementById('uplinkIndex').value = index;
         document.getElementById('uplinkMe').value = uplink.me || '';
         document.getElementById('uplinkAddress').value = uplink.address || '';
@@ -596,7 +603,7 @@ function saveUplink() {
 }
 
 function deleteUplink(index) {
-    if (!confirm('Remove this uplink?')) {
+    if (!confirm(uiT('ui.admin.binkp_config.remove_uplink_confirm', 'Remove this uplink?'))) {
         return;
     }
     binkpConfig.uplinks.splice(index, 1);
@@ -605,10 +612,10 @@ function deleteUplink(index) {
 
 function validateUplink(uplink) {
     if (!uplink.hostname) {
-        return 'Uplink hostname is required.';
+        return uiT('ui.admin.binkp_config.validation.uplink_hostname_required', 'Uplink hostname is required.');
     }
     if (!Number.isInteger(uplink.port) || uplink.port < 1 || uplink.port > 65535) {
-        return 'Uplink port must be between 1 and 65535.';
+        return uiT('ui.admin.binkp_config.validation.uplink_port_range', 'Uplink port must be between 1 and 65535.');
     }
     return null;
 }
@@ -671,7 +678,7 @@ function syncSysopSelect(selectId) {
     if (!exists) {
         const option = document.createElement('option');
         option.value = current;
-        option.textContent = `${current} (current)`;
+        option.textContent = `${current} (${uiT('ui.admin.binkp_config.current', 'current')})`;
         select.insertBefore(option, select.firstChild);
     }
     select.value = current;

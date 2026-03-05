@@ -1,11 +1,11 @@
 {% extends "base.twig" %}
 
-{% block title %}Shoutbox{% endblock %}
+{% block title %}{{ t('ui.admin.shoutbox.page_title') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Shoutbox Moderation</h1>
+        <h1 class="h2">{{ t('ui.admin.shoutbox.heading') }}</h1>
     </div>
 
     <div class="card shadow">
@@ -15,11 +15,11 @@
                     <thead class="table-dark">
                         <tr>
                             <th>ID</th>
-                            <th>User</th>
-                            <th>Message</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>{{ t('ui.admin.shoutbox.user') }}</th>
+                            <th>{{ t('ui.admin.shoutbox.message') }}</th>
+                            <th>{{ t('ui.admin.shoutbox.status') }}</th>
+                            <th>{{ t('ui.admin.shoutbox.created') }}</th>
+                            <th>{{ t('ui.admin.shoutbox.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody id="shoutboxTableBody">
@@ -32,6 +32,13 @@
 </div>
 
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadShouts();
 });
@@ -44,7 +51,7 @@ function loadShouts() {
         })
         .catch(error => {
             console.error('Error loading shouts:', error);
-            showAlert('Error loading shouts', 'danger');
+            showAlert(uiT('ui.admin.shoutbox.error_loading_shouts', 'Error loading shouts'), 'danger');
         });
 }
 
@@ -60,21 +67,21 @@ function displayShouts(messages) {
             <td>${escapeHtml(msg.message)}</td>
             <td>
                 <span class="badge bg-${msg.is_hidden ? 'secondary' : 'success'}">
-                    ${msg.is_hidden ? 'Hidden' : 'Visible'}
+                    ${msg.is_hidden ? uiT('ui.admin.shoutbox.hidden', 'Hidden') : uiT('ui.admin.shoutbox.visible', 'Visible')}
                 </span>
             </td>
             <td>${new Date(msg.created_at).toLocaleString()}</td>
             <td>
                 <div class="btn-group btn-group-sm" role="group">
                     ${msg.is_hidden
-                        ? `<button type="button" class="btn btn-outline-success" onclick="toggleShout(${msg.id}, false)" title="Unhide">
+                        ? `<button type="button" class="btn btn-outline-success" onclick="toggleShout(${msg.id}, false)" title="${uiT('ui.admin.shoutbox.unhide', 'Unhide')}">
                                 <i class="fas fa-eye"></i>
                            </button>`
-                        : `<button type="button" class="btn btn-outline-warning" onclick="toggleShout(${msg.id}, true)" title="Hide">
+                        : `<button type="button" class="btn btn-outline-warning" onclick="toggleShout(${msg.id}, true)" title="${uiT('ui.admin.shoutbox.hide', 'Hide')}">
                                 <i class="fas fa-eye-slash"></i>
                            </button>`
                     }
-                    <button type="button" class="btn btn-outline-danger" onclick="deleteShout(${msg.id})" title="Delete">
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteShout(${msg.id})" title="${uiT('ui.common.delete', 'Delete')}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -92,14 +99,14 @@ function toggleShout(id, hide) {
             if (data.success) {
                 loadShouts();
             } else {
-                showAlert('Failed to update shout', 'danger');
+                showAlert(uiT('ui.admin.shoutbox.failed_to_update', 'Failed to update shout'), 'danger');
             }
         })
-        .catch(() => showAlert('Failed to update shout', 'danger'));
+        .catch(() => showAlert(uiT('ui.admin.shoutbox.failed_to_update', 'Failed to update shout'), 'danger'));
 }
 
 function deleteShout(id) {
-    if (!confirm('Delete this shout?')) {
+    if (!confirm(uiT('ui.admin.shoutbox.confirm_delete', 'Delete this shout?'))) {
         return;
     }
 
@@ -109,10 +116,10 @@ function deleteShout(id) {
             if (data.success) {
                 loadShouts();
             } else {
-                showAlert('Failed to delete shout', 'danger');
+                showAlert(uiT('ui.admin.shoutbox.failed_to_delete', 'Failed to delete shout'), 'danger');
             }
         })
-        .catch(() => showAlert('Failed to delete shout', 'danger'));
+        .catch(() => showAlert(uiT('ui.admin.shoutbox.failed_to_delete', 'Failed to delete shout'), 'danger'));
 }
 
 function escapeHtml(text) {

@@ -18,6 +18,13 @@
     };
 
     let dbPromise = null;
+    function uiT(key, fallback, params = {}) {
+        if (window.t) {
+            return window.t(key, params, fallback);
+        }
+        return fallback;
+    }
+
     function apiError(payload, fallback) {
         if (window.getApiErrorMessage) {
             return window.getApiErrorMessage(payload, fallback);
@@ -390,10 +397,10 @@
                 appendMessage(data.local_message);
             }
             if (!data.success) {
-                alert(apiError(data, 'Failed to send message'));
+                alert(apiError(data, uiT('ui.chat.send_failed', 'Failed to send message')));
             }
         }).catch(() => {
-            alert('Failed to send message');
+            alert(uiT('ui.chat.send_failed', 'Failed to send message'));
         });
     }
 
@@ -577,10 +584,10 @@
                 })
             }).then(res => res.json()).then(data => {
                 if (!data.success) {
-                    alert(apiError(data, 'Moderation failed'));
+                    alert(apiError(data, uiT('ui.chat.moderation_failed', 'Moderation failed')));
                 }
             }).catch(() => {
-                alert('Moderation failed');
+                alert(uiT('ui.chat.moderation_failed', 'Moderation failed'));
             }).finally(() => {
                 hideMenu();
             });

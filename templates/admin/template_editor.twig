@@ -92,6 +92,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadTemplates();
 
@@ -128,7 +135,7 @@ function loadTemplates() {
             renderTemplateList(document.getElementById('templateSearch').value.trim().toLowerCase());
         })
         .catch(() => {
-            setStatus('Failed to load templates.', 'danger');
+            setStatus(uiT('ui.admin.template_editor.load_templates_failed', 'Failed to load templates.'), 'danger');
         });
 }
 
@@ -138,7 +145,7 @@ function renderTemplateList(filter = '') {
 
     const filtered = templates.filter(t => t.path.toLowerCase().includes(filter));
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="text-muted">No templates found.</div>';
+        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.template_editor.no_templates_found', 'No templates found.')}</div>`;
         return;
     }
 
@@ -153,7 +160,7 @@ function renderTemplateList(filter = '') {
 }
 
 function loadTemplate(path) {
-    if (isDirty && !confirm('You have unsaved changes. Continue and discard them?')) {
+    if (isDirty && !confirm(uiT('ui.admin.template_editor.unsaved_changes_confirm', 'You have unsaved changes. Continue and discard them?'))) {
         return;
     }
 
@@ -161,7 +168,7 @@ function loadTemplate(path) {
     fetch(`/admin/api/custom-templates/file?path=${encodeURIComponent(path)}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Failed to load template');
+                throw new Error(uiT('ui.admin.template_editor.load_template_failed', 'Failed to load template'));
             }
             return response.json();
         })
@@ -178,14 +185,14 @@ function loadTemplate(path) {
             document.getElementById('installTemplateBtn').disabled = !isExample;
         })
         .catch(() => {
-            setStatus('Failed to load template.', 'danger');
+            setStatus(uiT('ui.admin.template_editor.load_template_failed', 'Failed to load template'), 'danger');
         });
 }
 
 function createTemplate() {
     const path = document.getElementById('newTemplatePath').value.trim();
     if (!path) {
-        setStatus('Enter a template path (e.g., systemnews.twig).', 'warning');
+        setStatus(uiT('ui.admin.template_editor.enter_template_path', 'Enter a template path (e.g., systemnews.twig).'), 'warning');
         return;
     }
     currentTemplate = path;
@@ -213,16 +220,16 @@ function saveTemplate() {
         .then(response => response.json().then(data => ({ ok: response.ok, data })))
         .then(({ ok, data }) => {
             if (!ok) {
-                throw new Error(apiError(data, 'Failed to save template'));
+                throw new Error(apiError(data, uiT('ui.admin.template_editor.save_template_failed', 'Failed to save template')));
             }
             isDirty = false;
             loadTemplates();
-            setStatus('Template saved successfully.', 'success');
+            setStatus(uiT('ui.admin.template_editor.template_saved_success', 'Template saved successfully.'), 'success');
             document.getElementById('deleteTemplateBtn').disabled = false;
             document.getElementById('installTemplateBtn').disabled = true;
         })
         .catch(err => {
-            setStatus(err.message || 'Failed to save template.', 'danger');
+            setStatus(err.message || uiT('ui.admin.template_editor.save_template_failed', 'Failed to save template'), 'danger');
         });
 }
 
@@ -231,7 +238,7 @@ function deleteTemplate() {
         return;
     }
 
-    if (!confirm(`Delete ${currentTemplate}? This cannot be undone.`)) {
+    if (!confirm(uiT('ui.admin.template_editor.delete_confirm', `Delete ${currentTemplate}? This cannot be undone.`, { template: currentTemplate }))) {
         return;
     }
 
@@ -241,21 +248,21 @@ function deleteTemplate() {
         .then(response => response.json().then(data => ({ ok: response.ok, data })))
         .then(({ ok, data }) => {
             if (!ok) {
-                throw new Error(apiError(data, 'Failed to delete template'));
+                throw new Error(apiError(data, uiT('ui.admin.template_editor.delete_template_failed', 'Failed to delete template')));
             }
             currentTemplate = null;
             isDirty = false;
             document.getElementById('templateEditor').value = '';
             document.getElementById('templateEditor').disabled = true;
-            document.getElementById('currentTemplateLabel').textContent = 'No template selected';
+            document.getElementById('currentTemplateLabel').textContent = uiT('ui.admin.template_editor.no_template_selected', 'No template selected');
             document.getElementById('saveTemplateBtn').disabled = true;
             document.getElementById('deleteTemplateBtn').disabled = true;
             document.getElementById('installTemplateBtn').disabled = true;
             loadTemplates();
-            setStatus('Template deleted.', 'success');
+            setStatus(uiT('ui.admin.template_editor.template_deleted_success', 'Template deleted.'), 'success');
         })
         .catch(err => {
-            setStatus(err.message || 'Failed to delete template.', 'danger');
+            setStatus(err.message || uiT('ui.admin.template_editor.delete_template_failed', 'Failed to delete template'), 'danger');
         });
 }
 
@@ -272,14 +279,14 @@ function installTemplate() {
         .then(response => response.json().then(data => ({ ok: response.ok, data })))
         .then(({ ok, data }) => {
             if (!ok) {
-                throw new Error(apiError(data, 'Failed to install template'));
+                throw new Error(apiError(data, uiT('ui.admin.template_editor.install_template_failed', 'Failed to install template')));
             }
             loadTemplates();
             loadTemplate(data.path);
-            setStatus('Template installed from example.', 'success');
+            setStatus(uiT('ui.admin.template_editor.template_installed_success', 'Template installed from example.'), 'success');
         })
         .catch(err => {
-            setStatus(err.message || 'Failed to install template.', 'danger');
+            setStatus(err.message || uiT('ui.admin.template_editor.install_template_failed', 'Failed to install template'), 'danger');
         });
 }
 </script>

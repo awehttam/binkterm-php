@@ -296,6 +296,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadPendingUsers();
     loadAllUsers();
@@ -326,13 +333,13 @@ function loadPendingUsers() {
             if (response.success) {
                 renderPendingUsers(response.users);
             } else {
-                console.error('Pending users error:', apiError(response, 'Unknown error'));
-                showError('Failed to load pending users: ' + apiError(response, 'Unknown error'));
+                console.error(uiT('ui.admin_users.pending_users_error', 'Pending users error:'), apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
+                showError(uiT('ui.admin_users.pending_users_load_failed_prefix', 'Failed to load pending users: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for pending users:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load pending users: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.pending_users_load_failed_prefix', 'Failed to load pending users: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -360,13 +367,13 @@ function loadAllUsers(page = 1) {
                     totalUsers = response.pagination.total;
                 }
             } else {
-                console.error('All users error:', apiError(response, 'Unknown error'));
-                showError('Failed to load users: ' + apiError(response, 'Unknown error'));
+                console.error(uiT('ui.admin_users.all_users_error', 'All users error:'), apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
+                showError(uiT('ui.admin_users.users_load_failed_prefix', 'Failed to load users: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for all users:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load users: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.users_load_failed_prefix', 'Failed to load users: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -587,7 +594,7 @@ function processUser(action) {
     const btn = action === 'approve' ? $('#approve-btn') : $('#reject-btn');
     const originalText = btn.html();
     
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.admin_users.processing', 'Processing...'));
     
     $.ajax({
         url: '/api/admin/pending-users/' + currentPendingUserId + '/' + action,
@@ -596,16 +603,18 @@ function processUser(action) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(action === 'approve' ? 'User approved successfully!' : 'User rejected successfully!');
+                showSuccess(action === 'approve'
+                    ? uiT('ui.admin_users.user_approved_success', 'User approved successfully!')
+                    : uiT('ui.admin_users.user_rejected_success', 'User rejected successfully!'));
                 $('#approvalModal').modal('hide');
                 refreshData();
                 $('#admin-notes').val('');
             } else {
-                showError('Failed to ' + action + ' user: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.user_action_failed_prefix', 'Failed to {action} user: ', { action }) + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
-            showError('Failed to ' + action + ' user');
+            showError(uiT('ui.admin_users.user_action_failed_short', 'Failed to {action} user', { action }));
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
@@ -625,12 +634,12 @@ function escapeHtml(text) {
 
 function showSuccess(message) {
     // Simple success notification - could be enhanced with toast/alert system
-    alert('Success: ' + message);
+    alert(uiT('ui.admin_users.success_prefix', 'Success: ') + message);
 }
 
 function showError(message) {
     // Simple error notification - could be enhanced with toast/alert system
-    alert('Error: ' + message);
+    alert(uiT('ui.admin_users.error_prefix', 'Error: ') + message);
 }
 
 function editUser(userId) {
@@ -657,12 +666,12 @@ function editUser(userId) {
                 // Show modal
                 new bootstrap.Modal(document.getElementById('editUserModal')).show();
             } else {
-                showError('Failed to load user data: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.user_data_load_failed_prefix', 'Failed to load user data: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for edit user:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load user data: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.user_data_load_failed_prefix', 'Failed to load user data: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -673,7 +682,7 @@ function saveUserChanges() {
     
     // Validate password if provided
     if (newPassword && newPassword.length < 8) {
-        showError('Password must be at least 8 characters long');
+        showError(uiT('ui.admin_users.password_min_length', 'Password must be at least 8 characters long'));
         return;
     }
     
@@ -691,7 +700,7 @@ function saveUserChanges() {
     
     const btn = $('button[onclick="saveUserChanges()"]');
     const originalText = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Saving...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.common.saving', 'Saving...'));
     
     $.ajax({
         url: '/api/admin/users/' + userId,
@@ -700,16 +709,16 @@ function saveUserChanges() {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess('User updated successfully!');
+                showSuccess(uiT('ui.admin_users.user_updated_success', 'User updated successfully!'));
                 $('#editUserModal').modal('hide');
                 refreshData();
             } else {
-                showError('Failed to update user: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.user_update_failed_prefix', 'Failed to update user: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for save user:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to update user: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.user_update_failed_prefix', 'Failed to update user: ') + xhr.status + ' ' + xhr.statusText);
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
@@ -720,7 +729,7 @@ function saveUserChanges() {
 function toggleUserStatus(userId, newStatus) {
     const action = newStatus === 'true' ? 'enable' : 'disable';
     
-    if (!confirm(`Are you sure you want to ${action} this user?`)) {
+    if (!confirm(uiT('ui.admin_users.user_toggle_confirm', 'Are you sure you want to {action} this user?', { action }))) {
         return;
     }
     
@@ -731,15 +740,15 @@ function toggleUserStatus(userId, newStatus) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(`User ${action}d successfully!`);
+                showSuccess(uiT('ui.admin_users.user_toggled_success', 'User {action}d successfully!', { action }));
                 refreshData();
             } else {
-                showError(`Failed to ${action} user: ` + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.user_action_failed_prefix', 'Failed to {action} user: ', { action }) + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for toggle status:', xhr.status, xhr.statusText, xhr.responseText);
-            showError(`Failed to ${action} user: ` + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.user_action_failed_prefix', 'Failed to {action} user: ', { action }) + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
@@ -769,25 +778,25 @@ function saveNewUser() {
     
     // Validate required fields
     if (!username || !realName || !password) {
-        showError('Username, real name, and password are required');
+        showError(uiT('ui.admin_users.required_fields', 'Username, real name, and password are required'));
         return;
     }
     
     // Validate username format
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-        showError('Username must be 3-20 characters, letters, numbers, and underscores only');
+        showError(uiT('ui.admin_users.username_validation', 'Username must be 3-20 characters, letters, numbers, and underscores only'));
         return;
     }
     
     // Validate password
     if (password.length < 8) {
-        showError('Password must be at least 8 characters long');
+        showError(uiT('ui.admin_users.password_min_length', 'Password must be at least 8 characters long'));
         return;
     }
     
     // Validate passwords match
     if (password !== confirmPassword) {
-        showError('Passwords do not match');
+        showError(uiT('ui.register.passwords_do_not_match', 'Passwords do not match'));
         return;
     }
     
@@ -802,7 +811,7 @@ function saveNewUser() {
     
     const btn = $('button[onclick="saveNewUser()"]');
     const originalText = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Creating...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.admin_users.creating', 'Creating...'));
     
     $.ajax({
         url: '/api/admin/users/create',
@@ -811,17 +820,19 @@ function saveNewUser() {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess('User created successfully!');
+                showSuccess(uiT('ui.admin_users.user_created_success', 'User created successfully!'));
                 $('#createUserModal').modal('hide');
                 refreshData();
             } else {
-                showError('Failed to create user: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.user_create_failed_prefix', 'Failed to create user: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for create user:', xhr.status, xhr.statusText, xhr.responseText);
-            let errorMsg = 'Failed to create user';
-            errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText); else {
+            let errorMsg = uiT('ui.admin_users.user_create_failed', 'Failed to create user');
+            if (xhr && xhr.responseJSON) {
+                errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText);
+            } else {
                 errorMsg += ': ' + xhr.status + ' ' + xhr.statusText;
             }
             showError(errorMsg);
@@ -833,13 +844,13 @@ function saveNewUser() {
 }
 
 function cleanupRegistrations() {
-    if (!confirm('This will remove all approved registration records and old rejected registrations (30+ days). Are you sure?')) {
+    if (!confirm(uiT('ui.admin_users.cleanup_confirm', 'This will remove all approved registration records and old rejected registrations (30+ days). Are you sure?'))) {
         return;
     }
     
     const btn = $('button[onclick="cleanupRegistrations()"]');
     const originalText = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Cleaning...');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>' + uiT('ui.admin_users.cleaning', 'Cleaning...'));
     
     $.ajax({
         url: '/api/admin/users/cleanup',
@@ -848,15 +859,19 @@ function cleanupRegistrations() {
         success: function(response) {
             if (response.success) {
                 const result = response.result;
-                showSuccess(`Cleanup completed! Removed ${result.approved_removed} approved and ${result.old_rejected_removed} old rejected registrations (${result.total_cleaned} total).`);
+                showSuccess(uiT('ui.admin_users.cleanup_success', 'Cleanup completed! Removed {approved} approved and {rejected} old rejected registrations ({total} total).', {
+                    approved: result.approved_removed,
+                    rejected: result.old_rejected_removed,
+                    total: result.total_cleaned
+                }));
                 refreshData();
             } else {
-                showError('Failed to cleanup registrations: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.cleanup_failed_prefix', 'Failed to cleanup registrations: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for cleanup:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to cleanup registrations: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.cleanup_failed_prefix', 'Failed to cleanup registrations: ') + xhr.status + ' ' + xhr.statusText);
         },
         complete: function() {
             btn.prop('disabled', false).html(originalText);
@@ -865,10 +880,10 @@ function cleanupRegistrations() {
 }
 
 function sendAccountReminder(userId, username) {
-    if (!confirm(`Send account reminder to ${username}? This will send a reminder message via netmail and email (if available).`)) {
+    if (!confirm(uiT('ui.admin_users.send_reminder_confirm', 'Send account reminder to {username}? This will send a reminder message via netmail and email (if available).', { username }))) {
         return;
     }
-    
+
     $.ajax({
         url: '/api/admin/users/' + userId + '/send-reminder',
         method: 'POST',
@@ -877,27 +892,28 @@ function sendAccountReminder(userId, username) {
             if (response.success) {
                 let message = response.message;
                 if (response.email_sent) {
-                    message += ' (sent via netmail and email)';
+                    message += uiT('ui.admin_users.reminder_sent_netmail_email_suffix', ' (sent via netmail and email)');
                 } else {
-                    message += ' (sent via netmail only)';
+                    message += uiT('ui.admin_users.reminder_sent_netmail_only_suffix', ' (sent via netmail only)');
                 }
                 showSuccess(message);
                 refreshData(); // Refresh to update any status changes
             } else {
-                showError('Failed to send reminder: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.send_reminder_failed_prefix', 'Failed to send reminder: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for send reminder:', xhr.status, xhr.statusText, xhr.responseText);
-            let errorMsg = 'Failed to send reminder';
-            errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText); else {
+            let errorMsg = uiT('ui.admin_users.send_reminder_failed', 'Failed to send reminder');
+            if (xhr && xhr.responseJSON) {
+                errorMsg += ': ' + apiError(xhr.responseJSON, xhr.status + ' ' + xhr.statusText);
+            } else {
                 errorMsg += ': ' + xhr.status + ' ' + xhr.statusText;
             }
             showError(errorMsg);
         }
     });
 }
-
 function loadUsersNeedingReminders() {
     $.ajax({
         url: '/api/admin/users/need-reminders',
@@ -933,29 +949,32 @@ function showUsersNeedingReminders() {
         success: function(response) {
             if (response.success) {
                 if (response.users.length === 0) {
-                    showSuccess('No users currently need account reminders. All users have logged in!');
+                    showSuccess(uiT('ui.admin_users.no_reminders_needed', 'No users currently need account reminders. All users have logged in!'));
                     return;
                 }
-                
-                let message = `Found ${response.users.length} user(s) who haven't logged in yet:\n\n`;
+
+                let message = uiT('ui.admin_users.reminders_found_header', `Found ${response.users.length} user(s) who haven't logged in yet:\n\n`, { count: response.users.length });
                 response.users.forEach(user => {
                     const createdDate = new Date(user.created_at).toLocaleDateString();
-                    message += `• ${user.username} (${user.real_name || 'No real name'}) - created ${createdDate}\n`;
+                    message += uiT('ui.admin_users.reminder_user_line', '- {username} ({real_name}) - created {created_date}\n', {
+                        username: user.username,
+                        real_name: user.real_name || uiT('ui.admin_users.no_real_name', 'No real name'),
+                        created_date: createdDate
+                    });
                 });
-                message += `\nYou can send individual reminders using the "Remind" buttons in the user list below.`;
-                
+                message += uiT('ui.admin_users.reminders_found_footer', '\nYou can send individual reminders using the "Remind" buttons in the user list below.');
+
                 alert(message);
             } else {
-                showError('Failed to load users needing reminders: ' + apiError(response, 'Unknown error'));
+                showError(uiT('ui.admin_users.reminders_load_failed_prefix', 'Failed to load users needing reminders: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         },
         error: function(xhr) {
             console.error('AJAX error for show users needing reminders:', xhr.status, xhr.statusText, xhr.responseText);
-            showError('Failed to load users needing reminders: ' + xhr.status + ' ' + xhr.statusText);
+            showError(uiT('ui.admin_users.reminders_load_failed_prefix', 'Failed to load users needing reminders: ') + xhr.status + ' ' + xhr.statusText);
         }
     });
 }
-
 function searchUsers() {
     currentSearch = $('#user-search').val();
     currentPage = 1; // Reset to first page
@@ -1037,3 +1056,4 @@ function renderUsersPagination(pagination) {
 }
 </script>
 {% endblock %}
+

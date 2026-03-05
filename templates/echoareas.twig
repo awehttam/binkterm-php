@@ -305,6 +305,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadEchoareas();
     loadStats();
@@ -346,7 +353,7 @@ function loadEchoareas() {
             applySearchFilter();
         })
         .fail(function() {
-            $('#echoareasContainer').html('<div class="text-center text-danger py-4">Failed to load echo areas</div>');
+            $('#echoareasContainer').html(`<div class="text-center text-danger py-4">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
         });
 }
 
@@ -489,7 +496,7 @@ function editEchoarea(id) {
             $('#echoareaModal').modal('show');
         })
         .fail(function() {
-            showError('Failed to load echo area details');
+            showError(uiT('ui.echoareas.load_details_failed', 'Failed to load echo area details'));
         });
 }
 
@@ -524,12 +531,19 @@ function saveEchoarea() {
         data: JSON.stringify(formData),
         success: function() {
             $('#echoareaModal').modal('hide');
-            showSuccess(`Echo area ${currentEchoareaId ? 'updated' : 'created'} successfully`);
+            showSuccess(currentEchoareaId
+                ? uiT('ui.echoareas.updated_success', 'Echo area updated successfully')
+                : uiT('ui.echoareas.created_success', 'Echo area created successfully'));
             loadEchoareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Operation failed');
+            const error = apiError(
+                xhr.responseJSON,
+                currentEchoareaId
+                    ? uiT('errors.echoareas.update_failed', 'Failed to update echo area')
+                    : uiT('errors.echoareas.create_failed', 'Failed to create echo area')
+            );
             showError(error);
         }
     });
@@ -551,12 +565,12 @@ function deleteEchoarea() {
         method: 'DELETE',
         success: function() {
             $('#deleteModal').modal('hide');
-            showSuccess('Echo area deleted successfully');
+            showSuccess(uiT('ui.echoareas.deleted_success', 'Echo area deleted successfully'));
             loadEchoareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Delete failed');
+            const error = apiError(xhr.responseJSON, uiT('errors.echoareas.delete_failed', 'Failed to delete echo area'));
             showError(error);
         }
     });
@@ -572,15 +586,15 @@ function loadStats() {
 }
 
 function syncWithUplinks() {
-    showSuccess('Sync functionality not yet implemented');
+    showSuccess(uiT('ui.echoareas.sync_not_implemented', 'Sync functionality not yet implemented'));
 }
 
 function exportConfiguration() {
-    showSuccess('Export functionality not yet implemented');
+    showSuccess(uiT('ui.echoareas.export_not_implemented', 'Export functionality not yet implemented'));
 }
 
 function validateConfiguration() {
-    showSuccess('Validation functionality not yet implemented');
+    showSuccess(uiT('ui.echoareas.validate_not_implemented', 'Validation functionality not yet implemented'));
 }
 
 function updateColorSelection(color) {

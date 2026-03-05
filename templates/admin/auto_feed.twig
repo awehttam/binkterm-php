@@ -1,16 +1,16 @@
 {% extends "base.twig" %}
 
-{% block title %}Auto Feed - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.admin.auto_feed.page_title') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-rss"></i>
-        Auto Feed
+        {{ t('ui.admin.auto_feed.heading') }}
     </h2>
     <button class="btn btn-fidonet" onclick="showAddFeedModal()">
         <i class="fas fa-plus"></i>
-        Add Feed
+        {{ t('ui.admin.auto_feed.add_feed') }}
     </button>
 </div>
 
@@ -18,13 +18,13 @@
     <div class="col-lg-9">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">RSS/Atom Feeds</h6>
+                <h6 class="mb-0">{{ t('ui.admin.auto_feed.rss_atom_feeds') }}</h6>
             </div>
             <div class="card-body p-0">
                 <div id="feedsContainer">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading feeds...
+                        {{ t('ui.admin.auto_feed.loading_feeds') }}
                     </div>
                 </div>
             </div>
@@ -34,17 +34,17 @@
     <div class="col-lg-3">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Statistics</h6>
+                <h6 class="mb-0">{{ t('ui.admin.auto_feed.statistics') }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-8">Total Feeds:</dt>
+                    <dt class="col-8">{{ t('ui.admin.auto_feed.total_feeds') }}:</dt>
                     <dd class="col-4" id="totalFeeds">-</dd>
 
-                    <dt class="col-8">Active:</dt>
+                    <dt class="col-8">{{ t('ui.admin.auto_feed.active_label') }}:</dt>
                     <dd class="col-4" id="activeFeeds">-</dd>
 
-                    <dt class="col-8">Articles Posted:</dt>
+                    <dt class="col-8">{{ t('ui.admin.auto_feed.articles_posted') }}:</dt>
                     <dd class="col-4" id="totalArticles">-</dd>
                 </dl>
             </div>
@@ -52,14 +52,14 @@
 
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">About</h6>
+                <h6 class="mb-0">{{ t('ui.admin.auto_feed.about_title') }}</h6>
             </div>
             <div class="card-body">
                 <p class="small text-muted mb-2">
-                    Auto Feed monitors RSS/Atom feeds and automatically posts new articles to specified echoareas.
+                    {{ t('ui.admin.auto_feed.about_text') }}
                 </p>
                 <p class="small text-muted mb-0">
-                    Run <code>php scripts/rss_poster.php</code> via cron to check feeds periodically.
+                    {{ t('ui.admin.auto_feed.cron_hint_prefix') }} <code>php scripts/rss_poster.php</code> {{ t('ui.admin.auto_feed.cron_hint_suffix') }}
                 </p>
             </div>
         </div>
@@ -71,7 +71,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="feedModalTitle">Add Feed</h5>
+                <h5 class="modal-title" id="feedModalTitle">{{ t('ui.admin.auto_feed.add_feed') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -79,53 +79,53 @@
                     <input type="hidden" id="feedId">
 
                     <div class="mb-3">
-                        <label for="feedName" class="form-label">Feed Name</label>
-                        <input type="text" class="form-control" id="feedName" name="feed_name" maxlength="100" placeholder="e.g., Tech News, BBC Headlines">
-                        <div class="form-text">Friendly name for this feed</div>
+                        <label for="feedName" class="form-label">{{ t('ui.admin.auto_feed.feed_name') }}</label>
+                        <input type="text" class="form-control" id="feedName" name="feed_name" maxlength="100" placeholder="{{ t('ui.admin.auto_feed.feed_name_placeholder') }}">
+                        <div class="form-text">{{ t('ui.admin.auto_feed.feed_name_help') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="feedUrl" class="form-label">Feed URL *</label>
+                        <label for="feedUrl" class="form-label">{{ t('ui.admin.auto_feed.feed_url_required') }}</label>
                         <input type="url" class="form-control" id="feedUrl" name="feed_url" required placeholder="https://example.com/feed.rss">
-                        <div class="form-text">RSS or Atom feed URL</div>
+                        <div class="form-text">{{ t('ui.admin.auto_feed.feed_url_help') }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="feedEchoarea" class="form-label">Echo Area *</label>
+                        <label for="feedEchoarea" class="form-label">{{ t('ui.admin.auto_feed.echo_area_required') }}</label>
                         <select class="form-select" id="feedEchoarea" name="echoarea_id" required>
-                            <option value="">Loading echo areas...</option>
+                            <option value="">{{ t('ui.admin.auto_feed.loading_echo_areas') }}</option>
                         </select>
-                        <div class="form-text">Echo area to post articles to</div>
+                        <div class="form-text">{{ t('ui.admin.auto_feed.echo_area_help') }}</div>
                     </div>
 
                     <div class="row mb-3">
                         <div class="col-md-8">
-                            <label for="feedUser" class="form-label">Post As User *</label>
+                            <label for="feedUser" class="form-label">{{ t('ui.admin.auto_feed.post_as_user_required') }}</label>
                             <select class="form-select" id="feedUser" name="post_as_user_id" required>
-                                <option value="">Loading users...</option>
+                                <option value="">{{ t('ui.admin.auto_feed.loading_users') }}</option>
                             </select>
-                            <div class="form-text">User account to post messages as</div>
+                            <div class="form-text">{{ t('ui.admin.auto_feed.post_as_user_help') }}</div>
                         </div>
                         <div class="col-md-4">
-                            <label for="feedMaxArticles" class="form-label">Max Articles</label>
+                            <label for="feedMaxArticles" class="form-label">{{ t('ui.admin.auto_feed.max_articles') }}</label>
                             <input type="number" class="form-control" id="feedMaxArticles" name="max_articles_per_check" value="10" min="1" max="50">
-                            <div class="form-text">Per check</div>
+                            <div class="form-text">{{ t('ui.admin.auto_feed.per_check') }}</div>
                         </div>
                     </div>
 
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="feedActive" name="active" checked>
                         <label class="form-check-label" for="feedActive">
-                            Active
+                            {{ t('ui.admin.auto_feed.active_label') }}
                         </label>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
                 <button type="button" class="btn btn-fidonet" onclick="saveFeed()">
                     <i class="fas fa-save"></i>
-                    Save
+                    {{ t('ui.common.save') }}
                 </button>
             </div>
         </div>
@@ -137,18 +137,18 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Confirm Delete</h5>
+                <h5 class="modal-title">{{ t('ui.admin.auto_feed.confirm_delete_title') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete the feed <strong id="deleteFeedName"></strong>?</p>
-                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+                <p>{{ t('ui.admin.auto_feed.confirm_delete_text_prefix') }} <strong id="deleteFeedName"></strong>?</p>
+                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> {{ t('ui.admin.auto_feed.confirm_delete_warning') }}</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
                 <button type="button" class="btn btn-danger" id="confirmDelete">
                     <i class="fas fa-trash"></i>
-                    Delete
+                    {{ t('ui.common.delete') }}
                 </button>
             </div>
         </div>
@@ -161,6 +161,13 @@
 let currentFeedId = null;
 let allFeeds = [];
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadFeeds();
     loadStats();
@@ -169,14 +176,14 @@ $(document).ready(function() {
 });
 
 function loadFeeds() {
-    $('#feedsContainer').html('<div class="loading-spinner"><i class="fas fa-spinner fa-spin me-2"></i>Loading feeds...</div>');
+    $('#feedsContainer').html(`<div class="loading-spinner"><i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.admin.auto_feed.loading_feeds', 'Loading feeds...')}</div>`);
 
     $.get('/admin/api/auto-feed/feeds')
         .done(function(data) {
             console.log('API response:', data);
             if (!data || !data.feeds) {
                 console.error('Invalid response structure:', data);
-                $('#feedsContainer').html('<div class="text-center text-danger py-4">Invalid API response</div>');
+                $('#feedsContainer').html(`<div class="text-center text-danger py-4">${uiT('ui.admin.auto_feed.invalid_api_response', 'Invalid API response')}</div>`);
                 return;
             }
             allFeeds = data.feeds;
@@ -184,7 +191,7 @@ function loadFeeds() {
         })
         .fail(function(xhr, status, error) {
             console.error('API error:', status, error);
-            $('#feedsContainer').html('<div class="text-center text-danger py-4">Failed to load feeds: ' + error + '</div>');
+            $('#feedsContainer').html(`<div class="text-center text-danger py-4">${uiT('ui.admin.auto_feed.failed_to_load_feeds_prefix', 'Failed to load feeds:')} ${escapeHtml(error)}</div>`);
         });
 }
 
@@ -193,7 +200,7 @@ function displayFeeds(feeds) {
     let html = '';
 
     if (feeds.length === 0) {
-        html = '<div class="text-center text-muted py-4">No feeds configured</div>';
+        html = `<div class="text-center text-muted py-4">${uiT('ui.admin.auto_feed.no_feeds_configured', 'No feeds configured')}</div>`;
     } else {
         html = `
             <div class="table-responsive">
@@ -201,12 +208,12 @@ function displayFeeds(feeds) {
                     <thead>
                         <tr>
                             <th width="5%"></th>
-                            <th width="20%">Name/URL</th>
-                            <th width="20%">Echo Area</th>
-                            <th width="15%">Post As</th>
-                            <th width="10%">Articles</th>
-                            <th width="15%">Last Check</th>
-                            <th width="15%">Actions</th>
+                            <th width="20%">${uiT('ui.admin.auto_feed.name_url', 'Name/URL')}</th>
+                            <th width="20%">${uiT('ui.admin.auto_feed.echo_area', 'Echo Area')}</th>
+                            <th width="15%">${uiT('ui.admin.auto_feed.post_as', 'Post As')}</th>
+                            <th width="10%">${uiT('ui.admin.auto_feed.articles', 'Articles')}</th>
+                            <th width="15%">${uiT('ui.admin.auto_feed.last_check', 'Last Check')}</th>
+                            <th width="15%">${uiT('ui.admin.auto_feed.actions', 'Actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -216,14 +223,14 @@ function displayFeeds(feeds) {
             const isActive = feed.active;
             const rowClass = isActive ? '' : 'table-secondary';
             const statusIcon = isActive ?
-                '<i class="fas fa-check-circle text-success" title="Active"></i>' :
-                '<i class="fas fa-pause-circle text-warning" title="Inactive"></i>';
+                `<i class="fas fa-check-circle text-success" title="${uiT('ui.admin.auto_feed.active_label', 'Active')}"></i>` :
+                `<i class="fas fa-pause-circle text-warning" title="${uiT('ui.admin.auto_feed.inactive_label', 'Inactive')}"></i>`;
 
             const lastCheck = feed.last_check ?
                 new Date(feed.last_check).toLocaleString() :
-                '<span class="text-muted">Never</span>';
+                `<span class="text-muted">${uiT('ui.admin.auto_feed.never', 'Never')}</span>`;
 
-            const feedName = escapeHtml(feed.feed_name || 'Unnamed Feed');
+            const feedName = escapeHtml(feed.feed_name || uiT('ui.admin.auto_feed.unnamed_feed', 'Unnamed Feed'));
             const feedUrl = escapeHtml(feed.feed_url);
             const truncatedUrl = feedUrl.length > 50 ? feedUrl.substring(0, 47) + '...' : feedUrl;
 
@@ -233,14 +240,14 @@ function displayFeeds(feeds) {
                     <td>
                         <strong>${feedName}</strong><br>
                         <small class="text-muted" title="${feedUrl}">${truncatedUrl}</small>
-                        ${feed.last_error ? '<br><small class="text-danger"><i class="fas fa-exclamation-triangle"></i> Error</small>' : ''}
+                        ${feed.last_error ? `<br><small class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${uiT('ui.common.error', 'Error')}</small>` : ''}
                     </td>
                     <td>
-                        <span class="font-monospace">${escapeHtml(feed.echoarea_tag || 'Unknown')}</span><br>
-                        <small class="text-muted">@ ${escapeHtml(feed.echoarea_domain || 'Unknown')}</small>
+                        <span class="font-monospace">${escapeHtml(feed.echoarea_tag || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</span><br>
+                        <small class="text-muted">@ ${escapeHtml(feed.echoarea_domain || uiT('ui.admin.auto_feed.unknown', 'Unknown'))}</small>
                     </td>
                     <td>
-                        <small>${escapeHtml(feed.username || 'User #' + feed.post_as_user_id)}</small>
+                        <small>${escapeHtml(feed.username || (uiT('ui.admin.auto_feed.user_prefix', 'User #') + feed.post_as_user_id))}</small>
                     </td>
                     <td>
                         <span class="badge bg-secondary">${feed.articles_posted || 0}</span>
@@ -250,13 +257,13 @@ function displayFeeds(feeds) {
                     </td>
                     <td>
                         <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-outline-success" onclick="checkFeed(${feed.id})" title="Check now">
+                            <button class="btn btn-sm btn-outline-success" onclick="checkFeed(${feed.id})" title="${uiT('ui.admin.auto_feed.check_now', 'Check now')}">
                                 <i class="fas fa-sync"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-primary" onclick="editFeed(${feed.id})" title="Edit">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editFeed(${feed.id})" title="${uiT('ui.common.edit', 'Edit')}">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${feed.id}, '${escapeHtml(feedName)}')" title="Delete">
+                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${feed.id}, '${escapeHtml(feedName)}')" title="${uiT('ui.common.delete', 'Delete')}">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -277,7 +284,7 @@ function displayFeeds(feeds) {
 
 function showAddFeedModal() {
     currentFeedId = null;
-    $('#feedModalTitle').text('Add Feed');
+    $('#feedModalTitle').text(uiT('ui.admin.auto_feed.add_feed', 'Add Feed'));
     $('#feedForm')[0].reset();
     $('#feedId').val('');
     $('#feedActive').prop('checked', true);
@@ -287,7 +294,7 @@ function showAddFeedModal() {
 
 function editFeed(id) {
     currentFeedId = id;
-    $('#feedModalTitle').text('Edit Feed');
+    $('#feedModalTitle').text(uiT('ui.admin.auto_feed.edit_feed', 'Edit Feed'));
 
     $.get(`/admin/api/auto-feed/feeds/${id}`)
         .done(function(data) {
@@ -302,7 +309,7 @@ function editFeed(id) {
             $('#feedModal').modal('show');
         })
         .fail(function() {
-            showError('Failed to load feed details');
+            showError(uiT('ui.admin.auto_feed.load_details_failed', 'Failed to load feed details'));
         });
 }
 
@@ -332,12 +339,14 @@ function saveFeed() {
         data: JSON.stringify(formData),
         success: function() {
             $('#feedModal').modal('hide');
-            showSuccess(`Feed ${currentFeedId ? 'updated' : 'created'} successfully`);
+            showSuccess(currentFeedId
+                ? uiT('ui.admin.auto_feed.updated_success', 'Feed updated successfully')
+                : uiT('ui.admin.auto_feed.created_success', 'Feed created successfully'));
             loadFeeds();
             loadStats();
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Operation failed');
+            const error = apiError(xhr.responseJSON, uiT('ui.admin.auto_feed.operation_failed', 'Operation failed'));
             showError(error);
         }
     });
@@ -359,28 +368,28 @@ function deleteFeed() {
         method: 'DELETE',
         success: function() {
             $('#deleteModal').modal('hide');
-            showSuccess('Feed deleted successfully');
+            showSuccess(uiT('ui.admin.auto_feed.deleted_success', 'Feed deleted successfully'));
             loadFeeds();
             loadStats();
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Delete failed');
+            const error = apiError(xhr.responseJSON, uiT('ui.admin.auto_feed.delete_failed', 'Delete failed'));
             showError(error);
         }
     });
 }
 
 function checkFeed(id) {
-    showInfo('Checking feed...');
+    showInfo(uiT('ui.admin.auto_feed.checking_feed', 'Checking feed...'));
 
     $.post(`/admin/api/auto-feed/check/${id}`)
         .done(function(data) {
-            showSuccess(`Feed checked: ${data.articles_posted} new article(s) posted`);
+            showSuccess(uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted }));
             loadFeeds();
             loadStats();
         })
         .fail(function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Check failed');
+            const error = apiError(xhr.responseJSON, uiT('ui.admin.auto_feed.check_failed', 'Check failed'));
             showError(error);
         });
 }
@@ -411,7 +420,7 @@ function loadEchoareas() {
         .done(function(data) {
             const select = $('#feedEchoarea');
             select.empty();
-            select.append('<option value="">Select echo area...</option>');
+            select.append(`<option value="">${uiT('ui.admin.auto_feed.select_echo_area', 'Select echo area...')}</option>`);
 
             data.echoareas.forEach(function(area) {
                 const label = `${area.tag} @ ${area.domain}${area.description ? ' - ' + area.description : ''}`;

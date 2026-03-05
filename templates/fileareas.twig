@@ -224,6 +224,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadFileareas();
     loadStats();
@@ -248,7 +255,7 @@ function loadFileareas() {
             displayFileareas(data.fileareas);
         })
         .fail(function() {
-            $('#fileareasContainer').html('<div class="alert alert-danger m-3">Failed to load file areas</div>');
+            $('#fileareasContainer').html(`<div class="alert alert-danger m-3">${uiT('ui.fileareas.load_failed', 'Failed to load file areas')}</div>`);
         });
 }
 
@@ -349,7 +356,7 @@ function editFilearea(id) {
             new bootstrap.Modal('#fileareaModal').show();
         })
         .fail(function() {
-            showError('Failed to load file area details');
+            showError(uiT('ui.fileareas.load_details_failed', 'Failed to load file area details'));
         });
 }
 
@@ -383,12 +390,19 @@ function saveFilearea() {
         data: JSON.stringify(data),
         success: function() {
             bootstrap.Modal.getInstance('#fileareaModal').hide();
-            showSuccess(currentFileareaId ? 'File area updated' : 'File area created');
+            showSuccess(currentFileareaId
+                ? uiT('ui.fileareas.updated_success', 'File area updated')
+                : uiT('ui.fileareas.created_success', 'File area created'));
             loadFileareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Failed to save file area');
+            const error = apiError(
+                xhr.responseJSON,
+                currentFileareaId
+                    ? uiT('errors.fileareas.update_failed', 'Failed to update file area')
+                    : uiT('errors.fileareas.create_failed', 'Failed to create file area')
+            );
             showError(error);
         }
     });
@@ -410,12 +424,12 @@ function deleteFilearea() {
         method: 'DELETE',
         success: function() {
             bootstrap.Modal.getInstance('#deleteModal').hide();
-            showSuccess('File area deleted');
+            showSuccess(uiT('ui.fileareas.deleted_success', 'File area deleted'));
             loadFileareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = apiError(xhr.responseJSON, 'Failed to delete file area');
+            const error = apiError(xhr.responseJSON, uiT('errors.fileareas.delete_failed', 'Failed to delete file area'));
             showError(error);
         }
     });

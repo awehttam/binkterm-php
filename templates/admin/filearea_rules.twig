@@ -79,6 +79,13 @@ let rulesState = {
     dirty: false
 };
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 function setAlert(message, type) {
     const container = document.getElementById('rulesEditorAlert');
     if (!message) {
@@ -98,12 +105,12 @@ function setButtons() {
 }
 
 function loadRulesConfig() {
-    setStatus('Loading...');
+    setStatus(uiT('ui.common.loading', 'Loading...'));
     fetch('/admin/api/filearea-rules')
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Failed to load rules'));
+                throw new Error(apiError(data, uiT('ui.admin.filearea_rules.load_failed', 'Failed to load rules')));
             }
             const cfg = data.config || {};
             rulesState.configJson = cfg.config_json || '{"global_rules": [], "area_rules": {}}';
@@ -111,11 +118,11 @@ function loadRulesConfig() {
             document.getElementById('rulesJsonEditor').value = rulesState.configJson;
             rulesState.dirty = false;
             setButtons();
-            setStatus(cfg.active ? 'Active' : 'Missing config');
+            setStatus(cfg.active ? uiT('ui.admin.filearea_rules.active', 'Active') : uiT('ui.admin.filearea_rules.missing_config', 'Missing config'));
         })
         .catch(error => {
-            setAlert(error.message || 'Failed to load rules', 'danger');
-            setStatus('Error');
+            setAlert(error.message || uiT('ui.admin.filearea_rules.load_failed', 'Failed to load rules'), 'danger');
+            setStatus(uiT('ui.admin.filearea_rules.error', 'Error'));
         });
 }
 
@@ -125,7 +132,7 @@ function saveRules() {
     try {
         parsed = JSON.parse(editor.value);
     } catch (err) {
-        setAlert('Rules JSON is invalid. Please fix errors before saving.', 'danger');
+        setAlert(uiT('ui.admin.filearea_rules.invalid_json', 'Rules JSON is invalid. Please fix errors before saving.'), 'danger');
         return;
     }
 
@@ -139,17 +146,17 @@ function saveRules() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Failed to save rules'));
+                throw new Error(apiError(data, uiT('ui.admin.filearea_rules.save_failed', 'Failed to save rules')));
             }
             const cfg = data.config || {};
             rulesState.configJson = cfg.config_json || editor.value;
             document.getElementById('rulesJsonEditor').value = rulesState.configJson;
             rulesState.dirty = false;
             setButtons();
-            setAlert('Rules saved successfully.', 'success');
+            setAlert(uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.'), 'success');
         })
         .catch(error => {
-            setAlert(error.message || 'Failed to save rules', 'danger');
+            setAlert(error.message || uiT('ui.admin.filearea_rules.save_failed', 'Failed to save rules'), 'danger');
         });
 }
 
@@ -157,14 +164,14 @@ function resetRules() {
     if (!rulesState.exampleJson) {
         return;
     }
-    if (!confirm('Replace current rules with the example file?')) {
+    if (!confirm(uiT('ui.admin.filearea_rules.reset_confirm', 'Replace current rules with the example file?'))) {
         return;
     }
 
     document.getElementById('rulesJsonEditor').value = rulesState.exampleJson;
     rulesState.dirty = true;
     setButtons();
-    setAlert('Loaded example rules. Save to apply them.', 'info');
+    setAlert(uiT('ui.admin.filearea_rules.loaded_example', 'Loaded example rules. Save to apply them.'), 'info');
 }
 
 document.addEventListener('DOMContentLoaded', () => {

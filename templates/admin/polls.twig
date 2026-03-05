@@ -91,6 +91,13 @@ function apiError(payload, fallback) {
     }
     return fallback;
 }
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 document.addEventListener('DOMContentLoaded', function() {
     loadPolls();
 });
@@ -103,7 +110,7 @@ function loadPolls() {
         })
         .catch(error => {
             console.error('Error loading polls:', error);
-            showAlert('Error loading polls', 'danger');
+            showAlert(uiT('ui.admin.polls.load_failed', 'Error loading polls'), 'danger');
         });
 }
 
@@ -155,7 +162,7 @@ function editPoll(pollId) {
         .then(data => {
             const poll = (data.polls || []).find(item => item.id === pollId);
             if (!poll) {
-                showAlert('Poll not found', 'danger');
+                showAlert(uiT('ui.admin.polls.not_found', 'Poll not found'), 'danger');
                 return;
             }
             document.getElementById('pollModalLabel').textContent = 'Edit Poll';
@@ -174,7 +181,7 @@ function editPoll(pollId) {
         })
         .catch(error => {
             console.error('Error loading poll:', error);
-            showAlert('Error loading poll', 'danger');
+            showAlert(uiT('ui.admin.polls.load_single_failed', 'Error loading poll'), 'danger');
         });
 }
 
@@ -200,7 +207,7 @@ function addPollOption(value = '') {
 function removePollOption(button) {
     const optionsContainer = document.getElementById('pollOptions');
     if (optionsContainer.children.length <= 2) {
-        alert('At least two options are required.');
+        alert(uiT('ui.admin.polls.min_options_required', 'At least two options are required.'));
         return;
     }
     button.closest('.input-group').remove();
@@ -215,11 +222,11 @@ function savePoll() {
         .filter(text => text !== '');
 
     if (!question) {
-        alert('Question is required.');
+        alert(uiT('ui.admin.polls.question_required', 'Question is required.'));
         return;
     }
     if (options.length < 2) {
-        alert('Please provide at least two options.');
+        alert(uiT('ui.admin.polls.provide_min_options', 'Please provide at least two options.'));
         return;
     }
 
@@ -235,21 +242,23 @@ function savePoll() {
     .then(response => response.json())
     .then(data => {
         if (data.success || data.id) {
-            showAlert(pollId ? 'Poll updated successfully' : 'Poll created successfully', 'success');
+            showAlert(pollId
+                ? uiT('ui.admin.polls.updated_success', 'Poll updated successfully')
+                : uiT('ui.admin.polls.created_success', 'Poll created successfully'), 'success');
             bootstrap.Modal.getInstance(document.getElementById('pollModal')).hide();
             loadPolls();
         } else {
-            showAlert(apiError(data, 'Error saving poll'), 'danger');
+            showAlert(apiError(data, uiT('ui.admin.polls.save_failed', 'Error saving poll')), 'danger');
         }
     })
     .catch(error => {
         console.error('Error saving poll:', error);
-        showAlert('Error saving poll', 'danger');
+        showAlert(uiT('ui.admin.polls.save_failed', 'Error saving poll'), 'danger');
     });
 }
 
 function deletePoll(pollId) {
-    if (!confirm('Delete this poll? This cannot be undone.')) {
+    if (!confirm(uiT('ui.admin.polls.delete_confirm', 'Delete this poll? This cannot be undone.'))) {
         return;
     }
 
@@ -257,15 +266,15 @@ function deletePoll(pollId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('Poll deleted successfully', 'success');
+                showAlert(uiT('ui.admin.polls.deleted_success', 'Poll deleted successfully'), 'success');
                 loadPolls();
             } else {
-                showAlert(apiError(data, 'Error deleting poll'), 'danger');
+                showAlert(apiError(data, uiT('ui.admin.polls.delete_failed', 'Error deleting poll')), 'danger');
             }
         })
         .catch(error => {
             console.error('Error deleting poll:', error);
-            showAlert('Error deleting poll', 'danger');
+            showAlert(uiT('ui.admin.polls.delete_failed', 'Error deleting poll'), 'danger');
         });
 }
 

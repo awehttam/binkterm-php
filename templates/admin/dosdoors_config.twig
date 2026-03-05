@@ -115,6 +115,13 @@ let doorsState = {
     configExists: false
 };
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadConfig();
     loadAvailableDoors();
@@ -130,7 +137,7 @@ function loadConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Failed to load config'));
+                throw new Error(apiError(data, uiT('ui.admin.dosdoors_config.load_config_failed', 'Failed to load config')));
             }
 
             doorsState.config = data.config || {};
@@ -143,7 +150,7 @@ function loadConfig() {
             renderDoorsList();
         })
         .catch(error => {
-            showAlert('danger', 'Error loading config: ' + error.message);
+            showAlert('danger', uiT('ui.admin.dosdoors_config.load_config_error_prefix', 'Error loading config: ') + error.message);
         });
 }
 
@@ -152,14 +159,14 @@ function loadAvailableDoors() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Failed to load doors'));
+                throw new Error(apiError(data, uiT('ui.admin.dosdoors_config.load_doors_failed', 'Failed to load doors')));
             }
 
             doorsState.availableDoors = data.doors || [];
             renderDoorsList();
         })
         .catch(error => {
-            showAlert('danger', 'Error loading available doors: ' + error.message);
+            showAlert('danger', uiT('ui.admin.dosdoors_config.load_doors_error_prefix', 'Error loading available doors: ') + error.message);
         });
 }
 
@@ -253,7 +260,7 @@ function toggleDoor(doorId, enable) {
         updateJsonStatus();
         renderDoorsList();
     } catch (e) {
-        showEditorAlert('danger', 'Invalid JSON - cannot toggle door');
+        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.invalid_json_toggle', 'Invalid JSON - cannot toggle door'));
     }
 }
 
@@ -284,9 +291,9 @@ function enableAllDoors() {
         editor.value = JSON.stringify(config, null, 4);
         updateJsonStatus();
         renderDoorsList();
-        showEditorAlert('success', 'All doors enabled in editor. Click Save to apply.');
+        showEditorAlert('success', uiT('ui.admin.dosdoors_config.enabled_all_editor', 'All doors enabled in editor. Click Save to apply.'));
     } catch (e) {
-        showEditorAlert('danger', 'Invalid JSON - cannot enable all');
+        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.invalid_json_enable_all', 'Invalid JSON - cannot enable all'));
     }
 }
 
@@ -302,9 +309,9 @@ function disableAllDoors() {
         editor.value = JSON.stringify(config, null, 4);
         updateJsonStatus();
         renderDoorsList();
-        showEditorAlert('warning', 'All doors disabled in editor. Click Save to apply.');
+        showEditorAlert('warning', uiT('ui.admin.dosdoors_config.disabled_all_editor', 'All doors disabled in editor. Click Save to apply.'));
     } catch (e) {
-        showEditorAlert('danger', 'Invalid JSON - cannot disable all');
+        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.invalid_json_disable_all', 'Invalid JSON - cannot disable all'));
     }
 }
 
@@ -314,9 +321,9 @@ function formatJson() {
         const config = JSON.parse(editor.value);
         editor.value = JSON.stringify(config, null, 4);
         updateJsonStatus();
-        showEditorAlert('success', 'JSON formatted successfully');
+        showEditorAlert('success', uiT('ui.admin.dosdoors_config.json_formatted', 'JSON formatted successfully'));
     } catch (e) {
-        showEditorAlert('danger', 'Cannot format - invalid JSON: ' + e.message);
+        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.cannot_format_prefix', 'Cannot format - invalid JSON: ') + e.message);
     }
 }
 
@@ -327,20 +334,19 @@ function updateJsonStatus() {
     try {
         const value = editor.value.trim();
         if (!value) {
-            status.textContent = 'Empty configuration';
+            status.textContent = uiT('ui.admin.dosdoors_config.empty_config', 'Empty configuration');
             status.className = 'text-warning';
             return;
         }
 
         JSON.parse(value);
-        status.textContent = 'Valid JSON ✓';
+        status.textContent = uiT('ui.admin.dosdoors_config.valid_json', 'Valid JSON');
         status.className = 'text-success';
     } catch (e) {
-        status.textContent = 'Invalid JSON: ' + e.message;
+        status.textContent = uiT('ui.admin.dosdoors_config.invalid_json_prefix', 'Invalid JSON: ') + e.message;
         status.className = 'text-danger';
     }
 }
-
 function saveConfig() {
     const editor = document.getElementById('configEditor');
 
@@ -359,21 +365,21 @@ function saveConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Save failed'));
+                throw new Error(apiError(data, uiT('ui.admin.dosdoors_config.save_failed', 'Save failed')));
             }
 
             doorsState.config = data.config;
-            showAlert('success', 'Configuration saved successfully!');
+            showAlert('success', uiT('ui.admin.dosdoors_config.saved_success', 'Configuration saved successfully!'));
             renderDoorsList();
         })
         .catch(error => {
-            showAlert('danger', 'Error saving config: ' + error.message);
+            showAlert('danger', uiT('ui.admin.dosdoors_config.save_error_prefix', 'Error saving config: ') + error.message);
         })
         .finally(() => {
             document.getElementById('saveBtn').disabled = false;
         });
     } catch (e) {
-        showEditorAlert('danger', 'Cannot save - invalid JSON: ' + e.message);
+        showEditorAlert('danger', uiT('ui.admin.dosdoors_config.cannot_save_invalid_json_prefix', 'Cannot save - invalid JSON: ') + e.message);
     }
 }
 
@@ -411,3 +417,4 @@ function apiError(payload, fallback) {
 }
 </script>
 {% endblock %}
+

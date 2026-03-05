@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Echo Areas - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.echolist.page_title') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <style>
@@ -66,7 +66,7 @@
     <div class="page-header">
         <h2>
             <i class="fas fa-comments"></i>
-            Echo List
+            {{ t('ui.echolist.heading') }}
         </h2>
     </div>
 
@@ -74,40 +74,40 @@
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-filter me-2"></i>Filter Echo Areas</h6>
+                    <h6 class="mb-0"><i class="fas fa-filter me-2"></i>{{ t('ui.echolist.filter_heading') }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="subscribedOnlyCheck" onchange="toggleSubscribedFilter()">
                         <label class="form-check-label" for="subscribedOnlyCheck">
-                            Show only subscribed areas
+                            {{ t('ui.echolist.show_subscribed_only') }}
                         </label>
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="unreadOnlyCheck" onchange="toggleUnreadFilter()">
                         <label class="form-check-label" for="unreadOnlyCheck">
-                            Show only areas with unread messages
+                            {{ t('ui.echolist.show_unread_only') }}
                         </label>
                     </div>
-                    <input type="text" class="form-control" id="areaSearch" placeholder="Type to filter by name or description..." onkeyup="searchEchoAreas(this.value)">
-                    <small class="text-muted d-block mt-1">Filters the list below in real-time</small>
+                    <input type="text" class="form-control" id="areaSearch" placeholder="{{ t('ui.echolist.area_filter_placeholder') }}" onkeyup="searchEchoAreas(this.value)">
+                    <small class="text-muted d-block mt-1">{{ t('ui.echolist.area_filter_help') }}</small>
                 </div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-search me-2"></i>Search Messages</h6>
+                    <h6 class="mb-0"><i class="fas fa-search me-2"></i>{{ t('ui.echolist.search_heading') }}</h6>
                 </div>
                 <div class="card-body">
                     <form onsubmit="searchMessages(); return false;">
                         <div class="input-group">
-                            <input type="text" class="form-control" id="messageSearch" placeholder="Search message content...">
+                            <input type="text" class="form-control" id="messageSearch" placeholder="{{ t('ui.echolist.search_placeholder') }}">
                             <button class="btn btn-primary" type="submit">
                                 <i class="fas fa-search"></i>
                             </button>
                         </div>
-                        <small class="text-muted d-block mt-1">Search all echomail message content</small>
+                        <small class="text-muted d-block mt-1">{{ t('ui.echolist.search_help') }}</small>
                     </form>
                 </div>
             </div>
@@ -117,7 +117,7 @@
     <div id="forumsContainer">
         <div class="loading">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Loading echos...
+            {{ t('ui.echolist.loading') }}
         </div>
     </div>
 
@@ -127,19 +127,19 @@
                 <div class="row">
                     <div class="col-md-3 stat-box">
                         <h5 id="totalAreas">-</h5>
-                        <small>Total echos</small>
+                        <small>{{ t('ui.echolist.stats.total_echos') }}</small>
                     </div>
                     <div class="col-md-3 stat-box">
                         <h5 id="totalMessages">-</h5>
-                        <small>Total Messages</small>
+                        <small>{{ t('ui.echolist.stats.total_messages') }}</small>
                     </div>
                     <div class="col-md-3 stat-box">
                         <h5 id="totalNetworks">-</h5>
-                        <small>Networks</small>
+                        <small>{{ t('ui.echolist.stats.networks') }}</small>
                     </div>
                     <div class="col-md-3 stat-box">
                         <h5 id="recentMessages">-</h5>
-                        <small>24h Messages</small>
+                        <small>{{ t('ui.echolist.stats.recent_messages') }}</small>
                     </div>
                 </div>
             </div>
@@ -152,6 +152,13 @@
 <script>
 let allEchoAreas = [];
 let searchQuery = '';
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 
 function saveEcholistPreferences() {
     $.ajax({
@@ -196,12 +203,12 @@ function loadEchoAreas() {
             searchEchoAreas(searchQuery);
             const networks = new Set();
             allEchoAreas.forEach(f => {
-                networks.add(f.is_local ? 'Local' : (f.domain || 'Unknown'));
+                networks.add(f.is_local ? uiT('ui.echolist.local', 'Local') : (f.domain || uiT('ui.echolist.unknown', 'Unknown')));
             });
             $('#totalNetworks').text(networks.size);
         })
         .fail(function() {
-            $('#forumsContainer').html('<div class="alert alert-danger">Failed to load echo areas</div>');
+            $('#forumsContainer').html(`<div class="alert alert-danger">${uiT('ui.echolist.load_failed', 'Failed to load echo areas')}</div>`);
         });
 }
 
@@ -218,18 +225,19 @@ function toggleUnreadFilter() {
 
 function displayEchoAreas(areas) {
     if (areas.length === 0) {
-        $('#forumsContainer').html('<div class="empty-state"><i class="fas fa-inbox fa-3x mb-3"></i><p>No echo areas available.</p></div>');
+        $('#forumsContainer').html(`<div class="empty-state"><i class="fas fa-inbox fa-3x mb-3"></i><p>${uiT('ui.echolist.none_available', 'No echo areas available.')}</p></div>`);
         return;
     }
 
     // Group by network
-    const groups = { 'Local': [] };
+    const localLabel = uiT('ui.echolist.local', 'Local');
+    const groups = { [localLabel]: [] };
 
     areas.forEach(area => {
         if (area.is_local) {
-            groups['Local'].push(area);
+            groups[localLabel].push(area);
         } else {
-            const net = area.domain || 'Unknown';
+            const net = area.domain || uiT('ui.echolist.unknown', 'Unknown');
             if (!groups[net]) groups[net] = [];
             groups[net].push(area);
         }
@@ -238,28 +246,28 @@ function displayEchoAreas(areas) {
     let html = '';
     html += '<div class="d-flex justify-content-end mb-2 gap-2">';
     html += '<button class="btn btn-fidonet" onclick="composeMessage(\'echomail\')">';
-    html += '<i class="fas fa-plus"></i> New Post';
+    html += `<i class="fas fa-plus"></i> ${uiT('ui.echolist.new_post', 'New Post')}`;
     html += '</button>';
     html += '<a class="btn btn-fidonet" href="/echomail">';
-    html += '<i class="fas fa-envelope-open-text"></i> New Messages';
+    html += `<i class="fas fa-envelope-open-text"></i> ${uiT('ui.echolist.new_messages', 'New Messages')}`;
     html += '</a>';
     html += '</div>';
     // Local first
-    if (groups['Local'] && groups['Local'].length > 0) {
-        html += buildCategory('Local', 'Local Areas', groups['Local'], true);
-        delete groups['Local'];
+    if (groups[localLabel] && groups[localLabel].length > 0) {
+        html += buildCategory(localLabel, uiT('ui.echolist.local_areas', 'Local Areas'), groups[localLabel], true);
+        delete groups[localLabel];
     }
 
     // Lovlynet second
     if (groups['lovlynet'] && groups['lovlynet'].length > 0) {
-        html += buildCategory('lovlynet', 'LOVLYNET Network', groups['lovlynet'], false);
+        html += buildCategory('lovlynet', uiT('ui.echolist.lovlynet_network', 'LOVLYNET Network'), groups['lovlynet'], false);
         delete groups['lovlynet'];
     }
 
     // Other networks alphabetically
     Object.keys(groups).sort().forEach(net => {
         if (groups[net].length > 0) {
-            html += buildCategory(net, net.toUpperCase() + ' Network', groups[net], false);
+            html += buildCategory(net, net.toUpperCase() + ' ' + uiT('ui.echolist.network_suffix', 'Network'), groups[net], false);
         }
     });
 
@@ -272,7 +280,7 @@ function buildCategory(id, name, areas, isLocal) {
     let html = '<div class="card mb-3">';
     html += '<div class="card-header d-flex justify-content-between align-items-center">';
     html += `<h6 class="mb-0"><i class="fas fa-folder me-2"></i>${escapeHtml(name)}</h6>`;
-    html += `<span class="badge ${badgeColor}">${areas.length} area${areas.length !== 1 ? 's' : ''}</span>`;
+    html += `<span class="badge ${badgeColor}">${areas.length} ${uiT('ui.echolist.area_count', 'area')}${areas.length !== 1 ? uiT('ui.echolist.plural_suffix', 's') : ''}</span>`;
     html += '</div>';
     html += '<div class="list-group list-group-flush">';
 
@@ -306,12 +314,12 @@ function buildEchoAreaRow(area) {
     html += '<div class="echoarea-title">';
     html += escapeHtml(area.tag);
     if (area.is_sysop_only) {
-        html += ' <span class="badge bg-warning text-dark">Sysop</span>';
+        html += ` <span class="badge bg-warning text-dark">${uiT('ui.echolist.sysop_badge', 'Sysop')}</span>`;
     }
     html += '</div>';
-    html += `<div class="echoarea-desc">${escapeHtml(area.description || 'No description')}</div>`;
+    html += `<div class="echoarea-desc">${escapeHtml(area.description || uiT('ui.echolist.no_description', 'No description'))}</div>`;
     if (area.moderator) {
-        html += `<div class="echoarea-mod"><i class="fas fa-user-shield"></i> Moderator: ${escapeHtml(area.moderator)}</div>`;
+        html += `<div class="echoarea-mod"><i class="fas fa-user-shield"></i> ${uiT('ui.echolist.moderator_prefix', 'Moderator:')} ${escapeHtml(area.moderator)}</div>`;
     }
     html += '</div>';
 
@@ -320,14 +328,14 @@ function buildEchoAreaRow(area) {
     const unreadCount = area.unread_count || 0;
     const totalCount = area.message_count || 0;
     if (unreadCount > 0) {
-        html += `<div><span class="badge bg-secondary">${unreadCount} unread of ${totalCount} post${totalCount !== 1 ? 's' : ''}</span></div>`;
+        html += `<div><span class="badge bg-secondary">${uiT('ui.echolist.unread_of_posts', '{unread} unread of {total} posts', { unread: unreadCount, total: totalCount })}</span></div>`;
     } else {
-        html += `<div><span class="badge bg-secondary">${totalCount} post${totalCount !== 1 ? 's' : ''}</span></div>`;
+        html += `<div><span class="badge bg-secondary">${uiT('ui.echolist.post_count', '{total} posts', { total: totalCount })}</span></div>`;
     }
     if (area.last_subject) {
         html += `<div class="small text-muted mt-1 d-none d-md-block">`;
         html += `<div class="text-truncate" style="max-width: 200px;" title="${escapeHtml(area.last_subject)}">${escapeHtml(area.last_subject)}</div>`;
-        html += `<div>by ${escapeHtml(area.last_author || 'Unknown')}</div>`;
+        html += `<div>${uiT('ui.echolist.by_author', 'by {author}', { author: escapeHtml(area.last_author || uiT('ui.echolist.unknown', 'Unknown')) })}</div>`;
         html += `<div>${formatDate(area.last_date)}</div>`;
         html += '</div>';
     }
@@ -365,7 +373,7 @@ function searchMessages() {
     const query = $('#messageSearch').val().trim();
 
     if (query.length < 2) {
-        alert('Please enter at least 2 characters to search');
+        alert(uiT('ui.echolist.search_min_chars', 'Please enter at least 2 characters to search'));
         return;
     }
 
@@ -384,7 +392,7 @@ function loadStatistics() {
 }
 
 function formatDate(dateStr) {
-    if (!dateStr) return 'Never';
+    if (!dateStr) return uiT('ui.echolist.time.never', 'Never');
 
     // Parse the date - if no timezone info, assume UTC
     let date = new Date(dateStr);
@@ -399,13 +407,13 @@ function formatDate(dateStr) {
 
     // Handle negative differences (future dates or clock skew)
     if (diff < 0) {
-        return 'Just now';
+        return uiT('ui.echolist.time.just_now', 'Just now');
     }
 
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-    if (diff < 2592000) return Math.floor(diff / 86400) + 'd ago';
+    if (diff < 60) return uiT('ui.echolist.time.just_now', 'Just now');
+    if (diff < 3600) return uiT('ui.echolist.time.minutes_ago', '{count}m ago', { count: Math.floor(diff / 60) });
+    if (diff < 86400) return uiT('ui.echolist.time.hours_ago', '{count}h ago', { count: Math.floor(diff / 3600) });
+    if (diff < 2592000) return uiT('ui.echolist.time.days_ago', '{count}d ago', { count: Math.floor(diff / 86400) });
 
     return date.toLocaleDateString();
 }

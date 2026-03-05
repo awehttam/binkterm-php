@@ -81,6 +81,13 @@ let webdoorsConfigState = {
     availableDoors: []
 };
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadWebdoorsConfig();
     loadAvailableDoors();
@@ -95,7 +102,7 @@ function loadWebdoorsConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Failed to load webdoors config'));
+                throw new Error(apiError(data, uiT('ui.admin.webdoors_config.load_webdoors_failed', 'Failed to load webdoors config')));
             }
             const cfg = data.config || {};
             webdoorsConfigState.active = !!cfg.active;
@@ -109,7 +116,7 @@ function loadWebdoorsConfig() {
             renderDoorList();
         })
         .catch(error => {
-            showStatusAlert(error.message || 'Failed to load config', 'danger');
+            showStatusAlert(error.message || uiT('ui.admin.webdoors_config.load_failed', 'Failed to load config'), 'danger');
         });
 }
 
@@ -135,7 +142,9 @@ function updateJsonStatus() {
     const editor = document.getElementById('webdoorsJsonEditor');
     const status = document.getElementById('webdoorsJsonStatus');
     const { valid } = parseEditorJson(editor.value);
-    status.textContent = valid ? 'JSON is valid' : 'JSON has errors';
+    status.textContent = valid
+        ? uiT('ui.admin.webdoors_config.json_valid', 'JSON is valid')
+        : uiT('ui.admin.webdoors_config.json_has_errors', 'JSON has errors');
     status.className = valid ? 'text-success' : 'text-danger';
 }
 
@@ -153,7 +162,7 @@ function renderDoorList() {
     const parsed = parseEditorJson(editorValue);
 
     if (!parsed.valid || !parsed.data || typeof parsed.data !== 'object') {
-        list.innerHTML = '<div class="text-muted">Invalid JSON.</div>';
+        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.webdoors_config.invalid_json', 'Invalid JSON.')}</div>`;
         return;
     }
 
@@ -162,7 +171,7 @@ function renderDoorList() {
     const mergedKeys = Array.from(new Set([...configKeys, ...availableKeys])).sort();
 
     if (mergedKeys.length === 0) {
-        list.innerHTML = '<div class="text-muted">No doors defined.</div>';
+        list.innerHTML = `<div class="text-muted">${uiT('ui.admin.webdoors_config.no_doors_defined', 'No doors defined.')}</div>`;
         return;
     }
 
@@ -222,7 +231,7 @@ function formatWebdoorsJson() {
     const editor = document.getElementById('webdoorsJsonEditor');
     const parsed = parseEditorJson(editor.value);
     if (!parsed.valid) {
-        showEditorAlert('Cannot format: invalid JSON', 'danger');
+        showEditorAlert(uiT('ui.admin.webdoors_config.cannot_format_invalid_json', 'Cannot format: invalid JSON'), 'danger');
         return;
     }
     editor.value = JSON.stringify(parsed.data, null, 2);
@@ -233,7 +242,7 @@ function saveWebdoorsConfig() {
     const editor = document.getElementById('webdoorsJsonEditor');
     const parsed = parseEditorJson(editor.value);
     if (!parsed.valid) {
-        showEditorAlert('Please fix JSON errors before saving.', 'danger');
+        showEditorAlert(uiT('ui.admin.webdoors_config.fix_json_before_save', 'Please fix JSON errors before saving.'), 'danger');
         return;
     }
 
@@ -245,16 +254,16 @@ function saveWebdoorsConfig() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(apiError(data, 'Failed to save config'));
+            throw new Error(apiError(data, uiT('ui.admin.webdoors_config.save_failed', 'Failed to save config')));
         }
-        showEditorAlert('Webdoors config saved.', 'success');
+        showEditorAlert(uiT('ui.admin.webdoors_config.saved_success', 'Webdoors config saved.'), 'success');
         const cfg = data.config || {};
         webdoorsConfigState.active = !!cfg.active;
         webdoorsConfigState.configJson = cfg.config_json || editor.value;
         updateStatus();
     })
     .catch(error => {
-        showEditorAlert(error.message || 'Failed to save config', 'danger');
+        showEditorAlert(error.message || uiT('ui.admin.webdoors_config.save_failed', 'Failed to save config'), 'danger');
     });
 }
 
@@ -263,7 +272,7 @@ function activateWebdoors() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(apiError(data, 'Failed to activate webdoors'));
+                throw new Error(apiError(data, uiT('ui.admin.webdoors_config.activate_failed', 'Failed to activate webdoors')));
             }
             const cfg = data.config || {};
             webdoorsConfigState.active = !!cfg.active;
@@ -274,10 +283,10 @@ function activateWebdoors() {
             updateStatus();
             updateJsonStatus();
             renderDoorList();
-            showStatusAlert('Webdoors activated.', 'success');
+            showStatusAlert(uiT('ui.admin.webdoors_config.activated_success', 'Webdoors activated.'), 'success');
         })
         .catch(error => {
-            showStatusAlert(error.message || 'Failed to activate webdoors', 'danger');
+            showStatusAlert(error.message || uiT('ui.admin.webdoors_config.activate_failed', 'Failed to activate webdoors'), 'danger');
         });
 }
 

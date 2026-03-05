@@ -167,6 +167,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadQueue();
@@ -177,7 +184,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('attemptDelivery').addEventListener('click', function() {
-        if (!confirm('Attempt delivery for pending crashmail now?')) return;
+        if (!confirm(uiT('ui.admin.crashmail_queue.attempt_delivery_confirm', 'Attempt delivery for pending crashmail now?'))) return;
         fetch('/admin/api/crashmail/poll', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
@@ -185,11 +192,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     loadStats();
                     loadQueue();
                 } else {
-                    alert('Delivery attempt failed: ' + apiError(data, 'Unknown error'));
+                    alert(uiT('ui.admin.crashmail_queue.delivery_attempt_failed_prefix', 'Delivery attempt failed: ') + apiError(data, uiT('ui.common.unknown_error', 'Unknown error')));
                 }
             })
             .catch(error => {
-                alert('Error: ' + error.message);
+                alert(uiT('ui.admin.crashmail_queue.error_prefix', 'Error: ') + error.message);
             });
     });
 
@@ -275,7 +282,7 @@ function getStatusBadge(status) {
 }
 
 function retryItem(id) {
-    if (!confirm('Retry this crashmail delivery?')) return;
+    if (!confirm(uiT('ui.admin.crashmail_queue.retry_confirm', 'Retry this crashmail delivery?'))) return;
 
     fetch(`/admin/api/crashmail/${id}/retry`, { method: 'POST' })
         .then(response => response.json())
@@ -284,16 +291,16 @@ function retryItem(id) {
                 loadStats();
                 loadQueue();
             } else {
-                alert('Failed to retry: ' + apiError(data, 'Unknown error'));
+                alert(uiT('ui.admin.crashmail_queue.retry_failed_prefix', 'Failed to retry: ') + apiError(data, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            alert(uiT('ui.admin.crashmail_queue.error_prefix', 'Error: ') + error.message);
         });
 }
 
 function cancelItem(id) {
-    if (!confirm('Cancel this crashmail? The message will remain in your outbox but won\'t be crash-delivered.')) return;
+    if (!confirm(uiT('ui.admin.crashmail_queue.cancel_confirm', 'Cancel this crashmail? The message will remain in your outbox but won\'t be crash-delivered.'))) return;
 
     fetch(`/admin/api/crashmail/${id}`, { method: 'DELETE' })
         .then(response => response.json())
@@ -302,11 +309,11 @@ function cancelItem(id) {
                 loadStats();
                 loadQueue();
             } else {
-                alert('Failed to cancel: ' + apiError(data, 'Unknown error'));
+                alert(uiT('ui.admin.crashmail_queue.cancel_failed_prefix', 'Failed to cancel: ') + apiError(data, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            alert(uiT('ui.admin.crashmail_queue.error_prefix', 'Error: ') + error.message);
         });
 }
 

@@ -78,6 +78,13 @@ function apiError(payload, fallback) {
     }
     return fallback;
 }
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 document.addEventListener('DOMContentLoaded', function() {
     loadChatRooms();
 });
@@ -90,7 +97,7 @@ function loadChatRooms() {
         })
         .catch(error => {
             console.error('Error loading chat rooms:', error);
-            showAlert('Error loading chat rooms', 'danger');
+            showAlert(uiT('ui.admin.chat_rooms.load_failed', 'Error loading chat rooms'), 'danger');
         });
 }
 
@@ -141,7 +148,7 @@ function editChatRoom(roomId) {
         .then(data => {
             const room = (data.rooms || []).find(item => item.id === roomId);
             if (!room) {
-                showAlert('Chat room not found', 'danger');
+                showAlert(uiT('ui.admin.chat_rooms.not_found', 'Chat room not found'), 'danger');
                 return;
             }
 
@@ -156,7 +163,7 @@ function editChatRoom(roomId) {
         })
         .catch(error => {
             console.error('Error loading chat room:', error);
-            showAlert('Error loading chat room', 'danger');
+            showAlert(uiT('ui.admin.chat_rooms.load_single_failed', 'Error loading chat room'), 'danger');
         });
 }
 
@@ -182,21 +189,23 @@ function saveChatRoom() {
     .then(response => response.json())
     .then(data => {
         if (data.success || data.id) {
-            showAlert(roomId ? 'Room updated successfully' : 'Room created successfully', 'success');
+            showAlert(roomId
+                ? uiT('ui.admin.chat_rooms.updated_success', 'Room updated successfully')
+                : uiT('ui.admin.chat_rooms.created_success', 'Room created successfully'), 'success');
             bootstrap.Modal.getInstance(document.getElementById('chatRoomModal')).hide();
             loadChatRooms();
         } else {
-            showAlert(apiError(data, 'Error saving room'), 'danger');
+            showAlert(apiError(data, uiT('ui.admin.chat_rooms.save_failed', 'Error saving room')), 'danger');
         }
     })
     .catch(error => {
         console.error('Error saving chat room:', error);
-        showAlert('Error saving room', 'danger');
+        showAlert(uiT('ui.admin.chat_rooms.save_failed', 'Error saving room'), 'danger');
     });
 }
 
 function deleteChatRoom(roomId) {
-    if (!confirm('Delete this chat room? This cannot be undone.')) {
+    if (!confirm(uiT('ui.admin.chat_rooms.delete_confirm', 'Delete this chat room? This cannot be undone.'))) {
         return;
     }
 
@@ -204,15 +213,15 @@ function deleteChatRoom(roomId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('Room deleted successfully', 'success');
+                showAlert(uiT('ui.admin.chat_rooms.deleted_success', 'Room deleted successfully'), 'success');
                 loadChatRooms();
             } else {
-                showAlert(apiError(data, 'Error deleting room'), 'danger');
+                showAlert(apiError(data, uiT('ui.admin.chat_rooms.delete_failed', 'Error deleting room')), 'danger');
             }
         })
         .catch(error => {
             console.error('Error deleting chat room:', error);
-            showAlert('Error deleting room', 'danger');
+            showAlert(uiT('ui.admin.chat_rooms.delete_failed', 'Error deleting room'), 'danger');
         });
 }
 

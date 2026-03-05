@@ -163,6 +163,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadNodes();
 
@@ -238,11 +245,11 @@ function addNode() {
             form.reset();
             loadNodes();
         } else {
-            alert('Error: ' + apiError(result, 'Failed to add node'));
+            alert(uiT('ui.admin.insecure_nodes.error_prefix', 'Error: ') + apiError(result, uiT('ui.admin.insecure_nodes.add_failed', 'Failed to add node')));
         }
     })
     .catch(error => {
-        alert('Error: ' + error.message);
+        alert(uiT('ui.admin.insecure_nodes.error_prefix', 'Error: ') + error.message);
     });
 }
 
@@ -281,16 +288,16 @@ function updateNode() {
             bootstrap.Modal.getInstance(document.getElementById('editNodeModal')).hide();
             loadNodes();
         } else {
-            alert('Error: ' + apiError(result, 'Failed to update node'));
+            alert(uiT('ui.admin.insecure_nodes.error_prefix', 'Error: ') + apiError(result, uiT('ui.admin.insecure_nodes.update_failed', 'Failed to update node')));
         }
     })
     .catch(error => {
-        alert('Error: ' + error.message);
+        alert(uiT('ui.admin.insecure_nodes.error_prefix', 'Error: ') + error.message);
     });
 }
 
 function deleteNode(id, address) {
-    if (!confirm(`Delete ${address} from the allowlist?`)) return;
+    if (!confirm(uiT('ui.admin.insecure_nodes.delete_confirm', `Delete ${address} from the allowlist?`, { address }))) return;
 
     fetch(`/admin/api/insecure-nodes/${id}`, { method: 'DELETE' })
         .then(response => response.json())
@@ -298,11 +305,11 @@ function deleteNode(id, address) {
             if (result.success) {
                 loadNodes();
             } else {
-                alert('Error: ' + apiError(result, 'Failed to delete node'));
+                alert(uiT('ui.admin.insecure_nodes.error_prefix', 'Error: ') + apiError(result, uiT('ui.admin.insecure_nodes.delete_failed', 'Failed to delete node')));
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            alert(uiT('ui.admin.insecure_nodes.error_prefix', 'Error: ') + error.message);
         });
 }
 
