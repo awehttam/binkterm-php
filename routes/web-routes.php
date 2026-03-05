@@ -122,7 +122,19 @@ SimpleRouter::get('/appmanifestjson', function() {
         "short_name": "Nodelist",
         "description":"Browse the nodelist",
         "url":"/nodelist"
-    }    
+    },
+    {
+        "name": "Doors",
+        "short_name": "Doors",
+        "description":"Browse doors and games",
+        "url":"/games"
+    },
+    {
+        "name": "Files",
+        "short_name": "Files",
+        "description":"Browse files",
+        "url":"/files"
+    }
   ]
 }
 

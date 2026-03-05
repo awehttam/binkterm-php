@@ -20,6 +20,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 
 ## Table of Contents
 
+- [Contributors Wanted](#-contributors-wanted)
 - [Screen shots](#screen-shots)
 - [Features](#features)
 - [Installation](#installation)
@@ -34,11 +35,14 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
 - [File Areas](#file-areas)
-  - [File Area Rules](#file-area-rules)
+- [File Area Rules](#file-area-rules)
+- [Authentication Flow](#authentication-flow)
+- [API Specification](#api-specification)
 - [Native Doors](#native-doors---native-linux--windows-door-programs)
 - [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
 - [Gemini Support](#gemini-support)
+- [Frequently Asked Questions](#frequently-asked-questions)
 - [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
 - [License](#license)
