@@ -273,7 +273,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['user' => $userData]);
             } else {
                 http_response_code(404);
-                apiError('errors.generic', );
+                apiError('errors.admin.users.not_found', 'User not found');
             }
         });
 
@@ -293,7 +293,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'user_id' => $userId]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.admin.users.create_failed', 'Failed to create user');
             }
         });
 
@@ -313,7 +313,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => $result]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.admin.users.update_failed', 'Failed to update user');
             }
         });
 
@@ -332,7 +332,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => $result]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.admin.users.delete_failed', 'Failed to delete user');
             }
         });
 
@@ -497,7 +497,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $db->rollBack();
                 }
                 http_response_code(400);
-                apiError('errors.generic', );
+                $message = $e->getMessage();
+                if ($message === 'Question is required') {
+                    apiError('errors.admin.polls.question_required', 'Question is required');
+                } elseif ($message === 'At least two options are required' || $message === 'At least two valid options are required') {
+                    apiError('errors.admin.polls.options_required', 'At least two options are required');
+                } else {
+                    apiError('errors.admin.polls.create_failed', 'Failed to create poll');
+                }
             }
         });
 
@@ -565,7 +572,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     $db->rollBack();
                 }
                 http_response_code(400);
-                apiError('errors.generic', );
+                $message = $e->getMessage();
+                if ($message === 'Question is required') {
+                    apiError('errors.admin.polls.question_required', 'Question is required');
+                } elseif ($message === 'At least two options are required' || $message === 'At least two valid options are required') {
+                    apiError('errors.admin.polls.options_required', 'At least two options are required');
+                } elseif ($message === 'Poll not found') {
+                    apiError('errors.admin.polls.not_found', 'Poll not found');
+                } else {
+                    apiError('errors.admin.polls.update_failed', 'Failed to update poll');
+                }
             }
         });
 
@@ -585,7 +601,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.admin.polls.delete_failed', 'Failed to delete poll');
             }
         });
 
@@ -655,7 +671,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -752,7 +768,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -770,7 +786,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'data' => $data]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -807,7 +823,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -851,7 +867,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -894,7 +910,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -921,7 +937,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -980,7 +996,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1002,7 +1018,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1017,7 +1033,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'html' => $html]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1031,7 +1047,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'files' => $files]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1041,19 +1057,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 if (empty($_FILES['file'])) {
                     http_response_code(400);
-                    apiError('errors.generic', );
+                    apiError('errors.generic', 'An unexpected error occurred');
                     return;
                 }
                 $file = $_FILES['file'];
                 if ($file['error'] !== UPLOAD_ERR_OK) {
                     http_response_code(400);
-                    apiError('errors.generic', );
+                    apiError('errors.generic', 'An unexpected error occurred');
                     return;
                 }
                 // Max 512 KB for ANSI art
                 if ($file['size'] > 524288) {
                     http_response_code(400);
-                    apiError('errors.generic', );
+                    apiError('errors.generic', 'An unexpected error occurred');
                     return;
                 }
                 $originalName = basename($file['name']);
@@ -1063,7 +1079,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'name' => $result['name'] ?? $originalName]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1074,7 +1090,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $name = basename($name);
                 if (!preg_match('/^[a-zA-Z0-9_\-]+\.(ans|asc|txt)$/i', $name)) {
                     http_response_code(400);
-                    apiError('errors.generic', );
+                    apiError('errors.generic', 'An unexpected error occurred');
                     return;
                 }
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
@@ -1082,7 +1098,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1101,7 +1117,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'taglines' => $result['text'] ?? '']);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1122,7 +1138,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'taglines' => $result['text'] ?? '']);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1142,7 +1158,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1176,7 +1192,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $savedConfig]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1201,7 +1217,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'message' => 'MRC daemon restart initiated']);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1220,7 +1236,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1241,7 +1257,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1260,7 +1276,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1281,7 +1297,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1319,7 +1335,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1365,7 +1381,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1384,7 +1400,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1593,7 +1609,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1614,7 +1630,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $updated]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1634,7 +1650,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['ads' => $ads]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1649,28 +1665,28 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             if (!isset($_FILES['ad_file'])) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
                 return;
             }
 
             $file = $_FILES['ad_file'];
             if ($file['error'] !== UPLOAD_ERR_OK) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
                 return;
             }
 
             $maxSize = 1024 * 1024;
             if (!empty($file['size']) && $file['size'] > $maxSize) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
                 return;
             }
 
             $content = @file_get_contents($file['tmp_name']);
             if ($content === false) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
                 return;
             }
 
@@ -1682,7 +1698,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'ad' => $ad]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1701,7 +1717,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         })->where(['name' => '[A-Za-z0-9._-]+']);
 
@@ -1737,7 +1753,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'id' => (int)$roomId]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1784,7 +1800,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1817,7 +1833,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1854,7 +1870,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'id' => $nodeId]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1874,7 +1890,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => $result]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1893,7 +1909,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => $result]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1944,7 +1960,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => $result]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -1963,7 +1979,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => $result]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -2043,7 +2059,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['templates' => $templates]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -2063,7 +2079,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode($template);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -2085,7 +2101,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -2105,7 +2121,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
 
@@ -2127,7 +2143,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         });
     });
@@ -2172,7 +2188,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$feed) {
             http_response_code(404);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2191,14 +2207,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         // Validate required fields
         if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
             http_response_code(400);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
         // Validate URL
         if (!filter_var($input['feed_url'], FILTER_VALIDATE_URL)) {
             http_response_code(400);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2207,7 +2223,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $stmt->execute([$input['echoarea_id']]);
         if (!$stmt->fetch()) {
             http_response_code(400);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2216,7 +2232,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $stmt->execute([$input['post_as_user_id']]);
         if (!$stmt->fetch()) {
             http_response_code(400);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2250,9 +2266,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         } catch (PDOException $e) {
             http_response_code(400);
             if (strpos($e->getMessage(), 'duplicate key') !== false) {
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             } else {
-                apiError('errors.generic', );
+                apiError('errors.generic', 'An unexpected error occurred');
             }
         }
     });
@@ -2273,14 +2289,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$existingFeed) {
             http_response_code(404);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
         // Validate required fields
         if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
             http_response_code(400);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2317,7 +2333,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             echo json_encode(['success' => true]);
         } catch (PDOException $e) {
             http_response_code(400);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
         }
     });
 
@@ -2335,7 +2351,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$feed) {
             http_response_code(404);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2366,7 +2382,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$feed) {
             http_response_code(404);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2380,7 +2396,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if ($returnCode !== 0) {
             http_response_code(500);
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2462,7 +2478,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         try {
             $db->query("SELECT 1 FROM user_activity_log LIMIT 1");
         } catch (\Exception $e) {
-            apiError('errors.generic', );
+            apiError('errors.generic', 'An unexpected error occurred');
             return;
         }
 
@@ -2737,3 +2753,4 @@ SimpleRouter::get('/admin/subscriptions', function() {
         $template->renderResponse('admin_subscriptions.twig', $data);
     }
 });
+
