@@ -21,6 +21,7 @@ if (!function_exists('apiError')) {
             'error_code' => $errorCode,
             'error' => $message,
         ], $extra));
+        exit;
     }
 }
 

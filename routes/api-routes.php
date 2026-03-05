@@ -52,6 +52,7 @@ if (!function_exists('apiError')) {
             'error_code' => $errorCode,
             'error' => $message,
         ], $extra));
+        exit;
     }
 }
 
@@ -5334,8 +5335,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 echo json_encode(['success' => true, 'entries' => $entries]);
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.address_book.list_failed', 'Failed to load address book entries');
+                return;
             }
         });
 
@@ -5354,12 +5355,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 if ($entry) {
                     echo json_encode(['success' => true, 'entry' => $entry]);
                 } else {
-                    http_response_code(404);
-                    echo json_encode(['success' => false, 'error' => 'Entry not found']);
+                    apiError('errors.address_book.not_found', 'Entry not found', 404);
+                    return;
                 }
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.address_book.get_failed', 'Failed to load address book entry');
+                return;
             }
         })->where(['id' => '[0-9]+']);
 
@@ -5379,7 +5380,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 $userId = $user['user_id'] ?? $user['id'] ?? null;
                 if (!$user || !$userId) {
-                    throw new Exception('User ID not found in authentication data');
+                    apiError('errors.address_book.user_not_found', 'User ID not found in authentication data', 400);
+                    return;
                 }
 
                 $addressBook = new AddressBookController();
@@ -5387,9 +5389,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 echo json_encode(['success' => true, 'entry_id' => $entryId]);
             } catch (Exception $e) {
-                //error_log("[ADDRESS_BOOK] Error creating entry: " . $e->getMessage());
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                $message = $e->getMessage();
+                if (str_contains($message, 'Invalid Fidonet address format')) {
+                    apiError('errors.address_book.invalid_fidonet_format', $message, 400);
+                    return;
+                }
+                if (str_contains($message, 'Name, user ID, and node address are required')) {
+                    apiError('errors.address_book.required_fields', $message, 400);
+                    return;
+                }
+                if (str_contains($message, 'already exists')) {
+                    apiError('errors.address_book.duplicate_entry', $message, 409);
+                    return;
+                }
+                apiError('errors.address_book.create_failed', $message, 400);
+                return;
             }
         });
 
@@ -5409,12 +5423,29 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 if ($success) {
                     echo json_encode(['success' => true]);
                 } else {
-                    http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'Failed to update entry']);
+                    apiError('errors.address_book.update_failed', 'Failed to update entry', 400);
+                    return;
                 }
             } catch (Exception $e) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                $message = $e->getMessage();
+                if (str_contains($message, 'Address book entry not found')) {
+                    apiError('errors.address_book.not_found', $message, 404);
+                    return;
+                }
+                if (str_contains($message, 'Invalid Fidonet address format')) {
+                    apiError('errors.address_book.invalid_fidonet_format', $message, 400);
+                    return;
+                }
+                if (str_contains($message, 'Name, user ID, and node address are required')) {
+                    apiError('errors.address_book.required_fields', $message, 400);
+                    return;
+                }
+                if (str_contains($message, 'already exists')) {
+                    apiError('errors.address_book.duplicate_entry', $message, 409);
+                    return;
+                }
+                apiError('errors.address_book.update_failed', $message, 400);
+                return;
             }
         })->where(['id' => '[0-9]+']);
 
@@ -5433,12 +5464,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 if ($success) {
                     echo json_encode(['success' => true]);
                 } else {
-                    http_response_code(404);
-                    echo json_encode(['success' => false, 'error' => 'Entry not found']);
+                    apiError('errors.address_book.not_found', 'Entry not found', 404);
+                    return;
                 }
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.address_book.delete_failed', 'Failed to delete address book entry');
+                return;
             }
         })->where(['id' => '[0-9]+']);
 
@@ -5457,8 +5488,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 echo json_encode(['success' => true, 'entries' => $entries]);
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.address_book.search_failed', 'Failed to search address book entries');
+                return;
             }
         });
 
@@ -5476,8 +5507,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
                 echo json_encode(['success' => true, 'stats' => $stats]);
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                apiError('errors.address_book.stats_failed', 'Failed to load address book statistics');
+                return;
             }
         });
     });
