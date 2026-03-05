@@ -86,7 +86,7 @@
 
                     <div class="mb-3">
                         <label for="feedUrl" class="form-label">{{ t('ui.admin.auto_feed.feed_url_required') }}</label>
-                        <input type="url" class="form-control" id="feedUrl" name="feed_url" required placeholder="{{ t('ui.admin.auto_feed.feed_url_placeholder', {}, 'https://example.com/feed.rss') }}">
+                        <input type="url" class="form-control" id="feedUrl" name="feed_url" required placeholder="{{ t('ui.admin.auto_feed.feed_url_placeholder', {}, locale, ['common']) }}">
                         <div class="form-text">{{ t('ui.admin.auto_feed.feed_url_help') }}</div>
                     </div>
 

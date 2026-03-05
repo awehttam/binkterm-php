@@ -1,13 +1,13 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.chat_rooms.page_title', {}, 'Chat Rooms') }}{% endblock %}
+{% block title %}{{ t('ui.admin.chat_rooms.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">{{ t('ui.admin.chat_rooms.heading', {}, 'Chat Rooms') }}</h1>
+        <h1 class="h2">{{ t('ui.admin.chat_rooms.heading', {}, locale, ['common']) }}</h1>
         <button type="button" class="btn btn-primary" onclick="showCreateRoomModal()">
-            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.chat_rooms.add_room', {}, 'Add Room') }}
+            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.chat_rooms.add_room', {}, locale, ['common']) }}
         </button>
     </div>
 
@@ -17,12 +17,12 @@
                 <table class="table table-hover" id="chatRoomsTable">
                     <thead class="table-dark">
                         <tr>
-                            <th>{{ t('ui.common.id', {}, 'ID') }}</th>
-                            <th>{{ t('ui.common.name', {}, 'Name') }}</th>
-                            <th>{{ t('ui.common.description', {}, 'Description') }}</th>
-                            <th>{{ t('ui.admin.chat_rooms.status', {}, 'Status') }}</th>
-                            <th>{{ t('ui.admin.chat_rooms.created', {}, 'Created') }}</th>
-                            <th>{{ t('ui.admin.chat_rooms.actions', {}, 'Actions') }}</th>
+                            <th>{{ t('ui.common.id', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.name', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.description', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.chat_rooms.status', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.chat_rooms.created', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.chat_rooms.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody id="chatRoomsTableBody">
@@ -38,31 +38,31 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="chatRoomModalLabel">{{ t('ui.admin.chat_rooms.add_chat_room', {}, 'Add Chat Room') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'Close') }}"></button>
+                <h5 class="modal-title" id="chatRoomModalLabel">{{ t('ui.admin.chat_rooms.add_chat_room', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body">
                 <form id="chatRoomForm">
                     <input type="hidden" id="chatRoomId" name="chatRoomId">
                     <div class="mb-3">
-                        <label for="chatRoomName" class="form-label">{{ t('ui.common.name', {}, 'Name') }} <span class="text-danger">*</span></label>
+                        <label for="chatRoomName" class="form-label">{{ t('ui.common.name', {}, locale, ['common']) }} <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="chatRoomName" name="name" required>
                     </div>
                     <div class="mb-3">
-                        <label for="chatRoomDescription" class="form-label">{{ t('ui.common.description', {}, 'Description') }}</label>
+                        <label for="chatRoomDescription" class="form-label">{{ t('ui.common.description', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="chatRoomDescription" name="description">
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="chatRoomActive" name="is_active" checked>
                         <label class="form-check-label" for="chatRoomActive">
-                            {{ t('ui.admin.chat_rooms.active_room', {}, 'Active room') }}
+                            {{ t('ui.admin.chat_rooms.active_room', {}, locale, ['common']) }}
                         </label>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
-                <button type="button" class="btn btn-primary" onclick="saveChatRoom()">{{ t('ui.admin.chat_rooms.save_room', {}, 'Save Room') }}</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveChatRoom()">{{ t('ui.admin.chat_rooms.save_room', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>

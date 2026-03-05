@@ -135,8 +135,8 @@ function loadEchoareas() {
             applyEchoareaFilter();
         })
         .fail(function() {
-            $('#echoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
-            $('#mobileEchoareasList').html('<div class="text-center text-danger p-3">Failed to load echo areas</div>');
+            $('#echoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
+            $('#mobileEchoareasList').html(`<div class="text-center text-danger p-3">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
         });
 }
 
@@ -169,8 +169,8 @@ function displayEchoareas(echoareas) {
             <div class="node-item ${!currentEchoarea ? 'bg-primary text-white' : ''}" onclick="selectEchoarea(null)">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="node-system">All Messages</div>
-                        <small class="text-muted">View all echo areas</small>
+                        <div class="node-system">${uiT('ui.common.all_messages', 'All Messages')}</div>
+                        <small class="text-muted">${uiT('ui.echomail.view_all_echo_areas', 'View all echo areas')}</small>
                     </div>
                     <span class="badge bg-secondary">All</span>
                 </div>
@@ -187,7 +187,7 @@ function displayEchoareas(echoareas) {
             // Use search count if search is active
             let countDisplay;
             if (isSearchActive && area.search_count !== undefined) {
-                countDisplay = `<span class="badge bg-info">${area.search_count} found</span>`;
+                countDisplay = `<span class="badge bg-info">${uiT('ui.echomail.search_found_count', '{count} found', { count: area.search_count })}</span>`;
             } else {
                 countDisplay = `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${unreadCount}/${totalCount}</span>`;
             }
@@ -205,7 +205,7 @@ function displayEchoareas(echoareas) {
             `;
         });
     } else {
-        html = '<div class="text-center text-muted p-3">No echo areas available</div>';
+        html = `<div class="text-center text-muted p-3">${uiT('ui.echomail.no_echoareas_available', 'No echo areas available')}</div>`;
     }
 
     container.html(html);
@@ -221,8 +221,8 @@ function displayMobileEchoareas(echoareas) {
             <div class="list-group-item list-group-item-action ${!currentEchoarea ? 'active' : ''}" onclick="selectEchoarea(null)">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="fw-bold">All Messages</div>
-                        <small class="text-muted">View all echo areas</small>
+                        <div class="fw-bold">${uiT('ui.common.all_messages', 'All Messages')}</div>
+                        <small class="text-muted">${uiT('ui.echomail.view_all_echo_areas', 'View all echo areas')}</small>
                     </div>
                     <span class="badge bg-secondary">All</span>
                 </div>
@@ -239,7 +239,7 @@ function displayMobileEchoareas(echoareas) {
             // Use search count if search is active
             let countDisplay;
             if (isSearchActive && area.search_count !== undefined) {
-                countDisplay = `<span class="badge bg-info">${area.search_count} found</span>`;
+                countDisplay = `<span class="badge bg-info">${uiT('ui.echomail.search_found_count', '{count} found', { count: area.search_count })}</span>`;
             } else {
                 countDisplay = `<span class="badge ${isActive ? 'bg-light text-dark' : 'bg-secondary'}">${unreadCount}/${totalCount}</span>`;
             }
@@ -260,7 +260,7 @@ function displayMobileEchoareas(echoareas) {
         // Wrap in list-group
         html = '<div class="list-group list-group-flush">' + html + '</div>';
     } else {
-        html = '<div class="text-center text-muted p-3">No echo areas available</div>';
+        html = `<div class="text-center text-muted p-3">${uiT('ui.echomail.no_echoareas_available', 'No echo areas available')}</div>`;
     }
 
     container.html(html);
@@ -340,7 +340,7 @@ function loadMessages() {
             loadStats();
         })
         .fail(function() {
-            $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load messages</div>');
+            $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
         });
 }
 
@@ -352,11 +352,11 @@ function loadDrafts() {
                 // Clear pagination for drafts
                 $('#pagination').empty();
             } else {
-                $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load drafts</div>');
+                $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.messages.drafts.list_failed', 'Failed to load drafts')}</div>`);
             }
         })
         .fail(function() {
-            $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load drafts</div>');
+            $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.messages.drafts.list_failed', 'Failed to load drafts')}</div>`);
         });
 }
 
@@ -365,7 +365,7 @@ function displayDrafts(drafts) {
     let html = '';
 
     if (drafts.length === 0) {
-        html = '<div class="text-center text-muted py-4">No drafts found</div>';
+        html = `<div class="text-center text-muted py-4">${uiT('ui.echomail.no_drafts_found', 'No drafts found')}</div>`;
     } else {
         // Create table structure
         html = `
@@ -373,32 +373,32 @@ function displayDrafts(drafts) {
                 <table class="table table-hover message-table mb-0">
                     <thead>
                         <tr>
-                            <th style="width: 25%">To / Echo Area</th>
-                            <th style="width: 50%">Subject</th>
-                            <th colspan="2" style="width: 25%">Last Updated</th>
+                            <th style="width: 25%">${uiT('ui.echomail.to_echo_area', 'To / Echo Area')}</th>
+                            <th style="width: 50%">${uiT('ui.common.subject_label_short', 'Subject')}</th>
+                            <th colspan="2" style="width: 25%">${uiT('ui.echomail.last_updated', 'Last Updated')}</th>
                         </tr>
                     </thead>
                     <tbody>
         `;
 
         drafts.forEach(function(draft) {
-            const displayTarget = draft.to_name || 'All';
-            const displayArea = draft.echoarea || 'No area';
+            const displayTarget = draft.to_name || uiT('ui.common.all', 'All');
+            const displayArea = draft.echoarea || uiT('ui.echomail.no_area', 'No area');
 
             html += `
                 <tr class="message-row" style="cursor: pointer;" onclick="continueDraft(${draft.id})">
                     <td>
-                        <div><strong>To:</strong> ${escapeHtml(displayTarget)}</div>
-                        <div class="text-muted small"><strong>Area:</strong> ${escapeHtml(displayArea)}</div>
+                        <div><strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(displayTarget)}</div>
+                        <div class="text-muted small"><strong>${uiT('ui.common.area_label', 'Area:')}</strong> ${escapeHtml(displayArea)}</div>
                     </td>
                     <td>
-                        <strong>${escapeHtml(draft.subject || '(No Subject)')}</strong>
+                        <strong>${escapeHtml(draft.subject || uiT('messages.no_subject', '(No Subject)'))}</strong>
                         ${draft.message_text ? `<br><small class="text-muted">${escapeHtml(draft.message_text.substring(0, 100))}${draft.message_text.length > 100 ? '...' : ''}</small>` : ''}
                     </td>
                     <td>
                         <div>${formatFullDate(draft.updated_at)}</div>
                         <div class="text-muted small">
-                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteDraftConfirm(${draft.id})" title="Delete draft">
+                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteDraftConfirm(${draft.id})" title="${uiT('ui.common.delete_draft', 'Delete draft')}">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -425,7 +425,7 @@ function displayMessages(messages, isThreaded = false) {
     currentMessages = messages;
 
     if (messages.length === 0) {
-        html = '<div class="text-center text-muted py-4">No messages found</div>';
+        html = `<div class="text-center text-muted py-4">${uiT('messages.none_found', 'No messages found')}</div>`;
     } else {
         // Create table structure
         html = `
@@ -438,9 +438,9 @@ function displayMessages(messages, isThreaded = false) {
                                     <input class="form-check-input" type="checkbox" id="selectAllMessages" onchange="toggleSelectAll()">
                                 </div>
                             </th>
-                            <th style="width: 25%">From</th>
-                            <th style="width: 60%">Subject</th>
-                            <th colspan="2" style="width: 15%">Received</th>
+                            <th style="width: 25%">${uiT('ui.common.from', 'From')}</th>
+                            <th style="width: 60%">${uiT('ui.common.subject_label_short', 'Subject')}</th>
+                            <th colspan="2" style="width: 15%">${uiT('ui.netmail.received', 'Received')}</th>
 
                         </tr>
                     </thead>
@@ -450,19 +450,19 @@ function displayMessages(messages, isThreaded = false) {
         messages.forEach(function(msg) {
             // Check if message is addressed to current user
             const isToCurrentUser = msg.to_name && window.currentUserRealName && msg.to_name === window.currentUserRealName;
-            const toInfo = msg.to_name && msg.to_name !== 'All' ?
-                ` (to: <span class="${isToCurrentUser ? 'text-green fw-bold' : ''}">${escapeHtml(msg.to_name)}</span>)` : '';
+            const toInfo = msg.to_name && msg.to_name !== uiT('ui.common.all', 'All') ?
+                ` (${uiT('ui.echomail.to_prefix', 'to:')} <span class="${isToCurrentUser ? 'text-green fw-bold' : ''}">${escapeHtml(msg.to_name)}</span>)` : '';
             const isRead = msg.is_read == 1;
             const isShared = msg.is_shared == 1;
             const isSaved = msg.is_saved == 1;
             const readClass = isRead ? 'read' : 'unread';
-            const readIcon = isRead ? '<i class="fas fa-envelope-open text-muted me-1" title="Read"></i>' : '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>';
-            const shareIcon = isShared ? '<i class="fas fa-share-alt text-success me-1" title="Shared"></i>' : '';
+            const readIcon = isRead ? `<i class="fas fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>` : `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>`;
+            const shareIcon = isShared ? `<i class="fas fa-share-alt text-success me-1" title="${uiT('ui.common.shared', 'Shared')}"></i>` : '';
             const saveIcon = `<i class="fas fa-bookmark ${isSaved ? 'text-warning' : 'text-muted'} me-1 save-btn"
                                  data-message-id="${msg.id}"
                                  data-message-type="echomail"
                                  data-saved="${isSaved}"
-                                 title="${isSaved ? 'Remove from saved' : 'Save for later'}"
+                                 title="${isSaved ? uiT('ui.common.remove_from_saved', 'Remove from saved') : uiT('ui.common.save_for_later', 'Save for later')}"
                                  style="cursor: pointer;"
                                  onclick="toggleSaveMessage(${msg.id}, 'echomail', ${isSaved})"></i>`;
 
@@ -470,8 +470,8 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            const threadIcon = threadLevel > 0 ? '<i class="fas fa-reply me-1 text-muted" title="Reply"></i>' : '';
-            const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${replyCount} replies">${replyCount}</span>` : '';
+            const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
+            const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
 
             // Add thread-specific CSS classes
             const threadClasses = isThreaded ? `thread-level-${threadLevel} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
@@ -484,17 +484,17 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
-                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="Send netmail to ${escapeHtml(msg.from_name)}">${escapeHtml(msg.from_name)}</a>
+                        ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                         ${!currentEchoarea ? `<div class="mb-1">
                             <span class="badge" style="background-color: ${msg.echoarea_color || '#28a745'}; color: white;">${msg.echoarea}</span>
                             ${msg.echoarea_domain ? `<span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${msg.echoarea_domain}</span>` : ''}
                         </div>` : ''}
-                        ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || '(No Subject)')}${isRead ? '' : '</strong>'}${replyCountBadge}
+                        ${isRead ? '' : '<strong>'}${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}${isRead ? '' : '</strong>'}${replyCountBadge}
                         ${toInfo ? `<br><small class="text-muted">${toInfo}</small>` : ''}
                     </td>
-                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${USE_DATE_FIELD === 'written' ? 'Received: ' + formatFullDate(msg.date_received) : 'Written: ' + formatFullDate(msg.date_written)}">${formatDate(USE_DATE_FIELD === 'written' ? msg.date_written : msg.date_received)}</td>
+                    <td class="message-date clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;" title="${USE_DATE_FIELD === 'written' ? uiT('ui.common.received_prefix', 'Received:') + ' ' + formatFullDate(msg.date_received) : uiT('ui.common.written_prefix', 'Written:') + ' ' + formatFullDate(msg.date_written)}">${formatDate(USE_DATE_FIELD === 'written' ? msg.date_written : msg.date_received)}</td>
                 </tr>
             `;
         });
@@ -519,7 +519,7 @@ function updatePagination(pagination) {
 
         // Previous button
         if (pagination.page > 1) {
-            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">Previous</a></li>`;
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">${uiT('ui.common.previous', 'Previous')}</a></li>`;
         }
 
         // Page numbers (show max 5 pages)
@@ -537,7 +537,7 @@ function updatePagination(pagination) {
 
         // Next button
         if (pagination.page < pagination.pages) {
-            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page + 1})">Next</a></li>`;
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page + 1})">${uiT('ui.common.next', 'Next')}</a></li>`;
         }
 
         html += '</ul>';
@@ -573,9 +573,9 @@ function toggleThreading() {
     // Update toggle text
     const toggleText = $('#threadingToggleText');
     if (threadedView) {
-        toggleText.text('Show Flat');
+        toggleText.text(uiT('ui.common.threading.show_flat', 'Show Flat'));
     } else {
-        toggleText.text('Show Threaded');
+        toggleText.text(uiT('ui.common.threading.show_threaded', 'Show Threaded'));
     }
 
     // Save preference
@@ -698,7 +698,7 @@ function viewMessage(messageId) {
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Loading message...
+            ${uiT('ui.common.loading_message', 'Loading message...')}
         </div>
     `);
 
@@ -720,7 +720,7 @@ function viewMessage(messageId) {
             $('#messageModal .modal-body').scrollTop(0);
         })
         .fail(function() {
-            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+            $('#messageContent').html(`<div class="text-danger">${uiT('errors.messages.echomail.get_failed', 'Failed to load message')}</div>`);
         });
 }
 
@@ -773,7 +773,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     let addressBookButton;
     if (isInAddressBook) {
         addressBookButton = `
-            <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="Already in address book">
+            <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="${uiT('ui.common.already_in_address_book', 'Already in address book')}">
                 <i class="fas fa-check"></i> <i class="fas fa-address-book"></i>
             </button>
         `;
@@ -783,7 +783,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         const replyToName = message.replyto_name || message.from_name;
 
         addressBookButton = `
-            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(replyToName)}', '${escapeHtml(replyToAddress)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="Save to address book">
+            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(replyToName)}', '${escapeHtml(replyToAddress)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="${uiT('ui.common.save_to_address_book', 'Save to address book')}">
                 <i class="fas fa-address-book"></i>
             </button>
         `;
@@ -797,23 +797,23 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-4">
-                    <strong>From:</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="Send netmail to ${escapeHtml(message.from_name)}">${escapeHtml(message.from_name)}</a>
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> <a href="/compose/netmail?to=${encodeURIComponent((message.replyto_address && message.replyto_address !== '') ? message.replyto_address : message.from_address)}&to_name=${encodeURIComponent((message.replyto_name && message.replyto_name !== '') ? message.replyto_name : message.from_name)}&subject=${encodeURIComponent('Re: ' + (message.subject || ''))}" class="text-decoration-none" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: message.from_name })}">${escapeHtml(message.from_name)}</a>
                     <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-4">
-                    <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}
+                    <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name || uiT('ui.common.all', 'All'))}
                 </div>
                 <div class="col-md-4">
-                    <strong>Area:</strong> ${escapeHtml(message.echoarea)}${message.domain ? '@' + escapeHtml(message.domain) : ''}
+                    <strong>${uiT('ui.common.area_label', 'Area:')}</strong> ${escapeHtml(message.echoarea)}${message.domain ? '@' + escapeHtml(message.domain) : ''}
                 </div>
             </div>
             <div class="row mt-2">
                 <div class="col-md-4">
-                    <strong>Date:</strong> ${formatFullDate(message.date_written)}
+                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> ${formatFullDate(message.date_written)}
                 </div>
                 <div class="col-md-8">
-                    <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
+                    <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
                 </div>
             </div>
             <div class="row mt-2">
@@ -821,18 +821,18 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
                     <i class="fas fa-bookmark modal-header-save-icon ${message.is_saved == 1 ? 'text-warning' : 'text-muted'}"
                        id="modalHeaderSaveIcon"
                        style="cursor: pointer;"
-                       title="${message.is_saved == 1 ? 'Remove from saved' : 'Save for later'}"></i>
-                    ${message.is_shared == 1 ? '<i class="fas fa-share-alt text-success ms-2" title="Shared"></i>' : ''}
+                       title="${message.is_saved == 1 ? uiT('ui.common.remove_from_saved', 'Remove from saved') : uiT('ui.common.save_for_later', 'Save for later')}"></i>
+                    ${message.is_shared == 1 ? `<i class="fas fa-share-alt text-success ms-2" title="${uiT('ui.common.shared', 'Shared')}"></i>` : ''}
                 </div>
             </div>
         </div>
 
         <div class="message-headers mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">Kludge Lines</h6>
+                <h6 class="mb-0 text-muted">${uiT('ui.common.kludge_lines', 'Kludge Lines')}</h6>
                 <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
                     <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">Show Kludge Lines</span>
+                    <span id="toggleText">${uiT('ui.common.show_kludge_lines', 'Show Kludge Lines')}</span>
                 </button>
             </div>
             <div id="kludgeContainer" class="kludge-lines" style="display: none;">
@@ -988,7 +988,7 @@ function showClearSearchButton() {
     if ($('#clearSearchBtn').length === 0) {
         const clearBtn = `
             <button id="clearSearchBtn" class="btn btn-sm btn-secondary w-100 mt-2" onclick="clearSearch()">
-                <i class="fas fa-times me-1"></i> Clear Search
+                <i class="fas fa-times me-1"></i> ${uiT('ui.common.clear_search', 'Clear Search')}
             </button>
         `;
         $('#searchInput').after(clearBtn);
@@ -998,7 +998,7 @@ function showClearSearchButton() {
     if ($('#mobileClearSearchBtn').length === 0) {
         const mobileClearBtn = `
             <button id="mobileClearSearchBtn" class="btn btn-sm btn-secondary w-100 mt-2" onclick="clearSearch()">
-                <i class="fas fa-times me-1"></i> Clear Search
+                <i class="fas fa-times me-1"></i> ${uiT('ui.common.clear_search', 'Clear Search')}
             </button>
         `;
         $('#mobileSearchInput').after(mobileClearBtn);
@@ -1053,14 +1053,14 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
                 if (isSaved) {
                     // Message was unsaved
                     icon.removeClass('text-warning').addClass('text-muted');
-                    icon.attr('title', 'Save for later');
+                    icon.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
                     icon.attr('data-saved', 'false');
                     icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', false)`);
                     showSuccess(uiT('ui.echomail.saved_items.removed', 'Message removed from saved items'));
                 } else {
                     // Message was saved
                     icon.removeClass('text-muted').addClass('text-warning');
-                    icon.attr('title', 'Remove from saved');
+                    icon.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
                     icon.attr('data-saved', 'true');
                     icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', true)`);
                     showSuccess(uiT('ui.echomail.saved_items.saved', 'Message saved for later'));
@@ -1100,11 +1100,11 @@ function updateModalSaveButton(message) {
         saveBtn.removeClass('btn-outline-warning').addClass('btn-warning');
         saveIcon.removeClass('fa-bookmark').addClass('fa-bookmark');
         saveText.text('Saved');
-        saveBtn.attr('title', 'Remove from saved');
+        saveBtn.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
 
         // Update header icon
         headerIcon.removeClass('text-muted').addClass('text-warning');
-        headerIcon.attr('title', 'Remove from saved');
+        headerIcon.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
 
         // Click handlers to UNSAVE (isSaved = true)
         saveBtn.off('click').on('click', function() {
@@ -1117,12 +1117,12 @@ function updateModalSaveButton(message) {
         // Message is not saved - show "Save" button that will save when clicked
         saveBtn.removeClass('btn-warning').addClass('btn-outline-warning');
         saveIcon.removeClass('fa-bookmark').addClass('fa-bookmark');
-        saveText.text('Save');
-        saveBtn.attr('title', 'Save for later');
+        saveText.text(uiT('ui.common.save', 'Save'));
+        saveBtn.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
 
         // Update header icon
         headerIcon.removeClass('text-warning').addClass('text-muted');
-        headerIcon.attr('title', 'Save for later');
+        headerIcon.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
 
         // Click handlers to SAVE (isSaved = false)
         saveBtn.off('click').on('click', function() {
@@ -1153,12 +1153,12 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                 if (isSaved) {
                     // Message was unsaved
                     saveBtn.removeClass('btn-warning').addClass('btn-outline-warning');
-                    saveText.text('Save');
-                    saveBtn.attr('title', 'Save for later');
+                    saveText.text(uiT('ui.common.save', 'Save'));
+                    saveBtn.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
 
                     // Update header icon
                     headerIcon.removeClass('text-warning').addClass('text-muted');
-                    headerIcon.attr('title', 'Save for later');
+                    headerIcon.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
 
                     showSuccess(uiT('ui.echomail.saved_items.removed', 'Message removed from saved items'));
 
@@ -1173,11 +1173,11 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                     // Message was saved
                     saveBtn.removeClass('btn-outline-warning').addClass('btn-warning');
                     saveText.text('Saved');
-                    saveBtn.attr('title', 'Remove from saved');
+                    saveBtn.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
 
                     // Update header icon
                     headerIcon.removeClass('text-muted').addClass('text-warning');
-                    headerIcon.attr('title', 'Remove from saved');
+                    headerIcon.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
 
                     showSuccess(uiT('ui.echomail.saved_items.saved', 'Message saved for later'));
 
@@ -1195,12 +1195,12 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                 if (icon.length) {
                     if (isSaved) {
                         icon.removeClass('text-warning').addClass('text-muted');
-                        icon.attr('title', 'Save for later');
+                        icon.attr('title', uiT('ui.common.save_for_later', 'Save for later'));
                         icon.attr('data-saved', 'false');
                         icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', false)`);
                     } else {
                         icon.removeClass('text-muted').addClass('text-warning');
-                        icon.attr('title', 'Remove from saved');
+                        icon.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
                         icon.attr('data-saved', 'true');
                         icon.attr('onclick', `toggleSaveMessage(${messageId}, '${messageType}', true)`);
                     }
@@ -1263,10 +1263,10 @@ function loadStats() {
         .fail(function(xhr, status, error) {
             console.error('Echomail stats loading failed:', xhr.status, status, error);
             console.error('Response text:', xhr.responseText);
-            $('#totalMessages').text('Error');
-            $('#unreadMessages').text('Error');
-            $('#recentMessages').text('Error');
-            $('#totalAreas').text('Error');
+            $('#totalMessages').text(uiT('ui.common.error', 'Error'));
+            $('#unreadMessages').text(uiT('ui.common.error', 'Error'));
+            $('#recentMessages').text(uiT('ui.common.error', 'Error'));
+            $('#totalAreas').text(uiT('ui.common.error', 'Error'));
         });
 }
 
@@ -1283,14 +1283,14 @@ function toggleSelectMode() {
 
     if (selectMode) {
         // Enable select mode
-        btn.html('<i class="fas fa-times"></i> Cancel');
+        btn.html(`<i class="fas fa-times"></i> ${uiT('ui.common.cancel', 'Cancel')}`);
         btn.removeClass('btn-outline-secondary').addClass('btn-outline-warning');
         checkboxColumn.removeClass('d-none');
         checkboxCells.removeClass('d-none');
         bulkActions.removeClass('d-none');
     } else {
         // Disable select mode
-        btn.html('<i class="fas fa-check-square"></i> Select');
+        btn.html(`<i class="fas fa-check-square"></i> ${uiT('ui.common.select', 'Select')}`);
         btn.removeClass('btn-outline-warning').addClass('btn-outline-secondary');
         checkboxColumn.addClass('d-none');
         checkboxCells.addClass('d-none');
@@ -1392,7 +1392,7 @@ function markSelectedAsRead() {
             }
         },
         error: function(xhr) {
-            let errorMessage = 'Failed to mark messages as read';
+            let errorMessage = uiT('ui.echomail.bulk_mark_read_failed', 'Failed to mark messages as read');
             try {
                 const response = JSON.parse(xhr.responseText);
                 errorMessage = apiError(response, errorMessage);
@@ -1449,7 +1449,7 @@ function deleteSelectedMessages() {
             }
         },
         error: function(xhr) {
-            let errorMessage = 'Failed to delete messages';
+            let errorMessage = uiT('ui.echomail.bulk_delete.failed', 'Failed to delete messages');
             try {
                 const response = JSON.parse(xhr.responseText);
                 errorMessage = apiError(response, errorMessage);
@@ -1488,7 +1488,7 @@ function updateMobileAccordionText(selectedArea) {
             const displayTag = selectedArea.includes('@') ? selectedArea.split('@')[0] : selectedArea;
             textSpan.text(`Viewing: ${displayTag}`);
         } else {
-            textSpan.text('Viewing: All Messages');
+            textSpan.text(uiT('ui.echomail.viewing_all_messages', 'Viewing: All Messages'));
         }
     }
 }
@@ -1513,7 +1513,7 @@ function updateNavigationButtons() {
 
 function updateModalTitle(subject) {
     const position = currentMessages.length > 0 ? `${currentMessageIndex + 1} of ${currentMessages.length}` : '';
-    const titleText = subject || '(No Subject)';
+    const titleText = subject || uiT('messages.no_subject', '(No Subject)');
 
     if (position) {
         $('#messageSubject').html(`${escapeHtml(titleText)} <small class="text-muted">(${position})</small>`);
@@ -1673,7 +1673,7 @@ function navigateMessage(direction) {
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Loading message...
+            ${uiT('ui.common.loading_message', 'Loading message...')}
         </div>
     `);
 
@@ -1692,7 +1692,7 @@ function navigateMessage(direction) {
             $('#messageModal .modal-body').scrollTop(0);
         })
         .fail(function() {
-            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+            $('#messageContent').html(`<div class="text-danger">${uiT('errors.messages.echomail.get_failed', 'Failed to load message')}</div>`);
         });
 }
 
@@ -1971,7 +1971,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                     // Already exists - show "already saved" state
                     button.removeClass('btn-outline-success').addClass('btn-outline-secondary')
                           .html('<i class="fas fa-check"></i> <i class="fas fa-address-book"></i>')
-                          .attr('title', 'Already in address book')
+                          .attr('title', uiT('ui.common.already_in_address_book', 'Already in address book'))
                           .prop('disabled', true);
                     showError(uiT('ui.address_book.already_exists', 'This contact is already in your address book'));
                     return;
@@ -2006,8 +2006,8 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                         if (response.success) {
                             // Show success state
                             button.removeClass('btn-outline-success').addClass('btn-success')
-                                  .html('<i class="fas fa-check"></i> Saved')
-                                  .attr('title', 'Saved to address book')
+                                  .html(`<i class="fas fa-check"></i> ${uiT('ui.common.saved_short', 'Saved')}`)
+                                  .attr('title', uiT('ui.address_book.saved_to_address_book', 'Saved to address book'))
                                   .prop('disabled', true);
 
                             showSuccess(uiT('ui.address_book.sender_added', `${fromName} added to address book`, { name: fromName }));
@@ -2020,7 +2020,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                             // Reset button on error
                             button.removeClass('btn-outline-success').addClass('btn-outline-danger')
                                   .html(originalHtml)
-                                  .attr('title', 'Error - click to retry')
+                                  .attr('title', uiT('ui.common.error_click_retry', 'Error - click to retry'))
                                   .prop('disabled', false);
                             showError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                         }
@@ -2029,7 +2029,7 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                         // Reset button on error
                         button.removeClass('btn-outline-success').addClass('btn-outline-danger')
                               .html(originalHtml)
-                              .attr('title', 'Error - click to retry')
+                              .attr('title', uiT('ui.common.error_click_retry', 'Error - click to retry'))
                               .prop('disabled', false);
                         showError(apiError(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                     }

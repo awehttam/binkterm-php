@@ -1,13 +1,13 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.polls.page_title', {}, 'Polls') }}{% endblock %}
+{% block title %}{{ t('ui.admin.polls.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">{{ t('ui.admin.polls.heading', {}, 'Polls') }}</h1>
+        <h1 class="h2">{{ t('ui.admin.polls.heading', {}, locale, ['common']) }}</h1>
         <button type="button" class="btn btn-primary" onclick="showCreatePollModal()">
-            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.polls.add_poll', {}, 'Add Poll') }}
+            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.polls.add_poll', {}, locale, ['common']) }}
         </button>
     </div>
 
@@ -17,13 +17,13 @@
                 <table class="table table-hover" id="pollsTable">
                     <thead class="table-dark">
                         <tr>
-                            <th>{{ t('ui.common.id', {}, 'ID') }}</th>
-                            <th>{{ t('ui.admin.polls.question', {}, 'Question') }}</th>
-                            <th>{{ t('ui.admin.polls.status', {}, 'Status') }}</th>
-                            <th>{{ t('ui.admin.polls.votes', {}, 'Votes') }}</th>
-                            <th>{{ t('ui.admin.polls.created_by', {}, 'Created By') }}</th>
-                            <th>{{ t('ui.admin.polls.created', {}, 'Created') }}</th>
-                            <th>{{ t('ui.admin.polls.actions', {}, 'Actions') }}</th>
+                            <th>{{ t('ui.common.id', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.polls.question', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.polls.status', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.polls.votes', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.polls.created_by', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.polls.created', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.polls.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody id="pollsTableBody">
@@ -39,43 +39,43 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="pollModalLabel">{{ t('ui.admin.polls.add_poll', {}, 'Add Poll') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'Close') }}"></button>
+                <h5 class="modal-title" id="pollModalLabel">{{ t('ui.admin.polls.add_poll', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body">
                 <form id="pollForm">
                     <input type="hidden" id="pollId" name="pollId">
                     <div class="mb-3" id="createdByContainer" style="display: none;">
-                        <label class="form-label">{{ t('ui.admin.polls.created_by', {}, 'Created By') }}</label>
+                        <label class="form-label">{{ t('ui.admin.polls.created_by', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="pollCreatedBy" readonly>
                     </div>
                     <div class="mb-3">
-                        <label for="pollQuestion" class="form-label">{{ t('ui.admin.polls.question', {}, 'Question') }} <span class="text-danger">*</span></label>
+                        <label for="pollQuestion" class="form-label">{{ t('ui.admin.polls.question', {}, locale, ['common']) }} <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="pollQuestion" name="question" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">{{ t('ui.admin.polls.options', {}, 'Options') }} <span class="text-danger">*</span></label>
+                        <label class="form-label">{{ t('ui.admin.polls.options', {}, locale, ['common']) }} <span class="text-danger">*</span></label>
                         <div id="pollOptions">
                             <!-- Option inputs -->
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addPollOption()">
-                            <i class="fas fa-plus me-1"></i>{{ t('ui.admin.polls.add_option', {}, 'Add Option') }}
+                            <i class="fas fa-plus me-1"></i>{{ t('ui.admin.polls.add_option', {}, locale, ['common']) }}
                         </button>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="pollActive" name="is_active" checked>
                         <label class="form-check-label" for="pollActive">
-                            {{ t('ui.admin.polls.active_poll', {}, 'Active poll') }}
+                            {{ t('ui.admin.polls.active_poll', {}, locale, ['common']) }}
                         </label>
                     </div>
                     <div class="form-text text-muted mt-2">
-                        {{ t('ui.admin.polls.editing_options_resets_votes', {}, 'Editing options will reset votes for this poll.') }}
+                        {{ t('ui.admin.polls.editing_options_resets_votes', {}, locale, ['common']) }}
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
-                <button type="button" class="btn btn-primary" onclick="savePoll()">{{ t('ui.admin.polls.save_poll', {}, 'Save Poll') }}</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="savePoll()">{{ t('ui.admin.polls.save_poll', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>

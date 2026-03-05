@@ -1,21 +1,21 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.filearea_rules.page_title_prefix', {}, 'File Area Rules') }} - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.admin.filearea_rules.page_title_prefix', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-filter"></i>
-        {{ t('ui.admin.filearea_rules.heading', {}, 'File Area Rules') }}
+        {{ t('ui.admin.filearea_rules.heading', {}, locale, ['common']) }}
     </h2>
     <div class="d-flex gap-2">
         <button class="btn btn-outline-secondary" id="resetRulesBtn" disabled>
             <i class="fas fa-undo"></i>
-            {{ t('ui.admin.filearea_rules.reset_to_example', {}, 'Reset to Example') }}
+            {{ t('ui.admin.filearea_rules.reset_to_example', {}, locale, ['common']) }}
         </button>
         <button class="btn btn-fidonet" id="saveRulesBtn" disabled>
             <i class="fas fa-save"></i>
-            {{ t('ui.admin.filearea_rules.save_rules', {}, 'Save Rules') }}
+            {{ t('ui.admin.filearea_rules.save_rules', {}, locale, ['common']) }}
         </button>
     </div>
 </div>
@@ -24,45 +24,45 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.config_filename', {}, 'filearea_rules.json') }}</h6>
-                <small class="text-muted" id="rulesStatus">{{ t('ui.common.loading', {}, 'Loading...') }}</small>
+                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.config_filename', {}, locale, ['common']) }}</h6>
+                <small class="text-muted" id="rulesStatus">{{ t('ui.common.loading', {}, locale, ['common']) }}</small>
             </div>
             <div class="card-body">
                 <div id="rulesEditorAlert"></div>
                 <textarea id="rulesJsonEditor" class="form-control" rows="22" spellcheck="false"
                           style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;"></textarea>
-                <small class="text-muted" id="rulesJsonHint">{{ t('ui.admin.filearea_rules.editing_requires_valid_json', {}, 'Editing requires valid JSON.') }}</small>
+                <small class="text-muted" id="rulesJsonHint">{{ t('ui.admin.filearea_rules.editing_requires_valid_json', {}, locale, ['common']) }}</small>
             </div>
         </div>
     </div>
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.macros', {}, 'Macros') }}</h6>
+                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.macros', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <ul class="list-unstyled mb-0">
-                    <li><code>%basedir%</code> {{ t('ui.admin.filearea_rules.macro_basedir', {}, 'Application base directory') }}</li>
-                    <li><code>%filepath%</code> {{ t('ui.admin.filearea_rules.macro_filepath', {}, 'Full path to file') }}</li>
-                    <li><code>%filename%</code> {{ t('ui.admin.filearea_rules.macro_filename', {}, 'File name only') }}</li>
-                    <li><code>%filesize%</code> {{ t('ui.admin.filearea_rules.macro_filesize', {}, 'File size in bytes') }}</li>
-                    <li><code>%domain%</code> {{ t('ui.admin.filearea_rules.macro_domain', {}, 'File area domain') }}</li>
-                    <li><code>%areatag%</code> {{ t('ui.admin.filearea_rules.macro_areatag', {}, 'File area tag') }}</li>
-                    <li><code>%uploader%</code> {{ t('ui.admin.filearea_rules.macro_uploader', {}, 'Uploader name/address') }}</li>
-                    <li><code>%ticfile%</code> {{ t('ui.admin.filearea_rules.macro_ticfile', {}, 'TIC path (if available)') }}</li>
-                    <li><code>%tempdir%</code> {{ t('ui.admin.filearea_rules.macro_tempdir', {}, 'Temp directory') }}</li>
+                    <li><code>%basedir%</code> {{ t('ui.admin.filearea_rules.macro_basedir', {}, locale, ['common']) }}</li>
+                    <li><code>%filepath%</code> {{ t('ui.admin.filearea_rules.macro_filepath', {}, locale, ['common']) }}</li>
+                    <li><code>%filename%</code> {{ t('ui.admin.filearea_rules.macro_filename', {}, locale, ['common']) }}</li>
+                    <li><code>%filesize%</code> {{ t('ui.admin.filearea_rules.macro_filesize', {}, locale, ['common']) }}</li>
+                    <li><code>%domain%</code> {{ t('ui.admin.filearea_rules.macro_domain', {}, locale, ['common']) }}</li>
+                    <li><code>%areatag%</code> {{ t('ui.admin.filearea_rules.macro_areatag', {}, locale, ['common']) }}</li>
+                    <li><code>%uploader%</code> {{ t('ui.admin.filearea_rules.macro_uploader', {}, locale, ['common']) }}</li>
+                    <li><code>%ticfile%</code> {{ t('ui.admin.filearea_rules.macro_ticfile', {}, locale, ['common']) }}</li>
+                    <li><code>%tempdir%</code> {{ t('ui.admin.filearea_rules.macro_tempdir', {}, locale, ['common']) }}</li>
                 </ul>
             </div>
         </div>
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.tips', {}, 'Tips') }}</h6>
+                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.tips', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <small class="text-muted">
-                    {{ t('ui.admin.filearea_rules.tip_1', {}, 'Rules run in order: global rules first, then area-specific rules.') }}
-                    {{ t('ui.admin.filearea_rules.tip_2', {}, 'Area rules can be keyed as TAG or TAG@DOMAIN (domain-specific takes precedence).') }}
-                    {{ t('ui.admin.filearea_rules.tip_3', {}, 'Use success_action and fail_action with +stop to halt further processing.') }}
+                    {{ t('ui.admin.filearea_rules.tip_1', {}, locale, ['common']) }}
+                    {{ t('ui.admin.filearea_rules.tip_2', {}, locale, ['common']) }}
+                    {{ t('ui.admin.filearea_rules.tip_3', {}, locale, ['common']) }}
                 </small>
             </div>
         </div>

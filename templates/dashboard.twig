@@ -403,8 +403,8 @@ function loadEchoareas() {
                 // Add header row
                 html += `
                     <div class="d-flex justify-content-between align-items-center py-1 border-bottom mb-2">
-                        <div class="fw-bold text-muted small">Echo Area</div>
-                        <div class="fw-bold text-muted small">Unread&nbsp;&nbsp;Total</div>
+                        <div class="fw-bold text-muted small">${uiT('ui.dashboard.echoareas.header_area', 'Echo Area')}</div>
+                        <div class="fw-bold text-muted small">${uiT('ui.dashboard.echoareas.header_unread_total', 'Unread Total')}</div>
                     </div>
                 `;
                 
@@ -568,7 +568,7 @@ function copyReferralLink(button, evt) {
             }, 2000);
         }
     } catch (err) {
-        console.error('Failed to copy:', err);
+        console.error(uiT('ui.dashboard.referrals.copy_failed_prefix', 'Failed to copy:'), err);
     }
 }
 

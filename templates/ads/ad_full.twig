@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Advertisement{% endblock %}
+{% block title %}{{ t('ui.ads.advertisement', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -10,7 +10,7 @@
                 <pre class="ansi-art" id="fullAdAnsi">{{ ad.content }}</pre>
             </div>
         {% else %}
-            <p class="text-muted">No advertisements available.</p>
+            <p class="text-muted">{{ t('ui.ads.none_available', {}, locale, ['common']) }}</p>
         {% endif %}
     </div>
 </div>

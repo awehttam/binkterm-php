@@ -1,16 +1,16 @@
 {% extends "base.twig" %}
 
-{% block title %}Import Echo Areas - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.echoareas_import.page_title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-file-import me-2"></i>
-        Import Echo Areas
+        {{ t('ui.echoareas_import.heading', {}, locale, ['common']) }}
     </h2>
     <a href="/echoareas" class="btn btn-secondary">
         <i class="fas fa-arrow-left me-1"></i>
-        Back to Echo Areas
+        {{ t('ui.echoareas_import.back_to_echo_areas', {}, locale, ['common']) }}
     </a>
 </div>
 
@@ -23,17 +23,17 @@
 
 {% if import_summary %}
 <div class="alert alert-info">
-    <div><strong>Processed:</strong> {{ import_summary.processed }}</div>
-    <div><strong>Created:</strong> {{ import_summary.created }}</div>
-    <div><strong>Updated:</strong> {{ import_summary.updated }}</div>
-    <div><strong>Skipped blank rows:</strong> {{ import_summary.skipped }}</div>
-    <div><strong>Errors:</strong> {{ import_summary.errors|length }}</div>
+    <div><strong>{{ t('ui.echoareas_import.processed', {}, locale, ['common']) }}</strong> {{ import_summary.processed }}</div>
+    <div><strong>{{ t('ui.echoareas_import.created', {}, locale, ['common']) }}</strong> {{ import_summary.created }}</div>
+    <div><strong>{{ t('ui.echoareas_import.updated', {}, locale, ['common']) }}</strong> {{ import_summary.updated }}</div>
+    <div><strong>{{ t('ui.echoareas_import.skipped_blank_rows', {}, locale, ['common']) }}</strong> {{ import_summary.skipped }}</div>
+    <div><strong>{{ t('ui.echoareas_import.errors', {}, locale, ['common']) }}</strong> {{ import_summary.errors|length }}</div>
 </div>
 
 {% if import_summary.errors|length > 0 %}
 <div class="card mb-4">
     <div class="card-header">
-        <h6 class="mb-0">Import Errors</h6>
+        <h6 class="mb-0">{{ t('ui.echoareas_import.import_errors', {}, locale, ['common']) }}</h6>
     </div>
     <div class="card-body">
         <ul class="mb-0">
@@ -50,22 +50,22 @@
     <div class="col-lg-7">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Upload CSV</h5>
+                <h5 class="mb-0">{{ t('ui.echoareas_import.upload_csv', {}, locale, ['common']) }}</h5>
             </div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data" id="echoareaImportForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="mb-3">
-                        <label for="echoareasCsv" class="form-label">CSV File</label>
+                        <label for="echoareasCsv" class="form-label">{{ t('ui.echoareas_import.csv_file', {}, locale, ['common']) }}</label>
                         <input type="file" class="form-control" id="echoareasCsv" name="echoareas_csv" accept=".csv,text/csv" required>
-                        <div class="form-text">UTF-8 CSV is recommended. Header row is optional.</div>
+                        <div class="form-text">{{ t('ui.echoareas_import.csv_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="d-flex justify-content-end gap-2">
-                        <a href="/echoareas" class="btn btn-secondary">Cancel</a>
+                        <a href="/echoareas" class="btn btn-secondary">{{ t('ui.common.cancel', {}, locale, ['common']) }}</a>
                         <button type="submit" class="btn btn-fidonet" id="echoareaImportBtn">
                             <i class="fas fa-file-import me-1" id="echoareaImportIcon"></i>
-                            <span id="echoareaImportLabel">Import Echo Areas</span>
+                            <span id="echoareaImportLabel">{{ t('ui.echoareas_import.import_echo_areas', {}, locale, ['common']) }}</span>
                         </button>
                     </div>
                 </form>
@@ -76,12 +76,12 @@
     <div class="col-lg-5">
         <div class="card mb-3">
             <div class="card-header">
-                <h6 class="mb-0">CSV Format</h6>
+                <h6 class="mb-0">{{ t('ui.echoareas_import.csv_format', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
-                <p class="mb-2">Each row must contain these fields in this order:</p>
+                <p class="mb-2">{{ t('ui.echoareas_import.each_row_fields', {}, locale, ['common']) }}</p>
                 <pre class="bg-light border rounded p-3 mb-3">ECHOTAG,DESCRIPTION,DOMAIN</pre>
-                <p class="mb-2">Example:</p>
+                <p class="mb-2">{{ t('ui.echoareas_import.example', {}, locale, ['common']) }}</p>
                 <pre class="bg-light border rounded p-3 mb-0">FIDONET.GEN,General FidoNet discussion,fidonet
 FSX_GEN,FSXnet general discussion,fsxnet
 LOCAL.TEST,Local test area,</pre>
@@ -90,15 +90,15 @@ LOCAL.TEST,Local test area,</pre>
 
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Import Rules</h6>
+                <h6 class="mb-0">{{ t('ui.echoareas_import.import_rules', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <ul class="mb-0">
-                    <li><code>DOMAIN</code> may be blank. Blank domain imports the area as local-only.</li>
-                    <li>If <code>DOMAIN</code> is provided, it must already exist in your BinkP network configuration.</li>
-                    <li>If an area already exists with the same <code>ECHOTAG</code> and <code>DOMAIN</code>, its description is updated and the area is reactivated.</li>
-                    <li>New areas are created active with default settings; you can fine-tune them afterward in Echo Areas Management.</li>
-                    <li>Header row <code>ECHOTAG,DESCRIPTION,DOMAIN</code> is accepted but not required.</li>
+                    <li>{{ t('ui.echoareas_import.rule_domain_blank', {}, locale, ['common'])|raw }}</li>
+                    <li>{{ t('ui.echoareas_import.rule_domain_exists', {}, locale, ['common'])|raw }}</li>
+                    <li>{{ t('ui.echoareas_import.rule_existing_area', {}, locale, ['common'])|raw }}</li>
+                    <li>{{ t('ui.echoareas_import.rule_new_areas', {}, locale, ['common']) }}</li>
+                    <li>{{ t('ui.echoareas_import.rule_header_optional', {}, locale, ['common'])|raw }}</li>
                 </ul>
             </div>
         </div>
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function() {
         button.disabled = true;
         icon.className = 'fas fa-spinner fa-spin me-1';
-        label.textContent = 'Importing...';
+        label.textContent = {{ t('ui.echoareas_import.importing', {}, locale, ['common'])|json_encode|raw }};
     });
 });
 </script>

@@ -1,15 +1,15 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.template_editor.page_title_prefix', {}, 'Admin: Template Editor') }} - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.admin.template_editor.page_title_prefix', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-file-code"></i>
-        {{ t('ui.admin.template_editor.heading', {}, 'Template Editor') }}
+        {{ t('ui.admin.template_editor.heading', {}, locale, ['common']) }}
     </h2>
     <div class="text-muted small">
-        {{ t('ui.admin.template_editor.restricted_edits_prefix', {}, 'Edits are restricted to') }} <code>templates/custom</code>
+        {{ t('ui.admin.template_editor.restricted_edits_prefix', {}, locale, ['common']) }} <code>templates/custom</code>
     </div>
 </div>
 
@@ -17,32 +17,32 @@
     <div class="col-lg-4">
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">{{ t('ui.admin.template_editor.custom_templates', {}, 'Custom Templates') }}</h6>
+                <h6 class="mb-0">{{ t('ui.admin.template_editor.custom_templates', {}, locale, ['common']) }}</h6>
                 <button class="btn btn-sm btn-outline-secondary" onclick="loadTemplates()">
                     <i class="fas fa-sync"></i>
                 </button>
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <input type="text" class="form-control" id="templateSearch" placeholder="{{ t('ui.admin.template_editor.search_templates_placeholder', {}, 'Search templates...') }}">
+                    <input type="text" class="form-control" id="templateSearch" placeholder="{{ t('ui.admin.template_editor.search_templates_placeholder', {}, locale, ['common']) }}">
                 </div>
                 <div id="templateList" class="list-group small">
-                    <div class="text-muted">{{ t('ui.admin.template_editor.loading_templates', {}, 'Loading templates...') }}</div>
+                    <div class="text-muted">{{ t('ui.admin.template_editor.loading_templates', {}, locale, ['common']) }}</div>
                 </div>
             </div>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">{{ t('ui.admin.template_editor.new_template', {}, 'New Template') }}</h6>
+                <h6 class="mb-0">{{ t('ui.admin.template_editor.new_template', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <div class="mb-2">
-                    <label class="form-label">{{ t('ui.admin.template_editor.path_relative_custom', {}, 'Path (relative to templates/custom)') }}</label>
-                    <input type="text" class="form-control font-monospace" id="newTemplatePath" placeholder="{{ t('ui.admin.template_editor.new_template_path_placeholder', {}, 'systemnews.twig') }}">
+                    <label class="form-label">{{ t('ui.admin.template_editor.path_relative_custom', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control font-monospace" id="newTemplatePath" placeholder="{{ t('ui.admin.template_editor.new_template_path_placeholder', {}, locale, ['common']) }}">
                 </div>
                 <button class="btn btn-sm btn-outline-primary" onclick="createTemplate()">
-                    <i class="fas fa-plus"></i> {{ t('ui.admin.template_editor.create', {}, 'Create') }}
+                    <i class="fas fa-plus"></i> {{ t('ui.admin.template_editor.create', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -52,25 +52,25 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
-                    <h6 class="mb-1">{{ t('ui.admin.template_editor.editor', {}, 'Editor') }}</h6>
-                    <div class="text-muted small" id="currentTemplateLabel">{{ t('ui.admin.template_editor.no_template_selected', {}, 'No template selected') }}</div>
+                    <h6 class="mb-1">{{ t('ui.admin.template_editor.editor', {}, locale, ['common']) }}</h6>
+                    <div class="text-muted small" id="currentTemplateLabel">{{ t('ui.admin.template_editor.no_template_selected', {}, locale, ['common']) }}</div>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-outline-primary btn-sm" id="installTemplateBtn" onclick="installTemplate()" disabled>
-                        <i class="fas fa-download"></i> {{ t('ui.admin.template_editor.install', {}, 'Install') }}
+                        <i class="fas fa-download"></i> {{ t('ui.admin.template_editor.install', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-outline-success btn-sm" id="saveTemplateBtn" onclick="saveTemplate()" disabled>
-                        <i class="fas fa-save"></i> {{ t('ui.common.save', {}, 'Save') }}
+                        <i class="fas fa-save"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-outline-danger btn-sm" id="deleteTemplateBtn" onclick="deleteTemplate()" disabled>
-                        <i class="fas fa-trash"></i> {{ t('ui.common.delete', {}, 'Delete') }}
+                        <i class="fas fa-trash"></i> {{ t('ui.common.delete', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
             <div class="card-body">
                 <textarea class="form-control font-monospace" id="templateEditor" rows="20" disabled></textarea>
                 <div class="form-text mt-2">
-                    {{ t('ui.admin.template_editor.changes_apply_immediately', {}, 'Changes apply immediately after saving. Make sure your Twig syntax is valid.') }}
+                    {{ t('ui.admin.template_editor.changes_apply_immediately', {}, locale, ['common']) }}
                 </div>
             </div>
         </div>

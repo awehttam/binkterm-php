@@ -1,21 +1,21 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.economy.page_title', {}, 'Economy Viewer') }}{% endblock %}
+{% block title %}{{ t('ui.admin.economy.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">{{ t('ui.admin.economy.heading', {}, 'Economy Viewer') }}</h1>
+        <h1 class="h2">{{ t('ui.admin.economy.heading', {}, locale, ['common']) }}</h1>
         <div class="d-flex align-items-center gap-2">
-            <label class="me-1 mb-0 text-muted small" for="period-select">{{ t('ui.admin.economy.period', {}, 'Period:') }}</label>
+            <label class="me-1 mb-0 text-muted small" for="period-select">{{ t('ui.admin.economy.period', {}, locale, ['common']) }}</label>
             <select id="period-select" class="form-select form-select-sm" style="width:auto">
-                <option value="7d">{{ t('ui.admin.economy.period_7d', {}, 'Last 7 Days') }}</option>
-                <option value="30d" selected>{{ t('ui.admin.economy.period_30d', {}, 'Last 30 Days') }}</option>
-                <option value="90d">{{ t('ui.admin.economy.period_90d', {}, 'Last 90 Days') }}</option>
-                <option value="all">{{ t('ui.admin.economy.period_all', {}, 'All Time') }}</option>
+                <option value="7d">{{ t('ui.admin.economy.period_7d', {}, locale, ['common']) }}</option>
+                <option value="30d" selected>{{ t('ui.admin.economy.period_30d', {}, locale, ['common']) }}</option>
+                <option value="90d">{{ t('ui.admin.economy.period_90d', {}, locale, ['common']) }}</option>
+                <option value="all">{{ t('ui.admin.economy.period_all', {}, locale, ['common']) }}</option>
             </select>
             <a href="/admin" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.economy.dashboard', {}, 'Dashboard') }}
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.economy.dashboard', {}, locale, ['common']) }}
             </a>
         </div>
     </div>
@@ -24,9 +24,9 @@
 
     <div id="loading-indicator" class="text-center py-5">
         <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">{{ t('ui.common.loading', {}, 'Loading...') }}</span>
+            <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
         </div>
-        <p class="mt-2 text-muted">{{ t('ui.admin.economy.loading_statistics', {}, 'Loading economy statistics...') }}</p>
+        <p class="mt-2 text-muted">{{ t('ui.admin.economy.loading_statistics', {}, locale, ['common']) }}</p>
     </div>
 
     <div id="economy-content" style="display:none">
@@ -35,27 +35,27 @@
         <div class="row mb-4">
             <div class="col-lg-6 mb-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header"><strong>{{ t('ui.admin.economy.period_snapshot', {}, 'Period Snapshot') }}</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.economy.period_snapshot', {}, locale, ['common']) }}</strong></div>
                     <div class="card-body">
                         <div class="row gy-3">
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.transactions', {}, 'Transactions') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.transactions', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0" id="snapshot-transactions">0</div>
                             </div>
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.active_users', {}, 'Active Users') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.active_users', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0" id="snapshot-users">0</div>
                             </div>
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.credits_earned', {}, 'Credits Earned') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.credits_earned', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0 text-success" id="snapshot-earned">0</div>
                             </div>
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.credits_spent', {}, 'Credits Spent') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.credits_spent', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0 text-danger" id="snapshot-spent">0</div>
                             </div>
                             <div class="col-12">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.net_flow', {}, 'Net Flow') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.net_flow', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0" id="snapshot-net">0</div>
                             </div>
                         </div>
@@ -64,28 +64,28 @@
             </div>
             <div class="col-lg-6 mb-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header"><strong>{{ t('ui.admin.economy.current_distribution', {}, 'Current Distribution') }}</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.economy.current_distribution', {}, locale, ['common']) }}</strong></div>
                     <div class="card-body">
                         <div class="row gy-3">
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.funded_users', {}, 'Funded Users') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.funded_users', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0" id="distribution-funded">0</div>
                             </div>
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.average_balance', {}, 'Average Balance') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.average_balance', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0" id="distribution-average">0</div>
                             </div>
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.median_balance', {}, 'Median Balance') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.median_balance', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0" id="distribution-median">0</div>
                             </div>
                             <div class="col-sm-6">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.largest_balance', {}, 'Largest Balance') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.largest_balance', {}, locale, ['common']) }}</div>
                                 <div class="h4 mb-0" id="distribution-largest">0</div>
                             </div>
                             <div class="col-12">
-                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.richest_user', {}, 'Richest User') }}</div>
-                                <div class="h5 mb-0" id="distribution-richest-user">{{ t('ui.common.not_applicable', {}, 'n/a') }}</div>
+                                <div class="text-muted small text-uppercase">{{ t('ui.admin.economy.richest_user', {}, locale, ['common']) }}</div>
+                                <div class="h5 mb-0" id="distribution-richest-user">{{ t('ui.common.not_applicable', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
@@ -96,15 +96,15 @@
         <div class="row mb-4">
             <div class="col-xl-4 mb-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header"><strong>{{ t('ui.admin.economy.transaction_types', {}, 'Transaction Types') }}</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.economy.transaction_types', {}, locale, ['common']) }}</strong></div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead>
                                     <tr>
-                                        <th>{{ t('ui.admin.economy.type', {}, 'Type') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.count', {}, 'Count') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.net', {}, 'Net') }}</th>
+                                        <th>{{ t('ui.admin.economy.type', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.count', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.net', {}, locale, ['common']) }}</th>
                                     </tr>
                                 </thead>
                                 <tbody id="type-rows"></tbody>
@@ -115,15 +115,15 @@
             </div>
             <div class="col-xl-4 mb-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header"><strong>{{ t('ui.admin.economy.top_earners', {}, 'Top Earners') }}</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.economy.top_earners', {}, locale, ['common']) }}</strong></div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead>
                                     <tr>
-                                        <th>{{ t('ui.admin.economy.user', {}, 'User') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.earned', {}, 'Earned') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.tx_short', {}, 'Tx') }}</th>
+                                        <th>{{ t('ui.admin.economy.user', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.earned', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.tx_short', {}, locale, ['common']) }}</th>
                                     </tr>
                                 </thead>
                                 <tbody id="earner-rows"></tbody>
@@ -134,15 +134,15 @@
             </div>
             <div class="col-xl-4 mb-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header"><strong>{{ t('ui.admin.economy.top_spenders', {}, 'Top Spenders') }}</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.economy.top_spenders', {}, locale, ['common']) }}</strong></div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead>
                                     <tr>
-                                        <th>{{ t('ui.admin.economy.user', {}, 'User') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.spent', {}, 'Spent') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.tx_short', {}, 'Tx') }}</th>
+                                        <th>{{ t('ui.admin.economy.user', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.spent', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.tx_short', {}, locale, ['common']) }}</th>
                                     </tr>
                                 </thead>
                                 <tbody id="spender-rows"></tbody>
@@ -156,14 +156,14 @@
         <div class="row mb-4">
             <div class="col-lg-6 mb-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header"><strong>{{ t('ui.admin.economy.richest_accounts', {}, 'Richest Accounts') }}</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.economy.richest_accounts', {}, locale, ['common']) }}</strong></div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead>
                                     <tr>
-                                        <th>{{ t('ui.admin.economy.user', {}, 'User') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.balance', {}, 'Balance') }}</th>
+                                        <th>{{ t('ui.admin.economy.user', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.balance', {}, locale, ['common']) }}</th>
                                     </tr>
                                 </thead>
                                 <tbody id="richest-rows"></tbody>
@@ -174,15 +174,15 @@
             </div>
             <div class="col-lg-6 mb-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header"><strong>{{ t('ui.admin.economy.recent_transactions', {}, 'Recent Transactions') }}</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.economy.recent_transactions', {}, locale, ['common']) }}</strong></div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead>
                                     <tr>
-                                        <th>{{ t('ui.admin.economy.user', {}, 'User') }}</th>
-                                        <th>{{ t('ui.common.description', {}, 'Description') }}</th>
-                                        <th class="text-end">{{ t('ui.admin.economy.amount', {}, 'Amount') }}</th>
+                                        <th>{{ t('ui.admin.economy.user', {}, locale, ['common']) }}</th>
+                                        <th>{{ t('ui.common.description', {}, locale, ['common']) }}</th>
+                                        <th class="text-end">{{ t('ui.admin.economy.amount', {}, locale, ['common']) }}</th>
                                     </tr>
                                 </thead>
                                 <tbody id="recent-rows"></tbody>

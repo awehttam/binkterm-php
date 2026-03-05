@@ -1,16 +1,16 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.binkp_config.page_title', {}, 'Binkp Configuration') }}{% endblock %}
+{% block title %}{{ t('ui.admin.binkp_config.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">{{ t('ui.admin.binkp_config.heading', {}, 'Binkp Configuration') }}</h1>
+        <h1 class="h2">{{ t('ui.admin.binkp_config.heading', {}, locale, ['common']) }}</h1>
     </div>
 
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        {{ t('ui.admin.binkp_config.restart_notice', {}, 'After saving, restart the daemons to apply changes.') }}
+        {{ t('ui.admin.binkp_config.restart_notice', {}, locale, ['common']) }}
     </div>
 
     <div id="binkpConfigAlert"></div>
@@ -19,32 +19,32 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.system.title', {}, 'System') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.system.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label class="form-label" for="systemName">{{ t('ui.admin.binkp_config.system.system_name', {}, 'System Name') }}</label>
+                        <label class="form-label" for="systemName">{{ t('ui.admin.binkp_config.system.system_name', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="systemName">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemAddress">{{ t('ui.admin.binkp_config.system.system_address', {}, 'System Address') }}</label>
+                        <label class="form-label" for="systemAddress">{{ t('ui.admin.binkp_config.system.system_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="systemAddress">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemSysop">{{ t('ui.admin.binkp_config.system.sysop_name', {}, 'Sysop Name') }}</label>
+                        <label class="form-label" for="systemSysop">{{ t('ui.admin.binkp_config.system.sysop_name', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="systemSysop"></select>
-                        <small class="text-muted">{{ t('ui.admin.binkp_config.system.select_admin_user', {}, 'Select an admin user.') }}</small>
+                        <small class="text-muted">{{ t('ui.admin.binkp_config.system.select_admin_user', {}, locale, ['common']) }}</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemLocation">{{ t('ui.admin.binkp_config.system.location', {}, 'Location') }}</label>
+                        <label class="form-label" for="systemLocation">{{ t('ui.admin.binkp_config.system.location', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="systemLocation">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemHostname">{{ t('ui.common.hostname', {}, 'Hostname') }}</label>
+                        <label class="form-label" for="systemHostname">{{ t('ui.common.hostname', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="systemHostname">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemTimezone">{{ t('ui.admin.binkp_config.system.timezone', {}, 'Timezone') }}</label>
+                        <label class="form-label" for="systemTimezone">{{ t('ui.admin.binkp_config.system.timezone', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="systemTimezone">
                             {% for tz in timezone_list %}
                                 <option value="{{ tz }}">{{ tz }}</option>
@@ -52,7 +52,7 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="systemOrigin">{{ t('ui.admin.binkp_config.system.origin_line', {}, 'Origin Line') }}</label>
+                        <label class="form-label" for="systemOrigin">{{ t('ui.admin.binkp_config.system.origin_line', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="systemOrigin">
                     </div>
                 </div>
@@ -61,28 +61,28 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.binkp.title', {}, 'Binkp') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.binkp.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
-                        <label class="form-label" for="binkpPort">{{ t('ui.common.port', {}, 'Port') }}</label>
+                        <label class="form-label" for="binkpPort">{{ t('ui.common.port', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="binkpPort" min="1" max="65535">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="binkpTimeout">{{ t('ui.admin.binkp_config.binkp.timeout_seconds', {}, 'Timeout (seconds)') }}</label>
+                        <label class="form-label" for="binkpTimeout">{{ t('ui.admin.binkp_config.binkp.timeout_seconds', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="binkpTimeout" min="30" max="3600">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="binkpMaxConnections">{{ t('ui.admin.binkp_config.binkp.max_connections', {}, 'Max Connections') }}</label>
+                        <label class="form-label" for="binkpMaxConnections">{{ t('ui.admin.binkp_config.binkp.max_connections', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="binkpMaxConnections" min="1" max="100">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="binkpBindAddress">{{ t('ui.admin.binkp_config.binkp.bind_address', {}, 'Bind Address') }}</label>
+                        <label class="form-label" for="binkpBindAddress">{{ t('ui.admin.binkp_config.binkp.bind_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="binkpBindAddress">
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="binkpPreserveProcessed">
-                        <label class="form-check-label" for="binkpPreserveProcessed">{{ t('ui.admin.binkp_config.binkp.preserve_processed_packets', {}, 'Preserve Processed Packets') }}</label>
+                        <label class="form-check-label" for="binkpPreserveProcessed">{{ t('ui.admin.binkp_config.binkp.preserve_processed_packets', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
             </div>
@@ -90,28 +90,28 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.security.title', {}, 'Security') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.security.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="securityAllowInsecureInbound">
-                        <label class="form-check-label" for="securityAllowInsecureInbound">{{ t('ui.admin.binkp_config.security.allow_insecure_inbound', {}, 'Allow Insecure Inbound') }}</label>
+                        <label class="form-check-label" for="securityAllowInsecureInbound">{{ t('ui.admin.binkp_config.security.allow_insecure_inbound', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="securityInsecureReceiveOnly">
-                        <label class="form-check-label" for="securityInsecureReceiveOnly">{{ t('ui.admin.binkp_config.security.insecure_receive_only', {}, 'Insecure Receive Only') }}</label>
+                        <label class="form-check-label" for="securityInsecureReceiveOnly">{{ t('ui.admin.binkp_config.security.insecure_receive_only', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="securityRequireAllowlist">
-                        <label class="form-check-label" for="securityRequireAllowlist">{{ t('ui.admin.binkp_config.security.require_allowlist_for_insecure', {}, 'Require Allowlist For Insecure') }}</label>
+                        <label class="form-check-label" for="securityRequireAllowlist">{{ t('ui.admin.binkp_config.security.require_allowlist_for_insecure', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="securityMaxInsecureSessions">{{ t('ui.admin.binkp_config.security.max_insecure_sessions_per_hour', {}, 'Max Insecure Sessions / Hour') }}</label>
+                        <label class="form-label" for="securityMaxInsecureSessions">{{ t('ui.admin.binkp_config.security.max_insecure_sessions_per_hour', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="securityMaxInsecureSessions" min="1">
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="securityAllowPlaintextFallback">
-                        <label class="form-check-label" for="securityAllowPlaintextFallback">{{ t('ui.admin.binkp_config.security.allow_plaintext_fallback', {}, 'Allow Plaintext Fallback') }}</label>
+                        <label class="form-check-label" for="securityAllowPlaintextFallback">{{ t('ui.admin.binkp_config.security.allow_plaintext_fallback', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
             </div>
@@ -119,32 +119,32 @@
         <div class="col-xl-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.crashmail.title', {}, 'Crashmail') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.binkp_config.crashmail.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="crashmailEnabled">
-                        <label class="form-check-label" for="crashmailEnabled">{{ t('ui.admin.binkp_config.crashmail.enable_crashmail', {}, 'Enable Crashmail') }}</label>
+                        <label class="form-check-label" for="crashmailEnabled">{{ t('ui.admin.binkp_config.crashmail.enable_crashmail', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="crashmailMaxAttempts">{{ t('ui.admin.binkp_config.crashmail.max_attempts', {}, 'Max Attempts') }}</label>
+                        <label class="form-label" for="crashmailMaxAttempts">{{ t('ui.admin.binkp_config.crashmail.max_attempts', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="crashmailMaxAttempts" min="1">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="crashmailRetryInterval">{{ t('ui.admin.binkp_config.crashmail.retry_interval_minutes', {}, 'Retry Interval (minutes)') }}</label>
+                        <label class="form-label" for="crashmailRetryInterval">{{ t('ui.admin.binkp_config.crashmail.retry_interval_minutes', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="crashmailRetryInterval" min="1">
                     </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="crashmailUseNodelist">
-                        <label class="form-check-label" for="crashmailUseNodelist">{{ t('ui.admin.binkp_config.crashmail.use_nodelist_for_routing', {}, 'Use Nodelist For Routing') }}</label>
+                        <label class="form-check-label" for="crashmailUseNodelist">{{ t('ui.admin.binkp_config.crashmail.use_nodelist_for_routing', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="crashmailFallbackPort">{{ t('ui.admin.binkp_config.crashmail.fallback_port', {}, 'Fallback Port') }}</label>
+                        <label class="form-label" for="crashmailFallbackPort">{{ t('ui.admin.binkp_config.crashmail.fallback_port', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="crashmailFallbackPort" min="1" max="65535">
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="crashmailAllowInsecure">
-                        <label class="form-check-label" for="crashmailAllowInsecure">{{ t('ui.admin.binkp_config.crashmail.allow_insecure_crash_delivery', {}, 'Allow Insecure Crash Delivery') }}</label>
+                        <label class="form-check-label" for="crashmailAllowInsecure">{{ t('ui.admin.binkp_config.crashmail.allow_insecure_crash_delivery', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
             </div>
@@ -153,26 +153,26 @@
 
     <div class="card shadow mt-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">{{ t('ui.admin.binkp_config.uplinks.title', {}, 'Uplinks') }}</h6>
-            <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal()">{{ t('ui.admin.binkp_config.uplinks.add_uplink', {}, 'Add Uplink') }}</button>
+            <h6 class="mb-0">{{ t('ui.admin.binkp_config.uplinks.title', {}, locale, ['common']) }}</h6>
+            <button class="btn btn-sm btn-outline-primary" type="button" onclick="openUplinkModal()">{{ t('ui.admin.binkp_config.uplinks.add_uplink', {}, locale, ['common']) }}</button>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped" id="uplinksTable">
                     <thead>
                         <tr>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.me', {}, 'Me') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.uplink', {}, 'Uplink') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.domain', {}, 'Domain') }}</th>
-                            <th>{{ t('ui.common.hostname', {}, 'Hostname') }}</th>
-                            <th>{{ t('ui.common.port', {}, 'Port') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.schedule', {}, 'Schedule') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.markdown', {}, 'Markdown') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.posting_name', {}, 'Posting Name') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.adr_domain', {}, 'ADR @Domain') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, 'Enabled') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.default', {}, 'Default') }}</th>
-                            <th>{{ t('ui.admin.binkp_config.uplinks.table.actions', {}, 'Actions') }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.me', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.uplink', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.domain', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.hostname', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.port', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.schedule', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.markdown', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.posting_name', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.adr_domain', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.default', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_config.uplinks.table.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -182,9 +182,9 @@
     </div>
 
     <div class="mt-4">
-        <button class="btn btn-primary" type="button" onclick="saveBinkpConfig()">{{ t('ui.admin.binkp_config.save_configuration', {}, 'Save Configuration') }}</button>
-        <button class="btn btn-secondary ms-2" type="button" onclick="reloadBinkpConfig()" title="{{ t('ui.admin.binkp_config.reload_title', {}, 'Reload configuration without restarting daemon') }}">
-            <i class="fas fa-sync-alt"></i> {{ t('ui.admin.binkp_config.reload_config', {}, 'Reload Config') }}
+        <button class="btn btn-primary" type="button" onclick="saveBinkpConfig()">{{ t('ui.admin.binkp_config.save_configuration', {}, locale, ['common']) }}</button>
+        <button class="btn btn-secondary ms-2" type="button" onclick="reloadBinkpConfig()" title="{{ t('ui.admin.binkp_config.reload_title', {}, locale, ['common']) }}">
+            <i class="fas fa-sync-alt"></i> {{ t('ui.admin.binkp_config.reload_config', {}, locale, ['common']) }}
         </button>
     </div>
 </div>
@@ -193,91 +193,91 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="uplinkModalLabel">{{ t('ui.admin.binkp_config.uplinks.modal.uplink', {}, 'Uplink') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'Close') }}"></button>
+                <h5 class="modal-title" id="uplinkModalLabel">{{ t('ui.admin.binkp_config.uplinks.modal.uplink', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="uplinkIndex">
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkMe">{{ t('ui.admin.binkp_config.uplinks.modal.me_address', {}, 'Me Address') }}</label>
+                        <label class="form-label" for="uplinkMe">{{ t('ui.admin.binkp_config.uplinks.modal.me_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="uplinkMe">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkAddress">{{ t('ui.admin.binkp_config.uplinks.modal.uplink_address', {}, 'Uplink Address') }}</label>
+                        <label class="form-label" for="uplinkAddress">{{ t('ui.admin.binkp_config.uplinks.modal.uplink_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="uplinkAddress">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkDomain">{{ t('ui.admin.binkp_config.uplinks.modal.domain', {}, 'Domain') }}</label>
+                        <label class="form-label" for="uplinkDomain">{{ t('ui.admin.binkp_config.uplinks.modal.domain', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="uplinkDomain">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkHostname">{{ t('ui.common.hostname', {}, 'Hostname') }}</label>
+                        <label class="form-label" for="uplinkHostname">{{ t('ui.common.hostname', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="uplinkHostname">
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label" for="uplinkPort">{{ t('ui.common.port', {}, 'Port') }}</label>
+                        <label class="form-label" for="uplinkPort">{{ t('ui.common.port', {}, locale, ['common']) }}</label>
                         <input type="number" class="form-control" id="uplinkPort" min="1" max="65535">
                     </div>
                     <div class="col-md-8">
-                        <label class="form-label" for="uplinkPassword">{{ t('ui.admin.binkp_config.uplinks.modal.binkp_session_password', {}, 'BinkP Session Password') }}</label>
+                        <label class="form-label" for="uplinkPassword">{{ t('ui.admin.binkp_config.uplinks.modal.binkp_session_password', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="uplinkPassword">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkPktPassword">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password', {}, 'Packet Password') }} <small class="text-muted">({{ t('ui.common.optional', {}, 'optional') }})</small></label>
+                        <label class="form-label" for="uplinkPktPassword">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <input type="text" class="form-control" id="uplinkPktPassword" maxlength="8">
-                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password_help', {}, 'FTN .pkt header password (max 8 chars)') }}</div>
+                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.packet_password_help', {}, locale, ['common']) }}</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="uplinkTicPassword">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password', {}, 'TIC Password') }} <small class="text-muted">({{ t('ui.common.optional', {}, 'optional') }})</small></label>
+                        <label class="form-label" for="uplinkTicPassword">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <input type="text" class="form-control" id="uplinkTicPassword">
-                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password_help', {}, 'Default TIC file password; overridden per file area') }}</div>
+                        <div class="form-text">{{ t('ui.admin.binkp_config.uplinks.modal.tic_password_help', {}, locale, ['common']) }}</div>
                     </div>
                     <div class="col-md-12">
-                        <label class="form-label" for="uplinkSchedule">{{ t('ui.admin.binkp_config.uplinks.modal.poll_schedule', {}, 'Poll Schedule') }}</label>
+                        <label class="form-label" for="uplinkSchedule">{{ t('ui.admin.binkp_config.uplinks.modal.poll_schedule', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="uplinkSchedule">
                     </div>
                     <div class="col-md-12">
-                        <label class="form-label" for="uplinkNetworks">{{ t('ui.admin.binkp_config.uplinks.modal.networks_one_per_line', {}, 'Networks (one per line)') }}</label>
+                        <label class="form-label" for="uplinkNetworks">{{ t('ui.admin.binkp_config.uplinks.modal.networks_one_per_line', {}, locale, ['common']) }}</label>
                         <textarea class="form-control" id="uplinkNetworks" rows="4"></textarea>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkAllowMarkdown">
-                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup_help', {}, 'Enables Markup support (Markdown, StyleCodes, etc.) on compatible/supporting networks') }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, 'Allow Markup') }}</label>
+                        <label class="form-check-label" for="uplinkAllowMarkdown" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.allow_markup', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="col-md-4 mt-1">
-                        <label class="form-label" for="uplinkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, 'Posting Name Policy') }}</label>
+                        <label class="form-label" for="uplinkPostingNamePolicy">{{ t('ui.admin.binkp_config.uplinks.modal.posting_name_policy', {}, locale, ['common']) }}</label>
                         <select class="form-select form-select-sm" id="uplinkPostingNamePolicy">
-                            <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, 'Real Name') }}</option>
-                            <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, 'Username') }}</option>
+                            <option value="real_name">{{ t('ui.admin.binkp_config.uplinks.real_name', {}, locale, ['common']) }}</option>
+                            <option value="username">{{ t('ui.admin.binkp_config.uplinks.username', {}, locale, ['common']) }}</option>
                         </select>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkSendDomainInAddr">
-                        <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_domain_help', {}, 'Include the @Domain portion when sending the ADR address to this uplink') }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_domain', {}, 'Send @Domain In ADR') }}</label>
+                        <label class="form-check-label" for="uplinkSendDomainInAddr" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.send_domain_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.send_domain', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2 ms-2">
                         <input class="form-check-input" type="checkbox" id="uplinkEnabled">
-                        <label class="form-check-label" for="uplinkEnabled" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.enabled_help', {}, 'Enables this uplink for normal routing, polling, and outbound delivery') }}">{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, 'Enabled') }}</label>
+                        <label class="form-check-label" for="uplinkEnabled" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.enabled_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.table.enabled', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkCompression">
-                        <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.compression_help', {}, 'Requests compressed transfers when the remote system supports them') }}">{{ t('ui.admin.binkp_config.uplinks.modal.compression', {}, 'Compression') }}</label>
+                        <label class="form-check-label" for="uplinkCompression" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.compression_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.compression', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkCrypt">
-                        <label class="form-check-label" for="uplinkCrypt" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.crypt_help', {}, 'Uses CRAM-MD5 style authentication for this uplink when supported') }}">{{ t('ui.admin.binkp_config.uplinks.modal.crypt', {}, 'Crypt') }}</label>
+                        <label class="form-check-label" for="uplinkCrypt" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.crypt_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.modal.crypt', {}, locale, ['common']) }}</label>
                     </div>
                     <div class="col-md-3 form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="uplinkDefault">
-                        <label class="form-check-label" for="uplinkDefault" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.default_help', {}, 'Marks this as the default uplink when no more specific route matches') }}">{{ t('ui.admin.binkp_config.uplinks.table.default', {}, 'Default') }}</label>
+                        <label class="form-check-label" for="uplinkDefault" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ t('ui.admin.binkp_config.uplinks.modal.default_help', {}, locale, ['common']) }}">{{ t('ui.admin.binkp_config.uplinks.table.default', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
                 <div id="uplinkModalAlert" class="mt-3"></div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
-                <button class="btn btn-primary" type="button" onclick="saveUplink()">{{ t('ui.admin.binkp_config.uplinks.modal.save_uplink', {}, 'Save Uplink') }}</button>
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button class="btn btn-primary" type="button" onclick="saveUplink()">{{ t('ui.admin.binkp_config.uplinks.modal.save_uplink', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>

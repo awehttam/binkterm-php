@@ -98,19 +98,19 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 - Phase 2 (High-Traffic User Pages): **In Progress (substantial progress)**
   - Localized pages include: dashboard, netmail, echomail, compose, settings, login, register, forgot/reset password, profile, user profile, about, 404, create poll, shoutbox, polls, shared message, and files.
   - `public_html/js/netmail.js` and `public_html/js/echomail.js` have additional consumer-side string migration to translation keys.
-  - Remaining user/admin surfaces still contain hardcoded literals.
+  - Remaining cleanup is now mostly consistency/polish, not broad literal replacement.
 - Phase 3 (API Error Code Migration): **Completed (functional), hardening ongoing**
   - `apiError(error_code, error, ...)` pattern is in active use.
   - Frontend consumers use `getApiErrorMessage(...)` broadly.
   - Legacy-style responses have been reduced significantly; residual endpoints should continue to be normalized.
-- Phase 4 (Admin Surface): **In Progress (early)**
-  - Some admin flows are migrated, but broad admin template/JS localization remains.
-- Phase 5 (Hardening and Cleanup): **In Progress**
+- Phase 4 (Admin Surface): **Completed (major templates migrated)**
+  - High-use admin templates and related UI text have been migrated to translation keys across users, dashboard, binkp, economy, polls, doors, file areas, chat/admin tooling, and configuration pages.
+- Phase 5 (Hardening and Cleanup): **In Progress (advanced)**
   - Validation scripts are in place and passing:
     - `scripts/check_i18n_hardcoded_strings.php`
     - `scripts/check_i18n_error_keys.php`
-  - Latest validation snapshot: `Detected hardcoded UI strings: 143`, `New violations: 0`, `Missing keys: 0`.
-  - Final cleanup (full admin coverage, remaining literals, eventual API fallback retirement) is still pending.
+  - Latest validation snapshot: `Detected hardcoded UI strings: 0`, `New violations: 0`, `Missing keys: 0`.
+  - Remaining work focuses on final consistency checks, regression QA, and eventual API legacy fallback retirement timing.
 
 ## Phase 0: Foundation (No User-Visible Language Changes)
 - Add translator service and locale resolver.
@@ -227,7 +227,7 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 3. Expand locale coverage after API code migration stabilizes.
 
 ## Immediate Next Steps (From Current Status)
-1. Continue Phase 4 by localizing high-use admin pages first (`admin_users.twig`, binkp config, appearance, activity stats).
-2. Continue Phase 2 cleanup by removing remaining hardcoded consumer strings in user-facing JS/templates not yet covered.
-3. Maintain zero new violations in i18n check scripts while reducing total hardcoded count further from the current baseline (`143`).
-4. After full consumer coverage is verified, plan a deprecation window for dropping legacy dependence on plain `error` text.
+1. Perform focused manual QA in `en` and `es` on core user/admin flows to catch context/grammar issues now that key coverage is broad.
+2. Add/maintain CI guardrails to keep `hardcoded` and `error key` checks green on every PR.
+3. Identify and schedule the compatibility window for reducing frontend reliance on legacy plain `error` text in API responses.
+4. Document translation contribution workflow for future features (key naming, catalog sync, and JS/Twig usage patterns).

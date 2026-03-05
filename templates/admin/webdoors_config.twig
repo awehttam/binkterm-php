@@ -1,37 +1,37 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.webdoors_config.page_title', {}, 'Webdoors Config') }}{% endblock %}
+{% block title %}{{ t('ui.admin.webdoors_config.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">{{ t('ui.admin.webdoors_config.heading', {}, 'Webdoors Config') }}</h1>
+        <h1 class="h2">{{ t('ui.admin.webdoors_config.heading', {}, locale, ['common']) }}</h1>
     </div>
 
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        {{ t('ui.admin.webdoors_config.info_text_prefix', {}, 'Webdoors are enabled by having a') }} <code>config/webdoors.json</code> {{ t('ui.admin.webdoors_config.info_text_suffix', {}, 'file. This page lets you activate and edit it.') }}
+        {{ t('ui.admin.webdoors_config.info_text_prefix', {}, locale, ['common']) }} <code>config/webdoors.json</code> {{ t('ui.admin.webdoors_config.info_text_suffix', {}, locale, ['common']) }}
     </div>
 
     <div id="webdoorsStatusAlert"></div>
 
     <div class="card shadow mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">{{ t('ui.admin.webdoors_config.status', {}, 'Status') }}</h6>
+            <h6 class="mb-0">{{ t('ui.admin.webdoors_config.status', {}, locale, ['common']) }}</h6>
             <div>
                 <button class="btn btn-sm btn-outline-primary" type="button" onclick="activateWebdoors()" id="activateWebdoorsBtn">
-                    {{ t('ui.admin.webdoors_config.activate_webdoors', {}, 'Activate Webdoors') }}
+                    {{ t('ui.admin.webdoors_config.activate_webdoors', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <div class="mb-2"><strong>{{ t('ui.admin.webdoors_config.config_file', {}, 'Config file:') }}</strong> <span id="webdoorsConfigStatus">{{ t('ui.common.loading', {}, 'Loading...') }}</span></div>
-                    <div class="mb-2 text-muted">{{ t('ui.admin.webdoors_config.config_never_deleted', {}, 'Once activated, the config file is never deleted.') }}</div>
+                    <div class="mb-2"><strong>{{ t('ui.admin.webdoors_config.config_file', {}, locale, ['common']) }}</strong> <span id="webdoorsConfigStatus">{{ t('ui.common.loading', {}, locale, ['common']) }}</span></div>
+                    <div class="mb-2 text-muted">{{ t('ui.admin.webdoors_config.config_never_deleted', {}, locale, ['common']) }}</div>
                 </div>
                 <div class="col-md-6 text-md-end text-muted">
-                    <small>{{ t('ui.admin.webdoors_config.json_controls_help', {}, 'Editing JSON controls how doors appear in the system. Only enabled is known by the UI.') }}</small>
+                    <small>{{ t('ui.admin.webdoors_config.json_controls_help', {}, locale, ['common']) }}</small>
                 </div>
             </div>
         </div>
@@ -41,20 +41,20 @@
         <div class="col-lg-4">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.webdoors_config.doors', {}, 'Doors') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.webdoors_config.doors', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body" id="webdoorsList">
-                    <div class="text-muted">{{ t('ui.admin.webdoors_config.no_config_loaded', {}, 'No config loaded.') }}</div>
+                    <div class="text-muted">{{ t('ui.admin.webdoors_config.no_config_loaded', {}, locale, ['common']) }}</div>
                 </div>
             </div>
         </div>
         <div class="col-lg-8">
             <div class="card shadow">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">{{ t('ui.admin.webdoors_config.config_filename', {}, 'webdoors.json') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.webdoors_config.config_filename', {}, locale, ['common']) }}</h6>
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatWebdoorsJson()">{{ t('ui.admin.webdoors_config.format_json', {}, 'Format JSON') }}</button>
-                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="saveWebdoorsConfig()" id="saveWebdoorsBtn">{{ t('ui.common.save', {}, 'Save') }}</button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="formatWebdoorsJson()">{{ t('ui.admin.webdoors_config.format_json', {}, locale, ['common']) }}</button>
+                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="saveWebdoorsConfig()" id="saveWebdoorsBtn">{{ t('ui.common.save', {}, locale, ['common']) }}</button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -62,8 +62,8 @@
                     <textarea id="webdoorsJsonEditor" class="form-control" rows="20" spellcheck="false"
                         style="font-family: Consolas, 'Courier New', monospace;"></textarea>
                     <div class="d-flex justify-content-between align-items-center mt-2">
-                        <small class="text-muted" id="webdoorsJsonStatus">{{ t('ui.admin.webdoors_config.waiting_for_config', {}, 'Waiting for config...') }}</small>
-                        <small class="text-muted">{{ t('ui.admin.webdoors_config.json_validation_before_save', {}, 'JSON validation runs before saving.') }}</small>
+                        <small class="text-muted" id="webdoorsJsonStatus">{{ t('ui.admin.webdoors_config.waiting_for_config', {}, locale, ['common']) }}</small>
+                        <small class="text-muted">{{ t('ui.admin.webdoors_config.json_validation_before_save', {}, locale, ['common']) }}</small>
                     </div>
                 </div>
             </div>

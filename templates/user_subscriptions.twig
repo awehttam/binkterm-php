@@ -1,5 +1,7 @@
 {% extends "base.twig" %}
 
+{% block title %}{{ t('ui.user_subscriptions.page_title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
@@ -8,9 +10,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="bi bi-bookmark-star me-2"></i>
-                        Manage Your Echoarea Subscriptions
+                        {{ t('ui.user_subscriptions.heading', {}, locale, ['common']) }}
                     </h5>
-                    <small class="text-muted">Subscribe to echoareas to see their messages</small>
+                    <small class="text-muted">{{ t('ui.user_subscriptions.heading_help', {}, locale, ['common']) }}</small>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -21,7 +23,7 @@
                                 <input type="text" 
                                        class="form-control" 
                                        id="search-echoareas" 
-                                       placeholder="Search echoareas...">
+                                       placeholder="{{ t('ui.user_subscriptions.search_placeholder', {}, locale, ['common']) }}">
                             </div>
                             
                             <div id="echoareas-list">
@@ -46,18 +48,18 @@
                                                         <span class="badge bg-secondary ms-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
                                                     {% endif %}
                                                     {% if echoarea.is_default_subscription %}
-                                                        <i class="bi bi-star-fill text-warning ms-2" title="Default subscription"></i>
+                                                        <i class="bi bi-star-fill text-warning ms-2" title="{{ t('ui.user_subscriptions.default_subscription_title', {}, locale, ['common']) }}"></i>
                                                     {% endif %}
                                                 </h6>
                                             </div>
                                             <div class="col-md-5">
                                                 <p class="mb-1">{{ echoarea.description }}</p>
                                                 <small class="text-muted">
-                                                    {{ echoarea.message_count }} messages
+                                                    {{ t('ui.user_subscriptions.message_count', {'count': echoarea.message_count}, locale, ['common']) }}
                                                     {% if echoarea.subscribed %}
-                                                        • Subscribed 
+                                                        {{ t('ui.user_subscriptions.dot_subscribed', {}, locale, ['common']) }}
                                                         {% if echoarea.subscription_type == 'auto' %}
-                                                            (automatic)
+                                                            {{ t('ui.user_subscriptions.automatic', {}, locale, ['common']) }}
                                                         {% else %}
                                                             ({{ echoarea.subscribed_at|date('M j, Y') }})
                                                         {% endif %}
@@ -68,7 +70,7 @@
                                                 <a href="/echomail/{{ echoarea.tag }}@{{ echoarea.domain }}"
                                                    class="btn btn-sm {{ echoarea.subscribed ? 'btn-outline-primary' : 'btn-outline-secondary' }}">
                                                     <i class="bi bi-eye me-1"></i>
-                                                    View Messages
+                                                    {{ t('ui.user_subscriptions.view_messages', {}, locale, ['common']) }}
                                                 </a>
                                             </div>
                                         </div>
@@ -83,7 +85,7 @@
                                 <div class="card-header">
                                     <h6 class="mb-0">
                                         <i class="bi bi-info-circle me-2"></i>
-                                        Subscription Info
+                                        {{ t('ui.user_subscriptions.subscription_info', {}, locale, ['common']) }}
                                     </h6>
                                 </div>
                                 <div class="card-body">
@@ -93,7 +95,7 @@
                                         
                                         <div class="mb-3">
                                             <div class="d-flex justify-content-between">
-                                                <span>Subscribed:</span>
+                                                <span>{{ t('ui.user_subscriptions.subscribed_label', {}, locale, ['common']) }}</span>
                                                 <strong>{{ subscribed_count }} / {{ total_count }}</strong>
                                             </div>
                                             <div class="progress mt-1" style="height: 5px;">
@@ -106,12 +108,12 @@
                                     
                                     <hr>
                                     
-                                    <h6>How Subscriptions Work</h6>
+                                    <h6>{{ t('ui.user_subscriptions.how_subscriptions_work', {}, locale, ['common']) }}</h6>
                                     <ul class="small text-muted mb-0">
-                                        <li>New users are automatically subscribed to popular echoareas</li>
-                                        <li>You can subscribe/unsubscribe to any echoarea</li>
-                                        <li>Only subscribed echoareas appear in your message lists</li>
-                                        <li><i class="bi bi-star-fill text-warning"></i> indicates default echoareas</li>
+                                        <li>{{ t('ui.user_subscriptions.how_new_users', {}, locale, ['common']) }}</li>
+                                        <li>{{ t('ui.user_subscriptions.how_subscribe_unsubscribe', {}, locale, ['common']) }}</li>
+                                        <li>{{ t('ui.user_subscriptions.how_only_subscribed', {}, locale, ['common']) }}</li>
+                                        <li><i class="bi bi-star-fill text-warning"></i> {{ t('ui.user_subscriptions.how_star_means_default', {}, locale, ['common']) }}</li>
                                     </ul>
                                 </div>
                             </div>
@@ -124,6 +126,13 @@
 </div>
 
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-echoareas');
     const echoareaCards = document.querySelectorAll('.echoarea-card');
@@ -164,19 +173,24 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showStatus(action === 'subscribe' ? 'Subscribed successfully!' : 'Unsubscribed successfully!', 'success');
+                    showStatus(
+                        action === 'subscribe'
+                            ? uiT('ui.user_subscriptions.subscribed_success', 'Subscribed successfully!')
+                            : uiT('ui.user_subscriptions.unsubscribed_success', 'Unsubscribed successfully!'),
+                        'success'
+                    );
                     // Refresh page to update stats and view buttons
                     setTimeout(() => location.reload(), 1000);
                 } else {
                     // Revert toggle state
                     this.checked = originalState;
-                    showStatus('Failed to update subscription. Please try again.', 'danger');
+                    showStatus(uiT('ui.user_subscriptions.update_failed', 'Failed to update subscription. Please try again.'), 'danger');
                 }
             })
             .catch(error => {
                 // Revert toggle state
                 this.checked = originalState;
-                showStatus('Network error. Please try again.', 'danger');
+                showStatus(uiT('ui.user_subscriptions.network_error', 'Network error. Please try again.'), 'danger');
             })
             .finally(() => {
                 this.disabled = false;

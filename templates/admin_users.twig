@@ -1,26 +1,26 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin_users.page_title', {}, 'User Management') }}{% endblock %}
+{% block title %}{{ t('ui.admin_users.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-users me-2"></i>{{ t('ui.admin_users.heading', {}, 'User Management') }}</h2>
+                <h2><i class="fas fa-users me-2"></i>{{ t('ui.admin_users.heading', {}, locale, ['common']) }}</h2>
                 <div>
                     <button class="btn btn-success me-2" onclick="createNewUser()">
-                        <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, 'Create New User') }}
+                        <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-info me-2" onclick="showUsersNeedingReminders()">
-                        <i class="fas fa-bell me-2"></i>{{ t('ui.admin_users.need_reminders', {}, 'Need Reminders') }}
+                        <i class="fas fa-bell me-2"></i>{{ t('ui.admin_users.need_reminders', {}, locale, ['common']) }}
                         <span id="reminders-count" class="badge bg-light text-dark ms-1" style="display: none;">0</span>
                     </button>
                     <button class="btn btn-warning me-2" onclick="cleanupRegistrations()">
-                        <i class="fas fa-broom me-2"></i>{{ t('ui.admin_users.cleanup', {}, 'Cleanup') }}
+                        <i class="fas fa-broom me-2"></i>{{ t('ui.admin_users.cleanup', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-primary" onclick="refreshData()">
-                        <i class="fas fa-sync-alt me-2"></i>{{ t('ui.common.refresh', {}, 'Refresh') }}
+                        <i class="fas fa-sync-alt me-2"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -29,7 +29,7 @@
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-user-clock me-2"></i>{{ t('ui.admin_users.pending_registrations', {}, 'Pending Registrations') }}
+                        <i class="fas fa-user-clock me-2"></i>{{ t('ui.admin_users.pending_registrations', {}, locale, ['common']) }}
                         <span id="pending-count" class="badge bg-warning ms-2">0</span>
                     </h5>
                 </div>
@@ -37,9 +37,9 @@
                     <div id="pending-users-container">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
-                                <span class="visually-hidden">{{ t('ui.common.loading', {}, 'Loading...') }}</span>
+                                <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
                             </div>
-                            <p class="mt-2">{{ t('ui.admin_users.loading_pending_registrations', {}, 'Loading pending registrations...') }}</p>
+                            <p class="mt-2">{{ t('ui.admin_users.loading_pending_registrations', {}, locale, ['common']) }}</p>
                         </div>
                     </div>
                 </div>
@@ -49,7 +49,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-users me-2"></i>{{ t('ui.admin_users.all_users', {}, 'All Users') }}
+                        <i class="fas fa-users me-2"></i>{{ t('ui.admin_users.all_users', {}, locale, ['common']) }}
                         <span id="users-count" class="badge bg-info ms-2">0</span>
                     </h5>
                 </div>
@@ -58,7 +58,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <div class="input-group">
-                                <input type="text" class="form-control" id="user-search" placeholder="{{ t('ui.admin_users.search_users_placeholder', {}, 'Search users...') }}">
+                                <input type="text" class="form-control" id="user-search" placeholder="{{ t('ui.admin_users.search_users_placeholder', {}, locale, ['common']) }}">
                                 <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
                                     <i class="fas fa-search"></i>
                                 </button>
@@ -67,9 +67,9 @@
                         <div class="col-md-6">
                             <div class="d-flex justify-content-end">
                                 <select class="form-select" id="users-per-page" onchange="changeUsersPerPage()" style="width: auto;">
-                                    <option value="25">{{ t('ui.admin_users.per_page_25', {}, '25 per page') }}</option>
-                                    <option value="50">{{ t('ui.admin_users.per_page_50', {}, '50 per page') }}</option>
-                                    <option value="100">{{ t('ui.admin_users.per_page_100', {}, '100 per page') }}</option>
+                                    <option value="25">{{ t('ui.admin_users.per_page_25', {}, locale, ['common']) }}</option>
+                                    <option value="50">{{ t('ui.admin_users.per_page_50', {}, locale, ['common']) }}</option>
+                                    <option value="100">{{ t('ui.admin_users.per_page_100', {}, locale, ['common']) }}</option>
                                 </select>
                             </div>
                         </div>
@@ -78,9 +78,9 @@
                     <div id="users-container">
                         <div class="text-center py-4">
                             <div class="spinner-border" role="status">
-                                <span class="visually-hidden">{{ t('ui.common.loading', {}, 'Loading...') }}</span>
+                                <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
                             </div>
-                            <p class="mt-2">{{ t('ui.admin_users.loading_users', {}, 'Loading users...') }}</p>
+                            <p class="mt-2">{{ t('ui.admin_users.loading_users', {}, locale, ['common']) }}</p>
                         </div>
                     </div>
                     
@@ -101,7 +101,7 @@
             <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="fas fa-user-check me-2"></i>
-                    <span id="approval-action-title">{{ t('ui.admin_users.approve_user', {}, 'Approve User') }}</span>
+                    <span id="approval-action-title">{{ t('ui.admin_users.approve_user', {}, locale, ['common']) }}</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -109,18 +109,18 @@
                 <div id="user-details"></div>
                 
                 <div class="mt-4">
-                    <label for="admin-notes" class="form-label">{{ t('ui.admin_users.admin_notes', {}, 'Admin Notes') }}</label>
+                    <label for="admin-notes" class="form-label">{{ t('ui.admin_users.admin_notes', {}, locale, ['common']) }}</label>
                     <textarea class="form-control" id="admin-notes" rows="3" 
-                              placeholder="{{ t('ui.admin_users.optional_notes_placeholder', {}, 'Optional notes about this decision...') }}"></textarea>
+                              placeholder="{{ t('ui.admin_users.optional_notes_placeholder', {}, locale, ['common']) }}"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-success" id="approve-btn" onclick="processUser('approve')">
-                    <i class="fas fa-check me-2"></i>{{ t('ui.admin_users.approve', {}, 'Approve') }}
+                    <i class="fas fa-check me-2"></i>{{ t('ui.admin_users.approve', {}, locale, ['common']) }}
                 </button>
                 <button type="button" class="btn btn-danger" id="reject-btn" onclick="processUser('reject')">
-                    <i class="fas fa-times me-2"></i>{{ t('ui.admin_users.reject', {}, 'Reject') }}
+                    <i class="fas fa-times me-2"></i>{{ t('ui.admin_users.reject', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -133,7 +133,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, 'Create New User') }}
+                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_new_user', {}, locale, ['common']) }}
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -142,34 +142,34 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="create-username" class="form-label">{{ t('ui.common.username', {}, 'Username') }}</label>
+                                <label for="create-username" class="form-label">{{ t('ui.common.username', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="create-username" required
-                                       pattern="[a-zA-Z0-9_]{3,20}" title="{{ t('ui.admin_users.username_validation', {}, 'Username must be 3-20 characters, letters, numbers, and underscores only') }}">
-                                <div class="form-text">{{ t('ui.admin_users.username_validation', {}, 'Username must be 3-20 characters, letters, numbers, and underscores only') }}</div>
+                                       pattern="[a-zA-Z0-9_]{3,20}" title="{{ t('ui.admin_users.username_validation', {}, locale, ['common']) }}">
+                                <div class="form-text">{{ t('ui.admin_users.username_validation', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="create-real-name" class="form-label">{{ t('ui.common.real_name', {}, 'Real Name') }}</label>
+                                <label for="create-real-name" class="form-label">{{ t('ui.common.real_name', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="create-real-name" required>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-email" class="form-label">{{ t('ui.common.email_address', {}, 'Email Address') }}</label>
+                        <label for="create-email" class="form-label">{{ t('ui.common.email_address', {}, locale, ['common']) }}</label>
                         <input type="email" class="form-control" id="create-email">
-                        <div class="form-text">{{ t('ui.admin_users.email_optional_help', {}, 'Optional - for account recovery and notifications') }}</div>
+                        <div class="form-text">{{ t('ui.admin_users.email_optional_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-password" class="form-label">{{ t('ui.common.password', {}, 'Password') }}</label>
+                        <label for="create-password" class="form-label">{{ t('ui.common.password', {}, locale, ['common']) }}</label>
                         <input type="password" class="form-control" id="create-password" required minlength="8">
-                        <div class="form-text">{{ t('ui.admin_users.min_8_characters', {}, 'Minimum 8 characters') }}</div>
+                        <div class="form-text">{{ t('ui.admin_users.min_8_characters', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="create-confirm-password" class="form-label">{{ t('ui.register.confirm_password', {}, 'Confirm Password') }}</label>
+                        <label for="create-confirm-password" class="form-label">{{ t('ui.register.confirm_password', {}, locale, ['common']) }}</label>
                         <input type="password" class="form-control" id="create-confirm-password" required>
                     </div>
                     
@@ -178,27 +178,27 @@
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="create-is-active" checked>
                                 <label class="form-check-label" for="create-is-active">
-                                    {{ t('ui.admin_users.account_is_active', {}, 'Account is active') }}
+                                    {{ t('ui.admin_users.account_is_active', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, 'Inactive users cannot log in') }}</div>
+                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="create-is-admin">
                                 <label class="form-check-label" for="create-is-admin">
-                                    {{ t('ui.admin_users.admin_privileges', {}, 'Administrator privileges') }}
+                                    {{ t('ui.admin_users.admin_privileges', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, 'Admins can manage users and system settings') }}</div>
+                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-success" onclick="saveNewUser()">
-                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_user', {}, 'Create User') }}
+                    <i class="fas fa-user-plus me-2"></i>{{ t('ui.admin_users.create_user', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -211,7 +211,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-user-edit me-2"></i>{{ t('ui.admin_users.edit_user', {}, 'Edit User') }}
+                    <i class="fas fa-user-edit me-2"></i>{{ t('ui.admin_users.edit_user', {}, locale, ['common']) }}
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -222,22 +222,22 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="edit-username" class="form-label">{{ t('ui.common.username', {}, 'Username') }}</label>
+                                <label for="edit-username" class="form-label">{{ t('ui.common.username', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="edit-username" readonly>
-                                <div class="form-text">{{ t('ui.admin_users.username_cannot_change', {}, 'Username cannot be changed') }}</div>
+                                <div class="form-text">{{ t('ui.admin_users.username_cannot_change', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="edit-real-name" class="form-label">{{ t('ui.common.real_name', {}, 'Real Name') }}</label>
+                                <label for="edit-real-name" class="form-label">{{ t('ui.common.real_name', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="edit-real-name" readonly>
-                                <div class="form-text">{{ t('ui.admin_users.real_name_cannot_change', {}, 'Real name cannot be changed') }}</div>
+                                <div class="form-text">{{ t('ui.admin_users.real_name_cannot_change', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="edit-email" class="form-label">{{ t('ui.common.email_address', {}, 'Email Address') }}</label>
+                        <label for="edit-email" class="form-label">{{ t('ui.common.email_address', {}, locale, ['common']) }}</label>
                         <input type="email" class="form-control" id="edit-email">
                     </div>
                     
@@ -246,33 +246,33 @@
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-active">
                                 <label class="form-check-label" for="edit-is-active">
-                                    {{ t('ui.admin_users.account_is_active', {}, 'Account is active') }}
+                                    {{ t('ui.admin_users.account_is_active', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, 'Inactive users cannot log in') }}</div>
+                                <div class="form-text">{{ t('ui.admin_users.inactive_cannot_login', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="edit-is-admin">
                                 <label class="form-check-label" for="edit-is-admin">
-                                    {{ t('ui.admin_users.admin_privileges', {}, 'Administrator privileges') }}
+                                    {{ t('ui.admin_users.admin_privileges', {}, locale, ['common']) }}
                                 </label>
-                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, 'Admins can manage users and system settings') }}</div>
+                                <div class="form-text">{{ t('ui.admin_users.admin_privileges_help', {}, locale, ['common']) }}</div>
                             </div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="edit-new-password" class="form-label">{{ t('ui.admin_users.new_password', {}, 'New Password') }}</label>
+                        <label for="edit-new-password" class="form-label">{{ t('ui.admin_users.new_password', {}, locale, ['common']) }}</label>
                         <input type="password" class="form-control" id="edit-new-password" minlength="8">
-                        <div class="form-text">{{ t('ui.admin_users.new_password_help', {}, 'Leave blank to keep current password. Minimum 8 characters if changing.') }}</div>
+                        <div class="form-text">{{ t('ui.admin_users.new_password_help', {}, locale, ['common']) }}</div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveUserChanges()">
-                    <i class="fas fa-save me-2"></i>{{ t('ui.common.save_changes', {}, 'Save Changes') }}
+                    <i class="fas fa-save me-2"></i>{{ t('ui.common.save_changes', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>

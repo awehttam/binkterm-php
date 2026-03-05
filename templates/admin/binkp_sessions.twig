@@ -1,17 +1,17 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.binkp_sessions.page_title', {}, 'Binkp Sessions - Admin') }}{% endblock %}
+{% block title %}{{ t('ui.admin.binkp_sessions.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2"><i class="fas fa-network-wired me-2"></i>{{ t('ui.admin.binkp_sessions.heading', {}, 'Binkp Session Log') }}</h1>
+        <h1 class="h2"><i class="fas fa-network-wired me-2"></i>{{ t('ui.admin.binkp_sessions.heading', {}, locale, ['common']) }}</h1>
         <div class="btn-toolbar">
             <button class="btn btn-outline-primary me-2" id="refreshSessions">
-                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, 'Refresh') }}
+                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
             </button>
             <a href="/admin" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.binkp_sessions.back_to_dashboard', {}, 'Back to Dashboard') }}
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.binkp_sessions.back_to_dashboard', {}, locale, ['common']) }}
             </a>
         </div>
     </div>
@@ -21,7 +21,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-primary shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.total_24h', {}, 'Total (24h)') }}</div>
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.total_24h', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statTotal">-</div>
                 </div>
             </div>
@@ -29,7 +29,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-success shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.secure', {}, 'Secure') }}</div>
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.secure', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statSecure">-</div>
                 </div>
             </div>
@@ -37,7 +37,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-warning shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.insecure', {}, 'Insecure') }}</div>
+                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.insecure', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statInsecure">-</div>
                 </div>
             </div>
@@ -45,7 +45,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-info shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.crash_out', {}, 'Crash Out') }}</div>
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.crash_out', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statCrash">-</div>
                 </div>
             </div>
@@ -53,7 +53,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-success shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.successful', {}, 'Successful') }}</div>
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.successful', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statSuccessful">-</div>
                 </div>
             </div>
@@ -61,7 +61,7 @@
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-left-danger shadow h-100 py-2">
                 <div class="card-body">
-                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.failed', {}, 'Failed') }}</div>
+                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">{{ t('ui.admin.binkp_sessions.failed', {}, locale, ['common']) }}</div>
                     <div class="h5 mb-0 font-weight-bold" id="statFailed">-</div>
                 </div>
             </div>
@@ -71,35 +71,35 @@
     <!-- Filter -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.filter_sessions', {}, 'Filter Sessions') }}</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.filter_sessions', {}, locale, ['common']) }}</h6>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-3">
-                    <label class="form-label">{{ t('ui.admin.binkp_sessions.session_type', {}, 'Session Type') }}</label>
+                    <label class="form-label">{{ t('ui.admin.binkp_sessions.session_type', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="filterType">
-                        <option value="">{{ t('ui.common.all', {}, 'All') }}</option>
-                        <option value="secure">{{ t('ui.admin.binkp_sessions.secure', {}, 'Secure') }}</option>
-                        <option value="insecure">{{ t('ui.admin.binkp_sessions.insecure', {}, 'Insecure') }}</option>
-                        <option value="crash_outbound">{{ t('ui.admin.binkp_sessions.crash_outbound', {}, 'Crash Outbound') }}</option>
+                        <option value="">{{ t('ui.common.all', {}, locale, ['common']) }}</option>
+                        <option value="secure">{{ t('ui.admin.binkp_sessions.secure', {}, locale, ['common']) }}</option>
+                        <option value="insecure">{{ t('ui.admin.binkp_sessions.insecure', {}, locale, ['common']) }}</option>
+                        <option value="crash_outbound">{{ t('ui.admin.binkp_sessions.crash_outbound', {}, locale, ['common']) }}</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">{{ t('ui.common.status', {}, 'Status') }}</label>
+                    <label class="form-label">{{ t('ui.common.status', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="filterStatus">
-                        <option value="">{{ t('ui.common.all', {}, 'All') }}</option>
-                        <option value="success">{{ t('ui.admin.binkp_sessions.success', {}, 'Success') }}</option>
-                        <option value="failed">{{ t('ui.admin.binkp_sessions.failed', {}, 'Failed') }}</option>
-                        <option value="rejected">{{ t('ui.admin.binkp_sessions.rejected', {}, 'Rejected') }}</option>
+                        <option value="">{{ t('ui.common.all', {}, locale, ['common']) }}</option>
+                        <option value="success">{{ t('ui.admin.binkp_sessions.success', {}, locale, ['common']) }}</option>
+                        <option value="failed">{{ t('ui.admin.binkp_sessions.failed', {}, locale, ['common']) }}</option>
+                        <option value="rejected">{{ t('ui.admin.binkp_sessions.rejected', {}, locale, ['common']) }}</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">{{ t('ui.admin.binkp_sessions.remote_address', {}, 'Remote Address') }}</label>
-                    <input type="text" class="form-control" id="filterAddress" placeholder="{{ t('ui.admin.binkp_sessions.remote_address_placeholder', {}, '1:123/456') }}">
+                    <label class="form-label">{{ t('ui.admin.binkp_sessions.remote_address', {}, locale, ['common']) }}</label>
+                    <input type="text" class="form-control" id="filterAddress" placeholder="{{ t('ui.admin.binkp_sessions.remote_address_placeholder', {}, locale, ['common']) }}">
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <button class="btn btn-primary" id="applyFilter">
-                        <i class="fas fa-filter me-1"></i>{{ t('ui.admin.binkp_sessions.apply_filter', {}, 'Apply Filter') }}
+                        <i class="fas fa-filter me-1"></i>{{ t('ui.admin.binkp_sessions.apply_filter', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -109,27 +109,27 @@
     <!-- Sessions Table -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.recent_sessions', {}, 'Recent Sessions') }}</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.binkp_sessions.recent_sessions', {}, locale, ['common']) }}</h6>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover table-sm" id="sessionsTable">
                     <thead>
                         <tr>
-                            <th>{{ t('ui.admin.binkp_sessions.time', {}, 'Time') }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.remote_address', {}, 'Remote Address') }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.ip', {}, 'IP') }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.type', {}, 'Type') }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.direction', {}, 'Direction') }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.msgs_in', {}, 'Msgs In') }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.msgs_out', {}, 'Msgs Out') }}</th>
-                            <th>{{ t('ui.common.status', {}, 'Status') }}</th>
-                            <th>{{ t('ui.admin.binkp_sessions.duration', {}, 'Duration') }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.time', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.remote_address', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.ip', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.type', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.direction', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.msgs_in', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.msgs_out', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.status', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.binkp_sessions.duration', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody id="sessionsTableBody">
                         <tr>
-                            <td colspan="9" class="text-center">{{ t('ui.common.loading', {}, 'Loading...') }}</td>
+                            <td colspan="9" class="text-center">{{ t('ui.common.loading', {}, locale, ['common']) }}</td>
                         </tr>
                     </tbody>
                 </table>

@@ -1,13 +1,13 @@
 {% extends "base.twig" %}
 
-{% block title %}Chat - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.chat.page_title', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="chat-page">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1><i class="fas fa-comment-dots"></i> Chat</h1>
+        <h1><i class="fas fa-comment-dots"></i> {{ t('ui.chat.heading', {}, locale, ['common']) }}</h1>
         <a href="/whosonline" class="btn btn-outline-secondary btn-sm">
-            <i class="fas fa-user-friends"></i> Who's Online
+            <i class="fas fa-user-friends"></i> {{ t('ui.base.admin.whos_online', {}, locale, ['common']) }}
         </a>
     </div>
 
@@ -15,7 +15,7 @@
         <div class="col-lg-3">
             <div class="card chat-panel">
                 <div class="card-header">
-                    <i class="fas fa-layer-group me-2"></i> Rooms
+                    <i class="fas fa-layer-group me-2"></i> {{ t('ui.chat.rooms', {}, locale, ['common']) }}
                 </div>
                 <div class="card-body p-0">
                     <div id="chatRoomsList" class="chat-list text-muted"></div>
@@ -23,7 +23,7 @@
             </div>
             <div class="card chat-panel mt-3">
                 <div class="card-header">
-                    <i class="fas fa-user-friends me-2"></i> Direct
+                    <i class="fas fa-user-friends me-2"></i> {{ t('ui.chat.direct', {}, locale, ['common']) }}
                 </div>
                 <div class="card-body p-0">
                     <div id="chatUsersList" class="chat-list text-muted"></div>
@@ -34,7 +34,7 @@
             <div class="card chat-panel chat-thread-card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <span class="chat-thread-title" id="chatThreadTitle">Lobby</span>
+                        <span class="chat-thread-title" id="chatThreadTitle">{{ t('ui.chat.lobby', {}, locale, ['common']) }}</span>
                         <small class="text-muted" id="chatThreadMeta"></small>
                     </div>
                     <span class="badge bg-secondary" id="chatUnreadBadge" style="display:none;">0</span>
@@ -42,13 +42,13 @@
                 <div class="card-body chat-thread" id="chatThread">
                     <div class="chat-load-older d-none" id="chatLoadOlderWrap">
                         <button type="button" class="btn btn-outline-light btn-sm" id="chatLoadOlderBtn">
-                            Load older messages
+                            {{ t('ui.chat.load_older_messages', {}, locale, ['common']) }}
                         </button>
                     </div>
                 </div>
                 <div class="card-footer">
                     <div class="input-group">
-                        <input type="text" class="form-control" id="chatInput" placeholder="Type a message...">
+                        <input type="text" class="form-control" id="chatInput" placeholder="{{ t('ui.chat.type_message_placeholder', {}, locale, ['common']) }}">
                         <button class="btn btn-primary" id="chatSendBtn">
                             <i class="fas fa-paper-plane"></i>
                         </button>
@@ -61,10 +61,10 @@
 
 <div id="chatContextMenu" class="chat-context-menu d-none">
     <button type="button" class="dropdown-item" data-action="kick">
-        <i class="fas fa-user-slash me-2"></i> Kick
+        <i class="fas fa-user-slash me-2"></i> {{ t('ui.chat.kick', {}, locale, ['common']) }}
     </button>
     <button type="button" class="dropdown-item text-danger" data-action="ban">
-        <i class="fas fa-ban me-2"></i> Ban
+        <i class="fas fa-ban me-2"></i> {{ t('ui.chat.ban', {}, locale, ['common']) }}
     </button>
 </div>
 {% endblock %}

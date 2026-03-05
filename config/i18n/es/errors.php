@@ -153,6 +153,8 @@ return [
     'errors.messages.drafts.not_found' => 'Borrador no encontrado',
     'errors.messages.drafts.get_failed' => 'No se pudo cargar el borrador',
     'errors.messages.drafts.delete_failed' => 'No se pudo eliminar el borrador',
+    'errors.messages.netmail.get_failed' => 'No se pudo cargar el mensaje',
+    'errors.messages.echomail.get_failed' => 'No se pudo cargar el mensaje',
 
     // Message Search / Read State
     'errors.messages.search.query_too_short' => 'La busqueda debe tener al menos 2 caracteres',

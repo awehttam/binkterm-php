@@ -1,20 +1,20 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.crashmail_queue.page_title', {}, 'Crashmail Queue - Admin') }}{% endblock %}
+{% block title %}{{ t('ui.admin.crashmail_queue.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2"><i class="fas fa-bolt me-2"></i>{{ t('ui.admin.crashmail_queue.heading', {}, 'Crashmail Queue') }}</h1>
+        <h1 class="h2"><i class="fas fa-bolt me-2"></i>{{ t('ui.admin.crashmail_queue.heading', {}, locale, ['common']) }}</h1>
         <div class="btn-toolbar">
             <button class="btn btn-warning me-2" id="attemptDelivery">
-                <i class="fas fa-paper-plane me-1"></i>{{ t('ui.admin.crashmail_queue.attempt_delivery', {}, 'Attempt Delivery') }}
+                <i class="fas fa-paper-plane me-1"></i>{{ t('ui.admin.crashmail_queue.attempt_delivery', {}, locale, ['common']) }}
             </button>
             <button class="btn btn-outline-primary me-2" id="refreshQueue">
-                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, 'Refresh') }}
+                <i class="fas fa-sync-alt me-1"></i>{{ t('ui.common.refresh', {}, locale, ['common']) }}
             </button>
             <a href="/admin" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.crashmail_queue.back_to_dashboard', {}, 'Back to Dashboard') }}
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.crashmail_queue.back_to_dashboard', {}, locale, ['common']) }}
             </a>
         </div>
     </div>
@@ -26,7 +26,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.pending', {}, 'Pending') }}</div>
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.pending', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statPending">-</div>
                         </div>
                         <div class="col-auto">
@@ -42,7 +42,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.attempting', {}, 'Attempting') }}</div>
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.attempting', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statAttempting">-</div>
                         </div>
                         <div class="col-auto">
@@ -58,7 +58,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.sent_24h', {}, 'Sent (24h)') }}</div>
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.sent_24h', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statSent">-</div>
                         </div>
                         <div class="col-auto">
@@ -74,7 +74,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.failed', {}, 'Failed') }}</div>
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">{{ t('ui.admin.crashmail_queue.failed', {}, locale, ['common']) }}</div>
                             <div class="h5 mb-0 font-weight-bold" id="statFailed">-</div>
                         </div>
                         <div class="col-auto">
@@ -89,22 +89,22 @@
     <!-- Filter -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.crashmail_queue.filter_queue', {}, 'Filter Queue') }}</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.crashmail_queue.filter_queue', {}, locale, ['common']) }}</h6>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label">{{ t('ui.admin.crashmail_queue.status', {}, 'Status') }}</label>
+                    <label class="form-label">{{ t('ui.admin.crashmail_queue.status', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="filterStatus">
-                        <option value="">{{ t('ui.common.all', {}, 'All') }}</option>
-                        <option value="pending">{{ t('ui.admin.crashmail_queue.pending', {}, 'Pending') }}</option>
-                        <option value="attempting">{{ t('ui.admin.crashmail_queue.attempting', {}, 'Attempting') }}</option>
-                        <option value="sent">{{ t('ui.admin.crashmail_queue.sent', {}, 'Sent') }}</option>
-                        <option value="failed">{{ t('ui.admin.crashmail_queue.failed', {}, 'Failed') }}</option>
+                        <option value="">{{ t('ui.common.all', {}, locale, ['common']) }}</option>
+                        <option value="pending">{{ t('ui.admin.crashmail_queue.pending', {}, locale, ['common']) }}</option>
+                        <option value="attempting">{{ t('ui.admin.crashmail_queue.attempting', {}, locale, ['common']) }}</option>
+                        <option value="sent">{{ t('ui.admin.crashmail_queue.sent', {}, locale, ['common']) }}</option>
+                        <option value="failed">{{ t('ui.admin.crashmail_queue.failed', {}, locale, ['common']) }}</option>
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">{{ t('ui.admin.crashmail_queue.limit', {}, 'Limit') }}</label>
+                    <label class="form-label">{{ t('ui.admin.crashmail_queue.limit', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="filterLimit">
                         <option value="25">25</option>
                         <option value="50" selected>50</option>
@@ -113,7 +113,7 @@
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <button class="btn btn-primary" id="applyFilter">
-                        <i class="fas fa-filter me-1"></i>{{ t('ui.admin.crashmail_queue.apply_filter', {}, 'Apply Filter') }}
+                        <i class="fas fa-filter me-1"></i>{{ t('ui.admin.crashmail_queue.apply_filter', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -123,26 +123,26 @@
     <!-- Queue Items -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.crashmail_queue.queue_items', {}, 'Queue Items') }}</h6>
+            <h6 class="m-0 font-weight-bold text-primary">{{ t('ui.admin.crashmail_queue.queue_items', {}, locale, ['common']) }}</h6>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover" id="queueTable">
                     <thead>
                         <tr>
-                            <th>{{ t('ui.common.id', {}, 'ID') }}</th>
-                            <th>{{ t('ui.admin.crashmail_queue.to', {}, 'To') }}</th>
-                            <th>{{ t('ui.admin.crashmail_queue.subject', {}, 'Subject') }}</th>
-                            <th>{{ t('ui.admin.crashmail_queue.destination', {}, 'Destination') }}</th>
-                            <th>{{ t('ui.admin.crashmail_queue.status', {}, 'Status') }}</th>
-                            <th>{{ t('ui.admin.crashmail_queue.attempts', {}, 'Attempts') }}</th>
-                            <th>{{ t('ui.admin.crashmail_queue.next_attempt', {}, 'Next Attempt') }}</th>
-                            <th>{{ t('ui.admin.crashmail_queue.actions', {}, 'Actions') }}</th>
+                            <th>{{ t('ui.common.id', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.to', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.subject', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.destination', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.status', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.attempts', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.next_attempt', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.crashmail_queue.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody id="queueTableBody">
                         <tr>
-                            <td colspan="8" class="text-center">{{ t('ui.common.loading', {}, 'Loading...') }}</td>
+                            <td colspan="8" class="text-center">{{ t('ui.common.loading', {}, locale, ['common']) }}</td>
                         </tr>
                     </tbody>
                 </table>

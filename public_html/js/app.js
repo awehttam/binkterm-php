@@ -393,7 +393,13 @@ function formatKludgeLinesWithSeparator(topKludges, bottomKludges) {
         output += bottomKludges.map(line => formatSingleKludgeLine(line)).join('\n');
     }
 
-    return output || 'No kludge lines found';
+    if (output) {
+        return output;
+    }
+    if (window.t) {
+        return window.t('ui.common.no_kludge_lines_found', {}, 'No kludge lines found');
+    }
+    return 'No kludge lines found';
 }
 
 function toggleKludgeLines() {
@@ -404,11 +410,11 @@ function toggleKludgeLines() {
     if (container.is(':visible')) {
         container.slideUp();
         icon.removeClass('fas fa-eye').addClass('fas fa-eye-slash');
-        text.text('Show Kludge Lines');
+        text.text(window.t ? window.t('ui.common.show_kludge_lines', {}, 'Show Kludge Lines') : 'Show Kludge Lines');
     } else {
         container.slideDown();
         icon.removeClass('fas fa-eye-slash').addClass('fas fa-eye');
-        text.text('Hide Kludge Lines');
+        text.text(window.t ? window.t('ui.common.hide_kludge_lines', {}, 'Hide Kludge Lines') : 'Hide Kludge Lines');
     }
 }
 
@@ -945,7 +951,7 @@ function showLoading(container) {
     $(container).html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Loading...
+            ${window.t ? window.t('ui.common.loading', {}, 'Loading...') : 'Loading...'}
         </div>
     `);
 }

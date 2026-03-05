@@ -153,6 +153,8 @@ return [
     'errors.messages.drafts.not_found' => 'Draft not found',
     'errors.messages.drafts.get_failed' => 'Failed to load draft',
     'errors.messages.drafts.delete_failed' => 'Failed to delete draft',
+    'errors.messages.netmail.get_failed' => 'Failed to load message',
+    'errors.messages.echomail.get_failed' => 'Failed to load message',
 
     // Message Search / Read State
     'errors.messages.search.query_too_short' => 'Search query must be at least 2 characters',

@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}{% if message and message.subject %}{{ message.subject }} | {{ t('ui.shared_message.title', {}, 'common') }}{% else %}{{ t('ui.shared_message.title', {}, 'common') }}{% endif %} - {{ parent() }}{% endblock %}
+{% block title %}{% if message and message.subject %}{{ message.subject }} | {{ t('ui.shared_message.title', {}, locale, ['common']) }}{% else %}{{ t('ui.shared_message.title', {}, locale, ['common']) }}{% endif %} - {{ parent() }}{% endblock %}
 
 {% block meta_tags %}
     {% if message %}
@@ -11,7 +11,7 @@
         {% endif %}
 
         {# Open Graph meta tags for social media sharing #}
-        <meta property="og:title" content="{% if message.subject %}{{ message.subject }}{% else %}{{ t('ui.shared_message.title', {}, 'common') }}{% endif %}">
+        <meta property="og:title" content="{% if message.subject %}{{ message.subject }}{% else %}{{ t('ui.shared_message.title', {}, locale, ['common']) }}{% endif %}">
         <meta property="og:type" content="article">
         <meta property="og:url" content="{{ share_url }}">
         {% if description %}
@@ -27,7 +27,7 @@
 
         {# Twitter Card meta tags #}
         <meta name="twitter:card" content="summary">
-        <meta name="twitter:title" content="{% if message.subject %}{{ message.subject }}{% else %}{{ t('ui.shared_message.title', {}, 'common') }}{% endif %}">
+        <meta name="twitter:title" content="{% if message.subject %}{{ message.subject }}{% else %}{{ t('ui.shared_message.title', {}, locale, ['common']) }}{% endif %}">
         {% if description %}
             <meta name="twitter:description" content="{{ description }}{% if description|length >= 160 %}...{% endif %}">
         {% endif %}
@@ -53,7 +53,7 @@
                 <div class="d-flex align-items-center">
                     <i class="fas fa-share-alt me-2"></i>
                     <div>
-                        <strong>{{ t('ui.shared_message.title', {}, 'common') }}</strong>
+                        <strong>{{ t('ui.shared_message.title', {}, locale, ['common']) }}</strong>
                         <p class="mb-0 mt-1" id="shareDescription"></p>
                     </div>
                 </div>
@@ -63,15 +63,15 @@
             <div class="card" id="messageCard" style="display: none;">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0" id="messageSubject">Loading...</h5>
+                        <h5 class="mb-0" id="messageSubject">{{ t('ui.common.loading', {}, locale, ['common']) }}</h5>
                         <div class="btn-group btn-group-sm">
                             <a href="/login" class="btn btn-outline-primary" id="loginBtn" style="display: none;">
                                 <i class="fas fa-sign-in-alt"></i>
-                                {{ t('ui.shared_message.login_to_reply', {}, 'common') }}
+                                {{ t('ui.shared_message.login_to_reply', {}, locale, ['common']) }}
                             </a>
                             <a href="/register" class="btn btn-outline-secondary" id="registerBtn" style="display: none;">
                                 <i class="fas fa-user-plus"></i>
-                                {{ t('ui.register.title', {}, 'common') }}
+                                {{ t('ui.register.title', {}, locale, ['common']) }}
                             </a>
                         </div>
                     </div>
@@ -80,7 +80,7 @@
                     <div id="messageContent">
                         <div class="loading-spinner text-center py-4">
                             <i class="fas fa-spinner fa-spin me-2"></i>
-                            {{ t('ui.shared_message.loading', {}, 'common') }}
+                            {{ t('ui.shared_message.loading', {}, locale, ['common']) }}
                         </div>
                     </div>
                 </div>
@@ -88,7 +88,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <i class="fas fa-info-circle me-1"></i>
-                            {{ t('ui.shared_message.shared_on', {}, 'common') }} <span id="shareDate"></span>
+                            {{ t('ui.shared_message.shared_on', {}, locale, ['common']) }} <span id="shareDate"></span>
                         </div>
                         <div class="col-md-6 text-md-end">
                             <span id="shareStats"></span>
@@ -102,14 +102,14 @@
                 <div class="d-flex align-items-center">
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     <div>
-                        <strong>{{ t('ui.shared_message.unable_to_load', {}, 'common') }}</strong>
+                        <strong>{{ t('ui.shared_message.unable_to_load', {}, locale, ['common']) }}</strong>
                         <p class="mb-0 mt-1" id="errorText"></p>
                     </div>
                 </div>
                 <div class="mt-3">
                     <a href="/" class="btn btn-primary">
                         <i class="fas fa-home"></i>
-                        {{ t('ui.shared_message.go_to_main_site', {}, 'common') }}
+                        {{ t('ui.shared_message.go_to_main_site', {}, locale, ['common']) }}
                     </a>
                 </div>
             </div>
@@ -119,18 +119,18 @@
                 <div class="d-flex align-items-center">
                     <i class="fas fa-lock me-2"></i>
                     <div>
-                        <strong>{{ t('ui.shared_message.login_required', {}, 'common') }}</strong>
-                        <p class="mb-0 mt-1">{{ t('ui.shared_message.login_required_help', {}, 'common') }}</p>
+                        <strong>{{ t('ui.shared_message.login_required', {}, locale, ['common']) }}</strong>
+                        <p class="mb-0 mt-1">{{ t('ui.shared_message.login_required_help', {}, locale, ['common']) }}</p>
                     </div>
                 </div>
                 <div class="mt-3">
                     <a href="/login" class="btn btn-primary me-2">
                         <i class="fas fa-sign-in-alt"></i>
-                        {{ t('ui.base.login', {}, 'common') }}
+                        {{ t('ui.base.login', {}, locale, ['common']) }}
                     </a>
                     <a href="/register" class="btn btn-outline-primary">
                         <i class="fas fa-user-plus"></i>
-                        {{ t('ui.register.title', {}, 'common') }}
+                        {{ t('ui.register.title', {}, locale, ['common']) }}
                     </a>
                 </div>
             </div>
@@ -140,27 +140,27 @@
                 <div class="card-body">
                     <h6 class="card-title">
                         <i class="fas fa-info-circle me-2"></i>
-                        {{ t('ui.shared_message.about_this_message', {}, 'common') }}
+                        {{ t('ui.shared_message.about_this_message', {}, locale, ['common']) }}
                     </h6>
                     <p class="card-text">
-                        {{ t('ui.shared_message.about_text', {}, 'common') }}
+                        {{ t('ui.shared_message.about_text', {}, locale, ['common']) }}
                     </p>
                     <div class="alert alert-primary" id="registrationPrompt" style="display: none;">
                         <div class="d-flex align-items-start">
                             <i class="fas fa-user-plus me-3 mt-1"></i>
                             <div class="flex-grow-1">
-                                <h6 class="alert-heading mb-2">{{ t('ui.shared_message.join_conversation', {}, 'common') }}</h6>
+                                <h6 class="alert-heading mb-2">{{ t('ui.shared_message.join_conversation', {}, locale, ['common']) }}</h6>
                                 <p class="mb-2">
-                                    {{ t('ui.shared_message.join_conversation_help', {}, 'common') }}
+                                    {{ t('ui.shared_message.join_conversation_help', {}, locale, ['common']) }}
                                 </p>
                                 <div class="d-flex gap-2 flex-wrap">
                                     <a href="/register" class="btn btn-primary btn-sm">
                                         <i class="fas fa-user-plus me-1"></i>
-                                        {{ t('ui.shared_message.register_now', {}, 'common') }}
+                                        {{ t('ui.shared_message.register_now', {}, locale, ['common']) }}
                                     </a>
                                     <a href="/login" class="btn btn-outline-primary btn-sm">
                                         <i class="fas fa-sign-in-alt me-1"></i>
-                                        {{ t('ui.shared_message.already_have_account', {}, 'common') }}
+                                        {{ t('ui.shared_message.already_have_account', {}, locale, ['common']) }}
                                     </a>
                                 </div>
                             </div>
@@ -170,13 +170,13 @@
                         <div class="col-md-6">
                             <small class="text-muted">
                                 <i class="fas fa-network-wired me-1"></i>
-                                <strong>{{ t('ui.shared_message.network', {}, 'common') }}:</strong> <span id="networkName">{{ t('ui.common.loading', {}, 'common') }}</span>
+                                <strong>{{ t('ui.shared_message.network', {}, locale, ['common']) }}:</strong> <span id="networkName">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
                             </small>
                         </div>
                         <div class="col-md-6">
                             <small class="text-muted">
                                 <i class="fas fa-code me-1"></i>
-                                <strong>{{ t('ui.shared_message.powered_by', {}, 'common') }}:</strong> BinktermPHP
+                                <strong>{{ t('ui.shared_message.powered_by', {}, locale, ['common']) }}:</strong> BinktermPHP
                             </small>
                         </div>
                     </div>
@@ -200,6 +200,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadSharedMessage();
     loadUserSettings();
@@ -214,23 +221,23 @@ function loadSharedMessage() {
             if (data.success) {
                 displaySharedMessage(data.message, data.share_info);
             } else {
-                showError(apiError(data, window.t ? window.t('ui.shared_message.load_failed', {}, 'Failed to load shared message') : 'Failed to load shared message'));
+                showError(apiError(data, uiT('ui.shared_message.load_failed', 'Failed to load shared message')));
             }
         })
         .fail(function(xhr) {
             if (xhr.status === 401) {
                 showAuthRequired();
             } else if (xhr.status === 404) {
-                showError(window.t ? window.t('ui.shared_message.not_available', {}, 'This shared message is not available. It may have expired or been revoked.') : 'This shared message is not available. It may have expired or been revoked.');
+                showError(uiT('ui.shared_message.not_available', 'This shared message is not available. It may have expired or been revoked.'));
             } else {
-                showError(window.t ? window.t('ui.shared_message.load_failed_retry', {}, 'Failed to load the shared message. Please try again later.') : 'Failed to load the shared message. Please try again later.');
+                showError(uiT('ui.shared_message.load_failed_retry', 'Failed to load the shared message. Please try again later.'));
             }
         });
 }
 
 function displaySharedMessage(message, shareInfo) {
     // Set message subject
-    $('#messageSubject').text(message.subject || '(No Subject)');
+    $('#messageSubject').text(message.subject || uiT('messages.no_subject', '(No Subject)'));
     
     // Parse message to separate kludge lines from body
     const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
@@ -243,30 +250,30 @@ function displaySharedMessage(message, shareInfo) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>From:</strong> ${escapeHtml(message.from_name)}<br>
+                    <strong>${uiT('ui.shared_message.from_label', 'From:')}</strong> ${escapeHtml(message.from_name)}<br>
                     <small class="text-muted">${formatFidonetAddress(message.from_address)}</small>
                 </div>
                 <div class="col-md-6">
-                    <strong>To:</strong> ${escapeHtml(message.to_name || 'All')}<br>
+                    <strong>${uiT('ui.shared_message.to_label', 'To:')}</strong> ${escapeHtml(message.to_name || uiT('ui.common.all', 'All'))}<br>
                     ${message.echoarea ? `<span class="badge" style="background-color: ${message.echoarea_color || '#28a745'}; color: white;">${message.echoarea}</span>` : ''}
                 </div>
             </div>
             <div class="row mt-2">
                 <div class="col-md-6">
-                    <strong>Date:</strong> ${formatFullDate(message.date_written)}
+                    <strong>${uiT('ui.shared_message.date_label', 'Date:')}</strong> ${formatFullDate(message.date_written)}
                 </div>
                 <div class="col-md-6">
-                    <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
+                    <strong>${uiT('ui.shared_message.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
                 </div>
             </div>
         </div>
         
         <div class="message-headers mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">Kludge Lines</h6>
+                <h6 class="mb-0 text-muted">${uiT('ui.shared_message.kludge_lines', 'Kludge Lines')}</h6>
                 <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
                     <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">Show Kludge Lines</span>
+                    <span id="toggleText">${uiT('ui.shared_message.show_kludge_lines', 'Show Kludge Lines')}</span>
                 </button>
             </div>
             <div id="kludgeContainer" class="kludge-lines" style="display: none;">
@@ -288,9 +295,9 @@ function displaySharedMessage(message, shareInfo) {
     const sharedDate = formatDate(shareInfo.created_at);
     const accessCount = shareInfo.access_count || 0;
     
-    $('#shareDescription').text((window.t ? window.t('ui.shared_message.shared_by', { name: sharedBy }, 'Shared by {name}') : `Shared by ${sharedBy}`));
+    $('#shareDescription').text(uiT('ui.shared_message.shared_by', 'Shared by {name}', { name: sharedBy }));
     $('#shareDate').text(sharedDate);
-    $('#shareStats').text((window.t ? window.t('ui.shared_message.viewed_times', { count: accessCount }, 'Viewed {count} times') : `Viewed ${accessCount} times`));
+    $('#shareStats').text(uiT('ui.shared_message.viewed_times', 'Viewed {count} times', { count: accessCount }));
     $('#shareInfo').show();
     
     // Show login/register buttons for anonymous users if not a public share
@@ -305,7 +312,7 @@ function displaySharedMessage(message, shareInfo) {
     }
 
     // Set network name
-    const networkName = message.echoarea_domain || (window.t ? window.t('ui.shared_message.local_bulletin_board', {}, 'Local Bulletin Board') : 'Local Bulletin Board');
+    const networkName = message.echoarea_domain || uiT('ui.shared_message.local_bulletin_board', 'Local Bulletin Board');
     $('#networkName').text(networkName);
 }
 

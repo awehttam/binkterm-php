@@ -128,7 +128,7 @@
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('bold')" title="Bold (*bold*)"><strong>B</strong></button>
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('italic')" title="Italic (/italic/)"><em>I</em></button>
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('underline')" title="Underline (_underline_)"><u>U</u></button>
-                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('inverse')" title="Inverse (#inverse#)">Inv</button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('inverse')" title="{{ t('ui.compose.stylecodes.inverse_title', {}, locale, ['common']) }}">Inv</button>
                         </div>
                     </div>
                     <textarea class="form-control" id="messageText" name="message_text"
@@ -136,64 +136,64 @@
                     <div class="form-text" id="messageTextHint">
                         {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
                     </div>
-                    <div class="form-text" id="scHint" style="display: none;">StyleCodes active — <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
+                    <div class="form-text" id="scHint" style="display: none;">{{ t('ui.compose.stylecodes.active_prefix', {}, locale, ['common']) }} <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
 
                 <!-- Markdown Editor (shown when "Send as Markdown" is checked) -->
                 <div class="mb-3" id="markdownEditorContainer" style="display: none;">
-                    <label class="form-label">Message * <small class="text-muted ms-2"><i class="fab fa-markdown me-1"></i>Markdown mode</small></label>
+                    <label class="form-label">{{ t('ui.compose.message_required', {}, locale, ['common']) }} <small class="text-muted ms-2"><i class="fab fa-markdown me-1"></i>{{ t('ui.compose.markdown.mode', {}, locale, ['common']) }}</small></label>
                     <div class="md-editor-wrapper">
-                        <div class="md-editor-toolbar" role="toolbar" aria-label="Markdown formatting">
+                        <div class="md-editor-toolbar" role="toolbar" aria-label="{{ t('ui.compose.markdown.toolbar_aria', {}, locale, ['common']) }}">
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('bold')" title="Bold (Ctrl+B)"><strong>B</strong></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('italic')" title="Italic (Ctrl+I)"><em>I</em></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('bold')" title="{{ t('ui.compose.markdown.bold_title', {}, locale, ['common']) }}"><strong>B</strong></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('italic')" title="{{ t('ui.compose.markdown.italic_title', {}, locale, ['common']) }}"><em>I</em></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h1')" title="Heading 1">H1</button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h2')" title="Heading 2">H2</button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h3')" title="Heading 3">H3</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h1')" title="{{ t('ui.compose.markdown.heading_1_title', {}, locale, ['common']) }}">H1</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h2')" title="{{ t('ui.compose.markdown.heading_2_title', {}, locale, ['common']) }}">H2</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h3')" title="{{ t('ui.compose.markdown.heading_3_title', {}, locale, ['common']) }}">H3</button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('code')" title="Inline code"><i class="fas fa-code"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('codeblock')" title="Code block"><i class="fas fa-file-code"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('code')" title="{{ t('ui.compose.markdown.inline_code_title', {}, locale, ['common']) }}"><i class="fas fa-code"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('codeblock')" title="{{ t('ui.compose.markdown.code_block_title', {}, locale, ['common']) }}"><i class="fas fa-file-code"></i></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('link')" title="Link (Ctrl+K)"><i class="fas fa-link"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('link')" title="{{ t('ui.compose.markdown.link_title', {}, locale, ['common']) }}"><i class="fas fa-link"></i></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ul')" title="Unordered list"><i class="fas fa-list-ul"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ol')" title="Ordered list"><i class="fas fa-list-ol"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('quote')" title="Blockquote"><i class="fas fa-quote-left"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ul')" title="{{ t('ui.compose.markdown.unordered_list_title', {}, locale, ['common']) }}"><i class="fas fa-list-ul"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ol')" title="{{ t('ui.compose.markdown.ordered_list_title', {}, locale, ['common']) }}"><i class="fas fa-list-ol"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('quote')" title="{{ t('ui.compose.markdown.blockquote_title', {}, locale, ['common']) }}"><i class="fas fa-quote-left"></i></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('hr')" title="Horizontal rule">&#8212;</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('hr')" title="{{ t('ui.compose.markdown.horizontal_rule_title', {}, locale, ['common']) }}">&#8212;</button>
                             </div>
                             <div class="btn-group btn-group-sm ms-auto">
-                                <button type="button" class="btn btn-secondary" id="mdEditBtn" onclick="mdSetMode('edit')" title="Edit mode">Edit</button>
-                                <button type="button" class="btn btn-outline-secondary" id="mdPreviewBtn" onclick="mdSetMode('preview')" title="Preview rendered output">Preview</button>
+                                <button type="button" class="btn btn-secondary" id="mdEditBtn" onclick="mdSetMode('edit')" title="{{ t('ui.compose.markdown.edit_mode_title', {}, locale, ['common']) }}">{{ t('ui.common.edit', {}, locale, ['common']) }}</button>
+                                <button type="button" class="btn btn-outline-secondary" id="mdPreviewBtn" onclick="mdSetMode('preview')" title="{{ t('ui.compose.markdown.preview_rendered_title', {}, locale, ['common']) }}">{{ t('ui.common.preview', {}, locale, ['common']) }}</button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="showMarkdownHelp()" title="Markdown quick reference"><i class="fas fa-question-circle"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="showMarkdownHelp()" title="{{ t('ui.compose.markdown.quick_reference_title', {}, locale, ['common']) }}"><i class="fas fa-question-circle"></i></button>
                             </div>
                         </div>
                         <div class="md-editor-body">
-                            <textarea class="md-editor-textarea" id="mdEditorText" spellcheck="true" placeholder="Write your markdown message here..."></textarea>
+                            <textarea class="md-editor-textarea" id="mdEditorText" spellcheck="true" placeholder="{{ t('ui.compose.markdown.write_placeholder', {}, locale, ['common']) }}"></textarea>
                             <div class="md-preview-pane" id="mdPreviewPane" style="display: none;">
-                                <span class="text-muted small fst-italic">Click Preview to see the rendered output.</span>
+                                <span class="text-muted small fst-italic">{{ t('ui.compose.markdown.click_preview_hint', {}, locale, ['common']) }}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="form-text"><i class="fab fa-markdown me-1"></i>Markdown formatting active. <a href="#" onclick="showMarkdownHelp(); return false;">Quick reference</a></div>
+                    <div class="form-text"><i class="fab fa-markdown me-1"></i>{{ t('ui.compose.markdown.formatting_active', {}, locale, ['common']) }} <a href="#" onclick="showMarkdownHelp(); return false;">{{ t('ui.compose.markdown.quick_reference', {}, locale, ['common']) }}</a></div>
                 </div>
 
                 <div class="mb-3" id="markdownSection" style="display: none;">
-                    <label class="form-label" for="markupType">Markup Format</label>
+                    <label class="form-label" for="markupType">{{ t('ui.compose.markup_format', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="markupType" name="markup_type">
-                        <option value="">Plain text</option>
-                        <option value="markdown">Markdown</option>
-                        <option value="stylecodes">StyleCodes (GoldEd, SemPoint Rich Text, Synchronet Markup)</option>
+                        <option value="">{{ t('ui.compose.plain_text', {}, locale, ['common']) }}</option>
+                        <option value="markdown">{{ t('ui.compose.markdown_label', {}, locale, ['common']) }}</option>
+                        <option value="stylecodes">{{ t('ui.compose.stylecodes_label', {}, locale, ['common']) }}</option>
                     </select>
-                    <div class="form-text">Send with markup formatting. Markdown and StyleCodes are supported on compatible networks.</div>
+                    <div class="form-text">{{ t('ui.compose.markup_format_help', {}, locale, ['common']) }}</div>
                 </div>
 
                 <div class="mb-3">
@@ -233,7 +233,7 @@
 
     <div class="col-lg-4" id="composeSidebar">
         <div class="d-flex justify-content-end mb-2">
-            <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="Hide panel">
+            <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.hide_panel', {}, locale, ['common']) }}">
                 <i class="fas fa-angles-right" id="sidebarToggleIcon"></i>
             </button>
         </div>
@@ -244,33 +244,33 @@
             </div>
             <div class="card-body">
                 {% if type == 'netmail' %}
-                    <h6>Netmail Guidelines:</h6>
+                    <h6>{{ t('ui.compose.netmail_guidelines', {}, locale, ['common']) }}</h6>
                     <ul class="small">
-                        <li>Private messages between nodes</li>
-                        <li id="netmailPostingIdentityGuideline">Posting identity: Real Name</li>
-                        <li>Use proper Fidonet addressing</li>
-                        <li>Be respectful and professional</li>
-                        <li>Messages are routed through the network</li>
+                        <li>{{ t('ui.compose.netmail_guideline_private', {}, locale, ['common']) }}</li>
+                        <li id="netmailPostingIdentityGuideline">{{ t('ui.compose.netmail_guideline_identity', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.netmail_guideline_addressing', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.netmail_guideline_respectful', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.netmail_guideline_routed', {}, locale, ['common']) }}</li>
                         {% if credits_enabled %}
-                        <li><strong>Cost: {{ netmail_cost }} {{ currency_symbol }}</strong></li>
+                        <li><strong>{{ t('ui.compose.netmail_cost', {'cost': netmail_cost, 'currency': currency_symbol}, locale, ['common']) }}</strong></li>
                         {% endif %}
                     </ul>
                 {% else %}
-                    <h6>Echomail Guidelines:</h6>
+                    <h6>{{ t('ui.compose.echomail_guidelines', {}, locale, ['common']) }}</h6>
                     <ul class="small">
-                        <li id="echomailPostingIdentityGuideline">Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias</li>
-                        <li>Public forum messages</li>
-                        <li>Stay on-topic for the echo area</li>
-                        <li>Be respectful to all participants</li>
-                        <li>Follow the echo rules and moderation</li>
+                        <li id="echomailPostingIdentityGuideline">{{ t('ui.compose.echomail_guideline_identity', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_public', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_topic', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_respectful', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_rules', {}, locale, ['common']) }}</li>
                     </ul>
                 {% endif %}
 
                 <h6 class="mt-3">{{ t('ui.compose.technical_notes', {}, locale, ['common']) }}</h6>
                 <ul class="small">
-                    <li>Plain text only (no HTML)</li>
-                    <li>Lines should be less than 79 characters</li>
-                    <li>Origin line added automatically</li>
+                    <li>{{ t('ui.compose.tech_note_plain_text_only', {}, locale, ['common']) }}</li>
+                    <li>{{ t('ui.compose.tech_note_line_length', {}, locale, ['common']) }}</li>
+                    <li>{{ t('ui.compose.tech_note_origin_line', {}, locale, ['common']) }}</li>
                 </ul>
             </div>
         </div>
@@ -295,7 +295,7 @@
     </div>
 
     <div id="sidebarShowBtn" class="d-none align-items-start pt-1">
-        <button class="btn btn-sm btn-outline-secondary" title="Show panel" onclick="toggleComposeSidebar()">
+        <button class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.show_panel', {}, locale, ['common']) }}" onclick="toggleComposeSidebar()">
             <i class="fas fa-angles-left"></i>
         </button>
     </div>
@@ -1318,14 +1318,14 @@ function renderComposeAddressBook(entries) {
     let html = '';
     
     if (entries.length === 0) {
-        html = '<li><div class="text-center text-muted py-2">No entries found</div></li>';
+        html = `<li><div class="text-center text-muted py-2">${uiT('ui.address_book.no_entries_found', 'No entries found')}</div></li>`;
     } else {
         entries.forEach(function(entry) {
             html += `
-                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.messaging_user_id || 'unknown')}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
-                    <div class="fw-bold">${escapeHtml(entry.name || 'Unnamed')}</div>
-                    <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
-                    <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || 'No address')}</div>
+                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.messaging_user_id || uiT('ui.common.unknown', 'Unknown'))}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
+                    <div class="fw-bold">${escapeHtml(entry.name || uiT('ui.address_book.unnamed', 'Unnamed'))}</div>
+                    <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || uiT('ui.common.unknown', 'Unknown'))}</div>
+                    <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || uiT('ui.address_book.no_address', 'No address'))}</div>
                     ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 40) + (entry.description.length > 40 ? '...' : ''))}</div>` : ''}
                 </a></li>
             `;
@@ -1394,38 +1394,38 @@ $(document).ready(function() {
                     <input type="hidden" id="addressBookEntryId">
                     
                     <div class="mb-3">
-                        <label for="addressBookName" class="form-label">Name</label>
+                        <label for="addressBookName" class="form-label">{{ t('ui.common.name', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookName" required 
-                               placeholder="Enter a descriptive name (e.g., John Smith)">
-                        <div class="form-text">Descriptive name for this contact</div>
+                               placeholder="{{ t('ui.address_book.name_placeholder', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.name_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookUserId" class="form-label">User ID</label>
+                        <label for="addressBookUserId" class="form-label">{{ t('ui.address_book.user_id', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookUserId" required 
-                               placeholder="Enter the user ID for messaging">
-                        <div class="form-text">User ID/handle to use when sending messages</div>
+                               placeholder="{{ t('ui.address_book.user_id_placeholder', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.user_id_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookNodeAddress" class="form-label">Node Address</label>
+                        <label for="addressBookNodeAddress" class="form-label">{{ t('ui.address_book.node_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookNodeAddress" required 
-                               placeholder="1:234/567" pattern="^\d+:\d+\/\d+(\.\d+)?$"
-                               title="Enter a valid Fidonet address (e.g., 1:234/567 or 1:234/567.0)">
-                        <div class="form-text">Format: zone:net/node or zone:net/node.point</div>
+                               placeholder="{{ t('ui.address_book.node_address_placeholder', {}, locale, ['common']) }}" pattern="^\d+:\d+\/\d+(\.\d+)?$"
+                               title="{{ t('ui.address_book.node_address_title', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.node_address_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookEmail" class="form-label">Email Address <small class="text-muted">(optional)</small></label>
+                        <label for="addressBookEmail" class="form-label">{{ t('ui.address_book.email_address', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <input type="email" class="form-control" id="addressBookEmail" 
                                placeholder="email@example.com">
-                        <div class="form-text">For your reference only - not used for messaging</div>
+                        <div class="form-text">{{ t('ui.address_book.email_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookDescription" class="form-label">Description <small class="text-muted">(optional)</small></label>
+                        <label for="addressBookDescription" class="form-label">{{ t('ui.common.description', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <textarea class="form-control" id="addressBookDescription" rows="3"
-                                  placeholder="Notes about this contact..."></textarea>
+                                  placeholder="{{ t('ui.address_book.description_placeholder', {}, locale, ['common']) }}"></textarea>
                     </div>
 
                     {% if crashmail_enabled %}
@@ -1433,9 +1433,9 @@ $(document).ready(function() {
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="addressBookAlwaysCrashmail" name="always_crashmail">
                             <label class="form-check-label" for="addressBookAlwaysCrashmail">
-                                <i class="fas fa-bolt text-warning me-1"></i>Always use crashmail for this Recipient
+                                <i class="fas fa-bolt text-warning me-1"></i>{{ t('ui.address_book.always_crashmail', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Automatically enable crashmail when composing messages to this contact.</div>
+                            <div class="form-text">{{ t('ui.address_book.always_crashmail_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                     {% endif %}
@@ -1454,7 +1454,7 @@ $(document).ready(function() {
 <script>
 // Address book modal functions for compose page
 function showAddAddressModal() {
-    $('#addressBookModalTitle').text('Add Address Book Entry');
+    $('#addressBookModalTitle').text(uiT('ui.address_book.add_entry', 'Add Address Book Entry'));
     $('#addressBookEntryId').val('');
     $('#addressBookForm')[0].reset();
     clearAddressBookModalError();
@@ -1533,23 +1533,23 @@ function saveComposeAddressBookEntry() {
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fab fa-markdown me-2"></i>Markdown Quick Reference</h5>
+                <h5 class="modal-title"><i class="fab fa-markdown me-2"></i>{{ t('ui.compose.markdown.quick_reference_title', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h6>Text Formatting</h6>
+                        <h6>{{ t('ui.compose.markdown.help.text_formatting', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
-                            <thead><tr><th>Syntax</th><th>Result</th></tr></thead>
+                            <thead><tr><th>{{ t('ui.compose.markdown.help.syntax', {}, locale, ['common']) }}</th><th>{{ t('ui.compose.markdown.help.result', {}, locale, ['common']) }}</th></tr></thead>
                             <tbody>
                                 <tr><td><code>**bold**</code></td><td><strong>bold</strong></td></tr>
                                 <tr><td><code>*italic*</code></td><td><em>italic</em></td></tr>
                                 <tr><td><code>`inline code`</code></td><td><code>inline code</code></td></tr>
-                                <tr><td><code>[link](url)</code></td><td>hyperlink</td></tr>
+                                <tr><td><code>[link](url)</code></td><td>{{ t('ui.compose.markdown.help.hyperlink', {}, locale, ['common']) }}</td></tr>
                             </tbody>
                         </table>
-                        <h6>Headings</h6>
+                        <h6>{{ t('ui.compose.markdown.help.headings', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
                             <tbody>
                                 <tr><td><code># Heading 1</code></td><td><strong>H1</strong></td></tr>
@@ -1559,33 +1559,33 @@ function saveComposeAddressBookEntry() {
                         </table>
                     </div>
                     <div class="col-md-6">
-                        <h6>Lists &amp; Blocks</h6>
+                        <h6>{{ t('ui.compose.markdown.help.lists_blocks', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
                             <tbody>
-                                <tr><td><code>- item</code></td><td>Bullet list</td></tr>
-                                <tr><td><code>1. item</code></td><td>Numbered list</td></tr>
-                                <tr><td><code>&gt; text</code></td><td>Blockquote</td></tr>
-                                <tr><td><code>---</code></td><td>Horizontal rule</td></tr>
+                                <tr><td><code>- item</code></td><td>{{ t('ui.compose.markdown.help.bullet_list', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><code>1. item</code></td><td>{{ t('ui.compose.markdown.help.numbered_list', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><code>&gt; text</code></td><td>{{ t('ui.compose.markdown.help.blockquote', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><code>---</code></td><td>{{ t('ui.compose.markdown.help.horizontal_rule', {}, locale, ['common']) }}</td></tr>
                             </tbody>
                         </table>
-                        <h6>Code Block</h6>
+                        <h6>{{ t('ui.compose.markdown.help.code_block', {}, locale, ['common']) }}</h6>
                         <pre class="bg-light p-2 rounded small">```
 code here
 ```</pre>
-                        <h6>Keyboard Shortcuts</h6>
+                        <h6>{{ t('ui.compose.markdown.help.keyboard_shortcuts', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
                             <tbody>
-                                <tr><td><kbd>Ctrl+B</kbd></td><td>Bold</td></tr>
-                                <tr><td><kbd>Ctrl+I</kbd></td><td>Italic</td></tr>
-                                <tr><td><kbd>Ctrl+K</kbd></td><td>Link</td></tr>
-                                <tr><td><kbd>Tab</kbd></td><td>Indent (4 spaces)</td></tr>
+                                <tr><td><kbd>Ctrl+B</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_bold', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><kbd>Ctrl+I</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_italic', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><kbd>Ctrl+K</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_link', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><kbd>Tab</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_indent', {}, locale, ['common']) }}</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>

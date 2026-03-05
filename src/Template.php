@@ -273,12 +273,45 @@ class Template
         $this->twig->addFunction(new TwigFunction('bbs_feature_enabled', function(string $feature): bool {
             return BbsConfig::isFeatureEnabled($feature);
         }));
-        $this->twig->addFunction(new TwigFunction('t', function(string $key, array $params = [], ?string $namespace = 'common') use ($locale): string {
+        $this->twig->addFunction(new TwigFunction('t', function(string $key, array $params = [], ...$args) use ($locale): string {
+            $resolvedLocale = $locale;
             $namespaces = ['common'];
-            if (is_string($namespace) && $namespace !== '' && $namespace !== 'common') {
-                array_unshift($namespaces, $namespace);
+            $fallback = null;
+
+            if (isset($args[0])) {
+                $third = $args[0];
+                if (is_string($third) && $third !== '') {
+                    $looksLikeLocale = (bool)preg_match('/^[a-z]{2}(?:-[A-Z]{2})?$/', $third);
+                    if ($this->translator->isSupportedLocale($third) || $looksLikeLocale) {
+                        $resolvedLocale = $third;
+                    } elseif (isset($args[1]) && is_array($args[1])) {
+                        // Modern style: t(key, params, localeOrNamespace, [namespaces])
+                        if ($third !== 'common') {
+                            array_unshift($namespaces, $third);
+                        }
+                    } elseif ((bool)preg_match('/^[a-z0-9_]+$/i', $third)) {
+                        // Legacy namespace style: t(key, params, 'errors')
+                        if ($third !== 'common') {
+                            array_unshift($namespaces, $third);
+                        }
+                    } elseif ($third !== 'common') {
+                        // Legacy fallback style: t(key, params, 'English fallback')
+                        $fallback = $third;
+                    }
+                } elseif (is_array($third)) {
+                    $namespaces = $third;
+                }
             }
-            return $this->translator->translate($key, $params, $locale, $namespaces);
+
+            if (isset($args[1]) && is_array($args[1])) {
+                $namespaces = $args[1];
+            }
+
+            $translated = $this->translator->translate($key, $params, $resolvedLocale, $namespaces);
+            if ($fallback !== null && $translated === $key) {
+                return $fallback;
+            }
+            return $translated;
         }));
     }
 

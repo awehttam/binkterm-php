@@ -1,26 +1,26 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.users.page_title', {}, 'User Management') }}{% endblock %}
+{% block title %}{{ t('ui.admin.users.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">{{ t('ui.admin.users.heading', {}, 'User Management') }}</h1>
+        <h1 class="h2">{{ t('ui.admin.users.heading', {}, locale, ['common']) }}</h1>
         <button type="button" class="btn btn-primary" onclick="showCreateUserModal()">
-            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.users.add_new_user', {}, 'Add New User') }}
+            <i class="fas fa-plus me-2"></i>{{ t('ui.admin.users.add_new_user', {}, locale, ['common']) }}
         </button>
     </div>
 
     <!-- Search and Filter -->
     <div class="row mb-3">
         <div class="col-md-6">
-            <input type="text" class="form-control" id="searchInput" placeholder="{{ t('ui.admin.users.search_users_placeholder', {}, 'Search users...') }}" onkeyup="searchUsers()">
+            <input type="text" class="form-control" id="searchInput" placeholder="{{ t('ui.admin.users.search_users_placeholder', {}, locale, ['common']) }}" onkeyup="searchUsers()">
         </div>
         <div class="col-md-6 text-end">
             <div class="btn-group" role="group">
-                <button type="button" class="btn btn-outline-secondary" onclick="filterUsers('all')">{{ t('ui.common.all', {}, 'All') }}</button>
-                <button type="button" class="btn btn-outline-secondary" onclick="filterUsers('active')">{{ t('ui.admin.users.active', {}, 'Active') }}</button>
-                <button type="button" class="btn btn-outline-secondary" onclick="filterUsers('admin')">{{ t('ui.admin.users.admins', {}, 'Admins') }}</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="filterUsers('all')">{{ t('ui.common.all', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="filterUsers('active')">{{ t('ui.admin.users.active', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="filterUsers('admin')">{{ t('ui.admin.users.admins', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>
@@ -32,15 +32,15 @@
                 <table class="table table-hover" id="usersTable">
                     <thead class="table-dark">
                         <tr>
-                            <th>{{ t('ui.common.id', {}, 'ID') }}</th>
-                            <th>{{ t('ui.admin.users.username', {}, 'Username') }}</th>
-                            <th>{{ t('ui.admin.users.real_name', {}, 'Real Name') }}</th>
-                            <th>{{ t('ui.admin.users.fidonet_address', {}, 'Fidonet Address') }}</th>
-                            <th>{{ t('ui.common.email', {}, 'Email') }}</th>
-                            <th>{{ t('ui.admin.users.status', {}, 'Status') }}</th>
-                            <th>{{ t('ui.admin.users.admin', {}, 'Admin') }}</th>
-                            <th>{{ t('ui.admin.users.created', {}, 'Created') }}</th>
-                            <th>{{ t('ui.admin.users.actions', {}, 'Actions') }}</th>
+                            <th>{{ t('ui.common.id', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.users.username', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.users.real_name', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.users.fidonet_address', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.common.email', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.users.status', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.users.admin', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.users.created', {}, locale, ['common']) }}</th>
+                            <th>{{ t('ui.admin.users.actions', {}, locale, ['common']) }}</th>
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
@@ -50,7 +50,7 @@
             </div>
 
             <!-- Pagination -->
-            <nav aria-label="{{ t('ui.admin.users.pagination_aria', {}, 'Users pagination') }}">
+            <nav aria-label="{{ t('ui.admin.users.pagination_aria', {}, locale, ['common']) }}">
                 <ul class="pagination justify-content-center" id="usersPagination">
                     <!-- Populated by JavaScript -->
                 </ul>
@@ -64,49 +64,49 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="userModalLabel">{{ t('ui.admin.users.add_new_user', {}, 'Add New User') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'Close') }}"></button>
+                <h5 class="modal-title" id="userModalLabel">{{ t('ui.admin.users.add_new_user', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body">
                 <form id="userForm">
                     <input type="hidden" id="userId" name="userId">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="username" class="form-label">{{ t('ui.admin.users.username', {}, 'Username') }} <span class="text-danger">*</span></label>
+                            <label for="username" class="form-label">{{ t('ui.admin.users.username', {}, locale, ['common']) }} <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="username" name="username" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="realName" class="form-label">{{ t('ui.admin.users.real_name', {}, 'Real Name') }}</label>
+                            <label for="realName" class="form-label">{{ t('ui.admin.users.real_name', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="realName" name="real_name">
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="email" class="form-label">{{ t('ui.common.email', {}, 'Email') }}</label>
+                            <label for="email" class="form-label">{{ t('ui.common.email', {}, locale, ['common']) }}</label>
                             <input type="email" class="form-control" id="email" name="email">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="fidonetAddress" class="form-label">{{ t('ui.admin.users.fidonet_address', {}, 'Fidonet Address') }}</label>
-                            <input type="text" class="form-control" id="fidonetAddress" name="fidonet_address" placeholder="{{ t('ui.admin.users.fidonet_address_placeholder', {}, '1:123/456.789') }}">
+                            <label for="fidonetAddress" class="form-label">{{ t('ui.admin.users.fidonet_address', {}, locale, ['common']) }}</label>
+                            <input type="text" class="form-control" id="fidonetAddress" name="fidonet_address" placeholder="{{ t('ui.admin.users.fidonet_address_placeholder', {}, locale, ['common']) }}">
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="password" class="form-label">{{ t('ui.common.password', {}, 'Password') }} <span id="passwordRequired" class="text-danger">*</span></label>
+                            <label for="password" class="form-label">{{ t('ui.common.password', {}, locale, ['common']) }} <span id="passwordRequired" class="text-danger">*</span></label>
                             <input type="password" class="form-control" id="password" name="password">
-                            <small class="form-text text-muted" id="passwordHelp">{{ t('ui.admin.users.password_help', {}, 'Leave blank when editing to keep current password') }}</small>
+                            <small class="form-text text-muted" id="passwordHelp">{{ t('ui.admin.users.password_help', {}, locale, ['common']) }}</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <div class="form-check mt-4">
                                 <input class="form-check-input" type="checkbox" id="isActive" name="is_active" checked>
                                 <label class="form-check-label" for="isActive">
-                                    {{ t('ui.admin.users.active_user', {}, 'Active User') }}
+                                    {{ t('ui.admin.users.active_user', {}, locale, ['common']) }}
                                 </label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="isAdmin" name="is_admin">
                                 <label class="form-check-label" for="isAdmin">
-                                    {{ t('ui.admin.users.administrator', {}, 'Administrator') }}
+                                    {{ t('ui.admin.users.administrator', {}, locale, ['common']) }}
                                 </label>
                             </div>
                         </div>
@@ -114,8 +114,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'Cancel') }}</button>
-                <button type="button" class="btn btn-primary" onclick="saveUser()">{{ t('ui.admin.users.save_user', {}, 'Save User') }}</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveUser()">{{ t('ui.admin.users.save_user', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>
@@ -126,8 +126,8 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="userDetailsModalLabel">{{ t('ui.admin.users.user_details', {}, 'User Details') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, 'Close') }}"></button>
+                <h5 class="modal-title" id="userDetailsModalLabel">{{ t('ui.admin.users.user_details', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body" id="userDetailsBody">
                 <!-- Populated by JavaScript -->

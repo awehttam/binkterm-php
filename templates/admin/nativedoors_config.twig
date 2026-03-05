@@ -1,17 +1,17 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.admin.nativedoors_config.page_title', {}, 'Native Doors Config') }}{% endblock %}
+{% block title %}{{ t('ui.admin.nativedoors_config.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">{{ t('ui.admin.nativedoors_config.heading', {}, 'Native Doors Configuration') }}</h1>
+        <h1 class="h2">{{ t('ui.admin.nativedoors_config.heading', {}, locale, ['common']) }}</h1>
     </div>
 
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        {{ t('ui.admin.nativedoors_config.info_text_1', {}, 'Native doors are Linux programs that run directly via PTY (no emulator needed). Configuration is stored in') }} <code>config/nativedoors.json</code>.
-        {{ t('ui.admin.nativedoors_config.info_text_2', {}, 'Doors are discovered by scanning') }} <code>native-doors/doors/</code> {{ t('ui.admin.nativedoors_config.info_text_3', {}, 'for') }} <code>nativedoor.json</code> {{ t('ui.admin.nativedoors_config.info_text_4', {}, 'manifests.') }}
+        {{ t('ui.admin.nativedoors_config.info_text_1', {}, locale, ['common']) }} <code>config/nativedoors.json</code>.
+        {{ t('ui.admin.nativedoors_config.info_text_2', {}, locale, ['common']) }} <code>native-doors/doors/</code> {{ t('ui.admin.nativedoors_config.info_text_3', {}, locale, ['common']) }} <code>nativedoor.json</code> {{ t('ui.admin.nativedoors_config.info_text_4', {}, locale, ['common']) }}
     </div>
 
     <div id="statusAlert"></div>
@@ -21,28 +21,28 @@
         <div class="col-lg-4">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.installed_doors', {}, 'Installed Doors') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.installed_doors', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body" id="doorsList">
                     <div class="text-center text-muted">
                         <div class="spinner-border spinner-border-sm" role="status">
-                            <span class="visually-hidden">{{ t('ui.common.loading', {}, 'Loading...') }}</span>
+                            <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
                         </div>
-                        {{ t('ui.admin.nativedoors_config.loading_doors', {}, 'Loading doors...') }}
+                        {{ t('ui.admin.nativedoors_config.loading_doors', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
 
             <div class="card shadow mt-3">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.quick_actions', {}, 'Quick Actions') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.quick_actions', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="enableAllDoors()">
-                        <i class="fas fa-check-circle"></i> {{ t('ui.admin.nativedoors_config.enable_all_doors', {}, 'Enable All Doors') }}
+                        <i class="fas fa-check-circle"></i> {{ t('ui.admin.nativedoors_config.enable_all_doors', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-sm btn-outline-secondary w-100" onclick="disableAllDoors()">
-                        <i class="fas fa-times-circle"></i> {{ t('ui.admin.nativedoors_config.disable_all_doors', {}, 'Disable All Doors') }}
+                        <i class="fas fa-times-circle"></i> {{ t('ui.admin.nativedoors_config.disable_all_doors', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -52,13 +52,13 @@
         <div class="col-lg-8">
             <div class="card shadow">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.config_filename', {}, 'nativedoors.json') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.config_filename', {}, locale, ['common']) }}</h6>
                     <div class="btn-group">
                         <button class="btn btn-sm btn-outline-secondary" onclick="formatJson()">
-                            <i class="fas fa-align-left"></i> {{ t('ui.admin.nativedoors_config.format', {}, 'Format') }}
+                            <i class="fas fa-align-left"></i> {{ t('ui.admin.nativedoors_config.format', {}, locale, ['common']) }}
                         </button>
                         <button class="btn btn-sm btn-outline-primary" onclick="saveConfig()" id="saveBtn">
-                            <i class="fas fa-save"></i> {{ t('ui.common.save', {}, 'Save') }}
+                            <i class="fas fa-save"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                         </button>
                     </div>
                 </div>
@@ -66,8 +66,8 @@
                     <div id="editorAlert"></div>
                     <textarea id="configEditor" class="form-control font-monospace" rows="20" spellcheck="false"></textarea>
                     <div class="d-flex justify-content-between align-items-center mt-2">
-                        <small class="text-muted" id="jsonStatus">{{ t('ui.admin.nativedoors_config.loading_config', {}, 'Loading config...') }}</small>
-                        <small class="text-muted">{{ t('ui.admin.nativedoors_config.json_validation_before_save', {}, 'JSON validation runs before saving') }}</small>
+                        <small class="text-muted" id="jsonStatus">{{ t('ui.admin.nativedoors_config.loading_config', {}, locale, ['common']) }}</small>
+                        <small class="text-muted">{{ t('ui.admin.nativedoors_config.json_validation_before_save', {}, locale, ['common']) }}</small>
                     </div>
                 </div>
             </div>
@@ -75,25 +75,25 @@
             <!-- Door Configuration Help -->
             <div class="card shadow mt-3">
                 <div class="card-header">
-                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.configuration_options', {}, 'Configuration Options') }}</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.configuration_options', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <table class="table table-sm table-borderless">
                         <tr>
                             <td class="text-nowrap"><code>enabled</code></td>
-                            <td>{{ t('ui.admin.nativedoors_config.option_enabled_help', {}, 'Whether the door is available to users') }}</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_enabled_help', {}, locale, ['common']) }}</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>credit_cost</code></td>
-                            <td>{{ t('ui.admin.nativedoors_config.option_credit_cost_help', {}, 'Credits required to play (0 = free)') }}</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_credit_cost_help', {}, locale, ['common']) }}</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>max_time_minutes</code></td>
-                            <td>{{ t('ui.admin.nativedoors_config.option_max_time_help', {}, 'Maximum play time per session') }}</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_max_time_help', {}, locale, ['common']) }}</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>max_concurrent_sessions</code></td>
-                            <td>{{ t('ui.admin.nativedoors_config.option_max_concurrent_help', {}, 'Maximum simultaneous players') }}</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_max_concurrent_help', {}, locale, ['common']) }}</td>
                         </tr>
                     </table>
                 </div>

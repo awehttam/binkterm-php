@@ -69,7 +69,7 @@
                 <div id="messagesContainer">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading messages...
+                        {{ t('ui.common.loading_messages', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -84,7 +84,7 @@
     <div class="col-lg-3">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Search</h6>
+                <h6 class="mb-0">{{ t('ui.common.search', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <div class="mb-3">
@@ -147,15 +147,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="Previous message (←)">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="{{ t('ui.common.previous_message', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-left"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="Next message (→)">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="{{ t('ui.common.next_message', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
                 <h5 class="modal-title" id="messageSubject">{{ t('ui.common.message', {}, locale, ['common']) }}</h5>
-                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
+                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="{{ t('ui.common.toggle_fullscreen', {}, locale, ['common']) }}">
                     <i class="fas fa-expand"></i>
                 </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -213,8 +213,8 @@
                     <div class="mb-3">
                         <label for="addressBookNodeAddress" class="form-label">{{ t('ui.address_book.node_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookNodeAddress" required 
-                               placeholder="1:234/567" pattern="^\d+:\d+\/\d+(\.\d+)?$"
-                               title="Enter a valid Fidonet address (e.g., 1:234/567 or 1:234/567.0)">
+                               placeholder="{{ t('ui.address_book.node_address_placeholder', {}, locale, ['common']) }}" pattern="^\d+:\d+\/\d+(\.\d+)?$"
+                               title="{{ t('ui.address_book.node_address_title', {}, locale, ['common']) }}">
                         <div class="form-text">{{ t('ui.address_book.node_address_help', {}, locale, ['common']) }}</div>
                     </div>
                     
@@ -497,3 +497,4 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
 }
 </style>
 {% endblock %}
+

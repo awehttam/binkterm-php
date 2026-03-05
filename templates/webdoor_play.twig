@@ -1,18 +1,18 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ game.name }} - {{ system_name }}{% endblock %}
+{% block title %}{{ game.name }} - {{ t('ui.webdoor_play.page_title_suffix', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-2">
     <div class="d-flex justify-content-between align-items-center mb-2">
         <div class="d-flex align-items-center">
             <a href="/games" class="btn btn-outline-secondary btn-sm me-3">
-                <i class="fas fa-arrow-left"></i> Back to Doors
+                <i class="fas fa-arrow-left"></i> {{ t('ui.webdoor_play.back_to_doors', {}, locale, ['common']) }}
             </a>
             <h4 class="mb-0"><i class="fas fa-gamepad"></i> {{ game.name }}</h4>
         </div>
         <div>
-            <button id="fullscreen-btn" class="btn btn-outline-primary btn-sm" title="Fullscreen">
+            <button id="fullscreen-btn" class="btn btn-outline-primary btn-sm" title="{{ t('ui.webdoor_play.fullscreen', {}, locale, ['common']) }}">
                 <i class="fas fa-expand"></i>
             </button>
         </div>

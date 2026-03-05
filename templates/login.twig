@@ -167,9 +167,9 @@ $('#reminderForm').on('submit', function(e) {
             if (response.success) {
                 let message = response.message;
                 if (response.email_sent) {
-                    message += ' (sent via netmail and email)';
+                    message += ' {{ t('ui.login.reminder_sent_netmail_email_suffix', {}, 'common') }}';
                 } else {
-                    message += ' (sent via netmail)';
+                    message += ' {{ t('ui.login.reminder_sent_netmail_only_suffix', {}, 'common') }}';
                 }
                 $('#reminderSuccess').text(message).show();
                 $('#reminderForm')[0].reset();

@@ -1,11 +1,11 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ t('ui.base.admin.upgrade_notes', {'version': version}, 'Upgrade Notes v{version}') }}{% endblock %}
+{% block title %}{{ t('ui.base.admin.upgrade_notes', {'version': version}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2"><i class="fas fa-arrow-up-from-bracket me-2"></i>{{ t('ui.base.admin.upgrade_notes', {'version': version}, 'Upgrade Notes v{version}') }}</h1>
+        <h1 class="h2"><i class="fas fa-arrow-up-from-bracket me-2"></i>{{ t('ui.base.admin.upgrade_notes', {'version': version}, locale, ['common']) }}</h1>
     </div>
 
     {% if content %}
@@ -21,7 +21,7 @@
     {% else %}
         <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            {{ t('ui.admin.upgrade_notes.none_for_version', {'version': version}, 'No upgrade notes found for version {version}.') }}
+            {{ t('ui.admin.upgrade_notes.none_for_version', {'version': version}, locale, ['common']) }}
         </div>
     {% endif %}
 </div>

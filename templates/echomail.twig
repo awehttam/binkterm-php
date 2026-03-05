@@ -268,15 +268,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="Previous message (←)">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevMessageBtn" onclick="navigateMessage(-1)" title="{{ t('ui.common.previous_message', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-left"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="Next message (→)">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextMessageBtn" onclick="navigateMessage(1)" title="{{ t('ui.common.next_message', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
                 <h5 class="modal-title" id="messageSubject">{{ t('ui.common.message', {}, locale, ['common']) }}</h5>
-                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="Toggle fullscreen (F)">
+                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="fullscreenToggle" onclick="toggleModalFullscreen()" title="{{ t('ui.common.toggle_fullscreen', {}, locale, ['common']) }}">
                     <i class="fas fa-expand"></i>
                 </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -900,3 +900,4 @@ window.isAdmin = {{ current_user.is_admin ? 'true' : 'false' }};
 </style>
 
 {% endblock %}
+

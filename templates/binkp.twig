@@ -102,7 +102,7 @@
                 <h5>{{ t('ui.binkp.configured_uplinks') }}</h5>
                 {#
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUplinkModal">
-                     <i class="fas fa-plus"></i> Add Uplink
+                     <i class="fas fa-plus"></i> {{ t('ui.binkp.add_uplink') }}
                 </button>#}
             </div>
             <div class="table-responsive">
@@ -263,7 +263,7 @@ function refreshStatus() {
         .then(response => {
             console.log('Status response:', response.status, response.statusText);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', { code: response.status, text: response.statusText }));
             }
             return response.json();
         })
@@ -326,7 +326,7 @@ function refreshUplinks() {
         .then(response => {
             console.log('Uplinks response:', response.status, response.statusText);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', { code: response.status, text: response.statusText }));
             }
             return response.json();
         })
@@ -372,12 +372,12 @@ function refreshQueues() {
     Promise.all([
         fetch('/api/binkp/files/inbound').then(r => {
             console.log('Inbound response:', r.status, r.statusText);
-            if (!r.ok) throw new Error(`Inbound API: HTTP ${r.status}`);
+            if (!r.ok) throw new Error(uiT('ui.binkp.inbound_api_http_error', 'Inbound API: HTTP {code}', { code: r.status }));
             return r.json();
         }),
         fetch('/api/binkp/files/outbound').then(r => {
             console.log('Outbound response:', r.status, r.statusText);
-            if (!r.ok) throw new Error(`Outbound API: HTTP ${r.status}`);
+            if (!r.ok) throw new Error(uiT('ui.binkp.outbound_api_http_error', 'Outbound API: HTTP {code}', { code: r.status }));
             return r.json();
         })
     ])
@@ -457,7 +457,7 @@ function pollUplink(address) {
         .then(response => {
             console.log('Poll response status:', response.status, response.statusText);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', { code: response.status, text: response.statusText }));
             }
             return response.json();
         })
@@ -605,9 +605,14 @@ function showAlert(message, type, options = {}) {
 }
 
 function formatBytes(bytes) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return uiT('ui.binkp.zero_bytes', '0 Bytes');
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = [
+        uiT('ui.binkp.byte_units.bytes', 'Bytes'),
+        uiT('ui.binkp.byte_units.kb', 'KB'),
+        uiT('ui.binkp.byte_units.mb', 'MB'),
+        uiT('ui.binkp.byte_units.gb', 'GB')
+    ];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
