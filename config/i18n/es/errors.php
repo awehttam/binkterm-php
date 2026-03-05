@@ -364,5 +364,12 @@ return [
     'errors.referrals.code_not_found' => 'Codigo de referido no encontrado',
     'errors.referrals.stats_failed' => 'No se pudieron cargar las estadisticas de referidos',
     'errors.referrals.admin_stats_failed' => 'No se pudieron cargar las estadisticas de referidos de administrador',
+
+    // WebDoor
+    'errors.webdoor.feature_disabled' => 'El sistema de juegos no esta habilitado',
+    'errors.webdoor.auth_required' => 'No autenticado',
+    'errors.webdoor.invalid_slot' => 'Numero de ranura invalido',
+    'errors.webdoor.save_too_large' => 'Los datos guardados exceden el tamano maximo',
+    'errors.webdoor.save_not_found' => 'Guardado no encontrado',
 ];
 

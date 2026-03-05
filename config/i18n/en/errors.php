@@ -364,4 +364,11 @@ return [
     'errors.referrals.code_not_found' => 'Referral code not found',
     'errors.referrals.stats_failed' => 'Failed to load referral statistics',
     'errors.referrals.admin_stats_failed' => 'Failed to load admin referral statistics',
+
+    // WebDoor
+    'errors.webdoor.feature_disabled' => 'Game system is not enabled',
+    'errors.webdoor.auth_required' => 'Not authenticated',
+    'errors.webdoor.invalid_slot' => 'Invalid slot number',
+    'errors.webdoor.save_too_large' => 'Save data exceeds maximum size',
+    'errors.webdoor.save_not_found' => 'Save not found',
 ];

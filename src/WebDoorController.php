@@ -57,7 +57,7 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         // Get game ID from query param or referer
@@ -134,7 +134,7 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         $input = $this->getJsonInput();
@@ -165,7 +165,7 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
@@ -210,7 +210,7 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
@@ -243,11 +243,11 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         if ($slot < 0 || $slot >= self::MAX_SLOTS) {
-            return $this->errorResponse('Invalid slot number', 400);
+            return $this->errorResponse('errors.webdoor.invalid_slot', 'Invalid slot number', 400);
         }
 
         $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
@@ -261,7 +261,7 @@ class WebDoorController
 
         // Check storage size
         if (strlen($dataJson) > self::MAX_STORAGE_SIZE) {
-            return $this->errorResponse('Save data exceeds maximum size', 400);
+            return $this->errorResponse('errors.webdoor.save_too_large', 'Save data exceeds maximum size', 400);
         }
 
         // Upsert save data
@@ -290,7 +290,7 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
@@ -312,7 +312,7 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
@@ -404,7 +404,7 @@ class WebDoorController
         $this->user = $this->auth->getCurrentUser();
 
         if (!$this->user) {
-            return $this->errorResponse('Not authenticated', 401);
+            return $this->errorResponse('errors.webdoor.auth_required', 'Not authenticated', 401);
         }
 
         $gameId = $_GET['game_id'] ?? $this->detectGameIdFromReferer() ?? 'unknown';
@@ -484,10 +484,14 @@ class WebDoorController
     /**
      * Create error response
      */
-    private function errorResponse(string $message, int $code = 400): array
+    private function errorResponse(string $errorCode, string $message, int $code = 400): array
     {
         http_response_code($code);
-        return ['error' => $message];
+        return [
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $message
+        ];
     }
 
     /**
