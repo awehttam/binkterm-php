@@ -16,6 +16,9 @@
             "BinktermPHP\\": "src/"
         }
     },
+    "scripts": {
+        "check:i18n-error-keys": "php scripts/check_i18n_error_keys.php"
+    },
     "require-dev": {
         "phpunit/phpunit": "^10.0"
     }

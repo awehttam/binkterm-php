@@ -191,10 +191,15 @@ return [
     'errors.user.activity.session_missing' => 'Active session is required',
 
     // BinkP
+    'errors.binkp.admin_required' => 'Admin access required',
     'errors.binkp.status_failed' => 'Failed to load BinkP status',
+    'errors.binkp.poll_failed' => 'Failed to poll BinkP uplink',
+    'errors.binkp.poll_all_failed' => 'Failed to poll all BinkP uplinks',
+    'errors.binkp.process_packets_failed' => 'Failed to process packets',
     'errors.binkp.uplinks_list_failed' => 'Failed to load BinkP uplinks',
     'errors.binkp.files_inbound_failed' => 'Failed to load inbound BinkP files',
     'errors.binkp.files_outbound_failed' => 'Failed to load outbound BinkP files',
+    'errors.binkp.process_outbound_failed' => 'Failed to process outbound queue',
 
     // Admin Pending Users
     'errors.admin.pending_users.admin_required' => 'Admin privileges are required',
@@ -254,6 +259,12 @@ return [
     'errors.admin.bbs_system.save_failed' => 'Failed to save system settings',
     'errors.admin.binkp_config.load_failed' => 'Failed to load BinkP configuration',
     'errors.admin.binkp_config.save_failed' => 'Failed to save BinkP configuration',
+    'errors.admin.binkp_config.reload_failed' => 'Failed to reload BinkP configuration',
+    'errors.admin.dosdoors_config.load_failed' => 'Failed to load DOS doors configuration',
+    'errors.admin.dosdoors_config.save_failed' => 'Failed to save DOS doors configuration',
+    'errors.admin.native_doors.load_failed' => 'Failed to load native doors configuration',
+    'errors.admin.native_doors.save_failed' => 'Failed to save native doors configuration',
+    'errors.admin.native_doors.sync_failed' => 'Failed to sync native doors',
     'errors.admin.webdoors_config.load_failed' => 'Failed to load webdoors configuration',
     'errors.admin.webdoors_config.save_failed' => 'Failed to save webdoors configuration',
     'errors.admin.webdoors_config.activate_failed' => 'Failed to activate webdoors configuration',
@@ -278,6 +289,7 @@ return [
     'errors.admin.insecure_nodes.delete_failed' => 'Failed to delete insecure node',
     'errors.admin.crashmail.retry_failed' => 'Failed to retry crashmail item',
     'errors.admin.crashmail.cancel_failed' => 'Failed to cancel crashmail item',
+    'errors.admin.crashmail.poll_failed' => 'Failed to run crashmail poll',
     'errors.admin.custom_templates.list_failed' => 'Failed to list custom templates',
     'errors.admin.custom_templates.get_failed' => 'Failed to load custom template',
     'errors.admin.custom_templates.save_failed' => 'Failed to save custom template',
@@ -293,6 +305,28 @@ return [
     'errors.admin.auto_feed.update_failed' => 'Failed to update feed source',
     'errors.admin.auto_feed.check_failed' => 'Feed check failed',
     'errors.admin.activity_stats.table_missing' => 'Activity log table is not available',
+
+    // Address Book
+    'errors.address_book.list_failed' => 'Failed to load address book entries',
+    'errors.address_book.not_found' => 'Entry not found',
+    'errors.address_book.get_failed' => 'Failed to load address book entry',
+    'errors.address_book.user_not_found' => 'User ID not found in authentication data',
+    'errors.address_book.invalid_fidonet_format' => 'Invalid Fidonet address format. Use format like 1:234/567 or 1:234/567.0',
+    'errors.address_book.required_fields' => 'Name and Fidonet address are required',
+    'errors.address_book.duplicate_entry' => 'Address book entry already exists',
+    'errors.address_book.create_failed' => 'Failed to create address book entry',
+    'errors.address_book.update_failed' => 'Failed to update entry',
+    'errors.address_book.delete_failed' => 'Failed to delete address book entry',
+    'errors.address_book.search_failed' => 'Failed to search address book entries',
+    'errors.address_book.stats_failed' => 'Failed to load address book statistics',
+
+    // Shared Messages
+    'errors.messages.shared.lookup_failed' => 'Failed to load shared message',
+    'errors.messages.shared.user_shares_failed' => 'Failed to load user shares',
+
+    // Settings / Taglines
+    'errors.settings.load_failed' => 'Failed to load user settings',
+    'errors.taglines.load_failed' => 'Failed to load taglines',
 
     // Referrals
     'errors.referrals.code_not_found' => 'Referral code not found',
