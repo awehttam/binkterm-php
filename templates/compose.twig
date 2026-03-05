@@ -1,17 +1,17 @@
 ﻿{% extends "base.twig" %}
 
-{% block title %}Compose {{ type|title }} - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }} - {{ parent() }}{% endblock %}
 
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-{{ type == 'netmail' ? 'envelope' : 'comments' }}"></i>
-        Compose {{ type|title }}
+        {{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }}
     </h2>
     <a href="/{{ type }}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left"></i>
-        Back to {{ type|title }}
+        {{ t('ui.compose.back_to_prefix', {}, locale, ['common']) }} {{ type|title }}
     </a>
 </div>
 
@@ -26,7 +26,7 @@
                 {% if type == 'netmail' %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="toAddress" class="form-label">To Address (leave blank for local)</label>
+                            <label for="toAddress" class="form-label">{{ t('ui.compose.to_address_label', {}, locale, ['common']) }}</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="toAddress" name="to_address" 
                                        placeholder="" value="{{ reply_to_address }}" >
@@ -37,7 +37,7 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
                                     <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
-                                        Address Book
+                                        {{ t('ui.address_book.title', {}, locale, ['common']) }}
                                         <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="Create new address book entry">
                                             <i class="fas fa-plus" ></i>
                                         </button>
@@ -45,20 +45,20 @@
                                     <li><hr class="dropdown-divider"></li>
                                     <li class="px-3">
                                         <input type="text" class="form-control form-control-sm" id="composeAddressSearch" 
-                                               placeholder="Search addresses..." onkeyup="searchAddressBookForCompose(this.value)">
+                                               placeholder="{{ t('ui.address_book.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchAddressBookForCompose(this.value)">
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <div id="composeAddressList" style="max-height: 200px; overflow-y: auto;">
                                         <li><div class="text-center text-muted py-2">
-                                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                                            <i class="fas fa-spinner fa-spin"></i> {{ t('ui.common.loading', {}, locale, ['common']) }}
                                         </div></li>
                                     </div>
                                 </ul>
                             </div>
-                            <div class="form-text">Fidonet address (e.g., 1:123/456)</div>
+                            <div class="form-text">{{ t('ui.compose.fidonet_address_help', {}, locale, ['common']) }}</div>
                         </div>
                         <div class="col-md-6">
-                            <label for="toName" class="form-label">To Name *</label>
+                            <label for="toName" class="form-label">{{ t('ui.compose.to_name_required', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="toName" name="to_name"
                                    value="{{ to_name_value }}" required>
                         </div>
@@ -78,8 +78,8 @@
                     </div>
                     <div id="attachmentSection" class="mb-3" style="display:none">
                         <label class="form-label">
-                            <i class="fas fa-paperclip me-1"></i>Attach File
-                            <small class="text-muted">(requires crashmail; subject will be set to filename)</small>
+                            <i class="fas fa-paperclip me-1"></i>{{ t('ui.compose.attach_file', {}, locale, ['common']) }}
+                            <small class="text-muted">({{ t('ui.compose.attach_file_help_short', {}, locale, ['common']) }})</small>
                         </label>
                         <input type="file" id="attachmentFile" class="form-control">
                         <div id="attachmentName" class="form-text"></div>
@@ -88,40 +88,40 @@
                 {% else %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="echoarea" class="form-label">Echo Area *</label>
+                            <label for="echoarea" class="form-label">{{ t('ui.compose.echo_area_required', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="echoarea" name="echoarea" required>
-                                <option value="">Select echo area...</option>
+                                <option value="">{{ t('ui.compose.select_echo_area', {}, locale, ['common']) }}</option>
                                 <!-- Options will be loaded via AJAX -->
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="toName" class="form-label">To Name</label>
+                            <label for="toName" class="form-label">{{ t('ui.compose.to_name', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="toName" name="to_name"
                                    value="{{ to_name_value }}" placeholder="All">
-                            <div class="form-text">Leave as 'All' for public message</div>
+                            <div class="form-text">{{ t('ui.compose.to_name_public_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                     <div class="mb-3" id="crossPostSection" style="display: none;">
                         <a class="text-decoration-none" data-bs-toggle="collapse" href="#crossPostCollapse" role="button" aria-expanded="false" aria-controls="crossPostCollapse">
-                            <i class="fas fa-layer-group me-1"></i>Cross-post to other areas
+                            <i class="fas fa-layer-group me-1"></i>{{ t('ui.compose.cross_post_to_other_areas', {}, locale, ['common']) }}
                             <span class="badge bg-secondary ms-1" id="crossPostBadge" style="display: none;">0/{{ max_cross_post_areas }}</span>
                         </a>
                         <div class="collapse mt-2" id="crossPostCollapse">
                             <div class="card card-body p-2" style="max-height: 200px; overflow-y: auto;" id="crossPostList">
                             </div>
-                            <div class="form-text">Select additional areas to post this message to (max {{ max_cross_post_areas }}). Each area receives an independent copy.</div>
+                            <div class="form-text">{{ t('ui.compose.cross_post_help_prefix', {}, locale, ['common']) }} {{ max_cross_post_areas }}). {{ t('ui.compose.cross_post_help_suffix', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                 {% endif %}
                 
                 <div class="mb-3">
-                    <label for="subject" class="form-label">Subject *</label>
+                    <label for="subject" class="form-label">{{ t('ui.compose.subject_required', {}, locale, ['common']) }}</label>
                     <input type="text" class="form-control" id="subject" name="subject" 
                            value="{{ reply_subject }}" required>
                 </div>
 
                 <div class="mb-3" id="messageTextGroup">
-                    <label for="messageText" class="form-label">Message *</label>
+                    <label for="messageText" class="form-label">{{ t('ui.compose.message_required', {}, locale, ['common']) }}</label>
                     <!-- StyleCodes Toolbar (shown when StyleCodes markup is selected) -->
                     <div id="stylecodesToolbar" style="display: none;" class="sc-editor-toolbar mb-1" role="toolbar" aria-label="StyleCodes formatting">
                         <div class="btn-group btn-group-sm">
@@ -134,7 +134,7 @@
                     <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
                     <div class="form-text" id="messageTextHint">
-                        Use plain text. Fidonet standard formatting applies.
+                        {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
                     </div>
                     <div class="form-text" id="scHint" style="display: none;">StyleCodes active — <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
@@ -197,31 +197,31 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="taglineSelect" class="form-label">Tagline</label>
+                    <label for="taglineSelect" class="form-label">{{ t('ui.settings.default_tagline', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="taglineSelect" name="tagline">
-                        <option value="">No tagline</option>
+                        <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
                         {% for tagline in taglines %}
                             <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
                         {% endfor %}
                     </select>
-                    <div class="form-text">Select a sysop-provided tagline to append below your signature.</div>
+                    <div class="form-text">{{ t('ui.compose.tagline_help', {}, locale, ['common']) }}</div>
                 </div>
                 
                 <div class="d-flex justify-content-between">
                     <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
                         <i class="fas fa-times"></i>
-                        Cancel
+                        {{ t('ui.common.cancel', {}, locale, ['common']) }}
                     </button>
                     <div>
 
                         <button type="button" class="btn btn-outline-primary" onclick="saveDraft()">
                             <i class="fas fa-save"></i>
-                            Save Draft
+                            {{ t('ui.compose.save_draft', {}, locale, ['common']) }}
                         </button>
 
                         <button type="submit" class="btn btn-fidonet">
                             <i class="fas fa-paper-plane"></i>
-                            Send {{ type|title }}
+                            {{ t('ui.compose.send_prefix', {}, locale, ['common']) }} {{ type|title }}
                         </button>
                     </div>
                 </div>
@@ -240,7 +240,7 @@
 
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Message Guidelines</h6>
+                <h6 class="mb-0">{{ t('ui.compose.message_guidelines', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 {% if type == 'netmail' %}
@@ -266,7 +266,7 @@
                     </ul>
                 {% endif %}
 
-                <h6 class="mt-3">Technical Notes:</h6>
+                <h6 class="mt-3">{{ t('ui.compose.technical_notes', {}, locale, ['common']) }}</h6>
                 <ul class="small">
                     <li>Plain text only (no HTML)</li>
                     <li>Lines should be less than 79 characters</li>
@@ -277,17 +277,17 @@
 
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Your Info</h6>
+                <h6 class="mb-0">{{ t('ui.compose.your_info', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-4">Name:</dt>
+                    <dt class="col-4">{{ t('ui.common.name', {}, locale, ['common']) }}:</dt>
                     <dd class="col-8">{{ user_name }}</dd>
 
-                    <dt class="col-4">System:</dt>
+                    <dt class="col-4">{{ t('ui.compose.system', {}, locale, ['common']) }}:</dt>
                     <dd class="col-8">{{ system_name_display }}</dd>
 
-                    <dt class="col-4">Address:</dt>
+                    <dt class="col-4">{{ t('ui.compose.address', {}, locale, ['common']) }}:</dt>
                     <dd class="col-8">{{ system_address_display }}</dd>
                 </dl>
             </div>
@@ -1385,7 +1385,7 @@ $(document).ready(function() {
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addressBookModalTitle">Add Address Book Entry</h5>
+                <h5 class="modal-title" id="addressBookModalTitle">{{ t('ui.address_book.add_entry', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -1442,9 +1442,9 @@ $(document).ready(function() {
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveComposeAddressBookEntry()">
-                    <i class="fas fa-save"></i> Save
+                    <i class="fas fa-save"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>

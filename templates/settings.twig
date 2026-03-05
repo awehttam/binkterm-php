@@ -1,12 +1,12 @@
 {% extends "base.twig" %}
 
-{% block title %}Settings - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.settings.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-cog"></i>
-        Settings
+        {{ t('ui.settings.title', {}, locale, ['common']) }}
     </h2>
 </div>
 
@@ -14,23 +14,23 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Display Preferences</h5>
+                <h5 class="mb-0">{{ t('ui.settings.display_preferences', {}, locale, ['common']) }}</h5>
             </div>
             <div class="card-body">
                 <form id="settingsForm">
                     <div class="mb-3">
-                        <label for="messagesPerPage" class="form-label">Messages per Page</label>
+                        <label for="messagesPerPage" class="form-label">{{ t('ui.settings.messages_per_page', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="messagesPerPage" name="messages_per_page">
                             <option value="10">10 messages</option>
                             <option value="25" selected>25 messages</option>
                             <option value="50">50 messages</option>
                             <option value="100">100 messages</option>
                         </select>
-                        <div class="form-text">Number of messages to display per page</div>
+                        <div class="form-text">{{ t('ui.settings.messages_per_page_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="timezone" class="form-label">Timezone</label>
+                        <label for="timezone" class="form-label">{{ t('ui.settings.timezone', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="timezone" name="timezone">
                             <option value="UTC">UTC (Coordinated Universal Time)</option>
                             <option value="America/New_York">Eastern Time (US/Canada)</option>
@@ -42,21 +42,21 @@
                             <option value="Asia/Tokyo">Japan Standard Time</option>
                             <option value="Australia/Sydney">Australian Eastern Time</option>
                         </select>
-                        <div class="form-text">Your local timezone for displaying dates</div>
+                        <div class="form-text">{{ t('ui.settings.timezone_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="locale" class="form-label">Language</label>
+                        <label for="locale" class="form-label">{{ t('ui.settings.language', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="locale" name="locale">
                             {% for localeCode in supported_locales %}
                                 <option value="{{ localeCode }}">{{ localeCode }}</option>
                             {% endfor %}
                         </select>
-                        <div class="form-text">Preferred language for the interface</div>
+                        <div class="form-text">{{ t('ui.settings.language_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="dateFormat" class="form-label">Date Format</label>
+                        <label for="dateFormat" class="form-label">{{ t('ui.settings.date_format', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="dateFormat" name="date_format">
                             <option value="en-US" selected>American (MM/DD/YYYY) - Jan 31, 2026, 10:30 AM</option>
                             <option value="en-GB">British (DD/MM/YYYY) - 31 Jan 2026, 10:30</option>
@@ -69,42 +69,42 @@
                             <option value="zh-CN">Chinese (YYYY/M/D) - 2026/1/31 上午10:30</option>
                             <option value="sv-SE">Swedish (YYYY-MM-DD) - 2026-01-31 10:30</option>
                         </select>
-                        <div class="form-text">Your preferred date and time format</div>
+                        <div class="form-text">{{ t('ui.settings.date_format_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="theme" class="form-label">Theme</label>
+                        <label for="theme" class="form-label">{{ t('ui.settings.theme', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="theme" name="theme">
                             {% for name, path in available_themes %}
                                 <option value="{{ path }}">{{ name }}</option>
                             {% endfor %}
                         </select>
-                        <div class="form-text">Choose your preferred color scheme</div>
+                        <div class="form-text">{{ t('ui.settings.theme_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     {% if not appearance.shell.lock_shell %}
                     <div class="mb-3">
-                        <label for="shellPreference" class="form-label">Interface Style</label>
+                        <label for="shellPreference" class="form-label">{{ t('ui.settings.interface_style', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="shellPreference" name="shell">
                             <option value="web">Web Interface (default navbar &amp; menus)</option>
                             <option value="bbs-menu">BBS Menu (hotkey navigation)</option>
                         </select>
-                        <div class="form-text">Choose your preferred navigation style.</div>
+                        <div class="form-text">{{ t('ui.settings.interface_style_help', {}, locale, ['common']) }}</div>
                     </div>
                     {% endif %}
 
                     <div class="mb-3">
-                        <label for="defaultEchoList" class="form-label">Default Echo Area List</label>
+                        <label for="defaultEchoList" class="form-label">{{ t('ui.settings.default_echo_list', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="defaultEchoList" name="default_echo_list">
-                            <option value="system_choice" selected>System Default</option>
+                            <option value="system_choice" selected>{{ t('ui.settings.system_default', {}, locale, ['common']) }}</option>
                             <option value="reader">Reader (Message List)</option>
                             <option value="echolist">Echo List (Grouped by Network)</option>
                         </select>
-                        <div class="form-text">Choose your preferred default view when accessing echo areas from the menu</div>
+                        <div class="form-text">{{ t('ui.settings.default_echo_list_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="fontFamily" class="form-label">Message Font</label>
+                        <label for="fontFamily" class="form-label">{{ t('ui.settings.message_font', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="fontFamily" name="font_family">
                             <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
                             <option value="Monaco, Consolas, 'Courier New', monospace">Monaco (Monospace)</option>
@@ -116,11 +116,11 @@
                             <option value="'Times New Roman', serif">Times New Roman (Serif)</option>
                             <option value="Verdana, sans-serif">Verdana (Sans-serif)</option>
                         </select>
-                        <div class="form-text">Font family for displaying netmail and echomail messages</div>
+                        <div class="form-text">{{ t('ui.settings.message_font_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="fontSize" class="form-label">Message Font Size</label>
+                        <label for="fontSize" class="form-label">{{ t('ui.settings.message_font_size', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="fontSize" name="font_size">
                             <option value="12">12px (Small)</option>
                             <option value="14">14px (Medium)</option>
@@ -129,19 +129,19 @@
                             <option value="20">20px (Very Large)</option>
                             <option value="22">22px (Huge)</option>
                         </select>
-                        <div class="form-text">Font size for displaying netmail and echomail messages</div>
+                        <div class="form-text">{{ t('ui.settings.message_font_size_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="signatureText" class="form-label">Message Signature</label>
-                        <textarea class="form-control" id="signatureText" name="signature_text" rows="4" maxlength="800" placeholder="Your signature (max 4 lines)"></textarea>
-                        <div class="form-text">Appended to outgoing netmail and echomail messages. Max 4 lines.</div>
+                        <label for="signatureText" class="form-label">{{ t('ui.settings.message_signature', {}, locale, ['common']) }}</label>
+                        <textarea class="form-control" id="signatureText" name="signature_text" rows="4" maxlength="800" placeholder="{{ t('ui.settings.message_signature_placeholder', {}, locale, ['common']) }}"></textarea>
+                        <div class="form-text">{{ t('ui.settings.message_signature_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="defaultTagline" class="form-label">Default Tagline</label>
+                        <label for="defaultTagline" class="form-label">{{ t('ui.settings.default_tagline', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="defaultTagline" name="default_tagline">
-                            <option value="">No tagline</option>
+                            <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
                             {% if taglines %}
                                 <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>— Random tagline —</option>
                             {% endif %}
@@ -149,7 +149,7 @@
                                 <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
                             {% endfor %}
                         </select>
-                        <div class="form-text">Used as the default tagline when composing messages. Choose "Random tagline" to pick one at random each time.</div>
+                        <div class="form-text">{{ t('ui.settings.default_tagline_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
@@ -223,24 +223,24 @@
         #}
         <div class="card mt-4">
             <div class="card-header">
-                <h5 class="mb-0">Session & Security</h5>
+                <h5 class="mb-0">{{ t('ui.settings.session_security', {}, locale, ['common']) }}</h5>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h6>Active Sessions</h6>
-                        <p class="text-muted">Manage your active login sessions</p>
+                        <h6>{{ t('ui.settings.active_sessions', {}, locale, ['common']) }}</h6>
+                        <p class="text-muted">{{ t('ui.settings.active_sessions_help', {}, locale, ['common']) }}</p>
                         <button type="button" class="btn btn-outline-warning" onclick="showActiveSessions()">
                             <i class="fas fa-list"></i>
-                            View Sessions
+                            {{ t('ui.settings.view_sessions', {}, locale, ['common']) }}
                         </button>
                     </div>
                     <div class="col-md-6">
-                        <h6>Security Actions</h6>
-                        <p class="text-muted">Logout from all devices</p>
+                        <h6>{{ t('ui.settings.security_actions', {}, locale, ['common']) }}</h6>
+                        <p class="text-muted">{{ t('ui.settings.logout_all_help', {}, locale, ['common']) }}</p>
                         <button type="button" class="btn btn-outline-danger" onclick="logoutAllSessions()">
                             <i class="fas fa-sign-out-alt"></i>
-                            Logout All
+                            {{ t('ui.settings.logout_all', {}, locale, ['common']) }}
                         </button>
                     </div>
                 </div>
@@ -250,7 +250,7 @@
         <div class="d-flex justify-content-end mt-4">
             <button type="button" class="btn btn-fidonet" onclick="saveSettings()">
                 <i class="fas fa-save"></i>
-                Save Settings
+                {{ t('ui.settings.save_settings', {}, locale, ['common']) }}
             </button>
         </div>
         
@@ -278,17 +278,17 @@
         
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Quick Actions</h6>
+                <h6 class="mb-0">{{ t('ui.settings.quick_actions', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
                     <a href="/compose/netmail" class="btn btn-outline-primary">
                         <i class="fas fa-envelope"></i>
-                        Compose Netmail
+                        {{ t('ui.settings.compose_netmail', {}, locale, ['common']) }}
                     </a>
                     <a href="/compose/echomail" class="btn btn-outline-primary">
                         <i class="fas fa-comments"></i>
-                        Post Echomail
+                        {{ t('ui.settings.post_echomail', {}, locale, ['common']) }}
                     </a>
                     {#
                     <button type="button" class="btn btn-outline-secondary" onclick="pollUplinks()">
@@ -302,7 +302,7 @@
         
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Help & Support</h6>
+                <h6 class="mb-0">{{ t('ui.settings.help_support', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <ul class="list-unstyled mb-0">
