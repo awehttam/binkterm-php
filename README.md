@@ -1925,6 +1925,59 @@ For developers working on BinktermPHP or integrating with the system, see the co
 
 The Developer Guide is essential reading for anyone contributing code, developing WebDoors, or extending the system.
 
+## Localization (i18n) for Contributors
+
+BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and API errors.
+
+### Catalogs and Key Layout
+
+- Translation files live in:
+  - `config/i18n/en/common.php`
+  - `config/i18n/en/errors.php`
+  - `config/i18n/es/common.php`
+  - `config/i18n/es/errors.php`
+- UI keys should use the `ui.*` prefix (for example `ui.settings.*`).
+- API error keys should use the `errors.*` prefix.
+
+### Twig Usage
+
+- Use the Twig `t()` helper instead of hardcoded literals:
+```twig
+{{ t('ui.settings.title', {}, 'common') }}
+{{ t('ui.polls.create.submit', {'cost': poll_cost}, 'common') }}
+```
+
+### JavaScript Usage
+
+- Use `window.t(key, params, fallback)` (or a local `uiT` wrapper).
+- Always provide a fallback string for resilience.
+- Example:
+```js
+window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)');
+```
+
+JavaScript catalogs are loaded on demand from:
+- `GET /api/i18n/catalog?ns=common,errors&locale=<locale>`
+
+### API Errors (`error_code`)
+
+- API responses should include both:
+  - `error_code` (translation key)
+  - `error` (human fallback text)
+- Routes should emit errors through `apiError(errorCode, message, status, extra)`.
+- Frontend should resolve display text through `window.getApiErrorMessage(payload, fallback)`.
+
+This keeps UI text translatable and avoids coupling frontend logic to raw server English strings.
+
+### Required Validation After i18n Changes
+
+Run both checks before committing:
+
+```bash
+php scripts/check_i18n_hardcoded_strings.php
+php scripts/check_i18n_error_keys.php
+```
+
 ## Contributing
 
 We welcome contributions to BinktermPHP! Before contributing, please review:
