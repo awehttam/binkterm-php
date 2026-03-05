@@ -1,4 +1,4 @@
-name: i18n Error Key Coverage
+name: i18n Coverage Checks
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  check-error-keys:
+  check-i18n:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,3 +20,6 @@ jobs:
 
       - name: i18n error key coverage
         run: php scripts/check_i18n_error_keys.php
+
+      - name: i18n hardcoded UI strings
+        run: php scripts/check_i18n_hardcoded_strings.php

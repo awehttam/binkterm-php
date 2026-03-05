@@ -17,7 +17,9 @@
         }
     },
     "scripts": {
-        "check:i18n-error-keys": "php scripts/check_i18n_error_keys.php"
+        "check:i18n-error-keys": "php scripts/check_i18n_error_keys.php",
+        "check:i18n-hardcoded": "php scripts/check_i18n_hardcoded_strings.php",
+        "update:i18n-hardcoded-allowlist": "php scripts/check_i18n_hardcoded_strings.php --update-allowlist"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.0"
