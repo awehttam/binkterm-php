@@ -58,16 +58,16 @@
                     <div class="mb-3">
                         <label for="dateFormat" class="form-label">{{ t('ui.settings.date_format', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="dateFormat" name="date_format">
-                            <option value="en-US" selected>American (MM/DD/YYYY) - Jan 31, 2026, 10:30 AM</option>
-                            <option value="en-GB">British (DD/MM/YYYY) - 31 Jan 2026, 10:30</option>
-                            <option value="en-CA">Canadian (YYYY-MM-DD) - 2026-01-31, 10:30 a.m.</option>
-                            <option value="de-DE">German (DD.MM.YYYY) - 31.01.2026, 10:30</option>
-                            <option value="fr-FR">French (DD/MM/YYYY) - 31/01/2026 10:30</option>
-                            <option value="es-ES">Spanish (DD/MM/YYYY) - 31/1/2026, 10:30</option>
-                            <option value="it-IT">Italian (DD/MM/YYYY) - 31/01/2026, 10:30</option>
-                            <option value="ja-JP">Japanese (YYYY/MM/DD) - 2026/01/31 10:30</option>
-                            <option value="zh-CN">Chinese (YYYY/M/D) - 2026/1/31 上午10:30</option>
-                            <option value="sv-SE">Swedish (YYYY-MM-DD) - 2026-01-31 10:30</option>
+                            <option value="en-US" selected>{{ t('ui.settings.date_format.option.en_us', {}, locale, ['common']) }}</option>
+                            <option value="en-GB">{{ t('ui.settings.date_format.option.en_gb', {}, locale, ['common']) }}</option>
+                            <option value="en-CA">{{ t('ui.settings.date_format.option.en_ca', {}, locale, ['common']) }}</option>
+                            <option value="de-DE">{{ t('ui.settings.date_format.option.de_de', {}, locale, ['common']) }}</option>
+                            <option value="fr-FR">{{ t('ui.settings.date_format.option.fr_fr', {}, locale, ['common']) }}</option>
+                            <option value="es-ES">{{ t('ui.settings.date_format.option.es_es', {}, locale, ['common']) }}</option>
+                            <option value="it-IT">{{ t('ui.settings.date_format.option.it_it', {}, locale, ['common']) }}</option>
+                            <option value="ja-JP">{{ t('ui.settings.date_format.option.ja_jp', {}, locale, ['common']) }}</option>
+                            <option value="zh-CN">{{ t('ui.settings.date_format.option.zh_cn', {}, locale, ['common']) }}</option>
+                            <option value="sv-SE">{{ t('ui.settings.date_format.option.sv_se', {}, locale, ['common']) }}</option>
                         </select>
                         <div class="form-text">{{ t('ui.settings.date_format_help', {}, locale, ['common']) }}</div>
                     </div>
@@ -595,3 +595,4 @@ function pollUplinks() {
 }
 </script>
 {% endblock %}
+

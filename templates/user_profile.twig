@@ -173,7 +173,17 @@
                                 </td>
                                 <td>
                                     <span class="badge bg-{% if tx.transaction_type == 'daily_login' %}info{% elseif tx.transaction_type == 'system_reward' %}success{% elseif tx.transaction_type == 'payment' %}primary{% elseif tx.transaction_type == 'admin_adjustment' %}warning{% else %}secondary{% endif %}">
-                                        {{ tx.transaction_type|replace({'_': ' '})|title }}
+                                        {% if tx.transaction_type == 'daily_login' %}
+                                            {{ t('ui.user_profile.transaction_type.daily_login', {}, 'common') }}
+                                        {% elseif tx.transaction_type == 'system_reward' %}
+                                            {{ t('ui.user_profile.transaction_type.system_reward', {}, 'common') }}
+                                        {% elseif tx.transaction_type == 'payment' %}
+                                            {{ t('ui.user_profile.transaction_type.payment', {}, 'common') }}
+                                        {% elseif tx.transaction_type == 'admin_adjustment' %}
+                                            {{ t('ui.user_profile.transaction_type.admin_adjustment', {}, 'common') }}
+                                        {% else %}
+                                            {{ t('ui.user_profile.transaction_type.unknown', {}, 'common') }}
+                                        {% endif %}
                                     </span>
                                 </td>
                                 <td>{{ tx.description }}</td>
@@ -329,11 +339,9 @@ function loadMoreTransactions() {
             if (data.transactions && data.transactions.length > 0) {
                 const tbody = $('#transactionTableBody');
                 data.transactions.forEach(function(tx) {
-                    const txDate = new Date(tx.created_at);
-                    const dateStr = (txDate.getMonth() + 1).toString().padStart(2, '0') + '/' +
-                                   txDate.getDate().toString().padStart(2, '0') + '/' +
-                                   txDate.getFullYear();
-                    const timeStr = txDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    const fullDate = typeof formatFullDate === 'function'
+                        ? formatFullDate(tx.created_at)
+                        : tx.created_at;
 
                     let badgeClass = 'secondary';
                     if (tx.transaction_type === 'daily_login') badgeClass = 'info';
@@ -341,14 +349,13 @@ function loadMoreTransactions() {
                     else if (tx.transaction_type === 'payment') badgeClass = 'primary';
                     else if (tx.transaction_type === 'admin_adjustment') badgeClass = 'warning';
 
-                    const typeLabel = tx.transaction_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const typeLabel = getTransactionTypeLabel(tx.transaction_type);
                     const amountClass = tx.amount > 0 ? 'text-success' : 'text-danger';
                     const amountSign = tx.amount > 0 ? '+' : '';
 
                     const row = `<tr data-transaction-id="${tx.id}">
                         <td>
-                            <small>${dateStr}</small><br>
-                            <small class="text-muted">${timeStr}</small>
+                            <small>${escapeHtml(fullDate)}</small>
                         </td>
                         <td>
                             <span class="badge bg-${badgeClass}">${typeLabel}</span>
@@ -379,6 +386,16 @@ function loadMoreTransactions() {
         .always(function() {
             btn.prop('disabled', false).html(originalHtml);
         });
+}
+
+function getTransactionTypeLabel(type) {
+    const map = {
+        daily_login: uiT('ui.user_profile.transaction_type.daily_login', 'Daily Login'),
+        system_reward: uiT('ui.user_profile.transaction_type.system_reward', 'System Reward'),
+        payment: uiT('ui.user_profile.transaction_type.payment', 'Payment'),
+        admin_adjustment: uiT('ui.user_profile.transaction_type.admin_adjustment', 'Admin Adjustment')
+    };
+    return map[type] || uiT('ui.user_profile.transaction_type.unknown', 'Unknown');
 }
 </script>
 {% endblock %}
