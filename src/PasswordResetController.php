@@ -47,6 +47,7 @@ class PasswordResetController
         if (!$user || empty($user['email'])) {
             return [
                 'success' => true,
+                'message_code' => 'ui.forgot_password.reset_link_sent_if_exists',
                 'message' => 'If an account with that username or email exists, a password reset link has been sent.'
             ];
         }
@@ -80,6 +81,7 @@ class PasswordResetController
 
         return [
             'success' => true,
+            'message_code' => 'ui.forgot_password.reset_link_sent_if_exists',
             'message' => 'If an account with that username or email exists, a password reset link has been sent.'
         ];
     }
@@ -190,6 +192,7 @@ class PasswordResetController
 
             return [
                 'success' => true,
+                'message_code' => 'ui.reset_password.success_reset_complete',
                 'message' => 'Password has been reset successfully. You can now log in with your new password.',
                 'username' => $tokenData['username']
             ];

@@ -94,6 +94,7 @@ SimpleRouter::post('/api/door/launch', function() {
                     'ws_token' => $existingSession['ws_token'],
                     'ws_url' => $wsUrl,
                 ],
+                'message_code' => 'ui.api.door.session_resumed',
                 'message' => 'Resuming existing session'
             ]);
             return;

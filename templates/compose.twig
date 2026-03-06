@@ -32,13 +32,13 @@
                                        placeholder="" value="{{ reply_to_address }}" >
                                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
                                         id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
-                                        title="Select from address book">
+                                        title="{{ t('ui.compose.address_book.select_title', {}, locale, ['common']) }}">
                                     <i class="fas fa-address-book"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
                                     <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
                                         {{ t('ui.address_book.title', {}, locale, ['common']) }}
-                                        <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="Create new address book entry">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="{{ t('ui.compose.address_book.create_title', {}, locale, ['common']) }}">
                                             <i class="fas fa-plus" ></i>
                                         </button>
                                     </h6></li>
@@ -68,11 +68,11 @@
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail"{% if prefill_crashmail %} checked{% endif %}>
                             <label class="form-check-label" for="crashmail">
-                                <i class="fas fa-bolt text-warning me-1"></i>Crashmail (Direct Delivery){% if credits_enabled %} - <strong>{{ crashmail_cost }} {{ currency_symbol }}</strong>{% endif %}
+                                <i class="fas fa-bolt text-warning me-1"></i>{{ t('ui.compose.crashmail.direct_delivery_label', {}, locale, ['common']) }}{% if credits_enabled %} - <strong>{{ crashmail_cost }} {{ currency_symbol }}</strong>{% endif %}
                             </label>
                             <div class="form-text">
-                                Attempt immediate direct delivery to the destination node, bypassing hub routing.
-                                Requires the destination to be directly reachable.{% if credits_enabled %} Costs {{ crashmail_cost }} {{ currency_symbol }}.{% endif %}
+                                {{ t('ui.compose.crashmail.help_direct', {}, locale, ['common']) }}
+                                {{ t('ui.compose.crashmail.help_reachable', {}, locale, ['common']) }}{% if credits_enabled %} {{ t('ui.compose.crashmail.help_cost', {'cost': crashmail_cost, 'currency': currency_symbol}, locale, ['common']) }}{% endif %}
                             </div>
                         </div>
                     </div>
@@ -1089,7 +1089,7 @@ function sendMessage() {
     $('#sendStatus').show().html(`
         <div class="alert alert-info">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Sending ${messageType}...
+            ${uiT('ui.compose.sending', 'Sending...')}
         </div>
     `);
 
@@ -1112,11 +1112,16 @@ function sendMessage() {
             data: JSON.stringify(formData),
             success: function(response) {
                 const areasPosted = response.areas_posted || 1;
-                const crossPostMsg = areasPosted > 1 ? ` (posted to ${areasPosted} areas)` : '';
+                const baseSuccessMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.api.messages.sent', 'Message sent successfully'))
+                    : (response.message || uiT('ui.api.messages.sent', 'Message sent successfully'));
+                const crossPostMsg = areasPosted > 1
+                    ? uiT('ui.compose.sent_cross_post_suffix', ' (posted to {count} areas)', { count: areasPosted })
+                    : '';
                 $('#sendStatus').html(`
                     <div class="alert alert-success">
                         <i class="fas fa-check me-2"></i>
-                        ${messageType.charAt(0).toUpperCase() + messageType.slice(1)} sent successfully!${crossPostMsg}
+                        ${baseSuccessMessage}${crossPostMsg}
                     </div>
                 `);
 
@@ -1212,11 +1217,14 @@ function saveDraft(silent = false) {
         contentType: 'application/json',
         data: JSON.stringify(formData),
         success: function(response) {
+            const savedMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.compose.draft.saved_success', 'Draft saved successfully'))
+                : uiT('ui.compose.draft.saved_success', 'Draft saved successfully');
             if (!silent) {
                 // Show success state on button
                 if (saveButton.length) {
                     saveButton.removeClass('btn-outline-primary').addClass('btn-success')
-                        .html('<i class="fas fa-check"></i> Saved!');
+                        .html(`<i class="fas fa-check"></i> ${uiT('ui.common.saved', 'Saved!')}`);
 
                     // Reset button after 2 seconds
                     setTimeout(function() {
@@ -1224,7 +1232,7 @@ function saveDraft(silent = false) {
                             .prop('disabled', false).html(originalButtonHtml);
                     }, 2000);
                 } else {
-                    showSuccess(uiT('ui.compose.draft.saved_success', 'Draft saved successfully'));
+                    showSuccess(savedMessage);
                 }
             } else {
                 // For silent saves, just reset button if it was showing loading
@@ -1504,7 +1512,10 @@ function saveComposeAddressBookEntry() {
             if (response.success) {
                 $('#addressBookModal').modal('hide');
                 loadComposeAddressBook();
-                showSuccess(uiT('ui.compose.address_book.entry_added', 'Entry added successfully'));
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.compose.address_book.entry_added', 'Entry added successfully'))
+                    : uiT('ui.compose.address_book.entry_added', 'Entry added successfully');
+                showSuccess(successMessage);
                 // Optionally populate the compose form
                 if (confirm(uiT('ui.compose.address_book.use_entry_confirm', 'Use this entry for the current message?'))) {
                     $('#toName').val(data.messaging_user_id);

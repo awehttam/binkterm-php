@@ -246,6 +246,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? payload.message : fallback;
+}
+
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     refreshStatus();
@@ -465,9 +472,12 @@ function pollUplink(address) {
             console.log('Poll response data:', data);
             if (data.success) {
                 const result = data.result || {};
-                const exitCode = result.exit_code ?? uiT('ui.common.unknown', 'Unknown');
+                const exitCode = result.exit_code ?? null;
                 const details = formatPollDetails(result);
-                showAlert(uiT('ui.binkp.poll_completed_exit', 'Poll completed (exit {code})', { code: exitCode }) + details, 'success', { persistent: true });
+                const message = exitCode !== null
+                    ? uiT('ui.binkp.poll_completed_exit', 'Poll completed (exit {code})', { code: exitCode })
+                    : apiMessage(data, uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered'));
+                showAlert(message + details, 'success', { persistent: true });
                 if (exitCode === 0 || exitCode === '0') {
                     triggerPacketProcessing();
                 }
@@ -488,9 +498,12 @@ function pollAllUplinks() {
         .then(data => {
             if (data.success) {
                 const result = data.result || {};
-                const exitCode = result.exit_code ?? uiT('ui.common.unknown', 'Unknown');
+                const exitCode = result.exit_code ?? null;
                 const details = formatPollDetails(result);
-                showAlert(uiT('ui.binkp.all_uplinks_polled_exit', 'All uplinks polled (exit {code})', { code: exitCode }) + details, 'success', { persistent: true });
+                const message = exitCode !== null
+                    ? uiT('ui.binkp.all_uplinks_polled_exit', 'All uplinks polled (exit {code})', { code: exitCode })
+                    : apiMessage(data, uiT('ui.api.binkp.poll_all_triggered', 'BinkP poll-all triggered'));
+                showAlert(message + details, 'success', { persistent: true });
                 if (exitCode === 0 || exitCode === '0') {
                     triggerPacketProcessing();
                 }
@@ -509,7 +522,7 @@ function processInbound() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert(uiT('ui.binkp.inbound_processing_completed', 'Inbound processing completed'), 'success');
+                showAlert(apiMessage(data, uiT('ui.binkp.inbound_processing_completed', 'Inbound processing completed')), 'success');
                 refreshQueues();
                 refreshStatus();
             } else {
@@ -526,7 +539,7 @@ function processOutbound() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert(uiT('ui.binkp.outbound_processing_completed', 'Outbound processing completed'), 'success');
+                showAlert(apiMessage(data, uiT('ui.binkp.outbound_processing_completed', 'Outbound processing completed')), 'success');
                 refreshQueues();
                 refreshStatus();
             } else {
@@ -552,7 +565,7 @@ function addUplink() {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            showAlert(uiT('ui.binkp.uplink_added_success', 'Uplink added successfully'), 'success');
+            showAlert(apiMessage(result, uiT('ui.binkp.uplink_added_success', 'Uplink added successfully')), 'success');
             document.getElementById('addUplinkModal').querySelector('.btn-close').click();
             form.reset();
             refreshUplinks();
@@ -573,7 +586,7 @@ function removeUplink(address) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert(uiT('ui.binkp.uplink_removed_success', 'Uplink removed successfully'), 'success');
+                showAlert(apiMessage(data, uiT('ui.binkp.uplink_removed_success', 'Uplink removed successfully')), 'success');
                 refreshUplinks();
                 refreshStatus();
             } else {
@@ -645,9 +658,12 @@ function triggerPacketProcessing() {
                 return;
             }
             const result = data.result || {};
-            const exitCode = result.exit_code ?? uiT('ui.common.unknown', 'Unknown');
+            const exitCode = result.exit_code ?? null;
             const details = formatPollDetails(result);
-            showAlert(uiT('ui.binkp.packet_processing_completed_exit', 'Packet processing completed (exit {code})', { code: exitCode }) + details, 'success', { persistent: true });
+            const message = exitCode !== null
+                ? uiT('ui.binkp.packet_processing_completed_exit', 'Packet processing completed (exit {code})', { code: exitCode })
+                : apiMessage(data, uiT('ui.api.binkp.process_packets_started', 'Packet processing started'));
+            showAlert(message + details, 'success', { persistent: true });
         })
         .catch(error => {
             showAlert(uiT('ui.binkp.error_processing_packets_prefix', 'Error processing packets: ') + error.message, 'danger', { persistent: true });

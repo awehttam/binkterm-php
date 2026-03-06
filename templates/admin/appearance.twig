@@ -591,7 +591,12 @@ function saveBranding() {
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(payload),
-        success: function() { showStatus('brandingStatus', 'success', uiT('ui.common.saved', 'Saved!')); },
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('brandingStatus', 'success', successMessage);
+        },
         error: function(xhr) { showStatus('brandingStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.save_failed', 'Save failed'))); }
     });
 }
@@ -616,7 +621,12 @@ function saveContent() {
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(payload),
-        success: function() { showStatus('contentStatus', 'success', uiT('ui.common.saved', 'Saved!')); },
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('contentStatus', 'success', successMessage);
+        },
         error: function(xhr) { showStatus('contentStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.save_failed', 'Save failed'))); }
     });
 }
@@ -669,7 +679,12 @@ function saveNavigation() {
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify({ custom_links: links }),
-        success: function() { showStatus('navStatus', 'success', uiT('ui.common.saved', 'Saved!')); },
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('navStatus', 'success', successMessage);
+        },
         error: function(xhr) { showStatus('navStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.save_failed', 'Save failed'))); }
     });
 }
@@ -689,7 +704,12 @@ function saveSeo() {
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(payload),
-        success: function() { showStatus('seoStatus', 'success', uiT('ui.common.saved', 'Saved!')); },
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.common.saved', 'Saved!'))
+                : uiT('ui.common.saved', 'Saved!');
+            showStatus('seoStatus', 'success', successMessage);
+        },
         error: function(xhr) { showStatus('seoStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.save_failed', 'Save failed'))); }
     });
 }
@@ -746,7 +766,12 @@ function saveShell() {
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(payload),
-        success: function() { showStatus('shellStatus', 'success', uiT('ui.admin.appearance.shell_saved_reload', 'Saved! Reload the page to see the new shell.')); },
+        success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.admin.appearance.shell_saved_reload', 'Saved! Reload the page to see the new shell.'))
+                : uiT('ui.admin.appearance.shell_saved_reload', 'Saved! Reload the page to see the new shell.');
+            showStatus('shellStatus', 'success', successMessage);
+        },
         error: function(xhr) { showStatus('shellStatus', 'danger', apiError(xhr.responseJSON, uiT('ui.admin.appearance.save_failed', 'Save failed'))); }
     });
 }
@@ -783,7 +808,11 @@ function uploadShellArtFile(input) {
         processData: false,
         contentType: false,
         success: function(data) {
-            $status.text(uiT('ui.admin.appearance.shell.uploaded_prefix', 'Uploaded: ') + data.name).addClass('text-success');
+            const fallback = uiT('ui.admin.appearance.shell.uploaded_prefix', 'Uploaded: ') + data.name;
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, fallback)
+                : fallback;
+            $status.text(successMessage).addClass('text-success');
             loadShellArtList(data.name);
             input.value = '';
         },
@@ -801,8 +830,12 @@ function deleteSelectedShellArt() {
     $.ajax({
         url: '/admin/api/shell-art/' + encodeURIComponent(name),
         method: 'DELETE',
-        success: function() {
-            $('#shellArtUploadStatus').text(uiT('ui.admin.appearance.shell.deleted_prefix', 'Deleted: ') + name).addClass('text-success');
+        success: function(response) {
+            const fallback = uiT('ui.admin.appearance.shell.deleted_prefix', 'Deleted: ') + name;
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallback)
+                : fallback;
+            $('#shellArtUploadStatus').text(successMessage).addClass('text-success');
             loadShellArtList('');
         },
         error: function(xhr) {
@@ -837,7 +870,10 @@ function saveMessageReader() {
     $.post('/admin/api/appearance/message-reader', JSON.stringify(payload), null, 'json')
         .done(function(r) {
             if (r.success) {
-                $('#messageReaderStatus').text(uiT('ui.common.saved_short', 'Saved')).removeClass('text-danger').addClass('text-success');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(r, uiT('ui.common.saved_short', 'Saved'))
+                    : uiT('ui.common.saved_short', 'Saved');
+                $('#messageReaderStatus').text(successMessage).removeClass('text-danger').addClass('text-success');
                 setTimeout(() => $('#messageReaderStatus').text(''), 3000);
             } else {
                 $('#messageReaderStatus').text(uiT('ui.admin.appearance.error_prefix', 'Error: ') + apiError(r, uiT('ui.common.unknown_error', 'Unknown error'))).addClass('text-danger');

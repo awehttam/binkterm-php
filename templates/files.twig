@@ -263,6 +263,13 @@ function apiError(payload, fallback) {
     return payload && payload.error ? payload.error : fallback;
 }
 
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? payload.message : fallback;
+}
+
 $(document).ready(function() {
     loadFileAreas();
     loadStats();
@@ -728,7 +735,7 @@ function uploadFile() {
         success: function(response) {
             bootstrap.Modal.getInstance('#uploadFileModal').hide();
             $('#uploadErrorBox').addClass('d-none').text('');
-            showSuccess(uiT('ui.files.upload_success', 'File uploaded successfully'));
+            showSuccess(apiMessage(response, uiT('ui.api.files.uploaded', 'File uploaded successfully')));
             loadFiles(currentAreaId);
             loadStats();
         },
@@ -751,7 +758,7 @@ function deleteFile(fileId) {
         url: `/api/files/${fileId}/delete`,
         method: 'DELETE',
         success: function(response) {
-            showSuccess(uiT('ui.files.delete_success', 'File deleted successfully'));
+            showSuccess(apiMessage(response, uiT('ui.api.files.deleted', 'File deleted successfully')));
             loadFiles(currentAreaId);
             loadStats();
         },

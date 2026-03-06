@@ -224,7 +224,10 @@ function saveTemplate() {
             }
             isDirty = false;
             loadTemplates();
-            setStatus(uiT('ui.admin.template_editor.template_saved_success', 'Template saved successfully.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.template_editor.template_saved_success', 'Template saved successfully.'))
+                : uiT('ui.admin.template_editor.template_saved_success', 'Template saved successfully.');
+            setStatus(successMessage, 'success');
             document.getElementById('deleteTemplateBtn').disabled = false;
             document.getElementById('installTemplateBtn').disabled = true;
         })
@@ -259,7 +262,10 @@ function deleteTemplate() {
             document.getElementById('deleteTemplateBtn').disabled = true;
             document.getElementById('installTemplateBtn').disabled = true;
             loadTemplates();
-            setStatus(uiT('ui.admin.template_editor.template_deleted_success', 'Template deleted.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.template_editor.template_deleted_success', 'Template deleted.'))
+                : uiT('ui.admin.template_editor.template_deleted_success', 'Template deleted.');
+            setStatus(successMessage, 'success');
         })
         .catch(err => {
             setStatus(err.message || uiT('ui.admin.template_editor.delete_template_failed', 'Failed to delete template'), 'danger');
@@ -283,7 +289,10 @@ function installTemplate() {
             }
             loadTemplates();
             loadTemplate(data.path);
-            setStatus(uiT('ui.admin.template_editor.template_installed_success', 'Template installed from example.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.template_editor.template_installed_success', 'Template installed from example.'))
+                : uiT('ui.admin.template_editor.template_installed_success', 'Template installed from example.');
+            setStatus(successMessage, 'success');
         })
         .catch(err => {
             setStatus(err.message || uiT('ui.admin.template_editor.install_template_failed', 'Failed to install template'), 'danger');

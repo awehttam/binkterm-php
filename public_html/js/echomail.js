@@ -1071,7 +1071,9 @@ function toggleSaveMessage(messageId, messageType, isSaved) {
                     loadMessages();
                 }
             } else {
-                showError(response.message || uiT('ui.echomail.save_status.update_failed', 'Failed to update save status'));
+                showError(window.getApiErrorMessage
+                    ? window.getApiErrorMessage(response, uiT('ui.echomail.save_status.update_failed', 'Failed to update save status'))
+                    : (response.message || uiT('ui.echomail.save_status.update_failed', 'Failed to update save status')));
             }
         },
         error: function(xhr) {
@@ -1099,7 +1101,7 @@ function updateModalSaveButton(message) {
         // Message is saved - show "Saved" button that will unsave when clicked
         saveBtn.removeClass('btn-outline-warning').addClass('btn-warning');
         saveIcon.removeClass('fa-bookmark').addClass('fa-bookmark');
-        saveText.text('Saved');
+        saveText.text(uiT('ui.common.saved_short', 'Saved'));
         saveBtn.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
 
         // Update header icon
@@ -1172,7 +1174,7 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                 } else {
                     // Message was saved
                     saveBtn.removeClass('btn-outline-warning').addClass('btn-warning');
-                    saveText.text('Saved');
+                    saveText.text(uiT('ui.common.saved_short', 'Saved'));
                     saveBtn.attr('title', uiT('ui.common.remove_from_saved', 'Remove from saved'));
 
                     // Update header icon
@@ -1211,7 +1213,9 @@ function toggleSaveMessageModal(messageId, messageType, isSaved) {
                     loadMessages();
                 }
             } else {
-                showError(response.message || uiT('ui.echomail.save_status.update_failed', 'Failed to update save status'));
+                showError(window.getApiErrorMessage
+                    ? window.getApiErrorMessage(response, uiT('ui.echomail.save_status.update_failed', 'Failed to update save status'))
+                    : (response.message || uiT('ui.echomail.save_status.update_failed', 'Failed to update save status')));
             }
         },
         error: function(xhr) {
@@ -1374,7 +1378,7 @@ function markSelectedAsRead() {
     const messageIds = Array.from(selectedMessages);
     const markBtn = $('#bulkActions .btn-outline-primary');
     const originalText = markBtn.html();
-    markBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Marking...');
+    markBtn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.echomail.bulk_marking', 'Marking...')}`);
 
     $.ajax({
         url: '/api/messages/echomail/read',
@@ -1383,7 +1387,10 @@ function markSelectedAsRead() {
         contentType: 'application/json',
         success: function(response) {
             if (response.success) {
-                showSuccess(response.message);
+                const markedCount = response.marked || messageIds.length;
+                showSuccess(window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.echomail.bulk_mark_read_success', 'Marked {count} message(s) as read', { count: markedCount }))
+                    : (response.message || uiT('ui.echomail.bulk_mark_read_success', 'Marked {count} message(s) as read', { count: markedCount })));
                 clearSelection();
                 loadMessages();
                 loadStats();
@@ -1419,7 +1426,11 @@ function deleteSelectedMessages() {
     }
 
     const count = selectedMessages.size;
-    const confirmMessage = `Are you sure you want to delete ${count} selected message${count > 1 ? 's' : ''} for everyone?`;
+    const confirmMessage = uiT(
+        'ui.echomail.bulk_delete.confirm',
+        'Are you sure you want to delete {count} selected message(s) for everyone?',
+        { count }
+    );
 
     if (!confirm(confirmMessage)) {
         return;
@@ -1431,7 +1442,7 @@ function deleteSelectedMessages() {
     // Show loading state
     const deleteBtn = $('#bulkActions .btn-outline-danger');
     const originalText = deleteBtn.html();
-    deleteBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
+    deleteBtn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.echomail.bulk_deleting', 'Deleting...')}`);
 
     $.ajax({
         url: '/api/messages/echomail/delete',
@@ -1440,7 +1451,10 @@ function deleteSelectedMessages() {
         contentType: 'application/json',
         success: function(response) {
             if (response.success) {
-                showSuccess(response.message);
+                const deletedCount = response.deleted || messageIds.length;
+                showSuccess(window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.echomail.bulk_delete.success', 'Deleted {count} message(s)', { count: deletedCount }))
+                    : (response.message || uiT('ui.echomail.bulk_delete.success', 'Deleted {count} message(s)', { count: deletedCount })));
                 clearSelection();
                 loadMessages(); // Reload messages
                 loadStats(); // Update statistics
@@ -2097,7 +2111,10 @@ function deleteDraft(draftId) {
             if (response.success) {
                 // Reload drafts to show updated list
                 loadDrafts();
-                showSuccess(uiT('ui.drafts.deleted_success', 'Draft deleted successfully'));
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.drafts.deleted_success', 'Draft deleted successfully'))
+                    : uiT('ui.drafts.deleted_success', 'Draft deleted successfully');
+                showSuccess(successMessage);
             } else {
                 showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
             }

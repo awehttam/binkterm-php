@@ -28,6 +28,7 @@ backups/*
 *~
 .env
 .env.local
+tests/.env.test
 bbs_ads/*
 !bbs_ads/claudes1.ans
 

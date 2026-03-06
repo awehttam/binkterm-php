@@ -292,7 +292,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $input = json_decode(file_get_contents('php://input'), true);
                 $userId = $adminController->createUser($input);
-                echo json_encode(['success' => true, 'user_id' => $userId]);
+                echo json_encode([
+                    'success' => true,
+                    'user_id' => $userId,
+                    'message_code' => 'ui.admin.users.created_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.users.create_failed', 'Failed to create user');
@@ -312,7 +316,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $input = json_decode(file_get_contents('php://input'), true);
                 $result = $adminController->updateUser($id, $input);
-                echo json_encode(['success' => $result]);
+                if ($result) {
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.admin.users.updated_success'
+                    ]);
+                } else {
+                    echo json_encode(['success' => false]);
+                }
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.users.update_failed', 'Failed to update user');
@@ -331,7 +342,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $result = $adminController->deleteUser($id);
-                echo json_encode(['success' => $result]);
+                if ($result) {
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.admin.users.deleted_success'
+                    ]);
+                } else {
+                    echo json_encode(['success' => false]);
+                }
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.users.delete_failed', 'Failed to delete user');
@@ -493,7 +511,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
 
                 $db->commit();
-                echo json_encode(['success' => true, 'id' => (int)$pollId]);
+                echo json_encode([
+                    'success' => true,
+                    'id' => (int)$pollId,
+                    'message_code' => 'ui.admin.polls.created_success'
+                ]);
             } catch (Exception $e) {
                 if (isset($db) && $db->inTransaction()) {
                     $db->rollBack();
@@ -568,7 +590,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
 
                 $db->commit();
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.polls.updated_success'
+                ]);
             } catch (Exception $e) {
                 if (isset($db) && $db->inTransaction()) {
                     $db->rollBack();
@@ -600,7 +625,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $db = \BinktermPHP\Database::getInstance()->getPdo();
                 $stmt = $db->prepare("DELETE FROM polls WHERE id = ?");
                 $stmt->execute([$id]);
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.polls.deleted_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.polls.delete_failed', 'Failed to delete poll');
@@ -630,7 +658,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             header('Content-Type: application/json');
             $result = $adminController->setShoutboxHidden((int)$id, true);
-            echo json_encode(['success' => $result]);
+            if ($result) {
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.shoutbox.hidden_success'
+                ]);
+            } else {
+                echo json_encode(['success' => false]);
+            }
         });
 
         SimpleRouter::post('/shoutbox/{id}/unhide', function($id) {
@@ -642,7 +677,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             header('Content-Type: application/json');
             $result = $adminController->setShoutboxHidden((int)$id, false);
-            echo json_encode(['success' => $result]);
+            if ($result) {
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.shoutbox.unhidden_success'
+                ]);
+            } else {
+                echo json_encode(['success' => false]);
+            }
         });
 
         SimpleRouter::delete('/shoutbox/{id}', function($id) {
@@ -654,7 +696,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             header('Content-Type: application/json');
             $result = $adminController->deleteShoutboxMessage((int)$id);
-            echo json_encode(['success' => $result]);
+            if ($result) {
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.shoutbox.deleted_success'
+                ]);
+            } else {
+                echo json_encode(['success' => false]);
+            }
         });
 
         // BBS settings
@@ -767,7 +816,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                         'credits' => $config['credits'] ?? null
                     ]);
                 }
-                echo json_encode(['success' => true, 'config' => $updated]);
+                echo json_encode([
+                    'success' => true,
+                    'config' => $updated,
+                    'message_code' => 'ui.admin.bbs_settings.saved_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 $message = $e->getMessage();
@@ -829,7 +882,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $client->setAppearanceConfig($config);
                 \BinktermPHP\AppearanceConfig::reload();
 
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 $message = $e->getMessage();
@@ -880,7 +936,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
 
                 \BinktermPHP\AppearanceConfig::reload();
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.content.save_failed', 'Failed to save content settings');
@@ -923,7 +982,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $client->setAppearanceConfig($config);
                 \BinktermPHP\AppearanceConfig::reload();
 
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.navigation.save_failed', 'Failed to save navigation settings');
@@ -950,7 +1012,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $client->setAppearanceConfig($config);
                 \BinktermPHP\AppearanceConfig::reload();
 
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.seo.save_failed', 'Failed to save SEO settings');
@@ -1009,7 +1074,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $client->setAppearanceConfig($config);
                 \BinktermPHP\AppearanceConfig::reload();
 
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.appearance.shell_saved_reload'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.shell.save_failed', 'Failed to save shell settings');
@@ -1031,7 +1099,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $client->setAppearanceConfig($config);
                 \BinktermPHP\AppearanceConfig::reload();
 
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.common.saved_short'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.appearance.message_reader.save_failed', 'Failed to save message reader settings');
@@ -1092,7 +1163,15 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $contentBase64 = base64_encode(file_get_contents($file['tmp_name']));
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->uploadShellArt($contentBase64, '', $originalName);
-                echo json_encode(['success' => true, 'name' => $result['name'] ?? $originalName]);
+                $savedName = $result['name'] ?? $originalName;
+                echo json_encode([
+                    'success' => true,
+                    'name' => $savedName,
+                    'message_code' => 'ui.admin.appearance.shell.uploaded_with_name',
+                    'message_params' => [
+                        'name' => $savedName
+                    ]
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.shell_art.upload.failed', 'Failed to upload shell art');
@@ -1111,7 +1190,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->deleteShellArt($name);
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.appearance.shell.deleted_with_name',
+                    'message_params' => [
+                        'name' => $name
+                    ]
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.shell_art.delete.failed', 'Failed to delete shell art');
@@ -1151,7 +1236,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $text = (string)($payload['taglines'] ?? '');
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->saveTaglines($text);
-                echo json_encode(['success' => true, 'taglines' => $result['text'] ?? '']);
+                echo json_encode([
+                    'success' => true,
+                    'taglines' => $result['text'] ?? '',
+                    'message_code' => 'ui.admin.bbs_settings.taglines_saved_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.taglines.save_failed', 'Failed to save taglines');
@@ -1205,7 +1294,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     ]);
                 }
 
-                echo json_encode(['success' => true, 'config' => $savedConfig]);
+                echo json_encode([
+                    'success' => true,
+                    'config' => $savedConfig,
+                    'message_code' => 'ui.admin.mrc_settings.saved_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.mrc_settings.save_failed', 'Failed to save MRC settings');
@@ -1230,7 +1323,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     AdminActionLogger::logAction($userId, 'mrc_daemon_restarted');
                 }
 
-                echo json_encode(['success' => true, 'message' => 'MRC daemon restart initiated']);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.admin.mrc_restart_initiated',
+                    'message' => 'MRC daemon restart initiated'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.mrc_settings.restart_failed', 'Failed to restart MRC daemon');
@@ -1270,7 +1367,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config = $payload['config'] ?? [];
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setSystemConfig($config);
-                echo json_encode(['success' => true, 'config' => $updated]);
+                echo json_encode([
+                    'success' => true,
+                    'config' => $updated,
+                    'message_code' => 'ui.admin.bbs_settings.system_saved_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.bbs_system.save_failed', 'Failed to save system settings');
@@ -1310,7 +1411,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $config = $payload['config'] ?? [];
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->setFullBinkpConfig($config);
-                echo json_encode(['success' => true, 'config' => $updated]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.binkp_config.configuration_saved',
+                    'config' => $updated
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.binkp_config.save_failed', 'Failed to save BinkP configuration');
@@ -1329,7 +1434,12 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->reloadBinkpConfig();
-                echo json_encode(['success' => true, 'message' => $result]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.admin.binkp_config_reloaded',
+                    'message' => 'BinkP configuration reload requested',
+                    'result' => $result
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.binkp_config.reload_failed', 'Failed to reload BinkP configuration', 500);
@@ -1394,7 +1504,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $json = $payload['json'] ?? '';
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->saveWebdoorsConfig((string)$json);
-                echo json_encode(['success' => true, 'config' => $updated]);
+                echo json_encode([
+                    'success' => true,
+                    'config' => $updated,
+                    'message_code' => 'ui.admin.webdoors_config.saved_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.webdoors_config.save_failed', 'Failed to save webdoors configuration');
@@ -1413,7 +1527,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->activateWebdoorsConfig();
-                echo json_encode(['success' => true, 'config' => $updated]);
+                echo json_encode([
+                    'success' => true,
+                    'config' => $updated,
+                    'message_code' => 'ui.admin.webdoors_config.activated_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.webdoors_config.activate_failed', 'Failed to activate webdoors configuration');
@@ -1496,6 +1614,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 echo json_encode([
                     'success' => true,
+                    'message_code' => 'ui.admin.dosdoors_config.saved_success',
                     'config' => $config,
                     'synced' => $syncResult['synced'],
                     'sync_errors' => $syncResult['errors']
@@ -1581,6 +1700,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
                 echo json_encode([
                     'success' => true,
+                    'message_code' => 'ui.admin.nativedoors_config.saved_success',
                     'config' => $config,
                     'synced' => $syncResult['synced'],
                     'sync_errors' => $syncResult['errors']
@@ -1643,7 +1763,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $json = $payload['json'] ?? '';
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $updated = $client->saveFileAreaRulesConfig((string)$json);
-                echo json_encode(['success' => true, 'config' => $updated]);
+                echo json_encode([
+                    'success' => true,
+                    'config' => $updated,
+                    'message_code' => 'ui.admin.filearea_rules.saved_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.filearea_rules.save_failed', 'Failed to save file area rules');
@@ -1711,7 +1835,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $ad = $client->uploadAd(base64_encode($content), $name, $file['name'] ?? '');
-                echo json_encode(['success' => true, 'ad' => $ad]);
+                echo json_encode([
+                    'success' => true,
+                    'ad' => $ad,
+                    'message_code' => 'ui.admin.ads.uploaded'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.ads.upload.failed', 'Failed to upload advertisement');
@@ -1730,7 +1858,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $client->deleteAd($name);
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.ads.deleted'
+                ]);
             } catch (Exception $e) {
                 http_response_code(500);
                 apiError('errors.admin.ads.delete_failed', 'Failed to delete advertisement');
@@ -1766,7 +1897,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $stmt->execute([$name, $description ?: null, $isActive ? 1 : 0]);
                 $roomId = $stmt->fetchColumn();
 
-                echo json_encode(['success' => true, 'id' => (int)$roomId]);
+                echo json_encode([
+                    'success' => true,
+                    'id' => (int)$roomId,
+                    'message_code' => 'ui.admin.chat_rooms.created_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 $message = $e->getMessage();
@@ -1818,7 +1953,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ");
                 $stmt->execute([$finalName, $description ?: null, $isActive ? 1 : 0, $id]);
 
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.chat_rooms.updated_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 $message = $e->getMessage();
@@ -1860,7 +1998,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $stmt = $db->prepare("DELETE FROM chat_rooms WHERE id = ?");
                 $stmt->execute([$id]);
 
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.admin.chat_rooms.deleted_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 $message = $e->getMessage();
@@ -1904,7 +2045,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $input = json_decode(file_get_contents('php://input'), true);
                 $nodeId = $adminController->addInsecureNode($input);
-                echo json_encode(['success' => true, 'id' => $nodeId]);
+                echo json_encode([
+                    'success' => true,
+                    'id' => $nodeId,
+                    'message_code' => 'ui.admin.insecure_nodes.added_success'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.insecure_nodes.create_failed', 'Failed to add insecure node');
@@ -1924,7 +2069,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $input = json_decode(file_get_contents('php://input'), true);
                 $result = $adminController->updateInsecureNode($id, $input);
-                echo json_encode(['success' => $result]);
+                if ($result) {
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.admin.insecure_nodes.updated_success'
+                    ]);
+                } else {
+                    echo json_encode(['success' => false]);
+                }
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.insecure_nodes.update_failed', 'Failed to update insecure node');
@@ -1943,7 +2095,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $result = $adminController->deleteInsecureNode($id);
-                echo json_encode(['success' => $result]);
+                if ($result) {
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.admin.insecure_nodes.deleted_success'
+                    ]);
+                } else {
+                    echo json_encode(['success' => false]);
+                }
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.insecure_nodes.delete_failed', 'Failed to delete insecure node');
@@ -1994,7 +2153,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $result = $adminController->retryCrashmail($id);
-                echo json_encode(['success' => $result]);
+                if ($result) {
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.admin.crashmail_queue.retry_success'
+                    ]);
+                } else {
+                    echo json_encode(['success' => false]);
+                }
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.crashmail.retry_failed', 'Failed to retry crashmail item');
@@ -2013,7 +2179,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             try {
                 $result = $adminController->cancelCrashmail($id);
-                echo json_encode(['success' => $result]);
+                if ($result) {
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.admin.crashmail_queue.cancel_success'
+                    ]);
+                } else {
+                    echo json_encode(['success' => false]);
+                }
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.crashmail.cancel_failed', 'Failed to cancel crashmail item');
@@ -2033,7 +2206,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->crashmailPoll();
-                echo json_encode(['success' => true, 'result' => $result]);
+                echo json_encode([
+                    'success' => true,
+                    'result' => $result,
+                    'message_code' => 'ui.admin.crashmail_queue.delivery_attempt_started'
+                ]);
             } catch (Exception $e) {
                 http_response_code(400);
                 apiError('errors.admin.crashmail.poll_failed', 'Failed to run crashmail poll', 400);
@@ -2135,6 +2312,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->saveCustomTemplate($path, $content);
+                if (is_array($result) && !isset($result['message_code']) && !isset($result['error']) && (($result['success'] ?? true) === true)) {
+                    $result['message_code'] = 'ui.admin.template_editor.template_saved_success';
+                }
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
@@ -2155,6 +2335,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->deleteCustomTemplate($path);
+                if (is_array($result) && !isset($result['message_code']) && !isset($result['error']) && (($result['success'] ?? true) === true)) {
+                    $result['message_code'] = 'ui.admin.template_editor.template_deleted_success';
+                }
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
@@ -2177,6 +2360,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
                 $result = $client->installCustomTemplate($source, $overwrite);
+                if (is_array($result) && !isset($result['message_code']) && !isset($result['error']) && (($result['success'] ?? true) === true)) {
+                    $result['message_code'] = 'ui.admin.template_editor.template_installed_success';
+                }
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
@@ -2299,7 +2485,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'echoarea_id' => $input['echoarea_id']
             ]);
 
-            echo json_encode(['success' => true, 'id' => $feedId]);
+            echo json_encode([
+                'success' => true,
+                'id' => $feedId,
+                'message_code' => 'ui.admin.auto_feed.created_success'
+            ]);
         } catch (PDOException $e) {
             http_response_code(400);
             if (strpos($e->getMessage(), 'duplicate key') !== false) {
@@ -2367,7 +2557,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 'echoarea_id' => $input['echoarea_id']
             ]);
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin.auto_feed.updated_success'
+            ]);
         } catch (PDOException $e) {
             http_response_code(400);
             apiError('errors.admin.auto_feed.update_failed', 'Failed to update feed source');
@@ -2402,7 +2595,10 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             'feed_url' => $feed['feed_url']
         ]);
 
-        echo json_encode(['success' => true]);
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.admin.auto_feed.deleted_success'
+        ]);
     });
 
     // Auto Feed API - Check feed now
@@ -2446,6 +2642,8 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         echo json_encode([
             'success' => true,
+            'message_code' => 'ui.admin.auto_feed.checked_articles_posted',
+            'message_params' => ['count' => max(0, $articlesPosted)],
             'articles_posted' => max(0, $articlesPosted),
             'output' => implode("\n", $output)
         ]);

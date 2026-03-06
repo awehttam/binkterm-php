@@ -337,11 +337,15 @@ function saveFeed() {
         method: method,
         contentType: 'application/json',
         data: JSON.stringify(formData),
-        success: function() {
+        success: function(response) {
             $('#feedModal').modal('hide');
-            showSuccess(currentFeedId
+            const defaultMessage = currentFeedId
                 ? uiT('ui.admin.auto_feed.updated_success', 'Feed updated successfully')
-                : uiT('ui.admin.auto_feed.created_success', 'Feed created successfully'));
+                : uiT('ui.admin.auto_feed.created_success', 'Feed created successfully');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, defaultMessage)
+                : defaultMessage;
+            showSuccess(successMessage);
             loadFeeds();
             loadStats();
         },
@@ -366,9 +370,12 @@ function deleteFeed() {
     $.ajax({
         url: `/admin/api/auto-feed/feeds/${currentFeedId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             $('#deleteModal').modal('hide');
-            showSuccess(uiT('ui.admin.auto_feed.deleted_success', 'Feed deleted successfully'));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.admin.auto_feed.deleted_success', 'Feed deleted successfully'))
+                : uiT('ui.admin.auto_feed.deleted_success', 'Feed deleted successfully');
+            showSuccess(successMessage);
             loadFeeds();
             loadStats();
         },
@@ -384,7 +391,10 @@ function checkFeed(id) {
 
     $.post(`/admin/api/auto-feed/check/${id}`)
         .done(function(data) {
-            showSuccess(uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted }));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted }))
+                : uiT('ui.admin.auto_feed.checked_articles_posted', 'Feed checked: {count} new article(s) posted', { count: data.articles_posted });
+            showSuccess(successMessage);
             loadFeeds();
             loadStats();
         })

@@ -207,9 +207,13 @@ $(document).ready(function() {
             })
         })
         .done(function(response) {
-            alert(uiT('ui.polls.create.created_success_spent', 'Poll created successfully! You spent {spent} credits.', {
+            const fallback = uiT('ui.polls.create.created_success_spent', 'Poll created successfully! You spent {spent} credits.', {
                 spent: response.credits_spent
-            }));
+            });
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallback)
+                : fallback;
+            alert(successMessage);
             window.location.href = '/';
         })
         .fail(function(xhr) {

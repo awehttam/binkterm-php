@@ -147,6 +147,7 @@ class BinkpController
             
             return [
                 'success' => true,
+                'message_code' => 'ui.api.binkp.uplink_added',
                 'message' => 'Uplink added successfully'
             ];
             
@@ -162,6 +163,7 @@ class BinkpController
             
             return [
                 'success' => true,
+                'message_code' => 'ui.api.binkp.uplink_updated',
                 'message' => 'Uplink updated successfully'
             ];
             
@@ -177,6 +179,7 @@ class BinkpController
             
             return [
                 'success' => true,
+                'message_code' => 'ui.api.binkp.uplink_removed',
                 'message' => 'Uplink removed successfully'
             ];
             
@@ -259,6 +262,7 @@ class BinkpController
             
             return [
                 'success' => true,
+                'message_code' => 'ui.api.binkp.file_deleted',
                 'message' => 'File deleted successfully'
             ];
             
@@ -275,6 +279,7 @@ class BinkpController
             
             return [
                 'success' => true,
+                'message_code' => 'ui.api.binkp.file_retry_started',
                 'message' => 'File retry initiated successfully'
             ];
             
@@ -340,6 +345,7 @@ class BinkpController
             
             return [
                 'success' => true,
+                'message_code' => 'ui.api.binkp.config_updated',
                 'message' => 'Configuration updated successfully'
             ];
             

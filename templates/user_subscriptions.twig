@@ -173,10 +173,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    const fallbackMessage = action === 'subscribe'
+                        ? uiT('ui.user_subscriptions.subscribed_success', 'Subscribed successfully!')
+                        : uiT('ui.user_subscriptions.unsubscribed_success', 'Unsubscribed successfully!');
+                    const successMessage = window.getApiMessage
+                        ? window.getApiMessage(data, fallbackMessage)
+                        : fallbackMessage;
                     showStatus(
-                        action === 'subscribe'
-                            ? uiT('ui.user_subscriptions.subscribed_success', 'Subscribed successfully!')
-                            : uiT('ui.user_subscriptions.unsubscribed_success', 'Unsubscribed successfully!'),
+                        successMessage,
                         'success'
                     );
                     // Refresh page to update stats and view buttons

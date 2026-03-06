@@ -466,7 +466,10 @@ function getApiErrorMessage(payload, fallback = 'An unexpected error occurred.')
         return fallback;
     }
     if (payload.error_code) {
-        return t(payload.error_code, {}, payload.error || fallback);
+        const params = payload.error_params && typeof payload.error_params === 'object'
+            ? payload.error_params
+            : {};
+        return t(payload.error_code, params, payload.error || fallback);
     }
     if (payload.error) {
         return String(payload.error);
@@ -475,6 +478,24 @@ function getApiErrorMessage(payload, fallback = 'An unexpected error occurred.')
 }
 
 window.getApiErrorMessage = getApiErrorMessage;
+
+function getApiMessage(payload, fallback = '') {
+    if (!payload || typeof payload !== 'object') {
+        return fallback;
+    }
+    if (payload.message_code) {
+        const params = payload.message_params && typeof payload.message_params === 'object'
+            ? payload.message_params
+            : {};
+        return t(payload.message_code, params, payload.message || fallback);
+    }
+    if (payload.message) {
+        return String(payload.message);
+    }
+    return fallback;
+}
+
+window.getApiMessage = getApiMessage;
 
 function mergeCatalogs(catalogs) {
     if (!catalogs || typeof catalogs !== 'object') {

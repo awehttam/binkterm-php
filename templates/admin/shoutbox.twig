@@ -39,6 +39,13 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? payload.message : fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadShouts();
 });
@@ -97,6 +104,10 @@ function toggleShout(id, hide) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                const fallbackMessage = hide
+                    ? uiT('ui.admin.shoutbox.hidden_success', 'Shout hidden successfully')
+                    : uiT('ui.admin.shoutbox.unhidden_success', 'Shout unhidden successfully');
+                showAlert(apiMessage(data, fallbackMessage), 'success');
                 loadShouts();
             } else {
                 showAlert(uiT('ui.admin.shoutbox.failed_to_update', 'Failed to update shout'), 'danger');
@@ -114,6 +125,7 @@ function deleteShout(id) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                showAlert(apiMessage(data, uiT('ui.admin.shoutbox.deleted_success', 'Shout deleted successfully')), 'success');
                 loadShouts();
             } else {
                 showAlert(uiT('ui.admin.shoutbox.failed_to_delete', 'Failed to delete shout'), 'danger');

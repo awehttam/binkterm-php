@@ -152,7 +152,10 @@ function saveRules() {
             document.getElementById('rulesJsonEditor').value = rulesState.configJson;
             rulesState.dirty = false;
             setButtons();
-            setAlert(uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.'))
+                : uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.');
+            setAlert(successMessage, 'success');
         })
         .catch(error => {
             setAlert(error.message || uiT('ui.admin.filearea_rules.save_failed', 'Failed to save rules'), 'danger');

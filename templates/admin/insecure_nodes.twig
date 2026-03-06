@@ -156,6 +156,13 @@
 </div>
 
 <script>
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? payload.message : fallback;
+}
+
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
         return window.getApiErrorMessage(payload, fallback);
@@ -241,6 +248,7 @@ function addNode() {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
+            alert(apiMessage(result, uiT('ui.admin.insecure_nodes.added_success', 'Node added successfully')));
             bootstrap.Modal.getInstance(document.getElementById('addNodeModal')).hide();
             form.reset();
             loadNodes();
@@ -285,6 +293,7 @@ function updateNode() {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
+            alert(apiMessage(result, uiT('ui.admin.insecure_nodes.updated_success', 'Node updated successfully')));
             bootstrap.Modal.getInstance(document.getElementById('editNodeModal')).hide();
             loadNodes();
         } else {
@@ -303,6 +312,7 @@ function deleteNode(id, address) {
         .then(response => response.json())
         .then(result => {
             if (result.success) {
+                alert(apiMessage(result, uiT('ui.admin.insecure_nodes.deleted_success', 'Node deleted successfully')));
                 loadNodes();
             } else {
                 alert(uiT('ui.admin.insecure_nodes.error_prefix', 'Error: ') + apiError(result, uiT('ui.admin.insecure_nodes.delete_failed', 'Failed to delete node')));

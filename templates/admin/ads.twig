@@ -162,7 +162,10 @@ function uploadAd() {
         }
         fileInput.value = '';
         document.getElementById('adName').value = '';
-        showAdsAlert(uiT('ui.admin.ads.uploaded', 'Advertisement uploaded.'), 'success');
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.ads.uploaded', 'Advertisement uploaded.'))
+            : uiT('ui.admin.ads.uploaded', 'Advertisement uploaded.');
+        showAdsAlert(successMessage, 'success');
         loadAds();
     })
     .catch(error => {
@@ -181,7 +184,10 @@ function deleteAd(encodedName, displayName) {
             if (!response.ok || !data.success) {
                 throw new Error(apiError(data, uiT('ui.admin.ads.delete_failed_with_status', `Delete failed (${response.status})`, { status: response.status })));
             }
-            showAdsAlert(uiT('ui.admin.ads.deleted', 'Advertisement deleted.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.ads.deleted', 'Advertisement deleted.'))
+                : uiT('ui.admin.ads.deleted', 'Advertisement deleted.');
+            showAdsAlert(successMessage, 'success');
             loadAds();
         })
         .catch(error => {

@@ -165,7 +165,9 @@ $('#reminderForm').on('submit', function(e) {
         contentType: false,
         success: function(response) {
             if (response.success) {
-                let message = response.message;
+                let message = window.getApiMessage
+                    ? window.getApiMessage(response, '{{ t('ui.api.reminder.sent', {}, 'common') }}')
+                    : '{{ t('ui.api.reminder.sent', {}, 'common') }}';
                 if (response.email_sent) {
                     message += ' {{ t('ui.login.reminder_sent_netmail_email_suffix', {}, 'common') }}';
                 } else {

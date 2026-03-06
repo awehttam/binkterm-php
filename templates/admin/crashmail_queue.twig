@@ -160,6 +160,13 @@
 </style>
 
 <script>
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? payload.message : fallback;
+}
+
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
         return window.getApiErrorMessage(payload, fallback);
@@ -189,6 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    alert(apiMessage(data, uiT('ui.admin.crashmail_queue.delivery_attempt_started', 'Delivery attempt started.')));
                     loadStats();
                     loadQueue();
                 } else {
@@ -288,6 +296,7 @@ function retryItem(id) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                alert(apiMessage(data, uiT('ui.admin.crashmail_queue.retry_success', 'Crashmail retry queued.')));
                 loadStats();
                 loadQueue();
             } else {
@@ -306,6 +315,7 @@ function cancelItem(id) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                alert(apiMessage(data, uiT('ui.admin.crashmail_queue.cancel_success', 'Crashmail cancelled.')));
                 loadStats();
                 loadQueue();
             } else {

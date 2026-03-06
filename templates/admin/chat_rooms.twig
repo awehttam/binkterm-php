@@ -189,9 +189,17 @@ function saveChatRoom() {
     .then(response => response.json())
     .then(data => {
         if (data.success || data.id) {
-            showAlert(roomId
-                ? uiT('ui.admin.chat_rooms.updated_success', 'Room updated successfully')
-                : uiT('ui.admin.chat_rooms.created_success', 'Room created successfully'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(
+                    data,
+                    roomId
+                        ? uiT('ui.admin.chat_rooms.updated_success', 'Room updated successfully')
+                        : uiT('ui.admin.chat_rooms.created_success', 'Room created successfully')
+                )
+                : (roomId
+                    ? uiT('ui.admin.chat_rooms.updated_success', 'Room updated successfully')
+                    : uiT('ui.admin.chat_rooms.created_success', 'Room created successfully'));
+            showAlert(successMessage, 'success');
             bootstrap.Modal.getInstance(document.getElementById('chatRoomModal')).hide();
             loadChatRooms();
         } else {
@@ -213,7 +221,10 @@ function deleteChatRoom(roomId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert(uiT('ui.admin.chat_rooms.deleted_success', 'Room deleted successfully'), 'success');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(data, uiT('ui.admin.chat_rooms.deleted_success', 'Room deleted successfully'))
+                    : uiT('ui.admin.chat_rooms.deleted_success', 'Room deleted successfully');
+                showAlert(successMessage, 'success');
                 loadChatRooms();
             } else {
                 showAlert(apiError(data, uiT('ui.admin.chat_rooms.delete_failed', 'Error deleting room')), 'danger');

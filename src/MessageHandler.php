@@ -2807,7 +2807,11 @@ class MessageHandler
         $result = $stmt->execute([$messageId, $messageType, $userId]);
         
         if ($result && $stmt->rowCount() > 0) {
-            return ['success' => true, 'message' => 'Share link revoked'];
+            return [
+                'success' => true,
+                'message_code' => 'ui.api.messages.share_revoked',
+                'message' => 'Share link revoked'
+            ];
         }
 
         return [
@@ -4428,6 +4432,7 @@ class MessageHandler
 
         return [
             'success' => true, 
+            'message_code' => 'ui.api.reminder.sent',
             'message' => 'Account reminder sent successfully',
             'email_sent' => $emailSent
         ];

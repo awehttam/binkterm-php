@@ -258,7 +258,10 @@ function saveWebdoorsConfig() {
         if (!data.success) {
             throw new Error(apiError(data, uiT('ui.admin.webdoors_config.save_failed', 'Failed to save config')));
         }
-        showEditorAlert(uiT('ui.admin.webdoors_config.saved_success', 'Webdoors config saved.'), 'success');
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.webdoors_config.saved_success', 'Webdoors config saved.'))
+            : uiT('ui.admin.webdoors_config.saved_success', 'Webdoors config saved.');
+        showEditorAlert(successMessage, 'success');
         const cfg = data.config || {};
         webdoorsConfigState.active = !!cfg.active;
         webdoorsConfigState.configJson = cfg.config_json || editor.value;
@@ -285,7 +288,10 @@ function activateWebdoors() {
             updateStatus();
             updateJsonStatus();
             renderDoorList();
-            showStatusAlert(uiT('ui.admin.webdoors_config.activated_success', 'Webdoors activated.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.webdoors_config.activated_success', 'Webdoors activated.'))
+                : uiT('ui.admin.webdoors_config.activated_success', 'Webdoors activated.');
+            showStatusAlert(successMessage, 'success');
         })
         .catch(error => {
             showStatusAlert(error.message || uiT('ui.admin.webdoors_config.activate_failed', 'Failed to activate webdoors'), 'danger');

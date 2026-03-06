@@ -59,11 +59,19 @@ class SubscriptionController
             
             if ($action === 'subscribe') {
                 $success = $this->subscriptionManager->subscribeUser($userId, $echoareaId);
-                echo json_encode(['success' => $success]);
+                $response = ['success' => $success];
+                if ($success) {
+                    $response['message_code'] = 'ui.user_subscriptions.subscribed_success';
+                }
+                echo json_encode($response);
                 
             } elseif ($action === 'unsubscribe') {
                 $success = $this->subscriptionManager->unsubscribeUser($userId, $echoareaId);
-                echo json_encode(['success' => $success]);
+                $response = ['success' => $success];
+                if ($success) {
+                    $response['message_code'] = 'ui.user_subscriptions.unsubscribed_success';
+                }
+                echo json_encode($response);
                 
             } else {
                 $this->respondApiError('errors.subscriptions.invalid_action', 'Invalid action', 400);

@@ -369,7 +369,10 @@ function saveConfig() {
             }
 
             doorsState.config = data.config;
-            showAlert('success', uiT('ui.admin.dosdoors_config.saved_success', 'Configuration saved successfully!'));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.dosdoors_config.saved_success', 'Configuration saved successfully!'))
+                : uiT('ui.admin.dosdoors_config.saved_success', 'Configuration saved successfully!');
+            showAlert('success', successMessage);
             renderDoorsList();
         })
         .catch(error => {

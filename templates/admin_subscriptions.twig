@@ -211,7 +211,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     const action = isDefault
                         ? uiT('ui.admin_subscriptions.action_enabled', 'enabled')
                         : uiT('ui.admin_subscriptions.action_disabled', 'disabled');
-                    showStatus(uiT('ui.admin_subscriptions.update_success', 'Default subscription {action} successfully! Page will refresh to show updated stats.', { action }), 'success');
+                    const fallbackMessage = uiT('ui.admin_subscriptions.update_success', 'Default subscription {action} successfully! Page will refresh to show updated stats.', { action });
+                    const successMessage = window.getApiMessage
+                        ? window.getApiMessage(data, fallbackMessage)
+                        : fallbackMessage;
+                    showStatus(successMessage, 'success');
                     // Refresh page to update subscriber counts
                     setTimeout(() => location.reload(), 1500);
                 } else {

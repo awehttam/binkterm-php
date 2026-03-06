@@ -242,9 +242,17 @@ function savePoll() {
     .then(response => response.json())
     .then(data => {
         if (data.success || data.id) {
-            showAlert(pollId
-                ? uiT('ui.admin.polls.updated_success', 'Poll updated successfully')
-                : uiT('ui.admin.polls.created_success', 'Poll created successfully'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(
+                    data,
+                    pollId
+                        ? uiT('ui.admin.polls.updated_success', 'Poll updated successfully')
+                        : uiT('ui.admin.polls.created_success', 'Poll created successfully')
+                )
+                : (pollId
+                    ? uiT('ui.admin.polls.updated_success', 'Poll updated successfully')
+                    : uiT('ui.admin.polls.created_success', 'Poll created successfully'));
+            showAlert(successMessage, 'success');
             bootstrap.Modal.getInstance(document.getElementById('pollModal')).hide();
             loadPolls();
         } else {
@@ -266,7 +274,10 @@ function deletePoll(pollId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert(uiT('ui.admin.polls.deleted_success', 'Poll deleted successfully'), 'success');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(data, uiT('ui.admin.polls.deleted_success', 'Poll deleted successfully'))
+                    : uiT('ui.admin.polls.deleted_success', 'Poll deleted successfully');
+                showAlert(successMessage, 'success');
                 loadPolls();
             } else {
                 showAlert(apiError(data, uiT('ui.admin.polls.delete_failed', 'Error deleting poll')), 'danger');

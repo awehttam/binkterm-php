@@ -345,7 +345,10 @@ async function saveMrcSettings() {
         });
 
         if (response.success) {
-            showAlert('mrcGeneralAlert', 'success', uiT('ui.admin.mrc_settings.saved_success', 'MRC settings saved successfully'));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.admin.mrc_settings.saved_success', 'MRC settings saved successfully'))
+                : uiT('ui.admin.mrc_settings.saved_success', 'MRC settings saved successfully');
+            showAlert('mrcGeneralAlert', 'success', successMessage);
             mrcConfig = response.config;
 
             // If enabled status changed, suggest daemon restart

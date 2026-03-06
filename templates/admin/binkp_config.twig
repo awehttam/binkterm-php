@@ -434,7 +434,7 @@ function saveBinkpConfig() {
         }
         binkpConfig = data.config || config;
         renderUplinks();
-        showBinkpAlert(uiT('ui.admin.binkp_config.configuration_saved', 'Configuration saved.'), 'success');
+        showBinkpAlert(apiMessage(data, uiT('ui.admin.binkp_config.configuration_saved', 'Configuration saved.')), 'success');
     })
     .catch(error => {
         showBinkpAlert(error.message || uiT('ui.admin.binkp_config.save_failed', 'Failed to save config'), 'danger');
@@ -457,7 +457,10 @@ function reloadBinkpConfig() {
         if (!data.success) {
             throw new Error(apiError(data, uiT('ui.admin.binkp_config.reload_failed', 'Failed to reload config')));
         }
-        showBinkpAlert(uiT('ui.admin.binkp_config.reloaded_success', 'Configuration reloaded successfully. Daemon has picked up changes.'), 'success');
+        showBinkpAlert(
+            apiMessage(data, uiT('ui.admin.binkp_config.reloaded_success', 'Configuration reloaded successfully. Daemon has picked up changes.')),
+            'success'
+        );
     })
     .catch(error => {
         showBinkpAlert(error.message || uiT('ui.admin.binkp_config.reload_failed', 'Failed to reload config'), 'danger');
@@ -501,6 +504,16 @@ function apiError(payload, fallback) {
     }
     if (payload && payload.error) {
         return String(payload.error);
+    }
+    return fallback;
+}
+
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    if (payload && payload.message) {
+        return String(payload.message);
     }
     return fallback;
 }

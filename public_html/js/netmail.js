@@ -644,7 +644,10 @@ function deleteMessage(messageId) {
         method: 'DELETE',
         success: function(data) {
             $('#messageModal').modal('hide');
-            showSuccess(uiT('ui.netmail.message_deleted_success', 'Message deleted successfully'));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.netmail.message_deleted_success', 'Message deleted successfully'))
+                : uiT('ui.netmail.message_deleted_success', 'Message deleted successfully');
+            showSuccess(successMessage);
             loadMessages();
             loadStats();
         },
@@ -870,9 +873,13 @@ function saveAddressBookEntry() {
             if (response.success) {
                 $('#addressBookModal').modal('hide');
                 loadAddressBook();
-                showSuccess(entryId
+                const defaultMessage = entryId
                     ? uiT('ui.address_book.entry_updated', 'Entry updated successfully')
-                    : uiT('ui.compose.address_book.entry_added', 'Entry added successfully'));
+                    : uiT('ui.compose.address_book.entry_added', 'Entry added successfully');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, defaultMessage)
+                    : defaultMessage;
+                showSuccess(successMessage);
             } else {
                 showAddressBookModalError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save entry')));
             }
@@ -895,7 +902,10 @@ function deleteAddressBookEntry(entryId, entryName) {
         success: function(response) {
             if (response.success) {
                 loadAddressBook();
-                showSuccess(uiT('ui.address_book.entry_deleted', 'Entry deleted successfully'));
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.address_book.entry_deleted', 'Entry deleted successfully'))
+                    : uiT('ui.address_book.entry_deleted', 'Entry deleted successfully');
+                showSuccess(successMessage);
             } else {
                 showError(apiError(response, uiT('errors.address_book.delete_failed', 'Failed to delete entry')));
             }
@@ -1058,7 +1068,10 @@ function deleteDraft(draftId) {
             if (response.success) {
                 // Reload drafts to show updated list
                 loadDrafts();
-                showSuccess(uiT('ui.drafts.deleted_success', 'Draft deleted successfully'));
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.drafts.deleted_success', 'Draft deleted successfully'))
+                    : uiT('ui.drafts.deleted_success', 'Draft deleted successfully');
+                showSuccess(successMessage);
             } else {
                 showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
             }
@@ -1256,7 +1269,11 @@ function deleteSelectedMessages() {
         contentType: 'application/json',
         data: JSON.stringify({ message_ids: messageIds }),
         success: function(data) {
-            showSuccess(uiT('ui.netmail.bulk_delete.success', `Deleted ${messageIds.length} message(s)`, { count: messageIds.length }));
+            const deletedCount = data.deleted || messageIds.length;
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.netmail.bulk_delete.success', `Deleted ${deletedCount} message(s)`, { count: deletedCount }))
+                : uiT('ui.netmail.bulk_delete.success', `Deleted ${deletedCount} message(s)`, { count: deletedCount });
+            showSuccess(successMessage);
             clearSelection();
             loadMessages();
         },

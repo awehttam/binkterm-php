@@ -603,9 +603,13 @@ function processUser(action) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(action === 'approve'
+                const fallbackMessage = action === 'approve'
                     ? uiT('ui.admin_users.user_approved_success', 'User approved successfully!')
-                    : uiT('ui.admin_users.user_rejected_success', 'User rejected successfully!'));
+                    : uiT('ui.admin_users.user_rejected_success', 'User rejected successfully!');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, fallbackMessage)
+                    : fallbackMessage;
+                showSuccess(successMessage);
                 $('#approvalModal').modal('hide');
                 refreshData();
                 $('#admin-notes').val('');
@@ -709,7 +713,10 @@ function saveUserChanges() {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(uiT('ui.admin_users.user_updated_success', 'User updated successfully!'));
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.admin_users.user_updated_success', 'User updated successfully!'))
+                    : uiT('ui.admin_users.user_updated_success', 'User updated successfully!');
+                showSuccess(successMessage);
                 $('#editUserModal').modal('hide');
                 refreshData();
             } else {
@@ -740,7 +747,10 @@ function toggleUserStatus(userId, newStatus) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(uiT('ui.admin_users.user_toggled_success', 'User {action}d successfully!', { action }));
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.admin_users.user_toggled_success', 'User {action}d successfully!', { action }))
+                    : uiT('ui.admin_users.user_toggled_success', 'User {action}d successfully!', { action });
+                showSuccess(successMessage);
                 refreshData();
             } else {
                 showError(uiT('ui.admin_users.user_action_failed_prefix', 'Failed to {action} user: ', { action }) + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
@@ -820,7 +830,10 @@ function saveNewUser() {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                showSuccess(uiT('ui.admin_users.user_created_success', 'User created successfully!'));
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.admin_users.user_created_success', 'User created successfully!'))
+                    : uiT('ui.admin_users.user_created_success', 'User created successfully!');
+                showSuccess(successMessage);
                 $('#createUserModal').modal('hide');
                 refreshData();
             } else {
@@ -859,11 +872,15 @@ function cleanupRegistrations() {
         success: function(response) {
             if (response.success) {
                 const result = response.result;
-                showSuccess(uiT('ui.admin_users.cleanup_success', 'Cleanup completed! Removed {approved} approved and {rejected} old rejected registrations ({total} total).', {
+                const fallbackMessage = uiT('ui.admin_users.cleanup_success', 'Cleanup completed! Removed {approved} approved and {rejected} old rejected registrations ({total} total).', {
                     approved: result.approved_removed,
                     rejected: result.old_rejected_removed,
                     total: result.total_cleaned
-                }));
+                });
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, fallbackMessage)
+                    : fallbackMessage;
+                showSuccess(successMessage);
                 refreshData();
             } else {
                 showError(uiT('ui.admin_users.cleanup_failed_prefix', 'Failed to cleanup registrations: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
@@ -890,7 +907,9 @@ function sendAccountReminder(userId, username) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                let message = response.message;
+                let message = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.api.reminder.sent', 'Account reminder sent successfully'))
+                    : uiT('ui.api.reminder.sent', 'Account reminder sent successfully');
                 if (response.email_sent) {
                     message += uiT('ui.admin_users.reminder_sent_netmail_email_suffix', ' (sent via netmail and email)');
                 } else {

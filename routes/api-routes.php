@@ -494,6 +494,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result['success']) {
                 echo json_encode([
                     'success' => true,
+                    'message_code' => 'ui.api.reminder.sent',
                     'message' => 'Account reminder sent successfully',
                     'email_sent' => $result['email_sent'] ?? false
                 ]);
@@ -958,7 +959,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode([
                 'success' => true,
                 'poll_id' => $pollId,
-                'credits_spent' => $cost
+                'credits_spent' => $cost,
+                'message_code' => 'ui.polls.create.created_success_spent',
+                'message_params' => [
+                    'spent' => $cost
+                ]
             ]);
         } catch (Exception $e) {
             // Refund credits if poll creation failed
@@ -2382,6 +2387,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode([
                 'success' => true,
                 'file_id' => $fileId,
+                'message_code' => 'ui.api.files.uploaded',
                 'message' => 'File uploaded successfully'
             ]);
 
@@ -2426,6 +2432,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             echo json_encode([
                 'success' => true,
+                'message_code' => 'ui.api.files.deleted',
                 'message' => 'File deleted successfully'
             ]);
 
@@ -2584,7 +2591,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $result = $handler->deleteNetmail($id, $user['user_id']);
 
         if ($result) {
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.netmail.message_deleted_success'
+            ]);
         } else {
             http_response_code(404);
             apiError('errors.messages.netmail.delete_failed', 'Failed to delete message');
@@ -2666,6 +2676,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode([
             'success' => true,
+            'message_code' => 'ui.netmail.bulk_delete.success',
+            'message_params' => ['count' => $deleted],
             'deleted' => $deleted,
             'total' => count($messageIds)
         ]);
@@ -2736,6 +2748,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode([
             'success' => true,
+            'message_code' => 'ui.echomail.bulk_mark_read_success',
+            'message_params' => ['count' => $marked],
             'message' => "Marked $marked message" . ($marked !== 1 ? 's' : '') . " as read",
             'marked' => $marked,
             'total' => count($messageIds)
@@ -2775,6 +2789,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         echo json_encode([
             'success' => true,
+            'message_code' => 'ui.echomail.bulk_delete.success',
+            'message_params' => ['count' => $deleted],
             'message' => "Deleted $deleted message" . ($deleted !== 1 ? 's' : ''),
             'deleted' => $deleted,
             'total' => count($messageIds)
@@ -3352,7 +3368,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 } elseif ($type === 'echomail') {
                     ActivityTracker::track($user['user_id'], ActivityTracker::TYPE_ECHOMAIL_SEND, null, $echoarea ?? null);
                 }
-                echo json_encode(['success' => true, 'areas_posted' => $totalAreas]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.messages.sent',
+                    'message' => 'Message sent successfully',
+                    'areas_posted' => $totalAreas
+                ]);
 
                 if (function_exists('session_write_close')) {
                     session_write_close();
@@ -3482,6 +3503,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $handler->saveDraft($userId, $input);
 
             if ($result['success']) {
+                if (!isset($result['message_code'])) {
+                    $result['message_code'] = 'ui.compose.draft.saved_success';
+                }
                 echo json_encode($result);
             } else {
                 http_response_code(500);
@@ -3568,6 +3592,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         try {
             $result = $handler->deleteDraft($userId, $id);
+            if (!empty($result['success']) && !isset($result['message_code'])) {
+                $result['message_code'] = 'ui.drafts.deleted_success';
+            }
             echo json_encode($result);
         } catch (Exception $e) {
             http_response_code(500);
@@ -3696,7 +3723,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $stmt->execute([$userId, (int)$id, $type]);
 
             if ($result) {
-                echo json_encode(['success' => true, 'message' => 'Message saved']);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.messages.saved',
+                    'message' => 'Message saved'
+                ]);
             } else {
                 http_response_code(500);
                 apiError('errors.messages.save.failed', 'Failed to save message');
@@ -3740,7 +3771,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $stmt->execute([$userId, (int)$id, $type]);
 
             if ($result && $stmt->rowCount() > 0) {
-                echo json_encode(['success' => true, 'message' => 'Message unsaved']);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.api.messages.unsaved',
+                    'message' => 'Message unsaved'
+                ]);
             } else {
                 echo json_encode([
                     'success' => false,
@@ -4090,6 +4125,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'success' => true,
                 'fee' => $fee,
                 'amount_received' => $amountToRecipient,
+                'message_code' => 'ui.api.credits.sent',
                 'message' => 'Credits sent successfully'
             ]);
 
@@ -4147,7 +4183,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $result = $stmt->execute([$sessionId, $user['user_id']]);
 
         if ($result) {
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.settings.sessions.revoked_success'
+            ]);
         } else {
             http_response_code(404);
             apiError('errors.user.sessions.revoke_failed', 'Failed to revoke session');
@@ -4343,7 +4382,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.api.binkp.poll_triggered',
+                'message' => 'BinkP poll triggered',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -4363,7 +4407,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.api.binkp.poll_all_triggered',
+                'message' => 'BinkP poll-all triggered',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -4383,7 +4432,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.api.binkp.process_packets_started',
+                'message' => 'Packet processing started',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -4495,7 +4549,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.binkp.inbound_processing_completed',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -4516,7 +4574,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.binkp.outbound_processing_completed',
+                'result' => $result
+            ]);
         } catch (\Exception $e) {
             ob_clean();
             http_response_code(500);
@@ -4539,7 +4601,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
     // Test endpoint to verify delete endpoint is accessible
     SimpleRouter::get('/messages/echomail/delete-test', function() {
         header('Content-Type: application/json');
-        echo json_encode(['success' => true, 'message' => 'Delete endpoint is accessible']);
+        echo json_encode([
+            'success' => true,
+            'message_code' => 'ui.api.debug.delete_endpoint_accessible',
+            'message' => 'Delete endpoint is accessible'
+        ]);
     });
 
     // Message sharing API endpoints
@@ -4834,7 +4900,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $handler->updateUserSettings($userId, $settings);
 
             if ($result) {
-                echo json_encode(['success' => true]);
+                echo json_encode([
+                    'success' => true,
+                    'message_code' => 'ui.settings.saved_successfully'
+                ]);
             } else {
                 apiError('errors.settings.update_failed', 'Failed to update settings', 400);
             }
@@ -4917,7 +4986,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $newUserId = $handler->approveUserRegistration($id, $user['user_id'], $notes);
-            echo json_encode(['success' => true, 'new_user_id' => $newUserId]);
+            echo json_encode([
+                'success' => true,
+                'new_user_id' => $newUserId,
+                'message_code' => 'ui.admin_users.user_approved_success'
+            ]);
         } catch (Exception $e) {
             http_response_code(400);
             apiError('errors.admin.pending_users.approve_failed', 'Failed to approve pending user');
@@ -4940,7 +5013,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $handler->rejectUserRegistration($id, $user['user_id'], $notes);
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin_users.user_rejected_success'
+            ]);
         } catch (Exception $e) {
             http_response_code(400);
             apiError('errors.admin.pending_users.reject_failed', 'Failed to reject pending user');
@@ -5070,7 +5146,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $updateStmt->execute($updateParams);
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin_users.user_updated_success'
+            ]);
 
         } catch (Exception $e) {
             http_response_code(500);
@@ -5104,7 +5183,13 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 return;
             }
 
-            echo json_encode(['success' => true]);
+            echo json_encode([
+                'success' => true,
+                'message_code' => 'ui.admin_users.user_toggled_success',
+                'message_params' => [
+                    'action' => $isActive ? 'enable' : 'disable'
+                ]
+            ]);
 
         } catch (Exception $e) {
             http_response_code(500);
@@ -5199,7 +5284,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             ");
             $settingsStmt->execute([$newUserId]);
 
-            echo json_encode(['success' => true, 'user_id' => $newUserId]);
+            echo json_encode([
+                'success' => true,
+                'user_id' => $newUserId,
+                'message_code' => 'ui.admin_users.user_created_success'
+            ]);
 
         } catch (Exception $e) {
             http_response_code(500);
@@ -5222,7 +5311,16 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         try {
             $handler = new MessageHandler();
             $result = $handler->performFullCleanup();
-            echo json_encode(['success' => true, 'result' => $result]);
+            echo json_encode([
+                'success' => true,
+                'result' => $result,
+                'message_code' => 'ui.admin_users.cleanup_success',
+                'message_params' => [
+                    'approved' => $result['approved_removed'] ?? 0,
+                    'rejected' => $result['old_rejected_removed'] ?? 0,
+                    'total' => $result['total_cleaned'] ?? 0
+                ]
+            ]);
         } catch (Exception $e) {
             http_response_code(500);
             apiError('errors.admin.users.cleanup_failed', 'Failed to clean up registrations');
@@ -5267,6 +5365,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result['success']) {
                 echo json_encode([
                     'success' => true,
+                    'message_code' => 'ui.api.reminder.sent',
                     'message' => 'Account reminder sent successfully',
                     'email_sent' => $result['email_sent'] ?? false
                 ]);
@@ -5396,7 +5495,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $addressBook = new AddressBookController();
                 $entryId = $addressBook->createEntry($userId, $data);
 
-                echo json_encode(['success' => true, 'entry_id' => $entryId]);
+                echo json_encode([
+                    'success' => true,
+                    'entry_id' => $entryId,
+                    'message_code' => 'ui.compose.address_book.entry_added'
+                ]);
             } catch (\BinktermPHP\AddressBookException $e) {
                 apiError($e->getErrorCode(), $e->getMessage(), $e->getHttpStatus());
                 return;
@@ -5420,7 +5523,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $success = $addressBook->updateEntry($id, $userId, $data);
 
                 if ($success) {
-                    echo json_encode(['success' => true]);
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.address_book.entry_updated'
+                    ]);
                 } else {
                     apiError('errors.address_book.update_failed', 'Failed to update entry', 400);
                     return;
@@ -5447,7 +5553,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 $success = $addressBook->deleteEntry($id, $userId);
 
                 if ($success) {
-                    echo json_encode(['success' => true]);
+                    echo json_encode([
+                        'success' => true,
+                        'message_code' => 'ui.address_book.entry_deleted'
+                    ]);
                 } else {
                     apiError('errors.address_book.not_found', 'Entry not found', 404);
                     return;

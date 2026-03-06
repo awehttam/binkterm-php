@@ -367,9 +367,17 @@ function saveUser() {
     .then(response => response.json())
     .then(data => {
         if (data.success || data.user_id) {
-            showAlert(userId
-                ? uiT('ui.admin.users.updated_success', 'User updated successfully')
-                : uiT('ui.admin.users.created_success', 'User created successfully'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(
+                    data,
+                    userId
+                        ? uiT('ui.admin.users.updated_success', 'User updated successfully')
+                        : uiT('ui.admin.users.created_success', 'User created successfully')
+                )
+                : (userId
+                    ? uiT('ui.admin.users.updated_success', 'User updated successfully')
+                    : uiT('ui.admin.users.created_success', 'User created successfully'));
+            showAlert(successMessage, 'success');
             bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
             loadUsers(currentPage);
         } else {
@@ -390,7 +398,10 @@ function deleteUser(userId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert(uiT('ui.admin.users.deleted_success', 'User deleted successfully'), 'success');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(data, uiT('ui.admin.users.deleted_success', 'User deleted successfully'))
+                    : uiT('ui.admin.users.deleted_success', 'User deleted successfully');
+                showAlert(successMessage, 'success');
                 loadUsers(currentPage);
             } else {
                 showAlert(apiError(data, uiT('ui.admin.users.delete_failed', 'Error deleting user')), 'danger');

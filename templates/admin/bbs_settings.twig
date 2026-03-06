@@ -313,7 +313,10 @@ function saveBbsSettings() {
             if (!data.success) {
                 throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_failed', 'Failed to save settings')));
             }
-            showBbsSettingsAlert(uiT('ui.admin.bbs_settings.saved_success', 'BBS features saved successfully.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.saved_success', 'BBS features saved successfully.'))
+                : uiT('ui.admin.bbs_settings.saved_success', 'BBS features saved successfully.');
+            showBbsSettingsAlert(successMessage, 'success');
         })
         .catch(error => {
             showBbsSettingsAlert(error.message || uiT('ui.admin.bbs_settings.save_failed', 'Failed to save settings'), 'danger');
@@ -361,7 +364,10 @@ function saveBbsSystem() {
         if (!data.success) {
             throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_system_failed', 'Failed to save system settings')));
         }
-        showBbsSystemAlert(uiT('ui.admin.bbs_settings.system_saved_success', 'System settings saved successfully.'), 'success');
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.system_saved_success', 'System settings saved successfully.'))
+            : uiT('ui.admin.bbs_settings.system_saved_success', 'System settings saved successfully.');
+        showBbsSystemAlert(successMessage, 'success');
     })
     .catch(error => {
         showBbsSystemAlert(error.message || uiT('ui.admin.bbs_settings.save_system_failed', 'Failed to save system settings'), 'danger');
@@ -471,7 +477,10 @@ function saveBbsCredits() {
             if (!data.success) {
                 throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_credits_failed', 'Failed to save credits settings')));
             }
-            showBbsCreditsAlert(uiT('ui.admin.bbs_settings.credits_saved_success', 'Credits settings saved successfully.'), 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.credits_saved_success', 'Credits settings saved successfully.'))
+                : uiT('ui.admin.bbs_settings.credits_saved_success', 'Credits settings saved successfully.');
+            showBbsCreditsAlert(successMessage, 'success');
         })
         .catch(error => {
             showBbsCreditsAlert(error.message || uiT('ui.admin.bbs_settings.save_credits_failed', 'Failed to save credits settings'), 'danger');
@@ -504,7 +513,10 @@ function saveBbsTaglines() {
         if (!data.success) {
             throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_taglines_failed', 'Failed to save taglines')));
         }
-        showBbsTaglinesAlert(uiT('ui.admin.bbs_settings.taglines_saved_success', 'Taglines saved successfully.'), 'success');
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.taglines_saved_success', 'Taglines saved successfully.'))
+            : uiT('ui.admin.bbs_settings.taglines_saved_success', 'Taglines saved successfully.');
+        showBbsTaglinesAlert(successMessage, 'success');
     })
     .catch(error => {
         showBbsTaglinesAlert(error.message || uiT('ui.admin.bbs_settings.save_taglines_failed', 'Failed to save taglines'), 'danger');

@@ -454,10 +454,13 @@ function saveSettings() {
         data: JSON.stringify({ settings: settings }),
         contentType: 'application/json',
         success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.settings.saved_successfully', 'Settings saved successfully!'))
+                : uiT('ui.settings.saved_successfully', 'Settings saved successfully!');
             $('#settingsStatus').html(`
                 <div class="alert alert-success">
                     <i class="fas fa-check me-2"></i>
-                    ${uiT('ui.settings.saved_successfully', 'Settings saved successfully!')}
+                    ${escapeHtml(successMessage)}
                 </div>
             `);
             
@@ -538,9 +541,12 @@ function revokeSession(sessionId) {
     $.ajax({
         url: `/api/user/sessions/${sessionId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             showActiveSessions(); // Refresh the list
-            showSuccess(uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully'));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully'))
+                : uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully');
+            showSuccess(successMessage);
         },
         error: function() {
             showError(uiT('errors.user.sessions.revoke_failed', 'Failed to revoke session'));
@@ -568,7 +574,17 @@ function pollUplinks() {
     
     $.post('/api/binkp/poll')
         .done(function(data) {
-            showSuccess(uiT('ui.settings.poll_complete_prefix', 'Uplink poll completed: ') + (data.message || uiT('ui.common.success', 'Success')));
+            const pollMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered'))
+                : (data.message || uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered'));
+            const exitCode = data && data.result && data.result.exit_code !== undefined && data.result.exit_code !== null
+                ? data.result.exit_code
+                : null;
+            if (exitCode !== null) {
+                showSuccess(uiT('ui.settings.poll_complete_exit', 'Uplink poll completed (exit {code})', { code: exitCode }));
+            } else {
+                showSuccess(pollMessage);
+            }
         })
         .fail(function(xhr) {
             const error = window.getApiErrorMessage
