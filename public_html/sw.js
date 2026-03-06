@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v186';
+const CACHE_NAME = 'binkcache-v187';
 
 // Static assets to precache
 const staticAssets = [
@@ -38,10 +38,18 @@ function getCache() {
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('[SW] Caching static assets');
+            .then(async (cache) => {
                 _cache = cache;
-                return cache.addAll(staticAssets);
+                // Only fetch assets not already in this cache version
+                const missing = (await Promise.all(
+                    staticAssets.map(url => cache.match(url).then(hit => hit ? null : url))
+                )).filter(Boolean);
+                if (missing.length > 0) {
+                    console.log('[SW] Caching', missing.length, 'new static assets');
+                    await cache.addAll(missing);
+                } else {
+                    console.log('[SW] All static assets already cached');
+                }
             })
             .then(() => {
                 console.log('[SW] New version installed, activating immediately');

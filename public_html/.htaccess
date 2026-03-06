@@ -1,7 +1,14 @@
 RewriteEngine On
 
-# Cache-Control headers - force browsers to revalidate using ETags
+# Cache-Control headers
 <IfModule mod_headers.c>
+    # Service Worker script: spec-recommended no-cache so browsers always check
+    # for updates via conditional request, but can use ETags for 304 responses.
+    # Must be declared BEFORE the generic .js rule so it takes precedence.
+    <FilesMatch "^sw\.js$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+
     # CSS/JS: Must check with server before using cached copy
     <FilesMatch "\.(css|js)$">
         Header set Cache-Control "max-age=0, must-revalidate"
