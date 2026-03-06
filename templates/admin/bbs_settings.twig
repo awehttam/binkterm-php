@@ -91,8 +91,8 @@
                         </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="bbsGuestDoorsPage">
-                            <label class="form-check-label" for="bbsGuestDoorsPage">Enable Guest Doors Page</label>
-                            <div><small class="text-muted">Shows a public <code>/guest-doors</code> page listing anonymous-accessible doors. Also shows a link on the login page.</small></div>
+                            <label class="form-check-label" for="bbsGuestDoorsPage">{{ t('ui.admin.bbs_settings.features.enable_guest_doors_page', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.guest_doors_page_help', {}, locale, ['common']) }}</small></div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsDefaultEchoInterface">{{ t('ui.admin.bbs_settings.features.default_echo_interface', {}, locale, ['common']) }}</label>

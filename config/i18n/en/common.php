@@ -198,6 +198,7 @@ return [
     'ui.base.subscriptions' => 'Subscriptions',
     'ui.base.logout' => 'Logout',
     'ui.base.login' => 'Login',
+    'ui.base.guest_doors' => 'Guest Doors',
     'ui.base.admin.whos_online' => "Who's Online",
     'ui.base.admin.dashboard' => 'Dashboard',
     'ui.base.admin.binkp_status' => 'Binkp Status',
@@ -1000,6 +1001,8 @@ return [
     'ui.admin.bbs_settings.features.enable_voting_booth' => 'Enable Voting Booth',
     'ui.admin.bbs_settings.features.enable_chat' => 'Enable Chat',
     'ui.admin.bbs_settings.features.enable_file_areas' => 'Enable File Areas',
+    'ui.admin.bbs_settings.features.enable_guest_doors_page' => 'Enable Guest Doors Page',
+    'ui.admin.bbs_settings.features.guest_doors_page_help' => 'Shows a public /guest-doors page listing anonymous-accessible doors. Also shows a link on the login page.',
     'ui.admin.bbs_settings.features.default_echo_interface' => 'Default Echo Interface',
     'ui.admin.bbs_settings.features.echo_list_forum' => 'Echo List (Forum view)',
     'ui.admin.bbs_settings.features.reader_message_list' => 'Reader (Message list)',
@@ -1442,6 +1445,16 @@ return [
     'ui.login.sending' => 'Sending...',
     'ui.login.reminder_sent_netmail_email_suffix' => '(sent via netmail and email)',
     'ui.login.reminder_sent_netmail_only_suffix' => '(sent via netmail)',
+    'ui.login.connect_via_telnet' => 'Connect via Telnet',
+
+    // Guest Doors Page
+    'ui.guest_doors.page_title' => 'Guest Doors',
+    'ui.guest_doors.heading' => 'Guest Access',
+    'ui.guest_doors.subtitle' => 'Connect to the BBS without an account. Choose a door below to get started.',
+    'ui.guest_doors.no_doors' => 'No guest doors are currently available.',
+    'ui.guest_doors.connect' => 'Connect',
+    'ui.guest_doors.signin_link' => 'Sign in',
+    'ui.guest_doors.register_link' => 'request an account',
 
     // Register Page
     'ui.register.title' => 'Register',

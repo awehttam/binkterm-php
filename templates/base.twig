@@ -242,7 +242,7 @@
                         {% if bbs_feature_enabled('guest_doors_page') %}
                         <li class="nav-item">
                             <a class="nav-link" href="/guest-doors">
-                                <i class="fas fa-terminal"></i> Guest Doors
+                                <i class="fas fa-terminal"></i> {{ t('ui.base.guest_doors', {}, 'common') }}
                             </a>
                         </li>
                         {% endif %}
@@ -268,6 +268,13 @@
                             </ul>
                         </li>
                     {% else %}
+                        {% if bbs_feature_enabled('guest_doors_page') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/guest-doors">
+                                <i class="fas fa-terminal"></i> {{ t('ui.base.guest_doors', {}, 'common') }}
+                            </a>
+                        </li>
+                        {% endif %}
                         <li class="nav-item">
                             <a class="nav-link" href="/login">{{ t('ui.base.login', {}, 'common') }}</a>
                         </li>
