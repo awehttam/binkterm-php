@@ -84,7 +84,9 @@ binkterm-php/
         └── multiplexing-server.log         # Bridge log (daemon mode)
 ```
 
-For the DOS-specific file layout (`dosbox-bridge/dos/`, door installations, drop file directories) see [DOSDoors.md — File Structure](DOSDoors.md#file-structure).
+For door-type-specific layouts see:
+- [DOSDoors.md — File Structure](DOSDoors.md#file-structure) — `dosbox-bridge/dos/`, door installations, drop file directories
+- [NativeDoors.md — File Structure](NativeDoors.md#file-structure) — `native-doors/doors/`, drop files, runtime config
 
 ---
 
