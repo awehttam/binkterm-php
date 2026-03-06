@@ -21,11 +21,26 @@ class AddressBookException extends \RuntimeException
     private string $errorCode;
     private int $httpStatus;
 
-    public function __construct(string $errorCode, string $message, int $httpStatus = 400)
+    public function __construct(string $errorCode, ?string $message = null, int $httpStatus = 400)
     {
-        parent::__construct($message);
+        parent::__construct($message ?? self::fallbackMessage($errorCode));
         $this->errorCode = $errorCode;
         $this->httpStatus = $httpStatus;
+    }
+
+    private static function fallbackMessage(string $errorCode): string
+    {
+        static $translator = null;
+        if ($translator === null) {
+            $translator = new \BinktermPHP\I18n\Translator();
+        }
+
+        $translated = $translator->translate($errorCode, [], 'en', ['errors']);
+        if ($translated !== $errorCode) {
+            return $translated;
+        }
+
+        return 'Address book error';
     }
 
     public function getErrorCode(): string
@@ -102,7 +117,6 @@ class AddressBookController
         if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.required_fields',
-                'Name, user ID, and node address are required',
                 400
             );
         }
@@ -111,7 +125,6 @@ class AddressBookController
         if (!$this->isValidFidonetAddress($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.invalid_fidonet_format',
-                'Invalid Fidonet address format. Use format like 1:234/567 or 1:234/567.0',
                 400
             );
         }
@@ -126,7 +139,6 @@ class AddressBookController
         if ($checkStmt->fetch()) {
             throw new AddressBookException(
                 'errors.address_book.duplicate_entry',
-                'An entry with this name and address already exists',
                 409
             );
         }
@@ -154,7 +166,6 @@ class AddressBookController
         
         throw new AddressBookException(
             'errors.address_book.create_failed',
-            'Failed to create address book entry',
             400
         );
     }
@@ -169,7 +180,6 @@ class AddressBookController
         if (!$entry) {
             throw new AddressBookException(
                 'errors.address_book.not_found',
-                'Address book entry not found',
                 404
             );
         }
@@ -178,7 +188,6 @@ class AddressBookController
         if (empty($data['name']) || empty($data['messaging_user_id']) || empty($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.required_fields',
-                'Name, user ID, and node address are required',
                 400
             );
         }
@@ -187,7 +196,6 @@ class AddressBookController
         if (!$this->isValidFidonetAddress($data['node_address'])) {
             throw new AddressBookException(
                 'errors.address_book.invalid_fidonet_format',
-                'Invalid Fidonet address format. Use format like 1:234/567 or 1:234/567.0',
                 400
             );
         }
@@ -202,7 +210,6 @@ class AddressBookController
         if ($checkStmt->fetch()) {
             throw new AddressBookException(
                 'errors.address_book.duplicate_entry',
-                'An entry with this name and address already exists',
                 409
             );
         }

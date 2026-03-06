@@ -20,6 +20,12 @@
     {{ import_error }}
 </div>
 {% endif %}
+{% if import_error_code %}
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    {{ t(import_error_code, {}, locale, ['common']) }}
+</div>
+{% endif %}
 
 {% if import_summary %}
 <div class="alert alert-info">

@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ title }} - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.nodelist.node_details', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">

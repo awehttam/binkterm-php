@@ -576,7 +576,7 @@ function pollUplinks() {
         .done(function(data) {
             const pollMessage = window.getApiMessage
                 ? window.getApiMessage(data, uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered'))
-                : (data.message || uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered'));
+                : uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered');
             const exitCode = data && data.result && data.result.exit_code !== undefined && data.result.exit_code !== null
                 ? data.result.exit_code
                 : null;

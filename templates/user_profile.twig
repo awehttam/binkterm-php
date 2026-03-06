@@ -265,20 +265,21 @@ function sendCredits() {
         }),
         success: function(response) {
             if (response.success) {
-                showSendCreditsAlert(
-                    uiT(
-                        'ui.user_profile.send_credits_success',
-                        'Successfully sent {{ credits_symbol }}{amount} to {{ profile_username }}! (Fee: {{ credits_symbol }}{fee}, They received: {{ credits_symbol }}{received})',
-                        {
-                            symbol: '{{ credits_symbol }}',
-                            username: '{{ profile_username|e('js') }}',
-                            amount: amount,
-                            fee: response.fee,
-                            received: response.amount_received
-                        }
-                    ),
-                    'success'
+                const fallbackMessage = uiT(
+                    'ui.user_profile.send_credits_success',
+                    'Successfully sent {{ credits_symbol }}{amount} to {{ profile_username }}! (Fee: {{ credits_symbol }}{fee}, They received: {{ credits_symbol }}{received})',
+                    {
+                        symbol: '{{ credits_symbol }}',
+                        username: '{{ profile_username|e('js') }}',
+                        amount: amount,
+                        fee: response.fee,
+                        received: response.amount_received
+                    }
                 );
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, fallbackMessage)
+                    : fallbackMessage;
+                showSendCreditsAlert(successMessage, 'success');
                 $('#sendCreditsForm')[0].reset();
             } else {
                 const err = window.getApiErrorMessage

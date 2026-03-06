@@ -172,7 +172,7 @@ class OutboundQueue
                 $results[$address] = [
                     'success' => false,
                     'error_code' => 'errors.binkp.files.process_outbound_failed',
-                    'error' => $e->getMessage()
+                    'error' => 'Failed to process outbound BinkP queue'
                 ];
             }
         }

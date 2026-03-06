@@ -86,7 +86,7 @@ class TicFileProcessor
                     return [
                         'success' => false,
                         'error_code' => 'errors.tic.file_area_create_failed',
-                        'error' => "Failed to create file area: {$ticData['Area']}"
+                        'error' => 'Failed to create file area from TIC metadata'
                     ];
                 }
 
@@ -101,7 +101,7 @@ class TicFileProcessor
                 return [
                     'success' => false,
                     'error_code' => 'errors.tic.validation_failed',
-                    'error' => 'File validation failed (size/CRC mismatch)'
+                    'error' => 'TIC file validation failed'
                 ];
             }
 
@@ -146,7 +146,7 @@ class TicFileProcessor
                 return [
                     'success' => false,
                     'error_code' => 'errors.tic.virus_detected',
-                    'error' => 'File rejected: virus detected.'
+                    'error' => 'File rejected: virus detected'
                 ];
             }
 
@@ -185,7 +185,7 @@ class TicFileProcessor
             return [
                 'success' => false,
                 'error_code' => 'errors.tic.processing_failed',
-                'error' => $e->getMessage()
+                'error' => 'TIC processing failed'
             ];
         }
     }
@@ -681,7 +681,7 @@ class TicFileProcessor
                 'result' => 'skipped',
                 'signature' => null,
                 'error_code' => 'errors.virus_scanner.not_available',
-                'error' => 'Virus scanning not enabled'
+                'error' => 'Virus scanning not available'
             ];
         }
 
@@ -697,7 +697,7 @@ class TicFileProcessor
                 'result' => 'error',
                 'signature' => null,
                 'error_code' => 'errors.virus_scanner.file_not_found',
-                'error' => 'File not found'
+                'error' => 'File not found for virus scan'
             ];
         }
 

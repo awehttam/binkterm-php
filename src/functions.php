@@ -264,12 +264,21 @@ function requireBinkpAdmin() {
     $user = $auth->requireAuth();
 
     if (!$user['is_admin']) {
+        $errorCode = 'errors.binkp.admin_required';
+        $fallback = 'Admin access required';
+        $translator = new \BinktermPHP\I18n\Translator();
+        $resolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+        $localized = $translator->translate($errorCode, [], $resolvedLocale, ['errors']);
+        if ($localized === $errorCode) {
+            $localized = $fallback;
+        }
         http_response_code(403);
         header('Content-Type: application/json');
         echo json_encode([
             'success' => false,
-            'error_code' => 'errors.binkp.admin_required',
-            'error' => 'Admin access required for BinkP functionality'
+            'error_code' => $errorCode,
+            'error' => $localized
         ]);
         exit;
     }

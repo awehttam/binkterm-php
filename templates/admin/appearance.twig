@@ -405,11 +405,11 @@
 {% block scripts %}
 <script>
 const defaultMenuItems = [
-    { key: 'M', label: uiT('ui.admin.appearance.default_menu.messages', 'Messages'), icon: 'envelope', url: '/echomail' },
-    { key: 'N', label: uiT('ui.admin.appearance.default_menu.netmail', 'Netmail'), icon: 'at', url: '/netmail' },
-    { key: 'F', label: uiT('ui.admin.appearance.default_menu.files', 'Files'), icon: 'folder', url: '/files' },
-    { key: 'G', label: uiT('ui.admin.appearance.default_menu.games_doors', 'Games & Doors'), icon: 'gamepad', url: '/games' },
-    { key: 'S', label: uiT('ui.admin.appearance.default_menu.settings', 'Settings'), icon: 'cog', url: '/settings' },
+    { key: 'M', label: uiT('ui.admin.appearance.default_menu.messages', 'Messages'), label_key: 'ui.admin.appearance.default_menu.messages', icon: 'envelope', url: '/echomail' },
+    { key: 'N', label: uiT('ui.admin.appearance.default_menu.netmail', 'Netmail'), label_key: 'ui.admin.appearance.default_menu.netmail', icon: 'at', url: '/netmail' },
+    { key: 'F', label: uiT('ui.admin.appearance.default_menu.files', 'Files'), label_key: 'ui.admin.appearance.default_menu.files', icon: 'folder', url: '/files' },
+    { key: 'G', label: uiT('ui.admin.appearance.default_menu.games_doors', 'Games & Doors'), label_key: 'ui.admin.appearance.default_menu.games_doors', icon: 'gamepad', url: '/games' },
+    { key: 'S', label: uiT('ui.admin.appearance.default_menu.settings', 'Settings'), label_key: 'ui.admin.appearance.default_menu.settings', icon: 'cog', url: '/settings' },
 ];
 
 let appearanceData = {};
@@ -719,6 +719,7 @@ function addMenuItemRow(item) {
     const row = `<tr>
         <td><input type="text" class="form-control form-control-sm mi-key" value="${escHtml(item.key || '')}" maxlength="1" style="width:50px;"></td>
         <td><input type="text" class="form-control form-control-sm mi-label" value="${escHtml(item.label || '')}" maxlength="100"></td>
+        <td class="d-none"><input type="hidden" class="mi-label-key" value="${escHtml(item.label_key || '')}"></td>
         <td><input type="text" class="form-control form-control-sm mi-icon" value="${escHtml(item.icon || '')}" maxlength="50" placeholder="${escHtml(uiT('ui.admin.appearance.shell.icon_placeholder', 'envelope'))}"></td>
         <td><input type="text" class="form-control form-control-sm mi-url" value="${escHtml(item.url || '')}" maxlength="500"></td>
         <td><button type="button" class="btn btn-outline-danger btn-sm" onclick="$(this).closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
@@ -741,10 +742,15 @@ function saveShell() {
     $('#menuItemsBody tr').each(function() {
         const key = $(this).find('.mi-key').val().trim().toUpperCase();
         const label = $(this).find('.mi-label').val().trim();
+        const labelKey = $(this).find('.mi-label-key').val().trim();
         const icon = $(this).find('.mi-icon').val().trim();
         const url = $(this).find('.mi-url').val().trim();
         if (key.length === 1 && label && url) {
-            menuItems.push({ key, label, icon: icon || 'circle', url });
+            const item = { key, label, icon: icon || 'circle', url };
+            if (labelKey && label === uiT(labelKey, label)) {
+                item.label_key = labelKey;
+            }
+            menuItems.push(item);
         }
     });
 

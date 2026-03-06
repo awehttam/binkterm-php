@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ title }} - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.nodelist.import.heading', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -13,16 +13,18 @@
                 </a>
             </div>
 
-            {% if message %}
+            {% if import_message_code %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="fas fa-check-circle"></i> {{ message }}
+                    <i class="fas fa-check-circle"></i>
+                    {{ t(import_message_code, import_message_params|default({}), locale, ['common']) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% endif %}
 
-            {% if error %}
+            {% if import_error_code %}
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="fas fa-exclamation-triangle"></i> {{ error }}
+                    <i class="fas fa-exclamation-triangle"></i>
+                    {{ t(import_error_code, import_error_params|default({}), locale, ['errors']) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% endif %}

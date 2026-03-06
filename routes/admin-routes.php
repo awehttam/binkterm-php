@@ -26,6 +26,44 @@ if (!function_exists('apiError')) {
     }
 }
 
+if (!function_exists('apiLocalizedText')) {
+    function apiLocalizedText(string $key, string $fallback, ?array $user = null, array $params = [], string $namespace = 'errors'): string
+    {
+        static $translator = null;
+        static $resolver = null;
+        if ($translator === null || $resolver === null) {
+            $translator = new \BinktermPHP\I18n\Translator();
+            $resolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        }
+
+        if ($user === null) {
+            try {
+                $auth = new Auth();
+                $resolvedUser = $auth->getCurrentUser();
+                if (is_array($resolvedUser)) {
+                    $user = $resolvedUser;
+                }
+            } catch (\Throwable $e) {
+                // Fall back to default locale when no user context is available.
+            }
+        }
+
+        $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+        $translated = $translator->translate($key, $params, $resolvedLocale, [$namespace]);
+        return $translated === $key ? $fallback : $translated;
+    }
+}
+
+if (!function_exists('apiLocalizeErrorPayload')) {
+    function apiLocalizeErrorPayload(array $payload, ?array $user = null): array
+    {
+        if (!empty($payload['error_code'])) {
+            $payload['error'] = apiLocalizedText((string)$payload['error_code'], (string)($payload['error'] ?? ''), $user);
+        }
+        return $payload;
+    }
+}
+
 SimpleRouter::group(['prefix' => '/admin'], function() {
 
     // Admin dashboard
@@ -239,6 +277,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             header('Content-Type: application/json');
             $result = $adminController->getAllUsers($page, $limit, $search);
+            $result = apiLocalizeErrorPayload($result, $user);
             echo json_encode($result);
         });
 
@@ -275,7 +314,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['user' => $userData]);
             } else {
                 http_response_code(404);
-                apiError('errors.admin.users.not_found', 'User not found');
+                apiError('errors.admin.users.not_found', apiLocalizedText('errors.admin.users.not_found', 'User not found'));
             }
         });
 
@@ -299,7 +338,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.users.create_failed', 'Failed to create user');
+                apiError('errors.admin.users.create_failed', apiLocalizedText('errors.admin.users.create_failed', 'Failed to create user'));
             }
         });
 
@@ -326,7 +365,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.users.update_failed', 'Failed to update user');
+                apiError('errors.admin.users.update_failed', apiLocalizedText('errors.admin.users.update_failed', 'Failed to update user'));
             }
         });
 
@@ -352,7 +391,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.users.delete_failed', 'Failed to delete user');
+                apiError('errors.admin.users.delete_failed', apiLocalizedText('errors.admin.users.delete_failed', 'Failed to delete user'));
             }
         });
 
@@ -523,11 +562,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(400);
                 $message = $e->getMessage();
                 if ($message === 'Question is required') {
-                    apiError('errors.admin.polls.question_required', 'Question is required');
+                    apiError('errors.admin.polls.question_required', apiLocalizedText('errors.admin.polls.question_required', 'Question is required'));
                 } elseif ($message === 'At least two options are required' || $message === 'At least two valid options are required') {
-                    apiError('errors.admin.polls.options_required', 'At least two options are required');
+                    apiError('errors.admin.polls.options_required', apiLocalizedText('errors.admin.polls.options_required', 'At least two options are required'));
                 } else {
-                    apiError('errors.admin.polls.create_failed', 'Failed to create poll');
+                    apiError('errors.admin.polls.create_failed', apiLocalizedText('errors.admin.polls.create_failed', 'Failed to create poll'));
                 }
             }
         });
@@ -601,13 +640,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(400);
                 $message = $e->getMessage();
                 if ($message === 'Question is required') {
-                    apiError('errors.admin.polls.question_required', 'Question is required');
+                    apiError('errors.admin.polls.question_required', apiLocalizedText('errors.admin.polls.question_required', 'Question is required'));
                 } elseif ($message === 'At least two options are required' || $message === 'At least two valid options are required') {
-                    apiError('errors.admin.polls.options_required', 'At least two options are required');
+                    apiError('errors.admin.polls.options_required', apiLocalizedText('errors.admin.polls.options_required', 'At least two options are required'));
                 } elseif ($message === 'Poll not found') {
-                    apiError('errors.admin.polls.not_found', 'Poll not found');
+                    apiError('errors.admin.polls.not_found', apiLocalizedText('errors.admin.polls.not_found', 'Poll not found'));
                 } else {
-                    apiError('errors.admin.polls.update_failed', 'Failed to update poll');
+                    apiError('errors.admin.polls.update_failed', apiLocalizedText('errors.admin.polls.update_failed', 'Failed to update poll'));
                 }
             }
         });
@@ -631,7 +670,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.polls.delete_failed', 'Failed to delete poll');
+                apiError('errors.admin.polls.delete_failed', apiLocalizedText('errors.admin.polls.delete_failed', 'Failed to delete poll'));
             }
         });
 
@@ -722,7 +761,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.bbs_settings.load_failed', 'Failed to load BBS settings');
+                apiError('errors.admin.bbs_settings.load_failed', apiLocalizedText('errors.admin.bbs_settings.load_failed', 'Failed to load BBS settings'));
             }
         });
 
@@ -825,11 +864,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(500);
                 $message = $e->getMessage();
                 if ($message === 'Invalid configuration payload') {
-                    apiError('errors.admin.bbs_settings.invalid_payload', 'Invalid configuration payload');
+                    apiError('errors.admin.bbs_settings.invalid_payload', apiLocalizedText('errors.admin.bbs_settings.invalid_payload', 'Invalid configuration payload'));
                 } elseif ($message === 'Invalid credits configuration') {
-                    apiError('errors.admin.bbs_settings.invalid_credits_config', 'Invalid credits configuration');
+                    apiError('errors.admin.bbs_settings.invalid_credits_config', apiLocalizedText('errors.admin.bbs_settings.invalid_credits_config', 'Invalid credits configuration'));
                 } else {
-                    apiError('errors.admin.bbs_settings.save_failed', 'Failed to save BBS settings');
+                    apiError('errors.admin.bbs_settings.save_failed', apiLocalizedText('errors.admin.bbs_settings.save_failed', 'Failed to save BBS settings'));
                 }
             }
         });
@@ -848,7 +887,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'data' => $data]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.load_failed', 'Failed to load appearance settings');
+                apiError('errors.admin.appearance.load_failed', apiLocalizedText('errors.admin.appearance.load_failed', 'Failed to load appearance settings'));
             }
         });
 
@@ -890,11 +929,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(500);
                 $message = $e->getMessage();
                 if ($message === 'Invalid accent color format') {
-                    apiError('errors.admin.appearance.branding.invalid_accent_color', 'Invalid accent color format');
+                    apiError('errors.admin.appearance.branding.invalid_accent_color', apiLocalizedText('errors.admin.appearance.branding.invalid_accent_color', 'Invalid accent color format'));
                 } elseif ($message === 'Footer text must be 500 characters or less') {
-                    apiError('errors.admin.appearance.branding.footer_too_long', 'Footer text must be 500 characters or less');
+                    apiError('errors.admin.appearance.branding.footer_too_long', apiLocalizedText('errors.admin.appearance.branding.footer_too_long', 'Footer text must be 500 characters or less'));
                 } else {
-                    apiError('errors.admin.appearance.branding.save_failed', 'Failed to save branding settings');
+                    apiError('errors.admin.appearance.branding.save_failed', apiLocalizedText('errors.admin.appearance.branding.save_failed', 'Failed to save branding settings'));
                 }
             }
         });
@@ -942,7 +981,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.content.save_failed', 'Failed to save content settings');
+                apiError('errors.admin.appearance.content.save_failed', apiLocalizedText('errors.admin.appearance.content.save_failed', 'Failed to save content settings'));
             }
         });
 
@@ -988,7 +1027,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.navigation.save_failed', 'Failed to save navigation settings');
+                apiError('errors.admin.appearance.navigation.save_failed', apiLocalizedText('errors.admin.appearance.navigation.save_failed', 'Failed to save navigation settings'));
             }
         });
 
@@ -1018,7 +1057,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.seo.save_failed', 'Failed to save SEO settings');
+                apiError('errors.admin.appearance.seo.save_failed', apiLocalizedText('errors.admin.appearance.seo.save_failed', 'Failed to save SEO settings'));
             }
         });
 
@@ -1080,7 +1119,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.shell.save_failed', 'Failed to save shell settings');
+                apiError('errors.admin.appearance.shell.save_failed', apiLocalizedText('errors.admin.appearance.shell.save_failed', 'Failed to save shell settings'));
             }
         });
 
@@ -1105,7 +1144,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.message_reader.save_failed', 'Failed to save message reader settings');
+                apiError('errors.admin.appearance.message_reader.save_failed', apiLocalizedText('errors.admin.appearance.message_reader.save_failed', 'Failed to save message reader settings'));
             }
         });
 
@@ -1120,7 +1159,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'html' => $html]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.appearance.markdown_preview.failed', 'Failed to render markdown preview');
+                apiError('errors.admin.appearance.markdown_preview.failed', apiLocalizedText('errors.admin.appearance.markdown_preview.failed', 'Failed to render markdown preview'));
             }
         });
 
@@ -1134,7 +1173,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'files' => $files]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.shell_art.list_failed', 'Failed to list shell art files');
+                apiError('errors.admin.shell_art.list_failed', apiLocalizedText('errors.admin.shell_art.list_failed', 'Failed to list shell art files'));
             }
         });
 
@@ -1144,19 +1183,19 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             try {
                 if (empty($_FILES['file'])) {
                     http_response_code(400);
-                    apiError('errors.admin.shell_art.upload.no_file', 'No shell art file uploaded');
+                    apiError('errors.admin.shell_art.upload.no_file', apiLocalizedText('errors.admin.shell_art.upload.no_file', 'No shell art file uploaded'));
                     return;
                 }
                 $file = $_FILES['file'];
                 if ($file['error'] !== UPLOAD_ERR_OK) {
                     http_response_code(400);
-                    apiError('errors.admin.shell_art.upload.upload_error', 'Shell art upload failed');
+                    apiError('errors.admin.shell_art.upload.upload_error', apiLocalizedText('errors.admin.shell_art.upload.upload_error', 'Shell art upload failed'));
                     return;
                 }
                 // Max 512 KB for ANSI art
                 if ($file['size'] > 524288) {
                     http_response_code(400);
-                    apiError('errors.admin.shell_art.upload.file_too_large', 'Shell art file exceeds size limit');
+                    apiError('errors.admin.shell_art.upload.file_too_large', apiLocalizedText('errors.admin.shell_art.upload.file_too_large', 'Shell art file exceeds size limit'));
                     return;
                 }
                 $originalName = basename($file['name']);
@@ -1174,7 +1213,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.shell_art.upload.failed', 'Failed to upload shell art');
+                apiError('errors.admin.shell_art.upload.failed', apiLocalizedText('errors.admin.shell_art.upload.failed', 'Failed to upload shell art'));
             }
         });
 
@@ -1185,7 +1224,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 $name = basename($name);
                 if (!preg_match('/^[a-zA-Z0-9_\-]+\.(ans|asc|txt)$/i', $name)) {
                     http_response_code(400);
-                    apiError('errors.admin.shell_art.delete.invalid_name', 'Invalid shell art filename');
+                    apiError('errors.admin.shell_art.delete.invalid_name', apiLocalizedText('errors.admin.shell_art.delete.invalid_name', 'Invalid shell art filename'));
                     return;
                 }
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();
@@ -1199,7 +1238,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.shell_art.delete.failed', 'Failed to delete shell art');
+                apiError('errors.admin.shell_art.delete.failed', apiLocalizedText('errors.admin.shell_art.delete.failed', 'Failed to delete shell art'));
             }
         });
 
@@ -1218,7 +1257,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'taglines' => $result['text'] ?? '']);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.taglines.load_failed', 'Failed to load taglines');
+                apiError('errors.admin.taglines.load_failed', apiLocalizedText('errors.admin.taglines.load_failed', 'Failed to load taglines'));
             }
         });
 
@@ -1243,7 +1282,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.taglines.save_failed', 'Failed to save taglines');
+                apiError('errors.admin.taglines.save_failed', apiLocalizedText('errors.admin.taglines.save_failed', 'Failed to save taglines'));
             }
         });
 
@@ -1263,7 +1302,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.mrc_settings.load_failed', 'Failed to load MRC settings');
+                apiError('errors.admin.mrc_settings.load_failed', apiLocalizedText('errors.admin.mrc_settings.load_failed', 'Failed to load MRC settings'));
             }
         });
 
@@ -1301,7 +1340,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.mrc_settings.save_failed', 'Failed to save MRC settings');
+                apiError('errors.admin.mrc_settings.save_failed', apiLocalizedText('errors.admin.mrc_settings.save_failed', 'Failed to save MRC settings'));
             }
         });
 
@@ -1330,7 +1369,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.mrc_settings.restart_failed', 'Failed to restart MRC daemon');
+                apiError('errors.admin.mrc_settings.restart_failed', apiLocalizedText('errors.admin.mrc_settings.restart_failed', 'Failed to restart MRC daemon'));
             }
         });
 
@@ -1349,7 +1388,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.bbs_system.load_failed', 'Failed to load system settings');
+                apiError('errors.admin.bbs_system.load_failed', apiLocalizedText('errors.admin.bbs_system.load_failed', 'Failed to load system settings'));
             }
         });
 
@@ -1374,7 +1413,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.bbs_system.save_failed', 'Failed to save system settings');
+                apiError('errors.admin.bbs_system.save_failed', apiLocalizedText('errors.admin.bbs_system.save_failed', 'Failed to save system settings'));
             }
         });
 
@@ -1393,7 +1432,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.binkp_config.load_failed', 'Failed to load BinkP configuration');
+                apiError('errors.admin.binkp_config.load_failed', apiLocalizedText('errors.admin.binkp_config.load_failed', 'Failed to load BinkP configuration'));
             }
         });
 
@@ -1418,7 +1457,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.binkp_config.save_failed', 'Failed to save BinkP configuration');
+                apiError('errors.admin.binkp_config.save_failed', apiLocalizedText('errors.admin.binkp_config.save_failed', 'Failed to save BinkP configuration'));
             }
         });
 
@@ -1442,7 +1481,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.binkp_config.reload_failed', 'Failed to reload BinkP configuration', 500);
+                apiError('errors.admin.binkp_config.reload_failed', apiLocalizedText('errors.admin.binkp_config.reload_failed', 'Failed to reload BinkP configuration'), 500);
             }
         });
 
@@ -1461,7 +1500,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.webdoors_config.load_failed', 'Failed to load webdoors configuration');
+                apiError('errors.admin.webdoors_config.load_failed', apiLocalizedText('errors.admin.webdoors_config.load_failed', 'Failed to load webdoors configuration'));
             }
         });
 
@@ -1511,7 +1550,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.webdoors_config.save_failed', 'Failed to save webdoors configuration');
+                apiError('errors.admin.webdoors_config.save_failed', apiLocalizedText('errors.admin.webdoors_config.save_failed', 'Failed to save webdoors configuration'));
             }
         });
 
@@ -1534,7 +1573,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.webdoors_config.activate_failed', 'Failed to activate webdoors configuration');
+                apiError('errors.admin.webdoors_config.activate_failed', apiLocalizedText('errors.admin.webdoors_config.activate_failed', 'Failed to activate webdoors configuration'));
             }
         });
 
@@ -1559,7 +1598,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.dosdoors_config.load_failed', 'Failed to load DOS doors configuration', 500);
+                apiError('errors.admin.dosdoors_config.load_failed', apiLocalizedText('errors.admin.dosdoors_config.load_failed', 'Failed to load DOS doors configuration'), 500);
             }
         });
 
@@ -1621,7 +1660,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.dosdoors_config.save_failed', 'Failed to save DOS doors configuration', 400);
+                apiError('errors.admin.dosdoors_config.save_failed', apiLocalizedText('errors.admin.dosdoors_config.save_failed', 'Failed to save DOS doors configuration'), 400);
             }
         });
 
@@ -1668,7 +1707,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.native_doors.load_failed', 'Failed to load native doors configuration', 500);
+                apiError('errors.admin.native_doors.load_failed', apiLocalizedText('errors.admin.native_doors.load_failed', 'Failed to load native doors configuration'), 500);
             }
         });
 
@@ -1707,7 +1746,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.native_doors.save_failed', 'Failed to save native doors configuration', 400);
+                apiError('errors.admin.native_doors.save_failed', apiLocalizedText('errors.admin.native_doors.save_failed', 'Failed to save native doors configuration'), 400);
             }
         });
 
@@ -1726,7 +1765,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.native_doors.sync_failed', 'Failed to sync native doors', 500);
+                apiError('errors.admin.native_doors.sync_failed', apiLocalizedText('errors.admin.native_doors.sync_failed', 'Failed to sync native doors'), 500);
             }
         });
 
@@ -1745,7 +1784,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['success' => true, 'config' => $config]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.filearea_rules.load_failed', 'Failed to load file area rules');
+                apiError('errors.admin.filearea_rules.load_failed', apiLocalizedText('errors.admin.filearea_rules.load_failed', 'Failed to load file area rules'));
             }
         });
 
@@ -1770,7 +1809,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.filearea_rules.save_failed', 'Failed to save file area rules');
+                apiError('errors.admin.filearea_rules.save_failed', apiLocalizedText('errors.admin.filearea_rules.save_failed', 'Failed to save file area rules'));
             }
         });
 
@@ -1790,7 +1829,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['ads' => $ads]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.ads.list_failed', 'Failed to load advertisements');
+                apiError('errors.admin.ads.list_failed', apiLocalizedText('errors.admin.ads.list_failed', 'Failed to load advertisements'));
             }
         });
 
@@ -1805,28 +1844,28 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
             if (!isset($_FILES['ad_file'])) {
                 http_response_code(400);
-                apiError('errors.admin.ads.upload.no_file', 'No advertisement file uploaded');
+                apiError('errors.admin.ads.upload.no_file', apiLocalizedText('errors.admin.ads.upload.no_file', 'No advertisement file uploaded'));
                 return;
             }
 
             $file = $_FILES['ad_file'];
             if ($file['error'] !== UPLOAD_ERR_OK) {
                 http_response_code(400);
-                apiError('errors.admin.ads.upload.upload_error', 'Advertisement upload failed');
+                apiError('errors.admin.ads.upload.upload_error', apiLocalizedText('errors.admin.ads.upload.upload_error', 'Advertisement upload failed'));
                 return;
             }
 
             $maxSize = 1024 * 1024;
             if (!empty($file['size']) && $file['size'] > $maxSize) {
                 http_response_code(400);
-                apiError('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit');
+                apiError('errors.admin.ads.upload.file_too_large', apiLocalizedText('errors.admin.ads.upload.file_too_large', 'Advertisement file exceeds size limit'));
                 return;
             }
 
             $content = @file_get_contents($file['tmp_name']);
             if ($content === false) {
                 http_response_code(400);
-                apiError('errors.admin.ads.upload.read_failed', 'Failed to read uploaded advertisement file');
+                apiError('errors.admin.ads.upload.read_failed', apiLocalizedText('errors.admin.ads.upload.read_failed', 'Failed to read uploaded advertisement file'));
                 return;
             }
 
@@ -1842,7 +1881,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.ads.upload.failed', 'Failed to upload advertisement');
+                apiError('errors.admin.ads.upload.failed', apiLocalizedText('errors.admin.ads.upload.failed', 'Failed to upload advertisement'));
             }
         });
 
@@ -1864,7 +1903,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.ads.delete_failed', 'Failed to delete advertisement');
+                apiError('errors.admin.ads.delete_failed', apiLocalizedText('errors.admin.ads.delete_failed', 'Failed to delete advertisement'));
             }
         })->where(['name' => '[A-Za-z0-9._-]+']);
 
@@ -1906,9 +1945,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(400);
                 $message = $e->getMessage();
                 if ($message === 'Room name must be 1-64 characters') {
-                    apiError('errors.admin.chat_rooms.invalid_name_length', 'Room name must be 1-64 characters');
+                    apiError('errors.admin.chat_rooms.invalid_name_length', apiLocalizedText('errors.admin.chat_rooms.invalid_name_length', 'Room name must be 1-64 characters'));
                 } else {
-                    apiError('errors.admin.chat_rooms.create_failed', 'Failed to create chat room');
+                    apiError('errors.admin.chat_rooms.create_failed', apiLocalizedText('errors.admin.chat_rooms.create_failed', 'Failed to create chat room'));
                 }
             }
         });
@@ -1961,13 +2000,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(400);
                 $message = $e->getMessage();
                 if ($message === 'Chat room not found') {
-                    apiError('errors.admin.chat_rooms.not_found', 'Chat room not found');
+                    apiError('errors.admin.chat_rooms.not_found', apiLocalizedText('errors.admin.chat_rooms.not_found', 'Chat room not found'));
                 } elseif ($message === 'Lobby name cannot be changed') {
-                    apiError('errors.admin.chat_rooms.lobby_name_locked', 'Lobby name cannot be changed');
+                    apiError('errors.admin.chat_rooms.lobby_name_locked', apiLocalizedText('errors.admin.chat_rooms.lobby_name_locked', 'Lobby name cannot be changed'));
                 } elseif ($message === 'Room name must be 1-64 characters') {
-                    apiError('errors.admin.chat_rooms.invalid_name_length', 'Room name must be 1-64 characters');
+                    apiError('errors.admin.chat_rooms.invalid_name_length', apiLocalizedText('errors.admin.chat_rooms.invalid_name_length', 'Room name must be 1-64 characters'));
                 } else {
-                    apiError('errors.admin.chat_rooms.update_failed', 'Failed to update chat room');
+                    apiError('errors.admin.chat_rooms.update_failed', apiLocalizedText('errors.admin.chat_rooms.update_failed', 'Failed to update chat room'));
                 }
             }
         });
@@ -2006,11 +2045,11 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 http_response_code(400);
                 $message = $e->getMessage();
                 if ($message === 'Chat room not found') {
-                    apiError('errors.admin.chat_rooms.not_found', 'Chat room not found');
+                    apiError('errors.admin.chat_rooms.not_found', apiLocalizedText('errors.admin.chat_rooms.not_found', 'Chat room not found'));
                 } elseif ($message === 'Lobby cannot be deleted') {
-                    apiError('errors.admin.chat_rooms.lobby_delete_forbidden', 'Lobby cannot be deleted');
+                    apiError('errors.admin.chat_rooms.lobby_delete_forbidden', apiLocalizedText('errors.admin.chat_rooms.lobby_delete_forbidden', 'Lobby cannot be deleted'));
                 } else {
-                    apiError('errors.admin.chat_rooms.delete_failed', 'Failed to delete chat room');
+                    apiError('errors.admin.chat_rooms.delete_failed', apiLocalizedText('errors.admin.chat_rooms.delete_failed', 'Failed to delete chat room'));
                 }
             }
         });
@@ -2052,7 +2091,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.insecure_nodes.create_failed', 'Failed to add insecure node');
+                apiError('errors.admin.insecure_nodes.create_failed', apiLocalizedText('errors.admin.insecure_nodes.create_failed', 'Failed to add insecure node'));
             }
         });
 
@@ -2079,7 +2118,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.insecure_nodes.update_failed', 'Failed to update insecure node');
+                apiError('errors.admin.insecure_nodes.update_failed', apiLocalizedText('errors.admin.insecure_nodes.update_failed', 'Failed to update insecure node'));
             }
         });
 
@@ -2105,7 +2144,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.insecure_nodes.delete_failed', 'Failed to delete insecure node');
+                apiError('errors.admin.insecure_nodes.delete_failed', apiLocalizedText('errors.admin.insecure_nodes.delete_failed', 'Failed to delete insecure node'));
             }
         });
 
@@ -2163,7 +2202,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.crashmail.retry_failed', 'Failed to retry crashmail item');
+                apiError('errors.admin.crashmail.retry_failed', apiLocalizedText('errors.admin.crashmail.retry_failed', 'Failed to retry crashmail item'));
             }
         });
 
@@ -2189,7 +2228,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 }
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.crashmail.cancel_failed', 'Failed to cancel crashmail item');
+                apiError('errors.admin.crashmail.cancel_failed', apiLocalizedText('errors.admin.crashmail.cancel_failed', 'Failed to cancel crashmail item'));
             }
         });
 
@@ -2213,7 +2252,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 ]);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.crashmail.poll_failed', 'Failed to run crashmail poll', 400);
+                apiError('errors.admin.crashmail.poll_failed', apiLocalizedText('errors.admin.crashmail.poll_failed', 'Failed to run crashmail poll'), 400);
             }
         });
 
@@ -2273,7 +2312,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode(['templates' => $templates]);
             } catch (Exception $e) {
                 http_response_code(500);
-                apiError('errors.admin.custom_templates.list_failed', 'Failed to list custom templates');
+                apiError('errors.admin.custom_templates.list_failed', apiLocalizedText('errors.admin.custom_templates.list_failed', 'Failed to list custom templates'));
             }
         });
 
@@ -2293,7 +2332,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 echo json_encode($template);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.custom_templates.get_failed', 'Failed to load custom template');
+                apiError('errors.admin.custom_templates.get_failed', apiLocalizedText('errors.admin.custom_templates.get_failed', 'Failed to load custom template'));
             }
         });
 
@@ -2315,10 +2354,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (is_array($result) && !isset($result['message_code']) && !isset($result['error']) && (($result['success'] ?? true) === true)) {
                     $result['message_code'] = 'ui.admin.template_editor.template_saved_success';
                 }
+                if (is_array($result)) {
+                    $result = apiLocalizeErrorPayload($result, $user);
+                }
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.custom_templates.save_failed', 'Failed to save custom template');
+                apiError('errors.admin.custom_templates.save_failed', apiLocalizedText('errors.admin.custom_templates.save_failed', 'Failed to save custom template'));
             }
         });
 
@@ -2338,10 +2380,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (is_array($result) && !isset($result['message_code']) && !isset($result['error']) && (($result['success'] ?? true) === true)) {
                     $result['message_code'] = 'ui.admin.template_editor.template_deleted_success';
                 }
+                if (is_array($result)) {
+                    $result = apiLocalizeErrorPayload($result, $user);
+                }
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.custom_templates.delete_failed', 'Failed to delete custom template');
+                apiError('errors.admin.custom_templates.delete_failed', apiLocalizedText('errors.admin.custom_templates.delete_failed', 'Failed to delete custom template'));
             }
         });
 
@@ -2363,10 +2408,13 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 if (is_array($result) && !isset($result['message_code']) && !isset($result['error']) && (($result['success'] ?? true) === true)) {
                     $result['message_code'] = 'ui.admin.template_editor.template_installed_success';
                 }
+                if (is_array($result)) {
+                    $result = apiLocalizeErrorPayload($result, $user);
+                }
                 echo json_encode($result);
             } catch (Exception $e) {
                 http_response_code(400);
-                apiError('errors.admin.custom_templates.install_failed', 'Failed to install custom template');
+                apiError('errors.admin.custom_templates.install_failed', apiLocalizedText('errors.admin.custom_templates.install_failed', 'Failed to install custom template'));
             }
         });
     });
@@ -2411,7 +2459,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$feed) {
             http_response_code(404);
-            apiError('errors.admin.auto_feed.not_found', 'Feed source not found');
+            apiError('errors.admin.auto_feed.not_found', apiLocalizedText('errors.admin.auto_feed.not_found', 'Feed source not found'));
             return;
         }
 
@@ -2430,14 +2478,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         // Validate required fields
         if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.required_fields', 'Feed URL, echo area, and posting user are required');
+            apiError('errors.admin.auto_feed.required_fields', apiLocalizedText('errors.admin.auto_feed.required_fields', 'Feed URL, echo area, and posting user are required'));
             return;
         }
 
         // Validate URL
         if (!filter_var($input['feed_url'], FILTER_VALIDATE_URL)) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.invalid_url', 'Feed URL is invalid');
+            apiError('errors.admin.auto_feed.invalid_url', apiLocalizedText('errors.admin.auto_feed.invalid_url', 'Feed URL is invalid'));
             return;
         }
 
@@ -2446,7 +2494,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $stmt->execute([$input['echoarea_id']]);
         if (!$stmt->fetch()) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.echoarea_not_found', 'Echo area not found');
+            apiError('errors.admin.auto_feed.echoarea_not_found', apiLocalizedText('errors.admin.auto_feed.echoarea_not_found', 'Echo area not found'));
             return;
         }
 
@@ -2455,7 +2503,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $stmt->execute([$input['post_as_user_id']]);
         if (!$stmt->fetch()) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.user_not_found', 'Posting user not found');
+            apiError('errors.admin.auto_feed.user_not_found', apiLocalizedText('errors.admin.auto_feed.user_not_found', 'Posting user not found'));
             return;
         }
 
@@ -2493,9 +2541,9 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         } catch (PDOException $e) {
             http_response_code(400);
             if (strpos($e->getMessage(), 'duplicate key') !== false) {
-                apiError('errors.admin.auto_feed.duplicate_source', 'Feed source already exists');
+                apiError('errors.admin.auto_feed.duplicate_source', apiLocalizedText('errors.admin.auto_feed.duplicate_source', 'Feed source already exists'));
             } else {
-                apiError('errors.admin.auto_feed.create_failed', 'Failed to create feed source');
+                apiError('errors.admin.auto_feed.create_failed', apiLocalizedText('errors.admin.auto_feed.create_failed', 'Failed to create feed source'));
             }
         }
     });
@@ -2516,14 +2564,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$existingFeed) {
             http_response_code(404);
-            apiError('errors.admin.auto_feed.not_found', 'Feed source not found');
+            apiError('errors.admin.auto_feed.not_found', apiLocalizedText('errors.admin.auto_feed.not_found', 'Feed source not found'));
             return;
         }
 
         // Validate required fields
         if (empty($input['feed_url']) || empty($input['echoarea_id']) || empty($input['post_as_user_id'])) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.required_fields', 'Feed URL, echo area, and posting user are required');
+            apiError('errors.admin.auto_feed.required_fields', apiLocalizedText('errors.admin.auto_feed.required_fields', 'Feed URL, echo area, and posting user are required'));
             return;
         }
 
@@ -2563,7 +2611,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
             ]);
         } catch (PDOException $e) {
             http_response_code(400);
-            apiError('errors.admin.auto_feed.update_failed', 'Failed to update feed source');
+            apiError('errors.admin.auto_feed.update_failed', apiLocalizedText('errors.admin.auto_feed.update_failed', 'Failed to update feed source'));
         }
     });
 
@@ -2581,7 +2629,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$feed) {
             http_response_code(404);
-            apiError('errors.admin.auto_feed.not_found', 'Feed source not found');
+            apiError('errors.admin.auto_feed.not_found', apiLocalizedText('errors.admin.auto_feed.not_found', 'Feed source not found'));
             return;
         }
 
@@ -2615,7 +2663,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if (!$feed) {
             http_response_code(404);
-            apiError('errors.admin.auto_feed.not_found', 'Feed source not found');
+            apiError('errors.admin.auto_feed.not_found', apiLocalizedText('errors.admin.auto_feed.not_found', 'Feed source not found'));
             return;
         }
 
@@ -2629,7 +2677,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
 
         if ($returnCode !== 0) {
             http_response_code(500);
-            apiError('errors.admin.auto_feed.check_failed', 'Feed check failed');
+            apiError('errors.admin.auto_feed.check_failed', apiLocalizedText('errors.admin.auto_feed.check_failed', 'Feed check failed'));
             return;
         }
 
@@ -2713,7 +2761,7 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         try {
             $db->query("SELECT 1 FROM user_activity_log LIMIT 1");
         } catch (\Exception $e) {
-            apiError('errors.admin.activity_stats.table_missing', 'Activity log table is not available');
+            apiError('errors.admin.activity_stats.table_missing', apiLocalizedText('errors.admin.activity_stats.table_missing', 'Activity log table is not available'));
             return;
         }
 
@@ -2988,4 +3036,6 @@ SimpleRouter::get('/admin/subscriptions', function() {
         $template->renderResponse('admin_subscriptions.twig', $data);
     }
 });
+
+
 

@@ -166,7 +166,7 @@ class BinkpClient
                 $results[$address] = [
                     'success' => false,
                     'error_code' => 'errors.binkp.uplink.poll_failed',
-                    'error' => $e->getMessage()
+                    'error' => 'Failed to poll BinkP uplink'
                 ];
             }
         }
@@ -198,7 +198,7 @@ class BinkpClient
             return [
                 'success' => false,
                 'error_code' => 'errors.binkp.connection_test_failed',
-                'error' => $error,
+                'error' => 'Failed to test BinkP connection',
                 'connect_time' => $connectTime
             ];
         }
@@ -271,7 +271,7 @@ class BinkpClient
                 $status[$address] = array_merge($uplink, [
                     'success' => false,
                     'error_code' => 'errors.binkp.status_failed',
-                    'error' => $e->getMessage(),
+                    'error' => 'Failed to load BinkP status',
                     'last_test' => date('Y-m-d H:i:s')
                 ]);
             }

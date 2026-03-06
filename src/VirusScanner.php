@@ -72,7 +72,7 @@ class VirusScanner
                 'result' => 'error',
                 'signature' => null,
                 'error_code' => 'errors.virus_scanner.file_not_found',
-                'error' => 'File not found'
+                'error' => 'File not found for virus scan'
             ];
         }
 
@@ -115,7 +115,7 @@ class VirusScanner
                 'result' => 'error',
                 'signature' => null,
                 'error_code' => 'errors.virus_scanner.scan_error',
-                'error' => 'Scan error: ' . trim($outputStr)
+                'error' => 'Virus scan error'
             ];
         }
     }

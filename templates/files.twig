@@ -854,14 +854,14 @@ function revokeFileShare() {
     $.ajax({
         url: `/api/files/shares/${currentShareId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             currentShareId = null;
             $('#shareLinkGroup').hide();
             $('#shareRevokeGroup').hide();
             $('#shareExpiryGroup').show();
             $('#createShareBtn').show();
             $('#existingShareInfo').hide();
-            showSuccess(uiT('ui.files.share_revoked', 'Share link revoked'));
+            showSuccess(apiMessage(response, uiT('ui.files.share_revoked', 'Share link revoked')));
         },
         error: function(xhr) {
             const error = apiError(xhr.responseJSON, uiT('errors.messages.share_revoke_failed', 'Failed to revoke share link'));

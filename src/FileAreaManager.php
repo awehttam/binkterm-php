@@ -1135,7 +1135,7 @@ class FileAreaManager
             return [
                 'success' => false,
                 'error_code' => 'errors.files.not_found',
-                'error' => 'File not found or not available'
+                'error' => 'File not found'
             ];
         }
 
@@ -1143,7 +1143,7 @@ class FileAreaManager
             return [
                 'success' => false,
                 'error_code' => 'errors.files.access_denied',
-                'error' => 'Access denied'
+                'error' => 'Access denied to this file area'
             ];
         }
 
@@ -1243,7 +1243,7 @@ class FileAreaManager
             return [
                 'success' => false,
                 'error_code' => 'errors.files.share_not_found_or_forbidden',
-                'error' => 'Share not found or has expired'
+                'error' => 'Share link not found or not permitted'
             ];
         }
 

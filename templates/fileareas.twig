@@ -388,11 +388,15 @@ function saveFilearea() {
         method: method,
         contentType: 'application/json',
         data: JSON.stringify(data),
-        success: function() {
+        success: function(response) {
             bootstrap.Modal.getInstance('#fileareaModal').hide();
-            showSuccess(currentFileareaId
+            const fallbackMessage = currentFileareaId
                 ? uiT('ui.fileareas.updated_success', 'File area updated')
-                : uiT('ui.fileareas.created_success', 'File area created'));
+                : uiT('ui.fileareas.created_success', 'File area created');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallbackMessage)
+                : fallbackMessage;
+            showSuccess(successMessage);
             loadFileareas();
             loadStats();
         },
@@ -422,9 +426,12 @@ function deleteFilearea() {
     $.ajax({
         url: `/api/fileareas/${currentFileareaId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             bootstrap.Modal.getInstance('#deleteModal').hide();
-            showSuccess(uiT('ui.fileareas.deleted_success', 'File area deleted'));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.fileareas.deleted_success', 'File area deleted'))
+                : uiT('ui.fileareas.deleted_success', 'File area deleted');
+            showSuccess(successMessage);
             loadFileareas();
             loadStats();
         },

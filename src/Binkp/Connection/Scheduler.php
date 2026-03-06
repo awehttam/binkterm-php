@@ -129,7 +129,7 @@ class Scheduler
                 $results[$address] = [
                     'success' => false,
                     'error_code' => 'errors.binkp.uplink.poll_failed',
-                    'error' => $e->getMessage()
+                    'error' => 'Failed to poll BinkP uplink'
                 ];
             }
         }
@@ -209,7 +209,7 @@ class Scheduler
                 $results[$address] = [
                     'success' => false,
                     'error_code' => 'errors.binkp.uplink.poll_failed',
-                    'error' => $e->getMessage()
+                    'error' => 'Failed to poll BinkP uplink'
                 ];
             }
         }

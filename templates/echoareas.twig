@@ -529,11 +529,15 @@ function saveEchoarea() {
         method: method,
         contentType: 'application/json',
         data: JSON.stringify(formData),
-        success: function() {
+        success: function(response) {
             $('#echoareaModal').modal('hide');
-            showSuccess(currentEchoareaId
+            const fallbackMessage = currentEchoareaId
                 ? uiT('ui.echoareas.updated_success', 'Echo area updated successfully')
-                : uiT('ui.echoareas.created_success', 'Echo area created successfully'));
+                : uiT('ui.echoareas.created_success', 'Echo area created successfully');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallbackMessage)
+                : fallbackMessage;
+            showSuccess(successMessage);
             loadEchoareas();
             loadStats();
         },
@@ -563,9 +567,12 @@ function deleteEchoarea() {
     $.ajax({
         url: `/api/echoareas/${currentEchoareaId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             $('#deleteModal').modal('hide');
-            showSuccess(uiT('ui.echoareas.deleted_success', 'Echo area deleted successfully'));
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.echoareas.deleted_success', 'Echo area deleted successfully'))
+                : uiT('ui.echoareas.deleted_success', 'Echo area deleted successfully');
+            showSuccess(successMessage);
             loadEchoareas();
             loadStats();
         },

@@ -418,14 +418,17 @@ function updateEchomailGuidelinesPostingName() {
 
     const selectedArea = getSelectedEchoarea();
     if (!selectedArea) {
-        guideline.text('Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias');
+        guideline.text(uiT(
+            'ui.compose.echomail_guideline_identity',
+            'Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias'
+        ));
         return;
     }
 
     const policy = resolveEchomailPostingNamePolicy(selectedArea);
     guideline.text(policy === 'username'
-        ? 'Posting identity for this area: Username/Alias'
-        : 'Posting identity for this area: Real Name');
+        ? uiT('ui.compose.echomail_guideline_identity_area_username', 'Posting identity for this area: Username/Alias')
+        : uiT('ui.compose.echomail_guideline_identity_area_real_name', 'Posting identity for this area: Real Name'));
 }
 
 function refreshMarkdownSupportForNetmail() {
@@ -446,8 +449,8 @@ function updateNetmailGuidelinesPostingName(policy) {
 
     const normalizedPolicy = (policy || '').toString().trim().toLowerCase();
     guideline.text(normalizedPolicy === 'username'
-        ? 'Posting identity for this destination: Username/Alias'
-        : 'Posting identity for this destination: Real Name');
+        ? uiT('ui.compose.netmail_guideline_identity_destination_username', 'Posting identity for this destination: Username/Alias')
+        : uiT('ui.compose.netmail_guideline_identity_destination_real_name', 'Posting identity for this destination: Real Name'));
 }
 
 /**
@@ -1035,7 +1038,7 @@ function validateFidonetAddressField(field) {
     if (address && !validateFidonetAddress(address)) {
         $(field).addClass('is-invalid');
         if (!$(field).next('.invalid-feedback').length) {
-            $(field).after('<div class="invalid-feedback">Invalid Fidonet address format (e.g., 1:123/456)</div>');
+            $(field).after(`<div class="invalid-feedback">${uiT('ui.compose.invalid_fidonet_address_format', 'Invalid Fidonet address format (e.g., 1:123/456)')}</div>`);
         }
         return false;
     } else {
@@ -1114,7 +1117,7 @@ function sendMessage() {
                 const areasPosted = response.areas_posted || 1;
                 const baseSuccessMessage = window.getApiMessage
                     ? window.getApiMessage(response, uiT('ui.api.messages.sent', 'Message sent successfully'))
-                    : (response.message || uiT('ui.api.messages.sent', 'Message sent successfully'));
+                    : uiT('ui.api.messages.sent', 'Message sent successfully');
                 const crossPostMsg = areasPosted > 1
                     ? uiT('ui.compose.sent_cross_post_suffix', ' (posted to {count} areas)', { count: areasPosted })
                     : '';
@@ -1135,9 +1138,10 @@ function sendMessage() {
                 }, 2000);
             },
             error: function(xhr) {
+                const sendErrorFallback = uiT('ui.compose.send_failed_type', 'Failed to send {type}', { type: messageType });
                 const error = window.getApiErrorMessage
-                    ? window.getApiErrorMessage(xhr.responseJSON, `Failed to send ${messageType}`)
-                    : `Failed to send ${messageType}`;
+                    ? window.getApiErrorMessage(xhr.responseJSON, sendErrorFallback)
+                    : sendErrorFallback;
                 $('#sendStatus').html(`
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -1165,9 +1169,10 @@ function sendMessage() {
                 doSend(response.token);
             },
             error: function(xhr) {
+                const uploadErrorFallback = uiT('ui.compose.upload_attachment_failed', 'Failed to upload attachment');
                 const error = window.getApiErrorMessage
-                    ? window.getApiErrorMessage(xhr.responseJSON, 'Failed to upload attachment')
-                    : 'Failed to upload attachment';
+                    ? window.getApiErrorMessage(xhr.responseJSON, uploadErrorFallback)
+                    : uploadErrorFallback;
                 $('#sendStatus').html(`
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>

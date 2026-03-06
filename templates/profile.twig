@@ -212,10 +212,13 @@ function updateProfile() {
         processData: false,
         contentType: false,
         success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.profile.updated_successfully', 'Profile updated successfully!'))
+                : uiT('ui.profile.updated_successfully', 'Profile updated successfully!');
             $('#profileStatus').html(`
                 <div class="alert alert-success">
                     <i class="fas fa-check me-2"></i>
-                    ${uiT('ui.profile.updated_successfully', 'Profile updated successfully!')}
+                    ${escapeHtml(successMessage)}
                 </div>
             `);
             

@@ -322,6 +322,14 @@ class Template
             $items = [];
         }
 
+        $defaultLabelKeys = [
+            '/echomail' => 'ui.admin.appearance.default_menu.messages',
+            '/netmail' => 'ui.admin.appearance.default_menu.netmail',
+            '/files' => 'ui.admin.appearance.default_menu.files',
+            '/games' => 'ui.admin.appearance.default_menu.games_doors',
+            '/settings' => 'ui.admin.appearance.default_menu.settings',
+        ];
+
         $normalizedItems = [];
         foreach ($items as $item) {
             if (!is_array($item)) {
@@ -331,9 +339,19 @@ class Template
             $key = strtoupper(trim((string)($item['key'] ?? '')));
             $label = trim((string)($item['label'] ?? ''));
             $url = trim((string)($item['url'] ?? ''));
+            $labelKey = trim((string)($item['label_key'] ?? ''));
 
             if ($key === '' || $label === '' || $url === '') {
                 continue;
+            }
+
+            // Translate built-in menu labels per locale while preserving custom labels.
+            $mappedKey = $labelKey !== '' ? $labelKey : ($defaultLabelKeys[$url] ?? '');
+            if ($mappedKey !== '') {
+                $defaultEnglish = $this->translator->translate($mappedKey, [], 'en');
+                if ($labelKey !== '' || strcasecmp($label, $defaultEnglish) === 0) {
+                    $label = $this->translator->translate($mappedKey, [], $locale ?: null);
+                }
             }
 
             $normalizedItems[] = [

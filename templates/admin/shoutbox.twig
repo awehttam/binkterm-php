@@ -46,6 +46,16 @@ function apiMessage(payload, fallback) {
     return payload && payload.message ? payload.message : fallback;
 }
 
+function apiError(payload, fallback) {
+    if (window.getApiError) {
+        return window.getApiError(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadShouts();
 });
@@ -110,7 +120,7 @@ function toggleShout(id, hide) {
                 showAlert(apiMessage(data, fallbackMessage), 'success');
                 loadShouts();
             } else {
-                showAlert(uiT('ui.admin.shoutbox.failed_to_update', 'Failed to update shout'), 'danger');
+                showAlert(apiError(data, uiT('ui.admin.shoutbox.failed_to_update', 'Failed to update shout')), 'danger');
             }
         })
         .catch(() => showAlert(uiT('ui.admin.shoutbox.failed_to_update', 'Failed to update shout'), 'danger'));
@@ -128,7 +138,7 @@ function deleteShout(id) {
                 showAlert(apiMessage(data, uiT('ui.admin.shoutbox.deleted_success', 'Shout deleted successfully')), 'success');
                 loadShouts();
             } else {
-                showAlert(uiT('ui.admin.shoutbox.failed_to_delete', 'Failed to delete shout'), 'danger');
+                showAlert(apiError(data, uiT('ui.admin.shoutbox.failed_to_delete', 'Failed to delete shout')), 'danger');
             }
         })
         .catch(() => showAlert(uiT('ui.admin.shoutbox.failed_to_delete', 'Failed to delete shout'), 'danger'));

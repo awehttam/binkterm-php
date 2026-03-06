@@ -240,7 +240,10 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    showAlert(uiT('ui.register.submitted_success', 'Registration submitted successfully! You will be notified when your account is approved.'), 'success');
+                    const successMessage = window.getApiMessage
+                        ? window.getApiMessage(response, uiT('ui.register.submitted_success', 'Registration submitted successfully! You will be notified when your account is approved.'))
+                        : uiT('ui.register.submitted_success', 'Registration submitted successfully! You will be notified when your account is approved.');
+                    showAlert(successMessage, 'success');
                     // Hide the form after successful registration
                     $('#registerForm').hide();
                     $('.card-body .alert-info').hide();

@@ -226,7 +226,7 @@ class MessageHandler
                         'has_prev' => false
                     ],
                     'error_code' => 'errors.messages.echomail.stats.subscription_required',
-                    'error' => 'You are not subscribed to this echoarea.'
+                    'error' => 'Subscription required for this echo area'
                 ];
             }
         }
@@ -1734,7 +1734,7 @@ class MessageHandler
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.echomail.bulk_delete.invalid_input',
-                'error' => 'No messages selected'
+                'error' => 'A non-empty message ID list is required'
             ];
         }
 
@@ -2480,7 +2480,7 @@ class MessageHandler
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.shared.max_active_reached',
-                'error' => "Maximum number of active shares ($maxShares) reached"
+                'error' => 'Maximum number of active shares reached'
             ];
         }
 
@@ -2702,7 +2702,7 @@ class MessageHandler
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.shared.slug_generation_failed',
-                'error' => 'Cannot generate slug: message not found or has no subject'
+                'error' => 'Cannot generate share slug for this message'
             ];
         }
 
@@ -2809,15 +2809,14 @@ class MessageHandler
         if ($result && $stmt->rowCount() > 0) {
             return [
                 'success' => true,
-                'message_code' => 'ui.api.messages.share_revoked',
-                'message' => 'Share link revoked'
+                'message_code' => 'ui.api.messages.share_revoked'
             ];
         }
 
         return [
             'success' => false,
             'error_code' => 'errors.messages.share_revoke_failed',
-            'error' => 'Share not found or already revoked'
+            'error' => 'Failed to revoke share link'
         ];
     }
 
@@ -4433,7 +4432,6 @@ class MessageHandler
         return [
             'success' => true, 
             'message_code' => 'ui.api.reminder.sent',
-            'message' => 'Account reminder sent successfully',
             'email_sent' => $emailSent
         ];
     }
@@ -4581,7 +4579,7 @@ class MessageHandler
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.drafts.save_failed',
-                'error' => $e->getMessage()
+                'error' => 'Failed to save draft'
             ];
         }
     }
@@ -4673,7 +4671,7 @@ class MessageHandler
             return [
                 'success' => false,
                 'error_code' => 'errors.messages.drafts.delete_failed',
-                'error' => $e->getMessage()
+                'error' => 'Failed to delete draft'
             ];
         }
     }
