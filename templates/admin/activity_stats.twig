@@ -486,7 +486,7 @@
 
     document.getElementById('period-select').addEventListener('change', loadStats);
     document.getElementById('exclude-admins').addEventListener('change', loadStats);
-    $(document).ready(function() { loadStats(); });
+    $(document).ready(function() { loadI18nNamespaces(['common', 'errors']).then(function() { loadStats(); }); });
 })();
 </script>
 {% endblock %}
