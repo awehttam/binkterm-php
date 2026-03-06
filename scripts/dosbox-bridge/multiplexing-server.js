@@ -33,6 +33,26 @@ require('dotenv').config({ path: __dirname + '/../../.env' });
     };
 });
 
+/**
+ * Create a per-session logger that prefixes every line with
+ * [shortSessionId|username|clientIp] so log lines can be correlated
+ * across a full session lifetime.
+ *
+ * @param {string} sessionId - Full session UUID from the database
+ * @param {string} username  - Player alias / real name
+ * @param {string} clientIp  - Originating IP address
+ * @returns {{ log, warn, error }}
+ */
+function makeSessionLogger(sessionId, username, clientIp) {
+    const shortId = (sessionId || '????????').substring(0, 8);
+    const label = `[${shortId}|${username || 'guest'}|${clientIp || '?'}]`;
+    return {
+        log:   (...args) => console.log(label, ...args),
+        warn:  (...args) => console.warn(label, ...args),
+        error: (...args) => console.error(label, ...args),
+    };
+}
+
 // Daemon support
 const IS_DAEMON = process.argv.includes('--daemon');
 const IS_DAEMON_CHILD = process.env.DOSBOX_BRIDGE_DAEMON_CHILD === '1';
@@ -360,29 +380,40 @@ class SessionManager {
         }
     }
 
-    async handleWebSocketConnection(ws, sessionData) {
+    async handleWebSocketConnection(ws, sessionData, clientIp) {
         const sessionId = sessionData.session_id;
-        console.log(`[WS] Connection for session ${sessionId}`);
+
+        // Build a per-session logger for log correlation
+        let rawUserData = sessionData.user_data;
+        if (typeof rawUserData === 'string') { try { rawUserData = JSON.parse(rawUserData); } catch (_) {} }
+        const username = (rawUserData && (rawUserData.alias || rawUserData.real_name)) || 'guest';
+        const slog = makeSessionLogger(sessionId, username, clientIp);
+
+        slog.log(`[WS] Connection`);
 
         // Check if session already exists (reconnection)
         let session = this.sessionsByToken.get(sessionData.ws_token);
 
         if (session) {
-            console.log(`[WS] Reconnection to existing session ${sessionId}`);
+            slog.log(`[WS] Reconnection to existing session`);
             // Close old WebSocket
             if (session.ws && session.ws.readyState === WebSocket.OPEN) {
                 session.ws.close(1000, 'Client reconnected');
             }
             session.ws = ws;
+            // Refresh logger with latest IP in case of reconnect from different address
+            session.slog = slog;
             this.setupWebSocketHandlers(session);
             return;
         }
 
         // Create new session
-        console.log(`[WS] Creating new session ${sessionId}`);
+        slog.log(`[WS] Creating new session`);
         session = {
             sessionId,
             sessionData,
+            slog,                    // Per-session logger (use instead of console.*)
+            clientIp,
             ws,
             emulator: null,          // Emulator adapter instance
             emulatorSocket: null,    // Connection to emulator (TCP socket or PTY)
@@ -406,7 +437,7 @@ class SessionManager {
         try {
             await this.launchEmulator(session);
         } catch (err) {
-            console.error(`[SESSION] Failed to launch emulator for ${sessionId}:`, err.message);
+            session.slog.error(`[SESSION] Failed to launch emulator:`, err.message);
             ws.close(1011, 'Failed to start door session');
             this.removeSession(session);
         }
@@ -423,11 +454,11 @@ class SessionManager {
         session.emulator = createEmulatorAdapter(BASE_PATH, doorType);
         const emulatorName = session.emulator.getName();
 
-        console.log(`[SESSION] Using ${emulatorName} for session ${sessionId} (door_type=${doorType})`);
+        session.slog.log(`[SESSION] Using ${emulatorName} (door_type=${doorType})`);
 
         // Set up exit handler for emulator process
         session.emulator.onExit((code, signal) => {
-            console.log(`[${emulatorName}] Process exited for session ${sessionId}: code=${code}, signal=${signal}`);
+            session.slog.log(`[${emulatorName}] Process exited: code=${code}, signal=${signal}`);
             this.handleDosBoxExit(session);
         });
 
@@ -435,7 +466,7 @@ class SessionManager {
         const sessionPath = path.join(BASE_PATH, 'data', 'run', 'door_sessions', sessionId);
         if (!fs.existsSync(sessionPath)) {
             fs.mkdirSync(sessionPath, { recursive: true });
-            console.log(`[SESSION] Created session directory: ${sessionPath}`);
+            session.slog.log(`[SESSION] Created session directory: ${sessionPath}`);
         }
 
         // Update session with path
@@ -453,7 +484,7 @@ class SessionManager {
             if (emulatorName === 'Native') {
                 // Native doors: drop file goes in native-doors/drops/NODE{n}/
                 dropPath = path.join(BASE_PATH, 'native-doors', 'drops', `NODE${sessionData.node_number}`);
-                console.log(`[DROPFILE] Native door drop path: ${dropPath}`);
+                session.slog.log(`[DROPFILE] Native door drop path: ${dropPath}`);
             } else {
                 // DOS doors: check manifest for custom dropfile_path
                 // DOORS directory is uppercase - Linux filesystem is case-sensitive
@@ -473,24 +504,24 @@ class SessionManager {
                             segments.every(seg => seg !== '..') &&
                             (resolved === safeBase || resolved.startsWith(safeBase + path.sep))) {
                             dropPath = resolved;
-                            console.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
+                            session.slog.log(`[DROPFILE] Using custom dropfile_path from manifest: ${dropPath}`);
                         } else {
-                            console.warn(`[DROPFILE] Custom dropfile_path '${rawPath}' rejected (traversal or absolute), using default`);
+                            session.slog.warn(`[DROPFILE] Custom dropfile_path '${rawPath}' rejected (traversal or absolute), using default`);
                             dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
                         }
                     } else {
                         dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
-                        console.log(`[DROPFILE] Using default node-based dropfile path: ${dropPath}`);
+                        session.slog.log(`[DROPFILE] Using default node-based dropfile path: ${dropPath}`);
                     }
                 } else {
                     dropPath = path.join(BASE_PATH, 'dosbox-bridge', 'dos', 'DROPS', `NODE${sessionData.node_number}`);
-                    console.log(`[DROPFILE] Manifest not found, using default path: ${dropPath}`);
+                    session.slog.log(`[DROPFILE] Manifest not found, using default path: ${dropPath}`);
                 }
             }
 
             if (!fs.existsSync(dropPath)) {
                 fs.mkdirSync(dropPath, { recursive: true });
-                console.log(`[DROPFILE] Created drop directory: ${dropPath}`);
+                session.slog.log(`[DROPFILE] Created drop directory: ${dropPath}`);
             }
 
             // Store so cleanupSessionFiles can remove the right drop file
@@ -506,17 +537,17 @@ class SessionManager {
                 }
             }
 
-            console.log(`[DROPFILE] Writing ${dropfileFormat} to: ${dropPath}`);
-            console.log(`[DROPFILE] User data:`, JSON.stringify(userData).substring(0, 200));
+            session.slog.log(`[DROPFILE] Writing ${dropfileFormat} to: ${dropPath}`);
+            session.slog.log(`[DROPFILE] User data:`, JSON.stringify(userData).substring(0, 200));
             if (dropfileFormat === 'DOOR32.SYS') {
                 this.generateDoor32Sys(dropPath, userData, sessionData.node_number);
-                console.log(`[DROPFILE] Generated DOOR32.SYS in ${dropPath}`);
+                session.slog.log(`[DROPFILE] Generated DOOR32.SYS in ${dropPath}`);
             } else {
                 this.generateDoorSys(dropPath, userData, sessionData.node_number);
-                console.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
+                session.slog.log(`[DROPFILE] Generated DOOR.SYS in ${dropPath}`);
             }
         } else {
-            console.warn(`[DROPFILE] No user_data found for session ${sessionId}`);
+            session.slog.warn(`[DROPFILE] No user_data found`);
         }
 
         // Update database with session_path
@@ -529,7 +560,7 @@ class SessionManager {
             session.tcpPort = tcpPort;
             this.sessionsByPort.set(tcpPort, session);
 
-            console.log(`[${emulatorName}] Allocated port ${tcpPort} for session ${sessionId}`);
+            session.slog.log(`[${emulatorName}] Allocated port ${tcpPort}`);
 
             // Create TCP listener
             await session.emulator.createTCPListener(tcpPort, (socket) => {
@@ -545,7 +576,7 @@ class SessionManager {
         session.emulatorProcess = result.process;
         session.emulatorPid = result.pid;
 
-        console.log(`[${emulatorName}] Launched PID ${result.pid} for session ${sessionId}`);
+        session.slog.log(`[${emulatorName}] Launched PID ${result.pid}`);
 
         if (emulatorName === 'Native') {
             // Native doors connect immediately via PTY - set up handlers now
@@ -767,11 +798,11 @@ class SessionManager {
         session.dosboxProcess = dosboxProcess;
 
         dosboxProcess.on('error', (err) => {
-            console.error(`[DOSBOX] Process error for session ${session.sessionId}:`, err.message);
+            session.slog.error(`[DOSBOX] Process error:`, err.message);
         });
 
         dosboxProcess.on('exit', (code, signal) => {
-            console.log(`[DOSBOX] Process exited for session ${session.sessionId}: code=${code}, signal=${signal}`);
+            session.slog.log(`[DOSBOX] Process exited: code=${code}, signal=${signal}`);
             this.handleDosBoxExit(session);
         });
 
@@ -815,7 +846,7 @@ class SessionManager {
     }
 
     handleDosBoxConnection(socket, session) {
-        console.log(`[DOSBOX] Connection received for session ${session.sessionId}`);
+        session.slog.log(`[DOSBOX] Connection received`);
 
         // Remove from pending
         this.pendingDosBoxConnections.delete(session.tcpPort);
@@ -827,7 +858,7 @@ class SessionManager {
         this.setupDosBoxHandlers(session);
 
         // Start multiplexing
-        console.log(`[SESSION] Multiplexing started for session ${session.sessionId}`);
+        session.slog.log(`[SESSION] Multiplexing started`);
     }
 
     /**
@@ -835,7 +866,7 @@ class SessionManager {
      */
     handleEmulatorConnection(socket, session) {
         const emulatorName = session.emulator.getName();
-        console.log(`[${emulatorName}] Connection received for session ${session.sessionId}`);
+        session.slog.log(`[${emulatorName}] Connection received`);
 
         // Remove from pending (DOSBox only)
         if (session.tcpPort) {
@@ -845,7 +876,7 @@ class SessionManager {
         session.emulatorSocket = socket;
         this.setupEmulatorHandlers(session);
 
-        console.log(`[SESSION] Multiplexing started for session ${session.sessionId}`);
+        session.slog.log(`[SESSION] Multiplexing started`);
     }
 
     /**
@@ -878,7 +909,7 @@ class SessionManager {
                     console.warn(`[${emulatorName}->WS] WebSocket not ready, dropping ${data.length} bytes`);
                 }
             } catch (err) {
-                console.error(`[${emulatorName}] Encoding error for session ${sessionId}:`, err.message);
+                session.slog.error(`[${emulatorName}] Encoding error:`, err.message);
             }
         });
     }
@@ -902,17 +933,17 @@ class SessionManager {
                     console.warn(`[DOSBOX->WS] WebSocket not ready, dropping ${data.length} bytes`);
                 }
             } catch (err) {
-                console.error(`[DOSBOX] Encoding error for session ${sessionId}:`, err.message);
+                session.slog.error(`[DOSBOX] Encoding error:`, err.message);
             }
         });
 
         dosboxSocket.on('close', () => {
-            console.log(`[DOSBOX] Connection closed for session ${sessionId}`);
+            session.slog.log(`[DOSBOX] Connection closed`);
             this.handleDosBoxDisconnect(session);
         });
 
         dosboxSocket.on('error', (err) => {
-            console.error(`[DOSBOX] Socket error for session ${sessionId}:`, err.message);
+            session.slog.error(`[DOSBOX] Socket error:`, err.message);
         });
     }
 
@@ -945,22 +976,22 @@ class SessionManager {
                     console.warn(`[WS->EMULATOR] Emulator not ready, dropping ${data.length} bytes`);
                 }
             } catch (err) {
-                console.error(`[WS] Encoding error for session ${sessionId}:`, err.message);
+                session.slog.error(`[WS] Encoding error:`, err.message);
             }
         });
 
         ws.on('close', (code, reason) => {
-            console.log(`[WS] Client disconnected for session ${sessionId}: ${code} ${reason}`);
+            session.slog.log(`[WS] Client disconnected: ${code} ${reason}`);
             this.handleWebSocketDisconnect(session);
         });
 
         ws.on('error', (err) => {
-            console.error(`[WS] WebSocket error for session ${sessionId}:`, err.message);
+            session.slog.error(`[WS] WebSocket error:`, err.message);
         });
     }
 
     handleDosBoxExit(session) {
-        console.log(`[SESSION] DOSBox exited for session ${session.sessionId}`);
+        session.slog.log(`[SESSION] DOSBox exited`);
 
         // Clear kill timeout since process exited gracefully
         if (session.killTimeout) {
@@ -981,15 +1012,15 @@ class SessionManager {
     }
 
     handleDosBoxDisconnect(session) {
-        console.log(`[SESSION] DOSBox disconnected for session ${session.sessionId}`);
+        session.slog.log(`[SESSION] DOSBox disconnected`);
 
         // DOSBox TCP connection closed (usually means 'exit' command ran)
         // Give DOSBox a few seconds to exit gracefully, then force kill if needed
         if (session.dosboxProcess && session.dosboxPid) {
-            console.log(`[SESSION] Waiting 3 seconds for DOSBox PID ${session.dosboxPid} to exit gracefully...`);
+            session.slog.log(`[SESSION] Waiting 3 seconds for DOSBox PID ${session.dosboxPid} to exit gracefully...`);
 
             session.killTimeout = setTimeout(() => {
-                console.log(`[SESSION] DOSBox didn't exit gracefully, force killing PID ${session.dosboxPid}`);
+                session.slog.log(`[SESSION] DOSBox didn't exit gracefully, force killing PID ${session.dosboxPid}`);
                 try {
                     if (process.platform === 'win32') {
                         require('child_process').execSync(`taskkill /F /PID ${session.dosboxPid}`, { stdio: 'ignore' });
@@ -997,7 +1028,7 @@ class SessionManager {
                         process.kill(session.dosboxPid, 'SIGKILL');
                     }
                 } catch (err) {
-                    console.error(`[SESSION] Failed to kill DOSBox PID ${session.dosboxPid}:`, err.message);
+                    session.slog.error(`[SESSION] Failed to kill DOSBox PID ${session.dosboxPid}:`, err.message);
                 }
                 // handleDosBoxExit will be called when process actually dies
             }, 3000); // 3 second grace period
@@ -1007,7 +1038,7 @@ class SessionManager {
     handleWebSocketDisconnect(session) {
         // If DOSBox already exited, clean up immediately (no grace period)
         if (session.dosboxExited) {
-            console.log(`[WS] DOSBox exited, cleaning up session ${session.sessionId}`);
+            session.slog.log(`[WS] DOSBox exited, cleaning up`);
             this.removeSession(session);
             return;
         }
@@ -1015,14 +1046,14 @@ class SessionManager {
         // User closed browser but DOSBox still running
         if (DISCONNECT_TIMEOUT === 0) {
             // Immediate disconnect mode - kill DOSBox and clean up
-            console.log(`[WS] Immediate disconnect mode - removing session ${session.sessionId}`);
+            session.slog.log(`[WS] Immediate disconnect mode - removing session`);
             this.removeSession(session);
         } else {
             // Grace period mode - keep DOSBox running, allow reconnect
-            console.log(`[WS] Disconnect grace period: ${DISCONNECT_TIMEOUT} minutes for session ${session.sessionId}`);
+            session.slog.log(`[WS] Disconnect grace period: ${DISCONNECT_TIMEOUT} minutes`);
 
             session.disconnectTimer = setTimeout(() => {
-                console.log(`[WS] Grace period expired - removing session ${session.sessionId}`);
+                session.slog.log(`[WS] Grace period expired - removing session`);
                 this.removeSession(session);
             }, DISCONNECT_TIMEOUT * 60 * 1000);
         }
@@ -1031,12 +1062,12 @@ class SessionManager {
     removeSession(session) {
         // Prevent double cleanup
         if (session.isRemoving) {
-            console.log(`[SESSION] Already removing session ${session.sessionId}, skipping`);
+            session.slog.log(`[SESSION] Already removing, skipping`);
             return;
         }
         session.isRemoving = true;
 
-        console.log(`[SESSION] Removing session ${session.sessionId}`);
+        session.slog.log(`[SESSION] Removing`);
 
         // Clear disconnect timer
         if (session.disconnectTimer) {
@@ -1052,12 +1083,12 @@ class SessionManager {
         // Then force kill if still running
         if (session.emulatorProcess && session.emulatorPid) {
             const timeoutSec = (CARRIER_LOSS_TIMEOUT / 1000).toFixed(1);
-            console.log(`[SESSION] Waiting ${timeoutSec} seconds for emulator PID ${session.emulatorPid} to exit after carrier loss...`);
+            session.slog.log(`[SESSION] Waiting ${timeoutSec} seconds for emulator PID ${session.emulatorPid} to exit after carrier loss...`);
             setTimeout(() => {
                 // Check if process still running
                 try {
                     process.kill(session.emulatorPid, 0); // Signal 0 checks if process exists
-                    console.log(`[SESSION] Emulator PID ${session.emulatorPid} still running, force killing`);
+                    session.slog.log(`[SESSION] Emulator PID ${session.emulatorPid} still running, force killing`);
                     if (process.platform === 'win32') {
                         require('child_process').execSync(`taskkill /F /PID ${session.emulatorPid}`, { stdio: 'ignore' });
                     } else {
@@ -1065,7 +1096,7 @@ class SessionManager {
                     }
                 } catch (err) {
                     // Process already exited, good
-                    console.log(`[SESSION] Emulator PID ${session.emulatorPid} already exited`);
+                    session.slog.log(`[SESSION] Emulator PID ${session.emulatorPid} already exited`);
                 }
             }, CARRIER_LOSS_TIMEOUT);
         }
@@ -1095,7 +1126,7 @@ class SessionManager {
 
         // Log statistics
         const uptime = Math.floor((Date.now() - session.startTime) / 1000);
-        console.log(`[SESSION] Stats - ${session.sessionId}: Uptime ${uptime}s, From Emulator: ${session.bytesFromEmulator}, To Emulator: ${session.bytesToEmulator}`);
+        session.slog.log(`[SESSION] Stats - Uptime ${uptime}s, From Emulator: ${session.bytesFromEmulator}, To Emulator: ${session.bytesToEmulator}`);
     }
 
     cleanupSessionFiles(session) {
@@ -1110,7 +1141,7 @@ class SessionManager {
         try {
             // Skip cleanup if debug mode is enabled
             if (DEBUG_KEEP_FILES) {
-                console.log(`[CLEANUP] Debug mode - keeping files for session ${sessionId}`);
+                session.slog.log(`[CLEANUP] Debug mode - keeping files`);
                 return;
             }
 
@@ -1120,12 +1151,12 @@ class SessionManager {
             const doorSysPath = path.join(dropPath, 'DOOR.SYS');
             if (fs.existsSync(doorSysPath)) {
                 fs.unlinkSync(doorSysPath);
-                console.log(`[CLEANUP] Removed DOOR.SYS from drop directory for session ${sessionId}`);
+                session.slog.log(`[CLEANUP] Removed DOOR.SYS from drop directory`);
             }
 
             // Check if session directory exists
             if (!fs.existsSync(sessionPath)) {
-                console.log(`[CLEANUP] Session directory does not exist: ${sessionPath}`);
+                session.slog.log(`[CLEANUP] Session directory does not exist: ${sessionPath}`);
                 return;
             }
 
@@ -1133,14 +1164,14 @@ class SessionManager {
             const configPath = path.join(sessionPath, 'dosbox.conf');
             if (fs.existsSync(configPath)) {
                 fs.unlinkSync(configPath);
-                console.log(`[CLEANUP] Removed dosbox.conf for session ${sessionId}`);
+                session.slog.log(`[CLEANUP] Removed dosbox.conf`);
             }
 
             // Remove session directory (if empty or force remove all contents)
             const files = fs.readdirSync(sessionPath);
             if (files.length === 0) {
                 fs.rmdirSync(sessionPath);
-                console.log(`[CLEANUP] Removed session directory ${sessionId}`);
+                session.slog.log(`[CLEANUP] Removed session directory`);
             } else {
                 // Directory has other files - remove them all and the directory
                 for (const file of files) {
@@ -1148,11 +1179,11 @@ class SessionManager {
                     fs.unlinkSync(filePath);
                 }
                 fs.rmdirSync(sessionPath);
-                console.log(`[CLEANUP] Removed session directory ${sessionId} and ${files.length} remaining files`);
+                session.slog.log(`[CLEANUP] Removed session directory and ${files.length} remaining files`);
             }
 
         } catch (err) {
-            console.error(`[CLEANUP] Error cleaning up session ${sessionId}:`, err.message);
+            session.slog.error(`[CLEANUP] Error cleaning up:`, err.message);
             // Don't throw - cleanup should be best-effort
         }
     }
@@ -1240,7 +1271,7 @@ wsServer.on('connection', async (ws, req) => {
 
     // Handle WebSocket connection (this will allocate port and launch DOSBox)
     try {
-        await sessionManager.handleWebSocketConnection(ws, sessionData);
+        await sessionManager.handleWebSocketConnection(ws, sessionData, clientIp);
     } catch (err) {
         console.error('[WS] Failed to handle connection:', err.message);
         ws.close(1011, 'Internal server error');
