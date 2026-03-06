@@ -36,6 +36,7 @@ bbs_ads/*
 delnul.cmd
 node_modules/
 tests/playwright/.auth-state.json
+tests/playwright/.csrf-token.json
 tests/playwright-report/
 test-results/
 scripts/dosbox-bridge/package-lock.json
