@@ -167,6 +167,9 @@ return [
     'ui.error.access_error' => 'Access Error',
     'ui.error.processing_request_failed' => 'An error occurred while processing your request.',
     'ui.error.return_to_dashboard' => 'Return to Dashboard',
+    'ui.web.errors.binkp_admin_only' => 'Only administrators can access BinkP functionality.',
+    'ui.web.errors.chat_disabled' => 'Sorry, chat is not enabled.',
+    'ui.web.errors.user_management_admin_only' => 'Only administrators can access user management.',
 
     // Base Layout / Navigation
     'ui.base.update_available' => 'Update Available',
@@ -2056,6 +2059,9 @@ return [
     'ui.webdoors.version_by_author' => 'v{version} by {author}',
     'ui.webdoors.launch' => 'Launch',
     'ui.webdoors.no_games_available' => 'No games available yet. Check back later!',
+    'ui.webdoors.errors.system_disabled' => 'Sorry, the game system is not enabled.',
+    'ui.webdoors.errors.admin_only' => 'This door is restricted to administrators.',
+    'ui.webdoors.errors.requirements_not_met' => 'This game requires features that are not currently enabled on this system.',
     'ui.webdoor_play.page_title_suffix' => 'Doors and Games',
     'ui.webdoor_play.back_to_doors' => 'Back to Doors',
     'ui.webdoor_play.fullscreen' => 'Fullscreen',

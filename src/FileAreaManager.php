@@ -1132,11 +1132,19 @@ class FileAreaManager
     {
         $file = $this->getFileById($fileId);
         if (!$file || $file['status'] !== 'approved') {
-            return ['success' => false, 'error' => 'File not found or not available'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.files.not_found',
+                'error' => 'File not found or not available'
+            ];
         }
 
         if (!$this->canAccessFileArea($file['file_area_id'], $userId)) {
-            return ['success' => false, 'error' => 'Access denied'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.files.access_denied',
+                'error' => 'Access denied'
+            ];
         }
 
         $shareUrl = $this->buildFileShareUrl($file['area_tag'], $file['filename']);
@@ -1189,7 +1197,8 @@ class FileAreaManager
      * @param string $areaTag File area tag (e.g. "SOFTDIST")
      * @param string $filename Filename (e.g. "DOOM11.ZIP")
      * @param int|null $requestingUserId Logged-in user ID (null = anonymous)
-     * @return array ['success'=>bool, 'file'=>array, 'share_info'=>array] or ['success'=>false, 'error'=>string]
+     * @return array ['success'=>bool, 'file'=>array, 'share_info'=>array]
+     *               or ['success'=>false, 'error_code'=>string, 'error'=>string]
      */
     public function getSharedFile(string $areaTag, string $filename, ?int $requestingUserId = null): array
     {
@@ -1231,7 +1240,11 @@ class FileAreaManager
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$row) {
-            return ['success' => false, 'error' => 'Share not found or has expired'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.files.share_not_found_or_forbidden',
+                'error' => 'Share not found or has expired'
+            ];
         }
 
         // Update access statistics

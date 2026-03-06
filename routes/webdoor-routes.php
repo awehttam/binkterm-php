@@ -85,7 +85,7 @@ SimpleRouter::get('/games', function() {
      if(GameConfig::isGameSystemEnabled()==false){
          $template = new Template();
          $template->renderResponse('error.twig', [
-             'error' => 'Sorry, the game system is not enabled.'
+             'error_code' => 'ui.webdoors.errors.system_disabled'
          ]);
          exit;
      }
@@ -279,7 +279,7 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
     if(GameConfig::isGameSystemEnabled()==false){
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, the game system is not enabled.'
+            'error_code' => 'ui.webdoors.errors.system_disabled'
         ]);
         exit;
     }
@@ -302,8 +302,8 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'This door is restricted to administrators.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
         ]);
         return;
     }
@@ -324,7 +324,7 @@ SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
     if (GameConfig::isGameSystemEnabled() == false) {
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, the game system is not enabled.'
+            'error_code' => 'ui.webdoors.errors.system_disabled'
         ]);
         exit;
     }
@@ -347,8 +347,8 @@ SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'This door is restricted to administrators.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
         ]);
         return;
     }
@@ -369,7 +369,7 @@ SimpleRouter::get('/games/{game}', function($game) {
     if(GameConfig::isGameSystemEnabled()==false){
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, the game system is not enabled.'
+            'error_code' => 'ui.webdoors.errors.system_disabled'
         ]);
         exit;
     }
@@ -384,8 +384,8 @@ SimpleRouter::get('/games/{game}', function($game) {
             http_response_code(403);
             $template = new Template();
             $template->renderResponse('error.twig', [
-                'error_title' => 'Access Denied',
-                'error' => 'This door is restricted to administrators.'
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'ui.webdoors.errors.admin_only'
             ]);
             return;
         }
@@ -410,8 +410,8 @@ SimpleRouter::get('/games/{game}', function($game) {
             http_response_code(403);
             $template = new Template();
             $template->renderResponse('error.twig', [
-                'error_title' => 'Access Denied',
-                'error' => 'This door is restricted to administrators.'
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'ui.webdoors.errors.admin_only'
             ]);
             return;
         }
@@ -444,7 +444,7 @@ SimpleRouter::get('/games/{game}', function($game) {
     if (!checkManifestRequirements($manifest)) {
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'This game requires features that are not currently enabled on this system.'
+            'error_code' => 'ui.webdoors.errors.requirements_not_met'
         ]);
         return;
     }

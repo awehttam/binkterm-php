@@ -405,8 +405,8 @@ SimpleRouter::get('/binkp', function() {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'Only administrators can access BinkP functionality.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.binkp_admin_only'
         ]);
         return;
     }
@@ -618,7 +618,7 @@ SimpleRouter::get('/chat', function() {
     if (!BbsConfig::isFeatureEnabled('chat')) {
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, chat is not enabled.'
+            'error_code' => 'ui.web.errors.chat_disabled'
         ]);
         exit;
     }
@@ -657,8 +657,8 @@ SimpleRouter::get('/admin/users', function() {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'Only administrators can access user management.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.user_management_admin_only'
         ]);
         return;
     }

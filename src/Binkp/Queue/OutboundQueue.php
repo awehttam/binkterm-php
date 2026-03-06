@@ -171,6 +171,7 @@ class OutboundQueue
                 $this->log("Error sending to {$address}: " . $e->getMessage(), 'ERROR');
                 $results[$address] = [
                     'success' => false,
+                    'error_code' => 'errors.binkp.files.process_outbound_failed',
                     'error' => $e->getMessage()
                 ];
             }

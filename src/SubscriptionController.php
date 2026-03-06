@@ -53,8 +53,7 @@ class SubscriptionController
             $echoareaId = $input['echoarea_id'] ?? null;
             
             if (!$echoareaId) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Echoarea ID required']);
+                $this->respondApiError('errors.subscriptions.echoarea_id_required', 'Echoarea ID required', 400);
                 return;
             }
             
@@ -67,8 +66,7 @@ class SubscriptionController
                 echo json_encode(['success' => $success]);
                 
             } else {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid action']);
+                $this->respondApiError('errors.subscriptions.invalid_action', 'Invalid action', 400);
             }
         }
     }
@@ -87,8 +85,7 @@ class SubscriptionController
         $userId = $user['user_id'] ?? $user['id'];
         
         if (!$this->isUserAdmin($userId)) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Admin access required']);
+            $this->respondApiError('errors.subscriptions.admin_required', 'Admin access required', 403);
             return;
         }
 
@@ -110,8 +107,7 @@ class SubscriptionController
             $echoareaId = $input['echoarea_id'] ?? null;
             
             if (!$echoareaId) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Echoarea ID required']);
+                $this->respondApiError('errors.subscriptions.echoarea_id_required', 'Echoarea ID required', 400);
                 return;
             }
             
@@ -128,8 +124,7 @@ class SubscriptionController
                 echo json_encode(['success' => $success]);
                 
             } else {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid action']);
+                $this->respondApiError('errors.subscriptions.invalid_action', 'Invalid action', 400);
             }
         }
     }
@@ -178,5 +173,15 @@ class SubscriptionController
         // This integrates with the existing Template system
         // The calling code will handle the actual rendering
         return $data;
+    }
+
+    private function respondApiError(string $errorCode, string $fallbackMessage, int $statusCode = 400): void
+    {
+        http_response_code($statusCode);
+        echo json_encode([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $fallbackMessage
+        ]);
     }
 }

@@ -13,6 +13,16 @@ use BinktermPHP\Database;
 use BinktermPHP\RouteHelper;
 use Pecee\SimpleRouter\SimpleRouter;
 
+function doorApiError(string $errorCode, string $message, int $status = 400, array $extra = []): void
+{
+    http_response_code($status);
+    echo json_encode(array_merge([
+        'success' => false,
+        'error_code' => $errorCode,
+        'error' => $message,
+    ], $extra));
+}
+
 // Launch a door game session
 SimpleRouter::post('/api/door/launch', function() {
     header('Content-Type: application/json');
@@ -25,8 +35,7 @@ SimpleRouter::post('/api/door/launch', function() {
     error_log("DOSDOOR: [API] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: $doorName");
 
     if (!$doorName) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Door name required']);
+        doorApiError('errors.door.door_name_required', 'Door name required', 400);
         return;
     }
 
@@ -120,8 +129,12 @@ SimpleRouter::post('/api/door/launch', function() {
         // Block admin-only doors for non-admins
         $doorManifestCheck = $activeDoorManager->getDoor($doorName);
         if ($doorManifestCheck && !empty($doorManifestCheck['admin_only']) && empty($user['is_admin'])) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Access denied', 'message' => 'This door is restricted to administrators.']);
+            doorApiError(
+                'errors.door.admin_only',
+                'Access denied',
+                403,
+                ['message' => 'This door is restricted to administrators.']
+            );
             return;
         }
 
@@ -144,10 +157,7 @@ SimpleRouter::post('/api/door/launch', function() {
 
                     if ($currentBalance < $creditCost) {
                         error_log("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
-                        http_response_code(402); // Payment Required
-                        echo json_encode([
-                            'success' => false,
-                            'error' => 'Insufficient credits',
+                        doorApiError('errors.door.insufficient_credits', 'Insufficient credits', 402, [
                             'message' => "This door costs $creditCost credits. You have $currentBalance credits.",
                             'required' => $creditCost,
                             'balance' => $currentBalance
@@ -183,10 +193,7 @@ SimpleRouter::post('/api/door/launch', function() {
 
             if ($activeSessions >= $maxNodes) {
                 error_log("DOSDOOR: [API] Door '$doorName' at max capacity - Active: $activeSessions, Max: $maxNodes");
-                http_response_code(503); // Service Unavailable
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Door at capacity',
+                doorApiError('errors.door.capacity_reached', 'Door at capacity', 503, [
                     'message' => "This door is currently in use. Only $maxNodes player(s) allowed at a time. Please try again later.",
                     'active_sessions' => $activeSessions,
                     'max_nodes' => $maxNodes
@@ -225,11 +232,12 @@ SimpleRouter::post('/api/door/launch', function() {
         ]);
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to start door session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError(
+            'errors.door.launch_failed',
+            'Failed to start door session',
+            500,
+            ['message' => $e->getMessage()]
+        );
     }
 });
 
@@ -243,8 +251,7 @@ SimpleRouter::post('/api/door/end', function() {
     $sessionId = $_POST['session_id'] ?? null;
 
     if (!$sessionId) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Session ID required']);
+        doorApiError('errors.door.session_id_required', 'Session ID required', 400);
         return;
     }
 
@@ -255,8 +262,7 @@ SimpleRouter::post('/api/door/end', function() {
         // Verify session belongs to current user
         $userId = $user['user_id'] ?? $user['id'];
         if (!$session || $session['user_id'] !== $userId) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Unauthorized']);
+            doorApiError('errors.door.session_unauthorized', 'Unauthorized', 403);
             return;
         }
 
@@ -268,11 +274,12 @@ SimpleRouter::post('/api/door/end', function() {
         ]);
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to end session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError(
+            'errors.door.session_end_failed',
+            'Failed to end session',
+            500,
+            ['message' => $e->getMessage()]
+        );
     }
 });
 
@@ -329,11 +336,12 @@ SimpleRouter::get('/api/door/session', function() {
         }
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to get session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError(
+            'errors.door.session_get_failed',
+            'Failed to get session',
+            500,
+            ['message' => $e->getMessage()]
+        );
     }
 });
 

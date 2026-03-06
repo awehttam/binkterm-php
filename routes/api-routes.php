@@ -49,6 +49,7 @@ if (!function_exists('apiError')) {
             http_response_code($status);
         }
         echo json_encode(array_merge([
+            'success' => false,
             'error_code' => $errorCode,
             'error' => $message,
         ], $extra));
@@ -2257,7 +2258,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'can_revoke' => $isAdmin || (int)$share['shared_by_user_id'] === (int)$userId,
             ]);
         } else {
-            echo json_encode(['success' => false]);
+            echo json_encode([
+                'success' => true,
+                'exists' => false
+            ]);
         }
     })->where(['fileId' => '[0-9]+']);
 
@@ -3738,7 +3742,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode(['success' => true, 'message' => 'Message unsaved']);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Message was not saved or already removed']);
+                echo json_encode([
+                    'success' => false,
+                    'error_code' => 'errors.messages.unsave.not_saved',
+                    'error' => 'Message was not saved or already removed',
+                    'message' => 'Message was not saved or already removed'
+                ]);
             }
 
         } catch (Exception $e) {
@@ -4571,7 +4580,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode($result);
             }
         } catch (Exception $e) {
-            apiError('errors.messages.share_create_failed', $e->getMessage(), 500, ['success' => false]);
+            apiError('errors.messages.share_create_failed', $e->getMessage(), 500);
         }
     });
 
@@ -4586,7 +4595,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $handler->getMessageShares($id, 'echomail', $userId);
             echo json_encode($result);
         } catch (Exception $e) {
-            apiError('errors.messages.share_lookup_failed', $e->getMessage(), 500, ['success' => false]);
+            apiError('errors.messages.share_lookup_failed', $e->getMessage(), 500);
         }
     });
 
@@ -4607,7 +4616,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode($result);
             }
         } catch (Exception $e) {
-            apiError('errors.messages.share_revoke_failed', $e->getMessage(), 500, ['success' => false]);
+            apiError('errors.messages.share_revoke_failed', $e->getMessage(), 500);
         }
     });
 
@@ -4628,7 +4637,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 echo json_encode($result);
             }
         } catch (Exception $e) {
-            apiError('errors.settings.exception', $e->getMessage(), 500, ['success' => false]);
+            apiError('errors.settings.exception', $e->getMessage(), 500);
         }
     });
 
@@ -4652,7 +4661,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         } catch (Exception $e) {
             http_response_code(500);
-            apiError('errors.messages.shared.lookup_failed', 'Failed to load shared message', 500, ['success' => false]);
+            apiError('errors.messages.shared.lookup_failed', 'Failed to load shared message', 500);
         }
     })->where(['area' => '[A-Za-z0-9@._-]+', 'slug' => '[A-Za-z0-9_-]+']);
 
@@ -4677,7 +4686,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             }
         } catch (Exception $e) {
             http_response_code(500);
-            apiError('errors.messages.shared.lookup_failed', 'Failed to load shared message', 500, ['success' => false]);
+            apiError('errors.messages.shared.lookup_failed', 'Failed to load shared message', 500);
         }
     });
 
@@ -4785,7 +4794,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             echo json_encode(['success' => true, 'settings' => $settings]);
         } catch (Exception $e) {
             http_response_code(500);
-            apiError('errors.settings.load_failed', 'Failed to load user settings', 500, ['success' => false]);
+            apiError('errors.settings.load_failed', 'Failed to load user settings', 500);
         }
     });
 
@@ -4797,7 +4806,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $input = json_decode(file_get_contents('php://input'), true);
 
         if (!$input || !isset($input['settings'])) {
-            apiError('errors.settings.invalid_input', 'Invalid input', 400, ['success' => false]);
+            apiError('errors.settings.invalid_input', 'Invalid input', 400);
             return;
         }
 
@@ -4827,11 +4836,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             if ($result) {
                 echo json_encode(['success' => true]);
             } else {
-                apiError('errors.settings.update_failed', 'Failed to update settings', 400, ['success' => false]);
+                apiError('errors.settings.update_failed', 'Failed to update settings', 400);
             }
         } catch (Exception $e) {
             http_response_code(500);
-            apiError('errors.settings.update_failed', 'Failed to update settings', 500, ['success' => false]);
+            apiError('errors.settings.update_failed', 'Failed to update settings', 500);
         }
     });
 

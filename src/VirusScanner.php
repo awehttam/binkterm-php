@@ -61,6 +61,7 @@ class VirusScanner
                 'scanned' => false,
                 'result' => 'skipped',
                 'signature' => null,
+                'error_code' => 'errors.virus_scanner.not_available',
                 'error' => 'Virus scanning not available'
             ];
         }
@@ -70,6 +71,7 @@ class VirusScanner
                 'scanned' => false,
                 'result' => 'error',
                 'signature' => null,
+                'error_code' => 'errors.virus_scanner.file_not_found',
                 'error' => 'File not found'
             ];
         }
@@ -112,6 +114,7 @@ class VirusScanner
                 'scanned' => true,
                 'result' => 'error',
                 'signature' => null,
+                'error_code' => 'errors.virus_scanner.scan_error',
                 'error' => 'Scan error: ' . trim($outputStr)
             ];
         }

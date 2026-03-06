@@ -52,6 +52,7 @@ return [
     'errors.messages.echomail.bulk_read.failed' => 'Failed to mark messages as read',
     'errors.messages.echomail.bulk_delete.admin_required' => 'Admin privileges are required',
     'errors.messages.echomail.bulk_delete.invalid_input' => 'A non-empty message ID list is required',
+    'errors.messages.echomail.bulk_delete.user_not_found' => 'User not found',
     'errors.messages.echomail.stats.subscription_required' => 'Subscription required for this echo area',
     'errors.messages.echomail.not_found' => 'Message not found',
     'errors.messages.netmail.attachment.no_file' => 'No attachment uploaded',
@@ -168,6 +169,7 @@ return [
     'errors.messages.unsave.user_id_missing' => 'Unable to resolve user session',
     'errors.messages.unsave.invalid_type' => 'Invalid message type',
     'errors.messages.unsave.failed' => 'Failed to unsave message',
+    'errors.messages.unsave.not_saved' => 'Message was not saved or already removed',
 
     // User Profile / Stats / Transactions
     'errors.user.profile.current_password_incorrect' => 'Current password is incorrect',
@@ -343,6 +345,15 @@ return [
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'Failed to load shared message',
     'errors.messages.shared.user_shares_failed' => 'Failed to load user shares',
+    'errors.messages.shared.access_denied' => 'Message not found or access denied',
+    'errors.messages.shared.sharing_disabled' => 'Sharing is disabled for your account',
+    'errors.messages.shared.max_active_reached' => 'Maximum number of active shares reached',
+    'errors.messages.shared.not_found_or_expired' => 'Share not found or expired',
+    'errors.messages.shared.login_required' => 'Login required to access this share',
+    'errors.messages.shared.original_not_found' => 'Original message not found',
+    'errors.messages.shared.not_found' => 'Share not found',
+    'errors.messages.shared.friendly_url_only_echomail' => 'Friendly URLs are only available for echomail shares',
+    'errors.messages.shared.slug_generation_failed' => 'Cannot generate share slug for this message',
 
     // Subscriptions
     'errors.subscriptions.echoarea_id_required' => 'Echoarea ID required',
@@ -355,6 +366,7 @@ return [
     'errors.nodelist.api.node_not_found' => 'Node not found',
     'errors.nodelist.api.zone_required' => 'Zone parameter required',
     'errors.nodelist.api.internal_error' => 'Failed to process nodelist API request',
+    'errors.nodelist.admin_required' => 'Administrator access required',
 
     // Settings / Taglines
     'errors.settings.load_failed' => 'Failed to load user settings',
@@ -371,4 +383,26 @@ return [
     'errors.webdoor.invalid_slot' => 'Invalid slot number',
     'errors.webdoor.save_too_large' => 'Save data exceeds maximum size',
     'errors.webdoor.save_not_found' => 'Save not found',
+
+    // Door API
+    'errors.door.door_name_required' => 'Door name required',
+    'errors.door.admin_only' => 'This door is restricted to administrators',
+    'errors.door.insufficient_credits' => 'Insufficient credits',
+    'errors.door.capacity_reached' => 'Door is at capacity',
+    'errors.door.launch_failed' => 'Failed to start door session',
+    'errors.door.session_id_required' => 'Session ID required',
+    'errors.door.session_unauthorized' => 'Unauthorized',
+    'errors.door.session_end_failed' => 'Failed to end session',
+    'errors.door.session_get_failed' => 'Failed to get session',
+
+    // TIC Processing
+    'errors.tic.file_area_create_failed' => 'Failed to create file area from TIC metadata',
+    'errors.tic.validation_failed' => 'TIC file validation failed',
+    'errors.tic.virus_detected' => 'File rejected: virus detected',
+    'errors.tic.processing_failed' => 'TIC processing failed',
+
+    // Virus Scanner
+    'errors.virus_scanner.not_available' => 'Virus scanning not available',
+    'errors.virus_scanner.file_not_found' => 'File not found for virus scan',
+    'errors.virus_scanner.scan_error' => 'Virus scan error',
 ];

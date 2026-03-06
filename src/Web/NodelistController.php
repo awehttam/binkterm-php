@@ -89,8 +89,8 @@ class NodelistController
             http_response_code(400);
             return $this->template->render('error.twig', [
                 'user' => $user,
-                'title' => 'Invalid Request',
-                'message' => 'No node address specified.'
+                'error_title_code' => 'ui.error.title',
+                'error_code' => 'errors.nodelist.api.address_required'
             ]);
         }
         
@@ -99,8 +99,8 @@ class NodelistController
             http_response_code(404);
             return $this->template->render('error.twig', [
                 'user' => $user,
-                'title' => 'Node Not Found',
-                'message' => 'The requested node address was not found in the nodelist.'
+                'error_title_code' => 'ui.error.title',
+                'error_code' => 'errors.nodelist.api.node_not_found'
             ]);
         }
         
@@ -118,8 +118,8 @@ class NodelistController
             http_response_code(403);
             return $this->template->render('error.twig', [
                 'user' => $user,
-                'title' => 'Access Denied',
-                'message' => 'Administrator access required.'
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'errors.nodelist.admin_required'
             ]);
         }
         
@@ -203,12 +203,10 @@ class NodelistController
                 case 'stats':
                     return $this->apiStats();
                 default:
-                    http_response_code(404);
-                    echo json_encode(['error' => 'API endpoint not found']);
+                    $this->respondApiError('errors.nodelist.api.endpoint_not_found', 'API endpoint not found', 404);
             }
         } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            $this->respondApiError('errors.nodelist.api.internal_error', $e->getMessage(), 500);
         }
     }
     
@@ -270,15 +268,13 @@ class NodelistController
     {
         $address = $_GET['address'] ?? '';
         if (!$address) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Address parameter required']);
+            $this->respondApiError('errors.nodelist.api.address_required', 'Address parameter required', 400);
             return;
         }
         
         $node = $this->nodelistManager->findNode($address);
         if (!$node) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Node not found']);
+            $this->respondApiError('errors.nodelist.api.node_not_found', 'Node not found', 404);
             return;
         }
         
@@ -295,8 +291,7 @@ class NodelistController
     {
         $zone = $_GET['zone'] ?? '';
         if (!$zone) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Zone parameter required']);
+            $this->respondApiError('errors.nodelist.api.zone_required', 'Zone parameter required', 400);
             return;
         }
         
@@ -411,5 +406,15 @@ class NodelistController
             }
             rmdir($tempDir);
         }
+    }
+
+    private function respondApiError(string $errorCode, string $fallbackMessage, int $statusCode = 400): void
+    {
+        http_response_code($statusCode);
+        echo json_encode([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $fallbackMessage
+        ]);
     }
 }

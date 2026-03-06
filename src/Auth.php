@@ -159,6 +159,7 @@ class Auth
             header('HTTP/1.1 401 Unauthorized');
             header('Content-Type: application/json');
             echo json_encode([
+                'success' => false,
                 'error_code' => 'errors.auth.authentication_required',
                 'error' => 'Authentication required'
             ]);
@@ -179,6 +180,7 @@ class Auth
                 http_response_code(403);
                 header('Content-Type: application/json');
                 echo json_encode([
+                    'success' => false,
                     'error_code' => 'errors.auth.invalid_csrf_token',
                     'error' => 'Invalid CSRF token'
                 ]);

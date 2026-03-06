@@ -18,6 +18,7 @@ if (!function_exists('apiError')) {
             http_response_code($status);
         }
         echo json_encode(array_merge([
+            'success' => false,
             'error_code' => $errorCode,
             'error' => $message,
         ], $extra));

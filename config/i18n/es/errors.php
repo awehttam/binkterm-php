@@ -52,6 +52,7 @@ return [
     'errors.messages.echomail.bulk_read.failed' => 'No se pudieron marcar los mensajes como leidos',
     'errors.messages.echomail.bulk_delete.admin_required' => 'Se requieren privilegios de administrador',
     'errors.messages.echomail.bulk_delete.invalid_input' => 'Se requiere una lista de IDs de mensajes no vacia',
+    'errors.messages.echomail.bulk_delete.user_not_found' => 'Usuario no encontrado',
     'errors.messages.echomail.stats.subscription_required' => 'Se requiere suscripcion para esta area de eco',
     'errors.messages.echomail.not_found' => 'Mensaje no encontrado',
     'errors.messages.netmail.attachment.no_file' => 'No se subio ningun archivo adjunto',
@@ -168,6 +169,7 @@ return [
     'errors.messages.unsave.user_id_missing' => 'No se pudo resolver la sesion del usuario',
     'errors.messages.unsave.invalid_type' => 'Tipo de mensaje invalido',
     'errors.messages.unsave.failed' => 'No se pudo quitar de guardados el mensaje',
+    'errors.messages.unsave.not_saved' => 'El mensaje no estaba guardado o ya fue eliminado',
 
     // User Profile / Stats / Transactions
     'errors.user.profile.current_password_incorrect' => 'La contrasena actual es incorrecta',
@@ -343,6 +345,15 @@ return [
     // Shared Messages
     'errors.messages.shared.lookup_failed' => 'No se pudo cargar el mensaje compartido',
     'errors.messages.shared.user_shares_failed' => 'No se pudieron cargar los recursos compartidos del usuario',
+    'errors.messages.shared.access_denied' => 'Mensaje no encontrado o acceso denegado',
+    'errors.messages.shared.sharing_disabled' => 'El uso compartido esta deshabilitado para tu cuenta',
+    'errors.messages.shared.max_active_reached' => 'Se alcanzo el numero maximo de recursos compartidos activos',
+    'errors.messages.shared.not_found_or_expired' => 'Recurso compartido no encontrado o expirado',
+    'errors.messages.shared.login_required' => 'Se requiere iniciar sesion para acceder a este recurso compartido',
+    'errors.messages.shared.original_not_found' => 'Mensaje original no encontrado',
+    'errors.messages.shared.not_found' => 'Recurso compartido no encontrado',
+    'errors.messages.shared.friendly_url_only_echomail' => 'Las URL amigables solo estan disponibles para recursos compartidos de echomail',
+    'errors.messages.shared.slug_generation_failed' => 'No se puede generar un slug para compartir de este mensaje',
 
     // Subscriptions
     'errors.subscriptions.echoarea_id_required' => 'Se requiere el ID del area de eco',
@@ -355,6 +366,7 @@ return [
     'errors.nodelist.api.node_not_found' => 'Nodo no encontrado',
     'errors.nodelist.api.zone_required' => 'Se requiere el parametro de zona',
     'errors.nodelist.api.internal_error' => 'No se pudo procesar la solicitud de API de nodelist',
+    'errors.nodelist.admin_required' => 'Se requiere acceso de administrador',
 
     // Settings / Taglines
     'errors.settings.load_failed' => 'No se pudo cargar la configuracion del usuario',
@@ -371,5 +383,27 @@ return [
     'errors.webdoor.invalid_slot' => 'Numero de ranura invalido',
     'errors.webdoor.save_too_large' => 'Los datos guardados exceden el tamano maximo',
     'errors.webdoor.save_not_found' => 'Guardado no encontrado',
+
+    // Door API
+    'errors.door.door_name_required' => 'Se requiere el nombre de la puerta',
+    'errors.door.admin_only' => 'Esta puerta esta restringida a administradores',
+    'errors.door.insufficient_credits' => 'Creditos insuficientes',
+    'errors.door.capacity_reached' => 'La puerta esta a capacidad maxima',
+    'errors.door.launch_failed' => 'No se pudo iniciar la sesion de la puerta',
+    'errors.door.session_id_required' => 'Se requiere ID de sesion',
+    'errors.door.session_unauthorized' => 'No autorizado',
+    'errors.door.session_end_failed' => 'No se pudo finalizar la sesion',
+    'errors.door.session_get_failed' => 'No se pudo obtener la sesion',
+
+    // TIC Processing
+    'errors.tic.file_area_create_failed' => 'No se pudo crear el area de archivos desde metadatos TIC',
+    'errors.tic.validation_failed' => 'La validacion del archivo TIC fallo',
+    'errors.tic.virus_detected' => 'Archivo rechazado: virus detectado',
+    'errors.tic.processing_failed' => 'El procesamiento TIC fallo',
+
+    // Virus Scanner
+    'errors.virus_scanner.not_available' => 'El analisis de virus no esta disponible',
+    'errors.virus_scanner.file_not_found' => 'Archivo no encontrado para analisis de virus',
+    'errors.virus_scanner.scan_error' => 'Error en el analisis de virus',
 ];
 

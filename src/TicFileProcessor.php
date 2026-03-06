@@ -85,6 +85,7 @@ class TicFileProcessor
                 if (!$fileArea) {
                     return [
                         'success' => false,
+                        'error_code' => 'errors.tic.file_area_create_failed',
                         'error' => "Failed to create file area: {$ticData['Area']}"
                     ];
                 }
@@ -99,6 +100,7 @@ class TicFileProcessor
             if (!$this->validateFile($ticData, $filePath)) {
                 return [
                     'success' => false,
+                    'error_code' => 'errors.tic.validation_failed',
                     'error' => 'File validation failed (size/CRC mismatch)'
                 ];
             }
@@ -143,6 +145,7 @@ class TicFileProcessor
             if (($scanResult['result'] ?? '') === 'infected') {
                 return [
                     'success' => false,
+                    'error_code' => 'errors.tic.virus_detected',
                     'error' => 'File rejected: virus detected.'
                 ];
             }
@@ -181,6 +184,7 @@ class TicFileProcessor
             $this->log("TIC processing error: " . $e->getMessage());
             return [
                 'success' => false,
+                'error_code' => 'errors.tic.processing_failed',
                 'error' => $e->getMessage()
             ];
         }
@@ -676,6 +680,7 @@ class TicFileProcessor
                 'scanned' => false,
                 'result' => 'skipped',
                 'signature' => null,
+                'error_code' => 'errors.virus_scanner.not_available',
                 'error' => 'Virus scanning not enabled'
             ];
         }
@@ -691,6 +696,7 @@ class TicFileProcessor
                 'scanned' => false,
                 'result' => 'error',
                 'signature' => null,
+                'error_code' => 'errors.virus_scanner.file_not_found',
                 'error' => 'File not found'
             ];
         }

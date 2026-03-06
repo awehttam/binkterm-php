@@ -266,7 +266,11 @@ function requireBinkpAdmin() {
     if (!$user['is_admin']) {
         http_response_code(403);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Admin access required for BinkP functionality']);
+        echo json_encode([
+            'success' => false,
+            'error_code' => 'errors.binkp.admin_required',
+            'error' => 'Admin access required for BinkP functionality'
+        ]);
         exit;
     }
 
