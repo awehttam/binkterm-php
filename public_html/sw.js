@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v188';
+const CACHE_NAME = 'binkcache-v189';
 
 // Static assets to precache
 const staticAssets = [
@@ -52,8 +52,7 @@ self.addEventListener('install', (event) => {
                 }
             })
             .then(() => {
-                console.log('[SW] New version installed, activating immediately');
-                return self.skipWaiting();
+                console.log('[SW] New version installed, waiting for activation');
             })
     );
 });
