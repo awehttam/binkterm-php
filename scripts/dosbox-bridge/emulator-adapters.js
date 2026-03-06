@@ -584,10 +584,20 @@ class NativeAdapter extends EmulatorAdapter {
         const ptyEncoding = this.outputEncoding === 'cp437' ? 'binary' : 'utf8';
 
         // Build launch command - replace {node}, {dropfile}, and {user_number} placeholders
-        let launchCmd = manifest.door.launch_command || manifest.door.executable;
+        // On Windows, prefer launch_command_windows (e.g. WSL via wsl.exe) over the Linux bash command
+        const isWindows = process.platform === 'win32';
+        let launchCmd = (isWindows && manifest.door.launch_command_windows)
+            ? manifest.door.launch_command_windows
+            : (manifest.door.launch_command || manifest.door.executable);
         launchCmd = launchCmd.replace(/\{node\}/g, String(node_number));
         launchCmd = launchCmd.replace(/\{dropfile\}/g, dropfileFull);
         launchCmd = launchCmd.replace(/\{user_number\}/g, String(sessionData.user_id || ''));
+
+        // Resolve ${VAR:-default} environment variable references in the launch command.
+        // This lets manifest commands reference .env variables without shell interpretation.
+        launchCmd = launchCmd.replace(/\$\{([A-Z_][A-Z0-9_]*):-([^}]*)\}/g, (_, varName, defaultVal) => {
+            return process.env[varName] || defaultVal;
+        });
 
         // Shell-style tokenizer: respects single/double-quoted segments so paths
         // with spaces (e.g. basePath or substituted {dropfile}) are kept intact.
@@ -612,9 +622,23 @@ class NativeAdapter extends EmulatorAdapter {
             }
         }
         if (token.length > 0) argv.push(token);
-        const cmd = argv.shift();
+        let cmd = argv.shift();
         const args = argv;
         const doorDir = path.join(this.basePath, 'native-doors', 'doors', door_id);
+
+        // On Windows, node-pty doesn't search PATH reliably — resolve bare command
+        // names to absolute paths using `where.exe`. Skip if the command already
+        // contains a path separator (absolute or relative path).
+        if (isWindows && !cmd.includes('/') && !cmd.includes('\\')) {
+            try {
+                const whereResult = require('child_process').spawnSync('where', [cmd], { encoding: 'utf8' });
+                if (whereResult.status === 0) {
+                    cmd = whereResult.stdout.split(/\r?\n/)[0].trim();
+                }
+            } catch (e) {
+                console.warn(`[${this.getName()}] Could not resolve path for '${cmd}':`, e.message);
+            }
+        }
 
         // Parse user data for environment variables
         const userData = typeof sessionData.user_data === 'string'
@@ -640,7 +664,8 @@ class NativeAdapter extends EmulatorAdapter {
             cols: 80,
             rows: 25,
             cwd: doorDir,
-            encoding: ptyEncoding,
+            // node-pty on Windows (conpty) does not support encoding — omit it
+            ...(isWindows ? {} : { encoding: ptyEncoding }),
             env
         });
 

@@ -249,13 +249,16 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'missing_upstream']);
                         break;
                     }
+                    // Spawn poll in background and return immediately so the HTTP
+                    // request that triggered this does not block waiting for the
+                    // network connection to the uplink to complete.
                     if ($upstream === 'all') {
-                        $result = $this->runCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--all']);
+                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--all']);
                     } else {
-                        $result = $this->runCommand([PHP_BINARY, 'scripts/binkp_poll.php', $upstream]);
+                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', $upstream]);
                     }
-                    $this->logCommandResult($cmd, $result);
-                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    $this->logger->info("Spawned background binkp_poll for {$upstream}");
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
                     break;
                 case 'get_bbs_config':
                     BbsConfig::reload();
@@ -604,6 +607,26 @@ class AdminDaemonServer
             'stdout' => $stdout,
             'stderr' => $stderr
         ];
+    }
+
+    /**
+     * Spawn a command in the background without waiting for it to complete.
+     * Used for long-running operations (e.g. binkp_poll) that should not block
+     * the admin daemon socket response.
+     *
+     * On Windows, process spawning is unreliable from a daemon context, so we
+     * skip the immediate poll.  The outbound packet is already spooled to disk
+     * and the scheduler will deliver it on its next scheduled interval.
+     */
+    private function spawnCommand(array $command): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            // Let the scheduler pick up the spooled outbound packet.
+            return;
+        }
+
+        $escaped = implode(' ', array_map('escapeshellarg', $command));
+        exec("nohup {$escaped} > /dev/null 2>&1 &");
     }
 
     private function writeResponse($client, array $payload): void

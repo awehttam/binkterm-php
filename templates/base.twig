@@ -239,6 +239,13 @@
                                 <i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}
                             </a>
                         </li>
+                        {% if bbs_feature_enabled('guest_doors_page') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/guest-doors">
+                                <i class="fas fa-terminal"></i> Guest Doors
+                            </a>
+                        </li>
+                        {% endif %}
 
                     {% endif %}
                 </ul>
