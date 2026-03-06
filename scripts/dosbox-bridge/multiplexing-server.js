@@ -314,7 +314,8 @@ class SessionManager {
         }
     }
 
-    async updateSessionPorts(sessionId, tcpPort, dosboxPid) {
+    async updateSessionPorts(sessionId, tcpPort, dosboxPid, slog = null) {
+        const log = slog ? slog.log.bind(slog) : (...a) => console.log(...a);
         const client = new Client(DB_CONFIG);
         try {
             await client.connect();
@@ -326,7 +327,7 @@ class SessionManager {
                 [tcpPort, dosboxPid, sessionId]
             );
 
-            console.log(`[DB] Updated session ${sessionId} with tcp_port=${tcpPort}, dosbox_pid=${dosboxPid}`);
+            log(`[DB] Updated session ${sessionId} with tcp_port=${tcpPort}, dosbox_pid=${dosboxPid}`);
 
         } catch (err) {
             console.error('[DB] Update error:', err.message);
@@ -336,7 +337,8 @@ class SessionManager {
         }
     }
 
-    async updateSessionPath(sessionId, sessionPath) {
+    async updateSessionPath(sessionId, sessionPath, slog = null) {
+        const log = slog ? slog.log.bind(slog) : (...a) => console.log(...a);
         const client = new Client(DB_CONFIG);
         try {
             await client.connect();
@@ -348,7 +350,7 @@ class SessionManager {
                 [sessionPath, sessionId]
             );
 
-            console.log(`[DB] Updated session ${sessionId} with session_path=${sessionPath}`);
+            log(`[DB] Updated session ${sessionId} with session_path=${sessionPath}`);
 
         } catch (err) {
             console.error('[DB] Update error:', err.message);
@@ -358,7 +360,8 @@ class SessionManager {
         }
     }
 
-    async deleteSession(sessionId) {
+    async deleteSession(sessionId, slog = null) {
+        const log = slog ? slog.log.bind(slog) : (...a) => console.log(...a);
         const client = new Client(DB_CONFIG);
         try {
             await client.connect();
@@ -369,7 +372,7 @@ class SessionManager {
                 [sessionId]
             );
 
-            console.log(`[DB] Deleted session record ${sessionId}`);
+            log(`[DB] Deleted session record ${sessionId}`);
 
         } catch (err) {
             console.error('[DB] Delete error:', err.message);
@@ -550,7 +553,7 @@ class SessionManager {
         }
 
         // Update database with session_path
-        await this.updateSessionPath(sessionId, sessionPath);
+        await this.updateSessionPath(sessionId, sessionPath, session.slog);
 
         // For DOS emulators (DOSBox/DOSEMU): allocate TCP port and create listener
         // Native doors use PTY directly - no TCP port needed
@@ -584,7 +587,7 @@ class SessionManager {
         // For DOSBox/DOSEMU: setupEmulatorHandlers will be called in handleEmulatorConnection
 
         // Update database
-        await this.updateSessionPorts(sessionId, session.tcpPort || 0, result.pid);
+        await this.updateSessionPorts(sessionId, session.tcpPort || 0, result.pid, session.slog);
     }
 
     /**
@@ -1121,7 +1124,7 @@ class SessionManager {
         this.cleanupSessionFiles(session);
 
         // Delete session from database
-        this.deleteSession(session.sessionId);
+        this.deleteSession(session.sessionId, session.slog);
 
         // Log statistics
         const uptime = Math.floor((Date.now() - session.startTime) / 1000);
