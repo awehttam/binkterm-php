@@ -142,21 +142,29 @@ binktest/
 ├── dosbox-bridge/                          # DOSBox configuration and DOS files
 │   ├── dosbox-bridge-production.conf       # Headless config (default)
 │   ├── dosbox-bridge-test.conf             # Visible window config (testing)
+│   ├── maintenance.conf                    # Config for maintenance/admin mode
+│   ├── dosdoor-maint.sh                    # Maintenance shell script (Linux)
+│   ├── dosdoor-maint.cmd                   # Maintenance batch script (Windows)
 │   └── dos/                                # DOS drive (mounted as C:)
-│       └── DOORS/                          # Door game installations (UPPERCASE - Linux is case-sensitive)
-│           └── LORD/                       # Example: Legend of the Red Dragon
-│               ├── dosdoor.jsn            # Door manifest (required)
-│               ├── START.BAT               # Launch script
-│               └── ... (game files)
-├── scripts/
-│   ├── dosbox-bridge/
-│   │   └── server.js                       # WebSocket-to-TCP bridge
-│   └── cleanup_expired_dosdoor_sessions.php # Cleanup script
-└── data/
-    └── doorsessions/                       # Per-session temp directories
-        └── door_<user>_node<N>_<timestamp>/ # Session folder
-            ├── DOOR.SYS                    # Drop file for this session
-            └── dosbox.conf                 # Session-specific DOSBox config
+│       ├── CONFIG.SYS                      # DOS system config
+│       ├── DOORS/                          # Door game installations (UPPERCASE - Linux is case-sensitive)
+│       │   ├── 8WAYSL/                     # 8-Way Shootout
+│       │   ├── ADMIN/                      # Admin utilities door
+│       │   ├── BRE/                        # Barren Realms Elite
+│       │   ├── LORD/                       # Legend of the Red Dragon
+│       │   │   ├── dosdoor.jsn             # Door manifest (required)
+│       │   │   ├── START.BAT               # Launch script
+│       │   │   └── ... (game files)
+│       │   └── SKEL/                       # Skeleton door template
+│       ├── DROPS/                          # Per-node drop file directories
+│       │   ├── node1/                      # Drop files for node 1 (DOOR.SYS, etc.)
+│       │   └── node2/                      # Drop files for node 2
+│       └── TOOLS/                          # DOS utility tools
+│           ├── EDIT.COM                    # DOS text editor
+│           ├── EDIT.HLP                    # Editor help file
+│           └── README.txt
+└── scripts/
+    └── cleanup_expired_dosdoor_sessions.php # Cleanup script
 ```
 
 ---

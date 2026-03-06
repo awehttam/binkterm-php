@@ -69,6 +69,25 @@ php scripts/setup.php
 
 ---
 
+## File Structure
+
+```
+binktest/
+├── scripts/
+│   └── dosbox-bridge/
+│       ├── multiplexing-server.js          # WebSocket multiplexing bridge server
+│       └── emulator-adapters.js            # DOSBox/emulator backend adapters
+└── data/
+    ├── run/
+    │   └── multiplexing-server.pid         # PID file (daemon mode)
+    └── logs/
+        └── multiplexing-server.log         # Bridge log (daemon mode)
+```
+
+For the DOS-specific file layout (`dosbox-bridge/dos/`, door installations, drop file directories) see [DOSDoors.md — File Structure](DOSDoors.md#file-structure).
+
+---
+
 ## Configuration
 
 The bridge reads settings from your `.env` file. Shared settings relevant to both door types:
@@ -204,11 +223,13 @@ If your BBS is served over HTTPS, browsers will require the WebSocket connection
 Configure your reverse proxy to terminate SSL on a dedicated port (e.g. 6001) and forward to the bridge on `127.0.0.1:6001`. Set `DOSDOOR_WS_URL=wss://bbs.example.com:6001`.
 
 **Option B — Path-based proxy:**
-Forward a path (e.g. `/dosdoor`) to the bridge. Set `DOSDOOR_WS_URL=wss://bbs.example.com/dosdoor`.
+Forward a path to the bridge. Set `DOSDOOR_WS_URL=wss://bbs.example.com/doorplayersocket`.
+
+The path `/doorplayersocket` is recommended — it is descriptive enough to be self-documenting and unlikely to conflict with any existing application routes.
 
 nginx example for Option B:
 ```nginx
-location /dosdoor {
+location /doorplayersocket {
     proxy_pass http://127.0.0.1:6001;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
@@ -216,6 +237,20 @@ location /dosdoor {
     proxy_set_header Host $host;
     proxy_read_timeout 3600;
 }
+```
+
+Apache example for Option B (requires `mod_proxy`, `mod_proxy_http`, and `mod_proxy_wstunnel`):
+```apache
+# Enable required modules if not already active:
+#   a2enmod proxy proxy_http proxy_wstunnel
+
+ProxyPass /doorplayersocket ws://127.0.0.1:6001/
+ProxyPassReverse /doorplayersocket ws://127.0.0.1:6001/
+```
+
+If your VirtualHost uses `SSLProxyEngine`, add:
+```apache
+SSLProxyEngine on
 ```
 
 ---
