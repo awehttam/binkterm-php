@@ -104,7 +104,12 @@ class Template
         }
 
         $preferredLocale = is_array($userSettings) ? (string)($userSettings['locale'] ?? '') : '';
-        $locale = $this->localeResolver->resolveLocale($preferredLocale !== '' ? $preferredLocale : null, $currentUser);
+
+        // ?locale= query param overrides everything else for this request.
+        $queryLocale = isset($_GET['locale']) ? trim((string)$_GET['locale']) : '';
+        $explicitLocale = $queryLocale !== '' ? $queryLocale : ($preferredLocale !== '' ? $preferredLocale : null);
+
+        $locale = $this->localeResolver->resolveLocale($explicitLocale, $currentUser);
         $this->localeResolver->persistLocale($locale);
 
         // Get dynamic system info from BinkP config
