@@ -16,6 +16,15 @@ Make sure you've made a backup of your database and files before upgrading.
 **Bug Fixes**
 - Fixed 30–45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** — see upgrade instructions below.
 
+## Localization (i18n) Support
+
+- Translation catalogs now support broader UI/API coverage across web pages and admin tools.
+- API responses are now expected to use `error_code` / `message_code` (with optional params), so clients can localize consistently per user locale.
+- JavaScript translations use lazy catalog loading (`/api/i18n/catalog`). Pages that render text dynamically must initialize after user settings + i18n catalogs are loaded to avoid English fallback text.
+- New CI checks enforce i18n quality:
+  - `php scripts/check_i18n_error_keys.php` validates error key coverage.
+  - `php scripts/check_i18n_hardcoded_strings.php` blocks new hardcoded UI strings not in the allowlist.
+
 ## Upgrade Instructions
 
 ### From Git
@@ -33,3 +42,4 @@ wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/bink
 php binkterm-installer.phar
 scripts/restart_daemons.sh
 ```
+

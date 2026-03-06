@@ -1450,7 +1450,7 @@ return [
     // Guest Doors Page
     'ui.guest_doors.page_title' => 'Guest Doors',
     'ui.guest_doors.heading' => 'Guest Access',
-    'ui.guest_doors.subtitle' => 'Connect to the BBS without an account. Choose a door below to get started.',
+    'ui.guest_doors.subtitle' => 'Choose a door below to get started.',
     'ui.guest_doors.no_doors' => 'No guest doors are currently available.',
     'ui.guest_doors.connect' => 'Connect',
     'ui.guest_doors.signin_link' => 'Sign in',

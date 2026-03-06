@@ -1450,7 +1450,7 @@ return [
     // Guest Doors Page
     'ui.guest_doors.page_title' => 'Puertas de invitados',
     'ui.guest_doors.heading' => 'Acceso de invitados',
-    'ui.guest_doors.subtitle' => 'Conectarse al BBS sin una cuenta. Elige una puerta a continuacion para comenzar.',
+    'ui.guest_doors.subtitle' => 'Elige una puerta a continuacion para comenzar.',
     'ui.guest_doors.no_doors' => 'No hay puertas de invitados disponibles actualmente.',
     'ui.guest_doors.connect' => 'Conectar',
     'ui.guest_doors.signin_link' => 'Iniciar sesion',

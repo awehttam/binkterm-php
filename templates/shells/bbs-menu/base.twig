@@ -209,6 +209,11 @@
             </div>
             {% endif %}
         {% else %}
+            {% if bbs_feature_enabled('guest_doors_page') %}
+            <a href="/guest-doors" class="bbs-shell-home me-2">
+                <i class="fas fa-terminal"></i> {{ t('ui.base.guest_doors', {}, 'common') }}
+            </a>
+            {% endif %}
             <a href="/login" class="bbs-shell-home me-2">{{ t('ui.base.login', {}, 'common') }}</a>
         {% endif %}
         <a href="/" class="bbs-shell-home" title="{{ t('ui.shell.menu_main_q_title', {}, 'common') }}">
