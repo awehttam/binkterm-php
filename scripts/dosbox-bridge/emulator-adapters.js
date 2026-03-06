@@ -84,16 +84,17 @@ class DOSBoxAdapter extends EmulatorAdapter {
     }
 
     async launch(session, sessionData) {
-        const { sessionId, node_number, door_id, session_path } = sessionData;
+        const { session_id, node_number, door_id, session_path } = sessionData;
+        const slog = this.slog || console;
 
         // Allocate TCP port (handled by caller, passed in session.tcpPort)
         const tcpPort = session.tcpPort;
 
-        console.log(`[${this.getName()}] Launching for session ${sessionId} on port ${tcpPort}`);
+        slog.log(`[${this.getName()}] Launching for session ${session_id} on port ${tcpPort}`);
 
         // Generate DOSBox config
         const configPath = this.generateConfig(sessionData, session_path, tcpPort);
-        console.log(`[${this.getName()}] Generated config: ${configPath}`);
+        slog.log(`[${this.getName()}] Generated config: ${configPath}`);
 
         // Find DOSBox executable
         const dosboxExe = this.findExecutable();
@@ -129,17 +130,17 @@ class DOSBoxAdapter extends EmulatorAdapter {
             };
         }
 
-        console.log(`[${this.getName()}] Spawning: ${dosboxExe} ${args.join(' ')}`);
+        slog.log(`[${this.getName()}] Spawning: ${dosboxExe} ${args.join(' ')}`);
 
         // Launch DOSBox
         this.process = spawn(dosboxExe, args, spawnOptions);
 
         this.process.on('error', (err) => {
-            console.error(`[${this.getName()}] Process error:`, err.message);
+            slog.error(`[${this.getName()}] Process error:`, err.message);
         });
 
         this.process.on('exit', (code, signal) => {
-            console.log(`[${this.getName()}] Process exited: code=${code}, signal=${signal}`);
+            slog.log(`[${this.getName()}] Process exited: code=${code}, signal=${signal}`);
             if (this.exitCallback) {
                 this.exitCallback(code, signal);
             }
@@ -156,21 +157,22 @@ class DOSBoxAdapter extends EmulatorAdapter {
      * Set up TCP server to accept DOSBox connection
      */
     async createTCPListener(tcpPort, onConnection) {
+        const slog = this.slog || console;
         return new Promise((resolve, reject) => {
             this.tcpServer = net.createServer((socket) => {
-                console.log(`[${this.getName()}] Connection received on port ${tcpPort}`);
+                slog.log(`[${this.getName()}] Connection received on port ${tcpPort}`);
                 this.socket = socket;
                 socket.setNoDelay(true);
                 onConnection(socket);
             });
 
             this.tcpServer.listen(tcpPort, '127.0.0.1', () => {
-                console.log(`[${this.getName()}] TCP listener ready on port ${tcpPort}`);
+                slog.log(`[${this.getName()}] TCP listener ready on port ${tcpPort}`);
                 resolve();
             });
 
             this.tcpServer.on('error', (err) => {
-                console.error(`[${this.getName()}] TCP server error:`, err.message);
+                slog.error(`[${this.getName()}] TCP server error:`, err.message);
                 reject(err);
             });
         });
@@ -189,10 +191,11 @@ class DOSBoxAdapter extends EmulatorAdapter {
     }
 
     close() {
+        const slog = this.slog || console;
         // Close TCP socket first to simulate carrier loss (lost carrier event)
         // This allows the door game to detect the disconnection and exit gracefully
         if (this.socket) {
-            console.log(`[${this.getName()}] Closing TCP socket (simulating carrier loss)`);
+            slog.log(`[${this.getName()}] Closing TCP socket (simulating carrier loss)`);
             this.socket.destroy();
             this.socket = null;
         }
@@ -260,9 +263,10 @@ class DOSBoxAdapter extends EmulatorAdapter {
     }
 
     findExecutable() {
+        const slog = this.slog || console;
         const envPath = process.env.DOSBOX_EXECUTABLE;
         if (envPath && fs.existsSync(envPath)) {
-            console.log(`[${this.getName()}] Using configured executable: ${envPath}`);
+            slog.log(`[${this.getName()}] Using configured executable: ${envPath}`);
             return envPath;
         }
 
@@ -279,7 +283,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
                 );
                 if (result.status === 0 && result.stdout.trim()) {
                     const exePath = result.stdout.trim().split('\n')[0];
-                    console.log(`[${this.getName()}] Found executable: ${exePath}`);
+                    slog.log(`[${this.getName()}] Found executable: ${exePath}`);
                     return candidate;
                 }
             } catch (e) {
@@ -287,7 +291,7 @@ class DOSBoxAdapter extends EmulatorAdapter {
             }
         }
 
-        console.log(`[${this.getName()}] No executable found in PATH, trying "dosbox"`);
+        slog.log(`[${this.getName()}] No executable found in PATH, trying "dosbox"`);
         return 'dosbox';
     }
 }
@@ -309,13 +313,14 @@ class DOSEMUAdapter extends EmulatorAdapter {
 
     async launch(session, sessionData) {
         const { session_id, node_number, door_id, session_path } = sessionData;
+        const slog = this.slog || console;
         const tcpPort = session.tcpPort; // Port allocated by bridge
 
-        console.log(`[${this.getName()}] Launching for session ${session_id} on port ${tcpPort}`);
+        slog.log(`[${this.getName()}] Launching for session ${session_id} on port ${tcpPort}`);
 
         // Generate DOSEMU config with TCP port
         const configPath = this.generateConfigWithPort(sessionData, session_path, tcpPort);
-        console.log(`[${this.getName()}] Generated config: ${configPath}`);
+        slog.log(`[${this.getName()}] Generated config: ${configPath}`);
 
         // Find DOSEMU executable
         const dosemuExe = this.findExecutable();
@@ -331,7 +336,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
             '-E', doorScript  // Execute script
         ];
 
-        console.log(`[${this.getName()}] Spawning: ${dosemuExe} ${args.join(' ')}`);
+        slog.log(`[${this.getName()}] Spawning: ${dosemuExe} ${args.join(' ')}`);
 
         // Spawn DOSEMU with normal spawn (not PTY)
         const dosemuCwd = path.join(this.basePath, 'dosbox-bridge', 'dos');
@@ -343,7 +348,7 @@ class DOSEMUAdapter extends EmulatorAdapter {
         });
 
         this.process.on('exit', (code, signal) => {
-            console.log(`[${this.getName()}] Process exited: code=${code}, signal=${signal}`);
+            slog.log(`[${this.getName()}] Process exited: code=${code}, signal=${signal}`);
             if (this.exitCallback) {
                 this.exitCallback(code, signal);
             }
@@ -360,21 +365,22 @@ class DOSEMUAdapter extends EmulatorAdapter {
      * Create TCP listener (same as DOSBox)
      */
     async createTCPListener(tcpPort, onConnection) {
+        const slog = this.slog || console;
         return new Promise((resolve, reject) => {
             this.tcpServer = net.createServer((socket) => {
-                console.log(`[${this.getName()}] Connection received on port ${tcpPort}`);
+                slog.log(`[${this.getName()}] Connection received on port ${tcpPort}`);
                 this.socket = socket;
                 socket.setNoDelay(true);
                 onConnection(socket);
             });
 
             this.tcpServer.listen(tcpPort, '127.0.0.1', () => {
-                console.log(`[${this.getName()}] TCP listener ready on port ${tcpPort}`);
+                slog.log(`[${this.getName()}] TCP listener ready on port ${tcpPort}`);
                 resolve();
             });
 
             this.tcpServer.on('error', (err) => {
-                console.error(`[${this.getName()}] TCP server error:`, err.message);
+                slog.error(`[${this.getName()}] TCP server error:`, err.message);
                 reject(err);
             });
         });
@@ -393,10 +399,11 @@ class DOSEMUAdapter extends EmulatorAdapter {
     }
 
     close() {
+        const slog = this.slog || console;
         // Close TCP socket first to simulate carrier loss (lost carrier event)
         // This allows the door game to detect the disconnection and exit gracefully
         if (this.socket) {
-            console.log(`[${this.getName()}] Closing TCP socket (simulating carrier loss)`);
+            slog.log(`[${this.getName()}] Closing TCP socket (simulating carrier loss)`);
             this.socket.destroy();
             this.socket = null;
         }
@@ -513,9 +520,10 @@ ${launchCmd}
     }
 
     findExecutable() {
+        const slog = this.slog || console;
         const envPath = process.env.DOSEMU_EXECUTABLE;
         if (envPath && fs.existsSync(envPath)) {
-            console.log(`[${this.getName()}] Using configured executable: ${envPath}`);
+            slog.log(`[${this.getName()}] Using configured executable: ${envPath}`);
             return envPath;
         }
 
@@ -523,7 +531,7 @@ ${launchCmd}
 
         for (const candidate of candidates) {
             if (fs.existsSync(candidate)) {
-                console.log(`[${this.getName()}] Found executable: ${candidate}`);
+                slog.log(`[${this.getName()}] Found executable: ${candidate}`);
                 return candidate;
             }
 
@@ -531,7 +539,7 @@ ${launchCmd}
                 const result = require('child_process').spawnSync('which', [candidate], { encoding: 'utf8' });
                 if (result.status === 0 && result.stdout.trim()) {
                     const exePath = result.stdout.trim();
-                    console.log(`[${this.getName()}] Found executable: ${exePath}`);
+                    slog.log(`[${this.getName()}] Found executable: ${exePath}`);
                     return exePath;
                 }
             } catch (e) {
@@ -561,8 +569,9 @@ class NativeAdapter extends EmulatorAdapter {
 
     async launch(session, sessionData) {
         const { session_id, node_number, door_id } = sessionData;
+        const slog = this.slog || console;
 
-        console.log(`[${this.getName()}] Launching door '${door_id}' for session ${session_id} on node ${node_number}`);
+        slog.log(`[${this.getName()}] Launching door '${door_id}' for session ${session_id} on node ${node_number}`);
 
         // Load nativedoor.json manifest
         const manifestPath = path.join(this.basePath, 'native-doors', 'doors', door_id, 'nativedoor.json');
@@ -636,7 +645,7 @@ class NativeAdapter extends EmulatorAdapter {
                     cmd = whereResult.stdout.split(/\r?\n/)[0].trim();
                 }
             } catch (e) {
-                console.warn(`[${this.getName()}] Could not resolve path for '${cmd}':`, e.message);
+                slog.warn(`[${this.getName()}] Could not resolve path for '${cmd}':`, e.message);
             }
         }
 
@@ -657,7 +666,7 @@ class NativeAdapter extends EmulatorAdapter {
             TERM: 'xterm-256color'
         };
 
-        console.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
+        slog.log(`[${this.getName()}] Spawning: ${cmd} ${args.join(' ')} in ${doorDir} (output_encoding=${this.outputEncoding})`);
 
         this.ptyProcess = pty.spawn(cmd, args, {
             name: 'xterm-256color',
@@ -670,7 +679,7 @@ class NativeAdapter extends EmulatorAdapter {
         });
 
         this.ptyProcess.onExit(({ exitCode, signal }) => {
-            console.log(`[${this.getName()}] Process exited: code=${exitCode}, signal=${signal}`);
+            slog.log(`[${this.getName()}] Process exited: code=${exitCode}, signal=${signal}`);
             if (this.exitCallback) {
                 this.exitCallback(exitCode, signal);
             }
@@ -692,8 +701,9 @@ class NativeAdapter extends EmulatorAdapter {
     }
 
     close() {
+        const slog = this.slog || console;
         if (this.ptyProcess) {
-            console.log(`[${this.getName()}] Killing PTY process`);
+            slog.log(`[${this.getName()}] Killing PTY process`);
             this.ptyProcess.kill();
             this.ptyProcess = null;
         }
