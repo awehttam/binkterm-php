@@ -7,10 +7,10 @@
     "author": "BinktermPHP",
     "version": "1.0",
     "release_year": 2026,
-    "description": "Connect to the BBS via telnet. No account required.",
+    "description": "Connect to the BBS via telnet.",
     "genre": ["Terminal"],
     "players": "Single-player",
-    "icon": null,
+    "icon": "icon.svg",
     "screenshot": null
   },
   "door": {
