@@ -25,6 +25,7 @@
 - Multiplexing server now resolves the real client IP from the `X-Forwarded-For` header when the connection originates from a trusted proxy. Set `DOSDOOR_TRUSTED_PROXIES` in `.env` to a comma-separated list of proxy IPs (default: `127.0.0.1`). Connections from unlisted addresses always use the raw socket IP.
 
 **Bug Fixes**
+- Fixed service worker caching: static assets (CSS, JS, fonts) are now served from the SW cache on every navigation with no redundant network requests. Switched from stale-while-revalidate to cache-first strategy; theme stylesheets and FontAwesome fonts are pre-cached at install time. The `sw.js` script now has a dedicated `Cache-Control: no-cache` header in `.htaccess` per the Service Worker spec recommendation.
 - Fixed 30–45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** — see upgrade instructions below.
 - Fixed echomail and netmail posting identity guideline showing in English regardless of user locale on initial page load. The server-rendered (correctly translated) text is now preserved until the user selects an echo area or enters an address.
 - Fixed Markdown blockquotes (`>`) not rendering in the UPGRADING doc viewer. Blockquotes now display with a left border accent at normal body font size.
