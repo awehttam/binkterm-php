@@ -174,17 +174,19 @@ function saveEcholistPreferences() {
 
 $(document).ready(function() {
     // Load saved preferences from database
-    $.get('/api/user/echolist-preference')
-        .done(function(data) {
-            if (data.subscribed_only) $('#subscribedOnlyCheck').prop('checked', true);
-            if (data.unread_only)     $('#unreadOnlyCheck').prop('checked', true);
-            loadEchoAreas();
-            loadStatistics();
-        })
-        .fail(function() {
-            loadEchoAreas();
-            loadStatistics();
-        });
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        $.get('/api/user/echolist-preference')
+            .done(function(data) {
+                if (data.subscribed_only) $('#subscribedOnlyCheck').prop('checked', true);
+                if (data.unread_only)     $('#unreadOnlyCheck').prop('checked', true);
+                loadEchoAreas();
+                loadStatistics();
+            })
+            .fail(function() {
+                loadEchoAreas();
+                loadStatistics();
+            });
+    });
 
     // Auto refresh every 2 minutes
     setInterval(function() {

@@ -226,10 +226,12 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadBbsSettings();
-    loadBbsSystem();
-    loadAdminUsers('bbsSystemSysop');
-    loadBbsTaglines();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadBbsSettings();
+        loadBbsSystem();
+        loadAdminUsers('bbsSystemSysop');
+        loadBbsTaglines();
+    });
 });
 
 function loadBbsSettings() {

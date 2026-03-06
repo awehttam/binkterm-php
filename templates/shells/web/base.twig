@@ -366,7 +366,7 @@
             </small>
             <br>
             <small class="text-muted">
-                Powered by <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a> |
+                {{ t('ui.footer.powered_by', {}, 'common') }} <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a> |
                 <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">{{ t('ui.about.house_rules', {}, 'common') }}</a>
                 {% if appearance.seo.about_page_enabled %}
                 | <a href="/about">{{ t('ui.about.title', {}, 'common') }}</a>

@@ -182,8 +182,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadStats();
-    loadQueue();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadStats();
+        loadQueue();
+    });
 
     document.getElementById('refreshQueue').addEventListener('click', function() {
         loadStats();

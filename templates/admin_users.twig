@@ -304,10 +304,12 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
-    loadPendingUsers();
-    loadAllUsers();
-    loadUsersNeedingReminders();
-    
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadPendingUsers();
+        loadAllUsers();
+        loadUsersNeedingReminders();
+    });
+
     // Setup search on enter key
     $('#user-search').on('keypress', function(e) {
         if (e.which === 13) {

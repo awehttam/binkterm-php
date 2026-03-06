@@ -57,7 +57,9 @@ function apiError(payload, fallback) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadShouts();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadShouts();
+    });
 });
 
 function loadShouts() {

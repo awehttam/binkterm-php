@@ -99,7 +99,9 @@ function uiT(key, fallback, params = {}) {
     return fallback;
 }
 document.addEventListener('DOMContentLoaded', function() {
-    loadPolls();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadPolls();
+    });
 });
 
 function loadPolls() {

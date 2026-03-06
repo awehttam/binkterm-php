@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v180';
+const CACHE_NAME = 'binkcache-v184';
 
 // Static assets to precache
 const staticAssets = [
@@ -72,8 +72,11 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Don't cache API calls or HTML pages
-    if (url.pathname.startsWith('/api/') || request.headers.get('accept')?.includes('text/html')) {
+    // Don't cache API calls or HTML pages (except i18n catalog which is static per deployment)
+    if (url.pathname.startsWith('/api/') && url.pathname !== '/api/i18n/catalog') {
+        return;
+    }
+    if (request.headers.get('accept')?.includes('text/html')) {
         return;
     }
 
@@ -90,6 +93,24 @@ self.addEventListener('fetch', (event) => {
                     });
 
                     // Return cached version immediately, or wait for network
+                    return cachedResponse || fetchPromise;
+                });
+            })
+        );
+    }
+
+    // Cache i18n catalog with stale-while-revalidate (same as CSS/JS)
+    if (url.pathname === '/api/i18n/catalog') {
+        event.respondWith(
+            caches.open(CACHE_NAME).then((cache) => {
+                return cache.match(request).then((cachedResponse) => {
+                    const fetchPromise = fetch(request).then((networkResponse) => {
+                        if (networkResponse.ok) {
+                            cache.put(request, networkResponse.clone());
+                        }
+                        return networkResponse;
+                    });
+
                     return cachedResponse || fetchPromise;
                 });
             })

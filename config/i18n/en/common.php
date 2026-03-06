@@ -154,6 +154,7 @@ return [
     'ui.about.software' => 'Software',
     'ui.about.links' => 'Links',
     'ui.about.house_rules' => 'House Rules',
+    'ui.footer.powered_by' => 'Powered by',
 
     // 404 Page
     'ui.error404.title' => 'Page Not Found',

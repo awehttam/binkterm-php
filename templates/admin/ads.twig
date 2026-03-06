@@ -82,7 +82,9 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadAds();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadAds();
+    });
 
     const form = document.getElementById('adsUploadForm');
     form.addEventListener('submit', function(event) {

@@ -123,8 +123,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadConfig();
-    loadAvailableDoors();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadConfig();
+        loadAvailableDoors();
+    });
 
     document.getElementById('configEditor').addEventListener('input', () => {
         updateJsonStatus();

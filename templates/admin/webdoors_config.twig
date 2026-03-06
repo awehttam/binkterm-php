@@ -89,8 +89,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadWebdoorsConfig();
-    loadAvailableDoors();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadWebdoorsConfig();
+        loadAvailableDoors();
+    });
     document.getElementById('webdoorsJsonEditor').addEventListener('input', () => {
         updateJsonStatus();
         renderDoorList();

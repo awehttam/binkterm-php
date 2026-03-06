@@ -178,7 +178,9 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadNodes();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadNodes();
+    });
 
     document.getElementById('refreshNodes').addEventListener('click', loadNodes);
     document.getElementById('saveNodeBtn').addEventListener('click', addNode);

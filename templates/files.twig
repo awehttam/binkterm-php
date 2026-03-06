@@ -271,8 +271,10 @@ function apiMessage(payload, fallback) {
 }
 
 $(document).ready(function() {
-    loadFileAreas();
-    loadStats();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadFileAreas();
+        loadStats();
+    });
 
     $('#searchFiles').on('input', function() {
         filterFiles($(this).val());

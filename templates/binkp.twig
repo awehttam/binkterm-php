@@ -255,10 +255,12 @@ function apiMessage(payload, fallback) {
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
-    refreshStatus();
-    refreshUplinks();
-    refreshQueues();
-    refreshLogs();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        refreshStatus();
+        refreshUplinks();
+        refreshQueues();
+        refreshLogs();
+    });
 });
 
 // Auto-refresh every 30 seconds

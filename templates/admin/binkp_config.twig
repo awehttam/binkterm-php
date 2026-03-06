@@ -301,8 +301,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(element) {
         new bootstrap.Tooltip(element);
     });
-    loadBinkpConfig();
-    loadAdminUsers('systemSysop');
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadBinkpConfig();
+        loadAdminUsers('systemSysop');
+    });
 });
 
 function loadBinkpConfig() {

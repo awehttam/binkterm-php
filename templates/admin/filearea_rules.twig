@@ -177,7 +177,9 @@ function resetRules() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadRulesConfig();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadRulesConfig();
+    });
     const editor = document.getElementById('rulesJsonEditor');
     editor.addEventListener('input', () => {
         rulesState.dirty = editor.value !== (rulesState.configJson || '');

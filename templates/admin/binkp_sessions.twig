@@ -155,8 +155,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadStats();
-    loadSessions();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadStats();
+        loadSessions();
+    });
 
     document.getElementById('refreshSessions').addEventListener('click', function() {
         loadStats();

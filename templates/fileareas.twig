@@ -232,8 +232,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
-    loadFileareas();
-    loadStats();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadFileareas();
+        loadStats();
+    });
 
     $('input[name="filter"]').change(function() {
         loadFileareas();
