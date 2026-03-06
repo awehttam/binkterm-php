@@ -13,12 +13,16 @@ Make sure you've made a backup of your database and files before upgrading.
 - Native door manifests now support a `platform` field in `requirements` (e.g. `["linux", "windows"]`). The admin UI shows a warning badge if a door's platform requirements don't match the server OS.
 - Native door manifests now support `launch_command_windows` for platform-specific launch commands on Windows.
 
+- Multiplexing server (`scripts/dosbox-bridge/multiplexing-server.js`) now supports **SIGHUP config reload**. Send `kill -HUP $(cat data/run/multiplexing-server.pid)` to reload `.env` values without restarting. The following settings reload live: `DOSDOOR_DISCONNECT_TIMEOUT`, `DOSDOOR_DEBUG_KEEP_FILES`, `DOSDOOR_CARRIER_LOSS_TIMEOUT`. Settings that require a full restart: `DOSDOOR_WS_PORT`, `DOSDOOR_WS_BIND_HOST`, `DOSDOOR_TRUSTED_PROXIES`, `DB_*`.
+- Multiplexing server now resolves the real client IP from the `X-Forwarded-For` header when the connection originates from a trusted proxy. Set `DOSDOOR_TRUSTED_PROXIES` in `.env` to a comma-separated list of proxy IPs (default: `127.0.0.1`). Connections from unlisted addresses always use the raw socket IP.
+
 **Bug Fixes**
 - Fixed 30–45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** — see upgrade instructions below.
+- Fixed echomail and netmail posting identity guideline showing in English regardless of user locale on initial page load. The server-rendered (correctly translated) text is now preserved until the user selects an echo area or enters an address.
 
 ## Localization (i18n) Support
 
-- Translation catalogs now support broader UI/API coverage across web pages and admin tools.
+- Translation catalogs now support broader UI/API coverage across web pages and admin tools. Ships with English (`en`) and Spanish (`es`). See `docs/Localization.md` for a full technical reference and translation contributor workflow.
 - API responses are now expected to use `error_code` / `message_code` (with optional params), so clients can localize consistently per user locale.
 - JavaScript translations use lazy catalog loading (`/api/i18n/catalog`). Pages that render text dynamically must initialize after user settings + i18n catalogs are loaded to avoid English fallback text.
 - New CI checks enforce i18n quality:

@@ -111,6 +111,11 @@ DOSDOOR_WS_BIND_HOST=127.0.0.1
 # Maximum simultaneous door sessions across all door types (default: 10)
 # Each session uses one node number (1 to MAX_SESSIONS)
 DOSDOOR_MAX_SESSIONS=10
+
+# Comma-separated list of proxy IP addresses whose X-Forwarded-For header is trusted
+# for client IP resolution in logs. Only connections arriving from one of these IPs
+# will have their remote address replaced by the forwarded value. (default: 127.0.0.1)
+# DOSDOOR_TRUSTED_PROXIES=127.0.0.1,10.0.0.1
 ```
 
 For DOS-door-specific settings (DOSBox executable, disconnect timeout, etc.) see [DOSDoors.md](DOSDoors.md#configuration).

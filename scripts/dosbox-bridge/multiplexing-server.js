@@ -106,6 +106,9 @@ if (IS_DAEMON && !IS_DAEMON_CHILD) {
         console.log('\nReceived SIGTERM, shutting down...');
         process.exit(0);
     });
+    process.on('SIGHUP', () => {
+        reloadEnv();
+    });
 
 } else {
     // Interactive mode
@@ -117,14 +120,80 @@ if (IS_DAEMON && !IS_DAEMON_CHILD) {
         console.log('\nReceived SIGTERM, shutting down...');
         process.exit(0);
     });
+    process.on('SIGHUP', () => {
+        reloadEnv();
+    });
 }
 
 // Configuration from environment
 const WS_PORT = parseInt(process.env.DOSDOOR_WS_PORT) || 6001;
 const WS_BIND_HOST = process.env.DOSDOOR_WS_BIND_HOST || '127.0.0.1';
-const DISCONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
-const DEBUG_KEEP_FILES = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true'; // Set to 'true' to disable cleanup
-const CARRIER_LOSS_TIMEOUT = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000; // ms to wait after carrier loss
+// These three are safe to reload via SIGHUP — they take effect per-session/per-event.
+let DISCONNECT_TIMEOUT = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
+let DEBUG_KEEP_FILES = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true'; // Set to 'true' to disable cleanup
+let CARRIER_LOSS_TIMEOUT = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000; // ms to wait after carrier loss
+
+// Comma-separated list of proxy IPs whose X-Forwarded-For header is trusted.
+// Only connections originating from one of these addresses will have their
+// remote IP replaced by the forwarded value. Default: 127.0.0.1 only.
+const TRUSTED_PROXIES = new Set(
+    (process.env.DOSDOOR_TRUSTED_PROXIES || '127.0.0.1')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+);
+
+/**
+ * Resolve the real client IP for a WebSocket request.
+ * If the socket's remote address is a trusted proxy and an X-Forwarded-For
+ * header is present, the leftmost (originating) address is returned.
+ * Otherwise the raw socket address is used.
+ *
+ * @param {import('http').IncomingMessage} req
+ * @returns {string}
+ */
+function getClientIp(req) {
+    const socketIp = req.socket.remoteAddress;
+    if (TRUSTED_PROXIES.has(socketIp)) {
+        const xff = req.headers['x-forwarded-for'];
+        if (xff) {
+            const forwarded = xff.split(',')[0].trim();
+            if (forwarded) return forwarded;
+        }
+    }
+    return socketIp;
+}
+
+/**
+ * Re-read .env and update runtime-reloadable configuration values.
+ * Called on SIGHUP. Values that require a restart (WS_PORT, WS_BIND_HOST,
+ * DOSDOOR_TRUSTED_PROXIES, DB_* credentials) are logged but not applied.
+ */
+function reloadEnv() {
+    console.log('[Config] Reloading .env...');
+    require('dotenv').config({ path: __dirname + '/../../.env', override: true });
+
+    const newDisconnectTimeout = parseInt(process.env.DOSDOOR_DISCONNECT_TIMEOUT) || 0;
+    const newDebugKeepFiles = process.env.DOSDOOR_DEBUG_KEEP_FILES === 'true';
+    const newCarrierLossTimeout = parseInt(process.env.DOSDOOR_CARRIER_LOSS_TIMEOUT) || 5000;
+
+    if (newDisconnectTimeout !== DISCONNECT_TIMEOUT) {
+        console.log(`[Config] DOSDOOR_DISCONNECT_TIMEOUT: ${DISCONNECT_TIMEOUT} -> ${newDisconnectTimeout}`);
+        DISCONNECT_TIMEOUT = newDisconnectTimeout;
+    }
+    if (newDebugKeepFiles !== DEBUG_KEEP_FILES) {
+        console.log(`[Config] DOSDOOR_DEBUG_KEEP_FILES: ${DEBUG_KEEP_FILES} -> ${newDebugKeepFiles}`);
+        DEBUG_KEEP_FILES = newDebugKeepFiles;
+    }
+    if (newCarrierLossTimeout !== CARRIER_LOSS_TIMEOUT) {
+        console.log(`[Config] DOSDOOR_CARRIER_LOSS_TIMEOUT: ${CARRIER_LOSS_TIMEOUT} -> ${newCarrierLossTimeout}`);
+        CARRIER_LOSS_TIMEOUT = newCarrierLossTimeout;
+    }
+
+    // DOSDOOR_HEADLESS and DOSBOX_EXECUTABLE are already read inline per session — no action needed.
+    // WS_PORT, WS_BIND_HOST, DOSDOOR_TRUSTED_PROXIES, and DB_* require a full restart to take effect.
+    console.log('[Config] Reload complete. Note: WS_PORT, WS_BIND_HOST, DOSDOOR_TRUSTED_PROXIES, and DB_* require a restart.');
+}
 const TCP_PORT_BASE = 5000;
 const TCP_PORT_MAX = 5100;
 const BASE_PATH = path.resolve(__dirname, '../..');
@@ -142,6 +211,7 @@ const DB_CONFIG = {
 console.log('=== DOSBox Door Bridge - Multiplexing Server v3 ===');
 console.log(`WebSocket Port: ${WS_PORT}`);
 console.log(`Bind Address: ${WS_BIND_HOST}`);
+console.log(`Trusted Proxies: ${[...TRUSTED_PROXIES].join(', ')}`);
 console.log(`TCP Port Range: ${TCP_PORT_BASE}-${TCP_PORT_MAX}`);
 console.log(`Disconnect Timeout: ${DISCONNECT_TIMEOUT} minutes`);
 console.log(`Carrier Loss Timeout: ${CARRIER_LOSS_TIMEOUT}ms`);
@@ -1144,7 +1214,7 @@ console.log('[WS] Waiting for connections...');
 console.log('');
 
 wsServer.on('connection', async (ws, req) => {
-    const clientIp = req.socket.remoteAddress;
+    const clientIp = getClientIp(req);
     console.log('[WS] New connection from', clientIp);
 
     // Parse token from query string
