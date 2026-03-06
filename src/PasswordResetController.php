@@ -256,8 +256,11 @@ class PasswordResetController
 
         // Build reset URL
         $resetUrl = Config::getSiteUrl() . '/reset-password?token=' . $token;
-        $locale = (string)($user['locale'] ?? 'en');
         $translator = new \BinktermPHP\I18n\Translator();
+        $localeResolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        // Resolve locale using the same priority as page rendering:
+        // 1) user's saved locale preference, 2) cookie, 3) Accept-Language, 4) default
+        $locale = $localeResolver->resolveLocale($user['locale'] ?? null, null);
 
         $t = static function (string $key, array $params = []) use ($translator, $locale): string {
             return $translator->translate($key, $params, $locale, ['common']);
