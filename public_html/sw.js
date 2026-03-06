@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v187';
+const CACHE_NAME = 'binkcache-v188';
 
 // Static assets to precache
 const staticAssets = [
@@ -103,10 +103,10 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Handle CSS/JS files with cache-first strategy.
+    // Handle CSS/JS/font files with cache-first strategy.
     // Version bumps to CACHE_NAME purge and repopulate the cache at install time,
     // so there is no need to re-fetch on every request.
-    if (url.pathname.match(/\.(css|js)$/)) {
+    if (url.pathname.match(/\.(css|js|woff2?|ttf|eot|svg)$/)) {
         event.respondWith(
             getCache().then((cache) => {
                 return cache.match(request).then((cachedResponse) => {
