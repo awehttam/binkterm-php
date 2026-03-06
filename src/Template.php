@@ -38,7 +38,7 @@ class Template
         $this->auth = new Auth();
         $this->translator = new Translator();
         $this->localeResolver = new LocaleResolver($this->translator);
-        $currentUser = $this->auth->getCurrentUser();
+        $currentUser = $this->auth->getCurrentUser() ?: null;
 
         $this->activeShell = $this->resolveActiveShell($currentUser);
 

@@ -35,6 +35,9 @@ bbs_ads/*
 # Windows utility scripts
 delnul.cmd
 node_modules/
+tests/playwright/.auth-state.json
+tests/playwright-report/
+test-results/
 scripts/dosbox-bridge/package-lock.json
 
 # DOS Door files - only track manifests
