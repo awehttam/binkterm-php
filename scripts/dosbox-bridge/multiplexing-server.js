@@ -44,8 +44,7 @@ require('dotenv').config({ path: __dirname + '/../../.env' });
  * @returns {{ log, warn, error }}
  */
 function makeSessionLogger(sessionId, username, clientIp) {
-    const shortId = (sessionId || '????????').substring(0, 8);
-    const label = `[${shortId}|${username || 'guest'}|${clientIp || '?'}]`;
+    const label = `[${sessionId || '?'}|${username || 'guest'}|${clientIp || '?'}]`;
     return {
         log:   (...args) => console.log(label, ...args),
         warn:  (...args) => console.warn(label, ...args),
