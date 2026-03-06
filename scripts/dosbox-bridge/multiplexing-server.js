@@ -35,16 +35,17 @@ require('dotenv').config({ path: __dirname + '/../../.env' });
 
 /**
  * Create a per-session logger that prefixes every line with
- * [shortSessionId|username|clientIp] so log lines can be correlated
+ * [sessionId|username|clientIp] so log lines can be correlated
  * across a full session lifetime.
  *
- * @param {string} sessionId - Full session UUID from the database
+ * @param {string} sessionId - Session ID from the database
  * @param {string} username  - Player alias / real name
  * @param {string} clientIp  - Originating IP address
  * @returns {{ log, warn, error }}
  */
 function makeSessionLogger(sessionId, username, clientIp) {
-    const label = `[${sessionId || '?'}|${username || 'guest'}|${clientIp || '?'}]`;
+    const shortId = sessionId ? sessionId.replace(/_\d+$/, '') : '?';
+    const label = `[${shortId}|${username || 'guest'}|${clientIp || '?'}]`;
     return {
         log:   (...args) => console.log(label, ...args),
         warn:  (...args) => console.warn(label, ...args),
@@ -454,6 +455,7 @@ class SessionManager {
         // Create emulator adapter based on door_type
         const doorType = sessionData.door_type || 'dos';
         session.emulator = createEmulatorAdapter(BASE_PATH, doorType);
+        session.emulator.slog = session.slog;   // propagate session logger into adapter
         const emulatorName = session.emulator.getName();
 
         session.slog.log(`[SESSION] Using ${emulatorName} (door_type=${doorType})`);

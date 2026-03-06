@@ -23,6 +23,7 @@
 
 - Multiplexing server (`scripts/dosbox-bridge/multiplexing-server.js`) now supports **SIGHUP config reload**. Send `kill -HUP $(cat data/run/multiplexing-server.pid)` to reload `.env` values without restarting. The following settings reload live: `DOSDOOR_DISCONNECT_TIMEOUT`, `DOSDOOR_DEBUG_KEEP_FILES`, `DOSDOOR_CARRIER_LOSS_TIMEOUT`. Settings that require a full restart: `DOSDOOR_WS_PORT`, `DOSDOOR_WS_BIND_HOST`, `DOSDOOR_TRUSTED_PROXIES`, `DB_*`.
 - Multiplexing server now resolves the real client IP from the `X-Forwarded-For` header when the connection originates from a trusted proxy. Set `DOSDOOR_TRUSTED_PROXIES` in `.env` to a comma-separated list of proxy IPs (default: `127.0.0.1`). Connections from unlisted addresses always use the raw socket IP.
+- Multiplexing server log lines are now prefixed with `[sessionId|username|ip]` for every session-scoped event, including emulator adapter output (DOSBox, DOSEMU, Native), DB updates, and drop file writes. This makes it straightforward to correlate all activity for a specific user or connection in the log.
 
 **Bug Fixes**
 - Fixed service worker caching: static assets (CSS, JS, fonts) are now served from the SW cache on every navigation with no redundant network requests. Switched from stale-while-revalidate to cache-first strategy; theme stylesheets and FontAwesome fonts are pre-cached at install time. The `sw.js` script now has a dedicated `Cache-Control: no-cache` header in `.htaccess` per the Service Worker spec recommendation.
