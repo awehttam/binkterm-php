@@ -30,6 +30,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - tests/ - test scripts used in debugging and troubleshooting
  - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude
  - data/ - runtime data (binkp.json, nodelists.json, logs, inbound/outbound packets)
+ - telnet/ - the telnet BBS server (separate from the web interface)
 
 ## Important Notes
  - User authentication is simple username and password with long lived cookie

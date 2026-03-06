@@ -6,6 +6,7 @@ use BinktermPHP\Config;
 use BinktermPHP\Version;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\I18n\Translator;
 
 
 /**
@@ -61,6 +62,8 @@ class TelnetServer
     private ?string $pidFile = null;
     private ?int $masterPid = null;
     private array $failedLoginAttempts = [];
+    private Translator $translator;
+    private string $systemLocale;
 
     /**
      * Create a new Telnet Server instance
@@ -77,6 +80,30 @@ class TelnetServer
         $this->apiBase = rtrim($apiBase, '/');
         $this->debug = $debug;
         $this->insecure = $insecure;
+        $this->translator = new Translator();
+        $this->systemLocale = (string)Config::env('I18N_DEFAULT_LOCALE', 'en');
+    }
+
+    /**
+     * Translate a telnet UI string.
+     *
+     * @param string $key Translation key (looked up in the 'telnet' namespace)
+     * @param string $fallback English fallback used when the key is missing from all catalogs
+     * @param array $params Placeholder substitutions ({key} => value)
+     * @param string $locale User locale; defaults to system locale
+     * @return string Translated string with params interpolated
+     */
+    public function t(string $key, string $fallback, array $params = [], string $locale = ''): string
+    {
+        $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['telnet']);
+        if ($result === $key) {
+            // Key not found in any catalog — use fallback with param interpolation
+            foreach ($params as $k => $v) {
+                $fallback = str_replace('{' . $k . '}', (string)$v, $fallback);
+            }
+            return $fallback;
+        }
+        return $result;
     }
 
     /**
@@ -319,7 +346,8 @@ class TelnetServer
             'idle_warned' => false,
             'idle_warning_timeout' => 300,  // 5 minutes
             'idle_disconnect_timeout' => 420,  // 7 minutes (5 + 2)
-            'pushback' => ''
+            'pushback' => '',
+            'locale' => $this->systemLocale,
         ];
 
         if ($this->debug) {
@@ -335,7 +363,7 @@ class TelnetServer
         // Check if IP is rate limited
         if ($this->isRateLimited($peerIp)) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Too many failed login attempts. Please try again later.', self::ANSI_RED));
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.rate_limited', 'Too many failed login attempts. Please try again later.', [], $state['locale']), self::ANSI_RED));
             $this->writeLine($conn, '');
             echo "[" . date('Y-m-d H:i:s') . "] Rate limited connection from {$peerName}\n";
             fclose($conn);
@@ -361,15 +389,15 @@ class TelnetServer
         // Login/Register loop
         $loginResult = null;
         while ($loginResult === null) {
-            $this->writeLine($conn, 'Would you like to:');
-            $this->writeLine($conn, '  (L) Login to existing account');
-            $this->writeLine($conn, '  (R) Register new account');
-            $this->writeLine($conn, '  (Q) Quit');
+            $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
+            $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.login', '  (L) Login to existing account', [], $state['locale']));
+            $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.register', '  (R) Register new account', [], $state['locale']));
+            $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.quit', '  (Q) Quit', [], $state['locale']));
             $this->writeLine($conn, '');
-            $loginOrRegister = $this->prompt($conn, $state, 'Your choice: ', true);
+            $loginOrRegister = $this->prompt($conn, $state, $this->t('ui.telnet.server.login_menu.choice', 'Your choice: ', [], $state['locale']), true);
 
             if ($loginOrRegister === null || strtolower(trim($loginOrRegister)) === 'q') {
-                $this->writeLine($conn, $this->colorize('Goodbye!', self::ANSI_CYAN));
+                $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.goodbye', 'Goodbye!', [], $state['locale']), self::ANSI_CYAN));
                 fclose($conn);
                 if ($forked) {
                     exit(0);
@@ -381,7 +409,7 @@ class TelnetServer
             if (strtolower(trim($loginOrRegister)) === 'r') {
                 $registered = $this->attemptRegistration($conn, $state);
                 if ($registered) {
-                    $this->writeLine($conn, 'Press Enter to disconnect.');
+                    $this->writeLine($conn, $this->t('ui.telnet.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
                     $this->readLineWithIdleCheck($conn, $state);
                     fclose($conn);
                     if ($forked) {
@@ -405,7 +433,7 @@ class TelnetServer
 
                 if ($loginResult !== null) {
                     // Successful login
-                    $this->writeLine($conn, $this->colorize('Login successful.', self::ANSI_GREEN));
+                    $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.login.success', 'Login successful.', [], $state['locale']), self::ANSI_GREEN));
                     $this->writeLine($conn, '');
                     break 2; // Break out of both for loop and while loop
                 }
@@ -417,10 +445,10 @@ class TelnetServer
 
                 if ($attempt < $maxAttempts) {
                     $remaining = $maxAttempts - $attempt;
-                    $this->writeLine($conn, $this->colorize("Login failed. {$remaining} attempt(s) remaining.", self::ANSI_RED));
+                    $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.login.failed_remaining', 'Login failed. {remaining} attempt(s) remaining.', ['remaining' => $remaining], $state['locale']), self::ANSI_RED));
                     $this->writeLine($conn, '');
                 } else {
-                    $this->writeLine($conn, $this->colorize('Login failed. Maximum attempts exceeded.', self::ANSI_RED));
+                    $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.login.failed_max', 'Login failed. Maximum attempts exceeded.', [], $state['locale']), self::ANSI_RED));
                     $this->writeLine($conn, '');
                 }
             }
@@ -449,6 +477,10 @@ class TelnetServer
         $state['user_timezone'] = $settings['timezone'] ?? 'UTC';
         $state['user_date_format'] = $settings['date_format'] ?? 'Y-m-d H:i:s';
         $state['username'] = $username;
+        $userLocale = $settings['locale'] ?? '';
+        if ($userLocale !== '' && $this->translator->isSupportedLocale($userLocale)) {
+            $state['locale'] = $userLocale;
+        }
 
         // Resolve admin status from session record
         $auth = new \BinktermPHP\Auth();
@@ -531,7 +563,7 @@ class TelnetServer
             $this->safeWrite($conn, "\033[2;1H");
             $this->writeLine($conn, '');
             $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-            $titleLine = '| ' . str_pad('Main Menu', $innerWidth, ' ', STR_PAD_BOTH) . ' |';
+            $titleLine = '| ' . str_pad($this->t('ui.telnet.server.menu.title', 'Main Menu', [], $state['locale']), $innerWidth, ' ', STR_PAD_BOTH) . ' |';
             $this->writeLine($conn, $menuPad . $this->colorize($titleLine, self::ANSI_BLUE . self::ANSI_BOLD));
             $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_CYAN));
 
@@ -539,11 +571,12 @@ class TelnetServer
             $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
             $showPolls = BbsConfig::isFeatureEnabled('voting_booth');
             $showDoors = BbsConfig::isFeatureEnabled('webdoors');
+            $locale = $state['locale'];
 
-            $option1 = '| N) Netmail (' . $messageCounts['netmail'] . ' messages)';
+            $option1 = '| ' . $this->t('ui.telnet.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option1, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
-            $option2 = '| E) Echomail (' . $messageCounts['echomail'] . ' messages)';
+            $option2 = '| ' . $this->t('ui.telnet.server.menu.echomail', 'E) Echomail ({count} messages)', ['count' => $messageCounts['echomail']], $locale);
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option2, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
             $option = 1;
@@ -552,25 +585,25 @@ class TelnetServer
             $doorsOption = null;
             $whosOnlineOption = 'w';
 
-            $optionLine = "| W) Who's Online";
+            $optionLine = '| ' . $this->t('ui.telnet.server.menu.whos_online', "W) Who's Online", [], $locale);
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
             if ($showShoutbox) {
-                $optionLine = "| S) Shoutbox";
+                $optionLine = '| ' . $this->t('ui.telnet.server.menu.shoutbox', 'S) Shoutbox', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                 $shoutboxOption = 's';
             }
             if ($showPolls) {
-                $optionLine = "| P) Polls";
+                $optionLine = '| ' . $this->t('ui.telnet.server.menu.polls', 'P) Polls', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                 $pollsOption = 'p';
             }
             if ($showDoors) {
-                $optionLine = "| D) Door Games";
+                $optionLine = '| ' . $this->t('ui.telnet.server.menu.doors', 'D) Door Games', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                 $doorsOption = 'd';
             }
-            $quitLine = "| Q) Quit";
+            $quitLine = '| ' . $this->t('ui.telnet.server.menu.quit', 'Q) Quit', [], $locale);
             $this->writeLine($conn, $menuPad . $this->colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
             $quitOption = 'q';
 
@@ -583,7 +616,7 @@ class TelnetServer
             $promptShown = false;
             while ($choice === '') {
                 if (!$promptShown) {
-                    $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
+                    $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.menu.select_option', 'Select option:', [], $state['locale']), self::ANSI_DIM));
                     $promptShown = true;
                 }
 
@@ -648,11 +681,11 @@ class TelnetServer
                 TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
 
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Thank you for visiting, have a great day!', self::ANSI_CYAN . self::ANSI_BOLD));
+                $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.farewell', 'Thank you for visiting, have a great day!', [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
                 try {
                     $siteUrl = Config::getSiteUrl();
-                    $this->writeLine($conn, $this->colorize('Come back and visit us on the web at ' . $siteUrl, self::ANSI_YELLOW));
+                    $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.visit_web', 'Come back and visit us on the web at {url}', ['url' => $siteUrl], $state['locale']), self::ANSI_YELLOW));
                 } catch (\Exception $e) {
                     // Silently skip if getSiteUrl fails
                 }
@@ -693,11 +726,11 @@ class TelnetServer
         $innerWidth = max(20, min($cols - 2, 78));
 
         $this->safeWrite($conn, "\033[2J\033[H");
-        $this->writeLine($conn, $this->colorize("Who's Online (last {$minutes} minutes)", self::ANSI_CYAN . self::ANSI_BOLD));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.whos_online.title', "Who's Online (last {minutes} minutes)", ['minutes' => $minutes], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD));
         $this->writeLine($conn, '');
 
         if (!$users) {
-            $this->writeLine($conn, $this->colorize('No users online.', self::ANSI_YELLOW));
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.whos_online.empty', 'No users online.', [], $state['locale']), self::ANSI_YELLOW));
         } else {
             $lineIndex = 0;
             foreach ($users as $user) {
@@ -729,7 +762,7 @@ class TelnetServer
         }
 
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Press any key to return...', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $state['locale']), self::ANSI_YELLOW));
         $this->readKeyWithIdleCheck($conn, $state);
     }
 
@@ -812,7 +845,7 @@ class TelnetServer
     {
         // Print service name before showing login screen
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('BinktermPHP Telnet Service', self::ANSI_MAGENTA . self::ANSI_BOLD));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.banner.title', 'BinktermPHP Telnet Service', [], $state['locale']), self::ANSI_MAGENTA . self::ANSI_BOLD));
         $this->writeLine($conn, '');
 
         if(TelnetUtils::showScreenIfExists("login.ans", $this, $conn)){
@@ -829,13 +862,13 @@ class TelnetServer
 
         $rawLines = [
             ['text' => '', 'color' => self::ANSI_DIM, 'center' => false],
-            ['text' => 'System: ' . $config->getSystemName(), 'color' => self::ANSI_CYAN, 'center' => false],
-            ['text' => 'Location: ' . $config->getSystemLocation(), 'color' => self::ANSI_DIM, 'center' => false],
-            ['text' => 'Origin: ' . $config->getSystemOrigin(), 'color' => self::ANSI_DIM, 'center' => false],
+            ['text' => $this->t('ui.telnet.server.banner.system', 'System: ', [], $state['locale']) . $config->getSystemName(), 'color' => self::ANSI_CYAN, 'center' => false],
+            ['text' => $this->t('ui.telnet.server.banner.location', 'Location: ', [], $state['locale']) . $config->getSystemLocation(), 'color' => self::ANSI_DIM, 'center' => false],
+            ['text' => $this->t('ui.telnet.server.banner.origin', 'Origin: ', [], $state['locale']) . $config->getSystemOrigin(), 'color' => self::ANSI_DIM, 'center' => false],
         ];
         if ($siteUrl !== '') {
             $rawLines[] = ['text' => '', 'color' => self::ANSI_DIM, 'center' => false];
-            $rawLines[] = ['text' => 'Web: ' . $siteUrl, 'color' => self::ANSI_YELLOW, 'center' => false];
+            $rawLines[] = ['text' => $this->t('ui.telnet.server.banner.web', 'Web: ', [], $state['locale']) . $siteUrl, 'color' => self::ANSI_YELLOW, 'center' => false];
         }
 
         $maxLen = 0;
@@ -869,7 +902,7 @@ class TelnetServer
         $this->writeLine($conn, '');
 
         if ($siteUrl !== '') {
-            $visitLine = 'For a good time visit us on the web @ ' . $siteUrl;
+            $visitLine = $this->t('ui.telnet.server.banner.visit_web', 'For a good time visit us on the web @ {url}', ['url' => $siteUrl], $state['locale']);
             $visitPad = str_repeat(' ', max(0, (int)floor(($cols - strlen($visitLine)) / 2)));
             $this->writeLine($conn, $visitPad . $this->colorize($visitLine, self::ANSI_YELLOW));
             $this->writeLine($conn, '');
@@ -963,7 +996,7 @@ class TelnetServer
         // Check if we've exceeded disconnect timeout
         if ($elapsed >= $disconnectTimeout) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Idle timeout - disconnecting...', self::ANSI_YELLOW));
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.disconnect', 'Idle timeout - disconnecting...', [], $state['locale']), self::ANSI_YELLOW));
             $this->writeLine($conn, '');
             return [null, true, true];
         }
@@ -971,7 +1004,7 @@ class TelnetServer
         // Check if we need to show warning
         if (!$state['idle_warned'] && $elapsed >= $warningTimeout) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Are you still there? (Press Enter to continue)', self::ANSI_YELLOW . self::ANSI_BOLD));
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.warning_line', 'Are you still there? (Press Enter to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
             $this->writeLine($conn, '');
             $state['idle_warned'] = true;
         }
@@ -1029,14 +1062,14 @@ class TelnetServer
 
         if ($elapsed >= $disconnectTimeout) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Idle timeout - disconnecting...', self::ANSI_YELLOW));
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.disconnect', 'Idle timeout - disconnecting...', [], $state['locale']), self::ANSI_YELLOW));
             $this->writeLine($conn, '');
             return [null, true, true];
         }
 
         if (!$state['idle_warned'] && $elapsed >= $warningTimeout) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Are you still there? (Press any key to continue)', self::ANSI_YELLOW . self::ANSI_BOLD));
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.warning_key', 'Are you still there? (Press any key to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
             $this->writeLine($conn, '');
             $state['idle_warned'] = true;
         }
@@ -1275,50 +1308,50 @@ class TelnetServer
     private function attemptRegistration($conn, array &$state): bool
     {
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('=== New User Registration ===', self::ANSI_CYAN . self::ANSI_BOLD));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.registration.title', '=== New User Registration ===', [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD));
         $this->writeLine($conn, '');
-        $this->writeLine($conn, 'Please provide the following information to create your account.');
-        $this->writeLine($conn, $this->colorize('(Type "cancel" at any prompt to abort registration)', self::ANSI_DIM));
+        $this->writeLine($conn, $this->t('ui.telnet.server.registration.intro', 'Please provide the following information to create your account.', [], $state['locale']));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.registration.cancel_hint', '(Type "cancel" at any prompt to abort registration)', [], $state['locale']), self::ANSI_DIM));
         $this->writeLine($conn, '');
 
         // Collect registration information
-        $username = $this->prompt($conn, $state, 'Username (3-20 chars, letters/numbers/underscore): ', true);
+        $username = $this->prompt($conn, $state, $this->t('ui.telnet.server.registration.username', 'Username (3-20 chars, letters/numbers/underscore): ', [], $state['locale']), true);
         if ($username === null || strtolower(trim($username)) === 'cancel') {
             return false;
         }
         $username = trim($username);
 
-        $password = $this->prompt($conn, $state, 'Password (min 8 characters): ', false);
+        $password = $this->prompt($conn, $state, $this->t('ui.telnet.server.registration.password', 'Password (min 8 characters): ', [], $state['locale']), false);
         $this->writeLine($conn, '');
         if ($password === null || strtolower(trim($password)) === 'cancel') {
             return false;
         }
 
-        $passwordConfirm = $this->prompt($conn, $state, 'Confirm password: ', false);
+        $passwordConfirm = $this->prompt($conn, $state, $this->t('ui.telnet.server.registration.confirm', 'Confirm password: ', [], $state['locale']), false);
         $this->writeLine($conn, '');
         if ($passwordConfirm === null || strtolower(trim($passwordConfirm)) === 'cancel') {
             return false;
         }
 
         if ($password !== $passwordConfirm) {
-            $this->writeLine($conn, $this->colorize('Error: Passwords do not match.', self::ANSI_RED));
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.registration.password_mismatch', 'Error: Passwords do not match.', [], $state['locale']), self::ANSI_RED));
             $this->writeLine($conn, '');
             return false;
         }
 
-        $realName = $this->prompt($conn, $state, 'Real Name: ', true);
+        $realName = $this->prompt($conn, $state, $this->t('ui.telnet.server.registration.realname', 'Real Name: ', [], $state['locale']), true);
         if ($realName === null || strtolower(trim($realName)) === 'cancel') {
             return false;
         }
         $realName = trim($realName);
 
-        $email = $this->prompt($conn, $state, 'Email (optional): ', true);
+        $email = $this->prompt($conn, $state, $this->t('ui.telnet.server.registration.email', 'Email (optional): ', [], $state['locale']), true);
         if ($email === null || strtolower(trim($email)) === 'cancel') {
             return false;
         }
         $email = trim($email);
 
-        $location = $this->prompt($conn, $state, 'Location (optional): ', true);
+        $location = $this->prompt($conn, $state, $this->t('ui.telnet.server.registration.location', 'Location (optional): ', [], $state['locale']), true);
         if ($location === null || strtolower(trim($location)) === 'cancel') {
             return false;
         }
@@ -1326,7 +1359,7 @@ class TelnetServer
 
         // Submit registration
         $this->writeLine($conn, '');
-        $this->writeLine($conn, 'Submitting registration...');
+        $this->writeLine($conn, $this->t('ui.telnet.server.registration.submitting', 'Submitting registration...', [], $state['locale']));
 
         try {
             $result = $this->apiRequest('POST', '/api/register', [
@@ -1340,10 +1373,10 @@ class TelnetServer
 
             if ($result['status'] === 200 || $result['status'] === 201) {
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Registration successful!', self::ANSI_GREEN . self::ANSI_BOLD));
+                $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.registration.success', 'Registration successful!', [], $state['locale']), self::ANSI_GREEN . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, 'Your account has been created and is pending approval.');
-                $this->writeLine($conn, 'You will be notified once an administrator has reviewed your registration.');
+                $this->writeLine($conn, $this->t('ui.telnet.server.registration.pending', 'Your account has been created and is pending approval.', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.telnet.server.registration.pending_review', 'You will be notified once an administrator has reviewed your registration.', [], $state['locale']));
                 $this->writeLine($conn, '');
                 return true;
             } else {
@@ -1368,12 +1401,12 @@ class TelnetServer
      */
     private function attemptLogin($conn, array &$state, string &$attemptedUsername = ''): ?array
     {
-        $username = $this->prompt($conn, $state, 'Username: ', true);
+        $username = $this->prompt($conn, $state, $this->t('ui.telnet.server.login.username_prompt', 'Username: ', [], $state['locale']), true);
         if ($username === null) {
             return null;
         }
         $attemptedUsername = $username;
-        $password = $this->prompt($conn, $state, 'Password: ', false);
+        $password = $this->prompt($conn, $state, $this->t('ui.telnet.server.login.password_prompt', 'Password: ', [], $state['locale']), false);
         if ($password === null) {
             return null;
         }
@@ -1548,7 +1581,7 @@ class TelnetServer
     private function requireEscapeKey($conn, array &$state): bool
     {
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Press ESC twice to continue...', self::ANSI_CYAN));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.press_esc', 'Press ESC twice to continue...', [], $state['locale']), self::ANSI_CYAN));
 
         $escCount  = 0;
         $deadline  = time() + 30;
@@ -1637,7 +1670,7 @@ class TelnetServer
 
         // Fallback to line-by-line editor
         if ($initialText !== '') {
-            $this->writeLine($conn, 'Starting with quoted text. Enter your reply below.');
+            $this->writeLine($conn, $this->t('ui.telnet.editor.starting_text', 'Starting with quoted text. Enter your reply below.', [], $state['locale']));
             $this->writeLine($conn, '');
             $quotedLines = explode("\n", $initialText);
             foreach ($quotedLines as $line) {
@@ -1646,7 +1679,7 @@ class TelnetServer
             $this->writeLine($conn, '');
         }
 
-        $this->writeLine($conn, 'Enter message text. End with a single "." line. Type "/abort" to cancel.');
+        $this->writeLine($conn, $this->t('ui.telnet.editor.instructions', 'Enter message text. End with a single "." line. Type "/abort" to cancel.', [], $state['locale']));
         $lines = [];
 
         if ($initialText !== '') {
@@ -1695,9 +1728,9 @@ class TelnetServer
 
         $headerLines = 0;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize('MESSAGE EDITOR - FULL SCREEN MODE', self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.title', 'MESSAGE EDITOR - FULL SCREEN MODE', [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize('Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', self::ANSI_YELLOW)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']), self::ANSI_YELLOW)); $headerLines++;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
 
         // Initialize lines with initial text
@@ -1764,7 +1797,7 @@ class TelnetServer
             if ($ord === 3) {
                 $this->setEcho($conn, $state, true);
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Message cancelled.', self::ANSI_RED));
+                $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.cancelled', 'Message cancelled.', [], $state['locale']), self::ANSI_RED));
                 return '';
             }
 
@@ -1909,7 +1942,7 @@ class TelnetServer
         $this->setEcho($conn, $state, true);
         $this->safeWrite($conn, "\033[" . ($startRow + $maxRows + 1) . ";1H");
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Message saved and ready to send.', self::ANSI_GREEN));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.saved', 'Message saved and ready to send.', [], $state['locale']), self::ANSI_GREEN));
         $this->writeLine($conn, '');
 
         // Remove trailing empty lines
@@ -2007,18 +2040,18 @@ class TelnetServer
     private function showEditorHelp($conn, array &$state): void
     {
         $this->safeWrite($conn, "\033[2J\033[H");
-        $this->writeLine($conn, $this->colorize('MESSAGE EDITOR HELP', self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize('-------------------', self::ANSI_CYAN));
-        $this->writeLine($conn, $this->colorize('Arrow Keys = Navigate cursor', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Backspace/Delete = Edit text', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+K = Help', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+A = Start of line', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+E = End of line', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+Y = Delete entire line', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+Z = Save message and send', self::ANSI_GREEN));
-        $this->writeLine($conn, $this->colorize('Ctrl+C = Cancel and discard message', self::ANSI_RED));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.title', 'MESSAGE EDITOR HELP', [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.separator', '-------------------', [], $state['locale']), self::ANSI_CYAN));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.navigate', 'Arrow Keys = Navigate cursor', [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.edit', 'Backspace/Delete = Edit text', [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.help', 'Ctrl+K = Help', [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.start_of_line', 'Ctrl+A = Start of line', [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.end_of_line', 'Ctrl+E = End of line', [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.delete_line', 'Ctrl+Y = Delete entire line', [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.save', 'Ctrl+Z = Save message and send', [], $state['locale']), self::ANSI_GREEN));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.cancel', 'Ctrl+C = Cancel and discard message', [], $state['locale']), self::ANSI_RED));
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Press any key to return...', self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $state['locale']), self::ANSI_YELLOW));
         $this->readRawChar($conn, $state);
         $this->safeWrite($conn, "\033[?25h");
     }

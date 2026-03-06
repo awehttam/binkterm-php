@@ -27,6 +27,7 @@
 **Bug Fixes**
 - Fixed 30–45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** — see upgrade instructions below.
 - Fixed echomail and netmail posting identity guideline showing in English regardless of user locale on initial page load. The server-rendered (correctly translated) text is now preserved until the user selects an echo area or enters an address.
+- Fixed Markdown blockquotes (`>`) not rendering in the UPGRADING doc viewer. Blockquotes now display with a left border accent at normal body font size.
 
 ## Localization (i18n) Support
 

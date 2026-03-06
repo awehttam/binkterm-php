@@ -5,7 +5,7 @@ namespace BinktermPHP;
 /**
  * Minimal Markdown-to-HTML renderer covering the subset used in UPGRADING docs:
  * headings, bold, inline code, fenced code blocks, horizontal rules,
- * unordered lists, GFM-style tables, and paragraphs.
+ * block quotes, unordered lists, GFM-style tables, and paragraphs.
  */
 class MarkdownRenderer
 {
@@ -83,6 +83,19 @@ class MarkdownRenderer
                 continue;
             }
 
+            // --- Block quote ---
+            if (preg_match('/^>\s?(.*)$/', $line, $m)) {
+                $quoteLines = [$m[1]];
+                $i++;
+                while ($i < $total && preg_match('/^>\s?(.*)$/', $lines[$i], $qm)) {
+                    $quoteLines[] = $qm[1];
+                    $i++;
+                }
+                $inner = self::toHtml(implode("\n", $quoteLines));
+                $output[] = '<blockquote class="border-start border-3 ps-3 text-muted">' . $inner . '</blockquote>';
+                continue;
+            }
+
             // --- Unordered list ---
             if (preg_match('/^[-*]\s+(.+)$/', $line, $m)) {
                 $items = [];
@@ -117,7 +130,7 @@ class MarkdownRenderer
             while (
                 $i < $total &&
                 trim($lines[$i]) !== '' &&
-                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\|)/', $lines[$i])
+                !preg_match('/^(#{1,6}\s|```|---+\s*$|[-*]\s|\||>)/', $lines[$i])
             ) {
                 $para[] = $lines[$i];
                 $i++;
