@@ -55,7 +55,7 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
-    loadShoutbox();
+    loadI18nNamespaces(['common', 'errors']).then(function() { loadShoutbox(); });
 });
 
 function loadShoutbox() {

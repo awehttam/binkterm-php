@@ -233,6 +233,7 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
+    loadI18nNamespaces(['common', 'errors']).then(function() {
     loadDashboardData();
     {% if bbs_feature_enabled('voting_booth') %}
     loadVotingBooth();
@@ -245,6 +246,7 @@ $(document).ready(function() {
     loadReferralStats();
     {% endif %}
     renderDashboardAd();
+    });
 
     // Refresh dashboard data every 30 seconds (but not system news)
     setInterval(function() {

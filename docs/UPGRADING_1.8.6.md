@@ -1,6 +1,14 @@
 # Upgrading to 1.8.6
 
-Make sure you've made a backup of your database and files before upgrading.
+> **Note:** This release introduces localization (i18n) support across the
+> entire application — templates, admin panel, API error responses, JavaScript
+> UI, and outgoing emails. Localization touches virtually every part of the
+> system. Testing has been performed, but some areas may have been missed.
+> If you encounter any text that appears untranslated, displays a raw key
+> (e.g. `ui.some.key`), or behaves unexpectedly after upgrading, please report
+> it at **https://github.com/awehttam/binkterm-php/issues**.
+
+⚠️ Make sure you've made a backup of your database and files before upgrading.
 
 ## Summary of Changes
 

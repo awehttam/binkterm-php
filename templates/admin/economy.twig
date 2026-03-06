@@ -430,7 +430,7 @@
     }
 
     periodSelect.addEventListener('change', loadEconomy);
-    loadEconomy();
+    loadI18nNamespaces(['common', 'errors']).then(function() { loadEconomy(); });
 })();
 </script>
 {% endblock %}

@@ -58,7 +58,7 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
-    loadVotingBooth();
+    loadI18nNamespaces(['common', 'errors']).then(function() { loadVotingBooth(); });
 });
 
 function loadVotingBooth(keepPollId = null) {

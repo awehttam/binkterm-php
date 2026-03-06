@@ -637,10 +637,10 @@ class AdminController
         $stmt->execute([
             $data['address'],
             $data['description'] ?? null,
-            $data['allow_receive'] ?? true,
-            $data['allow_send'] ?? false,
+            ($data['allow_receive'] ?? true) ? 'true' : 'false',
+            ($data['allow_send'] ?? false) ? 'true' : 'false',
             $data['max_messages_per_session'] ?? 100,
-            $data['is_active'] ?? true
+            ($data['is_active'] ?? true) ? 'true' : 'false',
         ]);
 
         return (int)$stmt->fetchColumn();
@@ -658,11 +658,14 @@ class AdminController
             'address', 'description', 'allow_receive', 'allow_send',
             'max_messages_per_session', 'is_active'
         ];
+        $booleanFields = ['allow_receive', 'allow_send', 'is_active'];
 
         foreach ($allowedFields as $field) {
             if (array_key_exists($field, $data)) {
                 $updates[] = "{$field} = ?";
-                $params[] = $data[$field];
+                $params[] = in_array($field, $booleanFields)
+                    ? ($data[$field] ? 'true' : 'false')
+                    : $data[$field];
             }
         }
 
