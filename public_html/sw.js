@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v184';
+const CACHE_NAME = 'binkcache-v185';
 
 // Static assets to precache
 const staticAssets = [
@@ -80,38 +80,40 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Handle CSS/JS files with stale-while-revalidate strategy
+    // Handle CSS/JS files with cache-first strategy.
+    // Version bumps to CACHE_NAME (triggered by sw.js edits) purge and repopulate
+    // the cache at install time, so there is no need to re-fetch on every request.
     if (url.pathname.match(/\.(css|js)$/)) {
         event.respondWith(
             caches.open(CACHE_NAME).then((cache) => {
                 return cache.match(request).then((cachedResponse) => {
-                    // Fetch from network in background to update cache
-                    const fetchPromise = fetch(request).then((networkResponse) => {
-                        // Update cache with fresh copy
+                    if (cachedResponse) {
+                        return cachedResponse;
+                    }
+                    // Not in cache yet — fetch, store, and return
+                    return fetch(request).then((networkResponse) => {
                         cache.put(request, networkResponse.clone());
                         return networkResponse;
                     });
-
-                    // Return cached version immediately, or wait for network
-                    return cachedResponse || fetchPromise;
                 });
             })
         );
     }
 
-    // Cache i18n catalog with stale-while-revalidate (same as CSS/JS)
+    // Cache i18n catalog with cache-first strategy (same as CSS/JS)
     if (url.pathname === '/api/i18n/catalog') {
         event.respondWith(
             caches.open(CACHE_NAME).then((cache) => {
                 return cache.match(request).then((cachedResponse) => {
-                    const fetchPromise = fetch(request).then((networkResponse) => {
+                    if (cachedResponse) {
+                        return cachedResponse;
+                    }
+                    return fetch(request).then((networkResponse) => {
                         if (networkResponse.ok) {
                             cache.put(request, networkResponse.clone());
                         }
                         return networkResponse;
                     });
-
-                    return cachedResponse || fetchPromise;
                 });
             })
         );
