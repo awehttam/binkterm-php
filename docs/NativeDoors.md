@@ -34,20 +34,25 @@ For full setup instructions including production service configuration, environm
 4. A DOOR.SYS drop file is written to `native-doors/drops/NODE{n}/DOOR.SYS` and user data is injected as environment variables.
 5. When the door exits (or the user disconnects), the PTY is killed and the session is cleaned up.
 
-## Directory Structure
+## File Structure
 
 ```
-native-doors/
-  doors/                   ← install doors here
-    mydoor/
-      nativedoor.json      ← required manifest
-      mydoor.sh            ← executable (or binary, .bat, etc.)
-      icon.png             ← optional icon (64×64)
-  drops/                   ← generated at runtime, do not edit
-    NODE1/
-      DOOR.SYS
-    NODE2/
-      DOOR.SYS
+binkterm-php/
+├── native-doors/
+│   ├── doors/                              # Install doors here
+│   │   ├── linuxdoortest/                  # Bundled test door (Linux)
+│   │   ├── windoortest/                    # Bundled test door (Windows)
+│   │   └── mydoor/                         # Example custom door
+│   │       ├── nativedoor.json             # Door manifest (required)
+│   │       ├── mydoor.sh                   # Executable (or binary, .bat, etc.)
+│   │       └── icon.png                    # Optional icon (64×64 PNG)
+│   └── drops/                              # Generated at runtime — do not edit
+│       ├── NODE1/
+│       │   └── DOOR.SYS
+│       └── NODE2/
+│           └── DOOR.SYS
+└── config/
+    └── nativedoors.json                    # Runtime config (managed by admin panel)
 ```
 
 Each door lives in its own subdirectory under `native-doors/doors/`. The directory name is the door's ID — it is used in URLs and the database, so it must be lowercase with no spaces (e.g. `lord`, `mygame`, `linuxdoortest`).

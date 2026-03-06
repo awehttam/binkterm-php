@@ -138,7 +138,7 @@ The DOS door system uses a **multiplexing bridge** architecture where a single l
 ### File Structure
 
 ```
-binktest/
+binkterm-php/
 ├── dosbox-bridge/                          # DOSBox configuration and DOS files
 │   ├── dosbox-bridge-production.conf       # Headless config (default)
 │   ├── dosbox-bridge-test.conf             # Visible window config (testing)

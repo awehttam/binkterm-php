@@ -72,7 +72,7 @@ php scripts/setup.php
 ## File Structure
 
 ```
-binktest/
+binkterm-php/
 ├── scripts/
 │   └── dosbox-bridge/
 │       ├── multiplexing-server.js          # WebSocket multiplexing bridge server
@@ -151,8 +151,8 @@ This forks a detached background process and exits immediately, returning the sh
 
 ```
 Starting in daemon mode (PID: 12345)
-PID file: /path/to/binktest/data/run/multiplexing-server.pid
-Log file: /path/to/binktest/data/logs/multiplexing-server.log
+PID file: /path/to/binkterm-php/data/run/multiplexing-server.pid
+Log file: /path/to/binkterm-php/data/logs/multiplexing-server.log
 ```
 
 The daemon:
