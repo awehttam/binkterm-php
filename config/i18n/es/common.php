@@ -198,6 +198,7 @@ return [
     'ui.base.subscriptions' => 'Suscripciones',
     'ui.base.logout' => 'Cerrar sesion',
     'ui.base.login' => 'Iniciar sesion',
+    'ui.base.guest_doors' => 'Puertas de invitados',
     'ui.base.admin.whos_online' => 'Quien esta en linea',
     'ui.base.admin.dashboard' => 'Panel',
     'ui.base.admin.binkp_status' => 'Estado de Binkp',
@@ -1000,6 +1001,8 @@ return [
     'ui.admin.bbs_settings.features.enable_voting_booth' => 'Habilitar cabina de votacion',
     'ui.admin.bbs_settings.features.enable_chat' => 'Habilitar chat',
     'ui.admin.bbs_settings.features.enable_file_areas' => 'Habilitar areas de archivos',
+    'ui.admin.bbs_settings.features.enable_guest_doors_page' => 'Habilitar pagina de puertas de invitados',
+    'ui.admin.bbs_settings.features.guest_doors_page_help' => 'Muestra una pagina publica /guest-doors con puertas de acceso anonimo. Tambien muestra un enlace en la pagina de inicio de sesion.',
     'ui.admin.bbs_settings.features.default_echo_interface' => 'Interfaz de echo predeterminada',
     'ui.admin.bbs_settings.features.echo_list_forum' => 'Lista de echo (vista foro)',
     'ui.admin.bbs_settings.features.reader_message_list' => 'Lector (lista de mensajes)',
@@ -1442,6 +1445,16 @@ return [
     'ui.login.sending' => 'Enviando...',
     'ui.login.reminder_sent_netmail_email_suffix' => '(enviado por netmail y correo electronico)',
     'ui.login.reminder_sent_netmail_only_suffix' => '(enviado por netmail)',
+    'ui.login.connect_via_telnet' => 'Conectar via Telnet',
+
+    // Guest Doors Page
+    'ui.guest_doors.page_title' => 'Puertas de invitados',
+    'ui.guest_doors.heading' => 'Acceso de invitados',
+    'ui.guest_doors.subtitle' => 'Conectarse al BBS sin una cuenta. Elige una puerta a continuacion para comenzar.',
+    'ui.guest_doors.no_doors' => 'No hay puertas de invitados disponibles actualmente.',
+    'ui.guest_doors.connect' => 'Conectar',
+    'ui.guest_doors.signin_link' => 'Iniciar sesion',
+    'ui.guest_doors.register_link' => 'solicitar una cuenta',
 
     // Register Page
     'ui.register.title' => 'Registro',

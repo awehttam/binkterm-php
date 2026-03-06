@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Guest Doors - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.guest_doors.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -9,14 +9,14 @@
             <div class="card-header">
                 <h4 class="mb-0">
                     <i class="fas fa-terminal"></i>
-                    Guest Access
+                    {{ t('ui.guest_doors.heading', {}, 'common') }}
                 </h4>
             </div>
             <div class="card-body">
-                <p class="text-muted mb-3">Connect to the BBS without an account. Choose a door below to get started.</p>
+                <p class="text-muted mb-3">{{ t('ui.guest_doors.subtitle', {}, 'common') }}</p>
 
                 {% if doors is empty %}
-                    <p class="text-muted text-center py-3">No guest doors are currently available.</p>
+                    <p class="text-muted text-center py-3">{{ t('ui.guest_doors.no_doors', {}, 'common') }}</p>
                 {% else %}
                     <div class="list-group">
                         {% for door in doors %}
@@ -30,7 +30,7 @@
                                 </div>
                                 <a href="/play/{{ door.door_id }}" target="_blank" class="btn btn-outline-secondary btn-sm ms-3 text-nowrap">
                                     <i class="fas fa-terminal"></i>
-                                    Connect
+                                    {{ t('ui.guest_doors.connect', {}, 'common') }}
                                 </a>
                             </div>
                         </div>
@@ -42,8 +42,8 @@
 
         <div class="text-center">
             <small class="text-muted">
-                <a href="/login" class="text-decoration-none">Sign in</a> or
-                <a href="/register" class="text-decoration-none">request an account</a> for full access.
+                <a href="/login" class="text-decoration-none">{{ t('ui.guest_doors.signin_link', {}, 'common') }}</a> or
+                <a href="/register" class="text-decoration-none">{{ t('ui.guest_doors.register_link', {}, 'common') }}</a> for full access.
             </small>
         </div>
     </div>
