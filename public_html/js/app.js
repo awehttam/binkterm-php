@@ -599,7 +599,11 @@ $(document).ready(function() {
 
 // Unified user settings management
 function loadUserSettings() {
-    return new Promise(function(resolve, reject) {
+    if (window.__userSettingsPromise) {
+        return window.__userSettingsPromise;
+    }
+
+    window.__userSettingsPromise = new Promise(function(resolve, reject) {
         $.get('/api/user/settings')
             .done(function(response) {
                 if (response.success && response.settings) {
@@ -644,6 +648,8 @@ function loadUserSettings() {
                 });
             });
     });
+
+    return window.__userSettingsPromise;
 }
 
 function saveUserSetting(key, value) {

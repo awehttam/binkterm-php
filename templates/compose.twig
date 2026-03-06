@@ -418,10 +418,7 @@ function updateEchomailGuidelinesPostingName() {
 
     const selectedArea = getSelectedEchoarea();
     if (!selectedArea) {
-        guideline.text(uiT(
-            'ui.compose.echomail_guideline_identity',
-            'Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias'
-        ));
+        // No area selected — leave the server-rendered (translated) text untouched.
         return;
     }
 
@@ -435,7 +432,7 @@ function refreshMarkdownSupportForNetmail() {
     const address = ($('#toAddress').val() || '').trim();
     if (!address) {
         updateMarkdownSection(false);
-        updateNetmailGuidelinesPostingName('real_name');
+        // No address yet — leave the server-rendered (translated) guideline text untouched.
         return;
     }
     fetchMarkdownSupport({ address: address });

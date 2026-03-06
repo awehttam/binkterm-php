@@ -169,10 +169,19 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
-    loadFeeds();
-    loadStats();
-    loadUsers();
-    loadEchoareas();
+    const initAutoFeedPage = function() {
+        loadFeeds();
+        loadStats();
+        loadUsers();
+        loadEchoareas();
+    };
+
+    if (typeof loadUserSettings === 'function') {
+        loadUserSettings().finally(initAutoFeedPage);
+        return;
+    }
+
+    initAutoFeedPage();
 });
 
 function loadFeeds() {

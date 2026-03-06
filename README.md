@@ -113,6 +113,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Shoutbox** - Shoutbox support
 - **Nodelist Browsers** - Integrated nodelist updater and browser
 - **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
+- **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English and Spanish out of the box.
 
 
 ### Native Binkp Protocol Support
@@ -1927,7 +1928,7 @@ The Developer Guide is essential reading for anyone contributing code, developin
 
 ## Localization (i18n) for Contributors
 
-BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and API errors.
+BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and API errors. For a full technical reference see [docs/Localization.md](docs/Localization.md).
 
 ### Catalogs and Key Layout
 
