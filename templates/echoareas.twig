@@ -313,8 +313,10 @@ function uiT(key, fallback, params = {}) {
 }
 
 $(document).ready(function() {
-    loadEchoareas();
-    loadStats();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadEchoareas();
+        loadStats();
+    });
 
     // Filter change handler
     $('input[name="filter"]').change(function() {
