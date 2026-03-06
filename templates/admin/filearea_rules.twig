@@ -1,21 +1,21 @@
 {% extends "base.twig" %}
 
-{% block title %}File Area Rules - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.admin.filearea_rules.page_title_prefix', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-filter"></i>
-        File Area Rules
+        {{ t('ui.admin.filearea_rules.heading', {}, locale, ['common']) }}
     </h2>
     <div class="d-flex gap-2">
         <button class="btn btn-outline-secondary" id="resetRulesBtn" disabled>
             <i class="fas fa-undo"></i>
-            Reset to Example
+            {{ t('ui.admin.filearea_rules.reset_to_example', {}, locale, ['common']) }}
         </button>
         <button class="btn btn-fidonet" id="saveRulesBtn" disabled>
             <i class="fas fa-save"></i>
-            Save Rules
+            {{ t('ui.admin.filearea_rules.save_rules', {}, locale, ['common']) }}
         </button>
     </div>
 </div>
@@ -24,46 +24,45 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">filearea_rules.json</h6>
-                <small class="text-muted" id="rulesStatus">Loading...</small>
+                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.config_filename', {}, locale, ['common']) }}</h6>
+                <small class="text-muted" id="rulesStatus">{{ t('ui.common.loading', {}, locale, ['common']) }}</small>
             </div>
             <div class="card-body">
                 <div id="rulesEditorAlert"></div>
                 <textarea id="rulesJsonEditor" class="form-control" rows="22" spellcheck="false"
                           style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;"></textarea>
-                <small class="text-muted" id="rulesJsonHint">Editing requires valid JSON.</small>
+                <small class="text-muted" id="rulesJsonHint">{{ t('ui.admin.filearea_rules.editing_requires_valid_json', {}, locale, ['common']) }}</small>
             </div>
         </div>
     </div>
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Macros</h6>
+                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.macros', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <ul class="list-unstyled mb-0">
-                    <li><code>%basedir%</code> Application base directory</li>
-                    <li><code>%filepath%</code> Full path to file</li>
-                    <li><code>%filename%</code> File name only</li>
-                    <li><code>%filesize%</code> File size in bytes</li>
-                    <li><code>%domain%</code> File area domain</li>
-                    <li><code>%areatag%</code> File area tag</li>
-                    <li><code>%uploader%</code> Uploader name/address</li>
-                    <li><code>%ticfile%</code> TIC path (if available)</li>
-                    <li><code>%tempdir%</code> Temp directory</li>
+                    <li><code>%basedir%</code> {{ t('ui.admin.filearea_rules.macro_basedir', {}, locale, ['common']) }}</li>
+                    <li><code>%filepath%</code> {{ t('ui.admin.filearea_rules.macro_filepath', {}, locale, ['common']) }}</li>
+                    <li><code>%filename%</code> {{ t('ui.admin.filearea_rules.macro_filename', {}, locale, ['common']) }}</li>
+                    <li><code>%filesize%</code> {{ t('ui.admin.filearea_rules.macro_filesize', {}, locale, ['common']) }}</li>
+                    <li><code>%domain%</code> {{ t('ui.admin.filearea_rules.macro_domain', {}, locale, ['common']) }}</li>
+                    <li><code>%areatag%</code> {{ t('ui.admin.filearea_rules.macro_areatag', {}, locale, ['common']) }}</li>
+                    <li><code>%uploader%</code> {{ t('ui.admin.filearea_rules.macro_uploader', {}, locale, ['common']) }}</li>
+                    <li><code>%ticfile%</code> {{ t('ui.admin.filearea_rules.macro_ticfile', {}, locale, ['common']) }}</li>
+                    <li><code>%tempdir%</code> {{ t('ui.admin.filearea_rules.macro_tempdir', {}, locale, ['common']) }}</li>
                 </ul>
             </div>
         </div>
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Tips</h6>
+                <h6 class="mb-0">{{ t('ui.admin.filearea_rules.tips', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <small class="text-muted">
-                    Rules run in order: global rules first, then area-specific rules.
-                    Area rules can be keyed as <code>TAG</code> or <code>TAG@DOMAIN</code> (domain-specific takes precedence).
-                    Use <code>success_action</code> and <code>fail_action</code> with <code>+stop</code>
-                    to halt further processing.
+                    {{ t('ui.admin.filearea_rules.tip_1', {}, locale, ['common']) }}
+                    {{ t('ui.admin.filearea_rules.tip_2', {}, locale, ['common']) }}
+                    {{ t('ui.admin.filearea_rules.tip_3', {}, locale, ['common']) }}
                 </small>
             </div>
         </div>
@@ -78,6 +77,13 @@ let rulesState = {
     exampleJson: null,
     dirty: false
 };
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 
 function setAlert(message, type) {
     const container = document.getElementById('rulesEditorAlert');
@@ -98,12 +104,12 @@ function setButtons() {
 }
 
 function loadRulesConfig() {
-    setStatus('Loading...');
+    setStatus(uiT('ui.common.loading', 'Loading...'));
     fetch('/admin/api/filearea-rules')
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load rules');
+                throw new Error(apiError(data, uiT('ui.admin.filearea_rules.load_failed', 'Failed to load rules')));
             }
             const cfg = data.config || {};
             rulesState.configJson = cfg.config_json || '{"global_rules": [], "area_rules": {}}';
@@ -111,11 +117,11 @@ function loadRulesConfig() {
             document.getElementById('rulesJsonEditor').value = rulesState.configJson;
             rulesState.dirty = false;
             setButtons();
-            setStatus(cfg.active ? 'Active' : 'Missing config');
+            setStatus(cfg.active ? uiT('ui.admin.filearea_rules.active', 'Active') : uiT('ui.admin.filearea_rules.missing_config', 'Missing config'));
         })
         .catch(error => {
-            setAlert(error.message || 'Failed to load rules', 'danger');
-            setStatus('Error');
+            setAlert(error.message || uiT('ui.admin.filearea_rules.load_failed', 'Failed to load rules'), 'danger');
+            setStatus(uiT('ui.admin.filearea_rules.error', 'Error'));
         });
 }
 
@@ -125,7 +131,7 @@ function saveRules() {
     try {
         parsed = JSON.parse(editor.value);
     } catch (err) {
-        setAlert('Rules JSON is invalid. Please fix errors before saving.', 'danger');
+        setAlert(uiT('ui.admin.filearea_rules.invalid_json', 'Rules JSON is invalid. Please fix errors before saving.'), 'danger');
         return;
     }
 
@@ -139,17 +145,20 @@ function saveRules() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to save rules');
+                throw new Error(apiError(data, uiT('ui.admin.filearea_rules.save_failed', 'Failed to save rules')));
             }
             const cfg = data.config || {};
             rulesState.configJson = cfg.config_json || editor.value;
             document.getElementById('rulesJsonEditor').value = rulesState.configJson;
             rulesState.dirty = false;
             setButtons();
-            setAlert('Rules saved successfully.', 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.'))
+                : uiT('ui.admin.filearea_rules.saved_success', 'Rules saved successfully.');
+            setAlert(successMessage, 'success');
         })
         .catch(error => {
-            setAlert(error.message || 'Failed to save rules', 'danger');
+            setAlert(error.message || uiT('ui.admin.filearea_rules.save_failed', 'Failed to save rules'), 'danger');
         });
 }
 
@@ -157,14 +166,14 @@ function resetRules() {
     if (!rulesState.exampleJson) {
         return;
     }
-    if (!confirm('Replace current rules with the example file?')) {
+    if (!confirm(uiT('ui.admin.filearea_rules.reset_confirm', 'Replace current rules with the example file?'))) {
         return;
     }
 
     document.getElementById('rulesJsonEditor').value = rulesState.exampleJson;
     rulesState.dirty = true;
     setButtons();
-    setAlert('Loaded example rules. Save to apply them.', 'info');
+    setAlert(uiT('ui.admin.filearea_rules.loaded_example', 'Loaded example rules. Save to apply them.'), 'info');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -177,5 +186,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveRulesBtn').addEventListener('click', saveRules);
     document.getElementById('resetRulesBtn').addEventListener('click', resetRules);
 });
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
 </script>
 {% endblock %}

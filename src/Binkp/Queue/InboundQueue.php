@@ -81,7 +81,8 @@ class InboundQueue
                 
                 $results[$filename] = [
                     'success' => false,
-                    'error' => $e->getMessage(),
+                    'error_code' => 'errors.binkp.files.process_inbound_failed',
+                    'error' => 'Failed to process inbound BinkP queue',
                     'processed_at' => date('Y-m-d H:i:s')
                 ];
                 

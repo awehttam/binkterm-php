@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Dashboard - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.dashboard.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -9,7 +9,7 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-tachometer-alt"></i>
-                    Dashboard
+                    {{ t('ui.dashboard.title', {}, locale, ['common']) }}
                 </h5>
             </div>
             <div class="card-body">
@@ -21,7 +21,7 @@
                                     <h4 id="netmailCount"><i class="fas fa-spinner fa-spin"></i></h4>
                                     <p class="mb-0">
                                         <i class="fas fa-envelope"></i>
-                                        Unread Netmail
+                                        {{ t('ui.dashboard.unread_netmail', {}, locale, ['common']) }}
                                     </p>
                                 </div>
                             </div>
@@ -34,7 +34,7 @@
                                     <h4 id="echomailCount"><i class="fas fa-spinner fa-spin"></i></h4>
                                     <p class="mb-0">
                                         <i class="fas fa-comments"></i>
-                                        Unread Echomail
+                                        {{ t('ui.dashboard.unread_echomail', {}, locale, ['common']) }}
                                     </p>
                                 </div>
                             </div>
@@ -48,7 +48,7 @@
             <div class="card-header">
                 <h6 class="mb-0">
                     <i class="fas fa-newspaper me-2"></i>
-                    System News & Information
+                    {{ t('ui.dashboard.system_news', {}, locale, ['common']) }}
                 </h6>
             </div>
             <div class="card-body">
@@ -63,26 +63,26 @@
             <div class="card-header">
                 <h6 class="mb-0">
                     <i class="fas fa-bullhorn me-2"></i>
-                    Shoutbox
+                    {{ t('ui.shoutbox.title', {}, locale, ['common']) }}
                 </h6>
             </div>
             <div class="card-body">
                 <div id="shoutboxMessages" class="mb-3">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin"></i>
-                        Loading shouts...
+                        {{ t('ui.shoutbox.loading', {}, locale, ['common']) }}
                     </div>
                 </div>
                 <div class="d-flex justify-content-center mb-3">
                     <button class="btn btn-outline-secondary btn-sm" type="button" id="shoutboxLoadMore" onclick="loadMoreShouts()">
-                        Load older shouts
+                        {{ t('ui.shoutbox.load_older', {}, locale, ['common']) }}
                     </button>
                 </div>
                 <div class="input-group">
-                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="Leave a shout...">
-                    <button class="btn btn-primary" type="button" onclick="postShout()">Post</button>
+                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="{{ t('ui.shoutbox.leave_shout', {}, locale, ['common']) }}">
+                    <button class="btn btn-primary" type="button" onclick="postShout()">{{ t('ui.shoutbox.post', {}, locale, ['common']) }}</button>
                 </div>
-                <div class="form-text text-muted">280 characters max.</div>
+                <div class="form-text text-muted">{{ t('ui.shoutbox.max_chars', {}, locale, ['common']) }}</div>
             </div>
         </div>
         {% endif %}
@@ -101,17 +101,17 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">System Information</h6>
+                <h6 class="mb-0">{{ t('ui.dashboard.system_information', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-sm-5">Sysop:</dt>
+                    <dt class="col-sm-5">{{ t('ui.dashboard.sysop', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ sysop_name }}</dd>
 
-                    <dt class="col-sm-5">User:</dt>
+                    <dt class="col-sm-5">{{ t('ui.dashboard.user', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">{{ current_user.username }}</dd>
 
-                    <dt class="col-sm-5">Addresses:</dt>
+                    <dt class="col-sm-5">{{ t('ui.dashboard.addresses', {}, locale, ['common']) }}:</dt>
                     <dd class="col-sm-7">
                         {% if network_addresses|length > 0 %}
                             {% for addr in network_addresses %}
@@ -131,10 +131,10 @@
         {% if referral_enabled %}
         <div class="card mt-4">
             <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-user-plus me-2"></i>My Referral Link</h6>
+                <h6 class="mb-0"><i class="fas fa-user-plus me-2"></i>{{ t('ui.dashboard.my_referral_link', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
-                <p class="text-muted small">Invite friends and earn <strong id="referralBonus">25</strong> credits for each approved referral!</p>
+                <p class="text-muted small">{{ t('ui.dashboard.referral_invite_prefix', {}, locale, ['common']) }} <strong id="referralBonus">25</strong> {{ t('ui.dashboard.referral_invite_suffix', {}, locale, ['common']) }}</p>
 
                 <div class="input-group mb-3">
                     <input type="text" class="form-control form-control-sm" id="referralUrl" readonly>
@@ -147,11 +147,11 @@
                     <div class="row text-center">
                         <div class="col-6">
                             <h5 id="referralCount" class="mb-0">-</h5>
-                            <small class="text-muted">Referrals</small>
+                            <small class="text-muted">{{ t('ui.dashboard.referrals.label', {}, locale, ['common']) }}</small>
                         </div>
                         <div class="col-6">
                             <h5 id="referralEarnings" class="mb-0">-</h5>
-                            <small class="text-muted">Earned</small>
+                            <small class="text-muted">{{ t('ui.dashboard.referrals.earned', {}, locale, ['common']) }}</small>
                         </div>
                     </div>
                 </div>
@@ -166,13 +166,13 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
                     <i class="fas fa-vote-yea me-2"></i>
-                    Voting Booth
+                    {{ t('ui.dashboard.voting_booth', {}, locale, ['common']) }}
                 </h6>
                 <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="Previous poll">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="{{ t('ui.polls.previous', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-left"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="Next poll">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="{{ t('ui.polls.next', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
@@ -180,11 +180,11 @@
             <div class="card-body" id="votingBoothBody">
                 <div class="text-center">
                     <i class="fas fa-spinner fa-spin"></i>
-                    Loading poll...
+                    {{ t('ui.polls.loading', {}, locale, ['common']) }}
                 </div>
             </div>
             <div class="card-footer text-end py-2">
-                <a href="/polls/create" title="Create a new poll (15 credits)" style="text-decoration: none; font-size: 1.2rem;">
+                <a href="/polls/create" title="{{ t('ui.dashboard.create_poll_title', {}, locale, ['common']) }}" style="text-decoration: none; font-size: 1.2rem;">
                     <i class="fas fa-file-circle-plus"></i>
                 </a>
             </div>
@@ -193,7 +193,7 @@
 
         <div class="card mt-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Echo Areas</h6>
+                <h6 class="mb-0">{{ t('ui.echomail.echo_areas', {}, locale, ['common']) }}</h6>
                 <a href="/subscriptions"><i class="fa-solid fa-wrench"></i></a>
                 </a>
             </div>
@@ -201,7 +201,7 @@
                 <div id="echoareaList">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin"></i>
-                        Loading echo areas...
+                        {{ t('ui.echomail.loading_areas', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -217,6 +217,20 @@ let votingPolls = [];
 let votingPollIndex = 0;
 let shoutboxOffset = 0;
 const shoutboxPageSize = 5;
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 
 $(document).ready(function() {
     loadDashboardData();
@@ -251,7 +265,7 @@ function loadVotingBooth(keepPollId = null) {
         .done(function(data) {
             votingPolls = data.polls || [];
             if (votingPolls.length === 0) {
-                $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+                $('#votingBoothBody').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.polls.none_active', 'No active polls right now.')}</p>`);
                 updateVotingPollNav();
                 return;
             }
@@ -265,14 +279,14 @@ function loadVotingBooth(keepPollId = null) {
             renderVotingBooth();
         })
         .fail(function() {
-            $('#votingBoothBody').html('<p class="text-danger mb-0">Failed to load poll.</p>');
+            $('#votingBoothBody').html(`<p class="text-danger mb-0">${uiT('ui.dashboard.polls.load_failed', 'Failed to load poll.')}</p>`);
             updateVotingPollNav();
         });
 }
 
 function renderVotingBooth() {
     if (votingPolls.length === 0) {
-        $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+        $('#votingBoothBody').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.polls.none_active', 'No active polls right now.')}</p>`);
         updateVotingPollNav();
         return;
     }
@@ -282,9 +296,9 @@ function renderVotingBooth() {
     if (hasVoted) {
         const totalVotes = poll.total_votes || 0;
         let resultsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
-        resultsHtml += '<div class="small text-muted mb-2">Results</div>';
+        resultsHtml += `<div class="small text-muted mb-2">${uiT('ui.dashboard.polls.results', 'Results')}</div>`;
         if (totalVotes === 0) {
-            resultsHtml += '<p class="text-muted mb-0">No votes yet.</p>';
+            resultsHtml += `<p class="text-muted mb-0">${uiT('ui.dashboard.polls.no_votes', 'No votes yet.')}</p>`;
         } else {
             (poll.results || []).forEach(result => {
                 const percent = totalVotes > 0 ? Math.round((result.votes / totalVotes) * 100) : 0;
@@ -307,7 +321,7 @@ function renderVotingBooth() {
     }
 
     let optionsHtml = `<h6 class="mb-3">${escapeHtml(poll.question)}</h6>`;
-    optionsHtml += '<div class="small text-muted mb-2">Vote to see results</div>';
+    optionsHtml += `<div class="small text-muted mb-2">${uiT('ui.dashboard.polls.vote_to_see_results', 'Vote to see results')}</div>`;
     optionsHtml += '<form id="votingBoothForm">';
     (poll.options || []).forEach(option => {
         optionsHtml += `
@@ -321,7 +335,7 @@ function renderVotingBooth() {
     });
     optionsHtml += `
         <button type="button" class="btn btn-sm btn-primary mt-2" onclick="submitPollVote(${poll.id})">
-            Submit Vote
+            ${uiT('ui.dashboard.polls.submit_vote', 'Submit Vote')}
         </button>
     `;
     optionsHtml += '</form>';
@@ -355,7 +369,7 @@ function updateVotingPollNav() {
 function submitPollVote(pollId) {
     const selected = document.querySelector('input[name="poll_option"]:checked');
     if (!selected) {
-        alert('Please select an option.');
+        alert(uiT('errors.polls.option_required', 'Please select an option.'));
         return;
     }
 
@@ -369,10 +383,10 @@ function submitPollVote(pollId) {
         if (data.success) {
             loadVotingBooth(pollId);
         } else {
-            alert(data.error || 'Failed to submit vote.');
+            alert(apiError(data, uiT('errors.polls.vote_failed', 'Failed to submit vote.')));
         }
     })
-    .catch(() => alert('Failed to submit vote.'));
+    .catch(() => alert(uiT('errors.polls.vote_failed', 'Failed to submit vote.')));
 }
 
 function escapeHtml(text) {
@@ -389,8 +403,8 @@ function loadEchoareas() {
                 // Add header row
                 html += `
                     <div class="d-flex justify-content-between align-items-center py-1 border-bottom mb-2">
-                        <div class="fw-bold text-muted small">Echo Area</div>
-                        <div class="fw-bold text-muted small">Unread&nbsp;&nbsp;Total</div>
+                        <div class="fw-bold text-muted small">${uiT('ui.dashboard.echoareas.header_area', 'Echo Area')}</div>
+                        <div class="fw-bold text-muted small">${uiT('ui.dashboard.echoareas.header_unread_total', 'Unread Total')}</div>
                     </div>
                 `;
                 
@@ -415,7 +429,7 @@ function loadEchoareas() {
                     `;
                 });
             } else {
-                html = '<p class="text-muted">No echo areas available</p>';
+                html = `<p class="text-muted">${uiT('ui.dashboard.echoareas.none_available', 'No echo areas available')}</p>`;
             }
             $('#echoareaList').html(html);
         });
@@ -427,7 +441,7 @@ function loadShoutbox() {
         .done(function(data) {
             const items = data.messages || [];
             if (items.length === 0) {
-                $('#shoutboxMessages').html('<p class="text-muted mb-0">No shouts yet. Be the first!</p>');
+                $('#shoutboxMessages').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.shoutbox.none_yet', 'No shouts yet. Be the first!')}</p>`);
                 $('#shoutboxLoadMore').prop('disabled', true);
                 return;
             }
@@ -446,7 +460,7 @@ function loadShoutbox() {
             $('#shoutboxLoadMore').prop('disabled', items.length < shoutboxPageSize);
         })
         .fail(function() {
-            $('#shoutboxMessages').html('<p class="text-danger mb-0">Failed to load shouts.</p>');
+            $('#shoutboxMessages').html(`<p class="text-danger mb-0">${uiT('ui.dashboard.shoutbox.load_failed', 'Failed to load shouts.')}</p>`);
             $('#shoutboxLoadMore').prop('disabled', true);
         });
 }
@@ -500,18 +514,18 @@ function postShout() {
             input.value = '';
             loadShoutbox();
         } else {
-            alert(data.error || 'Failed to post shout.');
+            alert(apiError(data, uiT('ui.dashboard.shoutbox.post_failed', 'Failed to post shout.')));
         }
     })
-    .catch(() => alert('Failed to post shout.'));
+    .catch(() => alert(uiT('ui.dashboard.shoutbox.post_failed', 'Failed to post shout.')));
 }
 
 function loadReferralStats() {
     fetch('/api/referrals/my-stats')
         .then(r => r.json())
         .then(data => {
-            if (data.error) {
-                console.error('Referral stats error:', data.error);
+            if (data['error_code'] || ('error' in data)) {
+                console.error(uiT('ui.dashboard.referrals.error_prefix', 'Referral stats error:'), apiError(data, uiT('errors.referrals.stats_failed', 'Failed to load referral stats')));
                 return;
             }
 
@@ -529,11 +543,11 @@ function loadReferralStats() {
                     </div>`;
                 }).join('');
                 document.getElementById('referralList').innerHTML =
-                    '<h6 class="mt-2 mb-2 small">Recent Referrals</h6>' + list;
+                    `<h6 class="mt-2 mb-2 small">${uiT('ui.dashboard.referrals.recent', 'Recent Referrals')}</h6>` + list;
             }
         })
         .catch(err => {
-            console.error('Failed to load referral stats:', err);
+            console.error(uiT('errors.referrals.stats_failed', 'Failed to load referral stats:'), err);
         });
 }
 
@@ -554,7 +568,7 @@ function copyReferralLink(button, evt) {
             }, 2000);
         }
     } catch (err) {
-        console.error('Failed to copy:', err);
+        console.error(uiT('ui.dashboard.referrals.copy_failed_prefix', 'Failed to copy:'), err);
     }
 }
 

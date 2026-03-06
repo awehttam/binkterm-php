@@ -2,8 +2,8 @@
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Advertisement</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title">{{ t('ui.ads.advertisement', {}, locale, ['common']) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('ui.common.close', {}, locale, ['common']) }}"></button>
             </div>
             <div class="modal-body">
                 {% if ad %}
@@ -11,7 +11,7 @@
                         <pre class="ansi-art" id="{{ modal_id }}Ansi">{{ ad.content }}</pre>
                     </div>
                 {% else %}
-                    <p class="text-muted mb-0">No advertisements available.</p>
+                    <p class="text-muted mb-0">{{ t('ui.ads.none_available', {}, locale, ['common']) }}</p>
                 {% endif %}
             </div>
         </div>

@@ -1,37 +1,37 @@
 {% extends "base.twig" %}
 
-{% block title %}BBS Settings{% endblock %}
+{% block title %}{{ t('ui.admin.bbs_settings.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">BBS Settings</h1>
+        <h1 class="h2">{{ t('ui.admin.bbs_settings.heading', {}, locale, ['common']) }}</h1>
     </div>
 
     <div class="row g-4">
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">System Settings</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.system.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsSystemAlert"></div>
                     <form id="bbsSystemForm">
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemName">System Name</label>
+                            <label class="form-label" for="bbsSystemName">{{ t('ui.admin.bbs_settings.system.system_name', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="bbsSystemName">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemSysop">Sysop Name</label>
+                            <label class="form-label" for="bbsSystemSysop">{{ t('ui.admin.bbs_settings.system.sysop_name', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="bbsSystemSysop"></select>
-                            <small class="text-muted">Select an admin user.</small>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.system.select_admin_user', {}, locale, ['common']) }}</small>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemLocation">Location</label>
+                            <label class="form-label" for="bbsSystemLocation">{{ t('ui.admin.bbs_settings.system.location', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="bbsSystemLocation">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemTimezone">Timezone</label>
+                            <label class="form-label" for="bbsSystemTimezone">{{ t('ui.admin.bbs_settings.system.timezone', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="bbsSystemTimezone">
                                 {% for tz in timezone_list %}
                                     <option value="{{ tz }}">{{ tz }}</option>
@@ -39,14 +39,14 @@
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemAddress">System Address</label>
+                            <label class="form-label" for="bbsSystemAddress">{{ t('ui.admin.bbs_settings.system.system_address', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="bbsSystemAddress">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsSystemOrigin">Origin Line</label>
+                            <label class="form-label" for="bbsSystemOrigin">{{ t('ui.admin.bbs_settings.system.origin_line', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="bbsSystemOrigin">
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">Save System Settings</button>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSystem()">{{ t('ui.admin.bbs_settings.system.save', {}, locale, ['common']) }}</button>
                     </form>
                 </div>
             </div>
@@ -54,40 +54,40 @@
         <div class="col-lg-6">
             <div class="card shadow h-100">
                 <div class="card-header">
-                    <h6 class="mb-0">BBS Features</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.features.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsSettingsAlert"></div>
                     <form id="bbsSettingsForm">
                         <div class="form-check mb-2 d-flex align-items-center gap-2">
                             <input class="form-check-input" type="checkbox" id="bbsWebdoors">
-                            <label class="form-check-label" for="bbsWebdoors">Enable Webdoors</label>
+                            <label class="form-check-label" for="bbsWebdoors">{{ t('ui.admin.bbs_settings.features.enable_webdoors', {}, locale, ['common']) }}</label>
                             {% if not webdoors_active %}
                                 <small class="text-muted">
-                                    (inactive)
-                                    <a href="/admin/webdoors" class="ms-1">Activate</a>
+                                    ({{ t('ui.admin.bbs_settings.features.inactive', {}, locale, ['common']) }})
+                                    <a href="/admin/webdoors" class="ms-1">{{ t('ui.admin.bbs_settings.features.activate', {}, locale, ['common']) }}</a>
                                 </small>
                             {% endif %}
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsShoutbox">
-                            <label class="form-check-label" for="bbsShoutbox">Enable Shoutbox</label>
+                            <label class="form-check-label" for="bbsShoutbox">{{ t('ui.admin.bbs_settings.features.enable_shoutbox', {}, locale, ['common']) }}</label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsAdvertising">
-                            <label class="form-check-label" for="bbsAdvertising">Enable Advertising</label>
+                            <label class="form-check-label" for="bbsAdvertising">{{ t('ui.admin.bbs_settings.features.enable_advertising', {}, locale, ['common']) }}</label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsVoting">
-                            <label class="form-check-label" for="bbsVoting">Enable Voting Booth</label>
+                            <label class="form-check-label" for="bbsVoting">{{ t('ui.admin.bbs_settings.features.enable_voting_booth', {}, locale, ['common']) }}</label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsChat">
-                            <label class="form-check-label" for="bbsChat">Enable Chat</label>
+                            <label class="form-check-label" for="bbsChat">{{ t('ui.admin.bbs_settings.features.enable_chat', {}, locale, ['common']) }}</label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsFileAreas">
-                            <label class="form-check-label" for="bbsFileAreas">Enable File Areas</label>
+                            <label class="form-check-label" for="bbsFileAreas">{{ t('ui.admin.bbs_settings.features.enable_file_areas', {}, locale, ['common']) }}</label>
                         </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="bbsGuestDoorsPage">
@@ -95,20 +95,20 @@
                             <div><small class="text-muted">Shows a public <code>/guest-doors</code> page listing anonymous-accessible doors. Also shows a link on the login page.</small></div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsDefaultEchoInterface">Default Echo Interface</label>
+                            <label class="form-label" for="bbsDefaultEchoInterface">{{ t('ui.admin.bbs_settings.features.default_echo_interface', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="bbsDefaultEchoInterface">
-                                <option value="echolist">Echo List (Forum view)</option>
-                                <option value="reader">Reader (Message list)</option>
+                                <option value="echolist">{{ t('ui.admin.bbs_settings.features.echo_list_forum', {}, locale, ['common']) }}</option>
+                                <option value="reader">{{ t('ui.admin.bbs_settings.features.reader_message_list', {}, locale, ['common']) }}</option>
                             </select>
-                            <small class="text-muted">Default interface for viewing echomail. Users can override this in their settings.</small>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.default_echo_help', {}, locale, ['common']) }}</small>
                         </div>
                         <hr>
                         <div class="mb-3">
-                            <label class="form-label" for="bbsMaxCrossPost">Max Cross-Post Areas</label>
+                            <label class="form-label" for="bbsMaxCrossPost">{{ t('ui.admin.bbs_settings.features.max_cross_post_areas', {}, locale, ['common']) }}</label>
                             <input type="number" class="form-control" id="bbsMaxCrossPost" min="2" max="20" step="1" value="5">
-                            <small class="text-muted">Maximum number of additional areas a user can cross-post to (2-20).</small>
+                            <small class="text-muted">{{ t('ui.admin.bbs_settings.features.max_cross_post_help', {}, locale, ['common']) }}</small>
                         </div>
-                        <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">Save Settings</button>
+                        <button type="button" class="btn btn-primary" onclick="saveBbsSettings()">{{ t('ui.admin.bbs_settings.features.save', {}, locale, ['common']) }}</button>
                     </form>
                 </div>
             </div>
@@ -116,7 +116,7 @@
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">Credits System Configuration</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.credits.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsCreditsAlert"></div>
@@ -124,90 +124,90 @@
                         <div class="col-lg-6">
                             <div class="mb-3 form-check">
                                 <input class="form-check-input" type="checkbox" id="bbsCreditsEnabled">
-                                <label class="form-check-label" for="bbsCreditsEnabled">Credits System Enabled</label>
+                                <label class="form-check-label" for="bbsCreditsEnabled">{{ t('ui.admin.bbs_settings.credits.enabled', {}, locale, ['common']) }}</label>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsSymbol">Currency Symbol</label>
+                                <label class="form-label" for="bbsCreditsSymbol">{{ t('ui.admin.bbs_settings.credits.currency_symbol', {}, locale, ['common']) }}</label>
                                 <input type="text" class="form-control" id="bbsCreditsSymbol" maxlength="5">
-                                <small class="text-muted">Example: $, USD (max 5 characters). Leave blank for no symbol.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.currency_symbol_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsDailyAmount">Daily Login Bonus Amount</label>
+                                <label class="form-label" for="bbsCreditsDailyAmount">{{ t('ui.admin.bbs_settings.credits.daily_login_bonus_amount', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsDailyAmount" min="0" step="1">
-                                <small class="text-muted">Amount of credits awarded to users on daily login.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.daily_login_bonus_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsDailyDelay">Daily Login Delay (minutes)</label>
+                                <label class="form-label" for="bbsCreditsDailyDelay">{{ t('ui.admin.bbs_settings.credits.daily_login_delay_minutes', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsDailyDelay" min="0" step="1">
-                                <small class="text-muted">Minutes after login before daily bonus is awarded.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.daily_login_delay_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsApprovalBonus">New User Approval Bonus</label>
+                                <label class="form-label" for="bbsCreditsApprovalBonus">{{ t('ui.admin.bbs_settings.credits.new_user_approval_bonus', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsApprovalBonus" min="0" step="1">
-                                <small class="text-muted">Credits awarded when a pending user is approved.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.new_user_approval_bonus_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsNew14Days">New User 14-Day Milestone Bonus</label>
+                                <label class="form-label" for="bbsCreditsNew14Days">{{ t('ui.admin.bbs_settings.credits.new_user_14_day_bonus', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsNew14Days" min="0" step="1">
-                                <small class="text-muted">One-time bonus awarded when user logs in 14+ days after account creation.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.new_user_14_day_bonus_help', {}, locale, ['common']) }}</small>
                             </div>
                         </div>
                         <div class="col-lg-6">
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsNetmailCost">Netmail Cost</label>
+                                <label class="form-label" for="bbsCreditsNetmailCost">{{ t('ui.admin.bbs_settings.credits.netmail_cost', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsNetmailCost" min="0" step="1">
-                                <small class="text-muted">Credits charged when sending a netmail message.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.netmail_cost_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsEchomailReward">Echomail Reward</label>
+                                <label class="form-label" for="bbsCreditsEchomailReward">{{ t('ui.admin.bbs_settings.credits.echomail_reward', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsEchomailReward" min="0" step="1">
-                                <small class="text-muted">Credits earned when posting an echomail message. Doubled when >= 1200 characters long.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.echomail_reward_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsCrashmailCost">Crashmail Cost</label>
+                                <label class="form-label" for="bbsCreditsCrashmailCost">{{ t('ui.admin.bbs_settings.credits.crashmail_cost', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsCrashmailCost" min="0" step="1">
-                                <small class="text-muted">Credits charged when sending direct/crashmail delivery.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.crashmail_cost_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsPollCreationCost">Poll Creation Cost</label>
+                                <label class="form-label" for="bbsCreditsPollCreationCost">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsPollCreationCost" min="0" step="1">
-                                <small class="text-muted">Credits charged when creating a new poll.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.poll_creation_cost_help', {}, locale, ['common']) }}</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsTransferFee">Transfer Fee Percentage</label>
+                                <label class="form-label" for="bbsCreditsTransferFee">{{ t('ui.admin.bbs_settings.credits.transfer_fee_percentage', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsTransferFee" min="0" max="1" step="0.01">
-                                <small class="text-muted">Percentage of credit transfers taken as fee (0.05 = 5%). Distributed to sysops.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.transfer_fee_help', {}, locale, ['common']) }}</small>
                             </div>
                             <hr>
-                            <h6 class="mb-3">Referral System</h6>
+                            <h6 class="mb-3">{{ t('ui.admin.bbs_settings.credits.referral_system', {}, locale, ['common']) }}</h6>
                             <div class="mb-3 form-check">
                                 <input class="form-check-input" type="checkbox" id="bbsCreditsReferralEnabled">
-                                <label class="form-check-label" for="bbsCreditsReferralEnabled">Enable Referral System</label>
+                                <label class="form-check-label" for="bbsCreditsReferralEnabled">{{ t('ui.admin.bbs_settings.credits.enable_referral_system', {}, locale, ['common']) }}</label>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label" for="bbsCreditsReferralBonus">Referral Bonus</label>
+                                <label class="form-label" for="bbsCreditsReferralBonus">{{ t('ui.admin.bbs_settings.credits.referral_bonus', {}, locale, ['common']) }}</label>
                                 <input type="number" class="form-control" id="bbsCreditsReferralBonus" min="0" step="1">
-                                <small class="text-muted">Credits awarded when a referred user is approved by admin.</small>
+                                <small class="text-muted">{{ t('ui.admin.bbs_settings.credits.referral_bonus_help', {}, locale, ['common']) }}</small>
                             </div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">Save Credit Settings</button>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsCredits()">{{ t('ui.admin.bbs_settings.credits.save', {}, locale, ['common']) }}</button>
                 </div>
             </div>
         </div>
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">Taglines</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.bbs_settings.taglines.title', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <div id="bbsTaglinesAlert"></div>
                     <div class="mb-3">
-                        <label class="form-label" for="bbsTaglinesText">Taglines (one per line)</label>
-                        <textarea class="form-control" id="bbsTaglinesText" rows="8" placeholder="One tagline per line."></textarea>
-                        <small class="text-muted">These appear as selectable taglines when users compose messages.</small>
+                        <label class="form-label" for="bbsTaglinesText">{{ t('ui.admin.bbs_settings.taglines.one_per_line', {}, locale, ['common']) }}</label>
+                        <textarea class="form-control" id="bbsTaglinesText" rows="8" placeholder="{{ t('ui.admin.bbs_settings.taglines.placeholder', {}, locale, ['common']) }}"></textarea>
+                        <small class="text-muted">{{ t('ui.admin.bbs_settings.taglines.help', {}, locale, ['common']) }}</small>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="saveBbsTaglines()">Save Taglines</button>
+                    <button type="button" class="btn btn-primary" onclick="saveBbsTaglines()">{{ t('ui.admin.bbs_settings.taglines.save', {}, locale, ['common']) }}</button>
                 </div>
             </div>
         </div>
@@ -218,6 +218,13 @@
 
 {% block scripts %}
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadBbsSettings();
     loadBbsSystem();
@@ -230,7 +237,7 @@ function loadBbsSettings() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load settings');
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings')));
             }
             const features = data.config?.features || {};
             const credits = data.config?.credits || {};
@@ -270,14 +277,14 @@ function loadBbsSettings() {
             document.getElementById('bbsCreditsReferralBonus').value = Number.isNaN(referralBonusValue) ? 25 : referralBonusValue;
         })
         .catch(error => {
-            showBbsSettingsAlert(error.message || 'Failed to load settings', 'danger');
+            showBbsSettingsAlert(error.message || uiT('ui.admin.bbs_settings.load_failed', 'Failed to load settings'), 'danger');
         });
 }
 
 function saveBbsSettings() {
     const maxCrossPost = parseInt(document.getElementById('bbsMaxCrossPost').value, 10);
     if (Number.isNaN(maxCrossPost) || maxCrossPost < 2 || maxCrossPost > 20) {
-        showBbsSettingsAlert('Max cross-post areas must be an integer between 2 and 20.', 'danger');
+        showBbsSettingsAlert(uiT('ui.admin.bbs_settings.validation.max_cross_post_areas_range', 'Max cross-post areas must be an integer between 2 and 20.'), 'danger');
         return;
     }
 
@@ -311,12 +318,15 @@ function saveBbsSettings() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to save settings');
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_failed', 'Failed to save settings')));
             }
-            showBbsSettingsAlert('BBS features saved successfully.', 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.saved_success', 'BBS features saved successfully.'))
+                : uiT('ui.admin.bbs_settings.saved_success', 'BBS features saved successfully.');
+            showBbsSettingsAlert(successMessage, 'success');
         })
         .catch(error => {
-            showBbsSettingsAlert(error.message || 'Failed to save settings', 'danger');
+            showBbsSettingsAlert(error.message || uiT('ui.admin.bbs_settings.save_failed', 'Failed to save settings'), 'danger');
         });
 }
 
@@ -325,7 +335,7 @@ function loadBbsSystem() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load system settings');
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.load_system_failed', 'Failed to load system settings')));
             }
             const config = data.config || {};
             document.getElementById('bbsSystemName').value = config.name || '';
@@ -337,7 +347,7 @@ function loadBbsSystem() {
             syncSysopSelect('bbsSystemSysop');
         })
         .catch(error => {
-            showBbsSystemAlert(error.message || 'Failed to load system settings', 'danger');
+            showBbsSystemAlert(error.message || uiT('ui.admin.bbs_settings.load_system_failed', 'Failed to load system settings'), 'danger');
         });
 }
 
@@ -359,79 +369,82 @@ function saveBbsSystem() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(data.error || 'Failed to save system settings');
+            throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_system_failed', 'Failed to save system settings')));
         }
-        showBbsSystemAlert('System settings saved successfully.', 'success');
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.system_saved_success', 'System settings saved successfully.'))
+            : uiT('ui.admin.bbs_settings.system_saved_success', 'System settings saved successfully.');
+        showBbsSystemAlert(successMessage, 'success');
     })
     .catch(error => {
-        showBbsSystemAlert(error.message || 'Failed to save system settings', 'danger');
+        showBbsSystemAlert(error.message || uiT('ui.admin.bbs_settings.save_system_failed', 'Failed to save system settings'), 'danger');
     });
 }
 
 function saveBbsCredits() {
     const symbol = document.getElementById('bbsCreditsSymbol').value.trim();
     if (symbol.length > 5) {
-        showBbsCreditsAlert('Currency symbol must be 0-5 characters.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.currency_symbol_length', 'Currency symbol must be 0-5 characters.'), 'danger');
         return;
     }
 
     const dailyAmount = parseInt(document.getElementById('bbsCreditsDailyAmount').value, 10);
     if (Number.isNaN(dailyAmount) || dailyAmount < 0) {
-        showBbsCreditsAlert('Daily login amount must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.daily_login_amount_non_negative', 'Daily login amount must be a non-negative integer.'), 'danger');
         return;
     }
 
     const dailyDelay = parseInt(document.getElementById('bbsCreditsDailyDelay').value, 10);
     if (Number.isNaN(dailyDelay) || dailyDelay < 0) {
-        showBbsCreditsAlert('Daily login delay must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.daily_login_delay_non_negative', 'Daily login delay must be a non-negative integer.'), 'danger');
         return;
     }
 
     const approvalBonus = parseInt(document.getElementById('bbsCreditsApprovalBonus').value, 10);
     if (Number.isNaN(approvalBonus) || approvalBonus < 0) {
-        showBbsCreditsAlert('Approval bonus must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.approval_bonus_non_negative', 'Approval bonus must be a non-negative integer.'), 'danger');
         return;
     }
 
     const netmailCost = parseInt(document.getElementById('bbsCreditsNetmailCost').value, 10);
     if (Number.isNaN(netmailCost) || netmailCost < 0) {
-        showBbsCreditsAlert('Netmail cost must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.netmail_cost_non_negative', 'Netmail cost must be a non-negative integer.'), 'danger');
         return;
     }
 
     const echomailReward = parseInt(document.getElementById('bbsCreditsEchomailReward').value, 10);
     if (Number.isNaN(echomailReward) || echomailReward < 0) {
-        showBbsCreditsAlert('Echomail reward must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.echomail_reward_non_negative', 'Echomail reward must be a non-negative integer.'), 'danger');
         return;
     }
 
     const crashmailCost = parseInt(document.getElementById('bbsCreditsCrashmailCost').value, 10);
     if (Number.isNaN(crashmailCost) || crashmailCost < 0) {
-        showBbsCreditsAlert('Crashmail cost must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.crashmail_cost_non_negative', 'Crashmail cost must be a non-negative integer.'), 'danger');
         return;
     }
 
     const pollCreationCost = parseInt(document.getElementById('bbsCreditsPollCreationCost').value, 10);
     if (Number.isNaN(pollCreationCost) || pollCreationCost < 0) {
-        showBbsCreditsAlert('Poll creation cost must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.poll_creation_cost_non_negative', 'Poll creation cost must be a non-negative integer.'), 'danger');
         return;
     }
 
     const new14Days = parseInt(document.getElementById('bbsCreditsNew14Days').value, 10);
     if (Number.isNaN(new14Days) || new14Days < 0) {
-        showBbsCreditsAlert('14-day return bonus must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.return_14_days_non_negative', '14-day return bonus must be a non-negative integer.'), 'danger');
         return;
     }
 
     const transferFee = parseFloat(document.getElementById('bbsCreditsTransferFee').value);
     if (Number.isNaN(transferFee) || transferFee < 0 || transferFee > 1) {
-        showBbsCreditsAlert('Transfer fee must be between 0 and 1 (0% to 100%).', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.transfer_fee_range', 'Transfer fee must be between 0 and 1 (0% to 100%).'), 'danger');
         return;
     }
 
     const referralBonus = parseInt(document.getElementById('bbsCreditsReferralBonus').value, 10);
     if (Number.isNaN(referralBonus) || referralBonus < 0) {
-        showBbsCreditsAlert('Referral bonus must be a non-negative integer.', 'danger');
+        showBbsCreditsAlert(uiT('ui.admin.bbs_settings.validation.referral_bonus_non_negative', 'Referral bonus must be a non-negative integer.'), 'danger');
         return;
     }
 
@@ -469,12 +482,15 @@ function saveBbsCredits() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to save credits settings');
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_credits_failed', 'Failed to save credits settings')));
             }
-            showBbsCreditsAlert('Credits settings saved successfully.', 'success');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.credits_saved_success', 'Credits settings saved successfully.'))
+                : uiT('ui.admin.bbs_settings.credits_saved_success', 'Credits settings saved successfully.');
+            showBbsCreditsAlert(successMessage, 'success');
         })
         .catch(error => {
-            showBbsCreditsAlert(error.message || 'Failed to save credits settings', 'danger');
+            showBbsCreditsAlert(error.message || uiT('ui.admin.bbs_settings.save_credits_failed', 'Failed to save credits settings'), 'danger');
         });
 }
 
@@ -483,12 +499,12 @@ function loadBbsTaglines() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load taglines');
+                throw new Error(apiError(data, uiT('ui.admin.bbs_settings.load_taglines_failed', 'Failed to load taglines')));
             }
             document.getElementById('bbsTaglinesText').value = data.taglines || '';
         })
         .catch(error => {
-            showBbsTaglinesAlert(error.message || 'Failed to load taglines', 'danger');
+            showBbsTaglinesAlert(error.message || uiT('ui.admin.bbs_settings.load_taglines_failed', 'Failed to load taglines'), 'danger');
         });
 }
 
@@ -502,12 +518,15 @@ function saveBbsTaglines() {
     .then(response => response.json())
     .then(data => {
         if (!data.success) {
-            throw new Error(data.error || 'Failed to save taglines');
+            throw new Error(apiError(data, uiT('ui.admin.bbs_settings.save_taglines_failed', 'Failed to save taglines')));
         }
-        showBbsTaglinesAlert('Taglines saved successfully.', 'success');
+        const successMessage = window.getApiMessage
+            ? window.getApiMessage(data, uiT('ui.admin.bbs_settings.taglines_saved_success', 'Taglines saved successfully.'))
+            : uiT('ui.admin.bbs_settings.taglines_saved_success', 'Taglines saved successfully.');
+        showBbsTaglinesAlert(successMessage, 'success');
     })
     .catch(error => {
-        showBbsTaglinesAlert(error.message || 'Failed to save taglines', 'danger');
+        showBbsTaglinesAlert(error.message || uiT('ui.admin.bbs_settings.save_taglines_failed', 'Failed to save taglines'), 'danger');
     });
 }
 
@@ -580,10 +599,20 @@ function syncSysopSelect(selectId) {
     if (!exists) {
         const option = document.createElement('option');
         option.value = current;
-        option.textContent = `${current} (current)`;
+        option.textContent = `${current} (${uiT('ui.admin.bbs_settings.current', 'current')})`;
         select.insertBefore(option, select.firstChild);
     }
     select.value = current;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
 }
 </script>
 {% endblock %}

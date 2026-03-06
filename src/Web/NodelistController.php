@@ -21,6 +21,29 @@ use BinktermPHP\Template;
 use BinktermPHP\Auth;
 use BinktermPHP\Nodelist\NodelistManager;
 
+class NodelistImportException extends \RuntimeException
+{
+    private string $errorCode;
+    private array $errorParams;
+
+    public function __construct(string $errorCode, array $errorParams = [])
+    {
+        parent::__construct($errorCode);
+        $this->errorCode = $errorCode;
+        $this->errorParams = $errorParams;
+    }
+
+    public function getErrorCode(): string
+    {
+        return $this->errorCode;
+    }
+
+    public function getErrorParams(): array
+    {
+        return $this->errorParams;
+    }
+}
+
 class NodelistController
 {
     private $db;
@@ -67,7 +90,6 @@ class NodelistController
 
         return $this->template->render('nodelist/index.twig', [
             'user' => $user,
-            'title' => 'Node List Browser',
             'nodes' => $nodes,
             'zones' => $zones,
             'nets' => $nets,
@@ -89,8 +111,8 @@ class NodelistController
             http_response_code(400);
             return $this->template->render('error.twig', [
                 'user' => $user,
-                'title' => 'Invalid Request',
-                'message' => 'No node address specified.'
+                'error_title_code' => 'ui.error.title',
+                'error_code' => 'errors.nodelist.api.address_required'
             ]);
         }
         
@@ -99,14 +121,13 @@ class NodelistController
             http_response_code(404);
             return $this->template->render('error.twig', [
                 'user' => $user,
-                'title' => 'Node Not Found',
-                'message' => 'The requested node address was not found in the nodelist.'
+                'error_title_code' => 'ui.error.title',
+                'error_code' => 'errors.nodelist.api.node_not_found'
             ]);
         }
         
         return $this->template->render('nodelist/view.twig', [
             'user' => $user,
-            'title' => 'Node Details - ' . $address,
             'node' => $node
         ]);
     }
@@ -118,28 +139,30 @@ class NodelistController
             http_response_code(403);
             return $this->template->render('error.twig', [
                 'user' => $user,
-                'title' => 'Access Denied',
-                'message' => 'Administrator access required.'
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'errors.nodelist.admin_required'
             ]);
         }
         
-        $message = '';
-        $error = '';
+        $importMessageCode = null;
+        $importMessageParams = [];
+        $importErrorCode = null;
+        $importErrorParams = [];
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Get and validate domain
                 $domain = trim($_POST['domain'] ?? '');
                 if (empty($domain)) {
-                    throw new \Exception('Please specify a network domain');
+                    throw new NodelistImportException('errors.nodelist.import.domain_required');
                 }
                 if (!preg_match('/^[a-zA-Z0-9_-]+$/', $domain)) {
-                    throw new \Exception('Domain should contain only letters, numbers, underscores, and hyphens');
+                    throw new NodelistImportException('errors.nodelist.import.domain_invalid');
                 }
                 $domain = strtolower($domain);
 
                 if (!isset($_FILES['nodelist']) || $_FILES['nodelist']['error'] !== UPLOAD_ERR_OK) {
-                    throw new \Exception('Please select a valid nodelist file');
+                    throw new NodelistImportException('errors.nodelist.import.file_required');
                 }
 
                 $uploadedFile = $_FILES['nodelist'];
@@ -150,24 +173,28 @@ class NodelistController
                 $actualNodelistFile = $this->handleCompressedFile($tempPath, $originalName);
 
                 if (!$this->validateNodelistFile($actualNodelistFile)) {
-                    throw new \Exception('Invalid nodelist format');
+                    throw new NodelistImportException('errors.nodelist.import.invalid_format');
                 }
 
                 // Check if archive_old checkbox is checked
                 $archiveOld = isset($_POST['archive_old']);
 
                 $result = $this->nodelistManager->importNodelist($actualNodelistFile, $domain, $archiveOld);
-                
-                $message = sprintf(
-                    'Successfully imported %d nodes from %s (Day %d) for domain @%s',
-                    $result['inserted_nodes'],
-                    $result['filename'],
-                    $result['day_of_year'],
-                    $domain
-                );
-                
+
+                $importMessageCode = 'ui.nodelist.import.success';
+                $importMessageParams = [
+                    'count' => (int)($result['inserted_nodes'] ?? 0),
+                    'filename' => (string)($result['filename'] ?? ''),
+                    'day' => (int)($result['day_of_year'] ?? 0),
+                    'domain' => $domain,
+                ];
+
+            } catch (NodelistImportException $e) {
+                $importErrorCode = $e->getErrorCode();
+                $importErrorParams = $e->getErrorParams();
             } catch (\Exception $e) {
-                $error = $e->getMessage();
+                $importErrorCode = 'errors.nodelist.import.failed';
+                $importErrorParams = [];
             }
         }
         
@@ -176,9 +203,10 @@ class NodelistController
         
         return $this->template->render('nodelist/import.twig', [
             'user' => $user,
-            'title' => 'Import Nodelist',
-            'message' => $message,
-            'error' => $error,
+            'import_message_code' => $importMessageCode,
+            'import_message_params' => $importMessageParams,
+            'import_error_code' => $importErrorCode,
+            'import_error_params' => $importErrorParams,
             'activeNodelist' => $activeNodelist,
             'stats' => $stats
         ]);
@@ -203,12 +231,10 @@ class NodelistController
                 case 'stats':
                     return $this->apiStats();
                 default:
-                    http_response_code(404);
-                    echo json_encode(['error' => 'API endpoint not found']);
+                    $this->respondApiError('errors.nodelist.api.endpoint_not_found', 'API endpoint not found', 404);
             }
         } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
+            $this->respondApiError('errors.nodelist.api.internal_error', 'Failed to process nodelist API request', 500);
         }
     }
     
@@ -270,15 +296,13 @@ class NodelistController
     {
         $address = $_GET['address'] ?? '';
         if (!$address) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Address parameter required']);
+            $this->respondApiError('errors.nodelist.api.address_required', 'Address parameter required', 400);
             return;
         }
         
         $node = $this->nodelistManager->findNode($address);
         if (!$node) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Node not found']);
+            $this->respondApiError('errors.nodelist.api.node_not_found', 'Node not found', 404);
             return;
         }
         
@@ -295,8 +319,7 @@ class NodelistController
     {
         $zone = $_GET['zone'] ?? '';
         if (!$zone) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Zone parameter required']);
+            $this->respondApiError('errors.nodelist.api.zone_required', 'Zone parameter required', 400);
             return;
         }
         
@@ -335,9 +358,12 @@ class NodelistController
         
         try {
             return $this->extractArchive($tempPath, $archiveType, $extractDir);
+        } catch (NodelistImportException $e) {
+            $this->cleanupTempFiles($extractDir);
+            throw $e;
         } catch (\Exception $e) {
             $this->cleanupTempFiles($extractDir);
-            throw new \Exception('Failed to extract archive: ' . $e->getMessage());
+            throw new NodelistImportException('errors.nodelist.import.extract_failed');
         }
     }
     
@@ -367,7 +393,7 @@ class NodelistController
         switch ($type) {
             case 'ZIP':
                 if (!extension_loaded('zip')) {
-                    throw new \Exception("ZIP extension not available");
+                    throw new NodelistImportException('errors.nodelist.import.zip_extension_missing');
                 }
                 
                 $zip = new \ZipArchive;
@@ -385,16 +411,16 @@ class NodelistController
                     }
                     $zip->close();
                 } else {
-                    throw new \Exception("Could not open ZIP file");
+                    throw new NodelistImportException('errors.nodelist.import.zip_open_failed');
                 }
                 break;
                 
             default:
-                throw new \Exception("Archive format {$type} not supported in web interface (use command line)");
+                throw new NodelistImportException('errors.nodelist.import.archive_unsupported', ['format' => $type]);
         }
         
         if (!$extractedFile || !file_exists($extractedFile)) {
-            throw new \Exception("Could not find nodelist file in archive");
+            throw new NodelistImportException('errors.nodelist.import.archive_nodelist_missing');
         }
         
         return $extractedFile;
@@ -411,5 +437,34 @@ class NodelistController
             }
             rmdir($tempDir);
         }
+    }
+
+    private function respondApiError(string $errorCode, string $fallbackMessage, int $statusCode = 400): void
+    {
+        http_response_code($statusCode);
+        $localized = $this->localizedErrorText($errorCode, $fallbackMessage);
+        echo json_encode([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $localized
+        ]);
+    }
+
+    private function localizedErrorText(string $errorCode, string $fallbackMessage): string
+    {
+        static $translator = null;
+        static $localeResolver = null;
+
+        if ($translator === null) {
+            $translator = new \BinktermPHP\I18n\Translator();
+            $localeResolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        }
+
+        $user = $this->auth->getCurrentUser();
+        $preferredLocale = is_array($user) ? (string)($user['locale'] ?? '') : '';
+        $resolvedLocale = $localeResolver->resolveLocale($preferredLocale !== '' ? $preferredLocale : null, $user);
+        $translated = $translator->translate($errorCode, [], $resolvedLocale, ['errors']);
+
+        return $translated === $errorCode ? $fallbackMessage : $translated;
     }
 }

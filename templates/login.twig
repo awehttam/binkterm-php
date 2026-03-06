@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Login - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.login.title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 
@@ -21,29 +21,29 @@
             <div class="card-header">
                 <h4 class="mb-0">
                     <i class="fas fa-sign-in-alt"></i>
-                    Login to {{ system_name }}
+                    {{ t('ui.login.login_to_system', {'system_name': system_name}, 'common') }}
                 </h4>
             </div>
             <div class="card-body">
                 <form id="loginForm">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
+                        <label for="username" class="form-label">{{ t('ui.login.username', {}, 'common') }}</label>
                         <input type="text" class="form-control" id="username" name="username" required>
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
+                        <label for="password" class="form-label">{{ t('ui.login.password', {}, 'common') }}</label>
                         <input type="password" class="form-control" id="password" name="password" required>
                     </div>
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="remember" name="remember">
                         <label class="form-check-label" for="remember">
-                            Remember me (30 days)
+                            {{ t('ui.login.remember_me_30_days', {}, 'common') }}
                         </label>
                     </div>
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-sign-in-alt"></i>
-                            Login
+                            {{ t('ui.login.title', {}, 'common') }}
                         </button>
                     </div>
                 </form>
@@ -64,9 +64,9 @@
 
         <div class="text-center mt-3">
             <small class="text-muted">
-                Don't have an account? <a href="/register" class="text-decoration-none">Request Access</a>
+                {{ t('ui.login.no_account', {}, 'common') }} <a href="/register" class="text-decoration-none">{{ t('ui.login.request_access', {}, 'common') }}</a>
                 <br>
-                Forgot your password? <a href="/forgot-password" class="text-decoration-none">Reset Password</a>
+                {{ t('ui.login.forgot_password', {}, 'common') }} <a href="/forgot-password" class="text-decoration-none">{{ t('ui.login.reset_password', {}, 'common') }}</a>
             </small>
         </div>
         
@@ -132,7 +132,9 @@ $('#loginForm').on('submit', function(e) {
             }
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Login failed';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, '{{ t('errors.auth.invalid_credentials', {}, 'errors') }}')
+                : '{{ t('errors.auth.invalid_credentials', {}, 'errors') }}';
             $('#loginError').text(error).show();
         }
     });
@@ -164,7 +166,7 @@ $('#reminderForm').on('submit', function(e) {
     // Disable submit button
     const submitBtn = $('#reminderForm button[type="submit"]');
     const originalText = submitBtn.html();
-    submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+    submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> {{ t('ui.login.sending', {}, 'common') }}');
     
     $.ajax({
         url: '/api/account/reminder',
@@ -174,18 +176,22 @@ $('#reminderForm').on('submit', function(e) {
         contentType: false,
         success: function(response) {
             if (response.success) {
-                let message = response.message;
+                let message = window.getApiMessage
+                    ? window.getApiMessage(response, '{{ t('ui.api.reminder.sent', {}, 'common') }}')
+                    : '{{ t('ui.api.reminder.sent', {}, 'common') }}';
                 if (response.email_sent) {
-                    message += ' (sent via netmail and email)';
+                    message += ' {{ t('ui.login.reminder_sent_netmail_email_suffix', {}, 'common') }}';
                 } else {
-                    message += ' (sent via netmail)';
+                    message += ' {{ t('ui.login.reminder_sent_netmail_only_suffix', {}, 'common') }}';
                 }
                 $('#reminderSuccess').text(message).show();
                 $('#reminderForm')[0].reset();
             }
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to send reminder';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, '{{ t('errors.reminder.send_failed', {}, 'errors') }}')
+                : '{{ t('errors.reminder.send_failed', {}, 'errors') }}';
             $('#reminderError').text(error).show();
         },
         complete: function() {

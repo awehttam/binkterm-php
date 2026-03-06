@@ -128,7 +128,8 @@ class Scheduler
                 $this->log("Scheduled poll failed for {$address}: " . $e->getMessage(), 'ERROR');
                 $results[$address] = [
                     'success' => false,
-                    'error' => $e->getMessage()
+                    'error_code' => 'errors.binkp.uplink.poll_failed',
+                    'error' => 'Failed to poll BinkP uplink'
                 ];
             }
         }
@@ -207,7 +208,8 @@ class Scheduler
                 $this->log("Outbound poll failed for {$address}: " . $e->getMessage(), 'ERROR');
                 $results[$address] = [
                     'success' => false,
-                    'error' => $e->getMessage()
+                    'error_code' => 'errors.binkp.uplink.poll_failed',
+                    'error' => 'Failed to poll BinkP uplink'
                 ];
             }
         }

@@ -130,6 +130,76 @@ return function($db) {
  - **Service Worker Cache**: When making changes to CSS or JavaScript files, increment the CACHE_NAME version in public_html/sw.js (e.g., 'binkcache-v2' to 'binkcache-v3') to force clients to download fresh copies. The service worker handles all static asset caching to bypass aggressive browser caching on mobile devices.
  - Write phpDoc blocks when possible
 
+## Localization (i18n) Workflow
+
+The project uses key-based localization for both Twig and JavaScript. Translation catalogs live in:
+- `config/i18n/<locale>/common.php`
+- `config/i18n/<locale>/errors.php`
+
+Current baseline locales are `en` and `es`.
+
+### Core Rules
+- Never hardcode new user-facing UI text in templates/JS when adding or changing features.
+- Add a translation key first, then use it from Twig/JS.
+- Keep `en` and `es` in sync for every new key in normal feature work.
+- Prefer stable key names by page/feature area, e.g. `ui.settings.*`, `ui.polls.*`, `errors.polls.*`.
+- Do not change existing key names unless required (avoid breaking references).
+
+### Twig Translation
+- Use the global Twig function: `t(key, params, namespace)`.
+- Default namespace is `common`; pass `'errors'` when needed.
+- Example:
+```twig
+{{ t('ui.settings.title', {}, 'common') }}
+{{ t('ui.polls.create.submit', {'cost': poll_cost}, 'common') }}
+```
+
+### JavaScript Translation
+- Use `window.t(key, params, fallback)` (or a local wrapper like `uiT`).
+- Use placeholders in strings and pass params object:
+```js
+window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
+```
+- `window.i18n` supports lazy namespace loading via:
+  - `loadI18nNamespaces([...])`
+  - endpoint: `GET /api/i18n/catalog?ns=common,errors&locale=<locale>`
+- JS should always include a fallback string for resilience.
+
+### API Errors and `error_code`
+- API responses should use structured errors via `apiError(error_code, message, status, extra)` and return:
+  - `error_code` (translation key)
+  - `error` (human fallback)
+- Frontend should resolve display text with `window.getApiErrorMessage(payload, fallback)`.
+- Do not rely on matching raw error message text in frontend logic.
+- For new API errors:
+  1. Add/choose `errors.*` key in route code.
+  2. Add that key to `config/i18n/en/errors.php` (and `es/errors.php`).
+  3. Use `getApiErrorMessage` in UI handling.
+
+### Locale Resolution / Config
+- Locale is resolved server-side through `LocaleResolver`/`Translator`.
+- Supported locales are exposed to Twig as `supported_locales`.
+- Environment settings used by i18n:
+  - `I18N_DEFAULT_LOCALE`
+  - `I18N_SUPPORTED_LOCALES` (optional; auto-discovers locale folders if unset)
+  - `I18N_LOG_MISSING_KEYS`
+  - `I18N_MISSING_KEYS_LOG_FILE`
+
+### Required Validation After i18n Changes
+- Run:
+  - `php scripts/check_i18n_hardcoded_strings.php`
+  - `php scripts/check_i18n_error_keys.php`
+- Goal:
+  - no new hardcoded string violations
+  - no missing `errors.*` catalog keys used by `apiError(...)`
+
+### Practical Checklist for New UI/API Work
+1. Add new `ui.*`/`errors.*` keys to `en` and `es`.
+2. Replace literals in Twig with `t(...)`.
+3. Replace JS literals with `window.t(...)` (or `uiT(...)`) fallbacks.
+4. Ensure API errors return `error_code`.
+5. Run both i18n check scripts before commit.
+
 ## URL Construction
 When constructing full URLs for the application (e.g., share links, reset password links, meta tags), **always** use the centralized `Config::getSiteUrl()` method:
 

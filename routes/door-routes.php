@@ -10,8 +10,47 @@ use BinktermPHP\DoorSessionManager;
 use BinktermPHP\DoorManager;
 use BinktermPHP\NativeDoorManager;
 use BinktermPHP\Database;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 use BinktermPHP\RouteHelper;
 use Pecee\SimpleRouter\SimpleRouter;
+
+function doorApiError(string $errorCode, string $message, int $status = 400, array $extra = []): void
+{
+    http_response_code($status);
+    $localized = doorLocalizedText($errorCode, $message);
+    echo json_encode(array_merge([
+        'success' => false,
+        'error_code' => $errorCode,
+        'error' => $localized,
+    ], $extra));
+}
+
+function doorLocalizedText(string $key, string $fallback, array $params = [], ?array $user = null): string
+{
+    static $translator = null;
+    static $resolver = null;
+    if ($translator === null || $resolver === null) {
+        $translator = new Translator();
+        $resolver = new LocaleResolver($translator);
+    }
+
+    if ($user === null) {
+        try {
+            $auth = new \BinktermPHP\Auth();
+            $resolvedUser = $auth->getCurrentUser();
+            if (is_array($resolvedUser)) {
+                $user = $resolvedUser;
+            }
+        } catch (\Throwable $e) {
+            // Fall back to default locale when no user context is available.
+        }
+    }
+
+    $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+    $translated = $translator->translate($key, $params, $resolvedLocale, ['errors']);
+    return $translated === $key ? $fallback : $translated;
+}
 
 // Launch a door game session
 SimpleRouter::post('/api/door/launch', function() {
@@ -25,8 +64,7 @@ SimpleRouter::post('/api/door/launch', function() {
     error_log("DOSDOOR: [API] User ID: $userId, Username: " . ($user['username'] ?? 'unknown') . ", Door: $doorName");
 
     if (!$doorName) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Door name required']);
+        doorApiError('errors.door.door_name_required', 'Door name required', 400);
         return;
     }
 
@@ -85,7 +123,7 @@ SimpleRouter::post('/api/door/launch', function() {
                     'ws_token' => $existingSession['ws_token'],
                     'ws_url' => $wsUrl,
                 ],
-                'message' => 'Resuming existing session'
+                'message_code' => 'ui.api.door.session_resumed'
             ]);
             return;
         }
@@ -120,8 +158,7 @@ SimpleRouter::post('/api/door/launch', function() {
         // Block admin-only doors for non-admins
         $doorManifestCheck = $activeDoorManager->getDoor($doorName);
         if ($doorManifestCheck && !empty($doorManifestCheck['admin_only']) && empty($user['is_admin'])) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Access denied', 'message' => 'This door is restricted to administrators.']);
+            doorApiError('errors.door.admin_only', 'This door is restricted to administrators', 403);
             return;
         }
 
@@ -144,11 +181,7 @@ SimpleRouter::post('/api/door/launch', function() {
 
                     if ($currentBalance < $creditCost) {
                         error_log("DOSDOOR: [API] Insufficient credits for $doorName - Required: $creditCost, Balance: $currentBalance");
-                        http_response_code(402); // Payment Required
-                        echo json_encode([
-                            'success' => false,
-                            'error' => 'Insufficient credits',
-                            'message' => "This door costs $creditCost credits. You have $currentBalance credits.",
+                        doorApiError('errors.door.insufficient_credits_detail', 'Insufficient credits', 402, [
                             'required' => $creditCost,
                             'balance' => $currentBalance
                         ]);
@@ -183,11 +216,7 @@ SimpleRouter::post('/api/door/launch', function() {
 
             if ($activeSessions >= $maxNodes) {
                 error_log("DOSDOOR: [API] Door '$doorName' at max capacity - Active: $activeSessions, Max: $maxNodes");
-                http_response_code(503); // Service Unavailable
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Door at capacity',
-                    'message' => "This door is currently in use. Only $maxNodes player(s) allowed at a time. Please try again later.",
+                doorApiError('errors.door.capacity_reached_detail', 'Door at capacity', 503, [
                     'active_sessions' => $activeSessions,
                     'max_nodes' => $maxNodes
                 ]);
@@ -225,11 +254,7 @@ SimpleRouter::post('/api/door/launch', function() {
         ]);
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to start door session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError('errors.door.launch_failed', 'Failed to start door session', 500);
     }
 });
 
@@ -378,8 +403,7 @@ SimpleRouter::post('/api/door/end', function() {
     $sessionId = $_POST['session_id'] ?? null;
 
     if (!$sessionId) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Session ID required']);
+        doorApiError('errors.door.session_id_required', 'Session ID required', 400);
         return;
     }
 
@@ -390,8 +414,7 @@ SimpleRouter::post('/api/door/end', function() {
         // Verify session belongs to current user
         $userId = $user['user_id'] ?? $user['id'];
         if (!$session || $session['user_id'] !== $userId) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Unauthorized']);
+            doorApiError('errors.door.session_unauthorized', 'Unauthorized', 403);
             return;
         }
 
@@ -403,11 +426,7 @@ SimpleRouter::post('/api/door/end', function() {
         ]);
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to end session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError('errors.door.session_end_failed', 'Failed to end session', 500);
     }
 });
 
@@ -464,11 +483,7 @@ SimpleRouter::get('/api/door/session', function() {
         }
 
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'error' => 'Failed to get session',
-            'message' => $e->getMessage()
-        ]);
+        doorApiError('errors.door.session_get_failed', 'Failed to get session', 500);
     }
 });
 
@@ -543,7 +558,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
     $allowedAssets = ['icon', 'screenshot'];
     if (!in_array($asset, $allowedAssets)) {
         http_response_code(404);
-        echo "Invalid asset type";
+        echo doorLocalizedText('errors.door.asset.invalid_type', 'Invalid asset type');
         return;
     }
 
@@ -560,7 +575,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     if (!$door) {
         http_response_code(404);
-        echo "Door not found";
+        echo doorLocalizedText('errors.door.asset.door_not_found', 'Door not found');
         return;
     }
 
@@ -569,7 +584,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
 
     if (!$filename) {
         http_response_code(404);
-        echo "Asset not defined in manifest";
+        echo doorLocalizedText('errors.door.asset.not_defined', 'Asset not defined in manifest');
         return;
     }
 
@@ -580,7 +595,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
     // Verify file exists
     if (!file_exists($doorPath) || !is_file($doorPath)) {
         http_response_code(404);
-        echo "Asset file not found";
+        echo doorLocalizedText('errors.door.asset.file_not_found', 'Asset file not found');
         return;
     }
 
@@ -589,7 +604,7 @@ SimpleRouter::get('/door-assets/{doorid}/{asset}', function($doorid, $asset) {
     $allowedBase = realpath($doorBasePath);
     if ($allowedBase === false || strpos($realPath, $allowedBase) !== 0) {
         http_response_code(403);
-        echo "Access denied";
+        echo doorLocalizedText('errors.door.asset.access_denied', 'Access denied');
         return;
     }
 

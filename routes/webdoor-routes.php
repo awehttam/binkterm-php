@@ -16,6 +16,16 @@ use BinktermPHP\WebDoorController;
 use BinktermPHP\WebDoorManifest;
 use Pecee\SimpleRouter\SimpleRouter;
 
+function webdoorApiError(string $errorCode, string $message, int $status = 400): void
+{
+    http_response_code($status);
+    echo json_encode([
+        'success' => false,
+        'error_code' => $errorCode,
+        'error' => $message,
+    ]);
+}
+
 /**
  * Helper function to get available WebDoor features
  */
@@ -75,7 +85,7 @@ SimpleRouter::get('/games', function() {
      if(GameConfig::isGameSystemEnabled()==false){
          $template = new Template();
          $template->renderResponse('error.twig', [
-             'error' => 'Sorry, the game system is not enabled.'
+             'error_code' => 'ui.webdoors.errors.system_disabled'
          ]);
          exit;
      }
@@ -269,7 +279,7 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
     if(GameConfig::isGameSystemEnabled()==false){
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, the game system is not enabled.'
+            'error_code' => 'ui.webdoors.errors.system_disabled'
         ]);
         exit;
     }
@@ -292,8 +302,8 @@ SimpleRouter::get('/games/dosdoors/{doorid}', function($doorid) {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'This door is restricted to administrators.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
         ]);
         return;
     }
@@ -314,7 +324,7 @@ SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
     if (GameConfig::isGameSystemEnabled() == false) {
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, the game system is not enabled.'
+            'error_code' => 'ui.webdoors.errors.system_disabled'
         ]);
         exit;
     }
@@ -337,8 +347,8 @@ SimpleRouter::get('/games/nativedoors/{doorid}', function($doorid) {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'This door is restricted to administrators.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.webdoors.errors.admin_only'
         ]);
         return;
     }
@@ -359,7 +369,7 @@ SimpleRouter::get('/games/{game}', function($game) {
     if(GameConfig::isGameSystemEnabled()==false){
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, the game system is not enabled.'
+            'error_code' => 'ui.webdoors.errors.system_disabled'
         ]);
         exit;
     }
@@ -374,8 +384,8 @@ SimpleRouter::get('/games/{game}', function($game) {
             http_response_code(403);
             $template = new Template();
             $template->renderResponse('error.twig', [
-                'error_title' => 'Access Denied',
-                'error' => 'This door is restricted to administrators.'
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'ui.webdoors.errors.admin_only'
             ]);
             return;
         }
@@ -400,8 +410,8 @@ SimpleRouter::get('/games/{game}', function($game) {
             http_response_code(403);
             $template = new Template();
             $template->renderResponse('error.twig', [
-                'error_title' => 'Access Denied',
-                'error' => 'This door is restricted to administrators.'
+                'error_title_code' => 'ui.error.access_error',
+                'error_code' => 'ui.webdoors.errors.admin_only'
             ]);
             return;
         }
@@ -434,7 +444,7 @@ SimpleRouter::get('/games/{game}', function($game) {
     if (!checkManifestRequirements($manifest)) {
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'This game requires features that are not currently enabled on this system.'
+            'error_code' => 'ui.webdoors.errors.requirements_not_met'
         ]);
         return;
     }
@@ -474,7 +484,7 @@ SimpleRouter::get('/games/{game}', function($game) {
 SimpleRouter::get('/api/webdoor/session', function() {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 
@@ -499,7 +509,7 @@ SimpleRouter::get('/api/webdoor/session', function() {
 SimpleRouter::post('/api/webdoor/session/end', function() {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 
@@ -513,7 +523,7 @@ SimpleRouter::post('/api/webdoor/session/end', function() {
 SimpleRouter::get('/api/webdoor/storage', function() {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 
@@ -527,7 +537,7 @@ SimpleRouter::get('/api/webdoor/storage', function() {
 SimpleRouter::get('/api/webdoor/storage/{slot}', function($slot) {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 
@@ -535,8 +545,7 @@ SimpleRouter::get('/api/webdoor/storage/{slot}', function($slot) {
     $result = $controller->loadSave((int)$slot);
 
     if ($result === null) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Save not found']);
+        webdoorApiError('errors.webdoor.save_not_found', 'Save not found', 404);
         return;
     }
 
@@ -547,7 +556,7 @@ SimpleRouter::get('/api/webdoor/storage/{slot}', function($slot) {
 SimpleRouter::put('/api/webdoor/storage/{slot}', function($slot) {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 
@@ -561,7 +570,7 @@ SimpleRouter::put('/api/webdoor/storage/{slot}', function($slot) {
 SimpleRouter::delete('/api/webdoor/storage/{slot}', function($slot) {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 
@@ -575,7 +584,7 @@ SimpleRouter::delete('/api/webdoor/storage/{slot}', function($slot) {
 SimpleRouter::get('/api/webdoor/leaderboard/{board}', function($board) {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 
@@ -589,7 +598,7 @@ SimpleRouter::get('/api/webdoor/leaderboard/{board}', function($board) {
 SimpleRouter::post('/api/webdoor/leaderboard/{board}', function($board) {
     header('Content-Type: application/json');
     if(GameConfig::isGameSystemEnabled()==false){
-        http_response_code(500);
+        webdoorApiError('errors.webdoor.feature_disabled', 'Game system is not enabled', 500);
         exit;
     }
 

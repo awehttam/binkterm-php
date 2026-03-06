@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Polls - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.polls.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -9,26 +9,26 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-vote-yea me-2"></i>
-                    Polls
+                    {{ t('ui.polls.title', {}, locale, ['common']) }}
                 </h5>
                 <a href="/polls/create" class="btn btn-sm btn-primary">
                     <i class="fas fa-file-circle-plus me-1"></i>
-                    Create Poll
+                    {{ t('ui.polls.create', {}, locale, ['common']) }}
                 </a>
             </div>
             <div class="card-body" id="votingBoothBody">
                 <div class="text-center">
                     <i class="fas fa-spinner fa-spin"></i>
-                    Loading poll...
+                    {{ t('ui.polls.loading', {}, locale, ['common']) }}
                 </div>
             </div>
             <div class="card-footer d-flex justify-content-between align-items-center">
-                <div class="small text-muted">Browse active polls and vote to reveal results.</div>
+                <div class="small text-muted">{{ t('ui.polls.description', {}, locale, ['common']) }}</div>
                 <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="Previous poll">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollPrevBtn" onclick="changeVotingPoll(-1)" title="{{ t('ui.polls.previous', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-left"></i>
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="Next poll">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="pollNextBtn" onclick="changeVotingPoll(1)" title="{{ t('ui.polls.next', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
@@ -43,6 +43,20 @@
 let votingPolls = [];
 let votingPollIndex = 0;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadVotingBooth();
 });
@@ -52,7 +66,7 @@ function loadVotingBooth(keepPollId = null) {
         .done(function(data) {
             votingPolls = data.polls || [];
             if (votingPolls.length === 0) {
-                $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+                $('#votingBoothBody').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.polls.none_active', 'No active polls right now.')}</p>`);
                 updateVotingPollNav();
                 return;
             }
@@ -66,14 +80,14 @@ function loadVotingBooth(keepPollId = null) {
             renderVotingBooth();
         })
         .fail(function() {
-            $('#votingBoothBody').html('<p class="text-danger mb-0">Failed to load poll.</p>');
+            $('#votingBoothBody').html(`<p class="text-danger mb-0">${uiT('ui.dashboard.polls.load_failed', 'Failed to load poll.')}</p>`);
             updateVotingPollNav();
         });
 }
 
 function renderVotingBooth() {
     if (votingPolls.length === 0) {
-        $('#votingBoothBody').html('<p class="text-muted mb-0">No active polls right now.</p>');
+        $('#votingBoothBody').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.polls.none_active', 'No active polls right now.')}</p>`);
         updateVotingPollNav();
         return;
     }
@@ -83,9 +97,9 @@ function renderVotingBooth() {
     if (hasVoted) {
         const totalVotes = poll.total_votes || 0;
         let resultsHtml = `<h5 class="mb-3">${escapeHtml(poll.question)}</h5>`;
-        resultsHtml += '<div class="small text-muted mb-3">Results</div>';
+        resultsHtml += `<div class="small text-muted mb-3">${uiT('ui.dashboard.polls.results', 'Results')}</div>`;
         if (totalVotes === 0) {
-            resultsHtml += '<p class="text-muted mb-0">No votes yet.</p>';
+            resultsHtml += `<p class="text-muted mb-0">${uiT('ui.dashboard.polls.no_votes', 'No votes yet.')}</p>`;
         } else {
             (poll.results || []).forEach(result => {
                 const percent = totalVotes > 0 ? Math.round((result.votes / totalVotes) * 100) : 0;
@@ -108,7 +122,7 @@ function renderVotingBooth() {
     }
 
     let optionsHtml = `<h5 class="mb-3">${escapeHtml(poll.question)}</h5>`;
-    optionsHtml += '<div class="small text-muted mb-3">Vote to see results</div>';
+    optionsHtml += `<div class="small text-muted mb-3">${uiT('ui.dashboard.polls.vote_to_see_results', 'Vote to see results')}</div>`;
     optionsHtml += '<form id="votingBoothForm">';
     (poll.options || []).forEach(option => {
         optionsHtml += `
@@ -122,7 +136,7 @@ function renderVotingBooth() {
     });
     optionsHtml += `
         <button type="button" class="btn btn-primary" onclick="submitPollVote(${poll.id})">
-            Submit Vote
+            ${uiT('ui.dashboard.polls.submit_vote', 'Submit Vote')}
         </button>
     `;
     optionsHtml += '</form>';
@@ -156,7 +170,7 @@ function updateVotingPollNav() {
 function submitPollVote(pollId) {
     const selected = document.querySelector('input[name="poll_option"]:checked');
     if (!selected) {
-        alert('Please select an option.');
+        alert(uiT('errors.polls.option_required', 'Please select an option.'));
         return;
     }
 
@@ -170,10 +184,10 @@ function submitPollVote(pollId) {
         if (data.success) {
             loadVotingBooth(pollId);
         } else {
-            alert(data.error || 'Failed to submit vote.');
+            alert(apiError(data, uiT('errors.polls.vote_failed', 'Failed to submit vote.')));
         }
     })
-    .catch(() => alert('Failed to submit vote.'));
+    .catch(() => alert(uiT('errors.polls.vote_failed', 'Failed to submit vote.')));
 }
 
 function escapeHtml(text) {

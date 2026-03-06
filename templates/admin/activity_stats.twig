@@ -1,34 +1,34 @@
-{% extends "base.twig" %}
+﻿{% extends "base.twig" %}
 
-{% block title %}Activity Statistics{% endblock %}
+{% block title %}{{ t('ui.admin.activity_stats.page_title') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Activity Statistics</h1>
+        <h1 class="h2">{{ t('ui.admin.activity_stats.heading') }}</h1>
         <div class="d-flex align-items-center gap-2">
-            <label class="me-1 mb-0 text-muted small">Period:</label>
+            <label class="me-1 mb-0 text-muted small">{{ t('ui.admin.activity_stats.period') }}:</label>
             <select id="period-select" class="form-select form-select-sm" style="width:auto">
-                <option value="7d">Last 7 Days</option>
-                <option value="30d" selected>Last 30 Days</option>
-                <option value="90d">Last 90 Days</option>
-                <option value="all">All Time</option>
+                <option value="7d">{{ t('ui.admin.activity_stats.period_7d') }}</option>
+                <option value="30d" selected>{{ t('ui.admin.activity_stats.period_30d') }}</option>
+                <option value="90d">{{ t('ui.admin.activity_stats.period_90d') }}</option>
+                <option value="all">{{ t('ui.admin.activity_stats.period_all') }}</option>
             </select>
             <div class="form-check mb-0 ms-2">
                 <input class="form-check-input" type="checkbox" id="exclude-admins">
-                <label class="form-check-label text-muted small" for="exclude-admins">Exclude admins</label>
+                <label class="form-check-label text-muted small" for="exclude-admins">{{ t('ui.admin.activity_stats.exclude_admins') }}</label>
             </div>
             <a href="/admin" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>Dashboard
+                <i class="fas fa-arrow-left me-1"></i>{{ t('ui.admin.activity_stats.dashboard') }}
             </a>
         </div>
     </div>
 
     <div id="loading-indicator" class="text-center py-5">
         <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
+            <span class="visually-hidden">{{ t('ui.common.loading') }}</span>
         </div>
-        <p class="mt-2 text-muted">Loading activity data…</p>
+        <p class="mt-2 text-muted">{{ t('ui.admin.activity_stats.loading_activity_data') }}</p>
     </div>
 
     <div id="stats-content" style="display:none">
@@ -39,25 +39,25 @@
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-3" id="stats-tabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="tab-overview" data-bs-toggle="tab" data-bs-target="#pane-overview" type="button">Overview</button>
+                <button class="nav-link active" id="tab-overview" data-bs-toggle="tab" data-bs-target="#pane-overview" type="button">{{ t('ui.admin.activity_stats.tab_overview') }}</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-areas" data-bs-toggle="tab" data-bs-target="#pane-areas" type="button">Popular Areas</button>
+                <button class="nav-link" id="tab-areas" data-bs-toggle="tab" data-bs-target="#pane-areas" type="button">{{ t('ui.admin.activity_stats.tab_popular_areas') }}</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-doors" data-bs-toggle="tab" data-bs-target="#pane-doors" type="button">Doors</button>
+                <button class="nav-link" id="tab-doors" data-bs-toggle="tab" data-bs-target="#pane-doors" type="button">{{ t('ui.admin.activity_stats.tab_doors') }}</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-files" data-bs-toggle="tab" data-bs-target="#pane-files" type="button">File Activity</button>
+                <button class="nav-link" id="tab-files" data-bs-toggle="tab" data-bs-target="#pane-files" type="button">{{ t('ui.admin.activity_stats.tab_file_activity') }}</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-nodelist" data-bs-toggle="tab" data-bs-target="#pane-nodelist" type="button">Nodelist</button>
+                <button class="nav-link" id="tab-nodelist" data-bs-toggle="tab" data-bs-target="#pane-nodelist" type="button">{{ t('ui.admin.activity_stats.tab_nodelist') }}</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-users" data-bs-toggle="tab" data-bs-target="#pane-users" type="button">Top Users</button>
+                <button class="nav-link" id="tab-users" data-bs-toggle="tab" data-bs-target="#pane-users" type="button">{{ t('ui.admin.activity_stats.tab_top_users') }}</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-hourly" data-bs-toggle="tab" data-bs-target="#pane-hourly" type="button">Hourly</button>
+                <button class="nav-link" id="tab-hourly" data-bs-toggle="tab" data-bs-target="#pane-hourly" type="button">{{ t('ui.admin.activity_stats.tab_hourly') }}</button>
             </li>
         </ul>
 
@@ -68,10 +68,10 @@
                 <div class="row">
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Activity by Category</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.activity_by_category') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Category</th><th class="text-end">Events</th><th style="width:40%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.category') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.events') }}</th><th style="width:40%"></th></tr></thead>
                                     <tbody id="category-rows"></tbody>
                                 </table>
                             </div>
@@ -79,10 +79,10 @@
                     </div>
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Daily Activity (last 30 days)</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.daily_activity_last_30') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0" id="daily-table">
-                                    <thead><tr><th>Date</th><th class="text-end">Events</th><th style="width:40%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.date') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.events') }}</th><th style="width:40%"></th></tr></thead>
                                     <tbody id="daily-rows"></tbody>
                                 </table>
                             </div>
@@ -96,10 +96,10 @@
                 <div class="row">
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Most Viewed Echoareas</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_viewed_echoareas') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Area</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.area') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.views') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="echoarea-views-rows"></tbody>
                                 </table>
                             </div>
@@ -107,10 +107,10 @@
                     </div>
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Most Active Echoareas (posts)</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_active_echoareas') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Area</th><th class="text-end">Posts</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.area') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.posts') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="echoarea-posts-rows"></tbody>
                                 </table>
                             </div>
@@ -124,10 +124,10 @@
                 <div class="row">
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Most Played WebDoors</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_played_webdoors') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Game</th><th class="text-end">Sessions</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.game') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.sessions') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="webdoor-rows"></tbody>
                                 </table>
                             </div>
@@ -135,10 +135,10 @@
                     </div>
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Most Played DOS Doors</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_played_dos_doors') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Door</th><th class="text-end">Sessions</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.door') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.sessions') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="dosdoor-rows"></tbody>
                                 </table>
                             </div>
@@ -152,10 +152,10 @@
                 <div class="row">
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Top Downloaded Files</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.top_downloaded_files') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>File</th><th class="text-end">Downloads</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.file') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.downloads') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="file-download-rows"></tbody>
                                 </table>
                             </div>
@@ -163,10 +163,10 @@
                     </div>
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Most Browsed File Areas</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_browsed_file_areas') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Area</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.area') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.views') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="filearea-rows"></tbody>
                                 </table>
                             </div>
@@ -180,10 +180,10 @@
                 <div class="row">
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Most Searched Nodelist Queries</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_searched_nodelist_queries') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Query</th><th class="text-end">Searches</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.query') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.searches') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="nodelist-search-rows"></tbody>
                                 </table>
                             </div>
@@ -191,10 +191,10 @@
                     </div>
                     <div class="col-lg-6 mb-4">
                         <div class="card shadow-sm">
-                            <div class="card-header"><strong>Most Viewed Nodes</strong></div>
+                            <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_viewed_nodes') }}</strong></div>
                             <div class="card-body p-0">
                                 <table class="table table-sm table-hover mb-0">
-                                    <thead><tr><th>Node</th><th class="text-end">Views</th><th style="width:35%"></th></tr></thead>
+                                    <thead><tr><th>{{ t('ui.admin.activity_stats.node') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.views') }}</th><th style="width:35%"></th></tr></thead>
                                     <tbody id="node-view-rows"></tbody>
                                 </table>
                             </div>
@@ -206,10 +206,10 @@
             <!-- Top Users Tab -->
             <div class="tab-pane fade" id="pane-users" role="tabpanel">
                 <div class="card shadow-sm">
-                    <div class="card-header"><strong>Most Active Users</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.activity_stats.most_active_users') }}</strong></div>
                     <div class="card-body p-0">
                         <table class="table table-sm table-hover mb-0">
-                            <thead><tr><th>User</th><th class="text-end">Events</th><th style="width:35%"></th></tr></thead>
+                            <thead><tr><th>{{ t('ui.admin.activity_stats.user') }}</th><th class="text-end">{{ t('ui.admin.activity_stats.events') }}</th><th style="width:35%"></th></tr></thead>
                             <tbody id="top-users-rows"></tbody>
                         </table>
                     </div>
@@ -219,10 +219,10 @@
             <!-- Hourly Distribution Tab -->
             <div class="tab-pane fade" id="pane-hourly" role="tabpanel">
                 <div class="card shadow-sm">
-                    <div class="card-header"><strong>Activity by Hour of Day (<span id="hourly-tz-label">UTC</span>)</strong></div>
+                    <div class="card-header"><strong>{{ t('ui.admin.activity_stats.activity_by_hour_of_day') }} (<span id="hourly-tz-label">{{ t('ui.admin.activity_stats.utc', {}, locale, ['common']) }}</span>)</strong></div>
                     <div class="card-body p-0">
                         <table class="table table-sm table-hover mb-0">
-                            <thead><tr><th>Hour (<span class="hourly-tz-col">UTC</span>)</th><th class="text-end">Events</th><th style="width:50%"></th></tr></thead>
+                            <thead><tr><th>{{ t('ui.admin.activity_stats.hour') }} (<span class="hourly-tz-col">{{ t('ui.admin.activity_stats.utc', {}, locale, ['common']) }}</span>)</th><th class="text-end">{{ t('ui.admin.activity_stats.events') }}</th><th style="width:50%"></th></tr></thead>
                             <tbody id="hourly-rows"></tbody>
                         </table>
                     </div>
@@ -237,43 +237,53 @@
 
 <script>
 (function() {
-    let statsData = null;
     const userTimezone = {{ user_timezone|json_encode(15)|raw }};
 
+    function uiT(key, fallback, params = {}) {
+        if (window.t) {
+            return window.t(key, params, fallback);
+        }
+        return fallback;
+    }
+
     function formatDate(dateStr) {
-        // dateStr is YYYY-MM-DD already bucketed in the user's timezone by the server
-        // Parse as local midnight to avoid UTC offset shifting the date
         const parts = dateStr.split('-');
         const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
         return localDate.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
     }
 
     function getTzAbbr(timezone) {
-        // Extract short timezone abbreviation from Intl
         try {
             return new Intl.DateTimeFormat(undefined, { timeZone: timezone, timeZoneName: 'short' })
                 .formatToParts(new Date())
                 .find(p => p.type === 'timeZoneName')?.value || timezone;
-        } catch(e) {
+        } catch (e) {
             return timezone;
         }
     }
 
     function escapeHtml(str) {
         if (!str) return '&mdash;';
-        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function apiError(payload, fallback) {
+        if (window.getApiErrorMessage) {
+            return window.getApiErrorMessage(payload, fallback);
+        }
+        return payload && payload.error ? payload.error : fallback;
     }
 
     function progressBar(value, max, cls) {
         const pct = max > 0 ? Math.round((value / max) * 100) : 0;
-        return `<div class="progress" style="height:14px"><div class="progress-bar ${cls||''}" style="width:${pct}%"></div></div>`;
+        return `<div class="progress" style="height:14px"><div class="progress-bar ${cls || ''}" style="width:${pct}%"></div></div>`;
     }
 
     function renderRows(tbodyId, items, nameFn, valueFn, barCls) {
         const tbody = document.getElementById(tbodyId);
         if (!tbody) return;
         if (!items || items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-3">No data for this period</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-center py-3">${uiT('ui.admin.activity_stats.no_data_for_period', 'No data for this period')}</td></tr>`;
             return;
         }
         const maxVal = Math.max(...items.map(r => parseInt(valueFn(r)) || 0));
@@ -313,33 +323,32 @@
 
         const echoViews = byType.echomail_views || 0;
         const echoSends = byType.echomail_sends || 0;
-        const netReads  = byType.netmail_reads  || 0;
-        const netSends  = byType.netmail_sends  || 0;
+        const netReads = byType.netmail_reads || 0;
+        const netSends = byType.netmail_sends || 0;
 
         document.getElementById('summary-cards').innerHTML =
-            summaryCard('Echomail',   echoViews + echoSends, 'fa-comments',    'text-primary',   'bg-primary',
-                `Views: ${echoViews.toLocaleString()} &nbsp;·&nbsp; Sent: ${echoSends.toLocaleString()}`) +
-            summaryCard('Netmail',    netReads  + netSends,  'fa-envelope',    'text-secondary', 'bg-secondary',
-                `Read: ${netReads.toLocaleString()} &nbsp;·&nbsp; Sent: ${netSends.toLocaleString()}`) +
-            summaryCard('Files',      byCategory.file  || 0, 'fa-folder-open', 'text-success',   'bg-success') +
-            summaryCard('Door Plays', byCategory.door  || 0, 'fa-gamepad',     'text-warning',   'bg-warning') +
-            summaryCard('Logins',     byCategory.auth  || 0, 'fa-sign-in-alt', 'text-info',      'bg-info') +
-            summaryCard('Total',      total,                 'fa-chart-bar',   'text-secondary', 'bg-secondary');
+            summaryCard(uiT('ui.admin.activity_stats.echomail', 'Echomail'), echoViews + echoSends, 'fa-comments', 'text-primary', 'bg-primary',
+                uiT('ui.admin.activity_stats.views_sent', 'Views: {views} · Sent: {sent}', { views: echoViews.toLocaleString(), sent: echoSends.toLocaleString() })) +
+            summaryCard(uiT('ui.admin.activity_stats.netmail', 'Netmail'), netReads + netSends, 'fa-envelope', 'text-secondary', 'bg-secondary',
+                uiT('ui.admin.activity_stats.read_sent', 'Read: {read} · Sent: {sent}', { read: netReads.toLocaleString(), sent: netSends.toLocaleString() })) +
+            summaryCard(uiT('ui.admin.activity_stats.files', 'Files'), byCategory.file || 0, 'fa-folder-open', 'text-success', 'bg-success') +
+            summaryCard(uiT('ui.admin.activity_stats.door_plays', 'Door Plays'), byCategory.door || 0, 'fa-gamepad', 'text-warning', 'bg-warning') +
+            summaryCard(uiT('ui.admin.activity_stats.logins', 'Logins'), byCategory.auth || 0, 'fa-sign-in-alt', 'text-info', 'bg-info') +
+            summaryCard(uiT('ui.admin.activity_stats.total', 'Total'), total, 'fa-chart-bar', 'text-secondary', 'bg-secondary');
     }
 
     function renderOverview(data) {
         const byCategory = (data.summary || {}).by_category || {};
-        const byType     = (data.summary || {}).by_type     || {};
+        const byType = (data.summary || {}).by_type || {};
 
         const echoViews = byType.echomail_views || 0;
         const echoSends = byType.echomail_sends || 0;
-        const netReads  = byType.netmail_reads  || 0;
-        const netSends  = byType.netmail_sends  || 0;
+        const netReads = byType.netmail_reads || 0;
+        const netSends = byType.netmail_sends || 0;
 
-        // Build grouped rows: group headers + indented sub-rows
         const allVals = [
             echoViews + echoSends, echoViews, echoSends,
-            netReads  + netSends,  netReads,  netSends,
+            netReads + netSends, netReads, netSends,
             byCategory.file || 0, byCategory.door || 0,
             byCategory.nodelist || 0, byCategory.chat || 0, byCategory.auth || 0,
         ];
@@ -369,30 +378,29 @@
 
         const catTbody = document.getElementById('category-rows');
         catTbody.innerHTML =
-            groupRow('Echomail', echoViews + echoSends) +
-            subRow('Area Views', echoViews, 'bg-primary') +
-            subRow('Sent',       echoSends, 'bg-success') +
-            groupRow('Netmail', netReads + netSends) +
-            subRow('Read', netReads, 'bg-secondary') +
-            subRow('Sent', netSends, 'bg-success') +
-            plainRow('Files',    byCategory.file     || 0) +
-            plainRow('Doors',    byCategory.door     || 0) +
-            plainRow('Nodelist', byCategory.nodelist || 0) +
-            plainRow('Chat',     byCategory.chat     || 0) +
-            plainRow('Auth',     byCategory.auth     || 0);
+            groupRow(uiT('ui.admin.activity_stats.echomail', 'Echomail'), echoViews + echoSends) +
+            subRow(uiT('ui.admin.activity_stats.area_views', 'Area Views'), echoViews, 'bg-primary') +
+            subRow(uiT('ui.admin.activity_stats.sent', 'Sent'), echoSends, 'bg-success') +
+            groupRow(uiT('ui.admin.activity_stats.netmail', 'Netmail'), netReads + netSends) +
+            subRow(uiT('ui.admin.activity_stats.read', 'Read'), netReads, 'bg-secondary') +
+            subRow(uiT('ui.admin.activity_stats.sent', 'Sent'), netSends, 'bg-success') +
+            plainRow(uiT('ui.admin.activity_stats.files', 'Files'), byCategory.file || 0) +
+            plainRow(uiT('ui.admin.activity_stats.doors', 'Doors'), byCategory.door || 0) +
+            plainRow(uiT('ui.admin.activity_stats.nodelist', 'Nodelist'), byCategory.nodelist || 0) +
+            plainRow(uiT('ui.admin.activity_stats.chat', 'Chat'), byCategory.chat || 0) +
+            plainRow(uiT('ui.admin.activity_stats.auth', 'Auth'), byCategory.auth || 0);
 
-        // Daily table (last 30 days)
         const daily = data.daily || [];
         const dailyTbody = document.getElementById('daily-rows');
         if (daily.length === 0) {
-            dailyTbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-3">No data</td></tr>';
+            dailyTbody.innerHTML = `<tr><td colspan="3" class="text-muted text-center py-3">${uiT('ui.admin.activity_stats.no_data', 'No data')}</td></tr>`;
         } else {
             const maxDay = Math.max(...daily.map(d => d.count || 0));
             dailyTbody.innerHTML = daily.slice().reverse().map(d =>
                 `<tr>
                     <td>${escapeHtml(formatDate(d.date))}</td>
-                    <td class="text-end fw-semibold">${(d.count||0).toLocaleString()}</td>
-                    <td>${progressBar(d.count||0, maxDay, 'bg-info')}</td>
+                    <td class="text-end fw-semibold">${(d.count || 0).toLocaleString()}</td>
+                    <td>${progressBar(d.count || 0, maxDay, 'bg-info')}</td>
                 </tr>`
             ).join('');
         }
@@ -401,27 +409,26 @@
     function renderAreas(data) {
         const areas = data.popular_echoareas || [];
         renderRows('echoarea-views-rows', areas, r => r.name, r => r.views, 'bg-primary');
-        renderRows('echoarea-posts-rows', areas.slice().sort((a,b)=>(b.posts||0)-(a.posts||0)),
-            r => r.name, r => r.posts, 'bg-success');
+        renderRows('echoarea-posts-rows', areas.slice().sort((a, b) => (b.posts || 0) - (a.posts || 0)), r => r.name, r => r.posts, 'bg-success');
     }
 
     function renderDoors(data) {
-        renderRows('webdoor-rows',  data.popular_webdoors  || [], r => r.name, r => r.count, 'bg-warning');
-        renderRows('dosdoor-rows',  data.popular_dosdoors  || [], r => r.name, r => r.count, 'bg-danger');
+        renderRows('webdoor-rows', data.popular_webdoors || [], r => r.name, r => r.count, 'bg-warning');
+        renderRows('dosdoor-rows', data.popular_dosdoors || [], r => r.name, r => r.count, 'bg-danger');
     }
 
     function renderFiles(data) {
-        renderRows('file-download-rows', data.top_files       || [], r => r.name, r => r.count, 'bg-success');
-        renderRows('filearea-rows',      data.top_fileareas   || [], r => r.area_name, r => r.count, 'bg-info');
+        renderRows('file-download-rows', data.top_files || [], r => r.name, r => r.count, 'bg-success');
+        renderRows('filearea-rows', data.top_fileareas || [], r => r.area_name, r => r.count, 'bg-info');
     }
 
     function renderNodelist(data) {
         renderRows('nodelist-search-rows', data.top_nodelist_searches || [], r => r.name, r => r.count, 'bg-secondary');
-        renderRows('node-view-rows',       data.top_nodes             || [], r => r.name, r => r.count, 'bg-primary');
+        renderRows('node-view-rows', data.top_nodes || [], r => r.name, r => r.count, 'bg-primary');
     }
 
     function renderUsers(data) {
-        renderRows('top-users-rows', data.top_users || [], r => r.username || '(anon)', r => r.count, 'bg-primary');
+        renderRows('top-users-rows', data.top_users || [], r => r.username || uiT('ui.admin.activity_stats.anonymous', '(anon)'), r => r.count, 'bg-primary');
     }
 
     function renderHourly(data) {
@@ -429,21 +436,20 @@
         const tbody = document.getElementById('hourly-rows');
         const tzAbbr = getTzAbbr(data.timezone || userTimezone);
 
-        // Update timezone label in card header and column header
         document.getElementById('hourly-tz-label').textContent = tzAbbr;
         document.querySelectorAll('.hourly-tz-col').forEach(el => el.textContent = tzAbbr);
 
         if (hourly.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-3">No data</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-center py-3">${uiT('ui.admin.activity_stats.no_data', 'No data')}</td></tr>`;
             return;
         }
         const maxH = Math.max(...hourly.map(h => h.count || 0));
         tbody.innerHTML = hourly.map(h => {
-            const label = String(h.hour).padStart(2,'0') + ':00';
+            const label = String(h.hour).padStart(2, '0') + ':00';
             return `<tr>
                 <td>${label}</td>
-                <td class="text-end fw-semibold">${(h.count||0).toLocaleString()}</td>
-                <td>${progressBar(h.count||0, maxH, 'bg-primary')}</td>
+                <td class="text-end fw-semibold">${(h.count || 0).toLocaleString()}</td>
+                <td>${progressBar(h.count || 0, maxH, 'bg-primary')}</td>
             </tr>`;
         }).join('');
     }
@@ -460,22 +466,21 @@
     }
 
     function loadStats() {
-        const period        = document.getElementById('period-select').value;
+        const period = document.getElementById('period-select').value;
         const excludeAdmins = document.getElementById('exclude-admins').checked ? '1' : '0';
         document.getElementById('loading-indicator').style.display = '';
         document.getElementById('stats-content').style.display = 'none';
 
         $.getJSON('/admin/api/activity-stats?period=' + encodeURIComponent(period) + '&exclude_admins=' + excludeAdmins + '&timezone=' + encodeURIComponent(userTimezone))
             .done(function(data) {
-                statsData = data;
                 renderAll(data);
                 document.getElementById('loading-indicator').style.display = 'none';
                 document.getElementById('stats-content').style.display = '';
             })
             .fail(function(xhr) {
                 document.getElementById('loading-indicator').innerHTML =
-                    '<div class="alert alert-danger">Failed to load statistics. ' +
-                    (xhr.responseJSON && xhr.responseJSON.error ? escapeHtml(xhr.responseJSON.error) : '') + '</div>';
+                    `<div class="alert alert-danger">${uiT('ui.admin.activity_stats.failed_load_statistics_prefix', 'Failed to load statistics. ')} ` +
+                    escapeHtml(apiError(xhr.responseJSON, '')) + '</div>';
             });
     }
 
@@ -485,3 +490,6 @@
 })();
 </script>
 {% endblock %}
+
+
+

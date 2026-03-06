@@ -1,17 +1,17 @@
 {% extends "base.twig" %}
 
-{% block title %}Native Doors Config{% endblock %}
+{% block title %}{{ t('ui.admin.nativedoors_config.page_title', {}, locale, ['common']) }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">Native Doors Configuration</h1>
+        <h1 class="h2">{{ t('ui.admin.nativedoors_config.heading', {}, locale, ['common']) }}</h1>
     </div>
 
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        Native doors are Linux programs that run directly via PTY (no emulator needed). Configuration is stored in <code>config/nativedoors.json</code>.
-        Doors are discovered by scanning <code>native-doors/doors/</code> for <code>nativedoor.json</code> manifests.
+        {{ t('ui.admin.nativedoors_config.info_text_1', {}, locale, ['common']) }} <code>config/nativedoors.json</code>.
+        {{ t('ui.admin.nativedoors_config.info_text_2', {}, locale, ['common']) }} <code>native-doors/doors/</code> {{ t('ui.admin.nativedoors_config.info_text_3', {}, locale, ['common']) }} <code>nativedoor.json</code> {{ t('ui.admin.nativedoors_config.info_text_4', {}, locale, ['common']) }}
     </div>
 
     <div id="statusAlert"></div>
@@ -21,28 +21,28 @@
         <div class="col-lg-4">
             <div class="card shadow">
                 <div class="card-header">
-                    <h6 class="mb-0">Installed Doors</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.installed_doors', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body" id="doorsList">
                     <div class="text-center text-muted">
                         <div class="spinner-border spinner-border-sm" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                            <span class="visually-hidden">{{ t('ui.common.loading', {}, locale, ['common']) }}</span>
                         </div>
-                        Loading doors...
+                        {{ t('ui.admin.nativedoors_config.loading_doors', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
 
             <div class="card shadow mt-3">
                 <div class="card-header">
-                    <h6 class="mb-0">Quick Actions</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.quick_actions', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="enableAllDoors()">
-                        <i class="fas fa-check-circle"></i> Enable All Doors
+                        <i class="fas fa-check-circle"></i> {{ t('ui.admin.nativedoors_config.enable_all_doors', {}, locale, ['common']) }}
                     </button>
                     <button class="btn btn-sm btn-outline-secondary w-100" onclick="disableAllDoors()">
-                        <i class="fas fa-times-circle"></i> Disable All Doors
+                        <i class="fas fa-times-circle"></i> {{ t('ui.admin.nativedoors_config.disable_all_doors', {}, locale, ['common']) }}
                     </button>
                 </div>
             </div>
@@ -52,13 +52,13 @@
         <div class="col-lg-8">
             <div class="card shadow">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">nativedoors.json</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.config_filename', {}, locale, ['common']) }}</h6>
                     <div class="btn-group">
                         <button class="btn btn-sm btn-outline-secondary" onclick="formatJson()">
-                            <i class="fas fa-align-left"></i> Format
+                            <i class="fas fa-align-left"></i> {{ t('ui.admin.nativedoors_config.format', {}, locale, ['common']) }}
                         </button>
                         <button class="btn btn-sm btn-outline-primary" onclick="saveConfig()" id="saveBtn">
-                            <i class="fas fa-save"></i> Save
+                            <i class="fas fa-save"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                         </button>
                     </div>
                 </div>
@@ -66,8 +66,8 @@
                     <div id="editorAlert"></div>
                     <textarea id="configEditor" class="form-control font-monospace" rows="20" spellcheck="false"></textarea>
                     <div class="d-flex justify-content-between align-items-center mt-2">
-                        <small class="text-muted" id="jsonStatus">Loading config...</small>
-                        <small class="text-muted">JSON validation runs before saving</small>
+                        <small class="text-muted" id="jsonStatus">{{ t('ui.admin.nativedoors_config.loading_config', {}, locale, ['common']) }}</small>
+                        <small class="text-muted">{{ t('ui.admin.nativedoors_config.json_validation_before_save', {}, locale, ['common']) }}</small>
                     </div>
                 </div>
             </div>
@@ -75,25 +75,25 @@
             <!-- Door Configuration Help -->
             <div class="card shadow mt-3">
                 <div class="card-header">
-                    <h6 class="mb-0">Configuration Options</h6>
+                    <h6 class="mb-0">{{ t('ui.admin.nativedoors_config.configuration_options', {}, locale, ['common']) }}</h6>
                 </div>
                 <div class="card-body">
                     <table class="table table-sm table-borderless">
                         <tr>
                             <td class="text-nowrap"><code>enabled</code></td>
-                            <td>Whether the door is available to users</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_enabled_help', {}, locale, ['common']) }}</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>credit_cost</code></td>
-                            <td>Credits required to play (0 = free). Must be 0 for anonymous access.</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_credit_cost_help', {}, locale, ['common']) }}</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>max_time_minutes</code></td>
-                            <td>Maximum play time per session</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_max_time_help', {}, locale, ['common']) }}</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>max_concurrent_sessions</code></td>
-                            <td>Maximum simultaneous players</td>
+                            <td>{{ t('ui.admin.nativedoors_config.option_max_concurrent_help', {}, locale, ['common']) }}</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>allow_anonymous</code></td>
@@ -120,6 +120,20 @@ let doorsState = {
     serverPlatform: ''
 };
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadConfig();
     loadAvailableDoors();
@@ -135,7 +149,7 @@ function loadConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load config');
+                throw new Error(apiError(data, uiT('ui.admin.nativedoors_config.load_config_failed', 'Failed to load config')));
             }
 
             doorsState.config = data.config || {};
@@ -148,7 +162,7 @@ function loadConfig() {
             renderDoorsList();
         })
         .catch(error => {
-            showAlert('danger', 'Error loading config: ' + error.message);
+            showAlert('danger', uiT('ui.admin.nativedoors_config.load_config_error_prefix', 'Error loading config: ') + error.message);
         });
 }
 
@@ -157,7 +171,7 @@ function loadAvailableDoors() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Failed to load doors');
+                throw new Error(apiError(data, uiT('ui.admin.nativedoors_config.load_doors_failed', 'Failed to load doors')));
             }
 
             doorsState.availableDoors = data.doors || [];
@@ -165,7 +179,7 @@ function loadAvailableDoors() {
             renderDoorsList();
         })
         .catch(error => {
-            showAlert('danger', 'Error loading available doors: ' + error.message);
+            showAlert('danger', uiT('ui.admin.nativedoors_config.load_doors_error_prefix', 'Error loading available doors: ') + error.message);
         });
 }
 
@@ -173,7 +187,7 @@ function renderDoorsList() {
     const container = document.getElementById('doorsList');
 
     if (doorsState.availableDoors.length === 0) {
-        container.innerHTML = '<div class="text-muted">No doors found. Install doors in <code>native-doors/doors/</code></div>';
+        container.innerHTML = '<div class="text-muted">' + uiT('ui.admin.nativedoors_config.no_doors_found_prefix', 'No doors found. Install doors in') + ' <code>native-doors/doors/</code></div>';
         return;
     }
 
@@ -226,18 +240,20 @@ function renderDoorsList() {
                             <i class="fas ${statusIcon} text-${statusClass}"></i>
                             <strong>${escHtml(door.name)}</strong>
                         </div>
-                        <div class="small text-muted">${escHtml(door.description || 'No description')}</div>
+                        <div class="small text-muted">${escHtml(door.description || uiT('ui.admin.nativedoors_config.no_description', 'No description'))}</div>
                         <div class="small mt-1">
                             <span class="badge bg-secondary">${escHtml(door.id)}</span>
-                            ${cost > 0 ? `<span class="badge bg-info">${cost} credits</span>` : '<span class="badge bg-success">Free</span>'}
+                            ${cost > 0 ? `<span class="badge bg-info">${cost} ${uiT('ui.admin.nativedoors_config.credits', 'credits')}</span>` : '<span class="badge bg-success">' + uiT('ui.admin.nativedoors_config.free', 'Free') + '</span>'}
                             ${platformBadge}
+
+
                         </div>
                     </div>
                     <div class="btn-group-vertical btn-group-sm">
                         <button class="btn btn-outline-${enabled ? 'success' : 'secondary'} toggle-door-btn"
                                 data-door-id="${escHtml(door.id)}"
                                 data-enable="${!enabled}"
-                                title="${enabled ? 'Disable' : 'Enable'}">
+                                title="${enabled ? uiT('ui.admin.nativedoors_config.disable', 'Disable') : uiT('ui.admin.nativedoors_config.enable', 'Enable')}">
                             <i class="fas fa-power-off"></i>
                         </button>
                     </div>
@@ -282,7 +298,7 @@ function toggleDoor(doorId, enable) {
         updateJsonStatus();
         renderDoorsList();
     } catch (e) {
-        showEditorAlert('danger', 'Invalid JSON - cannot toggle door');
+        showEditorAlert('danger', uiT('ui.admin.nativedoors_config.invalid_json_toggle', 'Invalid JSON - cannot toggle door'));
     }
 }
 
@@ -313,9 +329,9 @@ function enableAllDoors() {
         editor.value = JSON.stringify(config, null, 4);
         updateJsonStatus();
         renderDoorsList();
-        showEditorAlert('success', 'All doors enabled in editor. Click Save to apply.');
+        showEditorAlert('success', uiT('ui.admin.nativedoors_config.enabled_all_editor', 'All doors enabled in editor. Click Save to apply.'));
     } catch (e) {
-        showEditorAlert('danger', 'Invalid JSON - cannot enable all');
+        showEditorAlert('danger', uiT('ui.admin.nativedoors_config.invalid_json_enable_all', 'Invalid JSON - cannot enable all'));
     }
 }
 
@@ -331,9 +347,9 @@ function disableAllDoors() {
         editor.value = JSON.stringify(config, null, 4);
         updateJsonStatus();
         renderDoorsList();
-        showEditorAlert('warning', 'All doors disabled in editor. Click Save to apply.');
+        showEditorAlert('warning', uiT('ui.admin.nativedoors_config.disabled_all_editor', 'All doors disabled in editor. Click Save to apply.'));
     } catch (e) {
-        showEditorAlert('danger', 'Invalid JSON - cannot disable all');
+        showEditorAlert('danger', uiT('ui.admin.nativedoors_config.invalid_json_disable_all', 'Invalid JSON - cannot disable all'));
     }
 }
 
@@ -343,9 +359,9 @@ function formatJson() {
         const config = JSON.parse(editor.value);
         editor.value = JSON.stringify(config, null, 4);
         updateJsonStatus();
-        showEditorAlert('success', 'JSON formatted successfully');
+        showEditorAlert('success', uiT('ui.admin.nativedoors_config.json_formatted', 'JSON formatted successfully'));
     } catch (e) {
-        showEditorAlert('danger', 'Cannot format - invalid JSON: ' + e.message);
+        showEditorAlert('danger', uiT('ui.admin.nativedoors_config.cannot_format_prefix', 'Cannot format - invalid JSON: ') + e.message);
     }
 }
 
@@ -356,20 +372,19 @@ function updateJsonStatus() {
     try {
         const value = editor.value.trim();
         if (!value) {
-            status.textContent = 'Empty configuration';
+            status.textContent = uiT('ui.admin.nativedoors_config.empty_config', 'Empty configuration');
             status.className = 'text-warning';
             return;
         }
 
         JSON.parse(value);
-        status.textContent = 'Valid JSON ✓';
+        status.textContent = uiT('ui.admin.nativedoors_config.valid_json', 'Valid JSON');
         status.className = 'text-success';
     } catch (e) {
-        status.textContent = 'Invalid JSON: ' + e.message;
+        status.textContent = uiT('ui.admin.nativedoors_config.invalid_json_prefix', 'Invalid JSON: ') + e.message;
         status.className = 'text-danger';
     }
 }
-
 function saveConfig() {
     const editor = document.getElementById('configEditor');
 
@@ -388,21 +403,24 @@ function saveConfig() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                throw new Error(data.error || 'Save failed');
+                throw new Error(apiError(data, uiT('ui.admin.nativedoors_config.save_failed', 'Save failed')));
             }
 
             doorsState.config = data.config;
-            showAlert('success', 'Configuration saved successfully!');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.admin.nativedoors_config.saved_success', 'Configuration saved successfully!'))
+                : uiT('ui.admin.nativedoors_config.saved_success', 'Configuration saved successfully!');
+            showAlert('success', successMessage);
             renderDoorsList();
         })
         .catch(error => {
-            showAlert('danger', 'Error saving config: ' + error.message);
+            showAlert('danger', uiT('ui.admin.nativedoors_config.save_error_prefix', 'Error saving config: ') + error.message);
         })
         .finally(() => {
             document.getElementById('saveBtn').disabled = false;
         });
     } catch (e) {
-        showEditorAlert('danger', 'Cannot save - invalid JSON: ' + e.message);
+        showEditorAlert('danger', uiT('ui.admin.nativedoors_config.cannot_save_invalid_json_prefix', 'Cannot save - invalid JSON: ') + e.message);
     }
 }
 
@@ -430,3 +448,4 @@ function showEditorAlert(type, message) {
 }
 </script>
 {% endblock %}
+

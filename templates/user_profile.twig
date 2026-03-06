@@ -1,17 +1,17 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ profile_username }}'s Profile - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.user_profile.title_with_username', {'username': profile_username}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-user"></i>
-        {{ profile_username }}'s Profile
+        {{ t('ui.user_profile.title_with_username', {'username': profile_username}, 'common') }}
     </h2>
     {% if is_own_profile %}
         <a href="/profile" class="btn btn-sm btn-fidonet">
             <i class="fas fa-edit"></i>
-            Edit My Profile
+            {{ t('ui.user_profile.edit_my_profile', {}, 'common') }}
         </a>
     {% endif %}
 </div>
@@ -20,20 +20,20 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">User Information</h5>
+                <h5 class="mb-0">{{ t('ui.user_profile.user_information', {}, 'common') }}</h5>
             </div>
             <div class="card-body">
                 <dl class="row">
-                    <dt class="col-sm-3">Username:</dt>
+                    <dt class="col-sm-3">{{ t('ui.user_profile.username', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">{{ profile_username }}</dd>
 
                     {% if can_view_sensitive %}
-                    <dt class="col-sm-3">Real Name:</dt>
-                    <dd class="col-sm-9">{{ profile_real_name|default('Not specified') }}</dd>
+                    <dt class="col-sm-3">{{ t('ui.user_profile.real_name', {}, 'common') }}:</dt>
+                    <dd class="col-sm-9">{{ profile_real_name|default(t('ui.user_profile.not_specified', {}, 'common')) }}</dd>
                     {% endif %}
 
                     {% if profile_location %}
-                    <dt class="col-sm-3">Location:</dt>
+                    <dt class="col-sm-3">{{ t('ui.user_profile.location', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">
                         <i class="fas fa-map-marker-alt me-1"></i>
                         {{ profile_location }}
@@ -41,26 +41,26 @@
                     {% endif %}
 
                     {% if profile_fidonet_address and can_view_sensitive %}
-                    <dt class="col-sm-3">FidoNet Address:</dt>
+                    <dt class="col-sm-3">{{ t('ui.user_profile.fidonet_address', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">
                         <code>{{ profile_fidonet_address }}</code>
                     </dd>
                     {% endif %}
 
-                    <dt class="col-sm-3">Member Since:</dt>
+                    <dt class="col-sm-3">{{ t('ui.user_profile.member_since', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">{{ profile_created_at|date('F j, Y') }}</dd>
 
                     {% if profile_last_login and can_view_sensitive %}
-                    <dt class="col-sm-3">Last Seen:</dt>
+                    <dt class="col-sm-3">{{ t('ui.user_profile.last_seen', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">{{ profile_last_login|date('F j, Y g:i A') }}</dd>
                     {% endif %}
 
-                    <dt class="col-sm-3">Role:</dt>
+                    <dt class="col-sm-3">{{ t('ui.user_profile.role', {}, 'common') }}:</dt>
                     <dd class="col-sm-9">
                         {% if profile_is_admin %}
-                            <span class="badge bg-danger">Administrator</span>
+                            <span class="badge bg-danger">{{ t('ui.user_profile.role_administrator', {}, 'common') }}</span>
                         {% else %}
-                            <span class="badge bg-primary">User</span>
+                            <span class="badge bg-primary">{{ t('ui.user_profile.role_user', {}, 'common') }}</span>
                         {% endif %}
                     </dd>
                 </dl>
@@ -72,12 +72,12 @@
         {% if credits_enabled and can_view_sensitive %}
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Credits</h6>
+                <h6 class="mb-0">{{ t('ui.user_profile.credits', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
                 <div class="text-center">
                     <h3 class="mb-0">{{ credits_symbol }}{{ credit_balance }}</h3>
-                    <small class="text-muted">Current Balance</small>
+                    <small class="text-muted">{{ t('ui.user_profile.current_balance', {}, 'common') }}</small>
                 </div>
             </div>
         </div>
@@ -86,28 +86,28 @@
         {% if credits_enabled and not is_own_profile %}
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Send Credits</h6>
+                <h6 class="mb-0">{{ t('ui.user_profile.send_credits', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
                 <div id="sendCreditsAlert"></div>
                 <form id="sendCreditsForm">
                     <div class="mb-3">
-                        <label for="creditAmount" class="form-label">Amount</label>
+                        <label for="creditAmount" class="form-label">{{ t('ui.user_profile.amount', {}, 'common') }}</label>
                         <input type="number" class="form-control" id="creditAmount" name="amount" min="1" max="200" required>
-                        <small class="text-muted">Max 200 credits per transaction. {{ (transfer_fee_percent * 100)|round(1) }}% fee applies.</small>
+                        <small class="text-muted">{{ t('ui.user_profile.send_credits_limit_fee', {'fee_percent': (transfer_fee_percent * 100)|round(1)}, 'common') }}</small>
                     </div>
                     <div class="mb-3">
-                        <label for="creditMessage" class="form-label">Message (optional)</label>
-                        <input type="text" class="form-control" id="creditMessage" name="message" maxlength="100" placeholder="What's this for?">
+                        <label for="creditMessage" class="form-label">{{ t('ui.user_profile.message_optional', {}, 'common') }}</label>
+                        <input type="text" class="form-control" id="creditMessage" name="message" maxlength="100" placeholder="{{ t('ui.user_profile.message_optional_placeholder', {}, 'common') }}">
                     </div>
                     <button type="submit" class="btn btn-success w-100">
-                        <i class="fas fa-paper-plane me-2"></i>Send Credits
+                        <i class="fas fa-paper-plane me-2"></i>{{ t('ui.user_profile.send_credits', {}, 'common') }}
                     </button>
                 </form>
                 <div class="mt-2">
                     <small class="text-muted">
                         <i class="fas fa-info-circle me-1"></i>
-                        {{ (transfer_fee_percent * 100)|round(1) }}% transaction fee distributed to system operators
+                        {{ t('ui.user_profile.send_credits_fee_note', {'fee_percent': (transfer_fee_percent * 100)|round(1)}, 'common') }}
                     </small>
                 </div>
             </div>
@@ -117,17 +117,17 @@
         {% if can_view_sensitive %}
         <div class="card {% if credits_enabled %}mt-3{% endif %}">
             <div class="card-header">
-                <h6 class="mb-0">Activity Summary</h6>
+                <h6 class="mb-0">{{ t('ui.user_profile.activity_summary', {}, 'common') }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-8">Netmail Sent:</dt>
+                    <dt class="col-8">{{ t('ui.user_profile.netmail_sent', {}, 'common') }}:</dt>
                     <dd class="col-4"><span id="netmailCount">-</span></dd>
 
-                    <dt class="col-8">Echomail Posted:</dt>
+                    <dt class="col-8">{{ t('ui.user_profile.echomail_posted', {}, 'common') }}:</dt>
                     <dd class="col-4"><span id="echomailCount">-</span></dd>
 
-                    <dt class="col-8">Total Messages:</dt>
+                    <dt class="col-8">{{ t('ui.user_profile.total_messages', {}, 'common') }}:</dt>
                     <dd class="col-4"><strong><span id="totalCount">-</span></strong></dd>
                 </dl>
             </div>
@@ -136,7 +136,7 @@
         <div class="card">
             <div class="card-body text-center text-muted">
                 <i class="fas fa-lock fa-2x mb-2"></i>
-                <p class="mb-0">Additional profile information is private</p>
+                <p class="mb-0">{{ t('ui.user_profile.additional_info_private', {}, 'common') }}</p>
             </div>
         </div>
         {% endif %}
@@ -148,8 +148,8 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Transaction History</h5>
-                <span class="badge bg-secondary">Admin View</span>
+                <h5 class="mb-0">{{ t('ui.user_profile.transaction_history', {}, 'common') }}</h5>
+                <span class="badge bg-secondary">{{ t('ui.user_profile.admin_view', {}, 'common') }}</span>
             </div>
             <div class="card-body p-0">
                 {% if transactions|length > 0 %}
@@ -157,11 +157,11 @@
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 15%">Date</th>
-                                <th style="width: 15%">Type</th>
-                                <th>Description</th>
-                                <th style="width: 12%" class="text-end">Amount</th>
-                                <th style="width: 12%" class="text-end">Balance</th>
+                                <th style="width: 15%">{{ t('ui.user_profile.date', {}, 'common') }}</th>
+                                <th style="width: 15%">{{ t('ui.user_profile.type', {}, 'common') }}</th>
+                                <th>{{ t('ui.user_profile.description', {}, 'common') }}</th>
+                                <th style="width: 12%" class="text-end">{{ t('ui.user_profile.amount', {}, 'common') }}</th>
+                                <th style="width: 12%" class="text-end">{{ t('ui.user_profile.balance', {}, 'common') }}</th>
                             </tr>
                         </thead>
                         <tbody id="transactionTableBody">
@@ -189,13 +189,13 @@
                 <div class="card-footer bg-light" id="loadMoreSection">
                     <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="loadMoreBtn" onclick="loadMoreTransactions()">
                         <i class="fas fa-chevron-down me-2"></i>
-                        Load More Transactions
+                        {{ t('ui.user_profile.load_more_transactions', {}, 'common') }}
                     </button>
                 </div>
                 {% else %}
                 <div class="p-3 text-center text-muted">
                     <i class="fas fa-receipt fa-2x mb-2"></i>
-                    <p class="mb-0">No transactions yet</p>
+                    <p class="mb-0">{{ t('ui.user_profile.no_transactions_yet', {}, 'common') }}</p>
                 </div>
                 {% endif %}
             </div>
@@ -208,6 +208,13 @@
 {% block scripts %}
 <script>
 let currentOffset = 10; // We already loaded 10 transactions
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
 
 $(document).ready(function() {
     {% if can_view_sensitive %}
@@ -239,13 +246,13 @@ function sendCredits() {
     const message = $('#creditMessage').val();
 
     if (amount < 1 || amount > 200) {
-        showSendCreditsAlert('Amount must be between 1 and 200 credits', 'danger');
+        showSendCreditsAlert(uiT('errors.credits.send.invalid_amount', 'Amount must be between 1 and 200 credits'), 'danger');
         return;
     }
 
     const btn = $('#sendCreditsForm button[type=submit]');
     const originalHtml = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Sending...');
+    btn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.user_profile.sending', 'Sending...')}`);
 
     $.ajax({
         url: '/api/credits/send',
@@ -258,18 +265,33 @@ function sendCredits() {
         }),
         success: function(response) {
             if (response.success) {
-                showSendCreditsAlert(
-                    `Successfully sent {{ credits_symbol }}${amount} to {{ profile_username }}! ` +
-                    `(Fee: {{ credits_symbol }}${response.fee}, They received: {{ credits_symbol }}${response.amount_received})`,
-                    'success'
+                const fallbackMessage = uiT(
+                    'ui.user_profile.send_credits_success',
+                    'Successfully sent {{ credits_symbol }}{amount} to {{ profile_username }}! (Fee: {{ credits_symbol }}{fee}, They received: {{ credits_symbol }}{received})',
+                    {
+                        symbol: '{{ credits_symbol }}',
+                        username: '{{ profile_username|e('js') }}',
+                        amount: amount,
+                        fee: response.fee,
+                        received: response.amount_received
+                    }
                 );
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, fallbackMessage)
+                    : fallbackMessage;
+                showSendCreditsAlert(successMessage, 'success');
                 $('#sendCreditsForm')[0].reset();
             } else {
-                showSendCreditsAlert(response.error || 'Failed to send credits', 'danger');
+                const err = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(response, uiT('errors.credits.send.failed', 'Failed to send credits'))
+                    : uiT('errors.credits.send.failed', 'Failed to send credits');
+                showSendCreditsAlert(err, 'danger');
             }
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to send credits';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.credits.send.failed', 'Failed to send credits'))
+                : uiT('errors.credits.send.failed', 'Failed to send credits');
             showSendCreditsAlert(error, 'danger');
         },
         complete: function() {
@@ -300,7 +322,7 @@ function loadMoreTransactions() {
     const btn = $('#loadMoreBtn');
     const originalHtml = btn.html();
 
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Loading...');
+    btn.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin me-2"></i>${uiT('ui.common.loading', 'Loading...')}`);
 
     $.get('/api/user/transactions/{{ profile_user_id }}?offset=' + currentOffset + '&limit=10')
         .done(function(data) {
@@ -345,14 +367,14 @@ function loadMoreTransactions() {
 
                 // Hide button if we loaded less than requested (no more transactions)
                 if (data.transactions.length < 10) {
-                    $('#loadMoreSection').html('<div class="text-center text-muted p-2"><small>No more transactions</small></div>');
+                    $('#loadMoreSection').html(`<div class="text-center text-muted p-2"><small>${uiT('ui.user_profile.no_more_transactions', 'No more transactions')}</small></div>`);
                 }
             } else {
-                $('#loadMoreSection').html('<div class="text-center text-muted p-2"><small>No more transactions</small></div>');
+                $('#loadMoreSection').html(`<div class="text-center text-muted p-2"><small>${uiT('ui.user_profile.no_more_transactions', 'No more transactions')}</small></div>`);
             }
         })
         .fail(function() {
-            alert('Failed to load transactions');
+            alert(uiT('ui.user_profile.load_transactions_failed', 'Failed to load transactions'));
         })
         .always(function() {
             btn.prop('disabled', false).html(originalHtml);

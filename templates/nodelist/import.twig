@@ -1,28 +1,30 @@
 {% extends "base.twig" %}
 
-{% block title %}{{ title }} - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.nodelist.import.heading', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-upload"></i> Import Nodelist</h2>
+                <h2><i class="fas fa-upload"></i> {{ t('ui.nodelist.import.heading', {}, locale, ['common']) }}</h2>
                 <a href="/nodelist" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to List
+                    <i class="fas fa-arrow-left"></i> {{ t('ui.nodelist.back_to_list', {}, locale, ['common']) }}
                 </a>
             </div>
 
-            {% if message %}
+            {% if import_message_code %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="fas fa-check-circle"></i> {{ message }}
+                    <i class="fas fa-check-circle"></i>
+                    {{ t(import_message_code, import_message_params|default({}), locale, ['common']) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% endif %}
 
-            {% if error %}
+            {% if import_error_code %}
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="fas fa-exclamation-triangle"></i> {{ error }}
+                    <i class="fas fa-exclamation-triangle"></i>
+                    {{ t(import_error_code, import_error_params|default({}), locale, ['errors']) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% endif %}
@@ -31,29 +33,29 @@
                 <div class="col-lg-8">
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="mb-0">Upload New Nodelist</h5>
+                            <h5 class="mb-0">{{ t('ui.nodelist.import.upload_new_nodelist', {}, locale, ['common']) }}</h5>
                         </div>
                         <div class="card-body">
                             <form method="POST" enctype="multipart/form-data" id="importForm">
                                 <div class="mb-3">
-                                    <label for="domain" class="form-label">Network Domain</label>
+                                    <label for="domain" class="form-label">{{ t('ui.nodelist.import.network_domain', {}, locale, ['common']) }}</label>
                                     <input type="text" class="form-control" id="domain" name="domain" required
-                                           placeholder="e.g., fidonet, fsxnet, agoranet"
+                                           placeholder="{{ t('ui.nodelist.import.domain_placeholder', {}, locale, ['common']) }}"
                                            pattern="[a-zA-Z0-9_-]+"
-                                           title="Domain should contain only letters, numbers, underscores, and hyphens">
+                                           title="{{ t('ui.nodelist.import.domain_title', {}, locale, ['common']) }}">
                                     <div class="form-text">
-                                        The FTN network domain this nodelist belongs to (e.g., fidonet, fsxnet).
-                                        This is used to distinguish nodes from different networks.
+                                        {{ t('ui.nodelist.import.domain_help_1', {}, locale, ['common']) }}
+                                        {{ t('ui.nodelist.import.domain_help_2', {}, locale, ['common']) }}
                                     </div>
                                 </div>
 
                                 <div class="mb-3">
-                                    <label for="nodelist" class="form-label">Nodelist File</label>
+                                    <label for="nodelist" class="form-label">{{ t('ui.nodelist.import.nodelist_file', {}, locale, ['common']) }}</label>
                                     <input type="file" class="form-control" id="nodelist" name="nodelist" required
                                            accept=".txt,.lst,.nodelist,.z*">
                                     <div class="form-text">
-                                        Upload a FidoNet nodelist file (NODELIST.xxx format).
-                                        Supported: Plain text (.txt, .lst, .nodelist) and ZIP compressed (.Zxxx)
+                                        {{ t('ui.nodelist.import.nodelist_help_1', {}, locale, ['common']) }}
+                                        {{ t('ui.nodelist.import.nodelist_help_2', {}, locale, ['common']) }}
                                     </div>
                                 </div>
 
@@ -61,26 +63,26 @@
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="archiveOld" name="archive_old" checked>
                                         <label class="form-check-label" for="archiveOld">
-                                            Archive current nodelist before importing
+                                            {{ t('ui.nodelist.import.archive_before_import', {}, locale, ['common']) }}
                                         </label>
                                         <div class="form-text">
-                                            Recommended: Keep the current nodelist as inactive backup before importing the new one.
+                                            {{ t('ui.nodelist.import.archive_help', {}, locale, ['common']) }}
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="alert alert-warning">
                                     <i class="fas fa-exclamation-triangle"></i>
-                                    <strong>Warning:</strong> Importing a new nodelist will replace the current active nodelist data for this domain.
-                                    This operation cannot be undone. Make sure you have a backup if needed.
+                                    <strong>{{ t('ui.nodelist.import.warning', {}, locale, ['common']) }}</strong> {{ t('ui.nodelist.import.warning_text_1', {}, locale, ['common']) }}
+                                    {{ t('ui.nodelist.import.warning_text_2', {}, locale, ['common']) }}
                                 </div>
 
                                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                    <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancel</button>
+                                    <button type="button" class="btn btn-secondary" onclick="window.history.back()">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                                     <button type="submit" class="btn btn-primary" id="importBtn">
                                         <span class="spinner-border spinner-border-sm d-none" id="spinner"></span>
                                         <i class="fas fa-upload" id="uploadIcon"></i>
-                                        Import Nodelist
+                                        {{ t('ui.nodelist.import.import_nodelist', {}, locale, ['common']) }}
                                     </button>
                                 </div>
                             </form>
@@ -92,34 +94,34 @@
                     <!-- Current Status -->
                     <div class="card mb-3">
                         <div class="card-header">
-                            <h6 class="mb-0">Current Nodelist Status</h6>
+                            <h6 class="mb-0">{{ t('ui.nodelist.import.current_status', {}, locale, ['common']) }}</h6>
                         </div>
                         <div class="card-body">
                             {% if activeNodelist %}
                                 <table class="table table-sm mb-0">
                                     <tr>
-                                        <th>File:</th>
+                                        <th>{{ t('ui.nodelist.import.file', {}, locale, ['common']) }}</th>
                                         <td>{{ activeNodelist.filename }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Day of Year:</th>
+                                        <th>{{ t('ui.nodelist.import.day_of_year', {}, locale, ['common']) }}</th>
                                         <td>{{ activeNodelist.day_of_year }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Release Date:</th>
+                                        <th>{{ t('ui.nodelist.import.release_date', {}, locale, ['common']) }}</th>
                                         <td>{{ activeNodelist.release_date|date('M d, Y') }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Total Nodes:</th>
+                                        <th>{{ t('ui.nodelist.import.total_nodes', {}, locale, ['common']) }}</th>
                                         <td>{{ activeNodelist.total_nodes|number_format }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Imported:</th>
+                                        <th>{{ t('ui.nodelist.import.imported', {}, locale, ['common']) }}</th>
                                         <td>{{ activeNodelist.imported_at|date('M d, Y H:i') }}</td>
                                     </tr>
                                 </table>
                             {% else %}
-                                <p class="text-muted mb-0">No active nodelist found.</p>
+                                <p class="text-muted mb-0">{{ t('ui.nodelist.import.no_active_nodelist', {}, locale, ['common']) }}</p>
                             {% endif %}
                         </div>
                     </div>
@@ -128,32 +130,32 @@
                     {% if stats %}
                         <div class="card">
                             <div class="card-header">
-                                <h6 class="mb-0">Node Statistics</h6>
+                                <h6 class="mb-0">{{ t('ui.nodelist.import.node_statistics', {}, locale, ['common']) }}</h6>
                             </div>
                             <div class="card-body">
                                 <div class="row text-center">
                                     <div class="col-6">
                                         <h4 class="text-primary mb-0">{{ stats.total_nodes|number_format }}</h4>
-                                        <small class="text-muted">Total Nodes</small>
+                                        <small class="text-muted">{{ t('ui.nodelist.import.total_nodes_label', {}, locale, ['common']) }}</small>
                                     </div>
                                     <div class="col-6">
                                         <h4 class="text-info mb-0">{{ stats.total_zones }}</h4>
-                                        <small class="text-muted">Zones</small>
+                                        <small class="text-muted">{{ t('ui.nodelist.index.zones', {}, locale, ['common']) }}</small>
                                     </div>
                                 </div>
                                 <hr>
                                 <div class="row text-center">
                                     <div class="col-4">
                                         <strong>{{ stats.total_nets }}</strong><br>
-                                        <small class="text-muted">Nets</small>
+                                        <small class="text-muted">{{ t('ui.nodelist.index.nets', {}, locale, ['common']) }}</small>
                                     </div>
                                     <div class="col-4">
                                         <strong>{{ stats.point_nodes }}</strong><br>
-                                        <small class="text-muted">Points</small>
+                                        <small class="text-muted">{{ t('ui.nodelist.index.points', {}, locale, ['common']) }}</small>
                                     </div>
                                     <div class="col-4">
                                         <strong>{{ stats.special_nodes }}</strong><br>
-                                        <small class="text-muted">Special</small>
+                                        <small class="text-muted">{{ t('ui.nodelist.index.special', {}, locale, ['common']) }}</small>
                                     </div>
                                 </div>
                             </div>
@@ -163,20 +165,20 @@
                     <!-- Import Guidelines -->
                     <div class="card mt-3">
                         <div class="card-header">
-                            <h6 class="mb-0">Import Guidelines</h6>
+                            <h6 class="mb-0">{{ t('ui.nodelist.import.guidelines', {}, locale, ['common']) }}</h6>
                         </div>
                         <div class="card-body">
                             <ul class="list-unstyled mb-0">
-                                <li class="mb-2"><i class="fas fa-check text-success"></i> Standard FTS-0005 format</li>
-                                <li class="mb-2"><i class="fas fa-check text-success"></i> ASCII text with CR/LF endings</li>
-                                <li class="mb-2"><i class="fas fa-check text-success"></i> Proper header with CRC</li>
-                                <li class="mb-2"><i class="fas fa-check text-success"></i> Zone/Net/Node hierarchy</li>
-                                <li class="mb-0"><i class="fas fa-check text-success"></i> ZIP compressed files (.Zxxx)</li>
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> {{ t('ui.nodelist.import.guideline_1', {}, locale, ['common']) }}</li>
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> {{ t('ui.nodelist.import.guideline_2', {}, locale, ['common']) }}</li>
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> {{ t('ui.nodelist.import.guideline_3', {}, locale, ['common']) }}</li>
+                                <li class="mb-2"><i class="fas fa-check text-success"></i> {{ t('ui.nodelist.import.guideline_4', {}, locale, ['common']) }}</li>
+                                <li class="mb-0"><i class="fas fa-check text-success"></i> {{ t('ui.nodelist.import.guideline_5', {}, locale, ['common']) }}</li>
                             </ul>
                             <div class="mt-2">
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle"></i>
-                                    For ARC, ARJ, LZH, RAR files, use the command-line import script
+                                    {{ t('ui.nodelist.import.guideline_note', {}, locale, ['common']) }}
                                 </small>
                             </div>
                         </div>
@@ -198,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
         importBtn.disabled = true;
         spinner.classList.remove('d-none');
         uploadIcon.classList.add('d-none');
-        importBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Importing...';
+        importBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + {{ t('ui.nodelist.import.importing', {}, locale, ['common'])|json_encode|raw }};
     });
 });
 </script>

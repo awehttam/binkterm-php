@@ -1,12 +1,12 @@
 {% extends "base.twig" %}
 
-{% block title %}Settings - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.settings.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-cog"></i>
-        Settings
+        {{ t('ui.settings.title', {}, locale, ['common']) }}
     </h2>
 </div>
 
@@ -14,23 +14,23 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Display Preferences</h5>
+                <h5 class="mb-0">{{ t('ui.settings.display_preferences', {}, locale, ['common']) }}</h5>
             </div>
             <div class="card-body">
                 <form id="settingsForm">
                     <div class="mb-3">
-                        <label for="messagesPerPage" class="form-label">Messages per Page</label>
+                        <label for="messagesPerPage" class="form-label">{{ t('ui.settings.messages_per_page', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="messagesPerPage" name="messages_per_page">
                             <option value="10">10 messages</option>
                             <option value="25" selected>25 messages</option>
                             <option value="50">50 messages</option>
                             <option value="100">100 messages</option>
                         </select>
-                        <div class="form-text">Number of messages to display per page</div>
+                        <div class="form-text">{{ t('ui.settings.messages_per_page_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="timezone" class="form-label">Timezone</label>
+                        <label for="timezone" class="form-label">{{ t('ui.settings.timezone', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="timezone" name="timezone">
                             <option value="UTC">UTC (Coordinated Universal Time)</option>
                             <option value="America/New_York">Eastern Time (US/Canada)</option>
@@ -42,11 +42,21 @@
                             <option value="Asia/Tokyo">Japan Standard Time</option>
                             <option value="Australia/Sydney">Australian Eastern Time</option>
                         </select>
-                        <div class="form-text">Your local timezone for displaying dates</div>
+                        <div class="form-text">{{ t('ui.settings.timezone_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="dateFormat" class="form-label">Date Format</label>
+                        <label for="locale" class="form-label">{{ t('ui.settings.language', {}, locale, ['common']) }}</label>
+                        <select class="form-select" id="locale" name="locale">
+                            {% for localeCode in supported_locales %}
+                                <option value="{{ localeCode }}">{{ localeCode }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">{{ t('ui.settings.language_help', {}, locale, ['common']) }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="dateFormat" class="form-label">{{ t('ui.settings.date_format', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="dateFormat" name="date_format">
                             <option value="en-US" selected>American (MM/DD/YYYY) - Jan 31, 2026, 10:30 AM</option>
                             <option value="en-GB">British (DD/MM/YYYY) - 31 Jan 2026, 10:30</option>
@@ -59,42 +69,42 @@
                             <option value="zh-CN">Chinese (YYYY/M/D) - 2026/1/31 上午10:30</option>
                             <option value="sv-SE">Swedish (YYYY-MM-DD) - 2026-01-31 10:30</option>
                         </select>
-                        <div class="form-text">Your preferred date and time format</div>
+                        <div class="form-text">{{ t('ui.settings.date_format_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="theme" class="form-label">Theme</label>
+                        <label for="theme" class="form-label">{{ t('ui.settings.theme', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="theme" name="theme">
                             {% for name, path in available_themes %}
                                 <option value="{{ path }}">{{ name }}</option>
                             {% endfor %}
                         </select>
-                        <div class="form-text">Choose your preferred color scheme</div>
+                        <div class="form-text">{{ t('ui.settings.theme_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     {% if not appearance.shell.lock_shell %}
                     <div class="mb-3">
-                        <label for="shellPreference" class="form-label">Interface Style</label>
+                        <label for="shellPreference" class="form-label">{{ t('ui.settings.interface_style', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="shellPreference" name="shell">
-                            <option value="web">Web Interface (default navbar &amp; menus)</option>
-                            <option value="bbs-menu">BBS Menu (hotkey navigation)</option>
+                            <option value="web">{{ t('ui.settings.interface_style.web', {}, locale, ['common']) }}</option>
+                            <option value="bbs-menu">{{ t('ui.settings.interface_style.bbs_menu', {}, locale, ['common']) }}</option>
                         </select>
-                        <div class="form-text">Choose your preferred navigation style.</div>
+                        <div class="form-text">{{ t('ui.settings.interface_style_help', {}, locale, ['common']) }}</div>
                     </div>
                     {% endif %}
 
                     <div class="mb-3">
-                        <label for="defaultEchoList" class="form-label">Default Echo Area List</label>
+                        <label for="defaultEchoList" class="form-label">{{ t('ui.settings.default_echo_list', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="defaultEchoList" name="default_echo_list">
-                            <option value="system_choice" selected>System Default</option>
-                            <option value="reader">Reader (Message List)</option>
-                            <option value="echolist">Echo List (Grouped by Network)</option>
+                            <option value="system_choice" selected>{{ t('ui.settings.system_default', {}, locale, ['common']) }}</option>
+                            <option value="reader">{{ t('ui.settings.default_echo_list.reader', {}, locale, ['common']) }}</option>
+                            <option value="echolist">{{ t('ui.settings.default_echo_list.echolist', {}, locale, ['common']) }}</option>
                         </select>
-                        <div class="form-text">Choose your preferred default view when accessing echo areas from the menu</div>
+                        <div class="form-text">{{ t('ui.settings.default_echo_list_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="fontFamily" class="form-label">Message Font</label>
+                        <label for="fontFamily" class="form-label">{{ t('ui.settings.message_font', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="fontFamily" name="font_family">
                             <option value="Courier New, Monaco, Consolas, monospace" selected>Courier New (Monospace)</option>
                             <option value="Monaco, Consolas, 'Courier New', monospace">Monaco (Monospace)</option>
@@ -106,11 +116,11 @@
                             <option value="'Times New Roman', serif">Times New Roman (Serif)</option>
                             <option value="Verdana, sans-serif">Verdana (Sans-serif)</option>
                         </select>
-                        <div class="form-text">Font family for displaying netmail and echomail messages</div>
+                        <div class="form-text">{{ t('ui.settings.message_font_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="fontSize" class="form-label">Message Font Size</label>
+                        <label for="fontSize" class="form-label">{{ t('ui.settings.message_font_size', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="fontSize" name="font_size">
                             <option value="12">12px (Small)</option>
                             <option value="14">14px (Medium)</option>
@@ -119,58 +129,58 @@
                             <option value="20">20px (Very Large)</option>
                             <option value="22">22px (Huge)</option>
                         </select>
-                        <div class="form-text">Font size for displaying netmail and echomail messages</div>
+                        <div class="form-text">{{ t('ui.settings.message_font_size_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="signatureText" class="form-label">Message Signature</label>
-                        <textarea class="form-control" id="signatureText" name="signature_text" rows="4" maxlength="800" placeholder="Your signature (max 4 lines)"></textarea>
-                        <div class="form-text">Appended to outgoing netmail and echomail messages. Max 4 lines.</div>
+                        <label for="signatureText" class="form-label">{{ t('ui.settings.message_signature', {}, locale, ['common']) }}</label>
+                        <textarea class="form-control" id="signatureText" name="signature_text" rows="4" maxlength="800" placeholder="{{ t('ui.settings.message_signature_placeholder', {}, locale, ['common']) }}"></textarea>
+                        <div class="form-text">{{ t('ui.settings.message_signature_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="defaultTagline" class="form-label">Default Tagline</label>
+                        <label for="defaultTagline" class="form-label">{{ t('ui.settings.default_tagline', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="defaultTagline" name="default_tagline">
-                            <option value="">No tagline</option>
+                            <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
                             {% if taglines %}
-                                <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>— Random tagline —</option>
+                                <option value="__random__" {% if default_tagline == '__random__' %}selected{% endif %}>{{ t('ui.settings.random_tagline', {}, locale, ['common']) }}</option>
                             {% endif %}
                             {% for tagline in taglines %}
                                 <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
                             {% endfor %}
                         </select>
-                        <div class="form-text">Used as the default tagline when composing messages. Choose "Random tagline" to pick one at random each time.</div>
+                        <div class="form-text">{{ t('ui.settings.default_tagline_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Threading Preferences</label>
+                        <label class="form-label">{{ t('ui.settings.threading_preferences', {}, locale, ['common']) }}</label>
                         
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="threadedView" name="threaded_view">
                             <label class="form-check-label" for="threadedView">
-                                Enable threaded view for echomail
+                                {{ t('ui.settings.threaded_view_echomail', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Group echomail messages by conversation threads</div>
+                            <div class="form-text">{{ t('ui.settings.threaded_view_echomail_help', {}, locale, ['common']) }}</div>
                         </div>
                         
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="netmailThreadedView" name="netmail_threaded_view">
                             <label class="form-check-label" for="netmailThreadedView">
-                                Enable threaded view for netmail
+                                {{ t('ui.settings.threaded_view_netmail', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Group netmail messages by conversation threads</div>
+                            <div class="form-text">{{ t('ui.settings.threaded_view_netmail_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Quote Display</label>
+                        <label class="form-label">{{ t('ui.settings.quote_display', {}, locale, ['common']) }}</label>
 
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="quoteColoring" name="quote_coloring" checked>
                             <label class="form-check-label" for="quoteColoring">
-                                Color quoted text by depth
+                                {{ t('ui.settings.quote_coloring', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Show quoted message lines (starting with &gt;) in different colors based on nesting level</div>
+                            <div class="form-text">{{ t('ui.settings.quote_coloring_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
 
@@ -213,24 +223,24 @@
         #}
         <div class="card mt-4">
             <div class="card-header">
-                <h5 class="mb-0">Session & Security</h5>
+                <h5 class="mb-0">{{ t('ui.settings.session_security', {}, locale, ['common']) }}</h5>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h6>Active Sessions</h6>
-                        <p class="text-muted">Manage your active login sessions</p>
+                        <h6>{{ t('ui.settings.active_sessions', {}, locale, ['common']) }}</h6>
+                        <p class="text-muted">{{ t('ui.settings.active_sessions_help', {}, locale, ['common']) }}</p>
                         <button type="button" class="btn btn-outline-warning" onclick="showActiveSessions()">
                             <i class="fas fa-list"></i>
-                            View Sessions
+                            {{ t('ui.settings.view_sessions', {}, locale, ['common']) }}
                         </button>
                     </div>
                     <div class="col-md-6">
-                        <h6>Security Actions</h6>
-                        <p class="text-muted">Logout from all devices</p>
+                        <h6>{{ t('ui.settings.security_actions', {}, locale, ['common']) }}</h6>
+                        <p class="text-muted">{{ t('ui.settings.logout_all_help', {}, locale, ['common']) }}</p>
                         <button type="button" class="btn btn-outline-danger" onclick="logoutAllSessions()">
                             <i class="fas fa-sign-out-alt"></i>
-                            Logout All
+                            {{ t('ui.settings.logout_all', {}, locale, ['common']) }}
                         </button>
                     </div>
                 </div>
@@ -240,7 +250,7 @@
         <div class="d-flex justify-content-end mt-4">
             <button type="button" class="btn btn-fidonet" onclick="saveSettings()">
                 <i class="fas fa-save"></i>
-                Save Settings
+                {{ t('ui.settings.save_settings', {}, locale, ['common']) }}
             </button>
         </div>
         
@@ -250,17 +260,17 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">System Status</h6>
+                <h6 class="mb-0">{{ t('ui.settings.system_status', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-7">BinkP Status:</dt>
-                    <dd class="col-5"><span class="badge bg-success">Online</span></dd>
+                    <dt class="col-7">{{ t('ui.settings.binkp_status', {}, locale, ['common']) }}:</dt>
+                    <dd class="col-5"><span class="badge bg-success">{{ t('ui.settings.online', {}, locale, ['common']) }}</span></dd>
                     
-                    <dt class="col-7">Last Poll:</dt>
+                    <dt class="col-7">{{ t('ui.settings.last_poll', {}, locale, ['common']) }}:</dt>
                     <dd class="col-5"><span id="lastPoll">-</span></dd>
                     
-                    <dt class="col-7">Messages Today:</dt>
+                    <dt class="col-7">{{ t('ui.settings.messages_today', {}, locale, ['common']) }}:</dt>
                     <dd class="col-5"><span id="messagesToday">-</span></dd>
                 </dl>
             </div>
@@ -268,17 +278,17 @@
         
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Quick Actions</h6>
+                <h6 class="mb-0">{{ t('ui.settings.quick_actions', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
                     <a href="/compose/netmail" class="btn btn-outline-primary">
                         <i class="fas fa-envelope"></i>
-                        Compose Netmail
+                        {{ t('ui.settings.compose_netmail', {}, locale, ['common']) }}
                     </a>
                     <a href="/compose/echomail" class="btn btn-outline-primary">
                         <i class="fas fa-comments"></i>
-                        Post Echomail
+                        {{ t('ui.settings.post_echomail', {}, locale, ['common']) }}
                     </a>
                     {#
                     <button type="button" class="btn btn-outline-secondary" onclick="pollUplinks()">
@@ -292,7 +302,7 @@
         
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Help & Support</h6>
+                <h6 class="mb-0">{{ t('ui.settings.help_support', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <ul class="list-unstyled mb-0">
@@ -300,8 +310,8 @@
                     <li><a href="#" class="text-decoration-none"><i class="fas fa-book"></i> User Guide</a></li>
                     <li><a href="#" class="text-decoration-none"><i class="fas fa-question-circle"></i> FAQ</a></li>
                     #}
-                    <li><a href="https://github.com/awehttam/binkterm-php/issues" class="text-decoration-none"><i class="fas fa-bug"></i> Report Issue</a></li>
-                    <li><a href="https://github.com/awehttam/binkterm-php" class="text-decoration-none"><i class="fas fa-info-circle"></i> About</a></li>
+                    <li><a href="https://github.com/awehttam/binkterm-php/issues" class="text-decoration-none"><i class="fas fa-bug"></i> {{ t('ui.base.admin.report_issue', {}, locale, ['common']) }}</a></li>
+                    <li><a href="https://github.com/awehttam/binkterm-php" class="text-decoration-none"><i class="fas fa-info-circle"></i> {{ t('ui.about.title', {}, locale, ['common']) }}</a></li>
                 </ul>
             </div>
         </div>
@@ -313,14 +323,14 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Active Sessions</h5>
+                <h5 class="modal-title">{{ t('ui.settings.active_sessions', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div id="sessionsList">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin"></i>
-                        Loading sessions...
+                        {{ t('ui.settings.sessions.loading', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -331,6 +341,13 @@
 
 {% block scripts %}
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadSettings();
     loadSystemStatus();
@@ -361,6 +378,7 @@ function loadSettings() {
 
             if (data.messages_per_page) $('#messagesPerPage').val(data.messages_per_page);
             if (data.timezone) $('#timezone').val(data.timezone);
+            if (data.locale) $('#locale').val(data.locale);
             if (data.date_format) $('#dateFormat').val(data.date_format);
             if (data.theme) $('#theme').val(data.theme);
             if (data.shell) $('#shellPreference').val(data.shell);
@@ -386,14 +404,14 @@ function loadSettings() {
             $('#autoRefresh').prop('checked', data.auto_refresh === true);
         })
         .fail(function() {
-            console.log('Failed to load settings');
+            console.log(uiT('ui.settings.load_failed_console', 'Failed to load settings'));
         });
 }
 
 function loadSystemStatus() {
     $.get('/api/system/status')
         .done(function(data) {
-            $('#lastPoll').text(data.last_poll ? formatDate(data.last_poll) : 'Never');
+            $('#lastPoll').text(data.last_poll ? formatDate(data.last_poll) : uiT('ui.settings.never', 'Never'));
             $('#messagesToday').text(data.messages_today || '0');
         })
         .fail(function() {
@@ -406,6 +424,7 @@ function saveSettings() {
     const settings = {
         messages_per_page: parseInt($('#messagesPerPage').val()),
         timezone: $('#timezone').val(),
+        locale: $('#locale').val(),
         date_format: $('#dateFormat').val(),
         theme: $('#theme').val(),
         shell: $('#shellPreference').val() || undefined,
@@ -425,7 +444,7 @@ function saveSettings() {
     $('#settingsStatus').show().html(`
         <div class="alert alert-info">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Saving settings...
+            ${uiT('ui.settings.saving', 'Saving settings...')}
         </div>
     `);
     
@@ -435,10 +454,13 @@ function saveSettings() {
         data: JSON.stringify({ settings: settings }),
         contentType: 'application/json',
         success: function(response) {
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.settings.saved_successfully', 'Settings saved successfully!'))
+                : uiT('ui.settings.saved_successfully', 'Settings saved successfully!');
             $('#settingsStatus').html(`
                 <div class="alert alert-success">
                     <i class="fas fa-check me-2"></i>
-                    Settings saved successfully!
+                    ${escapeHtml(successMessage)}
                 </div>
             `);
             
@@ -452,7 +474,9 @@ function saveSettings() {
             }, 3000);
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to save settings';
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.settings.update_failed', 'Failed to save settings'))
+                : uiT('errors.settings.update_failed', 'Failed to save settings');
             $('#settingsStatus').html(`
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle me-2"></i>
@@ -488,47 +512,50 @@ function showActiveSessions() {
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <strong>${escapeHtml(session.ip_address)}</strong>
-                                        ${isCurrent ? '<span class="badge bg-success ms-2">Current</span>' : ''}
+                                        ${isCurrent ? `<span class="badge bg-success ms-2">${uiT('ui.settings.sessions.current', 'Current')}</span>` : ''}
                                         <br>
                                         <small class="text-muted">
-                                            Created: ${formatDate(session.created_at)}<br>
-                                            Expires: ${formatDate(session.expires_at)}
+                                            ${uiT('ui.settings.sessions.created', 'Created')}: ${formatDate(session.created_at)}<br>
+                                            ${uiT('ui.settings.sessions.expires', 'Expires')}: ${formatDate(session.expires_at)}
                                         </small>
                                     </div>
-                                    ${!isCurrent ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeSession('${session.id}')">Revoke</button>` : ''}
+                                    ${!isCurrent ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeSession('${session.id}')">${uiT('ui.settings.sessions.revoke', 'Revoke')}</button>` : ''}
                                 </div>
                             </div>
                         </div>
                     `;
                 });
             } else {
-                html = '<p class="text-muted">No active sessions found.</p>';
+                html = `<p class="text-muted">${uiT('ui.settings.sessions.none_active', 'No active sessions found.')}</p>`;
             }
             $('#sessionsList').html(html);
         })
         .fail(function() {
-            $('#sessionsList').html('<div class="alert alert-danger">Failed to load sessions</div>');
+            $('#sessionsList').html(`<div class="alert alert-danger">${uiT('ui.settings.sessions.load_failed', 'Failed to load sessions')}</div>`);
         });
 }
 
 function revokeSession(sessionId) {
-    if (!confirm('Are you sure you want to revoke this session?')) return;
+    if (!confirm(uiT('ui.settings.sessions.revoke_confirm', 'Are you sure you want to revoke this session?'))) return;
     
     $.ajax({
         url: `/api/user/sessions/${sessionId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             showActiveSessions(); // Refresh the list
-            showSuccess('Session revoked successfully');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully'))
+                : uiT('ui.settings.sessions.revoked_success', 'Session revoked successfully');
+            showSuccess(successMessage);
         },
         error: function() {
-            showError('Failed to revoke session');
+            showError(uiT('errors.user.sessions.revoke_failed', 'Failed to revoke session'));
         }
     });
 }
 
 function logoutAllSessions() {
-    if (!confirm('Are you sure you want to logout from all devices? You will need to login again.')) return;
+    if (!confirm(uiT('ui.settings.sessions.logout_all_confirm', 'Are you sure you want to logout from all devices? You will need to login again.'))) return;
     
     $.ajax({
         url: '/api/user/sessions/all',
@@ -537,21 +564,33 @@ function logoutAllSessions() {
             window.location.href = '/login';
         },
         error: function() {
-            showError('Failed to logout all sessions');
+            showError(uiT('errors.user.sessions.revoke_all_failed', 'Failed to logout all sessions'));
         }
     });
 }
 
 function pollUplinks() {
-    showSuccess('Polling uplinks... (this may take a moment)');
+    showSuccess(uiT('ui.settings.polling_uplinks', 'Polling uplinks... (this may take a moment)'));
     
     $.post('/api/binkp/poll')
         .done(function(data) {
-            showSuccess('Uplink poll completed: ' + (data.message || 'Success'));
+            const pollMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered'))
+                : uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered');
+            const exitCode = data && data.result && data.result.exit_code !== undefined && data.result.exit_code !== null
+                ? data.result.exit_code
+                : null;
+            if (exitCode !== null) {
+                showSuccess(uiT('ui.settings.poll_complete_exit', 'Uplink poll completed (exit {code})', { code: exitCode }));
+            } else {
+                showSuccess(pollMessage);
+            }
         })
         .fail(function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Poll failed';
-            showError('Poll failed: ' + error);
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.binkp.poll_failed', 'Poll failed'))
+                : uiT('errors.binkp.poll_failed', 'Poll failed');
+            showError(uiT('ui.settings.poll_failed_prefix', 'Poll failed: ') + error);
         });
 }
 </script>
