@@ -1,4 +1,4 @@
-const CACHE_NAME = 'binkcache-v185';
+const CACHE_NAME = 'binkcache-v186';
 
 // Static assets to precache
 const staticAssets = [
@@ -11,6 +11,12 @@ const staticAssets = [
     '/js/ansisys.js',
     '/css/ansisys.css',
     '/css/chat-page.css',
+    // Theme stylesheets
+    '/css/style.css',
+    '/css/amber.css',
+    '/css/dark.css',
+    '/css/greenterm.css',
+    '/css/cyberpunk.css',
     // Vendor libraries
     '/vendor/bootstrap-5.3.0/css/bootstrap.min.css',
     '/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js',
@@ -21,16 +27,25 @@ const staticAssets = [
     '/vendor/fontawesome-6.4.0/webfonts/fa-brands-400.woff2'
 ];
 
-// Install event - cache static assets but don't activate yet
+// Keep a reference to the open cache to avoid re-opening on every fetch
+let _cache = null;
+function getCache() {
+    if (_cache) return Promise.resolve(_cache);
+    return caches.open(CACHE_NAME).then((c) => { _cache = c; return c; });
+}
+
+// Install event - cache static assets and activate immediately
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
                 console.log('[SW] Caching static assets');
+                _cache = cache;
                 return cache.addAll(staticAssets);
             })
             .then(() => {
-                console.log('[SW] New version installed, waiting for activation');
+                console.log('[SW] New version installed, activating immediately');
+                return self.skipWaiting();
             })
     );
 });
@@ -81,11 +96,11 @@ self.addEventListener('fetch', (event) => {
     }
 
     // Handle CSS/JS files with cache-first strategy.
-    // Version bumps to CACHE_NAME (triggered by sw.js edits) purge and repopulate
-    // the cache at install time, so there is no need to re-fetch on every request.
+    // Version bumps to CACHE_NAME purge and repopulate the cache at install time,
+    // so there is no need to re-fetch on every request.
     if (url.pathname.match(/\.(css|js)$/)) {
         event.respondWith(
-            caches.open(CACHE_NAME).then((cache) => {
+            getCache().then((cache) => {
                 return cache.match(request).then((cachedResponse) => {
                     if (cachedResponse) {
                         return cachedResponse;
@@ -103,7 +118,7 @@ self.addEventListener('fetch', (event) => {
     // Cache i18n catalog with cache-first strategy (same as CSS/JS)
     if (url.pathname === '/api/i18n/catalog') {
         event.respondWith(
-            caches.open(CACHE_NAME).then((cache) => {
+            getCache().then((cache) => {
                 return cache.match(request).then((cachedResponse) => {
                     if (cachedResponse) {
                         return cachedResponse;
