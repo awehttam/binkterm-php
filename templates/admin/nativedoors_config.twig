@@ -85,7 +85,7 @@
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>credit_cost</code></td>
-                            <td>Credits required to play (0 = free)</td>
+                            <td>Credits required to play (0 = free). Must be 0 for anonymous access.</td>
                         </tr>
                         <tr>
                             <td class="text-nowrap"><code>max_time_minutes</code></td>
@@ -94,6 +94,14 @@
                         <tr>
                             <td class="text-nowrap"><code>max_concurrent_sessions</code></td>
                             <td>Maximum simultaneous players</td>
+                        </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>allow_anonymous</code></td>
+                            <td>Allow unauthenticated (guest) access via <code>POST /api/door/guest/launch</code>. Requires <code>credit_cost: 0</code>.</td>
+                        </tr>
+                        <tr>
+                            <td class="text-nowrap"><code>guest_max_sessions</code></td>
+                            <td>Maximum concurrent guest sessions for this door (default: 2). Only applies when <code>allow_anonymous</code> is true.</td>
                         </tr>
                     </table>
                 </div>
@@ -108,7 +116,8 @@
 let doorsState = {
     config: {},
     availableDoors: [],
-    configExists: false
+    configExists: false,
+    serverPlatform: ''
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -152,6 +161,7 @@ function loadAvailableDoors() {
             }
 
             doorsState.availableDoors = data.doors || [];
+            doorsState.serverPlatform = data.server_platform || '';
             renderDoorsList();
         })
         .catch(error => {
@@ -200,6 +210,14 @@ function renderDoorsList() {
         const statusClass = enabled ? 'success' : 'secondary';
         const statusIcon = enabled ? 'fa-check-circle' : 'fa-circle';
 
+        const platform = door.platform || [];
+        const platformMismatch = platform.length > 0
+            && doorsState.serverPlatform
+            && !platform.includes(doorsState.serverPlatform);
+        const platformBadge = platformMismatch
+            ? `<span class="badge bg-warning text-dark" title="Requires: ${escHtml(platform.join(', '))}. Server is ${escHtml(doorsState.serverPlatform)}."><i class="fas fa-exclamation-triangle"></i> ${escHtml(platform.join(', '))} only</span>`
+            : '';
+
         html += `
             <div class="list-group-item">
                 <div class="d-flex justify-content-between align-items-start">
@@ -212,6 +230,7 @@ function renderDoorsList() {
                         <div class="small mt-1">
                             <span class="badge bg-secondary">${escHtml(door.id)}</span>
                             ${cost > 0 ? `<span class="badge bg-info">${cost} credits</span>` : '<span class="badge bg-success">Free</span>'}
+                            ${platformBadge}
                         </div>
                     </div>
                     <div class="btn-group-vertical btn-group-sm">
@@ -251,7 +270,9 @@ function toggleDoor(doorId, enable) {
                 enabled: enable,
                 credit_cost: 0,
                 max_time_minutes: 30,
-                max_concurrent_sessions: 10
+                max_concurrent_sessions: 10,
+                allow_anonymous: false,
+                guest_max_sessions: 2
             };
         } else {
             config[doorId].enabled = enable;
@@ -280,7 +301,9 @@ function enableAllDoors() {
                     enabled: true,
                     credit_cost: 0,
                     max_time_minutes: 30,
-                    max_concurrent_sessions: 10
+                    max_concurrent_sessions: 10,
+                    allow_anonymous: false,
+                    guest_max_sessions: 2
                 };
             } else {
                 config[door.id].enabled = true;

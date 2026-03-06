@@ -1697,11 +1697,11 @@ class MessageHandler
             $client = new \BinktermPHP\Admin\AdminDaemonClient();
 
             foreach (array_keys($this->pendingImmediateOutboundPolls) as $uplinkAddress) {
-                $pollResult = $client->binkPoll($uplinkAddress);
-
-                if (($pollResult['exit_code'] ?? 1) === 0) {
-                    $client->processPackets();
-                }
+                // binkp_poll now runs in the background; the admin daemon spawns it
+                // asynchronously so the HTTP response is not held open waiting for
+                // the network connection to the uplink.  processPackets() is not
+                // called here since it would run before the poll has received mail.
+                $client->binkPoll($uplinkAddress);
             }
         } catch (\Throwable $e) {
             $contexts = [];

@@ -51,6 +51,17 @@
             </div>
         </div>
         
+        {% if pubterm_enabled %}
+        <div class="card mt-3">
+            <div class="card-body text-center py-3">
+                <a href="/play/pubterm" target="_blank" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-terminal"></i>
+                    Connect via Telnet
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="text-center mt-3">
             <small class="text-muted">
                 Don't have an account? <a href="/register" class="text-decoration-none">Request Access</a>

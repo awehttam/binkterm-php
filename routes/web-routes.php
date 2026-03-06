@@ -160,9 +160,18 @@ SimpleRouter::get('/login', function() {
         $welcomeMessage = file_get_contents($welcomeFile);
     }
 
+    // Check if PubTerm door is enabled and allows anonymous access
+    $pubTermEnabled = false;
+    try {
+        $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+        $pubTermEnabled = $nativeDoorManager->isDoorAvailable('pubterm')
+            && \BinktermPHP\NativeDoorConfig::isAnonymousAllowed('pubterm');
+    } catch (\Throwable $e) {}
+
     $template = new Template();
     $template->renderResponse('login.twig', [
-        'welcome_message' => $welcomeMessage
+        'welcome_message'  => $welcomeMessage,
+        'pubterm_enabled'  => $pubTermEnabled,
     ]);
 });
 

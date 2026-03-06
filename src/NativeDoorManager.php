@@ -160,6 +160,8 @@ class NativeDoorManager
             'credit_cost' => 0,
             'max_time_minutes' => 30,
             'max_sessions' => 10,
+            'allow_anonymous' => false,
+            'guest_max_sessions' => 2,
         ];
 
         return NativeDoorConfig::setDoorConfig($doorId, $config);

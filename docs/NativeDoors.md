@@ -1,6 +1,30 @@
 # Native Doors
 
+> **See also:** [Doors.md](Doors.md) for an overview of all door types and shared multiplexing bridge setup.
+
 Native doors are BBS door programs that run as native Linux binaries or Windows executables, launched directly via PTY (pseudo-terminal). Unlike DOS doors, they require no emulator — the program runs as a regular system process with full ANSI/VT100 terminal support.
+
+## Multiplexing Bridge Setup
+
+Native doors use the same multiplexing bridge as DOS doors. Before native doors will work, the bridge must be installed and running.
+
+**Quick start:**
+
+```bash
+# Install bridge dependencies (includes node-pty for native door PTY support)
+cd scripts/dosbox-bridge
+npm install
+
+# Start the bridge (interactive)
+node multiplexing-server.js
+
+# Or run as a background daemon
+node multiplexing-server.js --daemon
+```
+
+For full setup instructions including production service configuration, environment variables, and reverse proxy setup, see [Doors.md](Doors.md).
+
+---
 
 ## How It Works
 

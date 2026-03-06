@@ -182,6 +182,30 @@ class NativeDoorConfig
     }
 
     /**
+     * Check if anonymous (guest) access is allowed for a door
+     *
+     * @param string $doorId Door identifier
+     * @return bool True if anonymous sessions are permitted
+     */
+    public static function isAnonymousAllowed(string $doorId): bool
+    {
+        self::load();
+        return !empty(self::$config[$doorId]['allow_anonymous']);
+    }
+
+    /**
+     * Get the maximum number of concurrent guest sessions for a door
+     *
+     * @param string $doorId Door identifier
+     * @return int Maximum guest sessions (default 2)
+     */
+    public static function getGuestMaxSessions(string $doorId): int
+    {
+        self::load();
+        return (int)(self::$config[$doorId]['guest_max_sessions'] ?? 2);
+    }
+
+    /**
      * Force reload configuration from disk
      */
     public static function reload(): void

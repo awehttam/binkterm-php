@@ -1477,11 +1477,16 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                     'short_name' => $door['short_name'] ?? $door['name'],
                     'author' => $door['author'] ?? 'Unknown',
                     'description' => $door['description'] ?? '',
+                    'platform' => $door['platform'] ?? [],
                     'config' => $door['config'] ?? []
                 ];
             }
 
-            echo json_encode(['success' => true, 'doors' => $doors]);
+            echo json_encode([
+                'success' => true,
+                'doors' => $doors,
+                'server_platform' => strtolower(PHP_OS_FAMILY),
+            ]);
         });
 
         SimpleRouter::get('/native-doors/config', function() {
