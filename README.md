@@ -304,7 +304,7 @@ Incoming messages are rendered based on the `^AMARKUP` kludge in the message. Ma
 BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
 ### Requirements
-- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL
+- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
