@@ -1,10 +1,10 @@
 {% extends "base.twig" %}
 
-{% block title %}{% if file %}{{ file.filename }} | Shared File{% else %}Shared File{% endif %} - {{ parent() }}{% endblock %}
+{% block title %}{% if file %}{{ file.filename }} | {{ t('ui.shared_file.shared_file', {}, locale, ['common']) }}{% else %}{{ t('ui.shared_file.shared_file', {}, locale, ['common']) }}{% endif %} - {{ parent() }}{% endblock %}
 
 {% block meta_tags %}
     {% if file %}
-        {% set description = file.short_description ? file.short_description : ('File shared from ' ~ system_name) %}
+        {% set description = file.short_description ? file.short_description : t('ui.shared_file.meta_description_from_system', {'system_name': system_name}, locale, ['common']) %}
         <meta name="description" content="{{ description|e }}">
 
         {# Open Graph meta tags #}
@@ -35,13 +35,13 @@
                     <div class="d-flex align-items-center">
                         <i class="fas fa-share-alt me-2"></i>
                         <div>
-                            <strong>Shared File</strong>
+                            <strong>{{ t('ui.shared_file.shared_file', {}, locale, ['common']) }}</strong>
                             <p class="mb-0 mt-1">
-                                Shared by <strong>{{ share_info.shared_by }}</strong>
-                                on {{ share_info.created_at|date('M j, Y') }}
-                                &mdash; viewed {{ share_info.access_count }} time{{ share_info.access_count != 1 ? 's' : '' }}
+                                {{ t('ui.shared_file.shared_by', {}, locale, ['common']) }} <strong>{{ share_info.shared_by }}</strong>
+                                {{ t('ui.shared_file.on_date_prefix', {}, locale, ['common']) }} {{ share_info.created_at|date('M j, Y') }}
+                                &mdash; {{ t('ui.shared_file.viewed_count', {'count': share_info.access_count}, locale, ['common']) }}
                                 {% if share_info.expires_at %}
-                                    &mdash; expires {{ share_info.expires_at|date('M j, Y g:i A') }}
+                                    &mdash; {{ t('ui.shared_file.expires_prefix', {}, locale, ['common']) }} {{ share_info.expires_at|date('M j, Y g:i A') }}
                                 {% endif %}
                             </p>
                         </div>
@@ -56,19 +56,19 @@
                         </h5>
                         {% if file.virus_scanned and file.virus_scan_result == 'clean' %}
                             <span class="badge bg-success">
-                                <i class="fas fa-shield-alt me-1"></i>Clean
+                                <i class="fas fa-shield-alt me-1"></i>{{ t('ui.shared_file.clean', {}, locale, ['common']) }}
                             </span>
                         {% endif %}
                     </div>
                     <div class="card-body">
                         <dl class="row mb-0">
-                            <dt class="col-sm-3">Size:</dt>
+                            <dt class="col-sm-3">{{ t('ui.shared_file.size', {}, locale, ['common']) }}</dt>
                             <dd class="col-sm-9" id="sharedFileSize">{{ file.filesize }}</dd>
 
-                            <dt class="col-sm-3">Uploaded:</dt>
+                            <dt class="col-sm-3">{{ t('ui.shared_file.uploaded', {}, locale, ['common']) }}</dt>
                             <dd class="col-sm-9">{{ file.created_at|date('M j, Y') }}</dd>
 
-                            <dt class="col-sm-3">Area:</dt>
+                            <dt class="col-sm-3">{{ t('ui.shared_file.area', {}, locale, ['common']) }}</dt>
                             <dd class="col-sm-9">
                                 <span class="badge bg-secondary">{{ file.area_tag }}</span>
                                 {% if file.area_description %}
@@ -77,14 +77,14 @@
                             </dd>
 
                             {% if file.short_description %}
-                                <dt class="col-sm-3">Description:</dt>
+                                <dt class="col-sm-3">{{ t('ui.shared_file.description', {}, locale, ['common']) }}</dt>
                                 <dd class="col-sm-9">{{ file.short_description }}</dd>
                             {% endif %}
                         </dl>
 
                         {% if file.long_description %}
                             <div class="mt-3">
-                                <strong>Details:</strong>
+                                <strong>{{ t('ui.shared_file.details', {}, locale, ['common']) }}</strong>
                                 <pre class="bg-light p-2 rounded mt-1" style="white-space: pre-wrap; word-wrap: break-word;">{{ file.long_description }}</pre>
                             </div>
                         {% endif %}
@@ -94,10 +94,10 @@
                         {% if is_logged_in %}
                             {# Logged-in: show download button and area browse link #}
                             <a href="/api/files/{{ file.id }}/download" class="btn btn-primary me-2">
-                                <i class="fas fa-download me-1"></i>Download
+                                <i class="fas fa-download me-1"></i>{{ t('ui.shared_file.download', {}, locale, ['common']) }}
                             </a>
                             <a href="/files?area={{ file.file_area_id }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-folder-open me-1"></i>Browse {{ file.area_tag }} area
+                                <i class="fas fa-folder-open me-1"></i>{{ t('ui.shared_file.browse_area', {'tag': file.area_tag}, locale, ['common']) }}
                             </a>
                         {% else %}
                             {# Anonymous: info-only, prompt to register/login #}
@@ -105,16 +105,16 @@
                                 <div class="d-flex align-items-start">
                                     <i class="fas fa-user-plus me-3 mt-1"></i>
                                     <div class="flex-grow-1">
-                                        <h6 class="alert-heading mb-2">Join {{ system_name }} to Download</h6>
+                                        <h6 class="alert-heading mb-2">{{ t('ui.shared_file.join_system_to_download', {'system_name': system_name}, locale, ['common']) }}</h6>
                                         <p class="mb-3">
-                                            Create a free account to download this file and access our full file archive.
+                                            {{ t('ui.shared_file.register_prompt', {}, locale, ['common']) }}
                                         </p>
                                         <div class="d-flex gap-2 flex-wrap">
                                             <a href="/register" class="btn btn-primary btn-sm">
-                                                <i class="fas fa-user-plus me-1"></i>Register
+                                                <i class="fas fa-user-plus me-1"></i>{{ t('ui.shared_file.register', {}, locale, ['common']) }}
                                             </a>
                                             <a href="/login" class="btn btn-outline-primary btn-sm">
-                                                <i class="fas fa-sign-in-alt me-1"></i>Login
+                                                <i class="fas fa-sign-in-alt me-1"></i>{{ t('ui.shared_file.login', {}, locale, ['common']) }}
                                             </a>
                                         </div>
                                     </div>
@@ -128,14 +128,13 @@
                 <div class="card">
                     <div class="card-body">
                         <h6 class="card-title">
-                            <i class="fas fa-info-circle me-2"></i>About {{ system_name }}
+                            <i class="fas fa-info-circle me-2"></i>{{ t('ui.shared_file.about_system', {'system_name': system_name}, locale, ['common']) }}
                         </h6>
                         <p class="card-text mb-0">
-                            {{ system_name }} is a FidoNet-connected BBS with public file areas. Members can
-                            upload, download, and share files from a growing archive.
+                            {{ t('ui.shared_file.about_system_text', {'system_name': system_name}, locale, ['common']) }}
                         </p>
                         <small class="text-muted">
-                            <i class="fas fa-code me-1"></i>Powered by BinktermPHP
+                            <i class="fas fa-code me-1"></i>{{ t('ui.shared_file.powered_by', {}, locale, ['common']) }}
                         </small>
                     </div>
                 </div>
@@ -147,15 +146,15 @@
                     <div class="d-flex align-items-center">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <div>
-                            <strong>File Not Available</strong>
+                            <strong>{{ t('ui.shared_file.not_available_title', {}, locale, ['common']) }}</strong>
                             <p class="mb-0 mt-1">
-                                This shared file link is not available. It may have expired or been revoked.
+                                {{ t('ui.shared_file.not_available_body', {}, locale, ['common']) }}
                             </p>
                         </div>
                     </div>
                     <div class="mt-3">
                         <a href="/" class="btn btn-primary">
-                            <i class="fas fa-home me-1"></i>Go to Main Site
+                            <i class="fas fa-home me-1"></i>{{ t('ui.shared_file.go_to_main_site', {}, locale, ['common']) }}
                         </a>
                     </div>
                 </div>

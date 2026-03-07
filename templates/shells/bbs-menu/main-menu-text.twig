@@ -13,9 +13,9 @@
     </div>
     {% endfor %}
     <div class="mt-3 d-none d-md-block" style="color: #888; font-size: 0.85rem;">
-        Press key to navigate &bull; [Q] Quit/Return
+        {{ t('ui.bbs_menu.press_key_to_navigate', {}, locale, ['common']) }} &bull; [Q] {{ t('ui.bbs_menu.quit_return', {}, locale, ['common']) }}
     </div>
     <div class="mt-3 d-md-none" style="color: #888; font-size: 0.85rem;">
-        Tap an item to navigate
+        {{ t('ui.bbs_menu.tap_item_to_navigate', {}, locale, ['common']) }}
     </div>
 </div>

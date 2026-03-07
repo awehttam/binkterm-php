@@ -225,7 +225,8 @@ class MessageHandler
                         'has_next' => false,
                         'has_prev' => false
                     ],
-                    'error' => 'You are not subscribed to this echoarea.'
+                    'error_code' => 'errors.messages.echomail.stats.subscription_required',
+                    'error' => 'Subscription required for this echo area'
                 ];
             }
         }
@@ -1557,6 +1558,19 @@ class MessageHandler
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
 
+            try {
+                $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                $daemonClient->serverLog('INFO', 'netmail sent', [
+                    'from'    => "{$fromName} <{$fromAddr}>",
+                    'to'      => "{$toName} <{$toAddr}>",
+                    'subject' => $subject,
+                    'msgid'   => $message['message_id'] ?? '',
+                    'packet'  => $packetName,
+                ]);
+            } catch (\Throwable $e) {
+                error_log("FALLBACK LOG: netmail sent  from={$fromName} <{$fromAddr}>  to={$toName} <{$toAddr}>  subject={$subject}  msgid=" . ($message['message_id'] ?? '') . "  packet={$packetName}");
+            }
+
             //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
@@ -1584,6 +1598,22 @@ class MessageHandler
         // Check if this is a local-only echoarea
         if (!empty($message['is_local'])) {
             //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
+            try {
+                $fromName = $message['from_name'] ?? 'unknown';
+                $fromAddr = $message['from_address'] ?? 'unknown';
+                $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                $daemonClient->serverLog('INFO', 'echomail posted (local area)', [
+                    'area'    => $echoareaTag,
+                    'from'    => "{$fromName} <{$fromAddr}>",
+                    'to'      => $message['to_name'] ?? 'All',
+                    'subject' => $message['subject'] ?? '(no subject)',
+                    'msgid'   => $message['message_id'] ?? '',
+                    'packet'  => '(local)',
+                ]);
+            } catch (\Throwable $e) {
+                $localFrom = ($message['from_name'] ?? 'unknown') . ' <' . ($message['from_address'] ?? 'unknown') . '>';
+                error_log("FALLBACK LOG: echomail posted (local area)  area={$echoareaTag}  from={$localFrom}  to=" . ($message['to_name'] ?? 'All') . "  subject=" . ($message['subject'] ?? '(no subject)') . "  msgid=" . ($message['message_id'] ?? '') . "  packet=(local)");
+            }
             return true; // Success - message stored locally, no upstream transmission needed
         }
 
@@ -1614,6 +1644,21 @@ class MessageHandler
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
                 $this->queueImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
+
+                try {
+                    $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                    $daemonClient->serverLog('INFO', 'echomail posted', [
+                        'area'    => $areaTag,
+                        'from'    => "{$fromName} <{$fromAddr}>",
+                        'to'      => $message['to_name'] ?? 'All',
+                        'subject' => $subject,
+                        'msgid'   => $message['message_id'] ?? '',
+                        'packet'  => $packetName,
+                    ]);
+                } catch (\Throwable $e) {
+                    error_log("FALLBACK LOG: echomail posted  area={$areaTag}  from={$fromName} <{$fromAddr}>  to=" . ($message['to_name'] ?? 'All') . "  subject={$subject}  msgid=" . ($message['message_id'] ?? '') . "  packet={$packetName}");
+                }
+
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
                 error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");
@@ -1697,11 +1742,11 @@ class MessageHandler
             $client = new \BinktermPHP\Admin\AdminDaemonClient();
 
             foreach (array_keys($this->pendingImmediateOutboundPolls) as $uplinkAddress) {
-                $pollResult = $client->binkPoll($uplinkAddress);
-
-                if (($pollResult['exit_code'] ?? 1) === 0) {
-                    $client->processPackets();
-                }
+                // binkp_poll now runs in the background; the admin daemon spawns it
+                // asynchronously so the HTTP response is not held open waiting for
+                // the network connection to the uplink.  processPackets() is not
+                // called here since it would run before the poll has received mail.
+                $client->binkPoll($uplinkAddress);
             }
         } catch (\Throwable $e) {
             $contexts = [];
@@ -1730,7 +1775,11 @@ class MessageHandler
         // Validate input
         if (empty($messageIds) || !is_array($messageIds)) {
             error_log("MessageHandler::deleteEchomail - Invalid input");
-            return ['success' => false, 'error' => 'No messages selected'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.echomail.bulk_delete.invalid_input',
+                'error' => 'A non-empty message ID list is required'
+            ];
         }
 
         // Get user info for permission checking
@@ -1738,7 +1787,11 @@ class MessageHandler
         //error_log("MessageHandler::deleteEchomail - Retrieved user: " . print_r($user, true));
         if (!$user) {
             error_log("MessageHandler::deleteEchomail - User not found for ID: $userId");
-            return ['success' => false, 'error' => 'User not found'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.echomail.bulk_delete.user_not_found',
+                'error' => 'User not found'
+            ];
         }
 
         $deletedCount = 0;
@@ -1822,8 +1875,8 @@ class MessageHandler
         if (!$settings) {
             // Create default settings for user if they don't exist
             $insertStmt = $this->db->prepare("
-                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format, default_tagline)
-                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US', NULL)
+                INSERT INTO user_settings (user_id, messages_per_page, threaded_view, netmail_threaded_view, default_sort, font_family, font_size, date_format, locale, default_tagline)
+                VALUES (?, 25, FALSE, FALSE, 'date_desc', 'Courier New, Monaco, Consolas, monospace', 16, 'en-US', 'en', NULL)
                 ON CONFLICT (user_id) DO UPDATE SET
                     messages_per_page = COALESCE(user_settings.messages_per_page, 25),
                     threaded_view = COALESCE(user_settings.threaded_view, FALSE),
@@ -1832,6 +1885,7 @@ class MessageHandler
                     font_family = COALESCE(user_settings.font_family, 'Courier New, Monaco, Consolas, monospace'),
                     font_size = COALESCE(user_settings.font_size, 16),
                     date_format = COALESCE(user_settings.date_format, 'en-US'),
+                    locale = COALESCE(user_settings.locale, 'en'),
                     default_tagline = COALESCE(user_settings.default_tagline, NULL)
             ");
             $insertStmt->execute([$userId]);
@@ -1844,9 +1898,14 @@ class MessageHandler
                 'font_family' => 'Courier New, Monaco, Consolas, monospace',
                 'font_size' => 16,
                 'date_format' => 'en-US',
+                'locale' => 'en',
                 'signature_text' => '',
                 'default_tagline' => ''
             ];
+        }
+
+        if (empty($settings['locale'])) {
+            $settings['locale'] = 'en';
         }
 
         return $settings;
@@ -1876,6 +1935,7 @@ class MessageHandler
             'auto_refresh' => 'BOOLEAN',
             'quote_coloring' => 'BOOLEAN',
             'date_format' => 'STRING',
+            'locale' => 'LOCALE',
             'signature_text' => 'SIGNATURE',
             'default_tagline' => 'TAGLINE'
         ];
@@ -1921,6 +1981,13 @@ class MessageHandler
                         $taglines = $this->getTaglinesList();
                     }
                     $params[] = in_array($tagline, $taglines, true) ? $tagline : null;
+                    break;
+                case 'LOCALE':
+                    $locale = str_replace('_', '-', trim((string)$value));
+                    if (!preg_match('/^[a-z]{2,3}(?:-[A-Z]{2})?$/', $locale)) {
+                        $locale = 'en';
+                    }
+                    $params[] = $locale;
                     break;
                 default:
                     $params[] = $value;
@@ -2433,20 +2500,32 @@ class MessageHandler
         }
         
         if (!$message) {
-            return ['success' => false, 'error' => 'Message not found or access denied'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.access_denied',
+                'error' => 'Message not found or access denied'
+            ];
         }
 
         // Check user's sharing settings
         $userSettings = $this->getUserSettings($userId);
         if (isset($userSettings['allow_sharing']) && !$userSettings['allow_sharing']) {
-            return ['success' => false, 'error' => 'Sharing is disabled for your account'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.sharing_disabled',
+                'error' => 'Sharing is disabled for your account'
+            ];
         }
 
         // Check if user has reached their share limit
         $shareCount = $this->getUserActiveShareCount($userId);
         $maxShares = $userSettings['max_shares_per_user'] ?? 50;
         if ($shareCount >= $maxShares) {
-            return ['success' => false, 'error' => "Maximum number of active shares ($maxShares) reached"];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.max_active_reached',
+                'error' => 'Maximum number of active shares reached'
+            ];
         }
 
         // Check if message is already shared by this user
@@ -2519,7 +2598,11 @@ class MessageHandler
             ];
         }
 
-        return ['success' => false, 'error' => 'Failed to create share link'];
+        return [
+            'success' => false,
+            'error_code' => 'errors.messages.share_create_failed',
+            'error' => 'Failed to create share link'
+        ];
     }
 
     /**
@@ -2543,7 +2626,11 @@ class MessageHandler
         $share = $stmt->fetch();
 
         if (!$share) {
-            return ['success' => false, 'error' => 'Share not found or expired'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.not_found_or_expired',
+                'error' => 'Share not found or expired'
+            ];
         }
 
         // Check access permissions - ensure proper boolean conversion
@@ -2551,7 +2638,11 @@ class MessageHandler
         //error_log("Share access check - raw is_public: " . var_export($share['is_public'], true) . ", converted: " . var_export($isPublic, true) . ", requestingUserId: " . var_export($requestingUserId, true));
         
         if (!$isPublic && !$requestingUserId) {
-            return ['success' => false, 'error' => 'Login required to access this share'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.login_required',
+                'error' => 'Login required to access this share'
+            ];
         }
 
         // Get the actual message
@@ -2572,7 +2663,11 @@ class MessageHandler
         }
 
         if (!$message) {
-            return ['success' => false, 'error' => 'Original message not found'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.original_not_found',
+                'error' => 'Original message not found'
+            ];
         }
 
         // Update access statistics
@@ -2608,7 +2703,11 @@ class MessageHandler
     {
         $share = $this->getExistingShare($messageId, $messageType, $userId);
         if (!$share) {
-            return ['success' => false, 'error' => 'Share not found'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.not_found',
+                'error' => 'Share not found'
+            ];
         }
 
         // Already has a slug — just return the current friendly URL
@@ -2626,7 +2725,11 @@ class MessageHandler
 
         // Only echomail has area context for slug generation
         if ($messageType !== 'echomail') {
-            return ['success' => false, 'error' => 'Friendly URLs are only available for echomail shares'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.friendly_url_only_echomail',
+                'error' => 'Friendly URLs are only available for echomail shares'
+            ];
         }
 
         // Load the message to get subject and echoarea
@@ -2640,7 +2743,11 @@ class MessageHandler
         $msg = $stmt->fetch();
 
         if (!$msg || empty($msg['subject'])) {
-            return ['success' => false, 'error' => 'Cannot generate slug: message not found or has no subject'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.slug_generation_failed',
+                'error' => 'Cannot generate share slug for this message'
+            ];
         }
 
         $tag            = $msg['tag']    ?? '';
@@ -2686,7 +2793,11 @@ class MessageHandler
         $share = $stmt->fetch();
 
         if (!$share) {
-            return ['success' => false, 'error' => 'Share not found or expired'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.shared.not_found_or_expired',
+                'error' => 'Share not found or expired'
+            ];
         }
 
         // Delegate to the core lookup logic via share_key
@@ -2740,10 +2851,17 @@ class MessageHandler
         $result = $stmt->execute([$messageId, $messageType, $userId]);
         
         if ($result && $stmt->rowCount() > 0) {
-            return ['success' => true, 'message' => 'Share link revoked'];
+            return [
+                'success' => true,
+                'message_code' => 'ui.api.messages.share_revoked'
+            ];
         }
 
-        return ['success' => false, 'error' => 'Share not found or already revoked'];
+        return [
+            'success' => false,
+            'error_code' => 'errors.messages.share_revoke_failed',
+            'error' => 'Failed to revoke share link'
+        ];
     }
 
     /**
@@ -4269,7 +4387,11 @@ class MessageHandler
         $user = $stmt->fetch();
         
         if (!$user) {
-            return ['success' => false, 'error' => 'User not found or already logged in'];
+            return [
+                'success' => false,
+                'error_code' => 'errors.reminder.user_not_found_or_logged_in',
+                'error' => 'User not found or already logged in'
+            ];
         }
 
         try {
@@ -4353,7 +4475,7 @@ class MessageHandler
 
         return [
             'success' => true, 
-            'message' => 'Account reminder sent successfully',
+            'message_code' => 'ui.api.reminder.sent',
             'email_sent' => $emailSent
         ];
     }
@@ -4498,7 +4620,11 @@ class MessageHandler
             }
         } catch (\Exception $e) {
             error_log("Error saving draft: " . $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.drafts.save_failed',
+                'error' => 'Failed to save draft'
+            ];
         }
     }
 
@@ -4586,7 +4712,11 @@ class MessageHandler
             return ['success' => true];
         } catch (\Exception $e) {
             error_log("Error deleting draft: " . $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            return [
+                'success' => false,
+                'error_code' => 'errors.messages.drafts.delete_failed',
+                'error' => 'Failed to delete draft'
+            ];
         }
     }
 }

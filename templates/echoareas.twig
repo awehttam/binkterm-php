@@ -1,21 +1,21 @@
 {% extends "base.twig" %}
 
-{% block title %}Echo Areas - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.echoareas.page_title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-comments"></i>
-        Echo Areas Management
+        {{ t('ui.echoareas.heading', {}, locale, ['common']) }}
     </h2>
     <div class="d-flex gap-2">
         <a href="/echoareas/import" class="btn btn-outline-primary">
             <i class="fas fa-file-import"></i>
-            Import
+            {{ t('ui.common.import', {}, locale, ['common']) }}
         </a>
         <button class="btn btn-fidonet" onclick="showAddEchoareaModal()">
             <i class="fas fa-plus"></i>
-            Add Echo Area
+            {{ t('ui.echoareas.add_echo_area', {}, locale, ['common']) }}
         </button>
     </div>
 </div>
@@ -25,26 +25,26 @@
         <div class="card">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0">Active Echo Areas</h6>
+                    <h6 class="mb-0">{{ t('ui.echoareas.active_echo_areas', {}, locale, ['common']) }}</h6>
                     <div class="btn-group btn-group-sm" role="group">
                         <input type="radio" class="btn-check" name="filter" id="active" value="active" checked>
-                        <label class="btn btn-outline-secondary" for="active">Active</label>
+                        <label class="btn btn-outline-secondary" for="active">{{ t('ui.common.active', {}, locale, ['common']) }}</label>
 
                         <input type="radio" class="btn-check" name="filter" id="all" value="all">
-                        <label class="btn btn-outline-secondary" for="all">All</label>
+                        <label class="btn btn-outline-secondary" for="all">{{ t('ui.common.all', {}, locale, ['common']) }}</label>
 
                         <input type="radio" class="btn-check" name="filter" id="inactive" value="inactive">
-                        <label class="btn btn-outline-secondary" for="inactive">Inactive</label>
+                        <label class="btn btn-outline-secondary" for="inactive">{{ t('ui.common.inactive', {}, locale, ['common']) }}</label>
                     </div>
                 </div>
                 <input type="text" class="form-control form-control-sm" id="echoareaSearch"
-                       placeholder="Search tags..." onkeyup="searchEchoareas(this.value)">
+                       placeholder="{{ t('ui.echoareas.search_tags_placeholder', {}, locale, ['common']) }}" onkeyup="searchEchoareas(this.value)">
             </div>
             <div class="card-body p-0">
                 <div id="echoareasContainer">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin me-2"></i>
-                        Loading echo areas...
+                        {{ t('ui.echoareas.loading_echo_areas', {}, locale, ['common']) }}
                     </div>
                 </div>
             </div>
@@ -54,17 +54,17 @@
     <div class="col-lg-3">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Statistics</h6>
+                <h6 class="mb-0">{{ t('ui.echoareas.statistics', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-8">Active Areas:</dt>
+                    <dt class="col-8">{{ t('ui.echoareas.active_areas', {}, locale, ['common']) }}</dt>
                     <dd class="col-4" id="activeCount">-</dd>
                     
-                    <dt class="col-8">Total Messages:</dt>
+                    <dt class="col-8">{{ t('ui.echoareas.total_messages', {}, locale, ['common']) }}</dt>
                     <dd class="col-4" id="totalMessages">-</dd>
                     
-                    <dt class="col-8">Today's Messages:</dt>
+                    <dt class="col-8">{{ t('ui.echoareas.todays_messages', {}, locale, ['common']) }}</dt>
                     <dd class="col-4" id="todayMessages">-</dd>
                 </dl>
             </div>
@@ -96,19 +96,19 @@
 
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Color Legend</h6>
+                <h6 class="mb-0">{{ t('ui.echoareas.color_legend', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <small class="text-muted">
-                    Echo areas can be color-coded for easy identification:
+                    {{ t('ui.echoareas.color_legend_help', {}, locale, ['common']) }}
                 </small>
                 <ul class="list-unstyled mt-2 small">
-                    <li><span class="badge me-2" style="background-color: #28a745;">Green</span> General topics</li>
-                    <li><span class="badge me-2" style="background-color: #17a2b8;">Blue</span> Technical/Testing</li>
-                    <li><span class="badge me-2" style="background-color: #dc3545;">Red</span> Important/Official</li>
-                    <li><span class="badge me-2" style="background-color: #ffc107;">Yellow</span> Administrative</li>
-                    <li><span class="badge me-2" style="background-color: #6f42c1;">Purple</span> Special interest</li>
-                    <li><span class="badge me-2" style="background-color: #fd7e14;">Orange</span> Regional</li>
+                    <li><span class="badge me-2" style="background-color: #28a745;">{{ t('ui.echoareas.color_green', {}, locale, ['common']) }}</span> {{ t('ui.echoareas.legend_general_topics', {}, locale, ['common']) }}</li>
+                    <li><span class="badge me-2" style="background-color: #17a2b8;">{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}</span> {{ t('ui.echoareas.legend_technical_testing', {}, locale, ['common']) }}</li>
+                    <li><span class="badge me-2" style="background-color: #dc3545;">{{ t('ui.echoareas.color_red', {}, locale, ['common']) }}</span> {{ t('ui.echoareas.legend_important_official', {}, locale, ['common']) }}</li>
+                    <li><span class="badge me-2" style="background-color: #ffc107;">{{ t('ui.echoareas.color_yellow', {}, locale, ['common']) }}</span> {{ t('ui.echoareas.legend_administrative', {}, locale, ['common']) }}</li>
+                    <li><span class="badge me-2" style="background-color: #6f42c1;">{{ t('ui.echoareas.color_purple', {}, locale, ['common']) }}</span> {{ t('ui.echoareas.legend_special_interest', {}, locale, ['common']) }}</li>
+                    <li><span class="badge me-2" style="background-color: #fd7e14;">{{ t('ui.echoareas.color_orange', {}, locale, ['common']) }}</span> {{ t('ui.echoareas.legend_regional', {}, locale, ['common']) }}</li>
                 </ul>
             </div>
         </div>
@@ -120,7 +120,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="echoareaModalTitle">Add Echo Area</h5>
+                <h5 class="modal-title" id="echoareaModalTitle">{{ t('ui.echoareas.add_echo_area', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -128,106 +128,106 @@
                     <input type="hidden" id="echoareaId">
                     
                     <div class="mb-3">
-                        <label for="echoareaTag" class="form-label">Tag *</label>
+                        <label for="echoareaTag" class="form-label">{{ t('ui.echoareas.tag_required', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control text-uppercase" id="echoareaTag" name="tag" required maxlength="20">
-                        <div class="form-text">Echo area tag (e.g., FIDONET.GEN, LOCAL.TEST)</div>
+                        <div class="form-text">{{ t('ui.echoareas.tag_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="echoareaDescription" class="form-label">Description *</label>
+                        <label for="echoareaDescription" class="form-label">{{ t('ui.echoareas.description_required', {}, locale, ['common']) }}</label>
                         <textarea class="form-control" id="echoareaDescription" name="description" rows="2" required maxlength="255"></textarea>
-                        <div class="form-text">Brief description of the echo area</div>
+                        <div class="form-text">{{ t('ui.echoareas.description_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="row mb-3">
                         <div class="col-md-8">
-                            <label for="echoareaUplink" class="form-label">Uplink Address</label>
+                            <label for="echoareaUplink" class="form-label">{{ t('ui.echoareas.uplink_address', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
-                            <div class="form-text">Override Uplink FidoNet address</div>
+                            <div class="form-text">{{ t('ui.echoareas.uplink_address_help', {}, locale, ['common']) }}</div>
                         </div>
                         <div class="col-md-4">
-                            <label for="echoareaColor" class="form-label">Color</label>
+                            <label for="echoareaColor" class="form-label">{{ t('ui.echoareas.color', {}, locale, ['common']) }}</label>
                             <input type="hidden" id="echoareaColor" name="color" value="#28a745">
                             <div class="color-palette">
-                                <div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;" title="Red"></div>
-                                <div class="color-swatch" data-color="#fd7e14" style="background-color: #fd7e14;" title="Orange"></div>
-                                <div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;" title="Yellow"></div>
-                                <div class="color-swatch" data-color="#28a745" style="background-color: #28a745;" title="Green"></div>
-                                <div class="color-swatch" data-color="#20c997" style="background-color: #20c997;" title="Teal"></div>
-                                <div class="color-swatch" data-color="#17a2b8" style="background-color: #17a2b8;" title="Cyan"></div>
-                                <div class="color-swatch" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="Light Blue"></div>
-                                <div class="color-swatch" data-color="#0d6efd" style="background-color: #0d6efd;" title="Blue"></div>
-                                <div class="color-swatch" data-color="#6610f2" style="background-color: #6610f2;" title="Indigo"></div>
-                                <div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;" title="Purple"></div>
-                                <div class="color-swatch" data-color="#d63384" style="background-color: #d63384;" title="Pink"></div>
-                                <div class="color-swatch" data-color="#6c757d" style="background-color: #6c757d;" title="Gray"></div>
+                                <div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;" title="{{ t('ui.echoareas.color_red', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#fd7e14" style="background-color: #fd7e14;" title="{{ t('ui.echoareas.color_orange', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;" title="{{ t('ui.echoareas.color_yellow', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#28a745" style="background-color: #28a745;" title="{{ t('ui.echoareas.color_green', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#20c997" style="background-color: #20c997;" title="{{ t('ui.echoareas.color_teal', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#17a2b8" style="background-color: #17a2b8;" title="{{ t('ui.echoareas.color_cyan', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="{{ t('ui.echoareas.color_light_blue', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#0d6efd" style="background-color: #0d6efd;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#6610f2" style="background-color: #6610f2;" title="{{ t('ui.echoareas.color_indigo', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;" title="{{ t('ui.echoareas.color_purple', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#d63384" style="background-color: #d63384;" title="{{ t('ui.echoareas.color_pink', {}, locale, ['common']) }}"></div>
+                                <div class="color-swatch" data-color="#6c757d" style="background-color: #6c757d;" title="{{ t('ui.echoareas.color_gray', {}, locale, ['common']) }}"></div>
                             </div>
-                            <div class="form-text mt-2">Selected: <span id="selectedColorPreview" style="display: inline-block; width: 20px; height: 20px; border: 1px solid #ccc; vertical-align: middle; background-color: #28a745;"></span></div>
+                            <div class="form-text mt-2">{{ t('ui.echoareas.selected_color', {}, locale, ['common']) }} <span id="selectedColorPreview" style="display: inline-block; width: 20px; height: 20px; border: 1px solid #ccc; vertical-align: middle; background-color: #28a745;"></span></div>
                         </div>
                     </div>
 
                     <div class="row mb-3">
                         <div class="col-md-8">
-                            <label for="echoareaDomain" class="form-label">Domain</label>
+                            <label for="echoareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="echoareaDomain" name="domain" maxlength="20">
-                            <div class="form-text">Network Domain (eg: fidonet, fsxnet, etc.)</div>
+                            <div class="form-text">{{ t('ui.echoareas.network_domain_help', {}, locale, ['common']) }}</div>
                         </div>
 
                     </div>
                     
                     <div class="mb-3">
-                        <label for="echoareaModerator" class="form-label">Moderator</label>
+                        <label for="echoareaModerator" class="form-label">{{ t('ui.echoareas.moderator', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="echoareaModerator" name="moderator" maxlength="100">
-                        <div class="form-text">Name of the echo area moderator</div>
+                        <div class="form-text">{{ t('ui.echoareas.moderator_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="echoareaPostingNamePolicy" class="form-label">Posting Name Policy</label>
+                        <label for="echoareaPostingNamePolicy" class="form-label">{{ t('ui.echoareas.posting_name_policy', {}, locale, ['common']) }}</label>
                         <select class="form-select" id="echoareaPostingNamePolicy" name="posting_name_policy">
-                            <option value="inherit">Use Uplink Default</option>
-                            <option value="real_name">Real Name</option>
-                            <option value="username">Username</option>
+                            <option value="inherit">{{ t('ui.echoareas.posting_name_policy_inherit', {}, locale, ['common']) }}</option>
+                            <option value="real_name">{{ t('ui.echoareas.posting_name_policy_real_name', {}, locale, ['common']) }}</option>
+                            <option value="username">{{ t('ui.echoareas.posting_name_policy_username', {}, locale, ['common']) }}</option>
                         </select>
-                        <div class="form-text">Overrides uplink posting name policy for this echo area.</div>
+                        <div class="form-text">{{ t('ui.echoareas.posting_name_policy_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="echoareaActive" name="is_active" checked>
                         <label class="form-check-label" for="echoareaActive">
-                            Active
+                            {{ t('ui.common.active', {}, locale, ['common']) }}
                         </label>
                     </div>
 
                     <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="echoareaLocal" name="is_local">
                         <label class="form-check-label" for="echoareaLocal">
-                            Local Only
+                            {{ t('ui.echoareas.local_only', {}, locale, ['common']) }}
                         </label>
-                        <div class="form-text">Messages in local areas are not transmitted to uplinks</div>
+                        <div class="form-text">{{ t('ui.echoareas.local_only_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="echoareaSysopOnly" name="is_sysop_only">
                         <label class="form-check-label" for="echoareaSysopOnly">
-                            Sysop Access Only
+                            {{ t('ui.echoareas.sysop_access_only', {}, locale, ['common']) }}
                         </label>
-                        <div class="form-text">Restrict this echo area to sysop/admin users only</div>
+                        <div class="form-text">{{ t('ui.echoareas.sysop_access_only_help', {}, locale, ['common']) }}</div>
                     </div>
 
                     <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="echoareaGeminiPublic" name="gemini_public">
                         <label class="form-check-label" for="echoareaGeminiPublic">
-                            Public Gemini Access
+                            {{ t('ui.echoareas.public_gemini_access', {}, locale, ['common']) }}
                         </label>
-                        <div class="form-text">Expose this echo area as read-only content on the Gemini capsule server</div>
+                        <div class="form-text">{{ t('ui.echoareas.public_gemini_access_help', {}, locale, ['common']) }}</div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-fidonet" onclick="saveEchoarea()">
                     <i class="fas fa-save"></i>
-                    Save
+                    {{ t('ui.common.save', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -239,18 +239,18 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Confirm Delete</h5>
+                <h5 class="modal-title">{{ t('ui.common.confirm_delete', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete the echo area <strong id="deleteEchoareaName"></strong>?</p>
-                <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone and will affect message routing.</p>
+                <p>{{ t('ui.echoareas.delete_confirm_prefix', {}, locale, ['common']) }} <strong id="deleteEchoareaName"></strong>?</p>
+                <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> {{ t('ui.echoareas.delete_confirm_warning', {}, locale, ['common']) }}</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-danger" id="confirmDelete">
                     <i class="fas fa-trash"></i>
-                    Delete
+                    {{ t('ui.common.delete', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -298,9 +298,25 @@ let currentEchoareaId = null;
 let allEchoareas = [];
 let searchQuery = '';
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
-    loadEchoareas();
-    loadStats();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        loadEchoareas();
+        loadStats();
+    });
 
     // Filter change handler
     $('input[name="filter"]').change(function() {
@@ -339,7 +355,7 @@ function loadEchoareas() {
             applySearchFilter();
         })
         .fail(function() {
-            $('#echoareasContainer').html('<div class="text-center text-danger py-4">Failed to load echo areas</div>');
+            $('#echoareasContainer').html(`<div class="text-center text-danger py-4">${uiT('ui.echoareas.load_failed', 'Failed to load echo areas')}</div>`);
         });
 }
 
@@ -366,7 +382,7 @@ function displayEchoareas(echoareas) {
     let html = '';
     
     if (echoareas.length === 0) {
-        html = '<div class="text-center text-muted py-4">No echo areas found</div>';
+        html = `<div class="text-center text-muted py-4">${uiT('ui.echoareas.none_found', 'No echo areas found')}</div>`;
     } else {
         html = `
             <div class="table-responsive">
@@ -374,12 +390,12 @@ function displayEchoareas(echoareas) {
                     <thead>
                         <tr>
                             <th width="4%"></th>
-                            <th width="5%">ID</th>
-                            <th width="22%">Tag</th>
-                            <th width="33%">Description</th>
-                            <th width="10%">Messages</th>
-                            <th width="16%">Uplink</th>
-                            <th width="10%">Actions</th>
+                            <th width="5%">${uiT('ui.common.id', 'ID')}</th>
+                            <th width="22%">${uiT('ui.echoareas.tag', 'Tag')}</th>
+                            <th width="33%">${uiT('ui.common.description', 'Description')}</th>
+                            <th width="10%">${uiT('ui.echoareas.messages', 'Messages')}</th>
+                            <th width="16%">${uiT('ui.echoareas.uplink', 'Uplink')}</th>
+                            <th width="10%">${uiT('ui.common.actions', 'Actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -389,8 +405,8 @@ function displayEchoareas(echoareas) {
             const isActive = area.is_active;
             const rowClass = isActive ? '' : 'table-secondary';
             const statusIcon = isActive ? 
-                '<i class="fas fa-check-circle text-success" title="Active"></i>' : 
-                '<i class="fas fa-pause-circle text-warning" title="Inactive"></i>';
+                `<i class="fas fa-check-circle text-success" title="${uiT('ui.common.active', 'Active')}"></i>` :
+                `<i class="fas fa-pause-circle text-warning" title="${uiT('ui.common.inactive', 'Inactive')}"></i>`;
             
             html += `
                 <tr class="${rowClass}">
@@ -404,27 +420,27 @@ function displayEchoareas(echoareas) {
                             </div>
                             <div class="ms-4">
                                 ${area.domain ? `<span class="badge bg-secondary me-1" style="font-size: 0.7em;">${escapeHtml(area.domain)}</span>` : ''}
-                                ${area.is_local ? `<span class="badge bg-info me-1" style="font-size: 0.7em;" title="Local only - not transmitted to uplinks">Local</span>` : ''}
-                                ${area.is_sysop_only ? `<span class="badge bg-warning text-dark me-1" style="font-size: 0.7em;" title="Sysop access only">Sysop</span>` : ''}
+                                ${area.is_local ? `<span class="badge bg-info me-1" style="font-size: 0.7em;" title="${uiT('ui.echoareas.local_only_title', 'Local only - not transmitted to uplinks')}">${uiT('ui.echoareas.local', 'Local')}</span>` : ''}
+                                ${area.is_sysop_only ? `<span class="badge bg-warning text-dark me-1" style="font-size: 0.7em;" title="${uiT('ui.echoareas.sysop_access_only_title', 'Sysop access only')}">${uiT('ui.echoareas.sysop', 'Sysop')}</span>` : ''}
                             </div>
                         </div>
                     </td>
                     <td style="word-break: break-word; overflow-wrap: break-word;">
                         <strong>${escapeHtml(area.description)}</strong>
-                        ${area.moderator ? `<br><small class="text-muted">Mod: ${escapeHtml(area.moderator)}</small>` : ''}
+                        ${area.moderator ? `<br><small class="text-muted">${uiT('ui.echoareas.mod_prefix', 'Mod:')} ${escapeHtml(area.moderator)}</small>` : ''}
                     </td>
                     <td>
                         <span class="badge bg-secondary">${area.message_count || 0}</span>
                     </td>
                     <td>
-                        <small class="font-monospace">${escapeHtml(area.uplink_address || 'Uplink')}@${escapeHtml(area.domain||'')}</small>
+                        <small class="font-monospace">${escapeHtml(area.uplink_address || uiT('ui.echoareas.uplink', 'Uplink'))}@${escapeHtml(area.domain||'')}</small>
                     </td>
                     <td>
                         <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-outline-primary" onclick="editEchoarea(${area.id})" title="Edit">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editEchoarea(${area.id})" title="${uiT('ui.common.edit', 'Edit')}">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${area.id}, '${escapeHtml(area.tag)}')" title="Delete">
+                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${area.id}, '${escapeHtml(area.tag)}')" title="${uiT('ui.common.delete', 'Delete')}">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -445,7 +461,7 @@ function displayEchoareas(echoareas) {
 
 function showAddEchoareaModal() {
     currentEchoareaId = null;
-    $('#echoareaModalTitle').text('Add Echo Area');
+    $('#echoareaModalTitle').text(uiT('ui.echoareas.add_echo_area', 'Add Echo Area'));
     $('#echoareaForm')[0].reset();
     $('#echoareaId').val('');
     $("#echoareaDomain").val('');
@@ -461,7 +477,7 @@ function showAddEchoareaModal() {
 
 function editEchoarea(id) {
     currentEchoareaId = id;
-    $('#echoareaModalTitle').text('Edit Echo Area');
+    $('#echoareaModalTitle').text(uiT('ui.echoareas.edit_echo_area', 'Edit Echo Area'));
 
     $.get(`/api/echoareas/${id}`)
         .done(function(data) {
@@ -482,7 +498,7 @@ function editEchoarea(id) {
             $('#echoareaModal').modal('show');
         })
         .fail(function() {
-            showError('Failed to load echo area details');
+            showError(uiT('ui.echoareas.load_details_failed', 'Failed to load echo area details'));
         });
 }
 
@@ -515,14 +531,25 @@ function saveEchoarea() {
         method: method,
         contentType: 'application/json',
         data: JSON.stringify(formData),
-        success: function() {
+        success: function(response) {
             $('#echoareaModal').modal('hide');
-            showSuccess(`Echo area ${currentEchoareaId ? 'updated' : 'created'} successfully`);
+            const fallbackMessage = currentEchoareaId
+                ? uiT('ui.echoareas.updated_success', 'Echo area updated successfully')
+                : uiT('ui.echoareas.created_success', 'Echo area created successfully');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, fallbackMessage)
+                : fallbackMessage;
+            showSuccess(successMessage);
             loadEchoareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Operation failed';
+            const error = apiError(
+                xhr.responseJSON,
+                currentEchoareaId
+                    ? uiT('errors.echoareas.update_failed', 'Failed to update echo area')
+                    : uiT('errors.echoareas.create_failed', 'Failed to create echo area')
+            );
             showError(error);
         }
     });
@@ -542,14 +569,17 @@ function deleteEchoarea() {
     $.ajax({
         url: `/api/echoareas/${currentEchoareaId}`,
         method: 'DELETE',
-        success: function() {
+        success: function(response) {
             $('#deleteModal').modal('hide');
-            showSuccess('Echo area deleted successfully');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.echoareas.deleted_success', 'Echo area deleted successfully'))
+                : uiT('ui.echoareas.deleted_success', 'Echo area deleted successfully');
+            showSuccess(successMessage);
             loadEchoareas();
             loadStats();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Delete failed';
+            const error = apiError(xhr.responseJSON, uiT('errors.echoareas.delete_failed', 'Failed to delete echo area'));
             showError(error);
         }
     });
@@ -565,15 +595,15 @@ function loadStats() {
 }
 
 function syncWithUplinks() {
-    showSuccess('Sync functionality not yet implemented');
+    showSuccess(uiT('ui.echoareas.sync_not_implemented', 'Sync functionality not yet implemented'));
 }
 
 function exportConfiguration() {
-    showSuccess('Export functionality not yet implemented');
+    showSuccess(uiT('ui.echoareas.export_not_implemented', 'Export functionality not yet implemented'));
 }
 
 function validateConfiguration() {
-    showSuccess('Validation functionality not yet implemented');
+    showSuccess(uiT('ui.echoareas.validate_not_implemented', 'Validation functionality not yet implemented'));
 }
 
 function updateColorSelection(color) {

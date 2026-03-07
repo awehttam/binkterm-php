@@ -165,7 +165,8 @@ class BinkpClient
                 $this->log("Failed to poll {$address}: " . $e->getMessage(), 'ERROR');
                 $results[$address] = [
                     'success' => false,
-                    'error' => $e->getMessage()
+                    'error_code' => 'errors.binkp.uplink.poll_failed',
+                    'error' => 'Failed to poll BinkP uplink'
                 ];
             }
         }
@@ -196,7 +197,8 @@ class BinkpClient
             }
             return [
                 'success' => false,
-                'error' => $error,
+                'error_code' => 'errors.binkp.connection_test_failed',
+                'error' => 'Failed to test BinkP connection',
                 'connect_time' => $connectTime
             ];
         }
@@ -268,7 +270,8 @@ class BinkpClient
             } catch (\Exception $e) {
                 $status[$address] = array_merge($uplink, [
                     'success' => false,
-                    'error' => $e->getMessage(),
+                    'error_code' => 'errors.binkp.status_failed',
+                    'error' => 'Failed to load BinkP status',
                     'last_test' => date('Y-m-d H:i:s')
                 ]);
             }

@@ -14,7 +14,7 @@ use BinktermPHP\TelnetServer\TelnetServer;
 class PollsHandler
 {
     /** @var TelnetServer The telnet server instance */
-    private TelnetServer $server;
+    private BbsSession $server;
 
     /** @var string Base URL for API requests */
     private string $apiBase;
@@ -22,10 +22,10 @@ class PollsHandler
     /**
      * Create a new PollsHandler instance
      *
-     * @param TelnetServer $server The telnet server instance for I/O operations
+     * @param BbsSession $server The telnet server instance for I/O operations
      * @param string $apiBase Base URL for API requests
      */
-    public function __construct(TelnetServer $server, string $apiBase)
+    public function __construct(BbsSession $server, string $apiBase)
     {
         $this->server = $server;
         $this->apiBase = $apiBase;
@@ -46,7 +46,7 @@ class PollsHandler
     public function show($conn, array &$state, string $session): void
     {
         if (!\BinktermPHP\BbsConfig::isFeatureEnabled('voting_booth')) {
-            TelnetUtils::writeLine($conn, 'Voting booth is disabled.');
+            TelnetUtils::writeLine($conn, $this->server->t('ui.telnet.polls.disabled', 'Voting booth is disabled.', [], $state['locale']));
             return;
         }
 
@@ -54,17 +54,17 @@ class PollsHandler
             $polls = $this->getActivePolls($session);
             if (!$polls) {
                 TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Polls', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.polls.title', 'Polls', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
                 TelnetUtils::writeLine($conn, '');
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('No active polls.', TelnetUtils::ANSI_YELLOW));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.polls.no_polls', 'No active polls.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
                 TelnetUtils::writeLine($conn, '');
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to return...', TelnetUtils::ANSI_YELLOW));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
                 $this->server->readKeyWithIdleCheck($conn, $state);
                 return;
             }
 
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Polls', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.polls.title', 'Polls', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
             TelnetUtils::writeLine($conn, '');
 
             foreach ($polls as $index => $poll) {
@@ -83,7 +83,7 @@ class PollsHandler
             }
 
             TelnetUtils::writeLine($conn, '');
-            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize('Enter poll # or Q to return: ', TelnetUtils::ANSI_CYAN), true);
+            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize($this->server->t('ui.telnet.polls.enter_poll', 'Enter poll # or Q to return: ', [], $state['locale']), TelnetUtils::ANSI_CYAN), true);
             if ($choice === null) {
                 return;
             }
@@ -132,7 +132,7 @@ class PollsHandler
             }
 
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Poll Detail', TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.polls.detail_title', 'Poll Detail', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeWrapped($conn, 'Q: ' . (string)($freshPoll['question'] ?? ''), max(40, (int)($state['cols'] ?? 80) - 2));
             TelnetUtils::writeLine($conn, '');
@@ -146,9 +146,9 @@ class PollsHandler
                     TelnetUtils::writeLine($conn, TelnetUtils::colorize($line, TelnetUtils::ANSI_GREEN));
                 }
                 TelnetUtils::writeLine($conn, '');
-                TelnetUtils::writeLine($conn, 'Total votes: ' . $totalVotes);
+                TelnetUtils::writeLine($conn, $this->server->t('ui.telnet.polls.total_votes', 'Total votes: {count}', ['count' => $totalVotes], $state['locale']));
                 TelnetUtils::writeLine($conn, '');
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to return...', TelnetUtils::ANSI_YELLOW));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
                 $this->server->readKeyWithIdleCheck($conn, $state);
                 return;
             }
@@ -158,7 +158,7 @@ class PollsHandler
             }
 
             TelnetUtils::writeLine($conn, '');
-            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize('Vote with option # or Q to return: ', TelnetUtils::ANSI_CYAN), true);
+            $choice = $this->server->prompt($conn, $state, TelnetUtils::colorize($this->server->t('ui.telnet.polls.vote_prompt', 'Vote with option # or Q to return: ', [], $state['locale']), TelnetUtils::ANSI_CYAN), true);
             if ($choice === null) {
                 return;
             }
@@ -186,11 +186,11 @@ class PollsHandler
 
             TelnetUtils::writeLine($conn, '');
             if (($response['data']['success'] ?? false) === true) {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize('Vote recorded.', TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.polls.voted', 'Vote recorded.', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
             } else {
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize((string)($response['data']['error'] ?? 'Vote failed.'), TelnetUtils::ANSI_RED));
             }
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize('Press any key to continue...', TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.server.press_continue', 'Press any key to continue...', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             $this->server->readKeyWithIdleCheck($conn, $state);
         }
     }

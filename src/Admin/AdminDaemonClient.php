@@ -201,6 +201,30 @@ class AdminDaemonClient
         ]);
     }
 
+    /**
+     * Returns the base catalog keys and current overlay overrides for a locale/namespace.
+     *
+     * @return array{base: array<string,string>, overrides: array<string,string>}
+     */
+    public function getI18nOverlay(string $locale, string $namespace): array
+    {
+        return $this->sendCommand('get_i18n_overlay', ['locale' => $locale, 'ns' => $namespace]);
+    }
+
+    /**
+     * Saves an overlay for a locale/namespace. Pass an empty array to clear all overrides.
+     *
+     * @param array<string,string> $overrides
+     */
+    public function saveI18nOverlay(string $locale, string $namespace, array $overrides): array
+    {
+        return $this->sendCommand('save_i18n_overlay', [
+            'locale'    => $locale,
+            'ns'        => $namespace,
+            'overrides' => $overrides,
+        ]);
+    }
+
     public function getAppearanceConfig(): array
     {
         return $this->sendCommand('get_appearance_config');
@@ -243,6 +267,26 @@ class AdminDaemonClient
     public function stopServices(): array
     {
         return $this->sendCommand('stop_services');
+    }
+
+    /**
+     * Write an entry to data/logs/server.log via the admin daemon.
+     *
+     * This is the correct way for web routes to log application-level events
+     * (e.g. "user sent netmail, packet ID xyz") without writing to local files
+     * directly, since the daemon owns the log directory exclusively.
+     *
+     * @param string               $level   Log level string: INFO, WARNING, ERROR, DEBUG
+     * @param string               $message Human-readable message
+     * @param array<string,scalar> $context Optional structured context (username, packet_id, …)
+     */
+    public function serverLog(string $level, string $message, array $context = []): array
+    {
+        return $this->sendCommand('server_log', [
+            'level'   => strtoupper($level),
+            'message' => $message,
+            'context' => $context,
+        ]);
     }
 
     public function getMrcConfig(): array

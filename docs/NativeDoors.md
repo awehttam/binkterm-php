@@ -1,6 +1,30 @@
 # Native Doors
 
+> **See also:** [Doors.md](Doors.md) for an overview of all door types and shared multiplexing bridge setup.
+
 Native doors are BBS door programs that run as native Linux binaries or Windows executables, launched directly via PTY (pseudo-terminal). Unlike DOS doors, they require no emulator — the program runs as a regular system process with full ANSI/VT100 terminal support.
+
+## Multiplexing Bridge Setup
+
+Native doors use the same multiplexing bridge as DOS doors. Before native doors will work, the bridge must be installed and running.
+
+**Quick start:**
+
+```bash
+# Install bridge dependencies (includes node-pty for native door PTY support)
+cd scripts/dosbox-bridge
+npm install
+
+# Start the bridge (interactive)
+node multiplexing-server.js
+
+# Or run as a background daemon
+node multiplexing-server.js --daemon
+```
+
+For full setup instructions including production service configuration, environment variables, and reverse proxy setup, see [Doors.md](Doors.md).
+
+---
 
 ## How It Works
 
@@ -10,20 +34,25 @@ Native doors are BBS door programs that run as native Linux binaries or Windows 
 4. A DOOR.SYS drop file is written to `native-doors/drops/NODE{n}/DOOR.SYS` and user data is injected as environment variables.
 5. When the door exits (or the user disconnects), the PTY is killed and the session is cleaned up.
 
-## Directory Structure
+## File Structure
 
 ```
-native-doors/
-  doors/                   ← install doors here
-    mydoor/
-      nativedoor.json      ← required manifest
-      mydoor.sh            ← executable (or binary, .bat, etc.)
-      icon.png             ← optional icon (64×64)
-  drops/                   ← generated at runtime, do not edit
-    NODE1/
-      DOOR.SYS
-    NODE2/
-      DOOR.SYS
+binkterm-php/
+├── native-doors/
+│   ├── doors/                              # Install doors here
+│   │   ├── linuxdoortest/                  # Bundled test door (Linux)
+│   │   ├── windoortest/                    # Bundled test door (Windows)
+│   │   └── mydoor/                         # Example custom door
+│   │       ├── nativedoor.json             # Door manifest (required)
+│   │       ├── mydoor.sh                   # Executable (or binary, .bat, etc.)
+│   │       └── icon.png                    # Optional icon (64×64 PNG)
+│   └── drops/                              # Generated at runtime — do not edit
+│       ├── NODE1/
+│       │   └── DOOR.SYS
+│       └── NODE2/
+│           └── DOOR.SYS
+└── config/
+    └── nativedoors.json                    # Runtime config (managed by admin panel)
 ```
 
 Each door lives in its own subdirectory under `native-doors/doors/`. The directory name is the door's ID — it is used in URLs and the database, so it must be lowercase with no spaces (e.g. `lord`, `mygame`, `linuxdoortest`).

@@ -20,6 +20,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 
 ## Table of Contents
 
+- [Contributors Wanted](#-contributors-wanted)
 - [Screen shots](#screen-shots)
 - [Features](#features)
 - [Installation](#installation)
@@ -28,17 +29,21 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
 - [Telnet Interface](#telnet-interface)
+- [SSH Interface](#ssh-interface)
 - [Operation](#operation)
 - [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Security Considerations](#security-considerations)
 - [File Areas](#file-areas)
-  - [File Area Rules](#file-area-rules)
+- [File Area Rules](#file-area-rules)
+- [Authentication Flow](#authentication-flow)
+- [API Specification](#api-specification)
 - [Native Doors](#native-doors---native-linux--windows-door-programs)
 - [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
 - [Gemini Support](#gemini-support)
+- [Frequently Asked Questions](#frequently-asked-questions)
 - [Developer Guide](#developer-guide)
 - [Contributing](#contributing)
 - [License](#license)
@@ -109,6 +114,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Shoutbox** - Shoutbox support
 - **Nodelist Browsers** - Integrated nodelist updater and browser
 - **Markup Support** - Echomail and netmail can be composed and rendered using Markdown or StyleCodes formatting on compatible networks
+- **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English and Spanish out of the box.
 
 
 ### Native Binkp Protocol Support
@@ -130,13 +136,23 @@ Here are some screen shots showing various aspects of the interface with differe
 
 ### Telnet Interface
 
-A basic telnet service is available.  
+A basic telnet service is available.
 
 - **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
 - **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
 - **Security Features** - Login rate limiting (3 attempts per connection, 5/minute per IP) and connection logging
 - **Multi-Platform** - Works with PuTTY, SyncTERM, and standard telnet clients on Linux/macOS/Windows
 - See **[telnet/README.md](telnet/README.md)** for complete documentation, configuration options, and troubleshooting
+
+### SSH Interface
+
+A pure-PHP SSH-2 server provides the same BBS terminal experience over an encrypted connection with no external SSH daemon required.
+
+- **Encrypted** - Full SSH-2 transport encryption; no credentials travel in plaintext
+- **Direct Login** - Correct SSH credentials skip the login screen and land directly on the main menu
+- **Login Fallback** - Failed SSH auth drops to the BBS login/register screen rather than disconnecting
+- **No Extra Dependencies** - Uses only `ext-openssl` and `ext-gmp`; no new Composer packages
+- See **[docs/SSHServer.md](docs/SSHServer.md)** for complete documentation, configuration options, and troubleshooting
 
 ### Credits System
 
@@ -288,7 +304,7 @@ Incoming messages are rendered based on the `^AMARKUP` kludge in the message. Ma
 BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
 ### Requirements
-- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL
+- **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
 - **Web Server** - Apache, Nginx, or PHP built-in server
@@ -1336,6 +1352,9 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 # Optional: start telnet daemon on boot
 @reboot /usr/bin/php /path/to/binktest/telnet/telnet_daemon.php --daemon
 
+# Optional: start SSH daemon on boot
+@reboot /usr/bin/php /path/to/binktest/ssh/ssh_daemon.php --daemon
+
 # Optional: start Gemini daemon on boot
 @reboot /usr/bin/php /path/to/binktest/scripts/gemini_daemon.php --daemon
 
@@ -1920,6 +1939,59 @@ For developers working on BinktermPHP or integrating with the system, see the co
 - **WebDoor Integration** - Game/application API for BBS integration
 
 The Developer Guide is essential reading for anyone contributing code, developing WebDoors, or extending the system.
+
+## Localization (i18n) for Contributors
+
+BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and API errors. For a full technical reference see [docs/Localization.md](docs/Localization.md).
+
+### Catalogs and Key Layout
+
+- Translation files live in:
+  - `config/i18n/en/common.php`
+  - `config/i18n/en/errors.php`
+  - `config/i18n/es/common.php`
+  - `config/i18n/es/errors.php`
+- UI keys should use the `ui.*` prefix (for example `ui.settings.*`).
+- API error keys should use the `errors.*` prefix.
+
+### Twig Usage
+
+- Use the Twig `t()` helper instead of hardcoded literals:
+```twig
+{{ t('ui.settings.title', {}, 'common') }}
+{{ t('ui.polls.create.submit', {'cost': poll_cost}, 'common') }}
+```
+
+### JavaScript Usage
+
+- Use `window.t(key, params, fallback)` (or a local `uiT` wrapper).
+- Always provide a fallback string for resilience.
+- Example:
+```js
+window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)');
+```
+
+JavaScript catalogs are loaded on demand from:
+- `GET /api/i18n/catalog?ns=common,errors&locale=<locale>`
+
+### API Errors (`error_code`)
+
+- API responses should include both:
+  - `error_code` (translation key)
+  - `error` (human fallback text)
+- Routes should emit errors through `apiError(errorCode, message, status, extra)`.
+- Frontend should resolve display text through `window.getApiErrorMessage(payload, fallback)`.
+
+This keeps UI text translatable and avoids coupling frontend logic to raw server English strings.
+
+### Required Validation After i18n Changes
+
+Run both checks before committing:
+
+```bash
+php scripts/check_i18n_hardcoded_strings.php
+php scripts/check_i18n_error_keys.php
+```
 
 ## Contributing
 

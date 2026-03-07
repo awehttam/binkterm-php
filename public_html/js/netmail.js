@@ -11,6 +11,23 @@ let currentSearchTerms = [];
 let selectMode = false;
 let selectedMessages = new Set();
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    if (payload && payload.error) {
+        return String(payload.error);
+    }
+    return fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
     loadNetmailSettings().then(function() {
         loadMessages();
@@ -118,7 +135,7 @@ function loadMessages() {
             updatePagination(data.pagination);
         })
         .fail(function() {
-            $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load messages</div>');
+            $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.failed_load_messages', 'Failed to load messages')}</div>`);
         });
 }
 
@@ -130,11 +147,11 @@ function loadDrafts() {
                 // Clear pagination for drafts
                 $('#pagination').empty();
             } else {
-                $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load drafts</div>');
+                $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.messages.drafts.list_failed', 'Failed to load drafts')}</div>`);
             }
         })
         .fail(function() {
-            $('#messagesContainer').html('<div class="text-center text-danger py-4">Failed to load drafts</div>');
+            $('#messagesContainer').html(`<div class="text-center text-danger py-4">${uiT('errors.messages.drafts.list_failed', 'Failed to load drafts')}</div>`);
         });
 }
 
@@ -143,7 +160,7 @@ function displayDrafts(drafts) {
     let html = '';
 
     if (drafts.length === 0) {
-        html = '<div class="text-center text-muted py-4">No drafts found</div>';
+        html = `<div class="text-center text-muted py-4">${uiT('ui.netmail.no_drafts_found', 'No drafts found')}</div>`;
     } else {
         // Create table structure
         html = `
@@ -151,16 +168,16 @@ function displayDrafts(drafts) {
                 <table class="table table-hover message-table mb-0">
                     <thead>
                         <tr>
-                            <th style="width: 30%">To</th>
-                            <th style="width: 45%">Subject</th>
-                            <th colspan="2" style="width: 25%">Last Updated</th>
+                            <th style="width: 30%">${uiT('ui.netmail.to', 'To')}</th>
+                            <th style="width: 45%">${uiT('ui.common.subject_label_short', 'Subject')}</th>
+                            <th colspan="2" style="width: 25%">${uiT('ui.netmail.last_updated', 'Last Updated')}</th>
                         </tr>
                     </thead>
                     <tbody>
         `;
 
         drafts.forEach(function(draft) {
-            const displayTo = draft.to_name || 'Unknown';
+            const displayTo = draft.to_name || uiT('ui.common.unknown', 'Unknown');
             const displayAddress = draft.to_address || '';
 
             html += `
@@ -170,13 +187,13 @@ function displayDrafts(drafts) {
                         ${displayAddress ? `<div class="text-muted small">${escapeHtml(displayAddress)}</div>` : ''}
                     </td>
                     <td>
-                        <strong>${escapeHtml(draft.subject || '(No Subject)')}</strong>
+                        <strong>${escapeHtml(draft.subject || uiT('messages.no_subject', '(No Subject)'))}</strong>
                         ${draft.message_text ? `<br><small class="text-muted">${escapeHtml(draft.message_text.substring(0, 100))}${draft.message_text.length > 100 ? '...' : ''}</small>` : ''}
                     </td>
                     <td>
                         <div>${formatFullDate(draft.updated_at)}</div>
                         <div class="text-muted small">
-                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteDraftConfirm(${draft.id})" title="Delete draft">
+                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteDraftConfirm(${draft.id})" title="${uiT('ui.common.delete_draft', 'Delete draft')}">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -203,7 +220,7 @@ function displayMessages(messages, isThreaded = false) {
     let html = '';
 
     if (messages.length === 0) {
-        html = '<div class="text-center text-muted py-4">No messages found</div>';
+        html = `<div class="text-center text-muted py-4">${uiT('messages.none_found', 'No messages found')}</div>`;
     } else {
         html = `
             <table class="table table-hover message-table mb-0">
@@ -214,10 +231,10 @@ function displayMessages(messages, isThreaded = false) {
                                 <input class="form-check-input" type="checkbox" id="selectAllMessages" onchange="toggleSelectAll()">
                             </div>
                         </th>
-                        <th width="27%">From/To</th>
-                        <th width="40%">Subject</th>
-                        <th width="15%">Address</th>
-                        <th width="10%">Received</th>
+                        <th width="27%">${uiT('ui.netmail.from_to', 'From/To')}</th>
+                        <th width="40%">${uiT('ui.common.subject_label_short', 'Subject')}</th>
+                        <th width="15%">${uiT('ui.common.address', 'Address')}</th>
+                        <th width="10%">${uiT('ui.netmail.received', 'Received')}</th>
                         <th width="5%"></th>
                     </tr>
                 </thead>
@@ -235,8 +252,8 @@ function displayMessages(messages, isThreaded = false) {
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
             const threadIndent = threadLevel > 0 ? `style="text-indent: ${threadLevel * 0.5}rem;"` : '';
-            const threadIcon = threadLevel > 0 ? '<i class="fas fa-reply me-1 text-muted" title="Reply"></i>' : '';
-            const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${replyCount} replies">${replyCount}</span>` : '';
+            const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
+            const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
 
             // Add thread-specific CSS classes
 
@@ -248,16 +265,16 @@ function displayMessages(messages, isThreaded = false) {
                         </div>
                     </td>
                     <td ${threadIndent}>
-                        ${isUnread ? '<i class="fas fa-envelope text-primary me-1" title="Unread"></i>' : '<i class="far fa-envelope-open text-muted me-1" title="Read"></i>'}${threadIcon}<strong>${escapeHtml(isSent ? 'To: ' + msg.to_name : msg.from_name)}</strong>
+                        ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
                         <br>
                     </td>
                     <td ${threadIndent}>
-                        ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || '(No Subject)')}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
+                        ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
                         <br>
                         <small class="text-muted">
-                            <span class="badge bg-secondary">NETMAIL</span>
-                            ${isUnread ? '<span class="badge bg-primary ms-1">NEW</span>' : ''}
-                            ${msg.received_insecure ? '<span class="badge bg-warning text-dark ms-1" title="Received via insecure session"><i class="fas fa-exclamation-triangle"></i></span>' : ''}
+                            <span class="badge bg-secondary">${uiT('ui.netmail.badge_netmail', 'NETMAIL')}</span>
+                            ${isUnread ? `<span class="badge bg-primary ms-1">${uiT('ui.netmail.badge_new', 'NEW')}</span>` : ''}
+                            ${msg.received_insecure ? `<span class="badge bg-warning text-dark ms-1" title="${uiT('ui.netmail.received_insecure_session_title', 'Received via insecure session')}"><i class="fas fa-exclamation-triangle"></i></span>` : ''}
                         </small>
                     </td>
                     <td>
@@ -268,7 +285,7 @@ function displayMessages(messages, isThreaded = false) {
                         <small>${formatDate(msg.date_received)}</small>
                     </td>
                     <td class="text-center">
-                        <button class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation(); deleteMessage(${msg.id})" title="Delete message">
+                        <button class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation(); deleteMessage(${msg.id})" title="${uiT('ui.common.delete_message', 'Delete message')}">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
@@ -294,7 +311,7 @@ function updatePagination(pagination) {
 
         // Previous button
         if (pagination.page > 1) {
-            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">Previous</a></li>`;
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page - 1})">${uiT('ui.common.previous', 'Previous')}</a></li>`;
         }
 
         // Page numbers
@@ -305,7 +322,7 @@ function updatePagination(pagination) {
 
         // Next button
         if (pagination.page < pagination.pages) {
-            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page + 1})">Next</a></li>`;
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${pagination.page + 1})">${uiT('ui.common.next', 'Next')}</a></li>`;
         }
 
         html += '</ul>';
@@ -373,7 +390,7 @@ function viewMessage(messageId) {
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Loading message...
+            ${uiT('ui.common.loading_message', 'Loading message...')}
         </div>
     `);
 
@@ -385,7 +402,7 @@ function viewMessage(messageId) {
             displayMessageContent(data);
         })
         .fail(function() {
-            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+            $('#messageContent').html(`<div class="text-danger">${uiT('errors.messages.netmail.get_failed', 'Failed to load message')}</div>`);
         });
 }
 
@@ -394,7 +411,7 @@ function displayMessageContent(message) {
     const currentUserId = window.currentUser ? window.currentUser.id : null;
     const isSent = (message.user_id && currentUserId && message.user_id == currentUserId);
 
-    $('#messageSubject').text(message.subject || '(No Subject)');
+    $('#messageSubject').text(message.subject || uiT('messages.no_subject', '(No Subject)'));
 
     // Parse message to separate kludge lines from body (use stored kludge_lines if available)
     const parsedMessage = parseNetmailMessage(message.message_text || '', message.kludge_lines || null, message.bottom_kludges || null);
@@ -432,7 +449,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
     let addressBookButton;
     if (isInAddressBook) {
         addressBookButton = `
-            <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="Already in address book">
+            <button class="btn btn-sm btn-outline-secondary ms-2" id="saveAddressBookBtn" disabled title="${uiT('ui.common.already_in_address_book', 'Already in address book')}">
                 <i class="fas fa-check"></i> <i class="fas fa-address-book"></i>
             </button>
         `;
@@ -440,7 +457,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         const replyToAddress = message.replyto_address || message.reply_address || message.original_author_address || message.from_address;
         const replyToName = message.replyto_name || message.from_name;
         addressBookButton = `
-            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(replyToName)}', '${escapeHtml(replyToAddress)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="Save to address book">
+            <button class="btn btn-sm btn-outline-success ms-2" id="saveAddressBookBtn" onclick="saveToAddressBook('${escapeHtml(replyToName)}', '${escapeHtml(replyToAddress)}', '${escapeHtml(message.from_name)}', '${escapeHtml(message.from_address)}')" title="${uiT('ui.common.save_to_address_book', 'Save to address book')}">
                 <i class="fas fa-address-book"></i>
             </button>
         `;
@@ -454,30 +471,30 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         <div class="message-header-full mb-3">
             <div class="row">
                 <div class="col-md-6">
-                    <strong>From:</strong> ${escapeHtml(message.from_name)}
+                    <strong>${uiT('ui.common.from_label', 'From:')}</strong> ${escapeHtml(message.from_name)}
                     <small class="text-muted ms-2">${formatFidonetAddress(message.from_address)}</small>
                     ${addressBookButton}
                 </div>
                 <div class="col-md-6">
-                    <strong>To:</strong> ${escapeHtml(message.to_name)}
+                    <strong>${uiT('ui.common.to_label', 'To:')}</strong> ${escapeHtml(message.to_name)}
                     <small class="text-muted ms-2">${formatFidonetAddress(message.to_address)}</small>
                 </div>
             </div>
             <div class="row mt-2">
                 <div class="col-md-6">
-                    <strong>Date:</strong> <span title="Sent: ${formatFullDate(message.date_written)}">${formatFullDate(message.date_received)}</span>
+                    <strong>${uiT('ui.common.date_label', 'Date:')}</strong> <span title="${uiT('ui.common.sent_prefix', 'Sent:')} ${formatFullDate(message.date_written)}">${formatFullDate(message.date_received)}</span>
                 </div>
                 <div class="col-md-6">
-                    <strong>Subject:</strong> ${escapeHtml(message.subject || '(No Subject)')}
+                    <strong>${uiT('ui.common.subject_label', 'Subject:')}</strong> ${escapeHtml(message.subject || uiT('messages.no_subject', '(No Subject)'))}
                 </div>
             </div>
             ${message.received_insecure ? `
             <div class="row mt-2">
                 <div class="col-12">
-                    <span class="badge bg-warning text-dark" title="This message was received via an insecure/unauthenticated binkp session">
-                        <i class="fas fa-exclamation-triangle"></i> Received Insecurely
+                    <span class="badge bg-warning text-dark" title="${uiT('ui.netmail.received_insecure_badge_title', 'This message was received via an insecure/unauthenticated binkp session')}">
+                        <i class="fas fa-exclamation-triangle"></i> ${uiT('ui.netmail.received_insecurely', 'Received Insecurely')}
                     </span>
-                    <small class="text-muted ms-2">This message was not authenticated</small>
+                    <small class="text-muted ms-2">${uiT('ui.netmail.not_authenticated', 'This message was not authenticated')}</small>
                 </div>
             </div>
             ` : ''}
@@ -486,10 +503,10 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         ${parsedMessage.kludgeLines.length > 0 ? `
         <div class="message-headers mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 text-muted">Kludge Lines</h6>
+                <h6 class="mb-0 text-muted">${uiT('ui.common.kludge_lines', 'Kludge Lines')}</h6>
                 <button class="btn btn-sm btn-outline-secondary" id="toggleHeaders" onclick="toggleKludgeLines()">
                     <i class="fas fa-eye-slash" id="toggleIcon"></i>
-                    <span id="toggleText">Show Kludge Lines</span>
+                    <span id="toggleText">${uiT('ui.common.show_kludge_lines', 'Show Kludge Lines')}</span>
                 </button>
             </div>
             <div id="kludgeContainer" class="kludge-lines" style="display: none;">
@@ -506,7 +523,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         <div class="message-attachments mt-3">
             <h6 class="text-muted mb-2">
                 <i class="fas fa-paperclip"></i>
-                File Attachments (${message.attachments.length})
+                ${uiT('ui.common.file_attachments_with_count', 'File Attachments ({count})', { count: message.attachments.length })}
             </h6>
             <div class="list-group">
                 ${message.attachments.map(file => `
@@ -580,7 +597,7 @@ function composeMessageToUser(toName, toAddress, subject, alwaysCrashmail) {
 function searchMessages() {
     const query = $('#searchInput').val().trim();
     if (query.length < 2) {
-        showError('Please enter at least 2 characters to search');
+        showError(uiT('errors.messages.search.query_too_short', 'Please enter at least 2 characters to search'));
         return;
     }
 
@@ -595,7 +612,7 @@ function searchMessages() {
             $('#pagination').empty();
         })
         .fail(function() {
-            showError('Search failed');
+            showError(uiT('ui.netmail.search.failed', 'Search failed'));
         });
 }
 
@@ -611,14 +628,14 @@ function loadStats() {
         .fail(function(xhr, status, error) {
             console.error('Netmail stats loading failed:', xhr.status, status, error);
             console.error('Response text:', xhr.responseText);
-            $('#totalCount').text('Error');
-            $('#unreadCount').text('Error');
-            $('#sentCount').text('Error');
+            $('#totalCount').text(uiT('ui.common.error', 'Error'));
+            $('#unreadCount').text(uiT('ui.common.error', 'Error'));
+            $('#sentCount').text(uiT('ui.common.error', 'Error'));
         });
 }
 
 function deleteMessage(messageId) {
-    if (!confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
+    if (!confirm(uiT('ui.netmail.delete_message_confirm', 'Are you sure you want to delete this message? This action cannot be undone.'))) {
         return;
     }
 
@@ -627,15 +644,15 @@ function deleteMessage(messageId) {
         method: 'DELETE',
         success: function(data) {
             $('#messageModal').modal('hide');
-            showSuccess('Message deleted successfully');
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.netmail.message_deleted_success', 'Message deleted successfully'))
+                : uiT('ui.netmail.message_deleted_success', 'Message deleted successfully');
+            showSuccess(successMessage);
             loadMessages();
             loadStats();
         },
         error: function(xhr) {
-            let errorMsg = 'Failed to delete message';
-            if (xhr.responseJSON && xhr.responseJSON.error) {
-                errorMsg = xhr.responseJSON.error;
-            }
+            const errorMsg = apiError(xhr.responseJSON, uiT('errors.messages.netmail.delete_failed', 'Failed to delete message'));
             showError(errorMsg);
         }
     });
@@ -681,9 +698,9 @@ function toggleThreading() {
     // Update toggle text
     const toggleText = $('#threadingToggleText');
     if (threadedView) {
-        toggleText.text('Show Flat');
+        toggleText.text(uiT('ui.common.threading.show_flat', 'Show Flat'));
     } else {
-        toggleText.text('Show Threaded');
+        toggleText.text(uiT('ui.common.threading.show_threaded', 'Show Threaded'));
     }
 
     // Save preference (netmail uses separate setting from echomail)
@@ -703,9 +720,9 @@ function loadNetmailSettings() {
                 threadedView = userSettings.netmail_threaded_view;
                 const toggleText = $('#threadingToggleText');
                 if (threadedView) {
-                    toggleText.text('Show Flat');
+                    toggleText.text(uiT('ui.common.threading.show_flat', 'Show Flat'));
                 } else {
-                    toggleText.text('Show Threaded');
+                    toggleText.text(uiT('ui.common.threading.show_threaded', 'Show Threaded'));
                 }
             }
 
@@ -728,13 +745,13 @@ function loadAddressBook(search = '') {
         .done(function(response) {
             if (response.success) {
                 renderAddressBook(response.entries);
-                $('#addressBookStats').text(response.entries.length + ' entries');
+                $('#addressBookStats').text(`${response.entries.length} ${uiT('ui.address_book.entries', 'entries')}`);
             } else {
-                $('#addressBookList').html('<div class="text-danger py-2">Failed to load address book</div>');
+                $('#addressBookList').html(`<div class="text-danger py-2">${uiT('ui.address_book.load_failed', 'Failed to load address book')}</div>`);
             }
         })
         .fail(function() {
-            $('#addressBookList').html('<div class="text-danger py-2">Failed to load address book</div>');
+            $('#addressBookList').html(`<div class="text-danger py-2">${uiT('ui.address_book.load_failed', 'Failed to load address book')}</div>`);
         });
 }
 
@@ -743,16 +760,16 @@ function renderAddressBook(entries) {
     let html = '';
 
     if (entries.length === 0) {
-        html = '<div class="text-center text-muted py-2">No entries found</div>';
+        html = `<div class="text-center text-muted py-2">${uiT('ui.address_book.no_entries_found', 'No entries found')}</div>`;
     } else {
         entries.forEach(function(entry) {
             html += `
                 <div class="d-flex justify-content-between align-items-start mb-2 p-2 border rounded address-book-entry"
                      style="cursor: pointer;" onclick="composeToAddressBookEntry('${escapeHtml(entry.messaging_user_id || '')}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
                     <div class="flex-grow-1">
-                        <div class="fw-bold small">${escapeHtml(entry.name || 'Unnamed')}</div>
-                        <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
-                        <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || 'No address')}</div>
+                        <div class="fw-bold small">${escapeHtml(entry.name || uiT('ui.address_book.unnamed', 'Unnamed'))}</div>
+                        <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || uiT('ui.common.unknown', 'Unknown'))}</div>
+                        <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || uiT('ui.address_book.no_address', 'No address'))}</div>
                         ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 30) + (entry.description.length > 30 ? '...' : ''))}</div>` : ''}
                     </div>
                     <div class="dropdown">
@@ -761,10 +778,10 @@ function renderAddressBook(entries) {
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); editAddressBookEntry(${entry.id});">
-                                <i class="fas fa-edit"></i> Edit
+                                <i class="fas fa-edit"></i> ${uiT('ui.common.edit', 'Edit')}
                             </a></li>
-                            <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); deleteAddressBookEntry(${entry.id}, '${escapeHtml(entry.name || 'Unnamed')}');">
-                                <i class="fas fa-trash"></i> Delete
+                            <li><a class="dropdown-item text-danger" href="#" onclick="event.stopPropagation(); deleteAddressBookEntry(${entry.id}, '${escapeHtml(entry.name || uiT('ui.address_book.unnamed', 'Unnamed'))}');">
+                                <i class="fas fa-trash"></i> ${uiT('ui.common.delete', 'Delete')}
                             </a></li>
                         </ul>
                     </div>
@@ -777,18 +794,38 @@ function renderAddressBook(entries) {
 }
 
 function showAddAddressModal() {
-    $('#addressBookModalTitle').text('Add Address Book Entry');
+    $('#addressBookModalTitle').text(uiT('ui.address_book.add_entry', 'Add Address Book Entry'));
     $('#addressBookEntryId').val('');
     $('#addressBookForm')[0].reset();
+    clearAddressBookModalError();
     $('#addressBookModal').modal('show');
 }
 
+function showAddressBookModalError(message) {
+    const fallback = uiT('errors.address_book.create_failed', 'Failed to save entry');
+    const text = (typeof message === 'string' && message.trim() !== '') ? message : fallback;
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length > 0) {
+        errorEl.text(text).removeClass('d-none');
+    }
+    // Keep global alert as secondary visibility outside modal context.
+    showError(text);
+}
+
+function clearAddressBookModalError() {
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length > 0) {
+        errorEl.addClass('d-none').text('');
+    }
+}
+
 function editAddressBookEntry(entryId) {
+    clearAddressBookModalError();
     $.get(`/api/address-book/${entryId}`)
         .done(function(response) {
             if (response.success) {
                 const entry = response.entry;
-                $('#addressBookModalTitle').text('Edit Address Book Entry');
+                $('#addressBookModalTitle').text(uiT('ui.address_book.edit_entry', 'Edit Address Book Entry'));
                 $('#addressBookEntryId').val(entry.id);
                 $('#addressBookName').val(entry.name);
                 $('#addressBookUserId').val(entry.messaging_user_id);
@@ -798,15 +835,16 @@ function editAddressBookEntry(entryId) {
                 $('#addressBookAlwaysCrashmail').prop('checked', !!entry.always_crashmail);
                 $('#addressBookModal').modal('show');
             } else {
-                showError('Failed to load entry: ' + response.error);
+                showError(uiT('ui.netmail.address_book.load_entry_failed_prefix', 'Failed to load entry: ') + apiError(response, uiT('ui.common.unknown_error', 'Unknown error')));
             }
         })
         .fail(function() {
-            showError('Failed to load entry');
+            showError(uiT('errors.address_book.get_failed', 'Failed to load entry'));
         });
 }
 
 function saveAddressBookEntry() {
+    clearAddressBookModalError();
     const entryId = $('#addressBookEntryId').val();
     const data = {
         name: $('#addressBookName').val().trim(),
@@ -819,7 +857,7 @@ function saveAddressBookEntry() {
 
     // Basic validation
     if (!data.name || !data.messaging_user_id || !data.node_address) {
-        showError('Name, user ID, and node address are required');
+        showAddressBookModalError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
         return;
     }
 
@@ -835,20 +873,26 @@ function saveAddressBookEntry() {
             if (response.success) {
                 $('#addressBookModal').modal('hide');
                 loadAddressBook();
-                showSuccess(entryId ? 'Entry updated successfully' : 'Entry added successfully');
+                const defaultMessage = entryId
+                    ? uiT('ui.address_book.entry_updated', 'Entry updated successfully')
+                    : uiT('ui.compose.address_book.entry_added', 'Entry added successfully');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, defaultMessage)
+                    : defaultMessage;
+                showSuccess(successMessage);
             } else {
-                showError(response.error || 'Failed to save entry');
+                showAddressBookModalError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save entry')));
             }
         },
         error: function(xhr) {
-            const response = xhr.responseJSON;
-            showError(response && response.error ? response.error : 'Failed to save entry');
+            const payload = (xhr && xhr.responseJSON) ? xhr.responseJSON : null;
+            showAddressBookModalError(apiError(payload, uiT('errors.address_book.create_failed', 'Failed to save entry')));
         }
     });
 }
 
 function deleteAddressBookEntry(entryId, entryName) {
-    if (!confirm(`Are you sure you want to delete "${entryName}" from your address book?`)) {
+    if (!confirm(uiT('ui.address_book.delete_confirm', `Are you sure you want to delete "${entryName}" from your address book?`, { name: entryName }))) {
         return;
     }
 
@@ -858,13 +902,16 @@ function deleteAddressBookEntry(entryId, entryName) {
         success: function(response) {
             if (response.success) {
                 loadAddressBook();
-                showSuccess('Entry deleted successfully');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.address_book.entry_deleted', 'Entry deleted successfully'))
+                    : uiT('ui.address_book.entry_deleted', 'Entry deleted successfully');
+                showSuccess(successMessage);
             } else {
-                showError(response.error || 'Failed to delete entry');
+                showError(apiError(response, uiT('errors.address_book.delete_failed', 'Failed to delete entry')));
             }
         },
         error: function() {
-            showError('Failed to delete entry');
+            showError(uiT('errors.address_book.delete_failed', 'Failed to delete entry'));
         }
     });
 }
@@ -897,22 +944,38 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                     // Already exists - show "already saved" state
                     button.removeClass('btn-outline-success').addClass('btn-outline-secondary')
                           .html('<i class="fas fa-check"></i> <i class="fas fa-address-book"></i>')
-                          .attr('title', 'Already in address book')
+                          .attr('title', uiT('ui.common.already_in_address_book', 'Already in address book'))
                           .prop('disabled', true);
-                    showError('This contact is already in your address book');
+                    showError(uiT('ui.address_book.already_exists', 'This contact is already in your address book'));
                     return;
                 }
 
                 // Contact doesn't exist, create new entry
                 // Build description with reference information
-                let description = 'Added from netmail message';
+                let description = uiT('ui.address_book.added_from_netmail', 'Added from netmail message');
                 if (originalFromName && originalFromAddress) {
                     if (fromName !== originalFromName || fromAddress !== originalFromAddress) {
                         // REPLYTO was used - show both original and reply-to info
-                        description = `Added from netmail message. Original sender: ${originalFromName} (${originalFromAddress}), Reply-to: ${fromName} (${fromAddress})`;
+                        description = uiT(
+                            'ui.address_book.added_from_netmail_replyto_detail',
+                            'Added from netmail message. Original sender: {original_name} ({original_address}), Reply-to: {replyto_name} ({replyto_address})',
+                            {
+                                original_name: originalFromName,
+                                original_address: originalFromAddress,
+                                replyto_name: fromName,
+                                replyto_address: fromAddress
+                            }
+                        );
                     } else {
                         // No REPLYTO - just show sender info
-                        description = `Added from netmail message. Sender: ${originalFromName} (${originalFromAddress})`;
+                        description = uiT(
+                            'ui.address_book.added_from_netmail_sender_detail',
+                            'Added from netmail message. Sender: {sender_name} ({sender_address})',
+                            {
+                                sender_name: originalFromName,
+                                sender_address: originalFromAddress
+                            }
+                        );
                     }
                 }
 
@@ -932,11 +995,11 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                         if (response.success) {
                             // Show success state
                             button.removeClass('btn-outline-success').addClass('btn-success')
-                                  .html('<i class="fas fa-check"></i> Saved')
-                                  .attr('title', 'Saved to address book')
+                                  .html(`<i class="fas fa-check"></i> ${uiT('ui.common.saved_short', 'Saved')}`)
+                                  .attr('title', uiT('ui.address_book.saved_to_address_book', 'Saved to address book'))
                                   .prop('disabled', true);
 
-                            showSuccess(`${fromName} added to address book`);
+                            showSuccess(uiT('ui.address_book.sender_added', `${fromName} added to address book`, { name: fromName }));
 
                             // Refresh address book in sidebar if it exists
                             if (typeof loadAddressBook === 'function') {
@@ -946,31 +1009,30 @@ function saveToAddressBook(fromName, fromAddress, originalFromName, originalFrom
                             // Reset button on error
                             button.removeClass('btn-outline-success').addClass('btn-outline-danger')
                                   .html(originalHtml)
-                                  .attr('title', 'Error - click to retry')
+                                  .attr('title', uiT('ui.common.error_click_retry', 'Error - click to retry'))
                                   .prop('disabled', false);
-                            showError(response.error || 'Failed to save to address book');
+                            showError(apiError(response, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                         }
                     },
                     error: function(xhr) {
                         // Reset button on error
                         button.removeClass('btn-outline-success').addClass('btn-outline-danger')
                               .html(originalHtml)
-                              .attr('title', 'Error - click to retry')
+                              .attr('title', uiT('ui.common.error_click_retry', 'Error - click to retry'))
                               .prop('disabled', false);
-                        const response = xhr.responseJSON;
-                        showError(response && response.error ? response.error : 'Failed to save to address book');
+                        showError(apiError(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save to address book')));
                     }
                 });
             } else {
                 // Reset button on error
                 button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
-                showError('Failed to check existing contacts');
+                showError(uiT('ui.address_book.check_existing_failed', 'Failed to check existing contacts'));
             }
         })
         .fail(function() {
             // Reset button on error
             button.html(originalHtml).attr('title', originalTitle).prop('disabled', false);
-            showError('Failed to check existing contacts');
+            showError(uiT('ui.address_book.check_existing_failed', 'Failed to check existing contacts'));
         });
 }
 
@@ -993,7 +1055,7 @@ function continueDraft(draftId) {
 }
 
 function deleteDraftConfirm(draftId) {
-    if (confirm('Are you sure you want to delete this draft? This cannot be undone.')) {
+    if (confirm(uiT('ui.drafts.delete_confirm', 'Are you sure you want to delete this draft? This cannot be undone.'))) {
         deleteDraft(draftId);
     }
 }
@@ -1006,13 +1068,16 @@ function deleteDraft(draftId) {
             if (response.success) {
                 // Reload drafts to show updated list
                 loadDrafts();
-                showSuccess('Draft deleted successfully');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.drafts.deleted_success', 'Draft deleted successfully'))
+                    : uiT('ui.drafts.deleted_success', 'Draft deleted successfully');
+                showSuccess(successMessage);
             } else {
-                showError('Failed to delete draft');
+                showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
             }
         },
         error: function() {
-            showError('Failed to delete draft');
+            showError(uiT('errors.messages.drafts.delete_failed', 'Failed to delete draft'));
         }
     });
 }
@@ -1024,7 +1089,7 @@ function deleteDraft(draftId) {
  */
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
-    if (!bytes) return 'Unknown size';
+    if (!bytes) return uiT('ui.common.unknown_size', 'Unknown size');
 
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -1061,7 +1126,7 @@ function navigateMessage(direction) {
     $('#messageContent').html(`
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Loading message...
+            ${uiT('ui.common.loading_message', 'Loading message...')}
         </div>
     `);
 
@@ -1073,7 +1138,7 @@ function navigateMessage(direction) {
             $('#messageModal .modal-body').scrollTop(0);
         })
         .fail(function() {
-            $('#messageContent').html('<div class="text-danger">Failed to load message</div>');
+            $('#messageContent').html(`<div class="text-danger">${uiT('errors.messages.netmail.get_failed', 'Failed to load message')}</div>`);
         });
 }
 
@@ -1105,14 +1170,14 @@ function toggleSelectMode() {
 
     if (selectMode) {
         // Enable select mode
-        btn.html('<i class="fas fa-times"></i> Cancel');
+        btn.html(`<i class="fas fa-times"></i> ${uiT('ui.common.cancel', 'Cancel')}`);
         btn.removeClass('btn-outline-secondary').addClass('btn-outline-warning');
         checkboxColumn.removeClass('d-none');
         checkboxCells.removeClass('d-none');
         bulkActions.removeClass('d-none');
     } else {
         // Disable select mode
-        btn.html('<i class="fas fa-check-square"></i> Select');
+        btn.html(`<i class="fas fa-check-square"></i> ${uiT('ui.common.select', 'Select')}`);
         btn.removeClass('btn-outline-warning').addClass('btn-outline-secondary');
         checkboxColumn.addClass('d-none');
         checkboxCells.addClass('d-none');
@@ -1188,11 +1253,11 @@ function clearSelection() {
 
 function deleteSelectedMessages() {
     if (selectedMessages.size === 0) {
-        showError('No messages selected');
+        showError(uiT('ui.messages.none_selected', 'No messages selected'));
         return;
     }
 
-    if (!confirm(`Are you sure you want to delete ${selectedMessages.size} message(s)?`)) {
+    if (!confirm(uiT('ui.netmail.bulk_delete.confirm', `Are you sure you want to delete ${selectedMessages.size} message(s)?`, { count: selectedMessages.size }))) {
         return;
     }
 
@@ -1204,12 +1269,16 @@ function deleteSelectedMessages() {
         contentType: 'application/json',
         data: JSON.stringify({ message_ids: messageIds }),
         success: function(data) {
-            showSuccess(`Deleted ${messageIds.length} message(s)`);
+            const deletedCount = data.deleted || messageIds.length;
+            const successMessage = window.getApiMessage
+                ? window.getApiMessage(data, uiT('ui.netmail.bulk_delete.success', `Deleted ${deletedCount} message(s)`, { count: deletedCount }))
+                : uiT('ui.netmail.bulk_delete.success', `Deleted ${deletedCount} message(s)`, { count: deletedCount });
+            showSuccess(successMessage);
             clearSelection();
             loadMessages();
         },
         error: function(xhr) {
-            const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to delete messages';
+            const error = apiError(xhr.responseJSON, uiT('ui.netmail.bulk_delete.failed', 'Failed to delete messages'));
             showError(error);
         }
     });

@@ -197,13 +197,17 @@ function quoteMessageText($messageText, $initials) {
             continue;
         }
 
-        // Check if line is already quoted (starts with initials> pattern or >)
-        if (preg_match('/^[A-Z]{1,3}>\s/', $trimmed) || preg_match('/^>\s/', $trimmed)) {
-            // This is already a quoted line, keep it as-is without adding new quote
-            $quotedLines[] = $line;
+        // Check if line is already quoted (FSC-0032 style: optional initials + one or more >)
+        // e.g. " RW> text", "RW> text", "> text", " RW>> text"
+        if (preg_match('/^\s*[A-Za-z]{0,2}(>+)/', $trimmed)) {
+            // Bump existing quote depth by inserting an extra > after the initials prefix
+            // " RW> text"  -> " RW>> text"
+            // " RW>> text" -> " RW>>> text"
+            // "> text"     -> ">> text"
+            $quotedLines[] = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', $trimmed);
         } else {
-            // This is an original line from the current author, quote it
-            $quotedLines[] = $initials . "> " . $line;
+            // Original (unquoted) line — apply FSC-0032 attribution prefix: " XX> text"
+            $quotedLines[] = ' ' . $initials . '> ' . $trimmed;
         }
     }
 
@@ -264,9 +268,22 @@ function requireBinkpAdmin() {
     $user = $auth->requireAuth();
 
     if (!$user['is_admin']) {
+        $errorCode = 'errors.binkp.admin_required';
+        $fallback = 'Admin access required';
+        $translator = new \BinktermPHP\I18n\Translator();
+        $resolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+        $localized = $translator->translate($errorCode, [], $resolvedLocale, ['errors']);
+        if ($localized === $errorCode) {
+            $localized = $fallback;
+        }
         http_response_code(403);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Admin access required for BinkP functionality']);
+        echo json_encode([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $localized
+        ]);
         exit;
     }
 

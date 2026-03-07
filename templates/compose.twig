@@ -1,17 +1,17 @@
 ﻿{% extends "base.twig" %}
 
-{% block title %}Compose {{ type|title }} - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }} - {{ parent() }}{% endblock %}
 
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>
         <i class="fas fa-{{ type == 'netmail' ? 'envelope' : 'comments' }}"></i>
-        Compose {{ type|title }}
+        {{ t('ui.compose.title_prefix', {}, locale, ['common']) }} {{ type|title }}
     </h2>
     <a href="/{{ type }}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left"></i>
-        Back to {{ type|title }}
+        {{ t('ui.compose.back_to_prefix', {}, locale, ['common']) }} {{ type|title }}
     </a>
 </div>
 
@@ -26,39 +26,39 @@
                 {% if type == 'netmail' %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="toAddress" class="form-label">To Address (leave blank for local)</label>
+                            <label for="toAddress" class="form-label">{{ t('ui.compose.to_address_label', {}, locale, ['common']) }}</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="toAddress" name="to_address" 
                                        placeholder="" value="{{ reply_to_address }}" >
                                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
                                         id="addressBookButton" data-bs-toggle="dropdown" aria-expanded="false"
-                                        title="Select from address book">
+                                        title="{{ t('ui.compose.address_book.select_title', {}, locale, ['common']) }}">
                                     <i class="fas fa-address-book"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end" id="addressBookDropdown" style="min-width: 300px;">
                                     <li><h6 class="dropdown-header d-flex justify-content-between align-items-center">
-                                        Address Book
-                                        <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="Create new address book entry">
+                                        {{ t('ui.address_book.title', {}, locale, ['common']) }}
+                                        <button class="btn btn-sm btn-outline-primary" onclick="showAddAddressModal()" title="{{ t('ui.compose.address_book.create_title', {}, locale, ['common']) }}">
                                             <i class="fas fa-plus" ></i>
                                         </button>
                                     </h6></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li class="px-3">
                                         <input type="text" class="form-control form-control-sm" id="composeAddressSearch" 
-                                               placeholder="Search addresses..." onkeyup="searchAddressBookForCompose(this.value)">
+                                               placeholder="{{ t('ui.address_book.search_placeholder', {}, locale, ['common']) }}" onkeyup="searchAddressBookForCompose(this.value)">
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <div id="composeAddressList" style="max-height: 200px; overflow-y: auto;">
                                         <li><div class="text-center text-muted py-2">
-                                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                                            <i class="fas fa-spinner fa-spin"></i> {{ t('ui.common.loading', {}, locale, ['common']) }}
                                         </div></li>
                                     </div>
                                 </ul>
                             </div>
-                            <div class="form-text">Fidonet address (e.g., 1:123/456)</div>
+                            <div class="form-text">{{ t('ui.compose.fidonet_address_help', {}, locale, ['common']) }}</div>
                         </div>
                         <div class="col-md-6">
-                            <label for="toName" class="form-label">To Name *</label>
+                            <label for="toName" class="form-label">{{ t('ui.compose.to_name_required', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="toName" name="to_name"
                                    value="{{ to_name_value }}" required>
                         </div>
@@ -68,18 +68,18 @@
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="crashmail" name="crashmail"{% if prefill_crashmail %} checked{% endif %}>
                             <label class="form-check-label" for="crashmail">
-                                <i class="fas fa-bolt text-warning me-1"></i>Crashmail (Direct Delivery){% if credits_enabled %} - <strong>{{ crashmail_cost }} {{ currency_symbol }}</strong>{% endif %}
+                                <i class="fas fa-bolt text-warning me-1"></i>{{ t('ui.compose.crashmail.direct_delivery_label', {}, locale, ['common']) }}{% if credits_enabled %} - <strong>{{ crashmail_cost }} {{ currency_symbol }}</strong>{% endif %}
                             </label>
                             <div class="form-text">
-                                Attempt immediate direct delivery to the destination node, bypassing hub routing.
-                                Requires the destination to be directly reachable.{% if credits_enabled %} Costs {{ crashmail_cost }} {{ currency_symbol }}.{% endif %}
+                                {{ t('ui.compose.crashmail.help_direct', {}, locale, ['common']) }}
+                                {{ t('ui.compose.crashmail.help_reachable', {}, locale, ['common']) }}{% if credits_enabled %} {{ t('ui.compose.crashmail.help_cost', {'cost': crashmail_cost, 'currency': currency_symbol}, locale, ['common']) }}{% endif %}
                             </div>
                         </div>
                     </div>
                     <div id="attachmentSection" class="mb-3" style="display:none">
                         <label class="form-label">
-                            <i class="fas fa-paperclip me-1"></i>Attach File
-                            <small class="text-muted">(requires crashmail; subject will be set to filename)</small>
+                            <i class="fas fa-paperclip me-1"></i>{{ t('ui.compose.attach_file', {}, locale, ['common']) }}
+                            <small class="text-muted">({{ t('ui.compose.attach_file_help_short', {}, locale, ['common']) }})</small>
                         </label>
                         <input type="file" id="attachmentFile" class="form-control">
                         <div id="attachmentName" class="form-text"></div>
@@ -88,140 +88,140 @@
                 {% else %}
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="echoarea" class="form-label">Echo Area *</label>
+                            <label for="echoarea" class="form-label">{{ t('ui.compose.echo_area_required', {}, locale, ['common']) }}</label>
                             <select class="form-select" id="echoarea" name="echoarea" required>
-                                <option value="">Select echo area...</option>
+                                <option value="">{{ t('ui.compose.select_echo_area', {}, locale, ['common']) }}</option>
                                 <!-- Options will be loaded via AJAX -->
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="toName" class="form-label">To Name</label>
+                            <label for="toName" class="form-label">{{ t('ui.compose.to_name', {}, locale, ['common']) }}</label>
                             <input type="text" class="form-control" id="toName" name="to_name"
                                    value="{{ to_name_value }}" placeholder="All">
-                            <div class="form-text">Leave as 'All' for public message</div>
+                            <div class="form-text">{{ t('ui.compose.to_name_public_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                     <div class="mb-3" id="crossPostSection" style="display: none;">
                         <a class="text-decoration-none" data-bs-toggle="collapse" href="#crossPostCollapse" role="button" aria-expanded="false" aria-controls="crossPostCollapse">
-                            <i class="fas fa-layer-group me-1"></i>Cross-post to other areas
+                            <i class="fas fa-layer-group me-1"></i>{{ t('ui.compose.cross_post_to_other_areas', {}, locale, ['common']) }}
                             <span class="badge bg-secondary ms-1" id="crossPostBadge" style="display: none;">0/{{ max_cross_post_areas }}</span>
                         </a>
                         <div class="collapse mt-2" id="crossPostCollapse">
                             <div class="card card-body p-2" style="max-height: 200px; overflow-y: auto;" id="crossPostList">
                             </div>
-                            <div class="form-text">Select additional areas to post this message to (max {{ max_cross_post_areas }}). Each area receives an independent copy.</div>
+                            <div class="form-text">{{ t('ui.compose.cross_post_help_prefix', {}, locale, ['common']) }} {{ max_cross_post_areas }}). {{ t('ui.compose.cross_post_help_suffix', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                 {% endif %}
                 
                 <div class="mb-3">
-                    <label for="subject" class="form-label">Subject *</label>
+                    <label for="subject" class="form-label">{{ t('ui.compose.subject_required', {}, locale, ['common']) }}</label>
                     <input type="text" class="form-control" id="subject" name="subject" 
                            value="{{ reply_subject }}" required>
                 </div>
 
                 <div class="mb-3" id="messageTextGroup">
-                    <label for="messageText" class="form-label">Message *</label>
+                    <label for="messageText" class="form-label">{{ t('ui.compose.message_required', {}, locale, ['common']) }}</label>
                     <!-- StyleCodes Toolbar (shown when StyleCodes markup is selected) -->
                     <div id="stylecodesToolbar" style="display: none;" class="sc-editor-toolbar mb-1" role="toolbar" aria-label="StyleCodes formatting">
                         <div class="btn-group btn-group-sm">
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('bold')" title="Bold (*bold*)"><strong>B</strong></button>
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('italic')" title="Italic (/italic/)"><em>I</em></button>
                             <button type="button" class="btn btn-outline-secondary" onclick="scAction('underline')" title="Underline (_underline_)"><u>U</u></button>
-                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('inverse')" title="Inverse (#inverse#)">Inv</button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="scAction('inverse')" title="{{ t('ui.compose.stylecodes.inverse_title', {}, locale, ['common']) }}">Inv</button>
                         </div>
                     </div>
                     <textarea class="form-control" id="messageText" name="message_text"
                               rows="15" required>{{ reply_text }}</textarea>
                     <div class="form-text" id="messageTextHint">
-                        Use plain text. Fidonet standard formatting applies.
+                        {{ t('ui.compose.plain_text_hint', {}, locale, ['common']) }}
                     </div>
-                    <div class="form-text" id="scHint" style="display: none;">StyleCodes active — <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
+                    <div class="form-text" id="scHint" style="display: none;">{{ t('ui.compose.stylecodes.active_prefix', {}, locale, ['common']) }} <strong>*bold*</strong> &nbsp; <em>/italic/</em> &nbsp; <u>_underline_</u> &nbsp; #inverse#</div>
                 </div>
 
                 <!-- Markdown Editor (shown when "Send as Markdown" is checked) -->
                 <div class="mb-3" id="markdownEditorContainer" style="display: none;">
-                    <label class="form-label">Message * <small class="text-muted ms-2"><i class="fab fa-markdown me-1"></i>Markdown mode</small></label>
+                    <label class="form-label">{{ t('ui.compose.message_required', {}, locale, ['common']) }} <small class="text-muted ms-2"><i class="fab fa-markdown me-1"></i>{{ t('ui.compose.markdown.mode', {}, locale, ['common']) }}</small></label>
                     <div class="md-editor-wrapper">
-                        <div class="md-editor-toolbar" role="toolbar" aria-label="Markdown formatting">
+                        <div class="md-editor-toolbar" role="toolbar" aria-label="{{ t('ui.compose.markdown.toolbar_aria', {}, locale, ['common']) }}">
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('bold')" title="Bold (Ctrl+B)"><strong>B</strong></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('italic')" title="Italic (Ctrl+I)"><em>I</em></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('bold')" title="{{ t('ui.compose.markdown.bold_title', {}, locale, ['common']) }}"><strong>B</strong></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('italic')" title="{{ t('ui.compose.markdown.italic_title', {}, locale, ['common']) }}"><em>I</em></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h1')" title="Heading 1">H1</button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h2')" title="Heading 2">H2</button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h3')" title="Heading 3">H3</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h1')" title="{{ t('ui.compose.markdown.heading_1_title', {}, locale, ['common']) }}">H1</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h2')" title="{{ t('ui.compose.markdown.heading_2_title', {}, locale, ['common']) }}">H2</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('h3')" title="{{ t('ui.compose.markdown.heading_3_title', {}, locale, ['common']) }}">H3</button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('code')" title="Inline code"><i class="fas fa-code"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('codeblock')" title="Code block"><i class="fas fa-file-code"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('code')" title="{{ t('ui.compose.markdown.inline_code_title', {}, locale, ['common']) }}"><i class="fas fa-code"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('codeblock')" title="{{ t('ui.compose.markdown.code_block_title', {}, locale, ['common']) }}"><i class="fas fa-file-code"></i></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('link')" title="Link (Ctrl+K)"><i class="fas fa-link"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('link')" title="{{ t('ui.compose.markdown.link_title', {}, locale, ['common']) }}"><i class="fas fa-link"></i></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ul')" title="Unordered list"><i class="fas fa-list-ul"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ol')" title="Ordered list"><i class="fas fa-list-ol"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('quote')" title="Blockquote"><i class="fas fa-quote-left"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ul')" title="{{ t('ui.compose.markdown.unordered_list_title', {}, locale, ['common']) }}"><i class="fas fa-list-ul"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('ol')" title="{{ t('ui.compose.markdown.ordered_list_title', {}, locale, ['common']) }}"><i class="fas fa-list-ol"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('quote')" title="{{ t('ui.compose.markdown.blockquote_title', {}, locale, ['common']) }}"><i class="fas fa-quote-left"></i></button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('hr')" title="Horizontal rule">&#8212;</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mdAction('hr')" title="{{ t('ui.compose.markdown.horizontal_rule_title', {}, locale, ['common']) }}">&#8212;</button>
                             </div>
                             <div class="btn-group btn-group-sm ms-auto">
-                                <button type="button" class="btn btn-secondary" id="mdEditBtn" onclick="mdSetMode('edit')" title="Edit mode">Edit</button>
-                                <button type="button" class="btn btn-outline-secondary" id="mdPreviewBtn" onclick="mdSetMode('preview')" title="Preview rendered output">Preview</button>
+                                <button type="button" class="btn btn-secondary" id="mdEditBtn" onclick="mdSetMode('edit')" title="{{ t('ui.compose.markdown.edit_mode_title', {}, locale, ['common']) }}">{{ t('ui.common.edit', {}, locale, ['common']) }}</button>
+                                <button type="button" class="btn btn-outline-secondary" id="mdPreviewBtn" onclick="mdSetMode('preview')" title="{{ t('ui.compose.markdown.preview_rendered_title', {}, locale, ['common']) }}">{{ t('ui.common.preview', {}, locale, ['common']) }}</button>
                             </div>
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" onclick="showMarkdownHelp()" title="Markdown quick reference"><i class="fas fa-question-circle"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="showMarkdownHelp()" title="{{ t('ui.compose.markdown.quick_reference_title', {}, locale, ['common']) }}"><i class="fas fa-question-circle"></i></button>
                             </div>
                         </div>
                         <div class="md-editor-body">
-                            <textarea class="md-editor-textarea" id="mdEditorText" spellcheck="true" placeholder="Write your markdown message here..."></textarea>
+                            <textarea class="md-editor-textarea" id="mdEditorText" spellcheck="true" placeholder="{{ t('ui.compose.markdown.write_placeholder', {}, locale, ['common']) }}"></textarea>
                             <div class="md-preview-pane" id="mdPreviewPane" style="display: none;">
-                                <span class="text-muted small fst-italic">Click Preview to see the rendered output.</span>
+                                <span class="text-muted small fst-italic">{{ t('ui.compose.markdown.click_preview_hint', {}, locale, ['common']) }}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="form-text"><i class="fab fa-markdown me-1"></i>Markdown formatting active. <a href="#" onclick="showMarkdownHelp(); return false;">Quick reference</a></div>
+                    <div class="form-text"><i class="fab fa-markdown me-1"></i>{{ t('ui.compose.markdown.formatting_active', {}, locale, ['common']) }} <a href="#" onclick="showMarkdownHelp(); return false;">{{ t('ui.compose.markdown.quick_reference', {}, locale, ['common']) }}</a></div>
                 </div>
 
                 <div class="mb-3" id="markdownSection" style="display: none;">
-                    <label class="form-label" for="markupType">Markup Format</label>
+                    <label class="form-label" for="markupType">{{ t('ui.compose.markup_format', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="markupType" name="markup_type">
-                        <option value="">Plain text</option>
-                        <option value="markdown">Markdown</option>
-                        <option value="stylecodes">StyleCodes (GoldEd, SemPoint Rich Text, Synchronet Markup)</option>
+                        <option value="">{{ t('ui.compose.plain_text', {}, locale, ['common']) }}</option>
+                        <option value="markdown">{{ t('ui.compose.markdown_label', {}, locale, ['common']) }}</option>
+                        <option value="stylecodes">{{ t('ui.compose.stylecodes_label', {}, locale, ['common']) }}</option>
                     </select>
-                    <div class="form-text">Send with markup formatting. Markdown and StyleCodes are supported on compatible networks.</div>
+                    <div class="form-text">{{ t('ui.compose.markup_format_help', {}, locale, ['common']) }}</div>
                 </div>
 
                 <div class="mb-3">
-                    <label for="taglineSelect" class="form-label">Tagline</label>
+                    <label for="taglineSelect" class="form-label">{{ t('ui.settings.default_tagline', {}, locale, ['common']) }}</label>
                     <select class="form-select" id="taglineSelect" name="tagline">
-                        <option value="">No tagline</option>
+                        <option value="">{{ t('ui.settings.no_tagline', {}, locale, ['common']) }}</option>
                         {% for tagline in taglines %}
                             <option value="{{ tagline|e('html_attr') }}" {% if default_tagline == tagline %}selected{% endif %}>{{ tagline }}</option>
                         {% endfor %}
                     </select>
-                    <div class="form-text">Select a sysop-provided tagline to append below your signature.</div>
+                    <div class="form-text">{{ t('ui.compose.tagline_help', {}, locale, ['common']) }}</div>
                 </div>
                 
                 <div class="d-flex justify-content-between">
                     <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
                         <i class="fas fa-times"></i>
-                        Cancel
+                        {{ t('ui.common.cancel', {}, locale, ['common']) }}
                     </button>
                     <div>
 
                         <button type="button" class="btn btn-outline-primary" onclick="saveDraft()">
                             <i class="fas fa-save"></i>
-                            Save Draft
+                            {{ t('ui.compose.save_draft', {}, locale, ['common']) }}
                         </button>
 
                         <button type="submit" class="btn btn-fidonet">
                             <i class="fas fa-paper-plane"></i>
-                            Send {{ type|title }}
+                            {{ t('ui.compose.send_prefix', {}, locale, ['common']) }} {{ type|title }}
                         </button>
                     </div>
                 </div>
@@ -233,61 +233,61 @@
 
     <div class="col-lg-4" id="composeSidebar">
         <div class="d-flex justify-content-end mb-2">
-            <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="Hide panel">
+            <button id="sidebarToggleBtn" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.hide_panel', {}, locale, ['common']) }}">
                 <i class="fas fa-angles-right" id="sidebarToggleIcon"></i>
             </button>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0">Message Guidelines</h6>
+                <h6 class="mb-0">{{ t('ui.compose.message_guidelines', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 {% if type == 'netmail' %}
-                    <h6>Netmail Guidelines:</h6>
+                    <h6>{{ t('ui.compose.netmail_guidelines', {}, locale, ['common']) }}</h6>
                     <ul class="small">
-                        <li>Private messages between nodes</li>
-                        <li id="netmailPostingIdentityGuideline">Posting identity: Real Name</li>
-                        <li>Use proper Fidonet addressing</li>
-                        <li>Be respectful and professional</li>
-                        <li>Messages are routed through the network</li>
+                        <li>{{ t('ui.compose.netmail_guideline_private', {}, locale, ['common']) }}</li>
+                        <li id="netmailPostingIdentityGuideline">{{ t('ui.compose.netmail_guideline_identity', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.netmail_guideline_addressing', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.netmail_guideline_respectful', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.netmail_guideline_routed', {}, locale, ['common']) }}</li>
                         {% if credits_enabled %}
-                        <li><strong>Cost: {{ netmail_cost }} {{ currency_symbol }}</strong></li>
+                        <li><strong>{{ t('ui.compose.netmail_cost', {'cost': netmail_cost, 'currency': currency_symbol}, locale, ['common']) }}</strong></li>
                         {% endif %}
                     </ul>
                 {% else %}
-                    <h6>Echomail Guidelines:</h6>
+                    <h6>{{ t('ui.compose.echomail_guidelines', {}, locale, ['common']) }}</h6>
                     <ul class="small">
-                        <li id="echomailPostingIdentityGuideline">Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias</li>
-                        <li>Public forum messages</li>
-                        <li>Stay on-topic for the echo area</li>
-                        <li>Be respectful to all participants</li>
-                        <li>Follow the echo rules and moderation</li>
+                        <li id="echomailPostingIdentityGuideline">{{ t('ui.compose.echomail_guideline_identity', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_public', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_topic', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_respectful', {}, locale, ['common']) }}</li>
+                        <li>{{ t('ui.compose.echomail_guideline_rules', {}, locale, ['common']) }}</li>
                     </ul>
                 {% endif %}
 
-                <h6 class="mt-3">Technical Notes:</h6>
+                <h6 class="mt-3">{{ t('ui.compose.technical_notes', {}, locale, ['common']) }}</h6>
                 <ul class="small">
-                    <li>Plain text only (no HTML)</li>
-                    <li>Lines should be less than 79 characters</li>
-                    <li>Origin line added automatically</li>
+                    <li>{{ t('ui.compose.tech_note_plain_text_only', {}, locale, ['common']) }}</li>
+                    <li>{{ t('ui.compose.tech_note_line_length', {}, locale, ['common']) }}</li>
+                    <li>{{ t('ui.compose.tech_note_origin_line', {}, locale, ['common']) }}</li>
                 </ul>
             </div>
         </div>
 
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">Your Info</h6>
+                <h6 class="mb-0">{{ t('ui.compose.your_info', {}, locale, ['common']) }}</h6>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-4">Name:</dt>
+                    <dt class="col-4">{{ t('ui.common.name', {}, locale, ['common']) }}:</dt>
                     <dd class="col-8">{{ user_name }}</dd>
 
-                    <dt class="col-4">System:</dt>
+                    <dt class="col-4">{{ t('ui.compose.system', {}, locale, ['common']) }}:</dt>
                     <dd class="col-8">{{ system_name_display }}</dd>
 
-                    <dt class="col-4">Address:</dt>
+                    <dt class="col-4">{{ t('ui.compose.address', {}, locale, ['common']) }}:</dt>
                     <dd class="col-8">{{ system_address_display }}</dd>
                 </dl>
             </div>
@@ -295,7 +295,7 @@
     </div>
 
     <div id="sidebarShowBtn" class="d-none align-items-start pt-1">
-        <button class="btn btn-sm btn-outline-secondary" title="Show panel" onclick="toggleComposeSidebar()">
+        <button class="btn btn-sm btn-outline-secondary" title="{{ t('ui.compose.show_panel', {}, locale, ['common']) }}" onclick="toggleComposeSidebar()">
             <i class="fas fa-angles-left"></i>
         </button>
     </div>
@@ -304,6 +304,13 @@
 
 {% block scripts %}
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 const maxCrossPostAreas = {{ max_cross_post_areas|default(5) }};
 let allEchoareas = [];
 let markdownSupportTimer = null;
@@ -411,21 +418,21 @@ function updateEchomailGuidelinesPostingName() {
 
     const selectedArea = getSelectedEchoarea();
     if (!selectedArea) {
-        guideline.text('Posting identity: Select an echo area to see whether this post uses Real Name or Username/Alias');
+        // No area selected — leave the server-rendered (translated) text untouched.
         return;
     }
 
     const policy = resolveEchomailPostingNamePolicy(selectedArea);
     guideline.text(policy === 'username'
-        ? 'Posting identity for this area: Username/Alias'
-        : 'Posting identity for this area: Real Name');
+        ? uiT('ui.compose.echomail_guideline_identity_area_username', 'Posting identity for this area: Username/Alias')
+        : uiT('ui.compose.echomail_guideline_identity_area_real_name', 'Posting identity for this area: Real Name'));
 }
 
 function refreshMarkdownSupportForNetmail() {
     const address = ($('#toAddress').val() || '').trim();
     if (!address) {
         updateMarkdownSection(false);
-        updateNetmailGuidelinesPostingName('real_name');
+        // No address yet — leave the server-rendered (translated) guideline text untouched.
         return;
     }
     fetchMarkdownSupport({ address: address });
@@ -439,8 +446,8 @@ function updateNetmailGuidelinesPostingName(policy) {
 
     const normalizedPolicy = (policy || '').toString().trim().toLowerCase();
     guideline.text(normalizedPolicy === 'username'
-        ? 'Posting identity for this destination: Username/Alias'
-        : 'Posting identity for this destination: Real Name');
+        ? uiT('ui.compose.netmail_guideline_identity_destination_username', 'Posting identity for this destination: Username/Alias')
+        : uiT('ui.compose.netmail_guideline_identity_destination_real_name', 'Posting identity for this destination: Real Name'));
 }
 
 /**
@@ -1028,7 +1035,7 @@ function validateFidonetAddressField(field) {
     if (address && !validateFidonetAddress(address)) {
         $(field).addClass('is-invalid');
         if (!$(field).next('.invalid-feedback').length) {
-            $(field).after('<div class="invalid-feedback">Invalid Fidonet address format (e.g., 1:123/456)</div>');
+            $(field).after(`<div class="invalid-feedback">${uiT('ui.compose.invalid_fidonet_address_format', 'Invalid Fidonet address format (e.g., 1:123/456)')}</div>`);
         }
         return false;
     } else {
@@ -1082,7 +1089,7 @@ function sendMessage() {
     $('#sendStatus').show().html(`
         <div class="alert alert-info">
             <i class="fas fa-spinner fa-spin me-2"></i>
-            Sending ${messageType}...
+            ${uiT('ui.compose.sending', 'Sending...')}
         </div>
     `);
 
@@ -1105,11 +1112,16 @@ function sendMessage() {
             data: JSON.stringify(formData),
             success: function(response) {
                 const areasPosted = response.areas_posted || 1;
-                const crossPostMsg = areasPosted > 1 ? ` (posted to ${areasPosted} areas)` : '';
+                const baseSuccessMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.api.messages.sent', 'Message sent successfully'))
+                    : uiT('ui.api.messages.sent', 'Message sent successfully');
+                const crossPostMsg = areasPosted > 1
+                    ? uiT('ui.compose.sent_cross_post_suffix', ' (posted to {count} areas)', { count: areasPosted })
+                    : '';
                 $('#sendStatus').html(`
                     <div class="alert alert-success">
                         <i class="fas fa-check me-2"></i>
-                        ${messageType.charAt(0).toUpperCase() + messageType.slice(1)} sent successfully!${crossPostMsg}
+                        ${baseSuccessMessage}${crossPostMsg}
                     </div>
                 `);
 
@@ -1123,7 +1135,10 @@ function sendMessage() {
                 }, 2000);
             },
             error: function(xhr) {
-                const error = xhr.responseJSON ? xhr.responseJSON.error : `Failed to send ${messageType}`;
+                const sendErrorFallback = uiT('ui.compose.send_failed_type', 'Failed to send {type}', { type: messageType });
+                const error = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(xhr.responseJSON, sendErrorFallback)
+                    : sendErrorFallback;
                 $('#sendStatus').html(`
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -1151,7 +1166,10 @@ function sendMessage() {
                 doSend(response.token);
             },
             error: function(xhr) {
-                const error = xhr.responseJSON ? xhr.responseJSON.error : 'Failed to upload attachment';
+                const uploadErrorFallback = uiT('ui.compose.upload_attachment_failed', 'Failed to upload attachment');
+                const error = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(xhr.responseJSON, uploadErrorFallback)
+                    : uploadErrorFallback;
                 $('#sendStatus').html(`
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -1182,7 +1200,7 @@ function saveDraft(silent = false) {
     // Only save if there's actual content
     if (!formData.subject.trim() && !formData.message_text.trim()) {
         if (!silent) {
-            showError('Please add some content before saving draft');
+            showError(uiT('ui.compose.draft.empty_content', 'Please add some content before saving draft'));
         }
         return;
     }
@@ -1192,7 +1210,7 @@ function saveDraft(silent = false) {
     const originalButtonHtml = saveButton.html();
 
     if (!silent && saveButton.length) {
-        saveButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+        saveButton.prop('disabled', true).html(`<i class="fas fa-spinner fa-spin"></i> ${uiT('ui.common.saving', 'Saving...')}`);
     }
 
     $.ajax({
@@ -1201,11 +1219,14 @@ function saveDraft(silent = false) {
         contentType: 'application/json',
         data: JSON.stringify(formData),
         success: function(response) {
+            const savedMessage = window.getApiMessage
+                ? window.getApiMessage(response, uiT('ui.compose.draft.saved_success', 'Draft saved successfully'))
+                : uiT('ui.compose.draft.saved_success', 'Draft saved successfully');
             if (!silent) {
                 // Show success state on button
                 if (saveButton.length) {
                     saveButton.removeClass('btn-outline-primary').addClass('btn-success')
-                        .html('<i class="fas fa-check"></i> Saved!');
+                        .html(`<i class="fas fa-check"></i> ${uiT('ui.common.saved', 'Saved!')}`);
 
                     // Reset button after 2 seconds
                     setTimeout(function() {
@@ -1213,7 +1234,7 @@ function saveDraft(silent = false) {
                             .prop('disabled', false).html(originalButtonHtml);
                     }, 2000);
                 } else {
-                    showSuccess('Draft saved successfully');
+                    showSuccess(savedMessage);
                 }
             } else {
                 // For silent saves, just reset button if it was showing loading
@@ -1229,7 +1250,7 @@ function saveDraft(silent = false) {
                     saveButton.removeClass('btn-success').addClass('btn-outline-primary')
                         .prop('disabled', false).html(originalButtonHtml);
                 }
-                showError('Failed to save draft');
+                showError(uiT('errors.messages.drafts.save_failed', 'Failed to save draft'));
             }
         }
     });
@@ -1261,12 +1282,12 @@ function loadDraft(draftId) {
                     console.log('Draft loaded successfully:', draft);
                     resolve(draft);
                 } else {
-                    showError('Failed to load draft');
+                    showError(uiT('errors.messages.drafts.get_failed', 'Failed to load draft'));
                     reject('Draft not found');
                 }
             },
             error: function() {
-                showError('Failed to load draft');
+                showError(uiT('errors.messages.drafts.get_failed', 'Failed to load draft'));
                 reject('API error');
             }
         });
@@ -1294,11 +1315,11 @@ function loadComposeAddressBook(search = '') {
             if (response.success) {
                 renderComposeAddressBook(response.entries);
             } else {
-                $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
+                $('#composeAddressList').html(`<li><div class="text-danger py-2">${uiT('ui.compose.address_book.load_failed_short', 'Failed to load')}</div></li>`);
             }
         })
         .fail(function(xhr, status, error) {
-            $('#composeAddressList').html('<li><div class="text-danger py-2">Failed to load</div></li>');
+            $('#composeAddressList').html(`<li><div class="text-danger py-2">${uiT('ui.compose.address_book.load_failed_short', 'Failed to load')}</div></li>`);
         });
 }
 
@@ -1307,14 +1328,14 @@ function renderComposeAddressBook(entries) {
     let html = '';
     
     if (entries.length === 0) {
-        html = '<li><div class="text-center text-muted py-2">No entries found</div></li>';
+        html = `<li><div class="text-center text-muted py-2">${uiT('ui.address_book.no_entries_found', 'No entries found')}</div></li>`;
     } else {
         entries.forEach(function(entry) {
             html += `
-                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.messaging_user_id || 'unknown')}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
-                    <div class="fw-bold">${escapeHtml(entry.name || 'Unnamed')}</div>
-                    <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || 'unknown')}</div>
-                    <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || 'No address')}</div>
+                <li><a class="dropdown-item" href="#" onclick="selectAddressBookEntry('${escapeHtml(entry.messaging_user_id || uiT('ui.common.unknown', 'Unknown'))}', '${escapeHtml(entry.node_address || '')}', ${entry.always_crashmail ? 'true' : 'false'})">
+                    <div class="fw-bold">${escapeHtml(entry.name || uiT('ui.address_book.unnamed', 'Unnamed'))}</div>
+                    <div class="text-primary small">@${escapeHtml(entry.messaging_user_id || uiT('ui.common.unknown', 'Unknown'))}</div>
+                    <div class="text-muted small font-monospace">${escapeHtml(entry.node_address || uiT('ui.address_book.no_address', 'No address'))}</div>
                     ${entry.description ? `<div class="text-muted smaller">${escapeHtml(entry.description.substring(0, 40) + (entry.description.length > 40 ? '...' : ''))}</div>` : ''}
                 </a></li>
             `;
@@ -1374,46 +1395,47 @@ $(document).ready(function() {
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addressBookModalTitle">Add Address Book Entry</h5>
+                <h5 class="modal-title" id="addressBookModalTitle">{{ t('ui.address_book.add_entry', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="addressBookModalError" class="alert alert-danger d-none" role="alert"></div>
                 <form id="addressBookForm">
                     <input type="hidden" id="addressBookEntryId">
                     
                     <div class="mb-3">
-                        <label for="addressBookName" class="form-label">Name</label>
+                        <label for="addressBookName" class="form-label">{{ t('ui.common.name', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookName" required 
-                               placeholder="Enter a descriptive name (e.g., John Smith)">
-                        <div class="form-text">Descriptive name for this contact</div>
+                               placeholder="{{ t('ui.address_book.name_placeholder', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.name_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookUserId" class="form-label">User ID</label>
+                        <label for="addressBookUserId" class="form-label">{{ t('ui.address_book.user_id', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookUserId" required 
-                               placeholder="Enter the user ID for messaging">
-                        <div class="form-text">User ID/handle to use when sending messages</div>
+                               placeholder="{{ t('ui.address_book.user_id_placeholder', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.user_id_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookNodeAddress" class="form-label">Node Address</label>
+                        <label for="addressBookNodeAddress" class="form-label">{{ t('ui.address_book.node_address', {}, locale, ['common']) }}</label>
                         <input type="text" class="form-control" id="addressBookNodeAddress" required 
-                               placeholder="1:234/567" pattern="^\d+:\d+\/\d+(\.\d+)?$"
-                               title="Enter a valid Fidonet address (e.g., 1:234/567 or 1:234/567.0)">
-                        <div class="form-text">Format: zone:net/node or zone:net/node.point</div>
+                               placeholder="{{ t('ui.address_book.node_address_placeholder', {}, locale, ['common']) }}" pattern="^\d+:\d+\/\d+(\.\d+)?$"
+                               title="{{ t('ui.address_book.node_address_title', {}, locale, ['common']) }}">
+                        <div class="form-text">{{ t('ui.address_book.node_address_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookEmail" class="form-label">Email Address <small class="text-muted">(optional)</small></label>
+                        <label for="addressBookEmail" class="form-label">{{ t('ui.address_book.email_address', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <input type="email" class="form-control" id="addressBookEmail" 
                                placeholder="email@example.com">
-                        <div class="form-text">For your reference only - not used for messaging</div>
+                        <div class="form-text">{{ t('ui.address_book.email_help', {}, locale, ['common']) }}</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="addressBookDescription" class="form-label">Description <small class="text-muted">(optional)</small></label>
+                        <label for="addressBookDescription" class="form-label">{{ t('ui.common.description', {}, locale, ['common']) }} <small class="text-muted">({{ t('ui.common.optional', {}, locale, ['common']) }})</small></label>
                         <textarea class="form-control" id="addressBookDescription" rows="3"
-                                  placeholder="Notes about this contact..."></textarea>
+                                  placeholder="{{ t('ui.address_book.description_placeholder', {}, locale, ['common']) }}"></textarea>
                     </div>
 
                     {% if crashmail_enabled %}
@@ -1421,18 +1443,18 @@ $(document).ready(function() {
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="addressBookAlwaysCrashmail" name="always_crashmail">
                             <label class="form-check-label" for="addressBookAlwaysCrashmail">
-                                <i class="fas fa-bolt text-warning me-1"></i>Always use crashmail for this Recipient
+                                <i class="fas fa-bolt text-warning me-1"></i>{{ t('ui.address_book.always_crashmail', {}, locale, ['common']) }}
                             </label>
-                            <div class="form-text">Automatically enable crashmail when composing messages to this contact.</div>
+                            <div class="form-text">{{ t('ui.address_book.always_crashmail_help', {}, locale, ['common']) }}</div>
                         </div>
                     </div>
                     {% endif %}
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, locale, ['common']) }}</button>
                 <button type="button" class="btn btn-primary" onclick="saveComposeAddressBookEntry()">
-                    <i class="fas fa-save"></i> Save
+                    <i class="fas fa-save"></i> {{ t('ui.common.save', {}, locale, ['common']) }}
                 </button>
             </div>
         </div>
@@ -1442,13 +1464,32 @@ $(document).ready(function() {
 <script>
 // Address book modal functions for compose page
 function showAddAddressModal() {
-    $('#addressBookModalTitle').text('Add Address Book Entry');
+    $('#addressBookModalTitle').text(uiT('ui.address_book.add_entry', 'Add Address Book Entry'));
     $('#addressBookEntryId').val('');
     $('#addressBookForm')[0].reset();
+    clearAddressBookModalError();
     $('#addressBookModal').modal('show');
 }
 
+function showAddressBookModalError(message) {
+    const fallback = uiT('errors.address_book.create_failed', 'Failed to save entry');
+    const text = (typeof message === 'string' && message.trim() !== '') ? message : fallback;
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length) {
+        errorEl.text(text).removeClass('d-none');
+    }
+    showError(text);
+}
+
+function clearAddressBookModalError() {
+    const errorEl = $('#addressBookModalError');
+    if (errorEl.length) {
+        errorEl.addClass('d-none').text('');
+    }
+}
+
 function saveComposeAddressBookEntry() {
+    clearAddressBookModalError();
     const data = {
         name: $('#addressBookName').val().trim(),
         messaging_user_id: $('#addressBookUserId').val().trim(),
@@ -1460,7 +1501,7 @@ function saveComposeAddressBookEntry() {
     
     // Basic validation
     if (!data.name || !data.messaging_user_id || !data.node_address) {
-        showError('Name, user ID, and node address are required');
+        showAddressBookModalError(uiT('errors.address_book.required_fields', 'Name, user ID, and node address are required'));
         return;
     }
     
@@ -1473,19 +1514,27 @@ function saveComposeAddressBookEntry() {
             if (response.success) {
                 $('#addressBookModal').modal('hide');
                 loadComposeAddressBook();
-                showSuccess('Entry added successfully');
+                const successMessage = window.getApiMessage
+                    ? window.getApiMessage(response, uiT('ui.compose.address_book.entry_added', 'Entry added successfully'))
+                    : uiT('ui.compose.address_book.entry_added', 'Entry added successfully');
+                showSuccess(successMessage);
                 // Optionally populate the compose form
-                if (confirm('Use this entry for the current message?')) {
+                if (confirm(uiT('ui.compose.address_book.use_entry_confirm', 'Use this entry for the current message?'))) {
                     $('#toName').val(data.messaging_user_id);
                     $('#toAddress').val(data.node_address);
                 }
             } else {
-                showError(response.error || 'Failed to save entry');
+                const error = window.getApiErrorMessage
+                    ? window.getApiErrorMessage(response, uiT('errors.address_book.create_failed', 'Failed to save entry'))
+                    : uiT('errors.address_book.create_failed', 'Failed to save entry');
+                showAddressBookModalError(error);
             }
         },
         error: function(xhr) {
-            const response = xhr.responseJSON;
-            showError(response && response.error ? response.error : 'Failed to save entry');
+            const error = window.getApiErrorMessage
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('errors.address_book.create_failed', 'Failed to save entry'))
+                : uiT('errors.address_book.create_failed', 'Failed to save entry');
+            showAddressBookModalError(error);
         }
     });
 }
@@ -1497,23 +1546,23 @@ function saveComposeAddressBookEntry() {
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fab fa-markdown me-2"></i>Markdown Quick Reference</h5>
+                <h5 class="modal-title"><i class="fab fa-markdown me-2"></i>{{ t('ui.compose.markdown.quick_reference_title', {}, locale, ['common']) }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h6>Text Formatting</h6>
+                        <h6>{{ t('ui.compose.markdown.help.text_formatting', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
-                            <thead><tr><th>Syntax</th><th>Result</th></tr></thead>
+                            <thead><tr><th>{{ t('ui.compose.markdown.help.syntax', {}, locale, ['common']) }}</th><th>{{ t('ui.compose.markdown.help.result', {}, locale, ['common']) }}</th></tr></thead>
                             <tbody>
                                 <tr><td><code>**bold**</code></td><td><strong>bold</strong></td></tr>
                                 <tr><td><code>*italic*</code></td><td><em>italic</em></td></tr>
                                 <tr><td><code>`inline code`</code></td><td><code>inline code</code></td></tr>
-                                <tr><td><code>[link](url)</code></td><td>hyperlink</td></tr>
+                                <tr><td><code>[link](url)</code></td><td>{{ t('ui.compose.markdown.help.hyperlink', {}, locale, ['common']) }}</td></tr>
                             </tbody>
                         </table>
-                        <h6>Headings</h6>
+                        <h6>{{ t('ui.compose.markdown.help.headings', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
                             <tbody>
                                 <tr><td><code># Heading 1</code></td><td><strong>H1</strong></td></tr>
@@ -1523,33 +1572,33 @@ function saveComposeAddressBookEntry() {
                         </table>
                     </div>
                     <div class="col-md-6">
-                        <h6>Lists &amp; Blocks</h6>
+                        <h6>{{ t('ui.compose.markdown.help.lists_blocks', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
                             <tbody>
-                                <tr><td><code>- item</code></td><td>Bullet list</td></tr>
-                                <tr><td><code>1. item</code></td><td>Numbered list</td></tr>
-                                <tr><td><code>&gt; text</code></td><td>Blockquote</td></tr>
-                                <tr><td><code>---</code></td><td>Horizontal rule</td></tr>
+                                <tr><td><code>- item</code></td><td>{{ t('ui.compose.markdown.help.bullet_list', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><code>1. item</code></td><td>{{ t('ui.compose.markdown.help.numbered_list', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><code>&gt; text</code></td><td>{{ t('ui.compose.markdown.help.blockquote', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><code>---</code></td><td>{{ t('ui.compose.markdown.help.horizontal_rule', {}, locale, ['common']) }}</td></tr>
                             </tbody>
                         </table>
-                        <h6>Code Block</h6>
+                        <h6>{{ t('ui.compose.markdown.help.code_block', {}, locale, ['common']) }}</h6>
                         <pre class="bg-light p-2 rounded small">```
 code here
 ```</pre>
-                        <h6>Keyboard Shortcuts</h6>
+                        <h6>{{ t('ui.compose.markdown.help.keyboard_shortcuts', {}, locale, ['common']) }}</h6>
                         <table class="table table-sm table-bordered">
                             <tbody>
-                                <tr><td><kbd>Ctrl+B</kbd></td><td>Bold</td></tr>
-                                <tr><td><kbd>Ctrl+I</kbd></td><td>Italic</td></tr>
-                                <tr><td><kbd>Ctrl+K</kbd></td><td>Link</td></tr>
-                                <tr><td><kbd>Tab</kbd></td><td>Indent (4 spaces)</td></tr>
+                                <tr><td><kbd>Ctrl+B</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_bold', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><kbd>Ctrl+I</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_italic', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><kbd>Ctrl+K</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_link', {}, locale, ['common']) }}</td></tr>
+                                <tr><td><kbd>Tab</kbd></td><td>{{ t('ui.compose.markdown.help.shortcut_indent', {}, locale, ['common']) }}</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, locale, ['common']) }}</button>
             </div>
         </div>
     </div>

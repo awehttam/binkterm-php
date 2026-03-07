@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Shoutbox - {{ parent() }}{% endblock %}
+{% block title %}{{ t('ui.shoutbox.title', {}, locale, ['common']) }} - {{ parent() }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -9,26 +9,26 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-bullhorn me-2"></i>
-                    Shoutbox
+                    {{ t('ui.shoutbox.title', {}, locale, ['common']) }}
                 </h5>
             </div>
             <div class="card-body">
                 <div id="shoutboxMessages" class="mb-3">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin"></i>
-                        Loading shouts...
+                        {{ t('ui.shoutbox.loading', {}, locale, ['common']) }}
                     </div>
                 </div>
                 <div class="d-flex justify-content-center mb-3">
                     <button class="btn btn-outline-secondary btn-sm" type="button" id="shoutboxLoadMore" onclick="loadMoreShouts()">
-                        Load older shouts
+                        {{ t('ui.shoutbox.load_older', {}, locale, ['common']) }}
                     </button>
                 </div>
                 <div class="input-group">
-                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="Leave a shout...">
-                    <button class="btn btn-primary" type="button" onclick="postShout()">Post</button>
+                    <input type="text" class="form-control" id="shoutboxInput" maxlength="280" placeholder="{{ t('ui.shoutbox.leave_shout', {}, locale, ['common']) }}">
+                    <button class="btn btn-primary" type="button" onclick="postShout()">{{ t('ui.shoutbox.post', {}, locale, ['common']) }}</button>
                 </div>
-                <div class="form-text text-muted">280 characters max.</div>
+                <div class="form-text text-muted">{{ t('ui.shoutbox.max_chars', {}, locale, ['common']) }}</div>
             </div>
         </div>
     </div>
@@ -40,8 +40,22 @@
 let shoutboxOffset = 0;
 const shoutboxPageSize = 20;
 
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 $(document).ready(function() {
-    loadShoutbox();
+    loadI18nNamespaces(['common', 'errors']).then(function() { loadShoutbox(); });
 });
 
 function loadShoutbox() {
@@ -50,7 +64,7 @@ function loadShoutbox() {
         .done(function(data) {
             const items = data.messages || [];
             if (items.length === 0) {
-                $('#shoutboxMessages').html('<p class="text-muted mb-0">No shouts yet. Be the first!</p>');
+                $('#shoutboxMessages').html(`<p class="text-muted mb-0">${uiT('ui.dashboard.shoutbox.none_yet', 'No shouts yet. Be the first!')}</p>`);
                 $('#shoutboxLoadMore').prop('disabled', true);
                 return;
             }
@@ -69,7 +83,7 @@ function loadShoutbox() {
             $('#shoutboxLoadMore').prop('disabled', items.length < shoutboxPageSize);
         })
         .fail(function() {
-            $('#shoutboxMessages').html('<p class="text-danger mb-0">Failed to load shouts.</p>');
+            $('#shoutboxMessages').html(`<p class="text-danger mb-0">${uiT('ui.dashboard.shoutbox.load_failed', 'Failed to load shouts.')}</p>`);
             $('#shoutboxLoadMore').prop('disabled', true);
         });
 }
@@ -123,10 +137,10 @@ function postShout() {
             input.value = '';
             loadShoutbox();
         } else {
-            alert(data.error || 'Failed to post shout.');
+            alert(apiError(data, uiT('ui.dashboard.shoutbox.post_failed', 'Failed to post shout.')));
         }
     })
-    .catch(() => alert('Failed to post shout.'));
+    .catch(() => alert(uiT('ui.dashboard.shoutbox.post_failed', 'Failed to post shout.')));
 }
 
 function escapeHtml(text) {

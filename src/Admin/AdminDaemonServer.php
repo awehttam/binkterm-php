@@ -249,13 +249,16 @@ class AdminDaemonServer
                         $this->writeResponse($client, ['ok' => false, 'error' => 'missing_upstream']);
                         break;
                     }
+                    // Spawn poll in background and return immediately so the HTTP
+                    // request that triggered this does not block waiting for the
+                    // network connection to the uplink to complete.
                     if ($upstream === 'all') {
-                        $result = $this->runCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--all']);
+                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--all', '--no-console']);
                     } else {
-                        $result = $this->runCommand([PHP_BINARY, 'scripts/binkp_poll.php', $upstream]);
+                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--no-console', $upstream]);
                     }
-                    $this->logCommandResult($cmd, $result);
-                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    $this->logger->info("Spawned background binkp_poll for {$upstream}");
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
                     break;
                 case 'get_bbs_config':
                     BbsConfig::reload();
@@ -565,10 +568,29 @@ class AdminDaemonServer
                     $this->writeHouseRules($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'get_i18n_overlay':
+                    $locale = (string)($data['locale'] ?? '');
+                    $ns     = (string)($data['ns'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getI18nOverlay($locale, $ns)]);
+                    break;
+                case 'save_i18n_overlay':
+                    $locale    = (string)($data['locale'] ?? '');
+                    $ns        = (string)($data['ns'] ?? '');
+                    $overrides = is_array($data['overrides'] ?? null) ? $data['overrides'] : [];
+                    $this->saveI18nOverlay($locale, $ns, $overrides);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'stop_services':
                     $results = $this->stopServices();
                     $this->writeResponse($client, ['ok' => true, 'result' => $results]);
                     $this->shutdownRequested = true;
+                    break;
+                case 'server_log':
+                    $level   = strtoupper((string)($data['level']   ?? 'INFO'));
+                    $message = (string)($data['message'] ?? '');
+                    $context = is_array($data['context'] ?? null) ? $data['context'] : [];
+                    $this->appendServerLog($level, $message, $context);
+                    $this->writeResponse($client, ['ok' => true, 'result' => []]);
                     break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
@@ -606,6 +628,71 @@ class AdminDaemonServer
         ];
     }
 
+    /**
+     * Spawn a command in the background without waiting for it to complete.
+     * Used for long-running operations (e.g. binkp_poll) that should not block
+     * the admin daemon socket response.
+     *
+     * Uses a double-fork so the spawned process is fully adopted by init/systemd
+     * and is not affected by the calling child's exit or the parent's SIGCHLD handler.
+     *
+     * On Windows, process spawning is unreliable from a daemon context, so we
+     * skip the immediate poll.  The outbound packet is already spooled to disk
+     * and the scheduler will deliver it on its next scheduled interval.
+     */
+    private function spawnCommand(array $command): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            // Let the scheduler pick up the spooled outbound packet.
+            return;
+        }
+
+        if (function_exists('pcntl_fork') && function_exists('posix_setsid')) {
+            // Double-fork: intermediate child creates a new session then forks
+            // the real worker, then exits immediately.  The worker is re-parented
+            // to init so it outlives both the intermediate child and this process.
+            $intermediatePid = pcntl_fork();
+            if ($intermediatePid === -1) {
+                $this->logger->warning('spawnCommand: first fork failed, falling back to nohup');
+            } elseif ($intermediatePid === 0) {
+                // Intermediate child — detach from the daemon's session.
+                posix_setsid();
+
+                $workerPid = pcntl_fork();
+                if ($workerPid === -1) {
+                    exit(1);
+                } elseif ($workerPid === 0) {
+                    // Worker grandchild — run the command via proc_open so that
+                    // stdout/stderr (including pre-logger PHP fatal errors) are
+                    // captured in binkp_poll.log rather than silently discarded.
+                    $logFile = \BinktermPHP\Config::getLogPath('binkp_poll.log');
+                    $descriptorSpec = [
+                        0 => ['file', '/dev/null', 'r'],
+                        1 => ['file', $logFile, 'a'],
+                        2 => ['file', $logFile, 'a'],
+                    ];
+                    $escaped = implode(' ', array_map('escapeshellarg', $command));
+                    $cwd = dirname(dirname(__DIR__)); // project root (src/Admin -> src -> root)
+                    $process = proc_open($escaped, $descriptorSpec, $pipes, $cwd);
+                    if (is_resource($process)) {
+                        proc_close($process);
+                    }
+                    exit(0);
+                }
+                // Intermediate child exits, orphaning the worker to init.
+                exit(0);
+            } else {
+                // Parent (or caller's forked child) — reap the intermediate child.
+                pcntl_waitpid($intermediatePid, $status);
+                return;
+            }
+        }
+
+        // Fallback for environments without pcntl.
+        $escaped = implode(' ', array_map('escapeshellarg', $command));
+        exec("nohup {$escaped} > /dev/null 2>&1 &");
+    }
+
     private function writeResponse($client, array $payload): void
     {
         fwrite($client, json_encode($payload) . "\n");
@@ -617,6 +704,30 @@ class AdminDaemonServer
             'cmd' => $cmd,
             'exit_code' => $result['exit_code'] ?? null
         ]);
+    }
+
+    /**
+     * Append a structured entry to data/logs/server.log.
+     *
+     * Each line is written in the format:
+     *   [YYYY-MM-DD HH:MM:SS] LEVEL message  key=value key=value ...
+     *
+     * @param string               $level   Log level (INFO, WARNING, ERROR, …)
+     * @param string               $message Human-readable message
+     * @param array<string,scalar> $context Optional key/value context pairs
+     */
+    private function appendServerLog(string $level, string $message, array $context = []): void
+    {
+        $logPath = Config::getLogPath('server.log');
+        $timestamp = date('Y-m-d H:i:s');
+
+        $line = "[{$timestamp}] {$level} {$message}";
+        foreach ($context as $k => $v) {
+            $line .= '  ' . $k . '=' . (is_string($v) ? $v : json_encode($v));
+        }
+        $line .= "\n";
+
+        @file_put_contents($logPath, $line, FILE_APPEND | LOCK_EX);
     }
 
     private function sanitizeLogData(array $data): array
@@ -1453,6 +1564,133 @@ class AdminDaemonServer
 
         if (@file_put_contents($path, $text, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write house rules');
+        }
+    }
+
+    // =========================================================================
+    // Language overlay editor
+    // =========================================================================
+
+    private function getI18nBasePath(): string
+    {
+        return rtrim(__DIR__ . '/../../config/i18n', '/\\');
+    }
+
+    /**
+     * Validates and returns the absolute overlay file path for a locale/namespace.
+     * Returns null if the locale or namespace is invalid.
+     */
+    private function resolveOverlayPath(string $locale, string $namespace): ?string
+    {
+        // Locale: 2-letter code with optional region, e.g. en, es, en-US
+        if (!preg_match('/^[a-z]{2}(-[A-Z]{2})?$/', $locale)) {
+            return null;
+        }
+        // Namespace: lowercase alphanumeric + underscore only
+        if (!preg_match('/^[a-z][a-z0-9_]*$/', $namespace)) {
+            return null;
+        }
+
+        $basePath = $this->getI18nBasePath();
+        return $basePath . '/overrides/' . $locale . '/' . $namespace . '.json';
+    }
+
+    /**
+     * Returns the base PHP catalog keys + current overlay overrides for a locale/namespace.
+     *
+     * @return array{base: array<string,string>, overrides: array<string,string>}
+     */
+    private function getI18nOverlay(string $locale, string $namespace): array
+    {
+        if ($this->resolveOverlayPath($locale, $namespace) === null) {
+            throw new \RuntimeException('Invalid locale or namespace');
+        }
+
+        $basePath = $this->getI18nBasePath();
+        $phpPath  = $basePath . '/' . $locale . '/' . $namespace . '.php';
+
+        $base = [];
+        if (is_file($phpPath)) {
+            $data = include $phpPath;
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    if (is_string($k) && is_string($v)) {
+                        $base[$k] = $v;
+                    }
+                }
+            }
+        }
+
+        // Always load the English base so the editor can show en → locale comparison.
+        $enBase  = [];
+        $enPath  = $basePath . '/en/' . $namespace . '.php';
+        if (is_file($enPath)) {
+            $data = include $enPath;
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    if (is_string($k) && is_string($v)) {
+                        $enBase[$k] = $v;
+                    }
+                }
+            }
+        }
+
+        $overlayPath = $this->resolveOverlayPath($locale, $namespace);
+        $overrides   = [];
+        if ($overlayPath !== null && is_file($overlayPath)) {
+            $raw  = file_get_contents($overlayPath);
+            $data = ($raw !== false) ? json_decode($raw, true) : null;
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    if (is_string($k) && is_string($v)) {
+                        $overrides[$k] = $v;
+                    }
+                }
+            }
+        }
+
+        return ['base' => $base, 'en_base' => $enBase, 'overrides' => $overrides];
+    }
+
+    /**
+     * Saves an overlay JSON file for the given locale/namespace.
+     * Passing an empty overrides array removes the overlay file.
+     *
+     * @param array<string,string> $overrides
+     */
+    private function saveI18nOverlay(string $locale, string $namespace, array $overrides): void
+    {
+        $overlayPath = $this->resolveOverlayPath($locale, $namespace);
+        if ($overlayPath === null) {
+            throw new \RuntimeException('Invalid locale or namespace');
+        }
+
+        // Sanitize: string keys and values only; skip empty overrides
+        $clean = [];
+        foreach ($overrides as $k => $v) {
+            if (is_string($k) && $k !== '' && is_string($v) && $v !== '') {
+                $clean[$k] = $v;
+            }
+        }
+
+        if (empty($clean)) {
+            // No overrides — remove file if it exists
+            if (is_file($overlayPath)) {
+                if (!@unlink($overlayPath)) {
+                    throw new \RuntimeException('Failed to remove overlay file');
+                }
+            }
+            return;
+        }
+
+        $dir = dirname($overlayPath);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+            throw new \RuntimeException('Failed to create overlay directory');
+        }
+
+        $json = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        if ($json === false || @file_put_contents($overlayPath, $json, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write overlay file');
         }
     }
 

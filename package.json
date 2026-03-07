@@ -1,0 +1,13 @@
+{
+    "name": "binkterm-php-tests",
+    "private": true,
+    "scripts": {
+        "test": "playwright test",
+        "test:smoke": "playwright test tests/playwright/smoke.test.js",
+        "test:api": "playwright test tests/playwright/api-smoke.test.js",
+        "test:auth": "playwright test tests/playwright/auth-flow.test.js"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.48.0"
+    }
+}

@@ -3,6 +3,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/src/TelnetServer.php';
+require_once __DIR__ . '/src/BbsSession.php';
 require_once __DIR__ . '/src/TelnetUtils.php';
 require_once __DIR__. '/src/MailUtils.php';
 require_once __DIR__ . '/src/NetmailHandler.php';
@@ -63,7 +64,11 @@ $args = parseArgs($argv);
 if (!empty($args['help'])) {
     echo "Usage: php telnet/telnet_daemon.php [options]\n";
     echo "  --host=ADDR       Bind address (default: 0.0.0.0)\n";
-    echo "  --port=PORT       Bind port (default: 2323)\n";
+    echo "  --port=PORT       Plain-text port (default: 2323)\n";
+    echo "  --no-tls          Disable TLS (TLS is enabled by default on port 8023)\n";
+    echo "  --tls-port=PORT   TLS port (default: TELNET_TLS_PORT or 8023)\n";
+    echo "  --tls-cert=FILE   TLS certificate PEM file (default: auto-generated)\n";
+    echo "  --tls-key=FILE    TLS private key PEM file (default: auto-generated)\n";
     echo "  --api-base=URL    API base URL (default: SITE_URL or http://127.0.0.1)\n";
     echo "  --debug           Enable debug mode with verbose logging\n";
     echo "  --daemon          Run as background daemon\n";
@@ -79,8 +84,20 @@ $apiBase = buildApiBase($args);
 $debug = !empty($args['debug']);
 $daemonMode = !empty($args['daemon']);
 $insecure = !empty($args['insecure']);
+
 // Create telnet server instance
 $server = new TelnetServer($host, $port, $apiBase, $debug, $insecure);
+
+// TLS is enabled by default; --no-tls or TELNET_TLS=false disables it
+$tlsDisabled = !empty($args['no-tls']) || Config::env('TELNET_TLS', 'true') === 'false';
+if ($tlsDisabled) {
+    $server->disableTls();
+} else {
+    $tlsPort = (int)($args['tls-port'] ?? Config::env('TELNET_TLS_PORT', '8023'));
+    $tlsCert = $args['tls-cert'] ?? Config::env('TELNET_TLS_CERT', '') ?: null;
+    $tlsKey  = $args['tls-key']  ?? Config::env('TELNET_TLS_KEY', '')  ?: null;
+    $server->setTls($tlsPort, $tlsCert, $tlsKey);
+}
 
 // Set PID file path for daemon mode
 $pidFile = $args['pid-file'] ?? dirname(__DIR__) . '/data/run/telnetd.pid';

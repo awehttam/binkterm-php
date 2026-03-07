@@ -1,28 +1,28 @@
 {% extends "base.twig" %}
 
-{% block title %}Doors and Games - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.webdoors.page_title', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="fas fa-gamepad"></i> Doors and Games</h1>
+        <h1><i class="fas fa-gamepad"></i> {{ t('ui.webdoors.heading', {}, locale, ['common']) }}</h1>
     </div>
 
-    <p class="text-muted mb-4">Access classic DOS door games and modern web-based games. </p>
+    <p class="text-muted mb-4">{{ t('ui.webdoors.description', {}, locale, ['common']) }}</p>
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-trophy text-warning me-2"></i>Top Scores (All Games)</span>
+            <span><i class="fas fa-trophy text-warning me-2"></i>{{ t('ui.webdoors.top_scores_all_games', {}, locale, ['common']) }}</span>
             <div class="d-flex align-items-center gap-2">
-                <div class="btn-group btn-group-sm" role="group" aria-label="Leaderboard month navigation">
-                    <a class="btn btn-outline-secondary btn-sm" href="/games?month_offset={{ leaderboard_month_offset + 1 }}" title="Previous month">
+                <div class="btn-group btn-group-sm" role="group" aria-label="{{ t('ui.webdoors.leaderboard_month_navigation', {}, locale, ['common']) }}">
+                    <a class="btn btn-outline-secondary btn-sm" href="/games?month_offset={{ leaderboard_month_offset + 1 }}" title="{{ t('ui.webdoors.previous_month', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-left"></i>
                     </a>
                     {% if leaderboard_month_offset > 0 %}
-                    <a class="btn btn-outline-secondary btn-sm" href="/games?month_offset={{ leaderboard_month_offset - 1 }}" title="Next month">
+                    <a class="btn btn-outline-secondary btn-sm" href="/games?month_offset={{ leaderboard_month_offset - 1 }}" title="{{ t('ui.webdoors.next_month', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </a>
                     {% else %}
-                    <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Current month">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="{{ t('ui.webdoors.current_month', {}, locale, ['common']) }}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                     {% endif %}
@@ -35,18 +35,18 @@
                 <table class="table table-sm table-striped mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 60px;">Rank</th>
-                        <th>Player</th>
-                        <th>Game</th>
-                        <th>Board</th>
-                        <th class="text-end" style="width: 100px;">Score</th>
-                        <th style="width: 110px;">Date</th>
+                            <th style="width: 60px;">{{ t('ui.webdoors.rank', {}, locale, ['common']) }}</th>
+                        <th>{{ t('ui.webdoors.player', {}, locale, ['common']) }}</th>
+                        <th>{{ t('ui.webdoors.game', {}, locale, ['common']) }}</th>
+                        <th>{{ t('ui.webdoors.board', {}, locale, ['common']) }}</th>
+                        <th class="text-end" style="width: 100px;">{{ t('ui.webdoors.score', {}, locale, ['common']) }}</th>
+                        <th style="width: 110px;">{{ t('ui.webdoors.date', {}, locale, ['common']) }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if leaderboard|length == 0 %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-3">No scores recorded for {{ leaderboard_month_label }}.</td>
+                        <td colspan="6" class="text-center text-muted py-3">{{ t('ui.webdoors.no_scores_for_month', {'month': leaderboard_month_label}, locale, ['common']) }}</td>
                     </tr>
                     {% else %}
                     {% for entry in leaderboard %}
@@ -97,18 +97,18 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
                                 {% if game.type == 'dosdoor' or game.type == 'nativedoor' %}
-                                    {% if game.players %}Players: {{ game.players }}{% endif %}
+                                    {% if game.players %}{{ t('ui.webdoors.players_count', {'count': game.players}, locale, ['common']) }}{% endif %}
                                     {% if game.version or game.author %}
-                                        {% if game.players %} • {% endif %}
+                                        {% if game.players %} | {% endif %}
                                         {% if game.version %}v{{ game.version }} {% endif %}
-                                        {% if game.author %}by {{ game.author }}{% endif %}
+                                        {% if game.author %}{{ t('ui.webdoors.by_author', {'author': game.author}, locale, ['common']) }}{% endif %}
                                     {% endif %}
                                 {% else %}
-                                    v{{ game.version }} by {{ game.author }}
+                                    {{ t('ui.webdoors.version_by_author', {'version': game.version, 'author': game.author}, locale, ['common']) }}
                                 {% endif %}
                             </small>
                             <a href="/games/{{ game.path }}" class="btn btn-primary btn-sm">
-                                <i class="fas fa-play"></i> Launch
+                                <i class="fas fa-play"></i> {{ t('ui.webdoors.launch', {}, locale, ['common']) }}
                             </a>
                         </div>
                     </div>
@@ -119,7 +119,7 @@
     </div>
     {% else %}
     <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> No games available yet. Check back later!
+        <i class="fas fa-info-circle"></i> {{ t('ui.webdoors.no_games_available', {}, locale, ['common']) }}
     </div>
     {% endif %}
 </div>
@@ -141,3 +141,4 @@
 }
 </style>
 {% endblock %}
+

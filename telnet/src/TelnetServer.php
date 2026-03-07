@@ -6,6 +6,7 @@ use BinktermPHP\Config;
 use BinktermPHP\Version;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\I18n\Translator;
 
 
 /**
@@ -61,6 +62,12 @@ class TelnetServer
     private ?string $pidFile = null;
     private ?int $masterPid = null;
     private array $failedLoginAttempts = [];
+    private Translator $translator;
+    private string $systemLocale;
+    private bool $tlsEnabled = true;
+    private int $tlsPort = 8023;
+    private ?string $tlsCert = null;
+    private ?string $tlsKey = null;
 
     /**
      * Create a new Telnet Server instance
@@ -77,6 +84,30 @@ class TelnetServer
         $this->apiBase = rtrim($apiBase, '/');
         $this->debug = $debug;
         $this->insecure = $insecure;
+        $this->translator = new Translator();
+        $this->systemLocale = (string)Config::env('I18N_DEFAULT_LOCALE', 'en');
+    }
+
+    /**
+     * Translate a telnet UI string.
+     *
+     * @param string $key Translation key (looked up in the 'telnet' namespace)
+     * @param string $fallback English fallback used when the key is missing from all catalogs
+     * @param array $params Placeholder substitutions ({key} => value)
+     * @param string $locale User locale; defaults to system locale
+     * @return string Translated string with params interpolated
+     */
+    public function t(string $key, string $fallback, array $params = [], string $locale = ''): string
+    {
+        $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['telnet']);
+        if ($result === $key) {
+            // Key not found in any catalog — use fallback with param interpolation
+            foreach ($params as $k => $v) {
+                $fallback = str_replace('{' . $k . '}', (string)$v, $fallback);
+            }
+            return $fallback;
+        }
+        return $result;
     }
 
     /**
@@ -87,6 +118,30 @@ class TelnetServer
     public function setPidFile(string $pidFile): void
     {
         $this->pidFile = $pidFile;
+    }
+
+    /**
+     * Configure TLS. TLS is enabled by default on port 8023.
+     * If cert/key are omitted a self-signed certificate is auto-generated.
+     *
+     * @param int         $port Port to listen on for TLS connections
+     * @param string|null $cert Path to PEM certificate file (null = auto-generate)
+     * @param string|null $key  Path to PEM private key file (null = auto-generate)
+     */
+    public function setTls(int $port, ?string $cert = null, ?string $key = null): void
+    {
+        $this->tlsEnabled = true;
+        $this->tlsPort    = $port;
+        $this->tlsCert    = $cert;
+        $this->tlsKey     = $key;
+    }
+
+    /**
+     * Disable TLS entirely.
+     */
+    public function disableTls(): void
+    {
+        $this->tlsEnabled = false;
     }
 
     /**
@@ -130,11 +185,14 @@ class TelnetServer
             });
 
             // Handle SIGTERM and SIGINT for graceful shutdown
-            $gracefulShutdown = function($signo) use (&$server) {
+            $gracefulShutdown = function($signo) use (&$server, &$tlsServer) {
                 $this->log("Received shutdown signal, cleaning up...");
                 $this->cleanupDaemon();
                 if (isset($server) && is_resource($server)) {
                     fclose($server);
+                }
+                if (isset($tlsServer) && is_resource($tlsServer)) {
+                    fclose($tlsServer);
                 }
                 exit(0);
             };
@@ -147,14 +205,67 @@ class TelnetServer
             }
         }
 
-        // Create server socket
+        // Create plain-text server socket
         $server = stream_socket_server("tcp://{$this->host}:{$this->port}", $errno, $errstr);
         if (!$server) {
             fwrite(STDERR, "Failed to bind telnet server: {$errstr} ({$errno})\n");
             exit(1);
         }
+        $this->log("Telnet daemon " . Version::getVersion() . " listening on {$this->host}:{$this->port}");
 
-        $this->log("Telnet daemon ".Version::getVersion()." listening on {$this->host}:{$this->port}");
+        // Create TLS server socket if enabled
+        $tlsServer = null;
+        if ($this->tlsEnabled) {
+            // Resolve default cert paths and auto-generate if needed
+            $dataDir = dirname(dirname(__DIR__)) . '/data/telnet';
+            if ($this->tlsCert === null) {
+                $this->tlsCert = $dataDir . '/telnetd.crt';
+            }
+            if ($this->tlsKey === null) {
+                $this->tlsKey = $dataDir . '/telnetd.key';
+            }
+
+            try {
+                $this->ensureTlsCert($dataDir);
+            } catch (\Exception $e) {
+                $this->log("WARNING: Could not generate TLS certificate: " . $e->getMessage());
+                $this->log("WARNING: TLS disabled — fix certificate configuration or provide valid cert/key files");
+                $this->tlsEnabled = false;
+            }
+
+            if ($this->tlsEnabled) {
+                // Use tcp:// and perform the TLS handshake explicitly via
+                // stream_socket_enable_crypto() after accept.  This gives us proper
+                // OpenSSL error visibility on failure; ssl:// swallows errors on Windows.
+                // SSL context options are set here at server-creation time so accepted
+                // child sockets inherit them.
+                $tlsContext = stream_context_create([
+                    'ssl' => [
+                        'local_cert'          => $this->tlsCert,
+                        'local_pk'            => $this->tlsKey,
+                        'allow_self_signed'   => true,
+                        'verify_peer'         => false,
+                        'crypto_method'       => STREAM_CRYPTO_METHOD_TLSv1_2_SERVER
+                                              | STREAM_CRYPTO_METHOD_TLSv1_1_SERVER
+                                              | STREAM_CRYPTO_METHOD_TLSv1_0_SERVER,
+                        'ciphers'             => 'DEFAULT:@SECLEVEL=0',
+                        'disable_compression' => true,
+                    ],
+                ]);
+                $tlsServer = @stream_socket_server(
+                    "tcp://{$this->host}:{$this->tlsPort}",
+                    $errno, $errstr,
+                    STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+                    $tlsContext
+                );
+                if (!$tlsServer) {
+                    $this->log("WARNING: Failed to bind TLS server on port {$this->tlsPort}: {$errstr} ({$errno})");
+                } else {
+                    $this->log("TLS listening on {$this->host}:{$this->tlsPort}");
+                }
+            }
+        }
+
         if ($this->debug) {
             $this->log("DEBUG MODE");
             $this->log("API Base URL: {$this->apiBase}");
@@ -167,56 +278,82 @@ class TelnetServer
 
         $connectionCount = 0;
 
-        // Main server loop
+        // Main server loop — use stream_select to watch plain and TLS sockets together
         while (true) {
             // Dispatch signals if async signals not available
             if (function_exists('pcntl_signal_dispatch') && !function_exists('pcntl_async_signals')) {
                 pcntl_signal_dispatch();
             }
 
-            $conn = @stream_socket_accept($server, 60);
-            if (!$conn) {
-                // Timeout or error, reap zombies and continue
+            $readSockets = array_filter([$server, $tlsServer]);
+            $write = null;
+            $except = null;
+            $changed = @stream_select($readSockets, $write, $except, 60);
+
+            if ($changed === false || $changed === 0) {
+                // Timeout or interrupted — reap zombies and continue
                 if (function_exists('pcntl_waitpid')) {
-                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {
-                        // Reap zombie processes
-                    }
+                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
                 }
                 continue;
             }
 
-            $connectionCount++;
-            if ($this->debug) {
-                $peerName = @stream_socket_get_name($conn, true);
-                echo "[" . date('Y-m-d H:i:s') . "] Connection #{$connectionCount} from {$peerName}\n";
-            }
-
-            $forked = false;
-            if (function_exists('pcntl_fork')) {
-                $pid = pcntl_fork();
-                if ($pid === -1) {
-                    // Fork failed
-                    $forked = false;
-                    if ($this->debug) {
-                        echo "[" . date('Y-m-d H:i:s') . "] WARNING: Fork failed, handling connection in main process\n";
-                    }
-                } elseif ($pid === 0) {
-                    // Child process
-                    fclose($server);
-                    $forked = true;
-                } else {
-                    // Parent process
-                    fclose($conn);
-                    // Reap any finished children (non-blocking)
-                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {
-                        // Zombie reaped
-                    }
+            foreach ($readSockets as $readySocket) {
+                $isTls = ($tlsServer && $readySocket === $tlsServer);
+                $conn = @stream_socket_accept($readySocket, 0);
+                if (!$conn) {
                     continue;
                 }
-            }
 
-            // Handle connection
-            $this->handleConnection($conn, $forked);
+                $connectionCount++;
+                if ($this->debug) {
+                    $peerName = @stream_socket_get_name($conn, true);
+                    $this->log("Connection #{$connectionCount} from {$peerName}" . ($isTls ? ' (TLS)' : ''));
+                }
+
+                $forked = false;
+                if (function_exists('pcntl_fork')) {
+                    $pid = pcntl_fork();
+                    if ($pid === -1) {
+                        // Fork failed — handle TLS handshake and connection in main process
+                        $forked = false;
+                        if ($this->debug) {
+                            $this->log("WARNING: Fork failed, handling connection in main process");
+                        }
+                        if ($isTls && !$this->doTlsHandshake($conn)) {
+                            fclose($conn);
+                            continue;
+                        }
+                    } elseif ($pid === 0) {
+                        // Child process — TLS handshake must happen here, after fork.
+                        // If we did it in the parent, the parent's fclose() would send
+                        // SSL close_notify and destroy the session before the child uses it.
+                        fclose($server);
+                        if ($tlsServer) {
+                            fclose($tlsServer);
+                        }
+                        $forked = true;
+                        if ($isTls && !$this->doTlsHandshake($conn)) {
+                            fclose($conn);
+                            exit(0);
+                        }
+                    } else {
+                        // Parent process — conn is still a plain TCP socket (no TLS yet),
+                        // so fclose() just decrements the OS fd refcount; no SSL close_notify.
+                        fclose($conn);
+                        while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
+                        continue;
+                    }
+                } else {
+                    // No fork (Windows or pcntl not compiled in) — handshake in main process
+                    if ($isTls && !$this->doTlsHandshake($conn)) {
+                        fclose($conn);
+                        continue;
+                    }
+                }
+
+                $this->handleConnection($conn, $forked, $isTls);
+            }
         }
     }
 
@@ -302,1724 +439,221 @@ class TelnetServer
     }
 
     /**
+     * Perform TLS handshake on an accepted TCP socket.
+     *
+     * Must be called in the process that will use the connection (child after fork,
+     * or main process when no fork is available).  Calling it in the parent before
+     * fork would cause the parent's fclose() to send SSL close_notify and tear down
+     * the session before the child can use it.
+     *
+     * @param resource $conn Accepted TCP socket
+     * @return bool True on successful handshake, false on failure (caller must fclose)
+     */
+    private function doTlsHandshake($conn): bool
+    {
+        $peerName = @stream_socket_get_name($conn, true);
+        $peerIp   = $peerName ? explode(':', $peerName)[0] : 'unknown';
+
+        stream_set_blocking($conn, true);
+        stream_set_timeout($conn, 10);
+
+        // Set SSL options explicitly on the accepted socket — context inheritance
+        // from the server socket is not guaranteed on all PHP/OS combinations.
+        stream_context_set_option($conn, 'ssl', 'local_cert',          $this->tlsCert);
+        stream_context_set_option($conn, 'ssl', 'local_pk',            $this->tlsKey);
+        stream_context_set_option($conn, 'ssl', 'allow_self_signed',   true);
+        stream_context_set_option($conn, 'ssl', 'verify_peer',         false);
+        stream_context_set_option($conn, 'ssl', 'ciphers',             'DEFAULT:@SECLEVEL=0');
+        stream_context_set_option($conn, 'ssl', 'disable_compression', true);
+
+        $cryptoMethod = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER
+                      | STREAM_CRYPTO_METHOD_TLSv1_1_SERVER
+                      | STREAM_CRYPTO_METHOD_TLSv1_0_SERVER;
+
+        error_clear_last();
+        $handshake = false;
+        $attempts  = 0;
+        while ($attempts++ < 50) {
+            $result = @stream_socket_enable_crypto($conn, true, $cryptoMethod);
+            if ($result === true)  { $handshake = true; break; }
+            if ($result === false) { break; }
+            usleep(50000);
+        }
+
+        if (!$handshake) {
+            $opensslErrors = [];
+            while ($err = openssl_error_string()) {
+                $opensslErrors[] = $err;
+            }
+            $phpError = error_get_last();
+            $detail   = $opensslErrors ? ': ' . implode(' | ', $opensslErrors) : '';
+            if ($phpError) {
+                $detail .= ' [PHP: ' . $phpError['message'] . ']';
+            }
+            $this->log("TLS handshake failed from {$peerIp}{$detail}");
+            return false;
+        }
+
+        $meta     = stream_get_meta_data($conn);
+        $crypto   = $meta['crypto'] ?? [];
+        $protocol = $crypto['protocol']    ?? 'unknown';
+        $cipher   = $crypto['cipher_name'] ?? 'unknown';
+        $bits     = $crypto['cipher_bits'] ?? '?';
+        $this->log("TLS connection from {$peerIp} [{$protocol} {$cipher} {$bits}-bit]");
+        return true;
+    }
+
+    /**
+     * Ensure a TLS certificate and key exist, generating a self-signed pair if not.
+     * Mirrors the approach used by the Gemini capsule server: openssl CLI first,
+     * PHP openssl_* functions as fallback.
+     *
+     * @param string $dataDir Directory to create/store generated cert files
+     * @throws \RuntimeException if certificate generation fails
+     */
+    private function ensureTlsCert(string $dataDir): void
+    {
+        if (file_exists($this->tlsCert) && file_exists($this->tlsKey)) {
+            return;
+        }
+
+        if (!is_dir($dataDir)) {
+            mkdir($dataDir, 0750, true);
+        }
+
+        $this->log('Generating self-signed TLS certificate...');
+
+        $cn = 'localhost';
+        try {
+            $siteUrl = Config::getSiteUrl();
+            $parsed  = parse_url($siteUrl);
+            if (!empty($parsed['host'])) {
+                $cn = $parsed['host'];
+            }
+        } catch (\Exception $e) {
+            // fall back to localhost
+        }
+
+        $opensslCnf = realpath(dirname(dirname(__DIR__)) . '/config/gemini_openssl.cnf');
+
+        if ($opensslCnf !== false && $this->generateTlsCertViaCli($cn, $opensslCnf)) {
+            return;
+        }
+
+        // Fallback: PHP openssl_* functions
+        $opensslCfg = $opensslCnf ? ['config' => $opensslCnf] : [];
+
+        $pkey = openssl_pkey_new(array_merge([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ], $opensslCfg));
+
+        if ($pkey === false) {
+            throw new \RuntimeException('openssl_pkey_new() failed — check that the openssl PHP extension is enabled');
+        }
+
+        $csr = openssl_csr_new(
+            ['commonName' => $cn],
+            $pkey,
+            array_merge(['digest_alg' => 'sha256'], $opensslCfg)
+        );
+        if ($csr === false) {
+            throw new \RuntimeException('openssl_csr_new() failed');
+        }
+
+        $cert = openssl_csr_sign($csr, null, $pkey, 3650, array_merge(['digest_alg' => 'sha256'], $opensslCfg));
+        if ($cert === false) {
+            throw new \RuntimeException('openssl_csr_sign() failed');
+        }
+
+        $certPem = '';
+        $keyPem  = '';
+        openssl_x509_export($cert, $certPem);
+        openssl_pkey_export($pkey, $keyPem, null, $opensslCfg);
+
+        file_put_contents($this->tlsCert, $certPem . $keyPem);
+        file_put_contents($this->tlsKey, $keyPem);
+        chmod($this->tlsCert, 0600);
+        chmod($this->tlsKey, 0600);
+
+        $this->log("TLS certificate generated for CN={$cn} (PHP), stored in {$dataDir}/");
+    }
+
+    /**
+     * Attempt to generate a self-signed cert using the openssl CLI.
+     *
+     * @return bool True on success, false if CLI is unavailable or fails
+     */
+    private function generateTlsCertViaCli(string $cn, string $opensslCnf): bool
+    {
+        // escapeshellarg() wraps in quotes, so a single leading slash is correct
+        // on all platforms.  The historical '//CN=' Windows workaround is not
+        // needed here and causes OpenSSL 3.x to produce an empty subject DN.
+        $subj = '/CN=' . $cn;
+
+        $sanParts = filter_var($cn, FILTER_VALIDATE_IP) ? ['IP:' . $cn] : ['DNS:' . $cn];
+        if ($cn !== 'localhost') {
+            $sanParts[] = 'DNS:localhost';
+            $sanParts[] = 'IP:127.0.0.1';
+        } else {
+            $sanParts[] = 'IP:127.0.0.1';
+        }
+        $san = implode(',', $sanParts);
+
+        $cmd = implode(' ', [
+            'openssl', 'req',
+            '-x509',
+            '-newkey', 'rsa:2048',
+            '-keyout', escapeshellarg($this->tlsKey),
+            '-out',    escapeshellarg($this->tlsCert),
+            '-days',   '3650',
+            '-nodes',
+            '-config', escapeshellarg($opensslCnf),
+            '-subj',   escapeshellarg($subj),
+            '-addext', escapeshellarg("subjectAltName={$san}"),
+            '2>&1',
+        ]);
+
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0 || !file_exists($this->tlsCert) || !file_exists($this->tlsKey)) {
+            $this->log('DEBUG: openssl CLI unavailable or failed: ' . implode(' | ', $output));
+            return false;
+        }
+
+        // Append key to cert file so PHP ssl:// local_cert can load both from one file
+        $certPem = file_get_contents($this->tlsCert);
+        $keyPem  = file_get_contents($this->tlsKey);
+        file_put_contents($this->tlsCert, $certPem . $keyPem);
+        chmod($this->tlsCert, 0600);
+        chmod($this->tlsKey, 0600);
+
+        $this->log("TLS certificate generated for CN={$cn} (openssl CLI), stored in " . dirname($this->tlsCert) . '/');
+        return true;
+    }
+
+    /**
      * Handle an individual client connection
      *
      * @param resource $conn Socket connection resource
      * @param bool $forked Whether this is running in a forked child process
+     * @param bool $isTls Whether the connection is TLS-encrypted
      */
-    private function handleConnection($conn, bool $forked): void
+    private function handleConnection($conn, bool $forked, bool $isTls = false): void
     {
-        stream_set_timeout($conn, 300);
-        $state = [
-            'telnet_mode' => null,
-            'input_echo' => true,
-            'cols' => 80,
-            'rows' => 24,
-            'last_activity' => time(),
-            'idle_warned' => false,
-            'idle_warning_timeout' => 300,  // 5 minutes
-            'idle_disconnect_timeout' => 420,  // 7 minutes (5 + 2)
-            'pushback' => ''
-        ];
-
-        if ($this->debug) {
-            echo "[" . date('Y-m-d H:i:s') . "] Connection initialized: Default screen size 80x24\n";
-        }
-
-        $this->negotiateTelnet($conn);
-
-        // Get peer IP for rate limiting
-        $peerName = @stream_socket_get_name($conn, true);
-        $peerIp = $peerName ? explode(':', $peerName)[0] : 'unknown';
-
-        // Check if IP is rate limited
-        if ($this->isRateLimited($peerIp)) {
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Too many failed login attempts. Please try again later.', self::ANSI_RED));
-            $this->writeLine($conn, '');
-            echo "[" . date('Y-m-d H:i:s') . "] Rate limited connection from {$peerName}\n";
-            fclose($conn);
-            if ($forked) {
-                exit(0);
-            }
-            return;
-        }
-
-        // Show login banner
-        $this->showLoginBanner($conn, $state);
-
-        // Anti-bot: require ESC key twice before presenting login/register menu
-        if (!$this->requireEscapeKey($conn, $state)) {
-            $this->log("Bot/timeout on ESC challenge from {$peerName} — connection dropped");
-            fclose($conn);
-            if ($forked) {
-                exit(0);
-            }
-            return;
-        }
-
-        // Login/Register loop
-        $loginResult = null;
-        while ($loginResult === null) {
-            $this->writeLine($conn, 'Would you like to:');
-            $this->writeLine($conn, '  (L) Login to existing account');
-            $this->writeLine($conn, '  (R) Register new account');
-            $this->writeLine($conn, '  (Q) Quit');
-            $this->writeLine($conn, '');
-            $loginOrRegister = $this->prompt($conn, $state, 'Your choice: ', true);
-
-            if ($loginOrRegister === null || strtolower(trim($loginOrRegister)) === 'q') {
-                $this->writeLine($conn, $this->colorize('Goodbye!', self::ANSI_CYAN));
-                fclose($conn);
-                if ($forked) {
-                    exit(0);
-                }
-                return;
-            }
-
-            // Handle registration
-            if (strtolower(trim($loginOrRegister)) === 'r') {
-                $registered = $this->attemptRegistration($conn, $state);
-                if ($registered) {
-                    $this->writeLine($conn, 'Press Enter to disconnect.');
-                    $this->readLineWithIdleCheck($conn, $state);
-                    fclose($conn);
-                    if ($forked) {
-                        exit(0);
-                    }
-                    return;
-                }
-                // Registration was cancelled - loop back to menu
-                $this->writeLine($conn, '');
-                continue;
-            }
-
-            // Proceed with login
-            $this->writeLine($conn, '');
-
-            // Allow up to 3 login attempts
-            $maxAttempts = 3;
-            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                $attemptedUsername = '';
-                $loginResult = $this->attemptLogin($conn, $state, $attemptedUsername);
-
-                if ($loginResult !== null) {
-                    // Successful login
-                    $this->writeLine($conn, $this->colorize('Login successful.', self::ANSI_GREEN));
-                    $this->writeLine($conn, '');
-                    break 2; // Break out of both for loop and while loop
-                }
-
-                // Failed login
-                $this->recordFailedLogin($peerIp);
-                $userLabel = $attemptedUsername !== '' ? " (user: {$attemptedUsername})" : '';
-                $this->log("Failed login attempt from {$peerName}{$userLabel} (attempt {$attempt}/{$maxAttempts})");
-
-                if ($attempt < $maxAttempts) {
-                    $remaining = $maxAttempts - $attempt;
-                    $this->writeLine($conn, $this->colorize("Login failed. {$remaining} attempt(s) remaining.", self::ANSI_RED));
-                    $this->writeLine($conn, '');
-                } else {
-                    $this->writeLine($conn, $this->colorize('Login failed. Maximum attempts exceeded.', self::ANSI_RED));
-                    $this->writeLine($conn, '');
-                }
-            }
-
-            // If all attempts failed, disconnect
-            if ($loginResult === null) {
-                $this->log("Login failed (max attempts) from {$peerName}");
-                fclose($conn);
-                if ($forked) {
-                    exit(0);
-                }
-                return;
-            }
-        }
-
-        $session  = $loginResult['session'];
-        $username = $loginResult['username'];
-        $loginTime = time();
-
-        // Store CSRF token in state so handlers can attach it to POST requests
-        $state['csrf_token'] = $loginResult['csrf_token'] ?? null;
-
-        // Fetch user settings once at login and store in state
-        $settingsResponse = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/user/settings', null, $session);
-        $settings = $settingsResponse['data']['settings'] ?? [];
-        $state['user_timezone'] = $settings['timezone'] ?? 'UTC';
-        $state['user_date_format'] = $settings['date_format'] ?? 'Y-m-d H:i:s';
-        $state['username'] = $username;
-
-        // Resolve admin status from session record
-        $auth = new \BinktermPHP\Auth();
-        $userRecord = $auth->validateSession($session);
-        $state['is_admin'] = !empty($userRecord['is_admin']);
-
-        // Clear failed login attempts for this IP on successful login
-        $this->clearFailedLogins($peerIp);
-
-        // Log successful login to console
-        echo "[" . date('Y-m-d H:i:s') . "] Login: {$username} from {$peerName}\n";
-
-        // Track telnet login in activity log
-        \BinktermPHP\ActivityTracker::track(
-            $userRecord['user_id'] ?? null,
-            \BinktermPHP\ActivityTracker::TYPE_LOGIN,
-            null,
-            'telnet',
-            ['ip' => $peerIp]
+        $session = new BbsSession(
+            $conn,
+            $this->apiBase,
+            $this->debug,
+            $this->insecure,
+            $isTls,
+            false,
+            $this->tlsEnabled,
+            $this->tlsPort,
+            $this->logFile,
+            null
         );
-
-        // Set terminal window title to BBS name
-        $config = BinkpConfig::getInstance();
-        $this->setTerminalTitle($conn, $config->getSystemName());
-
-        // Instantiate handlers
-        $netmailHandler = new \BinktermPHP\TelnetServer\NetmailHandler($this, $this->apiBase);
-        $echomailHandler = new \BinktermPHP\TelnetServer\EchomailHandler($this, $this->apiBase);
-        $shoutboxHandler = new \BinktermPHP\TelnetServer\ShoutboxHandler($this, $this->apiBase);
-        $pollsHandler = new \BinktermPHP\TelnetServer\PollsHandler($this, $this->apiBase);
-        $doorHandler = new \BinktermPHP\TelnetServer\DoorHandler($this, $this->apiBase);
-
-        // Show shoutbox if enabled
-        $shoutboxHandler->show($conn, $state, $session, 5, false);
-
-        // Get message counts once per session
-        $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
-
-        // Main menu loop
-        while (true) {
-            // Check if connection is still alive
-            if (!is_resource($conn) || feof($conn)) {
-                $duration = time() - $loginTime;
-                $minutes = floor($duration / 60);
-                $seconds = $duration % 60;
-                echo "[" . date('Y-m-d H:i:s') . "] Connection lost: {$username} (session duration: {$minutes}m {$seconds}s)\n";
-                break;
-            }
-
-            // Build the main menu
-            // Check if custom main menu ANSI file exists
-            if (TelnetUtils::showScreenIfExists("mainmenu.ans", $this, $conn)) {
-                // Custom menu displayed, show prompt
-                $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
-            } else {
-                // Display default menu
-                $cols = $state['cols'] ?? 80;
-                $menuWidth = min(60, $cols - 4);
-                $innerWidth = $menuWidth - 4;
-                $menuLeft = max(0, (int)floor(($cols - $menuWidth) / 2));
-                $menuPad = str_repeat(' ', $menuLeft);
-
-                $systemName = $config->getSystemName();
-                $border = '+' . str_repeat('=', $menuWidth - 2) . '+';
-                $divider = '+' . str_repeat('-', $menuWidth - 2) . '+';
-
-                // Clear screen before rendering menu
-                $this->safeWrite($conn, "\033[2J\033[H");
-            // Status bar with system name and user's local time
-            $currentUtc = gmdate('Y-m-d H:i:s');
-            $timeStr = TelnetUtils::formatUserDate($currentUtc, $state, false);
-            $statusLine = TelnetUtils::buildStatusBar([
-                ['text' => $systemName . '  ', 'color' => self::ANSI_BLUE],
-                ['text' => str_repeat(' ', max(1, $cols - strlen($systemName) - strlen($timeStr) - 2)), 'color' => self::ANSI_BLUE],
-                ['text' => $timeStr, 'color' => self::ANSI_BLUE],
-            ], $cols);
-            $this->safeWrite($conn, "\033[1;1H");
-            $this->safeWrite($conn, $statusLine . "\r");
-            $this->safeWrite($conn, "\033[2;1H");
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-            $titleLine = '| ' . str_pad('Main Menu', $innerWidth, ' ', STR_PAD_BOTH) . ' |';
-            $this->writeLine($conn, $menuPad . $this->colorize($titleLine, self::ANSI_BLUE . self::ANSI_BOLD));
-            $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_CYAN));
-
-            // Menu options
-            $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
-            $showPolls = BbsConfig::isFeatureEnabled('voting_booth');
-            $showDoors = BbsConfig::isFeatureEnabled('webdoors');
-
-            $option1 = '| N) Netmail (' . $messageCounts['netmail'] . ' messages)';
-            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option1, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-
-            $option2 = '| E) Echomail (' . $messageCounts['echomail'] . ' messages)';
-            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($option2, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-
-            $option = 1;
-            $shoutboxOption = null;
-            $pollsOption = null;
-            $doorsOption = null;
-            $whosOnlineOption = 'w';
-
-            $optionLine = "| W) Who's Online";
-            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-
-            if ($showShoutbox) {
-                $optionLine = "| S) Shoutbox";
-                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-                $shoutboxOption = 's';
-            }
-            if ($showPolls) {
-                $optionLine = "| P) Polls";
-                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-                $pollsOption = 'p';
-            }
-            if ($showDoors) {
-                $optionLine = "| D) Door Games";
-                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($optionLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
-                $doorsOption = 'd';
-            }
-            $quitLine = "| Q) Quit";
-            $this->writeLine($conn, $menuPad . $this->colorize(str_pad($quitLine, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
-            $quitOption = 'q';
-
-                $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-                $this->writeLine($conn, '');
-            }
-
-            // Prompt loop - accept a single key immediately
-            $choice = '';
-            $promptShown = false;
-            while ($choice === '') {
-                if (!$promptShown) {
-                    $this->writeLine($conn, $this->colorize('Select option:', self::ANSI_DIM));
-                    $promptShown = true;
-                }
-
-                [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
-
-                if ($shouldDisconnect) {
-                    // Idle timeout disconnect
-                    $duration = time() - $loginTime;
-                    $minutes = floor($duration / 60);
-                    $seconds = $duration % 60;
-                    echo "[" . date('Y-m-d H:i:s') . "] Idle timeout: {$username} (session duration: {$minutes}m {$seconds}s)\n";
-                    break 2; // Break out of both loops
-                }
-
-                if ($key === null) {
-                    // Connection lost
-                    $duration = time() - $loginTime;
-                    $minutes = floor($duration / 60);
-                    $seconds = $duration % 60;
-                    echo "[" . date('Y-m-d H:i:s') . "] Disconnected: {$username} (session duration: {$minutes}m {$seconds}s)\n";
-                    break 2; // Break out of both loops
-                }
-
-                if ($timedOut) {
-                    // Timeout occurred but not disconnect yet
-                    continue;
-                }
-
-                if (str_starts_with($key, 'CHAR:')) {
-                    $char = strtolower(substr($key, 5));
-                    if ($char === 'n' || $char === 'e' || $char === 'q' || $char === 's' || $char === 'p' || $char === 'w' || $char === 'd') {
-                        $choice = $char;
-                    } elseif (ctype_digit($char)) {
-                        $choice = $char;
-                    }
-                }
-            }
-
-            // Check if we broke out due to connection loss or timeout
-            if ($choice === null || $choice === '') {
-                break;
-            }
-
-            if ($choice === 'n') {
-                $netmailHandler->show($conn, $state, $session);
-                // Refresh counts after viewing/composing messages
-                $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
-            } elseif ($choice === 'e') {
-                $echomailHandler->showEchoareas($conn, $state, $session);
-                // Refresh counts after viewing/composing messages
-                $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
-            } elseif (!empty($shoutboxOption) && $choice === $shoutboxOption) {
-                $shoutboxHandler->show($conn, $state, $session, 20);
-            } elseif (!empty($pollsOption) && $choice === $pollsOption) {
-                $pollsHandler->show($conn, $state, $session);
-            } elseif (!empty($doorsOption) && $choice === $doorsOption) {
-                $doorHandler->show($conn, $state, $session);
-            } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
-                $this->showWhosOnline($conn, $state, $session);
-            } elseif ($choice === $quitOption || strtolower($choice) === 'q') {
-                // Display goodbye message
-                TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
-
-                $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Thank you for visiting, have a great day!', self::ANSI_CYAN . self::ANSI_BOLD));
-                $this->writeLine($conn, '');
-                try {
-                    $siteUrl = Config::getSiteUrl();
-                    $this->writeLine($conn, $this->colorize('Come back and visit us on the web at ' . $siteUrl, self::ANSI_YELLOW));
-                } catch (\Exception $e) {
-                    // Silently skip if getSiteUrl fails
-                }
-                $this->writeLine($conn, '');
-
-                // Flush output and wait before disconnecting
-                if (is_resource($conn)) {
-                    fflush($conn);
-                }
-                sleep(2);
-
-                // Graceful logout
-                $duration = time() - $loginTime;
-                $minutes = floor($duration / 60);
-                $seconds = $duration % 60;
-                echo "[" . date('Y-m-d H:i:s') . "] Logout: {$username} (session duration: {$minutes}m {$seconds}s)\n";
-                $this->setTerminalTitle($conn, '');
-                break;
-            }
-        }
-
-        fclose($conn);
-        if ($forked) {
-            exit(0);
-        }
+        $session->run($forked);
     }
 
-    /**
-     * Display users currently online.
-     */
-    private function showWhosOnline($conn, array &$state, string $session): void
-    {
-        $response = $this->apiRequest('GET', '/api/whosonline', null, $session);
-        $users = $response['data']['users'] ?? [];
-        $minutes = $response['data']['online_minutes'] ?? 15;
-
-        $cols = $state['cols'] ?? 80;
-        $innerWidth = max(20, min($cols - 2, 78));
-
-        $this->safeWrite($conn, "\033[2J\033[H");
-        $this->writeLine($conn, $this->colorize("Who's Online (last {$minutes} minutes)", self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, '');
-
-        if (!$users) {
-            $this->writeLine($conn, $this->colorize('No users online.', self::ANSI_YELLOW));
-        } else {
-            $lineIndex = 0;
-            foreach ($users as $user) {
-                $name = $user['username'] ?? 'Unknown';
-                $location = $user['location'] ?? '';
-                $activity = $user['activity'] ?? '';
-                $service = $user['service'] ?? '';
-                $parts = [$name];
-                if ($location !== '') {
-                    $parts[] = $location;
-                }
-                if ($activity !== '') {
-                    $parts[] = $activity;
-                }
-                if ($service !== '') {
-                    $parts[] = $service;
-                }
-                $line = implode(' | ', $parts);
-                $wrapped = wordwrap($line, $innerWidth, "\n", false);
-                foreach (explode("\n", $wrapped) as $part) {
-                    if (strlen($part) > $innerWidth) {
-                        $part = substr($part, 0, $innerWidth - 3) . '...';
-                    }
-                    $color = ($lineIndex % 2 === 0) ? self::ANSI_GREEN : self::ANSI_CYAN;
-                    $this->writeLine($conn, $this->colorize($part, $color));
-                    $lineIndex++;
-                }
-            }
-        }
-
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Press any key to return...', self::ANSI_YELLOW));
-        $this->readKeyWithIdleCheck($conn, $state);
-    }
-
-    /**
-     * Negotiate telnet options with client
-     */
-    private function negotiateTelnet($conn): void
-    {
-        $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_NAWS);
-        $this->sendTelnetCommand($conn, self::WILL, self::OPT_SUPPRESS_GA);
-        $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_LINEMODE);
-    }
-
-    // ===== I/O METHODS =====
-
-    /**
-     * Send telnet command to client
-     */
-    private function sendTelnetCommand($conn, int $cmd, int $opt): void
-    {
-        $this->safeWrite($conn, chr(self::IAC) . chr($cmd) . chr($opt));
-    }
-
-    /**
-     * Safe write with error suppression
-     */
-    public function safeWrite($conn, string $data): void
-    {
-        if (!is_resource($conn)) {
-            return;
-        }
-        $prev = error_reporting();
-        error_reporting($prev & ~E_NOTICE);
-        @fwrite($conn, $data);
-        error_reporting($prev);
-    }
-
-    private function isRateLimited(string $ip): bool
-    {
-        $this->cleanupOldLoginAttempts();
-        return count($this->failedLoginAttempts[$ip] ?? []) >= 5;
-    }
-
-    private function cleanupOldLoginAttempts(): void
-    {
-        $now = time();
-        $cutoff = $now - 60;
-
-        foreach ($this->failedLoginAttempts as $ip => $attempts) {
-            $this->failedLoginAttempts[$ip] = array_filter($attempts, function($timestamp) use ($cutoff) {
-                return $timestamp > $cutoff;
-            });
-
-            if (empty($this->failedLoginAttempts[$ip])) {
-                unset($this->failedLoginAttempts[$ip]);
-            }
-        }
-    }
-
-    /**
-     * Write a line of text to the connection
-     */
-    private function writeLine($conn, string $text = ''): void
-    {
-        $this->safeWrite($conn, $text . "\r\n");
-    }
-
-    /**
-     * Colorize text with ANSI codes
-     */
-    private function colorize(string $text, string $color): string
-    {
-        return $color . $text . self::ANSI_RESET;
-    }
-
-    /**
-     * Show login banner with system information
-     */
-    private function showLoginBanner($conn, array &$state): void
-    {
-        // Print service name before showing login screen
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('BinktermPHP Telnet Service', self::ANSI_MAGENTA . self::ANSI_BOLD));
-        $this->writeLine($conn, '');
-
-        if(TelnetUtils::showScreenIfExists("login.ans", $this, $conn)){
-            return;
-        }
-
-        $config = BinkpConfig::getInstance();
-        $siteUrl = '';
-        try {
-            $siteUrl = Config::getSiteUrl();
-        } catch (\Exception $e) {
-            $siteUrl = '';
-        }
-
-        $rawLines = [
-            ['text' => '', 'color' => self::ANSI_DIM, 'center' => false],
-            ['text' => 'System: ' . $config->getSystemName(), 'color' => self::ANSI_CYAN, 'center' => false],
-            ['text' => 'Location: ' . $config->getSystemLocation(), 'color' => self::ANSI_DIM, 'center' => false],
-            ['text' => 'Origin: ' . $config->getSystemOrigin(), 'color' => self::ANSI_DIM, 'center' => false],
-        ];
-        if ($siteUrl !== '') {
-            $rawLines[] = ['text' => '', 'color' => self::ANSI_DIM, 'center' => false];
-            $rawLines[] = ['text' => 'Web: ' . $siteUrl, 'color' => self::ANSI_YELLOW, 'center' => false];
-        }
-
-        $maxLen = 0;
-        foreach ($rawLines as $entry) {
-            $maxLen = max($maxLen, strlen($entry['text']));
-        }
-        $frameWidth = max(48, min(90, $maxLen + 6));
-        $innerWidth = $frameWidth - 4;
-        $border = '+' . str_repeat('-', $frameWidth - 2) . '+';
-
-        // Calculate centering for the box
-        $cols = $state['cols'] ?? 80;
-        $leftPad = str_repeat(' ', max(0, (int)floor(($cols - $frameWidth) / 2)));
-
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $leftPad . $this->colorize($border, self::ANSI_MAGENTA));
-
-        foreach ($rawLines as $entry) {
-            $text = $entry['text'];
-            $wrapped = wordwrap($text, $innerWidth, "\n", true);
-            foreach (explode("\n", $wrapped) as $part) {
-                $padded = $entry['center']
-                    ? str_pad($part, $innerWidth, ' ', STR_PAD_BOTH)
-                    : str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT);
-                $content = '| ' . $padded . ' |';
-                $this->writeLine($conn, $leftPad . $this->colorize($content, $entry['color']));
-            }
-        }
-
-        $this->writeLine($conn, $leftPad . $this->colorize($border, self::ANSI_MAGENTA));
-        $this->writeLine($conn, '');
-
-        if ($siteUrl !== '') {
-            $visitLine = 'For a good time visit us on the web @ ' . $siteUrl;
-            $visitPad = str_repeat(' ', max(0, (int)floor(($cols - strlen($visitLine)) / 2)));
-            $this->writeLine($conn, $visitPad . $this->colorize($visitLine, self::ANSI_YELLOW));
-            $this->writeLine($conn, '');
-        }
-    }
-
-    /**
-     * Display a simple prompt and read input
-     */
-    public function prompt($conn, array &$state, string $label, bool $echo = true): ?string
-    {
-        $this->setEcho($conn, $state, $echo);
-        $this->safeWrite($conn, $label);
-
-        if ($echo) {
-            $value = $this->readLineWithIdleCheck($conn, $state);
-            return $value;
-        }
-
-        $value = $this->readLineWithIdleCheck($conn, $state);
-        $this->setEcho($conn, $state, true);
-        return $value;
-    }
-
-    /**
-     * Set echo mode (server or client echo)
-     */
-    private function setEcho($conn, array &$state, bool $enable): void
-    {
-        $state['input_echo'] = $enable;
-        // Force server-side echo control (client echo off)
-        $this->sendTelnetCommand($conn, self::WILL, self::OPT_ECHO);
-        $this->sendTelnetCommand($conn, self::DONT, self::OPT_ECHO);
-    }
-
-    /**
-     * Simplified wrapper for readTelnetLineWithTimeout
-     * Returns the line string or null on disconnect/idle timeout
-     */
-    public function readLineWithIdleCheck($conn, array &$state): ?string
-    {
-        while (true) {
-            [$line, $timedOut, $shouldDisconnect] = $this->readTelnetLineWithTimeout($conn, $state);
-
-            if ($shouldDisconnect) {
-                return null;
-            }
-
-            if ($timedOut) {
-                continue;
-            }
-
-            return $line;
-        }
-    }
-
-    /**
-     * Read a single key with idle timeout handling
-     * Returns a normalized token: UP, DOWN, LEFT, RIGHT, ENTER, BACKSPACE, CHAR:<char>
-     */
-    public function readKeyWithIdleCheck($conn, array &$state): ?string
-    {
-        while (true) {
-            [$key, $timedOut, $shouldDisconnect] = $this->readTelnetKeyWithTimeout($conn, $state);
-
-            if ($shouldDisconnect) {
-                return null;
-            }
-
-            if ($timedOut) {
-                continue;
-            }
-
-            return $key;
-        }
-    }
-
-    // ===== AUTHENTICATION METHODS =====
-
-    /**
-     * Read telnet line with idle timeout handling
-     * Returns: [string|null line, bool timedOut, bool shouldDisconnect]
-     */
-    private function readTelnetLineWithTimeout($conn, array &$state): array
-    {
-        $now = time();
-        $elapsed = $now - $state['last_activity'];
-        $warningTimeout = $state['idle_warning_timeout'];
-        $disconnectTimeout = $state['idle_disconnect_timeout'];
-
-        // Check if we've exceeded disconnect timeout
-        if ($elapsed >= $disconnectTimeout) {
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Idle timeout - disconnecting...', self::ANSI_YELLOW));
-            $this->writeLine($conn, '');
-            return [null, true, true];
-        }
-
-        // Check if we need to show warning
-        if (!$state['idle_warned'] && $elapsed >= $warningTimeout) {
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Are you still there? (Press Enter to continue)', self::ANSI_YELLOW . self::ANSI_BOLD));
-            $this->writeLine($conn, '');
-            $state['idle_warned'] = true;
-        }
-
-        // Calculate timeout for this read
-        $timeUntilDisconnect = $disconnectTimeout - $elapsed;
-        $timeUntilWarning = $warningTimeout - $elapsed;
-
-        if ($state['idle_warned']) {
-            $timeout = min($timeUntilDisconnect, 30);
-        } else {
-            $timeout = min($timeUntilWarning, 30);
-        }
-
-        // Use stream_select to check for data with timeout
-        $read = [$conn];
-        $write = $except = null;
-        $seconds = (int)$timeout;
-        $microseconds = 0;
-
-        $hasData = @stream_select($read, $write, $except, $seconds, $microseconds);
-
-        if ($hasData === false) {
-            // Error occurred
-            return [null, false, true];
-        }
-
-        if ($hasData === 0) {
-            // Timeout - no data available
-            return ['', true, false];
-        }
-
-        // Data is available, read it
-        $line = $this->readTelnetLine($conn, $state);
-
-        if ($line !== null) {
-            // Reset activity tracking on successful input
-            $state['last_activity'] = time();
-            $state['idle_warned'] = false;
-        }
-
-        return [$line, false, false];
-    }
-
-    /**
-     * Read a single key with idle timeout handling
-     * Returns: [string|null key, bool timedOut, bool shouldDisconnect]
-     */
-    private function readTelnetKeyWithTimeout($conn, array &$state): array
-    {
-        $now = time();
-        $elapsed = $now - $state['last_activity'];
-        $warningTimeout = $state['idle_warning_timeout'];
-        $disconnectTimeout = $state['idle_disconnect_timeout'];
-
-        if ($elapsed >= $disconnectTimeout) {
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Idle timeout - disconnecting...', self::ANSI_YELLOW));
-            $this->writeLine($conn, '');
-            return [null, true, true];
-        }
-
-        if (!$state['idle_warned'] && $elapsed >= $warningTimeout) {
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Are you still there? (Press any key to continue)', self::ANSI_YELLOW . self::ANSI_BOLD));
-            $this->writeLine($conn, '');
-            $state['idle_warned'] = true;
-        }
-
-        $timeUntilDisconnect = $disconnectTimeout - $elapsed;
-        $timeUntilWarning = $warningTimeout - $elapsed;
-        $timeout = $state['idle_warned'] ? min($timeUntilDisconnect, 30) : min($timeUntilWarning, 30);
-
-        $read = [$conn];
-        $write = $except = null;
-        $seconds = (int)$timeout;
-        $microseconds = 0;
-
-        $hasData = @stream_select($read, $write, $except, $seconds, $microseconds);
-
-        if ($hasData === false) {
-            return [null, false, true];
-        }
-
-        if ($hasData === 0) {
-            return ['', true, false];
-        }
-
-        $char = $this->readRawChar($conn, $state);
-        if ($char === null) {
-            return [null, false, true];
-        }
-
-        $state['last_activity'] = time();
-        $state['idle_warned'] = false;
-
-        if ($char === self::KEY_UP) return ['UP', false, false];
-        if ($char === self::KEY_DOWN) return ['DOWN', false, false];
-        if ($char === self::KEY_LEFT) return ['LEFT', false, false];
-        if ($char === self::KEY_RIGHT) return ['RIGHT', false, false];
-        if ($char === self::KEY_HOME) return ['HOME', false, false];
-        if ($char === self::KEY_END) return ['END', false, false];
-
-        $ord = ord($char[0]);
-        if ($ord === 13) {
-            // CR — consume a trailing LF or NUL if one arrives immediately.
-            // Most terminals send CR+LF for Enter; without this the LF would be
-            // seen as a second ENTER by the very next readKeyWithIdleCheck call
-            // (e.g. the message reader exiting the moment it opens).
-            $read = [$conn];
-            $write = $except = null;
-            if (@stream_select($read, $write, $except, 0, 50000) > 0) {
-                $next = $this->readRawChar($conn, $state);
-                if ($next !== null && ord($next) !== 10 && ord($next) !== 0) {
-                    // Not LF/NUL — put it back for the next read
-                    $state['pushback'] = ($state['pushback'] ?? '') . $next;
-                }
-            }
-            return ['ENTER', false, false];
-        }
-        if ($ord === 10) {
-            return ['ENTER', false, false];
-        }
-        if ($ord === 8 || $ord === 127) {
-            return ['BACKSPACE', false, false];
-        }
-        if ($ord >= 32 && $ord < 127) {
-            return ['CHAR:' . $char, false, false];
-        }
-
-        return ['', false, false];
-    }
-
-    /**
-     * Read a line of input from telnet connection with protocol handling
-     */
-    private function readTelnetLine($conn, array &$state): ?string
-    {
-        // Check if connection is still valid
-        if (!is_resource($conn) || feof($conn)) {
-            return null;
-        }
-
-        // Check for timeout
-        $metadata = stream_get_meta_data($conn);
-        if ($metadata['timed_out']) {
-            return null;
-        }
-
-        $line = '';
-        while (true) {
-            if (!empty($state['pushback'])) {
-                $char = $state['pushback'][0];
-                $state['pushback'] = substr($state['pushback'], 1);
-            } else {
-                $char = fread($conn, 1);
-            }
-            if ($char === false || $char === '') {
-                // Check if connection died
-                if (!is_resource($conn) || feof($conn)) {
-                    return null;
-                }
-                // Check for timeout
-                $metadata = stream_get_meta_data($conn);
-                if ($metadata['timed_out']) {
-                    return null;
-                }
-                // Empty read, continue
-                continue;
-            }
-            $byte = ord($char);
-
-            if (!empty($state['telnet_mode'])) {
-                if ($state['telnet_mode'] === 'IAC') {
-                    if ($byte === self::IAC) {
-                        $line .= chr(self::IAC);
-                        $state['telnet_mode'] = null;
-                    } elseif (in_array($byte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                        $state['telnet_mode'] = 'IAC_CMD';
-                        $state['telnet_cmd'] = $byte;
-                    } elseif ($byte === self::SB) {
-                        $state['telnet_mode'] = 'SB';
-                        $state['sb_opt'] = null;
-                        $state['sb_data'] = '';
-                    } else {
-                        $state['telnet_mode'] = null;
-                    }
-                    continue;
-                }
-
-                if ($state['telnet_mode'] === 'IAC_CMD') {
-                    $state['telnet_mode'] = null;
-                    $state['telnet_cmd'] = null;
-                    continue;
-                }
-
-                if ($state['telnet_mode'] === 'SB') {
-                    if ($state['sb_opt'] === null) {
-                        $state['sb_opt'] = $byte;
-                        continue;
-                    }
-                    if ($byte === self::IAC) {
-                        $state['telnet_mode'] = 'SB_IAC';
-                        continue;
-                    }
-                    $state['sb_data'] .= chr($byte);
-                    continue;
-                }
-
-                if ($state['telnet_mode'] === 'SB_IAC') {
-                    if ($byte === self::SE) {
-                        if ($state['sb_opt'] === self::OPT_NAWS && strlen($state['sb_data']) >= 4) {
-                            $w = (ord($state['sb_data'][0]) << 8) + ord($state['sb_data'][1]);
-                            $h = (ord($state['sb_data'][2]) << 8) + ord($state['sb_data'][3]);
-                            if ($w > 0) {
-                                $state['cols'] = $w;
-                            }
-                            if ($h > 0) {
-                                $state['rows'] = $h;
-                            }
-                            // Log screen size in debug mode
-                            if ($this->debug) {
-                                echo "[" . date('Y-m-d H:i:s') . "] NAWS: Screen size negotiated as {$w}x{$h}\n";
-                            }
-                        }
-                        $state['telnet_mode'] = null;
-                        $state['sb_opt'] = null;
-                        $state['sb_data'] = '';
-                        continue;
-                    }
-                    if ($byte === self::IAC) {
-                        $state['sb_data'] .= chr(self::IAC);
-                        $state['telnet_mode'] = 'SB';
-                        continue;
-                    }
-                    $state['telnet_mode'] = 'SB';
-                    continue;
-                }
-            }
-
-            if ($byte === self::IAC) {
-                $state['telnet_mode'] = 'IAC';
-                continue;
-            }
-
-            if ($byte === 10) {
-                if (!empty($state['input_echo'])) {
-                    $this->safeWrite($conn, "\r\n");
-                }
-                return $line;
-            }
-
-            if ($byte === 13) {
-                // Check for following LF (CR+LF sequence) with non-blocking peek
-                $read = [$conn];
-                $write = $except = null;
-                $hasData = stream_select($read, $write, $except, 0, 50000); // 50ms timeout
-
-                if ($hasData > 0) {
-                    $next = fread($conn, 1);
-                    if ($next !== false && $next !== '' && ord($next) !== 10) {
-                        // Not LF, push back for next read
-                        $state['pushback'] = ($state['pushback'] ?? '') . $next;
-                    }
-                }
-
-                if (!empty($state['input_echo'])) {
-                    $this->safeWrite($conn, "\r\n");
-                }
-                return $line;
-            }
-
-            if ($byte === 8 || $byte === 127) {
-                if ($line !== '') {
-                    $line = substr($line, 0, -1);
-                    if (!empty($state['input_echo'])) {
-                        $this->safeWrite($conn, "\x08 \x08");
-                    }
-                }
-                continue;
-            }
-
-            if ($byte === 0) {
-                continue;
-            }
-
-            $line .= chr($byte);
-            if (!empty($state['input_echo'])) {
-                $this->safeWrite($conn, chr($byte));
-            }
-        }
-    }
-
-    // ===== RATE LIMITING METHODS =====
-
-    /**
-     * Attempt to register a new user
-     *
-     * @return bool True if registration successful, false otherwise
-     */
-    private function attemptRegistration($conn, array &$state): bool
-    {
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('=== New User Registration ===', self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, 'Please provide the following information to create your account.');
-        $this->writeLine($conn, $this->colorize('(Type "cancel" at any prompt to abort registration)', self::ANSI_DIM));
-        $this->writeLine($conn, '');
-
-        // Collect registration information
-        $username = $this->prompt($conn, $state, 'Username (3-20 chars, letters/numbers/underscore): ', true);
-        if ($username === null || strtolower(trim($username)) === 'cancel') {
-            return false;
-        }
-        $username = trim($username);
-
-        $password = $this->prompt($conn, $state, 'Password (min 8 characters): ', false);
-        $this->writeLine($conn, '');
-        if ($password === null || strtolower(trim($password)) === 'cancel') {
-            return false;
-        }
-
-        $passwordConfirm = $this->prompt($conn, $state, 'Confirm password: ', false);
-        $this->writeLine($conn, '');
-        if ($passwordConfirm === null || strtolower(trim($passwordConfirm)) === 'cancel') {
-            return false;
-        }
-
-        if ($password !== $passwordConfirm) {
-            $this->writeLine($conn, $this->colorize('Error: Passwords do not match.', self::ANSI_RED));
-            $this->writeLine($conn, '');
-            return false;
-        }
-
-        $realName = $this->prompt($conn, $state, 'Real Name: ', true);
-        if ($realName === null || strtolower(trim($realName)) === 'cancel') {
-            return false;
-        }
-        $realName = trim($realName);
-
-        $email = $this->prompt($conn, $state, 'Email (optional): ', true);
-        if ($email === null || strtolower(trim($email)) === 'cancel') {
-            return false;
-        }
-        $email = trim($email);
-
-        $location = $this->prompt($conn, $state, 'Location (optional): ', true);
-        if ($location === null || strtolower(trim($location)) === 'cancel') {
-            return false;
-        }
-        $location = trim($location);
-
-        // Submit registration
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, 'Submitting registration...');
-
-        try {
-            $result = $this->apiRequest('POST', '/api/register', [
-                'username' => $username,
-                'password' => $password,
-                'real_name' => $realName,
-                'email' => $email,
-                'location' => $location,
-                'reason' => 'Telnet registration'
-            ], null);
-
-            if ($result['status'] === 200 || $result['status'] === 201) {
-                $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Registration successful!', self::ANSI_GREEN . self::ANSI_BOLD));
-                $this->writeLine($conn, '');
-                $this->writeLine($conn, 'Your account has been created and is pending approval.');
-                $this->writeLine($conn, 'You will be notified once an administrator has reviewed your registration.');
-                $this->writeLine($conn, '');
-                return true;
-            } else {
-                $errorMsg = $result['data']['error'] ?? 'Registration failed';
-                $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Error: ' . $errorMsg, self::ANSI_RED));
-                $this->writeLine($conn, '');
-                return false;
-            }
-        } catch (\Throwable $e) {
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize('Error: ' . $e->getMessage(), self::ANSI_RED));
-            $this->writeLine($conn, '');
-            return false;
-        }
-    }
-
-    /**
-     * Attempt to login a user
-     *
-     * @return array|null Returns ['session' => string, 'username' => string] on success, null on failure
-     */
-    private function attemptLogin($conn, array &$state, string &$attemptedUsername = ''): ?array
-    {
-        $username = $this->prompt($conn, $state, 'Username: ', true);
-        if ($username === null) {
-            return null;
-        }
-        $attemptedUsername = $username;
-        $password = $this->prompt($conn, $state, 'Password: ', false);
-        if ($password === null) {
-            return null;
-        }
-        $this->writeLine($conn, '');
-
-        if ($this->debug) {
-            $this->writeLine($conn, "[DEBUG] username={$username}");
-        }
-
-        try {
-            $result = $this->apiRequest('POST', '/api/auth/login', [
-                'username' => $username,
-                'password' => $password,
-                'service' => 'telnet'
-            ], null);
-        } catch (\Throwable $e) {
-            $this->writeLine($conn, $this->colorize('Login failed: ' . $e->getMessage(), self::ANSI_RED));
-            return null;
-        }
-
-        if ($this->debug) {
-            $status = $result['status'] ?? 0;
-            $body = json_encode($result['data']);
-            $this->writeLine($conn, "[DEBUG] login status={$status} body={$body}");
-            $this->writeLine($conn, "[DEBUG] session=" . ($result['cookie'] ?: ''));
-            if (!empty($result['error'])) {
-                $this->writeLine($conn, "[DEBUG] curl_error=" . $result['error']);
-            }
-        }
-
-        if ($result['status'] !== 200 || empty($result['cookie'])) {
-            return null;
-        }
-
-        return [
-            'session'    => $result['cookie'],
-            'username'   => $username,
-            'csrf_token' => $result['data']['csrf_token'] ?? null,
-        ];
-    }
-
-    /**
-     * Make an API request with retry logic
-     */
-    private function apiRequest(string $method, string $path, ?array $payload, ?string $session, int $maxRetries = 3): array
-    {
-        if (!function_exists('curl_init')) {
-            throw new \RuntimeException('PHP curl extension is required for telnet API access.');
-        }
-
-        $url = $this->apiBase . $path;
-        $attempt = 0;
-
-        while ($attempt <= $maxRetries) {
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-            curl_setopt($ch, CURLOPT_HEADER, false);
-
-            $headers = ['Accept: application/json'];
-            if ($payload !== null) {
-                $json = json_encode($payload);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
-                $headers[] = 'Content-Type: application/json';
-            }
-            if ($session) {
-                curl_setopt($ch, CURLOPT_COOKIE, 'binktermphp_session=' . $session);
-            }
-
-            $cookie = null;
-            curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($curl, $header) use (&$cookie) {
-                $prefix = 'Set-Cookie: binktermphp_session=';
-                if (stripos($header, $prefix) === 0) {
-                    $value = trim(substr($header, strlen($prefix)));
-                    $cookie = strtok($value, ';');
-                }
-                return strlen($header);
-            });
-
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-            if ($this->insecure) {
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-            }
-
-            $response = curl_exec($ch);
-            $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            $curlErrno = curl_errno($ch);
-            curl_close($ch);
-
-            $data = null;
-            if (is_string($response) && $response !== '') {
-                $data = json_decode($response, true);
-            }
-
-            // Check if we should retry
-            $shouldRetry = false;
-            if ($curlErrno !== 0) {
-                $shouldRetry = true;
-            } elseif ($status >= 500 && $status < 600) {
-                $shouldRetry = true;
-            } elseif ($status === 0) {
-                $shouldRetry = true;
-            }
-
-            // If successful or non-retryable error, return result
-            if (!$shouldRetry || $attempt >= $maxRetries) {
-                if ($attempt > 0 && $this->debug) {
-                    echo "[" . date('Y-m-d H:i:s') . "] API request to {$path} succeeded after " . ($attempt + 1) . " attempts\n";
-                }
-                return [
-                    'status' => $status,
-                    'data' => $data,
-                    'cookie' => $cookie,
-                    'error' => $curlError ?: null,
-                    'errno' => $curlErrno ?: null,
-                    'url' => $url,
-                    'attempts' => $attempt + 1
-                ];
-            }
-
-            // Log retry
-            if ($this->debug) {
-                $reason = $curlError ?: "HTTP {$status}";
-                echo "[" . date('Y-m-d H:i:s') . "] API request to {$path} failed ({$reason}), retrying (attempt " . ($attempt + 2) . "/" . ($maxRetries + 1) . ")...\n";
-            }
-
-            // Exponential backoff
-            $delay = (int)(0.5 * pow(2, $attempt) * 1000000);
-            usleep($delay);
-            $attempt++;
-        }
-
-        return [
-            'status' => 0,
-            'data' => null,
-            'cookie' => null,
-            'error' => 'Max retries exceeded',
-            'errno' => 0,
-            'url' => $url,
-            'attempts' => $maxRetries + 1
-        ];
-    }
-
-    private function recordFailedLogin(string $ip): void
-    {
-        $this->cleanupOldLoginAttempts();
-
-        if (!isset($this->failedLoginAttempts[$ip])) {
-            $this->failedLoginAttempts[$ip] = [];
-        }
-
-        $this->failedLoginAttempts[$ip][] = time();
-    }
-
-    // ===== ANTI-BOT / CHALLENGE METHODS =====
-
-    /**
-     * Anti-bot challenge: require the user to press ESC twice before login.
-     *
-     * Bots that blindly send credentials without responding to interactive
-     * prompts will time out and be dropped. A 30-second window is given.
-     * Each ESC press is acknowledged with a '*' so the user can see progress.
-     *
-     * @param resource  $conn  Client socket
-     * @param array    &$state Session state
-     * @return bool True if two ESC presses received in time, false on timeout/disconnect
-     */
-    private function requireEscapeKey($conn, array &$state): bool
-    {
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Press ESC twice to continue...', self::ANSI_CYAN));
-
-        $escCount  = 0;
-        $deadline  = time() + 30;
-
-        // Short read timeout so we can poll the deadline
-        stream_set_timeout($conn, 2);
-
-        while ($escCount < 2 && time() < $deadline) {
-            if (!is_resource($conn) || feof($conn)) {
-                break;
-            }
-
-            $char = fread($conn, 1);
-
-            if ($char === false || $char === '') {
-                $info = stream_get_meta_data($conn);
-                if ($info['timed_out']) {
-                    continue; // Keep waiting
-                }
-                break; // Real disconnect
-            }
-
-            $byte = ord($char);
-
-            // Strip IAC telnet negotiation bytes
-            if ($byte === self::IAC) {
-                $cmd = fread($conn, 1);
-                if ($cmd !== false) {
-                    $cmdByte = ord($cmd);
-                    if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                        fread($conn, 1); // consume option byte
-                    }
-                }
-                continue;
-            }
-
-            if ($byte === 0x1B) { // ESC
-                $escCount++;
-                $this->safeWrite($conn, $this->colorize('*', self::ANSI_GREEN));
-            }
-        }
-
-        // Restore normal read timeout
-        stream_set_timeout($conn, 300);
-
-        if ($escCount >= 2) {
-            $this->writeLine($conn, '');
-            $this->writeLine($conn, '');
-            return true;
-        }
-
-        return false;
-    }
-
-    // ===== BANNER / UI METHODS =====
-
-    private function clearFailedLogins(string $ip): void
-    {
-        unset($this->failedLoginAttempts[$ip]);
-    }
-
-    // ===== FEATURE METHODS =====
-
-    /**
-     * Set terminal window title
-     */
-    private function setTerminalTitle($conn, string $title): void
-    {
-        // ANSI escape sequence to set terminal window title
-        $this->safeWrite($conn, "\033]0;{$title}\007");
-    }
-
-    // ===== API REQUEST METHOD =====
-
-    // ===== DAEMON METHODS =====
-
-    /**
-     * Read multiline input (uses full-screen editor if terminal supports it)
-     */
-    public function readMultiline($conn, array &$state, int $cols, string $initialText = ''): string
-    {
-        // Use full-screen editor if terminal supports it
-        if (($state['rows'] ?? 0) >= 15) {
-            return $this->fullScreenEditor($conn, $state, $initialText);
-        }
-
-        // Fallback to line-by-line editor
-        if ($initialText !== '') {
-            $this->writeLine($conn, 'Starting with quoted text. Enter your reply below.');
-            $this->writeLine($conn, '');
-            $quotedLines = explode("\n", $initialText);
-            foreach ($quotedLines as $line) {
-                $this->writeLine($conn, $line);
-            }
-            $this->writeLine($conn, '');
-        }
-
-        $this->writeLine($conn, 'Enter message text. End with a single "." line. Type "/abort" to cancel.');
-        $lines = [];
-
-        if ($initialText !== '') {
-            $lines = explode("\n", $initialText);
-        }
-
-        while (true) {
-            $this->safeWrite($conn, '> ');
-            $line = $this->readLineWithIdleCheck($conn, $state);
-            if ($line === null) {
-                break;
-            }
-            if (trim($line) === '/abort') {
-                return '';
-            }
-            if (trim($line) === '.') {
-                break;
-            }
-            $lines[] = $line;
-        }
-        $text = implode("\n", $lines);
-        if ($text === '') {
-            return '';
-        }
-        return $text;
-    }
-
-    /**
-     * Full-screen message editor
-     */
-    private function fullScreenEditor($conn, array &$state, string $initialText = ''): string
-    {
-        $rows = $state['rows'] ?? 24;
-        $cols = $state['cols'] ?? 80;
-
-        if ($this->debug) {
-            echo "[" . date('Y-m-d H:i:s') . "] Editor: Screen size {$cols}x{$rows}\n";
-        }
-
-        // Clear screen and move to top
-        $this->safeWrite($conn, "\033[2J\033[H");
-        $this->safeWrite($conn, "\033[?25h");
-
-        $width = min($cols - 2, 70);
-        $separator = str_repeat('=', $width);
-
-        $headerLines = 0;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize('MESSAGE EDITOR - FULL SCREEN MODE', self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize('Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', self::ANSI_YELLOW)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-
-        // Initialize lines with initial text
-        if ($initialText !== '') {
-            $lines = explode("\n", $initialText);
-            if (empty($lines)) {
-                $lines = [''];
-            }
-        } else {
-            $lines = [''];
-        }
-
-        $cursorRow = 0;
-        $cursorCol = 0;
-        $viewTop = 0;
-        $startRow = $headerLines + 1;
-        $maxRows = max(10, $rows - $startRow - 2);
-
-        $this->setEcho($conn, $state, false);
-        // Ensure cursor is visible for the editor
-        $this->safeWrite($conn, "\033[?25h");
-
-        while (true) {
-            // Display current text
-            $this->safeWrite($conn, "\033[" . $startRow . ";1H");
-            $this->safeWrite($conn, "\033[J");
-
-            $maxTop = max(0, count($lines) - $maxRows);
-            if ($viewTop > $maxTop) {
-                $viewTop = $maxTop;
-            }
-            if ($cursorRow < $viewTop) {
-                $viewTop = $cursorRow;
-            } elseif ($cursorRow >= $viewTop + $maxRows) {
-                $viewTop = $cursorRow - $maxRows + 1;
-            }
-
-            $displayLines = array_slice($lines, $viewTop, $maxRows);
-            foreach ($displayLines as $idx => $line) {
-                $this->safeWrite($conn, "\033[" . ($startRow + $idx) . ";1H");
-                $this->safeWrite($conn, substr($line, 0, $cols - 1));
-            }
-
-            // Position cursor
-            $displayRow = $startRow + ($cursorRow - $viewTop);
-            $displayCol = $cursorCol + 1;
-            $this->safeWrite($conn, "\033[{$displayRow};{$displayCol}H");
-
-            // Read character
-            $char = $this->readRawChar($conn, $state);
-            if ($char === null) {
-                $this->setEcho($conn, $state, true);
-                return '';
-            }
-
-            $ord = ord($char[0]);
-
-            // Ctrl+Z - Save and send
-            if ($ord === 26) {
-                break;
-            }
-
-            // Ctrl+C - Cancel
-            if ($ord === 3) {
-                $this->setEcho($conn, $state, true);
-                $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize('Message cancelled.', self::ANSI_RED));
-                return '';
-            }
-
-            // Ctrl+Y - Delete line
-            if ($ord === 25) {
-                if (count($lines) > 1) {
-                    array_splice($lines, $cursorRow, 1);
-                    if ($cursorRow >= count($lines)) {
-                        $cursorRow = count($lines) - 1;
-                    }
-                    $cursorCol = min($cursorCol, strlen($lines[$cursorRow]));
-                } else {
-                    $lines[0] = '';
-                    $cursorCol = 0;
-                }
-                continue;
-            }
-
-            // Ctrl+K - Help
-            if ($ord === 11) {
-                $this->showEditorHelp($conn, $state);
-                continue;
-            }
-
-            // Ctrl+A - Start of line
-            if ($ord === 1) {
-                $cursorCol = 0;
-                continue;
-            }
-
-            // Ctrl+E - End of line
-            if ($ord === 5) {
-                $cursorCol = strlen($lines[$cursorRow]);
-                continue;
-            }
-
-            // Handle arrow keys
-            if ($char === self::KEY_UP) {
-                if ($cursorRow > 0) {
-                    $cursorRow--;
-                    $cursorCol = min($cursorCol, strlen($lines[$cursorRow]));
-                }
-                continue;
-            }
-
-            if ($char === self::KEY_DOWN) {
-                if ($cursorRow < count($lines) - 1) {
-                    $cursorRow++;
-                    $cursorCol = min($cursorCol, strlen($lines[$cursorRow]));
-                }
-                continue;
-            }
-
-            if ($char === self::KEY_LEFT) {
-                if ($cursorCol > 0) {
-                    $cursorCol--;
-                } elseif ($cursorRow > 0) {
-                    $cursorRow--;
-                    $cursorCol = strlen($lines[$cursorRow]);
-                }
-                continue;
-            }
-
-            if ($char === self::KEY_RIGHT) {
-                if ($cursorCol < strlen($lines[$cursorRow])) {
-                    $cursorCol++;
-                } elseif ($cursorRow < count($lines) - 1) {
-                    $cursorRow++;
-                    $cursorCol = 0;
-                }
-                continue;
-            }
-
-            if ($char === self::KEY_HOME) {
-                $cursorCol = 0;
-                continue;
-            }
-
-            if ($char === self::KEY_END) {
-                $cursorCol = strlen($lines[$cursorRow]);
-                continue;
-            }
-
-            // Handle Enter
-            if ($ord === 13 || $ord === 10) {
-                if ($ord === 13) {
-                    $nextChar = $this->readRawChar($conn, $state);
-                    if ($nextChar !== null && ord($nextChar[0]) !== 10) {
-                        $state['pushback'] = ($state['pushback'] ?? '') . $nextChar;
-                    }
-                }
-
-                $currentLine = $lines[$cursorRow];
-                $beforeCursor = substr($currentLine, 0, $cursorCol);
-                $afterCursor = substr($currentLine, $cursorCol);
-
-                $lines[$cursorRow] = $beforeCursor;
-                array_splice($lines, $cursorRow + 1, 0, [$afterCursor]);
-
-                $cursorRow++;
-                $cursorCol = 0;
-                continue;
-            }
-
-            // Handle Backspace
-            if ($ord === 8 || $ord === 127) {
-                if ($cursorCol > 0) {
-                    $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol - 1) .
-                                          substr($lines[$cursorRow], $cursorCol);
-                    $cursorCol--;
-                } elseif ($cursorRow > 0) {
-                    $prevLine = $lines[$cursorRow - 1];
-                    $cursorCol = strlen($prevLine);
-                    $lines[$cursorRow - 1] = $prevLine . $lines[$cursorRow];
-                    array_splice($lines, $cursorRow, 1);
-                    $cursorRow--;
-                }
-                continue;
-            }
-
-            // Handle Delete
-            if ($char === self::KEY_DELETE) {
-                if ($cursorCol < strlen($lines[$cursorRow])) {
-                    $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) .
-                                          substr($lines[$cursorRow], $cursorCol + 1);
-                } elseif ($cursorRow < count($lines) - 1) {
-                    $lines[$cursorRow] .= $lines[$cursorRow + 1];
-                    array_splice($lines, $cursorRow + 1, 1);
-                }
-                continue;
-            }
-
-            // Regular character input
-            if ($ord >= 32 && $ord < 127) {
-                $lines[$cursorRow] = substr($lines[$cursorRow], 0, $cursorCol) .
-                                     $char .
-                                     substr($lines[$cursorRow], $cursorCol);
-                $cursorCol++;
-            }
-        }
-
-        $this->setEcho($conn, $state, true);
-        $this->safeWrite($conn, "\033[" . ($startRow + $maxRows + 1) . ";1H");
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Message saved and ready to send.', self::ANSI_GREEN));
-        $this->writeLine($conn, '');
-
-        // Remove trailing empty lines
-        while (count($lines) > 0 && trim($lines[count($lines) - 1]) === '') {
-            array_pop($lines);
-        }
-
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Read a single raw character
-     */
-    private function readRawChar($conn, array &$state): ?string
-    {
-        if (!is_resource($conn) || feof($conn)) {
-            return null;
-        }
-
-        if (!empty($state['pushback'])) {
-            $char = $state['pushback'][0];
-            $state['pushback'] = substr($state['pushback'], 1);
-            return $char;
-        }
-
-        $char = fread($conn, 1);
-        if ($char === false || $char === '') {
-            return null;
-        }
-
-        $byte = ord($char);
-
-        // Handle telnet IAC sequences
-        if ($byte === self::IAC) {
-            $cmd = fread($conn, 1);
-            if ($cmd === false) {
-                return null;
-            }
-            $cmdByte = ord($cmd);
-
-            if ($cmdByte === self::IAC) {
-                return chr(self::IAC);
-            }
-
-            if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                $opt = fread($conn, 1);
-                return $char;
-            }
-
-            if ($cmdByte === self::SB) {
-                while (true) {
-                    $byte = fread($conn, 1);
-                    if ($byte === false || ord($byte) === self::IAC) {
-                        $next = fread($conn, 1);
-                        if ($next !== false && ord($next) === self::SE) {
-                            break;
-                        }
-                    }
-                }
-                return $char;
-            }
-        }
-
-        // Check for escape sequences (arrow keys, etc)
-        if ($byte === 27) {
-            $next1 = fread($conn, 1);
-            if ($next1 === false || $next1 === '') {
-                return chr(27);
-            }
-
-            if ($next1 === '[') {
-                $next2 = fread($conn, 1);
-                if ($next2 === false) {
-                    return chr(27);
-                }
-
-                // Check for sequences like ESC[3~
-                if (ord($next2) >= ord('0') && ord($next2) <= ord('9')) {
-                    $tilde = fread($conn, 1);
-                    if ($tilde === '~') {
-                        return chr(27) . '[' . $next2 . '~';
-                    }
-                }
-
-                return chr(27) . '[' . $next2;
-            }
-
-            $state['pushback'] = ($state['pushback'] ?? '') . $next1;
-            return chr(27);
-        }
-
-        return chr($byte);
-    }
-
-    private function showEditorHelp($conn, array &$state): void
-    {
-        $this->safeWrite($conn, "\033[2J\033[H");
-        $this->writeLine($conn, $this->colorize('MESSAGE EDITOR HELP', self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize('-------------------', self::ANSI_CYAN));
-        $this->writeLine($conn, $this->colorize('Arrow Keys = Navigate cursor', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Backspace/Delete = Edit text', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+K = Help', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+A = Start of line', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+E = End of line', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+Y = Delete entire line', self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize('Ctrl+Z = Save message and send', self::ANSI_GREEN));
-        $this->writeLine($conn, $this->colorize('Ctrl+C = Cancel and discard message', self::ANSI_RED));
-        $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize('Press any key to return...', self::ANSI_YELLOW));
-        $this->readRawChar($conn, $state);
-        $this->safeWrite($conn, "\033[?25h");
-    }
 }

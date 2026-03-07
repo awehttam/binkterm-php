@@ -38,16 +38,29 @@ class AdminController
         $offset = ($page - 1) * $limit;
         $searchTerm = '%' . $search . '%';
         
-        $sql = "
-            SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin 
-            FROM users 
-            WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
-            ORDER BY created_at DESC 
-            LIMIT ? OFFSET ?
-        ";
-        
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm, $limit, $offset]);
+        try {
+            $sql = "
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin
+                FROM users
+                WHERE is_system = FALSE
+                  AND (username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?)
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm, $limit, $offset]);
+        } catch (\PDOException $e) {
+            // is_system column not yet present (migration v1.10.18 not run) — fall back
+            $sql = "
+                SELECT id, username, email, real_name, fidonet_address, created_at, last_login, last_reminded, is_active, is_admin
+                FROM users
+                WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            ";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm, $limit, $offset]);
+        }
         $users = $stmt->fetchAll();
 
         // Add calculated fields for days since reminder
@@ -63,11 +76,20 @@ class AdminController
             }
         }
 
-        $countStmt = $this->db->prepare("
-            SELECT COUNT(*) as total FROM users 
-            WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
-        ");
-        $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+        try {
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as total FROM users
+                WHERE is_system = FALSE
+                  AND (username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?)
+            ");
+            $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+        } catch (\PDOException $e) {
+            $countStmt = $this->db->prepare("
+                SELECT COUNT(*) as total FROM users
+                WHERE username ILIKE ? OR real_name ILIKE ? OR email ILIKE ? OR fidonet_address ILIKE ?
+            ");
+            $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+        }
         $total = $countStmt->fetch()['total'];
 
         return [
@@ -287,9 +309,15 @@ class AdminController
     {
         $stats = [];
         
-        $stats['total_users'] = $this->db->query("SELECT COUNT(*) as count FROM users")->fetch()['count'];
-        $stats['active_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_active = TRUE")->fetch()['count'];
-        $stats['admin_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = TRUE")->fetch()['count'];
+        try {
+            $stats['total_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_system = FALSE")->fetch()['count'];
+            $stats['active_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_system = FALSE AND is_active = TRUE")->fetch()['count'];
+            $stats['admin_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_system = FALSE AND is_admin = TRUE")->fetch()['count'];
+        } catch (\PDOException $e) {
+            $stats['total_users'] = $this->db->query("SELECT COUNT(*) as count FROM users")->fetch()['count'];
+            $stats['active_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_active = TRUE")->fetch()['count'];
+            $stats['admin_users'] = $this->db->query("SELECT COUNT(*) as count FROM users WHERE is_admin = TRUE")->fetch()['count'];
+        }
         $stats['total_netmail'] = $this->db->query("SELECT COUNT(*) as count FROM netmail")->fetch()['count'];
         $stats['total_echomail'] = $this->db->query("SELECT COUNT(*) as count FROM echomail")->fetch()['count'];
         $stats['active_sessions'] = $this->db->query("SELECT COUNT(*) as count FROM sessions WHERE expires_at > NOW()")->fetch()['count'];
@@ -609,10 +637,10 @@ class AdminController
         $stmt->execute([
             $data['address'],
             $data['description'] ?? null,
-            $data['allow_receive'] ?? true,
-            $data['allow_send'] ?? false,
+            ($data['allow_receive'] ?? true) ? 'true' : 'false',
+            ($data['allow_send'] ?? false) ? 'true' : 'false',
             $data['max_messages_per_session'] ?? 100,
-            $data['is_active'] ?? true
+            ($data['is_active'] ?? true) ? 'true' : 'false',
         ]);
 
         return (int)$stmt->fetchColumn();
@@ -630,11 +658,14 @@ class AdminController
             'address', 'description', 'allow_receive', 'allow_send',
             'max_messages_per_session', 'is_active'
         ];
+        $booleanFields = ['allow_receive', 'allow_send', 'is_active'];
 
         foreach ($allowedFields as $field) {
             if (array_key_exists($field, $data)) {
                 $updates[] = "{$field} = ?";
-                $params[] = $data[$field];
+                $params[] = in_array($field, $booleanFields)
+                    ? ($data[$field] ? 'true' : 'false')
+                    : $data[$field];
             }
         }
 

@@ -19,6 +19,8 @@ namespace BinktermPHP;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\AppearanceConfig;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\TwigFunction;
@@ -27,12 +29,16 @@ class Template
 {
     private $twig;
     private $auth;
+    private Translator $translator;
+    private LocaleResolver $localeResolver;
     private string $activeShell = 'web';
 
     public function __construct()
     {
         $this->auth = new Auth();
-        $currentUser = $this->auth->getCurrentUser();
+        $this->translator = new Translator();
+        $this->localeResolver = new LocaleResolver($this->translator);
+        $currentUser = $this->auth->getCurrentUser() ?: null;
 
         $this->activeShell = $this->resolveActiveShell($currentUser);
 
@@ -86,6 +92,26 @@ class Template
             $currentUser = $this->auth->getCurrentUser();
         }
 
+        $currentUserId = (int)($currentUser['user_id'] ?? $currentUser['id'] ?? 0);
+        $userSettings = null;
+        if ($currentUserId > 0) {
+            try {
+                $handler = new MessageHandler();
+                $userSettings = $handler->getUserSettings($currentUserId);
+            } catch (\Throwable $e) {
+                $userSettings = null;
+            }
+        }
+
+        $preferredLocale = is_array($userSettings) ? (string)($userSettings['locale'] ?? '') : '';
+
+        // ?locale= query param overrides everything else for this request.
+        $queryLocale = isset($_GET['locale']) ? trim((string)$_GET['locale']) : '';
+        $explicitLocale = $queryLocale !== '' ? $queryLocale : ($preferredLocale !== '' ? $preferredLocale : null);
+
+        $locale = $this->localeResolver->resolveLocale($explicitLocale, $currentUser);
+        $this->localeResolver->persistLocale($locale);
+
         // Get dynamic system info from BinkP config
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -109,6 +135,10 @@ class Template
         $this->twig->addGlobal("favicon_svg", $favicon_svg);
         $this->twig->addGlobal("favicon_ico", $favicon_ico);
         $this->twig->addGlobal("favicon_png", $favicon_png);
+        $this->twig->addGlobal('locale', $locale);
+        $this->twig->addGlobal('default_locale', $this->translator->getDefaultLocale());
+        $this->twig->addGlobal('supported_locales', $this->translator->getSupportedLocales());
+        $this->twig->addGlobal('i18n_namespaces', ['common', 'errors']);
 
         // CSRF token — stored per-user in UserMeta so it is shared across web
         // sessions and the telnet daemon.  Generated lazily for users who were
@@ -180,7 +210,7 @@ class Template
 
         // Appearance configuration
         $appearanceConfig = AppearanceConfig::getConfig();
-        $bbsMenuItems = $this->buildBbsMenuItems($appearanceConfig);
+        $bbsMenuItems = $this->buildBbsMenuItems($appearanceConfig, $locale);
 
         // Resolve announcement active state (Twig has no datetime comparison)
         $ann = $appearanceConfig['content']['announcement'] ?? [];
@@ -219,10 +249,9 @@ class Template
         $systemDefaultEchoInterface = $bbsConfig['default_echo_interface'] ?? 'echolist';
         $defaultEchoList = $systemDefaultEchoInterface;
 
-        if ($currentUser && !empty($currentUser['user_id'])) {
+        if ($currentUserId > 0) {
             try {
-                $handler = new MessageHandler();
-                $settings = $handler->getUserSettings($currentUser['user_id']);
+                $settings = is_array($userSettings) ? $userSettings : [];
                 if (!empty($settings['theme']) && !AppearanceConfig::isThemeLocked()) {
                     // Validate that the user's theme is in the available themes
                     if (in_array($settings['theme'], $availableThemes, true)) {
@@ -249,6 +278,41 @@ class Template
         $this->twig->addFunction(new TwigFunction('bbs_feature_enabled', function(string $feature): bool {
             return BbsConfig::isFeatureEnabled($feature);
         }));
+        $this->twig->addFunction(new TwigFunction('t', function(string $key, array $params = [], ...$args) use ($locale): string {
+            $resolvedLocale = $locale;
+            $namespaces = ['common'];
+            $fallback = null;
+
+            if (isset($args[0])) {
+                $third = $args[0];
+                if (is_string($third) && $third !== '') {
+                    $looksLikeLocale = (bool)preg_match('/^[a-z]{2}(?:-[A-Z]{2})?$/', $third);
+                    if ($this->translator->isSupportedLocale($third) || $looksLikeLocale) {
+                        $resolvedLocale = $third;
+                    } elseif ((bool)preg_match('/^[a-z0-9_]+$/i', $third)) {
+                        // Legacy namespace style: t(key, params, 'errors')
+                        if ($third !== 'common') {
+                            array_unshift($namespaces, $third);
+                        }
+                    } elseif ($third !== 'common') {
+                        // Legacy fallback style: t(key, params, 'English fallback')
+                        $fallback = $third;
+                    }
+                } elseif (is_array($third)) {
+                    $namespaces = $third;
+                }
+            }
+
+            if (isset($args[1]) && is_array($args[1])) {
+                $namespaces = $args[1];
+            }
+
+            $translated = $this->translator->translate($key, $params, $resolvedLocale, $namespaces);
+            if ($fallback !== null && $translated === $key) {
+                return $fallback;
+            }
+            return $translated;
+        }));
     }
 
     /**
@@ -256,12 +320,20 @@ class Template
      * Feature pages are injected at render time so existing saved appearance
      * config remains unchanged.
      */
-    private function buildBbsMenuItems(array $appearanceConfig): array
+    private function buildBbsMenuItems(array $appearanceConfig, string $locale = ''): array
     {
         $items = $appearanceConfig['shell']['bbs_menu']['menu_items'] ?? [];
         if (!is_array($items)) {
             $items = [];
         }
+
+        $defaultLabelKeys = [
+            '/echomail' => 'ui.admin.appearance.default_menu.messages',
+            '/netmail' => 'ui.admin.appearance.default_menu.netmail',
+            '/files' => 'ui.admin.appearance.default_menu.files',
+            '/games' => 'ui.admin.appearance.default_menu.games_doors',
+            '/settings' => 'ui.admin.appearance.default_menu.settings',
+        ];
 
         $normalizedItems = [];
         foreach ($items as $item) {
@@ -272,9 +344,19 @@ class Template
             $key = strtoupper(trim((string)($item['key'] ?? '')));
             $label = trim((string)($item['label'] ?? ''));
             $url = trim((string)($item['url'] ?? ''));
+            $labelKey = trim((string)($item['label_key'] ?? ''));
 
             if ($key === '' || $label === '' || $url === '') {
                 continue;
+            }
+
+            // Translate built-in menu labels per locale while preserving custom labels.
+            $mappedKey = $labelKey !== '' ? $labelKey : ($defaultLabelKeys[$url] ?? '');
+            if ($mappedKey !== '') {
+                $defaultEnglish = $this->translator->translate($mappedKey, [], 'en');
+                if ($labelKey !== '' || strcasecmp($label, $defaultEnglish) === 0) {
+                    $label = $this->translator->translate($mappedKey, [], $locale ?: null);
+                }
             }
 
             $normalizedItems[] = [
@@ -289,7 +371,7 @@ class Template
             $normalizedItems = $this->appendBbsMenuFeatureItem(
                 $normalizedItems,
                 '/polls',
-                'Polls',
+                $this->translator->translate('ui.polls.title', [], $locale ?: null),
                 'vote-yea',
                 ['P', 'O', 'L']
             );
@@ -299,7 +381,7 @@ class Template
             $normalizedItems = $this->appendBbsMenuFeatureItem(
                 $normalizedItems,
                 '/shoutbox',
-                'Shoutbox',
+                $this->translator->translate('ui.shoutbox.title', [], $locale ?: null),
                 'bullhorn',
                 ['H', 'U', 'B', 'X']
             );

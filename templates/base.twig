@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ locale|default('en') }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -69,6 +69,11 @@
     </style>
     <script src="/vendor/bootstrap-5.3.0/js/bootstrap.bundle.min.js"></script>
     <script src="/vendor/jquery-3.7.1/jquery-3.7.1.min.js"></script>
+    <script>
+        window.appLocale = {{ locale|json_encode|raw }};
+        window.appDefaultLocale = {{ default_locale|json_encode|raw }};
+        window.appI18nNamespaces = {{ i18n_namespaces|json_encode|raw }};
+    </script>
     <script src="/js/app.js"></script>
     {% if current_user and bbs_feature_enabled('chat') %}
     <script src="/js/chat-notify.js"></script>
@@ -82,14 +87,14 @@
         <div id="updateToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
             <div class="toast-header bg-primary text-white">
                 <i class="fas fa-info-circle me-2"></i>
-                <strong class="me-auto">Update Available</strong>
+                <strong class="me-auto">{{ t('ui.base.update_available', {}, 'common') }}</strong>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
             <div class="toast-body bg-light">
-                <small class="text-muted">A new version is ready</small>
+                <small class="text-muted">{{ t('ui.base.new_version_ready', {}, 'common') }}</small>
                 <div class="mt-2">
                     <button class="btn btn-sm btn-primary w-100" onclick="activateUpdate()">
-                        <i class="fas fa-sync-alt me-1"></i> Reload Now
+                        <i class="fas fa-sync-alt me-1"></i> {{ t('ui.base.reload_now', {}, 'common') }}
                     </button>
                 </div>
             </div>
@@ -113,31 +118,31 @@
                     {% if current_user %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-envelope-open-text messaging-menu-icon" id="messagingMenuIcon"></i> Messaging
+                                <i class="fas fa-envelope-open-text messaging-menu-icon" id="messagingMenuIcon"></i> {{ t('ui.base.messaging', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
                                 <li>
                                     <a class="dropdown-item" href="/netmail">
-                                        <i class="fas fa-envelope mail-menu-icon" id="netmailMenuIcon"></i> Netmail
+                                        <i class="fas fa-envelope mail-menu-icon" id="netmailMenuIcon"></i> {{ t('ui.base.netmail', {}, 'common') }}
                                     </a>
                                 </li>
                                 <li>
                                     <a class="dropdown-item" href="{{ default_echo_list == 'echolist' ? '/echolist' : '/echomail' }}">
-                                        <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> Echomail
+                                        <i class="fas fa-comments mail-menu-icon" id="echomailMenuIcon"></i> {{ t('ui.base.echomail', {}, 'common') }}
                                     </a>
                                 </li>
                                 {% if bbs_feature_enabled('chat') %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <a class="dropdown-item" href="/chat">
-                                        <i class="fas fa-comments chat-menu-icon" id="chatMenuIcon"></i> Local Chat
+                                        <i class="fas fa-comments chat-menu-icon" id="chatMenuIcon"></i> {{ t('ui.base.local_chat', {}, 'common') }}
                                     </a>
                                 </li>
                                 {% endif %}
                                 {% if webdoors_active and bbs_feature_enabled('webdoors') and mrc_webdoor_enabled %}
                                 <li>
                                     <a class="dropdown-item" href="/games/mrc">
-                                        <i class="fas fa-satellite-dish"></i> MRC Chat
+                                        <i class="fas fa-satellite-dish"></i> {{ t('ui.base.mrc_chat', {}, 'common') }}
                                     </a>
                                 </li>
                                 {% endif %}
@@ -146,7 +151,7 @@
                         {% if webdoors_active and bbs_feature_enabled('webdoors') %}
                         <li class="nav-item">
                             <a class="nav-link" href="/games">
-                                <i class="fas fa-gamepad"></i> Doors &amp; Games
+                                <i class="fas fa-gamepad"></i> {{ t('ui.base.doors_games', {}, 'common') }}
                             </a>
                         </li>
                         {% endif %}
@@ -154,14 +159,14 @@
                         {% if bbs_feature_enabled('file_areas') %}
                         <li class="nav-item">
                             <a class="nav-link" href="/files">
-                                <i class="fas fa-file"></i> Files
+                                <i class="fas fa-file"></i> {{ t('ui.base.files', {}, 'common') }}
                             </a>
                         </li>
                         {% endif %}
 
                         <li class="nav-item">
                             <a class="nav-link" href="/nodelist">
-                                <i class="fas fa-sitemap"></i> Nodelist
+                                <i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}
                             </a>
                         </li>
 
@@ -172,56 +177,57 @@
                         {% if current_user.is_admin %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-cog"></i> Admin
+                                <i class="fas fa-cog"></i> {{ t('ui.base.admin', {}, 'common') }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/whosonline"><i class="fas fa-user-friends"></i> Who's Online</a></li>
+                                <li><a class="dropdown-item" href="/whosonline"><i class="fas fa-user-friends"></i> {{ t('ui.base.admin.whos_online', {}, 'common') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/admin/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                                <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> Binkp Status</a></li>
-                                <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> Manage Users</a></li>
+                                <li><a class="dropdown-item" href="/admin/"><i class="fas fa-tachometer-alt"></i> {{ t('ui.base.admin.dashboard', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/binkp"><i class="fas fa-network-wired"></i> {{ t('ui.base.admin.binkp_status', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/admin/users"><i class="fas fa-users"></i> {{ t('ui.base.admin.manage_users', {}, 'common') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> Advertisements</a></li>
+                                <li><a class="dropdown-item" href="/admin/ads"><i class="fas fa-ad"></i> {{ t('ui.base.admin.ads', {}, 'common') }}</a></li>
                                 <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> Area Management</a>
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-folder-tree"></i> {{ t('ui.base.admin.area_management', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> Echo Areas</a></li>
-                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> File Areas</a></li>
-                                        <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> File Area Rules</a></li>
-                                        <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                                        <li><a class="dropdown-item" href="/echoareas"><i class="fas fa-comments"></i> {{ t('ui.base.admin.echo_areas', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> {{ t('ui.base.admin.file_areas', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.admin.subscriptions', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
-                                <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> Auto Feed</a></li>
-                                <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> Chat Rooms</a></li>
-                                <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> Polls</a></li>
-                                <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> Shoutbox</a></li>
+                                <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/admin/chat-rooms"><i class="fas fa-comment-dots"></i> {{ t('ui.base.admin.chat_rooms', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/admin/polls"><i class="fas fa-vote-yea"></i> {{ t('ui.base.admin.polls', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/admin/shoutbox"><i class="fas fa-bullhorn"></i> {{ t('ui.base.admin.shoutbox', {}, 'common') }}</a></li>
                                 <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> Doors</a>
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-gamepad"></i> {{ t('ui.base.admin.doors', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item" href="/admin/dosdoors"><i class="fas fa-terminal"></i> DOS Doors</a></li>
-                                        <li><a class="dropdown-item" href="/admin/native-doors"><i class="fas fa-door-open"></i> Native Doors</a></li>
-                                        <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-globe"></i> Web Doors</a></li>
-                                    </ul>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> Activity Statistics</a></li>
-                                <li><a class="dropdown-item" href="/admin/economy"><i class="fas fa-coins"></i> Economy Viewer</a></li>
-                                <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> BBS Settings</a>
-                                    <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> Binkp Configuration</a></li>
-                                        <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> Template Editor</a></li>
+                                        <li><a class="dropdown-item" href="/admin/dosdoors"><i class="fas fa-terminal"></i> {{ t('ui.base.admin.doors_dos', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/native-doors"><i class="fas fa-door-open"></i> {{ t('ui.base.admin.doors_native', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/webdoors"><i class="fas fa-globe"></i> {{ t('ui.base.admin.doors_web', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/activity-stats"><i class="fas fa-chart-bar"></i> {{ t('ui.base.admin.activity_stats', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/admin/economy"><i class="fas fa-coins"></i> {{ t('ui.base.admin.economy_viewer', {}, 'common') }}</a></li>
                                 <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-question-circle"></i> Help</a>
+                                    <a class="dropdown-item dropdown-toggle" href="/admin/bbs-settings"><i class="fas fa-sliders-h"></i> {{ t('ui.base.admin.bbs_settings', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> README</a></li>
-                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> FAQ</a></li>
-                                        {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> Upgrade Notes v{{ app_version }}</a></li>{% endif %}
-                                        <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> Claude's BBS</a></li>
-                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> Report Issue</a></li>
+                                        <li><a class="dropdown-item" href="/admin/binkp-config"><i class="fas fa-network-wired"></i> {{ t('ui.base.admin.binkp_configuration', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/template-editor"><i class="fas fa-file-code"></i> {{ t('ui.base.admin.template_editor', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/i18n-overrides"><i class="fas fa-language"></i> {{ t('ui.base.admin.i18n_overrides', {}, 'common') }}</a></li>
+                                    </ul>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-question-circle"></i> {{ t('ui.base.admin.help', {}, 'common') }}</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/README.md" target="_blank"><i class="fas fa-book"></i> {{ t('ui.base.admin.readme', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/blob/main/FAQ.md" target="_blank"><i class="fas fa-question-circle"></i> {{ t('ui.base.admin.faq', {}, 'common') }}</a></li>
+                                        {% if has_upgrading_doc %}<li><a class="dropdown-item" href="/admin/upgrade-notes"><i class="fas fa-arrow-up-from-bracket"></i> {{ t('ui.base.admin.upgrade_notes', {'version': app_version}, 'common') }}</a></li>{% endif %}
+                                        <li><a class="dropdown-item" href="https://claudes.lovelybits.org" target="_blank"><i class="fas fa-comments"></i> {{ t('ui.base.admin.claudes_bbs', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="https://github.com/awehttam/binkterm-php/issues" target="_blank"><i class="fas fa-bug"></i> {{ t('ui.base.admin.report_issue', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
 
@@ -231,9 +237,16 @@
                     {% else %}
                         <li class="nav-item">
                             <a class="nav-link" href="/nodelist">
-                                <i class="fas fa-sitemap"></i> Nodelist
+                                <i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}
                             </a>
                         </li>
+                        {% if bbs_feature_enabled('guest_doors_page') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/guest-doors">
+                                <i class="fas fa-terminal"></i> {{ t('ui.base.guest_doors', {}, 'common') }}
+                            </a>
+                        </li>
+                        {% endif %}
 
                     {% endif %}
                 </ul>
@@ -248,16 +261,23 @@
                                 <i class="fas fa-user"></i> {{ current_user.username }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/profile">Profile</a></li>
-                                <li><a class="dropdown-item" href="/settings">Settings</a></li>
-                                <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> Subscriptions</a></li>
+                                <li><a class="dropdown-item" href="/profile">{{ t('ui.base.profile', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/settings">{{ t('ui.base.settings', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.subscriptions', {}, 'common') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="#" onclick="logout()">Logout</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="logout()">{{ t('ui.base.logout', {}, 'common') }}</a></li>
                             </ul>
                         </li>
                     {% else %}
+                        {% if bbs_feature_enabled('guest_doors_page') %}
                         <li class="nav-item">
-                            <a class="nav-link" href="/login">Login</a>
+                            <a class="nav-link" href="/guest-doors">
+                                <i class="fas fa-terminal"></i> {{ t('ui.base.guest_doors', {}, 'common') }}
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/login">{{ t('ui.base.login', {}, 'common') }}</a>
                         </li>
                     {% endif %}
                 </ul>
@@ -277,8 +297,8 @@
             </small>
             <br>
             <small class="text-muted">
-                Powered by <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a> |
-                <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">House Rules</a>
+                {{ t('ui.footer.powered_by', {}, 'common') }} <a href="https://github.com/awehttam/binkterm-php">{{ app_full_version }}</a> |
+                <a href="#" data-bs-toggle="modal" data-bs-target="#houseRulesModal">{{ t('ui.about.house_rules', {}, 'common') }}</a>
             </small>
         </div>
     </footer>
@@ -287,7 +307,7 @@
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="houseRulesModalLabel">House Rules</h5>
+                    <h5 class="modal-title" id="houseRulesModalLabel">{{ t('ui.about.house_rules', {}, 'common') }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">

@@ -85,7 +85,8 @@ class TicFileProcessor
                 if (!$fileArea) {
                     return [
                         'success' => false,
-                        'error' => "Failed to create file area: {$ticData['Area']}"
+                        'error_code' => 'errors.tic.file_area_create_failed',
+                        'error' => 'Failed to create file area from TIC metadata'
                     ];
                 }
 
@@ -99,7 +100,8 @@ class TicFileProcessor
             if (!$this->validateFile($ticData, $filePath)) {
                 return [
                     'success' => false,
-                    'error' => 'File validation failed (size/CRC mismatch)'
+                    'error_code' => 'errors.tic.validation_failed',
+                    'error' => 'TIC file validation failed'
                 ];
             }
 
@@ -143,7 +145,8 @@ class TicFileProcessor
             if (($scanResult['result'] ?? '') === 'infected') {
                 return [
                     'success' => false,
-                    'error' => 'File rejected: virus detected.'
+                    'error_code' => 'errors.tic.virus_detected',
+                    'error' => 'File rejected: virus detected'
                 ];
             }
 
@@ -181,7 +184,8 @@ class TicFileProcessor
             $this->log("TIC processing error: " . $e->getMessage());
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error_code' => 'errors.tic.processing_failed',
+                'error' => 'TIC processing failed'
             ];
         }
     }
@@ -676,7 +680,8 @@ class TicFileProcessor
                 'scanned' => false,
                 'result' => 'skipped',
                 'signature' => null,
-                'error' => 'Virus scanning not enabled'
+                'error_code' => 'errors.virus_scanner.not_available',
+                'error' => 'Virus scanning not available'
             ];
         }
 
@@ -691,7 +696,8 @@ class TicFileProcessor
                 'scanned' => false,
                 'result' => 'error',
                 'signature' => null,
-                'error' => 'File not found'
+                'error_code' => 'errors.virus_scanner.file_not_found',
+                'error' => 'File not found for virus scan'
             ];
         }
 

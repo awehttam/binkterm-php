@@ -36,9 +36,10 @@ class PasswordResetController
     {
         // Find user by username or email
         $stmt = $this->db->prepare('
-            SELECT id, username, email, real_name, is_active
-            FROM users
-            WHERE (username = ? OR email = ?) AND is_active = TRUE
+            SELECT u.id, u.username, u.email, u.real_name, u.is_active, us.locale
+            FROM users u
+            LEFT JOIN user_settings us ON us.user_id = u.id
+            WHERE (u.username = ? OR u.email = ?) AND u.is_active = TRUE
         ');
         $stmt->execute([$usernameOrEmail, $usernameOrEmail]);
         $user = $stmt->fetch();
@@ -47,7 +48,7 @@ class PasswordResetController
         if (!$user || empty($user['email'])) {
             return [
                 'success' => true,
-                'message' => 'If an account with that username or email exists, a password reset link has been sent.'
+                'message_code' => 'ui.forgot_password.reset_link_sent_if_exists'
             ];
         }
 
@@ -80,7 +81,7 @@ class PasswordResetController
 
         return [
             'success' => true,
-            'message' => 'If an account with that username or email exists, a password reset link has been sent.'
+            'message_code' => 'ui.forgot_password.reset_link_sent_if_exists'
         ];
     }
 
@@ -142,7 +143,8 @@ class PasswordResetController
         if (!$tokenData) {
             return [
                 'success' => false,
-                'message' => 'Invalid or expired reset token.'
+                'error_code' => 'errors.auth.invalid_or_expired_token',
+                'error' => 'Invalid or expired token'
             ];
         }
 
@@ -150,7 +152,8 @@ class PasswordResetController
         if (strlen($newPassword) < 8) {
             return [
                 'success' => false,
-                'message' => 'Password must be at least 8 characters long.'
+                'error_code' => 'errors.auth.weak_password',
+                'error' => 'Password must be at least 8 characters long'
             ];
         }
 
@@ -186,7 +189,7 @@ class PasswordResetController
 
             return [
                 'success' => true,
-                'message' => 'Password has been reset successfully. You can now log in with your new password.',
+                'message_code' => 'ui.reset_password.success_reset_complete',
                 'username' => $tokenData['username']
             ];
 
@@ -196,7 +199,8 @@ class PasswordResetController
 
             return [
                 'success' => false,
-                'message' => 'Failed to reset password. Please try again.'
+                'error_code' => 'errors.auth.reset_failed',
+                'error' => 'Failed to reset password'
             ];
         }
     }
@@ -252,23 +256,48 @@ class PasswordResetController
 
         // Build reset URL
         $resetUrl = Config::getSiteUrl() . '/reset-password?token=' . $token;
+        $translator = new \BinktermPHP\I18n\Translator();
+        $localeResolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        // Resolve locale using the same priority as page rendering:
+        // 1) user's saved locale preference, 2) cookie, 3) Accept-Language, 4) default
+        $locale = $localeResolver->resolveLocale($user['locale'] ?? null, null);
 
-        $subject = "Password Reset Request - $systemName";
+        $t = static function (string $key, array $params = []) use ($translator, $locale): string {
+            return $translator->translate($key, $params, $locale, ['common']);
+        };
+
+        $subject = $t('ui.password_reset_email.subject', ['system_name' => $systemName]);
 
         // Plain text version
-        $plainText = "Hello {$user['real_name']},\n\n";
-        $plainText .= "We received a request to reset your password for your account on $systemName.\n\n";
-        $plainText .= "To reset your password, please click the link below:\n";
-        $plainText .= "$resetUrl\n\n";
-        $plainText .= "This link will expire in " . self::TOKEN_EXPIRY_HOURS . " hours.\n\n";
-        $plainText .= "If you did not request a password reset, you can safely ignore this email.\n";
-        $plainText .= "Your password will not be changed unless you click the link above and create a new password.\n\n";
-        $plainText .= "For security reasons:\n";
-        $plainText .= "- Never share this link with anyone\n";
-        $plainText .= "- This link can only be used once\n";
-        $plainText .= "- If you need another reset link, request a new one from the login page\n\n";
-        $plainText .= "Best regards,\n";
-        $plainText .= "$systemName";
+        $plainText = $t('ui.password_reset_email.greeting', ['name' => (string)$user['real_name']]) . "\n\n";
+        $plainText .= $t('ui.password_reset_email.request_received', ['system_name' => $systemName]) . "\n\n";
+        $plainText .= $t('ui.password_reset_email.click_link_below') . "\n";
+        $plainText .= $resetUrl . "\n\n";
+        $plainText .= $t('ui.password_reset_email.expires_in_hours', ['hours' => self::TOKEN_EXPIRY_HOURS]) . "\n\n";
+        $plainText .= $t('ui.password_reset_email.if_not_requested') . "\n";
+        $plainText .= $t('ui.password_reset_email.password_unchanged_notice') . "\n\n";
+        $plainText .= $t('ui.password_reset_email.security_notes') . "\n";
+        $plainText .= "- " . $t('ui.password_reset_email.note_never_share') . "\n";
+        $plainText .= "- " . $t('ui.password_reset_email.note_one_time') . "\n";
+        $plainText .= "- " . $t('ui.password_reset_email.note_request_new') . "\n\n";
+        $plainText .= $t('ui.password_reset_email.best_regards') . "\n";
+        $plainText .= $systemName;
+
+        $headerText = htmlspecialchars($t('ui.password_reset_email.header'), ENT_QUOTES, 'UTF-8');
+        $greetingText = htmlspecialchars($t('ui.password_reset_email.greeting', ['name' => (string)$user['real_name']]), ENT_QUOTES, 'UTF-8');
+        $requestReceivedText = htmlspecialchars($t('ui.password_reset_email.request_received', ['system_name' => $systemName]), ENT_QUOTES, 'UTF-8');
+        $clickLinkText = htmlspecialchars($t('ui.password_reset_email.click_button_below'), ENT_QUOTES, 'UTF-8');
+        $buttonText = htmlspecialchars($t('ui.password_reset_email.button'), ENT_QUOTES, 'UTF-8');
+        $copyLinkText = htmlspecialchars($t('ui.password_reset_email.copy_link'), ENT_QUOTES, 'UTF-8');
+        $expiresText = htmlspecialchars($t('ui.password_reset_email.expires_in_hours', ['hours' => self::TOKEN_EXPIRY_HOURS]), ENT_QUOTES, 'UTF-8');
+        $securityNotesText = htmlspecialchars($t('ui.password_reset_email.security_notes'), ENT_QUOTES, 'UTF-8');
+        $noteNeverShareText = htmlspecialchars($t('ui.password_reset_email.note_never_share'), ENT_QUOTES, 'UTF-8');
+        $noteOneTimeText = htmlspecialchars($t('ui.password_reset_email.note_one_time'), ENT_QUOTES, 'UTF-8');
+        $noteRequestNewText = htmlspecialchars($t('ui.password_reset_email.note_request_new'), ENT_QUOTES, 'UTF-8');
+        $ifNotRequestedText = htmlspecialchars($t('ui.password_reset_email.if_not_requested'), ENT_QUOTES, 'UTF-8');
+        $passwordUnchangedText = htmlspecialchars($t('ui.password_reset_email.password_unchanged_notice'), ENT_QUOTES, 'UTF-8');
+        $footerAutomatedText = htmlspecialchars($t('ui.password_reset_email.footer_automated', ['system_name' => $systemName]), ENT_QUOTES, 'UTF-8');
+        $footerNoReplyText = htmlspecialchars($t('ui.password_reset_email.footer_no_reply'), ENT_QUOTES, 'UTF-8');
 
         // HTML version
         $htmlText = "
@@ -307,41 +336,40 @@ class PasswordResetController
         <body>
             <div class='container'>
                 <div class='header'>
-                    <h2>Password Reset Request</h2>
+                    <h2>{$headerText}</h2>
                 </div>
                 <div class='content'>
-                    <p>Hello <strong>{$user['real_name']}</strong>,</p>
+                    <p>{$greetingText}</p>
 
-                    <p>We received a request to reset your password for your account on <strong>$systemName</strong>.</p>
+                    <p>{$requestReceivedText}</p>
 
-                    <p>To reset your password, please click the button below:</p>
+                    <p>{$clickLinkText}</p>
 
                     <p style='text-align: center;'>
-                        <a href='$resetUrl' class='button'>Reset Your Password</a>
+                        <a href='$resetUrl' class='button'>{$buttonText}</a>
                     </p>
 
-                    <p>Or copy and paste this link into your browser:</p>
+                    <p>{$copyLinkText}</p>
                     <p style='word-break: break-all; background-color: white; padding: 10px; border: 1px solid #ddd;'>
                         $resetUrl
                     </p>
 
-                    <p><strong>This link will expire in " . self::TOKEN_EXPIRY_HOURS . " hours.</strong></p>
+                    <p><strong>{$expiresText}</strong></p>
 
                     <div class='security-notes'>
-                        <strong>Security Notes:</strong>
+                        <strong>{$securityNotesText}</strong>
                         <ul>
-                            <li>Never share this link with anyone</li>
-                            <li>This link can only be used once</li>
-                            <li>If you need another reset link, request a new one from the login page</li>
+                            <li>{$noteNeverShareText}</li>
+                            <li>{$noteOneTimeText}</li>
+                            <li>{$noteRequestNewText}</li>
                         </ul>
                     </div>
 
-                    <p>If you did not request a password reset, you can safely ignore this email.
-                    Your password will not be changed unless you click the link above and create a new password.</p>
+                    <p>{$ifNotRequestedText}<br>{$passwordUnchangedText}</p>
                 </div>
                 <div class='footer'>
-                    <p>This is an automated message from $systemName<br>
-                    Please do not reply to this email.</p>
+                    <p>{$footerAutomatedText}<br>
+                    {$footerNoReplyText}</p>
                 </div>
             </div>
         </body>

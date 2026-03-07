@@ -77,10 +77,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.uplink.poll_failed', $e->getMessage());
         }
     }
     
@@ -96,10 +93,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.uplink.poll_all_failed', $e->getMessage());
         }
     }
     
@@ -115,10 +109,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.connection_test_failed', $e->getMessage());
         }
     }
     
@@ -139,7 +130,10 @@ class BinkpController
             $password = $data['password'] ?? '';
             
             if (empty($address) || empty($hostname)) {
-                throw new \Exception('Address and hostname are required');
+                return $this->apiErrorResponse(
+                    'errors.binkp.uplink.address_hostname_required',
+                    'Address and hostname are required'
+                );
             }
             
             $options = [
@@ -153,14 +147,11 @@ class BinkpController
             
             return [
                 'success' => true,
-                'message' => 'Uplink added successfully'
+                'message_code' => 'ui.api.binkp.uplink_added'
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.uplink.add_failed', $e->getMessage());
         }
     }
     
@@ -171,14 +162,11 @@ class BinkpController
             
             return [
                 'success' => true,
-                'message' => 'Uplink updated successfully'
+                'message_code' => 'ui.api.binkp.uplink_updated'
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.uplink.update_failed', $e->getMessage());
         }
     }
     
@@ -189,14 +177,11 @@ class BinkpController
             
             return [
                 'success' => true,
-                'message' => 'Uplink removed successfully'
+                'message_code' => 'ui.api.binkp.uplink_removed'
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.uplink.remove_failed', $e->getMessage());
         }
     }
     
@@ -214,10 +199,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.files.inbound_failed', $e->getMessage());
         }
     }
     
@@ -233,10 +215,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.files.outbound_failed', $e->getMessage());
         }
     }
     
@@ -252,10 +231,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.files.process_inbound_failed', $e->getMessage());
         }
     }
     
@@ -271,10 +247,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.files.process_outbound_failed', $e->getMessage());
         }
     }
     
@@ -286,14 +259,11 @@ class BinkpController
             
             return [
                 'success' => true,
-                'message' => 'File deleted successfully'
+                'message_code' => 'ui.api.binkp.file_deleted'
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.files.delete_outbound_failed', $e->getMessage());
         }
     }
     
@@ -305,14 +275,11 @@ class BinkpController
             
             return [
                 'success' => true,
-                'message' => 'File retry initiated successfully'
+                'message_code' => 'ui.api.binkp.file_retry_started'
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.files.retry_error_failed', $e->getMessage());
         }
     }
     
@@ -328,10 +295,7 @@ class BinkpController
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.logs.failed', $e->getMessage());
         }
     }
     
@@ -368,20 +332,49 @@ class BinkpController
                     break;
                     
                 default:
-                    throw new \Exception('Invalid configuration section');
+                    return $this->apiErrorResponse(
+                        'errors.binkp.config.invalid_section',
+                        'Invalid configuration section'
+                    );
             }
             
             return [
                 'success' => true,
-                'message' => 'Configuration updated successfully'
+                'message_code' => 'ui.api.binkp.config_updated'
             ];
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return $this->apiErrorResponse('errors.binkp.config.update_failed', $e->getMessage());
         }
+    }
+
+    private function apiErrorResponse(string $errorCode, string $message): array
+    {
+        $localized = $this->localizedErrorText($errorCode, $message);
+        return [
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $localized
+        ];
+    }
+
+    private function localizedErrorText(string $errorCode, string $fallbackMessage): string
+    {
+        static $translator = null;
+        static $localeResolver = null;
+
+        if ($translator === null) {
+            $translator = new \BinktermPHP\I18n\Translator();
+            $localeResolver = new \BinktermPHP\I18n\LocaleResolver($translator);
+        }
+
+        $auth = new Auth();
+        $user = $auth->getCurrentUser();
+        $preferredLocale = is_array($user) ? (string)($user['locale'] ?? '') : '';
+        $resolvedLocale = $localeResolver->resolveLocale($preferredLocale !== '' ? $preferredLocale : null, $user);
+        $translated = $translator->translate($errorCode, [], $resolvedLocale, ['errors']);
+
+        return $translated === $errorCode ? $fallbackMessage : $translated;
     }
 }
 

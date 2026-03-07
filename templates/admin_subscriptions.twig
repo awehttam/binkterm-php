@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}Admin: Manage Subscriptions - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.admin_subscriptions.page_title', {}, locale, ['common']) }} - {{ system_name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -9,12 +9,12 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>
                     <i class="fas fa-bookmark-plus me-2"></i>
-                    Subscription Management
+                    {{ t('ui.admin_subscriptions.heading', {}, locale, ['common']) }}
                 </h2>
-                <nav aria-label="breadcrumb">
+                <nav aria-label="{{ t('ui.admin_subscriptions.breadcrumb_aria', {}, locale, ['common']) }}">
                     <ol class="breadcrumb mb-0">
-                        <li class="breadcrumb-item"><a href="/admin">Admin</a></li>
-                        <li class="breadcrumb-item active">Subscriptions</li>
+                        <li class="breadcrumb-item"><a href="/admin">{{ t('ui.common.admin', {}, locale, ['common']) }}</a></li>
+                        <li class="breadcrumb-item active">{{ t('ui.admin_subscriptions.breadcrumb_current', {}, locale, ['common']) }}</li>
                     </ol>
                 </nav>
             </div>
@@ -28,7 +28,7 @@
                                 <i class="fas fa-comments fa-2x me-3"></i>
                                 <div>
                                     <h5 class="mb-1">{{ stats.total_echoareas }}</h5>
-                                    <small>Total Echoareas</small>
+                                    <small>{{ t('ui.admin_subscriptions.total_echoareas', {}, locale, ['common']) }}</small>
                                 </div>
                             </div>
                         </div>
@@ -41,7 +41,7 @@
                                 <i class="fas fa-star fa-2x me-3"></i>
                                 <div>
                                     <h5 class="mb-1">{{ stats.default_echoareas }}</h5>
-                                    <small>Default Echoareas</small>
+                                    <small>{{ t('ui.admin_subscriptions.default_echoareas', {}, locale, ['common']) }}</small>
                                 </div>
                             </div>
                         </div>
@@ -54,7 +54,7 @@
                                 <i class="fas fa-bookmark fa-2x me-3"></i>
                                 <div>
                                     <h5 class="mb-1">{{ stats.total_subscriptions }}</h5>
-                                    <small>Total Subscriptions</small>
+                                    <small>{{ t('ui.admin_subscriptions.total_subscriptions', {}, locale, ['common']) }}</small>
                                 </div>
                             </div>
                         </div>
@@ -67,7 +67,7 @@
                                 <i class="fas fa-users fa-2x me-3"></i>
                                 <div>
                                     <h5 class="mb-1">{{ stats.subscribed_users }}</h5>
-                                    <small>Active Subscribers</small>
+                                    <small>{{ t('ui.admin_subscriptions.active_subscribers', {}, locale, ['common']) }}</small>
                                 </div>
                             </div>
                         </div>
@@ -80,9 +80,9 @@
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="fas fa-cog me-2"></i>
-                        Echoarea Default Subscriptions
+                        {{ t('ui.admin_subscriptions.echoarea_default_subscriptions', {}, locale, ['common']) }}
                     </h5>
-                    <small class="text-muted">Manage which echoareas new users are automatically subscribed to</small>
+                    <small class="text-muted">{{ t('ui.admin_subscriptions.manage_default_help', {}, locale, ['common']) }}</small>
                 </div>
                 <div class="card-body">
                     <div id="admin-status" class="alert d-none" role="alert"></div>
@@ -91,13 +91,13 @@
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th width="80">Default</th>
-                                    <th width="150">Echoarea</th>
-                                    <th>Description</th>
-                                    <th width="100" class="text-center">Subscribers</th>
-                                    <th width="100" class="text-center">User Subs</th>
-                                    <th width="100" class="text-center">Auto Subs</th>
-                                    <th width="120" class="text-center">Messages</th>
+                                    <th width="80">{{ t('ui.admin_subscriptions.default', {}, locale, ['common']) }}</th>
+                                    <th width="150">{{ t('ui.admin_subscriptions.echoarea', {}, locale, ['common']) }}</th>
+                                    <th>{{ t('ui.common.description', {}, locale, ['common']) }}</th>
+                                    <th width="100" class="text-center">{{ t('ui.admin_subscriptions.subscribers', {}, locale, ['common']) }}</th>
+                                    <th width="100" class="text-center">{{ t('ui.admin_subscriptions.user_subs', {}, locale, ['common']) }}</th>
+                                    <th width="100" class="text-center">{{ t('ui.admin_subscriptions.auto_subs', {}, locale, ['common']) }}</th>
+                                    <th width="120" class="text-center">{{ t('ui.admin_subscriptions.messages', {}, locale, ['common']) }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -120,7 +120,7 @@
                                                 <span class="badge bg-secondary ms-2" style="font-size: 0.7em;">{{ echoarea.domain }}</span>
                                             {% endif %}
                                             {% if echoarea.is_default_subscription %}
-                                                <i class="fas fa-star text-warning ms-2" title="Default subscription"></i>
+                                                <i class="fas fa-star text-warning ms-2" title="{{ t('ui.admin_subscriptions.default_subscription_title', {}, locale, ['common']) }}"></i>
                                             {% endif %}
                                         </div>
                                     </td>
@@ -146,21 +146,21 @@
                     <div class="mt-3">
                         <div class="row">
                             <div class="col-md-6">
-                                <h6>Legend:</h6>
+                                <h6>{{ t('ui.admin_subscriptions.legend', {}, locale, ['common']) }}</h6>
                                 <ul class="list-unstyled small text-muted">
-                                    <li><i class="fas fa-star text-warning me-2"></i>Default subscription (new users auto-subscribed)</li>
-                                    <li><span class="badge bg-primary me-2">Total</span>All active subscribers</li>
-                                    <li><span class="badge bg-success me-2">User</span>User-initiated subscriptions</li>
-                                    <li><span class="badge bg-info me-2">Auto</span>Automatic/admin subscriptions</li>
+                                    <li><i class="fas fa-star text-warning me-2"></i>{{ t('ui.admin_subscriptions.legend_default', {}, locale, ['common']) }}</li>
+                                    <li><span class="badge bg-primary me-2">{{ t('ui.admin_subscriptions.legend_total_badge', {}, locale, ['common']) }}</span>{{ t('ui.admin_subscriptions.legend_total', {}, locale, ['common']) }}</li>
+                                    <li><span class="badge bg-success me-2">{{ t('ui.admin_subscriptions.legend_user_badge', {}, locale, ['common']) }}</span>{{ t('ui.admin_subscriptions.legend_user', {}, locale, ['common']) }}</li>
+                                    <li><span class="badge bg-info me-2">{{ t('ui.admin_subscriptions.legend_auto_badge', {}, locale, ['common']) }}</span>{{ t('ui.admin_subscriptions.legend_auto', {}, locale, ['common']) }}</li>
                                 </ul>
                             </div>
                             <div class="col-md-6">
                                 <div class="alert alert-info">
-                                    <h6><i class="fas fa-info-circle me-2"></i>How it works:</h6>
+                                    <h6><i class="fas fa-info-circle me-2"></i>{{ t('ui.admin_subscriptions.how_it_works', {}, locale, ['common']) }}</h6>
                                     <ul class="mb-0 small">
-                                        <li>Toggle "Default" to make echoareas auto-subscribe for new users</li>
-                                        <li>When enabled, all existing users also get auto-subscribed</li>
-                                        <li>Users can still unsubscribe from default echoareas</li>
+                                        <li>{{ t('ui.admin_subscriptions.how_default_toggle', {}, locale, ['common']) }}</li>
+                                        <li>{{ t('ui.admin_subscriptions.how_existing_users', {}, locale, ['common']) }}</li>
+                                        <li>{{ t('ui.admin_subscriptions.how_unsubscribe', {}, locale, ['common']) }}</li>
                                     </ul>
                                 </div>
                             </div>
@@ -173,6 +173,13 @@
 </div>
 
 <script>
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const defaultToggles = document.querySelectorAll('.default-toggle');
     const statusDiv = document.getElementById('admin-status');
@@ -201,20 +208,26 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const action = isDefault ? 'enabled' : 'disabled';
-                    showStatus(`Default subscription ${action} successfully! Page will refresh to show updated stats.`, 'success');
+                    const action = isDefault
+                        ? uiT('ui.admin_subscriptions.action_enabled', 'enabled')
+                        : uiT('ui.admin_subscriptions.action_disabled', 'disabled');
+                    const fallbackMessage = uiT('ui.admin_subscriptions.update_success', 'Default subscription {action} successfully! Page will refresh to show updated stats.', { action });
+                    const successMessage = window.getApiMessage
+                        ? window.getApiMessage(data, fallbackMessage)
+                        : fallbackMessage;
+                    showStatus(successMessage, 'success');
                     // Refresh page to update subscriber counts
                     setTimeout(() => location.reload(), 1500);
                 } else {
                     // Revert toggle state
                     this.checked = originalState;
-                    showStatus('Failed to update default subscription. Please try again.', 'danger');
+                    showStatus(uiT('ui.admin_subscriptions.update_failed', 'Failed to update default subscription. Please try again.'), 'danger');
                 }
             })
             .catch(error => {
                 // Revert toggle state
                 this.checked = originalState;
-                showStatus('Network error. Please try again.', 'danger');
+                showStatus(uiT('ui.admin_subscriptions.network_error', 'Network error. Please try again.'), 'danger');
             })
             .finally(() => {
                 this.disabled = false;

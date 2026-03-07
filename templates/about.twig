@@ -1,6 +1,6 @@
 {% extends "base.twig" %}
 
-{% block title %}About - {{ system_name }}{% endblock %}
+{% block title %}{{ t('ui.about.title', {}, 'common') }} - {{ system_name }}{% endblock %}
 
 {% block meta_tags %}
 {% if appearance.seo.description %}
@@ -10,7 +10,7 @@
 {% if appearance.seo.og_image_url %}
 <meta property="og:image" content="{{ appearance.seo.og_image_url | e }}">
 {% endif %}
-<meta property="og:title" content="About - {{ system_name | e }}">
+<meta property="og:title" content="{{ t('ui.about.title', {}, 'common') }} - {{ system_name | e }}">
 {% endblock %}
 
 {% block content %}
@@ -19,7 +19,7 @@
 
         <div class="card mb-4">
             <div class="card-header">
-                <h3 class="mb-0"><i class="fas fa-info-circle me-2"></i>About {{ system_name }}</h3>
+                <h3 class="mb-0"><i class="fas fa-info-circle me-2"></i>{{ t('ui.about.about_system', {'system_name': system_name}, 'common') }}</h3>
             </div>
             <div class="card-body">
                 {% if appearance.seo.description %}
@@ -27,25 +27,25 @@
                 {% endif %}
 
                 <dl class="row mb-0">
-                    <dt class="col-sm-3">System Name</dt>
+                    <dt class="col-sm-3">{{ t('ui.about.system_name', {}, 'common') }}</dt>
                     <dd class="col-sm-9">{{ system_name | e }}</dd>
 
-                    <dt class="col-sm-3">Sysop</dt>
+                    <dt class="col-sm-3">{{ t('ui.about.sysop', {}, 'common') }}</dt>
                     <dd class="col-sm-9">{{ sysop_name | e }}</dd>
 
                     {% if network_addresses is not empty %}
-                    <dt class="col-sm-3">Network Addresses</dt>
+                    <dt class="col-sm-3">{{ t('ui.about.network_addresses', {}, 'common') }}</dt>
                     <dd class="col-sm-9">
                         {% for addr in network_addresses %}
                             <span class="badge bg-secondary me-1">{{ addr.address | e }}{% if addr.domain is defined and addr.domain != 'unknown' %} ({{ addr.domain | e }}){% endif %}</span>
                         {% endfor %}
                     </dd>
                     {% else %}
-                    <dt class="col-sm-3">Fidonet Address</dt>
+                    <dt class="col-sm-3">{{ t('ui.about.fidonet_address', {}, 'common') }}</dt>
                     <dd class="col-sm-9"><span class="badge bg-secondary">{{ fidonet_origin | e }}</span></dd>
                     {% endif %}
 
-                    <dt class="col-sm-3">Software</dt>
+                    <dt class="col-sm-3">{{ t('ui.about.software', {}, 'common') }}</dt>
                     <dd class="col-sm-9">
                         <a href="https://github.com/awehttam/binkterm-php" target="_blank" rel="noopener">{{ app_full_version | e }}</a>
                     </dd>
@@ -56,7 +56,7 @@
         {% if appearance.navigation.custom_links is not empty %}
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-link me-2"></i>Links</h5>
+                <h5 class="mb-0"><i class="fas fa-link me-2"></i>{{ t('ui.about.links', {}, 'common') }}</h5>
             </div>
             <div class="card-body">
                 <ul class="list-unstyled mb-0">
@@ -74,7 +74,7 @@
 
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-gavel me-2"></i>House Rules</h5>
+                <h5 class="mb-0"><i class="fas fa-gavel me-2"></i>{{ t('ui.about.house_rules', {}, 'common') }}</h5>
             </div>
             <div class="card-body">
                 {% if appearance_houserules_html %}

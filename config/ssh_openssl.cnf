@@ -1,0 +1,13 @@
+# Minimal OpenSSL configuration for SSH host key generation.
+# Bundled with BinktermPHP so the SSH daemon works on Windows without requiring
+# a system-wide OpenSSL installation or OPENSSL_CONF environment variable.
+
+[ req ]
+default_bits        = 3072
+default_md          = sha256
+distinguished_name  = req_distinguished_name
+prompt              = no
+string_mask         = utf8only
+
+[ req_distinguished_name ]
+CN = localhost

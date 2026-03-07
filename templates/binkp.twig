@@ -1,13 +1,13 @@
-{% extends "base.twig" %}
+﻿{% extends "base.twig" %}
 
-{% block title %}Binkp Status{% endblock %}
+{% block title %}{{ t('ui.binkp.page_title') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-12">
-            <h1>Binkp Status</h1>
-            <p class="text-muted">Monitor and manage your Binkp TCP/IP connections</p>
+            <h1>{{ t('ui.binkp.heading') }}</h1>
+            <p class="text-muted">{{ t('ui.binkp.subheading') }}</p>
         </div>
     </div>
 
@@ -16,32 +16,32 @@
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body text-center">
-                    <h5 class="card-title">System Status</h5>
-                    <p class="card-text" id="system-status">Loading...</p>
+                    <h5 class="card-title">{{ t('ui.binkp.system_status') }}</h5>
+                    <p class="card-text" id="system-status">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body text-center">
-                    <h5 class="card-title">Inbound Queue</h5>
-                    <p class="card-text" id="inbound-count">Loading...</p>
+                    <h5 class="card-title">{{ t('ui.binkp.inbound_queue') }}</h5>
+                    <p class="card-text" id="inbound-count">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body text-center">
-                    <h5 class="card-title">Outbound Queue</h5>
-                    <p class="card-text" id="outbound-count">Loading...</p>
+                    <h5 class="card-title">{{ t('ui.binkp.outbound_queue') }}</h5>
+                    <p class="card-text" id="outbound-count">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body text-center">
-                    <h5 class="card-title">Uplinks</h5>
-                    <p class="card-text" id="uplink-count">Loading...</p>
+                    <h5 class="card-title">{{ t('ui.binkp.uplinks') }}</h5>
+                    <p class="card-text" id="uplink-count">{{ t('ui.common.loading') }}</p>
                 </div>
             </div>
         </div>
@@ -50,16 +50,16 @@
     <!-- Navigation Tabs -->
     <ul class="nav nav-tabs" id="binkpTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab">Status</button>
+            <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab">{{ t('ui.binkp.status_tab') }}</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="uplinks-tab" data-bs-toggle="tab" data-bs-target="#uplinks" type="button" role="tab">Uplinks</button>
+            <button class="nav-link" id="uplinks-tab" data-bs-toggle="tab" data-bs-target="#uplinks" type="button" role="tab">{{ t('ui.binkp.uplinks_tab') }}</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues" type="button" role="tab">Queues</button>
+            <button class="nav-link" id="queues-tab" data-bs-toggle="tab" data-bs-target="#queues" type="button" role="tab">{{ t('ui.binkp.queues_tab') }}</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">Logs</button>
+            <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">{{ t('ui.binkp.logs_tab') }}</button>
         </li>
     </ul>
 
@@ -70,26 +70,26 @@
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5>System Information</h5>
+                            <h5>{{ t('ui.binkp.system_information') }}</h5>
                             <button class="btn btn-sm btn-outline-primary" onclick="refreshStatus()">
-                                <i class="fas fa-refresh"></i> Refresh
+                                <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
                             </button>
                         </div>
                         <div class="card-body" id="system-info">
-                            Loading system information...
+                            {{ t('ui.binkp.loading_system_information') }}
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5>Uplink Status</h5>
+                            <h5>{{ t('ui.binkp.uplink_status') }}</h5>
                             <button class="btn btn-sm btn-success" onclick="pollAllUplinks()">
-                                 <i class="fas fa-sync"></i> Poll All
+                                 <i class="fas fa-sync"></i> {{ t('ui.binkp.poll_all') }}
                             </button>
                         </div>
                         <div class="card-body" id="uplink-status">
-                            Loading uplink status...
+                            {{ t('ui.binkp.loading_uplink_status') }}
                         </div>
                     </div>
                 </div>
@@ -99,22 +99,22 @@
         <!-- Uplinks Tab -->
         <div class="tab-pane fade" id="uplinks" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>Configured Uplinks</h5>
+                <h5>{{ t('ui.binkp.configured_uplinks') }}</h5>
                 {#
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUplinkModal">
-                     <i class="fas fa-plus"></i> Add Uplink
+                     <i class="fas fa-plus"></i> {{ t('ui.binkp.add_uplink') }}
                 </button>#}
             </div>
             <div class="table-responsive">
                 <table class="table table-striped" id="uplinksTable">
                     <thead>
                         <tr>
-                            <th>Uplink</th>
-                            <th>Hostname</th>
-                            <th>Port</th>
-                            <th>Status</th>
-                            <th>Schedule</th>
-                            <th>Actions</th>
+                            <th>{{ t('ui.binkp.uplink') }}</th>
+                            <th>{{ t('ui.common.hostname') }}</th>
+                            <th>{{ t('ui.common.port') }}</th>
+                            <th>{{ t('ui.binkp.status') }}</th>
+                            <th>{{ t('ui.binkp.schedule') }}</th>
+                            <th>{{ t('ui.binkp.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -130,28 +130,28 @@
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5>Inbound Queue</h5>
+                            <h5>{{ t('ui.binkp.inbound_queue') }}</h5>
                             <button class="btn btn-sm btn-success" onclick="processInbound()">
-                                <i class="fas fa-play"></i> Process
+                                <i class="fas fa-play"></i> {{ t('ui.binkp.process') }}
                             </button>
                         </div>
                         <div class="card-body">
-                            <div id="inbound-files">Loading...</div>
+                            <div id="inbound-files">{{ t('ui.common.loading') }}</div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5>Outbound Queue</h5>
+                            <h5>{{ t('ui.binkp.outbound_queue') }}</h5>
 
                             <button class="btn btn-sm btn-success" onclick="processOutbound()">
-                                <i class="fas fa-paper-plane"></i> Send
+                                <i class="fas fa-paper-plane"></i> {{ t('ui.binkp.send') }}
                             </button>
 
                         </div>
                         <div class="card-body">
-                            <div id="outbound-files">Loading...</div>
+                            <div id="outbound-files">{{ t('ui.common.loading') }}</div>
                         </div>
                     </div>
                 </div>
@@ -161,22 +161,22 @@
         <!-- Logs Tab -->
         <div class="tab-pane fade" id="logs" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>Binkp Logs</h5>
+                <h5>{{ t('ui.binkp.logs_heading') }}</h5>
                 <div>
                     <select class="form-select form-select-sm d-inline-block w-auto" id="logLines">
-                        <option value="50">50 lines</option>
-                        <option value="100" selected>100 lines</option>
-                        <option value="200">200 lines</option>
-                        <option value="500">500 lines</option>
+                        <option value="50">{{ t('ui.binkp.lines_option', {'count': 50}) }}</option>
+                        <option value="100" selected>{{ t('ui.binkp.lines_option', {'count': 100}) }}</option>
+                        <option value="200">{{ t('ui.binkp.lines_option', {'count': 200}) }}</option>
+                        <option value="500">{{ t('ui.binkp.lines_option', {'count': 500}) }}</option>
                     </select>
                     <button class="btn btn-sm btn-outline-primary ms-2" onclick="refreshLogs()">
-                        <i class="fas fa-refresh"></i> Refresh
+                        <i class="fas fa-refresh"></i> {{ t('ui.common.refresh') }}
                     </button>
                 </div>
             </div>
             <div class="card">
                 <div class="card-body">
-                    <pre id="log-content" style="height: 400px; overflow-y: auto; padding: 10px;">Loading logs...</pre>
+                    <pre id="log-content" style="height: 400px; overflow-y: auto; padding: 10px;">{{ t('ui.binkp.loading_logs') }}</pre>
                 </div>
             </div>
         </div>
@@ -189,41 +189,41 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Uplink</h5>
+                <h5 class="modal-title">{{ t('ui.binkp.add_new_uplink') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="addUplinkForm">
                     <div class="mb-3">
-                        <label class="form-label">FTN Address *</label>
-                        <input type="text" class="form-control" name="address" required placeholder="1:123/456">
+                        <label class="form-label">{{ t('ui.binkp.ftn_address_required') }}</label>
+                        <input type="text" class="form-control" name="address" required placeholder="{{ t('ui.binkp.ftn_address_placeholder') }}">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Hostname *</label>
-                        <input type="text" class="form-control" name="hostname" required placeholder="bbs.example.com">
+                        <label class="form-label">{{ t('ui.binkp.hostname_required') }}</label>
+                        <input type="text" class="form-control" name="hostname" required placeholder="{{ t('ui.binkp.hostname_placeholder') }}">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Port</label>
+                        <label class="form-label">{{ t('ui.common.port') }}</label>
                         <input type="number" class="form-control" name="port" value="24554" min="1" max="65535">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
+                        <label class="form-label">{{ t('ui.common.password') }}</label>
                         <input type="password" class="form-control" name="password">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Poll Schedule (cron format)</label>
-                        <input type="text" class="form-control" name="poll_schedule" value="0 */4 * * *" placeholder="0 */4 * * *">
-                        <small class="form-text text-muted">Default: every 4 hours</small>
+                        <label class="form-label">{{ t('ui.binkp.poll_schedule_cron') }}</label>
+                        <input type="text" class="form-control" name="poll_schedule" value="0 */4 * * *" placeholder="{{ t('ui.binkp.poll_schedule_placeholder') }}">
+                        <small class="form-text text-muted">{{ t('ui.binkp.default_every_4_hours') }}</small>
                     </div>
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" name="enabled" checked>
-                        <label class="form-check-label">Enabled</label>
+                        <label class="form-check-label">{{ t('ui.binkp.enabled') }}</label>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="addUplink()">Add Uplink</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel') }}</button>
+                <button type="button" class="btn btn-primary" onclick="addUplink()">{{ t('ui.binkp.add_uplink') }}</button>
             </div>
         </div>
     </div>
@@ -232,12 +232,35 @@
 <script>
 let binkpData = {};
 
+function uiT(key, fallback, params = {}) {
+    if (window.t) {
+        return window.t(key, params, fallback);
+    }
+    return fallback;
+}
+
+function apiError(payload, fallback) {
+    if (window.getApiErrorMessage) {
+        return window.getApiErrorMessage(payload, fallback);
+    }
+    return payload && payload.error ? payload.error : fallback;
+}
+
+function apiMessage(payload, fallback) {
+    if (window.getApiMessage) {
+        return window.getApiMessage(payload, fallback);
+    }
+    return payload && payload.message ? payload.message : fallback;
+}
+
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
-    refreshStatus();
-    refreshUplinks();
-    refreshQueues();
-    refreshLogs();
+    loadI18nNamespaces(['common', 'errors']).then(function() {
+        refreshStatus();
+        refreshUplinks();
+        refreshQueues();
+        refreshLogs();
+    });
 });
 
 // Auto-refresh every 30 seconds
@@ -249,7 +272,7 @@ function refreshStatus() {
         .then(response => {
             console.log('Status response:', response.status, response.statusText);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', { code: response.status, text: response.statusText }));
             }
             return response.json();
         })
@@ -260,31 +283,31 @@ function refreshStatus() {
         })
         .catch(error => {
             console.error('Error fetching status:', error);
-            document.getElementById('system-status').textContent = 'Error: ' + error.message;
-            document.getElementById('system-info').innerHTML = '<div class="alert alert-danger">Error loading status: ' + error.message + '</div>';
+            document.getElementById('system-status').textContent = `${uiT('ui.common.error', 'Error')}: ${error.message}`;
+            document.getElementById('system-info').innerHTML = `<div class="alert alert-danger">${uiT('ui.binkp.error_loading_status_prefix', 'Error loading status:')} ${escapeHtml(error.message)}</div>`;
         });
 }
 
 function updateStatusDisplay(data) {
     // Update cards
     document.getElementById('system-status').textContent = data.system.address;
-    document.getElementById('inbound-count').textContent = data.queues.inbound.pending_files + ' files';
-    document.getElementById('outbound-count').textContent = data.queues.outbound.pending_files + ' files';
-    document.getElementById('uplink-count').textContent = Object.keys(data.uplinks).length + ' configured';
+    document.getElementById('inbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.inbound.pending_files });
+    document.getElementById('outbound-count').textContent = uiT('ui.binkp.file_count', '{count} files', { count: data.queues.outbound.pending_files });
+    document.getElementById('uplink-count').textContent = uiT('ui.binkp.configured_count', '{count} configured', { count: Object.keys(data.uplinks).length });
 
     // Update system info
     const systemInfo = document.getElementById('system-info');
     systemInfo.innerHTML = `
         <dl class="row">
-            <dt class="col-sm-4">Address:</dt>
+            <dt class="col-sm-4">${uiT('ui.binkp.address', 'Address')}:</dt>
             <dd class="col-sm-8">${data.system.address}</dd>
-            <dt class="col-sm-4">Sysop:</dt>
+            <dt class="col-sm-4">${uiT('ui.binkp.sysop', 'Sysop')}:</dt>
             <dd class="col-sm-8">${data.system.sysop}</dd>
-            <dt class="col-sm-4">Location:</dt>
+            <dt class="col-sm-4">${uiT('ui.binkp.location', 'Location')}:</dt>
             <dd class="col-sm-8">${data.system.location}</dd>
-            <dt class="col-sm-4">Port:</dt>
+            <dt class="col-sm-4">${uiT('ui.common.port', 'Port')}:</dt>
             <dd class="col-sm-8">${data.system.port}</dd>
-            <dt class="col-sm-4">Hostname:</dt>
+            <dt class="col-sm-4">${uiT('ui.common.hostname', 'Hostname')}:</dt>
             <dd class="col-sm-8">${data.system.hostname}</dd>
         </dl>
     `;
@@ -294,8 +317,8 @@ function updateStatusDisplay(data) {
     let uplinkHtml = '';
     for (const [address, uplink] of Object.entries(data.uplinks)) {
         const status = uplink.success ? 
-            '<span class="badge bg-success">Online</span>' : 
-            '<span class="badge bg-danger">Offline</span>';
+            `<span class="badge bg-success">${uiT('ui.binkp.online', 'Online')}</span>` : 
+            `<span class="badge bg-danger">${uiT('ui.binkp.offline', 'Offline')}</span>`;
         uplinkHtml += `
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span>${address}</span>
@@ -303,7 +326,7 @@ function updateStatusDisplay(data) {
             </div>
         `;
     }
-    uplinkStatus.innerHTML = uplinkHtml || '<p class="text-muted">No uplinks configured</p>';
+    uplinkStatus.innerHTML = uplinkHtml || `<p class="text-muted">${uiT('ui.binkp.no_uplinks_configured', 'No uplinks configured')}</p>`;
 }
 
 function refreshUplinks() {
@@ -312,7 +335,7 @@ function refreshUplinks() {
         .then(response => {
             console.log('Uplinks response:', response.status, response.statusText);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', { code: response.status, text: response.statusText }));
             }
             return response.json();
         })
@@ -324,7 +347,7 @@ function refreshUplinks() {
             console.error('Error fetching uplinks:', error);
             const tbody = document.querySelector('#uplinksTable tbody');
             if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Error loading uplinks: ' + error.message + '</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${uiT('ui.binkp.error_loading_uplinks_prefix', 'Error loading uplinks:')} ${escapeHtml(error.message)}</td></tr>`;
             }
         });
 }
@@ -335,8 +358,8 @@ function updateUplinksTable(uplinks) {
 
     uplinks.forEach(uplink => {
         const status = uplink.enabled ? 
-            '<span class="badge bg-success">Enabled</span>' : 
-            '<span class="badge bg-secondary">Disabled</span>';
+            `<span class="badge bg-success">${uiT('ui.binkp.enabled', 'Enabled')}</span>` : 
+            `<span class="badge bg-secondary">${uiT('ui.binkp.disabled', 'Disabled')}</span>`;
         
         const row = tbody.insertRow();
         row.innerHTML = `
@@ -346,7 +369,7 @@ function updateUplinksTable(uplinks) {
             <td>${status}</td>
             <td><code>${uplink.poll_schedule}</code></td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="pollUplink('${uplink.address}')">Poll</button>
+                <button class="btn btn-sm btn-primary" onclick="pollUplink('${uplink.address}')">${uiT('ui.binkp.poll', 'Poll')}</button>
                 <!-- <button class="btn btn-sm btn-danger" onclick="removeUplink('${uplink.address}')">Remove</button> -->
             </td>
         `;
@@ -358,12 +381,12 @@ function refreshQueues() {
     Promise.all([
         fetch('/api/binkp/files/inbound').then(r => {
             console.log('Inbound response:', r.status, r.statusText);
-            if (!r.ok) throw new Error(`Inbound API: HTTP ${r.status}`);
+            if (!r.ok) throw new Error(uiT('ui.binkp.inbound_api_http_error', 'Inbound API: HTTP {code}', { code: r.status }));
             return r.json();
         }),
         fetch('/api/binkp/files/outbound').then(r => {
             console.log('Outbound response:', r.status, r.statusText);
-            if (!r.ok) throw new Error(`Outbound API: HTTP ${r.status}`);
+            if (!r.ok) throw new Error(uiT('ui.binkp.outbound_api_http_error', 'Outbound API: HTTP {code}', { code: r.status }));
             return r.json();
         })
     ])
@@ -374,14 +397,14 @@ function refreshQueues() {
     })
     .catch(error => {
         console.error('Error fetching queues:', error);
-        document.getElementById('inbound-files').innerHTML = '<div class="text-danger">Error: ' + error.message + '</div>';
-        document.getElementById('outbound-files').innerHTML = '<div class="text-danger">Error: ' + error.message + '</div>';
+        document.getElementById('inbound-files').innerHTML = `<div class="text-danger">${uiT('ui.common.error', 'Error')}: ${escapeHtml(error.message)}</div>`;
+        document.getElementById('outbound-files').innerHTML = `<div class="text-danger">${uiT('ui.common.error', 'Error')}: ${escapeHtml(error.message)}</div>`;
     });
 }
 
 function updateInboundFiles(data) {
     const container = document.getElementById('inbound-files');
-    let html = `<p><strong>Pending:</strong> ${data.pending.length} files</p>`;
+    let html = `<p><strong>${uiT('ui.binkp.pending', 'Pending')}:</strong> ${uiT('ui.binkp.file_count', '{count} files', { count: data.pending.length })}</p>`;
     
     if (data.pending.length > 0) {
         html += '<ul class="list-group list-group-flush">';
@@ -394,7 +417,7 @@ function updateInboundFiles(data) {
     }
 
     if (data.errors.length > 0) {
-        html += `<p class="mt-3"><strong>Errors:</strong> ${data.errors.length} files</p>`;
+        html += `<p class="mt-3"><strong>${uiT('ui.binkp.errors', 'Errors')}:</strong> ${uiT('ui.binkp.file_count', '{count} files', { count: data.errors.length })}</p>`;
     }
 
     container.innerHTML = html;
@@ -402,13 +425,13 @@ function updateInboundFiles(data) {
 
 function updateOutboundFiles(data) {
     const container = document.getElementById('outbound-files');
-    let html = `<p><strong>Pending:</strong> ${data.files.length} files</p>`;
+    let html = `<p><strong>${uiT('ui.binkp.pending', 'Pending')}:</strong> ${uiT('ui.binkp.file_count', '{count} files', { count: data.files.length })}</p>`;
     
     if (data.files.length > 0) {
         html += '<ul class="list-group list-group-flush">';
         data.files.forEach(file => {
             html += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                ${file.filename} <small class="text-muted">${formatBytes(file.size)} • ${file.message_count} msgs</small>
+                ${file.filename} <small class="text-muted">${formatBytes(file.size)} • ${uiT('ui.binkp.message_count', '{count} msgs', { count: file.message_count })}</small>
             </li>`;
         });
         html += '</ul>';
@@ -443,7 +466,7 @@ function pollUplink(address) {
         .then(response => {
             console.log('Poll response status:', response.status, response.statusText);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(uiT('ui.binkp.http_status_error', 'HTTP {code}: {text}', { code: response.status, text: response.statusText }));
             }
             return response.json();
         })
@@ -451,20 +474,23 @@ function pollUplink(address) {
             console.log('Poll response data:', data);
             if (data.success) {
                 const result = data.result || {};
-                const exitCode = result.exit_code ?? 'unknown';
+                const exitCode = result.exit_code ?? null;
                 const details = formatPollDetails(result);
-                showAlert(`Poll completed (exit ${exitCode})${details}`, 'success', { persistent: true });
+                const message = exitCode !== null
+                    ? uiT('ui.binkp.poll_completed_exit', 'Poll completed (exit {code})', { code: exitCode })
+                    : apiMessage(data, uiT('ui.api.binkp.poll_triggered', 'BinkP poll triggered'));
+                showAlert(message + details, 'success', { persistent: true });
                 if (exitCode === 0 || exitCode === '0') {
                     triggerPacketProcessing();
                 }
             } else {
-                showAlert('Poll failed: ' + data.error, 'danger', { persistent: true });
+                showAlert(uiT('ui.binkp.poll_failed_prefix', 'Poll failed: ') + apiError(data, uiT('ui.binkp.poll_failed', 'Poll failed')), 'danger', { persistent: true });
             }
             refreshStatus();
         })
         .catch(error => {
             console.error('Poll error:', error);
-            showAlert('Error polling uplink: ' + error.message, 'danger', { persistent: true });
+            showAlert(uiT('ui.binkp.error_polling_uplink_prefix', 'Error polling uplink: ') + error.message, 'danger', { persistent: true });
         });
 }
 
@@ -474,19 +500,22 @@ function pollAllUplinks() {
         .then(data => {
             if (data.success) {
                 const result = data.result || {};
-                const exitCode = result.exit_code ?? 'unknown';
+                const exitCode = result.exit_code ?? null;
                 const details = formatPollDetails(result);
-                showAlert(`All uplinks polled (exit ${exitCode})${details}`, 'success', { persistent: true });
+                const message = exitCode !== null
+                    ? uiT('ui.binkp.all_uplinks_polled_exit', 'All uplinks polled (exit {code})', { code: exitCode })
+                    : apiMessage(data, uiT('ui.api.binkp.poll_all_triggered', 'BinkP poll-all triggered'));
+                showAlert(message + details, 'success', { persistent: true });
                 if (exitCode === 0 || exitCode === '0') {
                     triggerPacketProcessing();
                 }
             } else {
-                showAlert('Polling failed: ' + data.error, 'danger', { persistent: true });
+                showAlert(uiT('ui.binkp.polling_failed_prefix', 'Polling failed: ') + apiError(data, uiT('ui.binkp.polling_failed', 'Polling failed')), 'danger', { persistent: true });
             }
             refreshStatus();
         })
         .catch(error => {
-            showAlert('Error polling uplinks: ' + error.message, 'danger', { persistent: true });
+            showAlert(uiT('ui.binkp.error_polling_uplinks_prefix', 'Error polling uplinks: ') + error.message, 'danger', { persistent: true });
         });
 }
 
@@ -495,15 +524,15 @@ function processInbound() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('Inbound processing completed', 'success');
+                showAlert(apiMessage(data, uiT('ui.binkp.inbound_processing_completed', 'Inbound processing completed')), 'success');
                 refreshQueues();
                 refreshStatus();
             } else {
-                showAlert('Processing failed: ' + data.error, 'danger');
+                showAlert(uiT('ui.binkp.processing_failed_prefix', 'Processing failed: ') + apiError(data, uiT('ui.binkp.processing_failed', 'Processing failed')), 'danger');
             }
         })
         .catch(error => {
-            showAlert('Error processing inbound: ' + error.message, 'danger');
+            showAlert(uiT('ui.binkp.error_processing_inbound_prefix', 'Error processing inbound: ') + error.message, 'danger');
         });
 }
 
@@ -512,15 +541,15 @@ function processOutbound() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('Outbound processing completed', 'success');
+                showAlert(apiMessage(data, uiT('ui.binkp.outbound_processing_completed', 'Outbound processing completed')), 'success');
                 refreshQueues();
                 refreshStatus();
             } else {
-                showAlert('Processing failed: ' + data.error, 'danger');
+                showAlert(uiT('ui.binkp.processing_failed_prefix', 'Processing failed: ') + apiError(data, uiT('ui.binkp.processing_failed', 'Processing failed')), 'danger');
             }
         })
         .catch(error => {
-            showAlert('Error processing outbound: ' + error.message, 'danger');
+            showAlert(uiT('ui.binkp.error_processing_outbound_prefix', 'Error processing outbound: ') + error.message, 'danger');
         });
 }
 
@@ -538,36 +567,36 @@ function addUplink() {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            showAlert('Uplink added successfully', 'success');
+            showAlert(apiMessage(result, uiT('ui.binkp.uplink_added_success', 'Uplink added successfully')), 'success');
             document.getElementById('addUplinkModal').querySelector('.btn-close').click();
             form.reset();
             refreshUplinks();
             refreshStatus();
         } else {
-            showAlert('Failed to add uplink: ' + result.error, 'danger');
+            showAlert(uiT('ui.binkp.add_uplink_failed_prefix', 'Failed to add uplink: ') + apiError(result, uiT('ui.binkp.add_uplink_failed', 'Failed to add uplink')), 'danger');
         }
     })
     .catch(error => {
-        showAlert('Error adding uplink: ' + error.message, 'danger');
+        showAlert(uiT('ui.binkp.error_adding_uplink_prefix', 'Error adding uplink: ') + error.message, 'danger');
     });
 }
 
 function removeUplink(address) {
-    if (!confirm(`Remove uplink ${address}?`)) return;
+    if (!confirm(uiT('ui.binkp.remove_uplink_confirm', 'Remove uplink {address}?', { address }))) return;
 
     fetch(`/api/binkp/uplinks/${address}`, { method: 'DELETE' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('Uplink removed successfully', 'success');
+                showAlert(apiMessage(data, uiT('ui.binkp.uplink_removed_success', 'Uplink removed successfully')), 'success');
                 refreshUplinks();
                 refreshStatus();
             } else {
-                showAlert('Failed to remove uplink: ' + data.error, 'danger');
+                showAlert(uiT('ui.binkp.remove_uplink_failed_prefix', 'Failed to remove uplink: ') + apiError(data, uiT('ui.binkp.remove_uplink_failed', 'Failed to remove uplink')), 'danger');
             }
         })
         .catch(error => {
-            showAlert('Error removing uplink: ' + error.message, 'danger');
+            showAlert(uiT('ui.binkp.error_removing_uplink_prefix', 'Error removing uplink: ') + error.message, 'danger');
         });
 }
 
@@ -591,9 +620,14 @@ function showAlert(message, type, options = {}) {
 }
 
 function formatBytes(bytes) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return uiT('ui.binkp.zero_bytes', '0 Bytes');
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = [
+        uiT('ui.binkp.byte_units.bytes', 'Bytes'),
+        uiT('ui.binkp.byte_units.kb', 'KB'),
+        uiT('ui.binkp.byte_units.mb', 'MB'),
+        uiT('ui.binkp.byte_units.gb', 'GB')
+    ];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
@@ -608,10 +642,10 @@ function formatPollDetails(result) {
     let details = '';
 
     if (stdout) {
-        details += `<br><div class="mt-1"><small class="text-muted">STDOUT:</small><pre class="mt-1 mb-0">${escapeHtml(stdout)}</pre></div>`;
+        details += `<br><div class="mt-1"><small class="text-muted">${uiT('ui.binkp.stdout', 'STDOUT')}:</small><pre class="mt-1 mb-0">${escapeHtml(stdout)}</pre></div>`;
     }
     if (stderr) {
-        details += `<br><div class="mt-1"><small class="text-warning">STDERR:</small><pre class="mt-1 mb-0">${escapeHtml(stderr)}</pre></div>`;
+        details += `<br><div class="mt-1"><small class="text-warning">${uiT('ui.binkp.stderr', 'STDERR')}:</small><pre class="mt-1 mb-0">${escapeHtml(stderr)}</pre></div>`;
     }
 
     return details;
@@ -622,16 +656,19 @@ function triggerPacketProcessing() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                showAlert('Packet processing failed: ' + (data.error || 'Unknown error'), 'danger', { persistent: true });
+                showAlert(uiT('ui.binkp.packet_processing_failed_prefix', 'Packet processing failed: ') + apiError(data, uiT('ui.binkp.unknown_error', 'Unknown error')), 'danger', { persistent: true });
                 return;
             }
             const result = data.result || {};
-            const exitCode = result.exit_code ?? 'unknown';
+            const exitCode = result.exit_code ?? null;
             const details = formatPollDetails(result);
-            showAlert(`Packet processing completed (exit ${exitCode})${details}`, 'success', { persistent: true });
+            const message = exitCode !== null
+                ? uiT('ui.binkp.packet_processing_completed_exit', 'Packet processing completed (exit {code})', { code: exitCode })
+                : apiMessage(data, uiT('ui.api.binkp.process_packets_started', 'Packet processing started'));
+            showAlert(message + details, 'success', { persistent: true });
         })
         .catch(error => {
-            showAlert('Error processing packets: ' + error.message, 'danger', { persistent: true });
+            showAlert(uiT('ui.binkp.error_processing_packets_prefix', 'Error processing packets: ') + error.message, 'danger', { persistent: true });
         });
 }
 
@@ -645,3 +682,5 @@ function escapeHtml(value) {
 }
 </script>
 {% endblock %}
+
+

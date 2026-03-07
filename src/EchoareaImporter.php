@@ -5,6 +5,36 @@ namespace BinktermPHP;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use PDO;
 
+class EchoareaImportException extends \RuntimeException
+{
+    private string $messageKey;
+    private array $messageParams;
+    private string $fallbackMessage;
+
+    public function __construct(string $messageKey, array $messageParams = [], string $fallbackMessage = '', ?\Throwable $previous = null)
+    {
+        parent::__construct($fallbackMessage !== '' ? $fallbackMessage : $messageKey, 0, $previous);
+        $this->messageKey = $messageKey;
+        $this->messageParams = $messageParams;
+        $this->fallbackMessage = $fallbackMessage !== '' ? $fallbackMessage : $messageKey;
+    }
+
+    public function getMessageKey(): string
+    {
+        return $this->messageKey;
+    }
+
+    public function getMessageParams(): array
+    {
+        return $this->messageParams;
+    }
+
+    public function getFallbackMessage(): string
+    {
+        return $this->fallbackMessage;
+    }
+}
+
 /**
  * Imports echo areas from CSV rows in the format:
  * ECHOTAG,DESCRIPTION,DOMAIN
@@ -22,7 +52,11 @@ class EchoareaImporter
     {
         $handle = fopen($filePath, 'rb');
         if ($handle === false) {
-            throw new \RuntimeException('Unable to open uploaded CSV file.');
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_open_csv',
+                [],
+                'Unable to open uploaded CSV file.'
+            );
         }
 
         $parsed = $this->parseAndValidateCsv($handle);
@@ -73,12 +107,30 @@ class EchoareaImporter
                 $normalized = $this->validateRow($row, $config);
                 $rowKey = $normalized['tag'] . '@' . ($normalized['domain'] ?? '');
                 if (isset($seenKeys[$rowKey])) {
-                    throw new \RuntimeException('Duplicate ECHOTAG/DOMAIN combination within the CSV file.');
+                    throw new EchoareaImportException(
+                        'ui.echoareas_import.error_duplicate_row',
+                        [],
+                        'Duplicate ECHOTAG/DOMAIN combination within the CSV file.'
+                    );
                 }
                 $seenKeys[$rowKey] = true;
                 $summary['rows'][] = $normalized;
             } catch (\Throwable $e) {
-                $summary['errors'][] = 'Line ' . $lineNumber . ': ' . $e->getMessage();
+                if ($e instanceof EchoareaImportException) {
+                    $summary['errors'][] = [
+                        'line' => $lineNumber,
+                        'error_code' => $e->getMessageKey(),
+                        'error_params' => $e->getMessageParams(),
+                        'error_fallback' => $e->getFallbackMessage(),
+                    ];
+                } else {
+                    $summary['errors'][] = [
+                        'line' => $lineNumber,
+                        'error_code' => 'ui.echoareas_import.error_unexpected',
+                        'error_params' => [],
+                        'error_fallback' => $e->getMessage(),
+                    ];
+                }
             }
         }
 
@@ -92,22 +144,38 @@ class EchoareaImporter
         $domain = strtolower(trim((string)($row[2] ?? '')));
 
         if ($tag === '' || $description === '') {
-            throw new \RuntimeException('ECHOTAG and DESCRIPTION are required.');
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_tag_description_required',
+                [],
+                'ECHOTAG and DESCRIPTION are required.'
+            );
         }
 
         if (!preg_match('/^[A-Z0-9._-]+$/', $tag)) {
-            throw new \RuntimeException('Invalid ECHOTAG. Use only letters, numbers, dots, underscores, and hyphens.');
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_invalid_tag',
+                [],
+                'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, and hyphens.'
+            );
         }
 
         if ($domain !== '' && !preg_match('/^[a-zA-Z0-9_-]+$/', $domain)) {
-            throw new \RuntimeException('Invalid DOMAIN. Use only letters, numbers, underscores, and hyphens.');
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_invalid_domain',
+                [],
+                'Invalid DOMAIN. Use only letters, numbers, underscores, and hyphens.'
+            );
         }
 
         $isLocal = ($domain === '');
         $storedDomain = $isLocal ? null : $domain;
 
         if (!$isLocal && $config->getUplinkByDomain($domain) === null) {
-            throw new \RuntimeException("Unknown DOMAIN '{$domain}'. Add the network domain first in BinkP configuration.");
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_unknown_domain',
+                ['domain' => $domain],
+                "Unknown DOMAIN '{$domain}'. Add the network domain first in BinkP configuration."
+            );
         }
 
         return [
@@ -182,7 +250,12 @@ class EchoareaImporter
                 $this->db->rollBack();
             }
 
-            throw new \RuntimeException('Import failed and no changes were applied: ' . $e->getMessage(), 0, $e);
+            throw new EchoareaImportException(
+                'ui.echoareas_import.error_apply_failed',
+                [],
+                'Import failed and no changes were applied.',
+                $e
+            );
         }
 
         return $summary;

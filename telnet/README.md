@@ -408,6 +408,10 @@ When contributing to the telnet daemon:
 5. Add debug logging for new features
 6. Update this documentation
 
+## See Also
+
+- [SSH Server](../docs/SSHServer.md) — encrypted SSH-2 alternative to Telnet
+
 ## License
 
 Same as BinktermPHP - BSD License. See main LICENSE.md for details.

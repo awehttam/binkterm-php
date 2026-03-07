@@ -6,11 +6,41 @@ use BinktermPHP\Auth;
 use BinktermPHP\Advertising;
 use BinktermPHP\BbsConfig;
 use BinktermPHP\Config;
+use BinktermPHP\I18n\LocaleResolver;
+use BinktermPHP\I18n\Translator;
 use BinktermPHP\MessageHandler;
 use BinktermPHP\RouteHelper;
 use BinktermPHP\Template;
 use BinktermPHP\UserCredit;
 use Pecee\SimpleRouter\SimpleRouter;
+
+if (!function_exists('webLocalizedText')) {
+    function webLocalizedText(string $key, string $fallback, ?array $user = null, array $params = [], string $namespace = 'common'): string
+    {
+        static $translator = null;
+        static $resolver = null;
+        if ($translator === null || $resolver === null) {
+            $translator = new Translator();
+            $resolver = new LocaleResolver($translator);
+        }
+
+        if ($user === null) {
+            try {
+                $auth = new Auth();
+                $resolvedUser = $auth->getCurrentUser();
+                if (is_array($resolvedUser)) {
+                    $user = $resolvedUser;
+                }
+            } catch (\Throwable $e) {
+                // Fall back to default locale when no user context is available.
+            }
+        }
+
+        $resolvedLocale = $resolver->resolveLocale((string)($user['locale'] ?? ''), $user);
+        $translated = $translator->translate($key, $params, $resolvedLocale, [$namespace]);
+        return $translated === $key ? $fallback : $translated;
+    }
+}
 
 SimpleRouter::get('/', function() {
     $auth = new Auth();
@@ -122,7 +152,19 @@ SimpleRouter::get('/appmanifestjson', function() {
         "short_name": "Nodelist",
         "description":"Browse the nodelist",
         "url":"/nodelist"
-    }    
+    },
+    {
+        "name": "Doors",
+        "short_name": "Doors",
+        "description":"Browse doors and games",
+        "url":"/games"
+    },
+    {
+        "name": "Files",
+        "short_name": "Files",
+        "description":"Browse files",
+        "url":"/files"
+    }
   ]
 }
 
@@ -148,9 +190,18 @@ SimpleRouter::get('/login', function() {
         $welcomeMessage = file_get_contents($welcomeFile);
     }
 
+    // Check if PubTerm door is enabled and allows anonymous access
+    $pubTermEnabled = false;
+    try {
+        $nativeDoorManager = new \BinktermPHP\NativeDoorManager();
+        $pubTermEnabled = $nativeDoorManager->isDoorAvailable('pubterm')
+            && \BinktermPHP\NativeDoorConfig::isAnonymousAllowed('pubterm');
+    } catch (\Throwable $e) {}
+
     $template = new Template();
     $template->renderResponse('login.twig', [
-        'welcome_message' => $welcomeMessage
+        'welcome_message'  => $welcomeMessage,
+        'pubterm_enabled'  => $pubTermEnabled,
     ]);
 });
 
@@ -220,7 +271,7 @@ SimpleRouter::get('/netmail', function() {
         $systemAddress = $binkpConfig->getSystemAddress();
         $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
     } catch (\Exception $e) {
-        $systemAddress = 'Unknown';
+        $systemAddress = webLocalizedText('ui.common.unknown', 'Unknown', $user);
         $crashmailEnabled = false;
     }
 
@@ -393,8 +444,8 @@ SimpleRouter::get('/binkp', function() {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'Only administrators can access BinkP functionality.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.binkp_admin_only'
         ]);
         return;
     }
@@ -418,9 +469,9 @@ SimpleRouter::get('/profile', function() {
         $systemAddress = $binkpConfig->getSystemAddress();
         $sysopName = $binkpConfig->getSystemSysop();
     } catch (\Exception $e) {
-        $systemName = 'BinktermPHP System';
-        $systemAddress = 'Not configured';
-        $sysopName = 'Unknown';
+        $systemName = webLocalizedText('ui.web.fallback.system_name', 'BinktermPHP System', $user);
+        $systemAddress = webLocalizedText('ui.common.not_configured', 'Not configured', $user);
+        $sysopName = webLocalizedText('ui.common.unknown', 'Unknown', $user);
     }
 
     $creditsConfig = \BinktermPHP\BbsConfig::getConfig()['credits'] ?? [];
@@ -476,7 +527,13 @@ SimpleRouter::get('/profile/{username}', function($username) {
 
     if (!$targetUser) {
         // User not found or inactive
-        return SimpleRouter::response()->httpCode(404)->html('User not found');
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.profile_user_not_found'
+        ]);
+        return;
     }
 
     // Get credits configuration
@@ -551,9 +608,9 @@ SimpleRouter::get('/settings', function() {
         $systemAddress = $binkpConfig->getSystemAddress();
         $sysopName = $binkpConfig->getSystemSysop();
     } catch (\Exception $e) {
-        $systemName = 'BinktermPHP System';
-        $systemAddress = 'Not configured';
-        $sysopName = 'Unknown';
+        $systemName = webLocalizedText('ui.web.fallback.system_name', 'BinktermPHP System', $user);
+        $systemAddress = webLocalizedText('ui.common.not_configured', 'Not configured', $user);
+        $sysopName = webLocalizedText('ui.common.unknown', 'Unknown', $user);
     }
 
     $taglines = [];
@@ -606,7 +663,7 @@ SimpleRouter::get('/chat', function() {
     if (!BbsConfig::isFeatureEnabled('chat')) {
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error' => 'Sorry, chat is not enabled.'
+            'error_code' => 'ui.web.errors.chat_disabled'
         ]);
         exit;
     }
@@ -645,8 +702,8 @@ SimpleRouter::get('/admin/users', function() {
         http_response_code(403);
         $template = new Template();
         $template->renderResponse('error.twig', [
-            'error_title' => 'Access Denied',
-            'error' => 'Only administrators can access user management.'
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.user_management_admin_only'
         ]);
         return;
     }
@@ -665,7 +722,13 @@ SimpleRouter::get('/echoareas', function() {
 
     // Check if user is admin (echoareas management is admin only)
     if (!$user['is_admin']) {
-        return SimpleRouter::response()->httpCode(403);
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.echoareas_admin_only'
+        ]);
+        return;
     }
 
     $template = new Template();
@@ -684,32 +747,67 @@ SimpleRouter::post('/echoareas/import', function() {
 
     $summary = null;
     $error = null;
+    $errorCode = null;
 
     try {
         if (!isset($_FILES['echoareas_csv']) || !is_array($_FILES['echoareas_csv'])) {
-            throw new \RuntimeException('Please choose a CSV file to import.');
+            $errorCode = 'ui.echoareas_import.error_choose_csv';
+            throw new \RuntimeException('');
         }
 
         $upload = $_FILES['echoareas_csv'];
         if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            throw new \RuntimeException('The upload failed. Please try again.');
+            $errorCode = 'ui.echoareas_import.error_upload_failed';
+            throw new \RuntimeException('');
         }
 
         $tmpName = $upload['tmp_name'] ?? '';
         if ($tmpName === '' || !is_uploaded_file($tmpName)) {
-            throw new \RuntimeException('Invalid uploaded file.');
+            $errorCode = 'ui.echoareas_import.error_invalid_upload';
+            throw new \RuntimeException('');
         }
 
         $importer = new \BinktermPHP\EchoareaImporter();
         $summary = $importer->importCsv($tmpName);
     } catch (\Throwable $e) {
         $error = $e->getMessage();
+        if ($error === '') {
+            $error = null;
+        }
+    }
+
+    if (is_array($summary) && isset($summary['errors']) && is_array($summary['errors'])) {
+        $localizedErrors = [];
+        foreach ($summary['errors'] as $item) {
+            if (is_array($item) && !empty($item['error_code'])) {
+                $message = webLocalizedText(
+                    (string)$item['error_code'],
+                    (string)($item['error_fallback'] ?? ''),
+                    $user,
+                    is_array($item['error_params'] ?? null) ? $item['error_params'] : []
+                );
+                $lineNumber = isset($item['line']) ? (int)$item['line'] : 0;
+                if ($lineNumber > 0) {
+                    $message = webLocalizedText(
+                        'ui.echoareas_import.error_line_prefix',
+                        'Line {line}: {message}',
+                        $user,
+                        ['line' => $lineNumber, 'message' => $message]
+                    );
+                }
+                $localizedErrors[] = $message;
+            } else {
+                $localizedErrors[] = (string)$item;
+            }
+        }
+        $summary['errors'] = $localizedErrors;
     }
 
     $template = new Template();
     $template->renderResponse('echoareas_import.twig', [
         'import_summary' => $summary,
         'import_error' => $error,
+        'import_error_code' => $errorCode,
     ]);
 });
 
@@ -730,7 +828,13 @@ SimpleRouter::get('/fileareas', function() {
 
     // Check if user is admin (file areas management is admin only)
     if (!$user['is_admin']) {
-        return SimpleRouter::response()->httpCode(403);
+        http_response_code(403);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.access_error',
+            'error_code' => 'ui.web.errors.fileareas_admin_only'
+        ]);
+        return;
     }
 
     $template = new Template();
@@ -741,7 +845,13 @@ SimpleRouter::get('/files', function() {
     $user = RouteHelper::requireAuth();
 
     if (!\BinktermPHP\BbsConfig::isFeatureEnabled('file_areas')) {
-        return SimpleRouter::response()->httpCode(404);
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.files_feature_disabled'
+        ]);
+        return;
     }
 
     $template = new Template();
@@ -757,7 +867,13 @@ SimpleRouter::get('/compose/{type}', function($type) {
     }
 
     if (!in_array($type, ['netmail', 'echomail'])) {
-        return SimpleRouter::response()->httpCode(404);
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.compose_type_invalid'
+        ]);
+        return;
     }
 
     // Handle reply and echoarea parameters
@@ -777,8 +893,8 @@ SimpleRouter::get('/compose/{type}', function($type) {
         $systemAddress = $binkpConfig->getSystemAddress();
         $crashmailEnabled = $binkpConfig->getCrashmailEnabled();
     } catch (\Exception $e) {
-        $systemName = 'BinktermPHP System';
-        $systemAddress = 'Not configured';
+        $systemName = webLocalizedText('ui.web.fallback.system_name', 'BinktermPHP System', $user);
+        $systemAddress = webLocalizedText('ui.common.not_configured', 'Not configured', $user);
         $crashmailEnabled = false;
     }
 
@@ -914,11 +1030,14 @@ SimpleRouter::get('/compose/{type}', function($type) {
 
     // Ensure reply_to_name has a safe default value and add a processed version
     if (!isset($templateVars['reply_to_name']) || $templateVars['reply_to_name'] === '') {
-        $templateVars['reply_to_name'] = ($type === 'echomail') ? 'All' : '';
+        $templateVars['reply_to_name'] = ($type === 'echomail')
+            ? webLocalizedText('ui.common.all', 'All', $user)
+            : '';
     }
 
     // Add a safe processed version for template display
-    $templateVars['to_name_value'] = $templateVars['reply_to_name'] ?: (($type === 'echomail') ? 'All' : '');
+    $templateVars['to_name_value'] = $templateVars['reply_to_name']
+        ?: (($type === 'echomail') ? webLocalizedText('ui.common.all', 'All', $user) : '');
 
     // Apply user signature to compose text (server-side to avoid late AJAX overwrites)
     try {
@@ -1000,7 +1119,13 @@ SimpleRouter::get('/polls', function() {
     $user = RouteHelper::requireAuth();
 
     if (!BbsConfig::isFeatureEnabled('voting_booth')) {
-        return SimpleRouter::response()->httpCode(404);
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.polls_disabled'
+        ]);
+        return;
     }
 
     $template = new Template();
@@ -1011,7 +1136,13 @@ SimpleRouter::get('/shoutbox', function() {
     $user = RouteHelper::requireAuth();
 
     if (!BbsConfig::isFeatureEnabled('shoutbox')) {
-        return SimpleRouter::response()->httpCode(404);
+        http_response_code(404);
+        $template = new Template();
+        $template->renderResponse('error.twig', [
+            'error_title_code' => 'ui.error.not_found',
+            'error_code' => 'ui.web.errors.shoutbox_disabled'
+        ]);
+        return;
     }
 
     $template = new Template();
