@@ -253,9 +253,9 @@ class AdminDaemonServer
                     // request that triggered this does not block waiting for the
                     // network connection to the uplink to complete.
                     if ($upstream === 'all') {
-                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--all']);
+                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--all', '--no-console']);
                     } else {
-                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', $upstream]);
+                        $this->spawnCommand([PHP_BINARY, 'scripts/binkp_poll.php', '--no-console', $upstream]);
                     }
                     $this->logger->info("Spawned background binkp_poll for {$upstream}");
                     $this->writeResponse($client, ['ok' => true, 'result' => ['exit_code' => 0, 'stdout' => '', 'stderr' => '']]);
