@@ -201,6 +201,30 @@ class AdminDaemonClient
         ]);
     }
 
+    /**
+     * Returns the base catalog keys and current overlay overrides for a locale/namespace.
+     *
+     * @return array{base: array<string,string>, overrides: array<string,string>}
+     */
+    public function getI18nOverlay(string $locale, string $namespace): array
+    {
+        return $this->sendCommand('get_i18n_overlay', ['locale' => $locale, 'ns' => $namespace]);
+    }
+
+    /**
+     * Saves an overlay for a locale/namespace. Pass an empty array to clear all overrides.
+     *
+     * @param array<string,string> $overrides
+     */
+    public function saveI18nOverlay(string $locale, string $namespace, array $overrides): array
+    {
+        return $this->sendCommand('save_i18n_overlay', [
+            'locale'    => $locale,
+            'ns'        => $namespace,
+            'overrides' => $overrides,
+        ]);
+    }
+
     public function getAppearanceConfig(): array
     {
         return $this->sendCommand('get_appearance_config');

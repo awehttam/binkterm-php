@@ -26,6 +26,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
    - **IMPORTANT**: CLI scripts must include `src/functions.php` after autoload to access global functions like `generateTzutc()`: `require_once __DIR__ . '/../src/functions.php';`
    - Scripts should be made executable with `chmod +x` and marked as executable in git with `git update-index --chmod=+x scripts/filename.php`
  - templates/ - html templates
+   - **IMPORTANT**: Template resolution order is `templates/custom/` → `templates/shells/<activeShell>/` → `templates/`. The active shell (`web` or `bbs-menu`) has its own `base.twig` at `templates/shells/web/base.twig` and `templates/shells/bbs-menu/base.twig` which take priority over `templates/base.twig`. When adding nav links or modifying shared layout, you must update **both** `templates/base.twig` AND `templates/shells/web/base.twig` (and `bbs-menu` if applicable).
  - public_html/ - the web site files, static assets
  - tests/ - test scripts used in debugging and troubleshooting
  - vendor/ - 3rd party libraries managed by composer and should not be touched by Claude

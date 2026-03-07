@@ -425,5 +425,11 @@ return [
     'errors.virus_scanner.not_available' => 'El analisis de virus no esta disponible',
     'errors.virus_scanner.file_not_found' => 'Archivo no encontrado para analisis de virus',
     'errors.virus_scanner.scan_error' => 'Error en el analisis de virus',
+
+    // Language overlay editor
+    'errors.admin.i18n_overrides.invalid_locale' => 'Idioma no valido o no admitido',
+    'errors.admin.i18n_overrides.missing_params' => 'Se requieren el idioma y el nombre del catalogo',
+    'errors.admin.i18n_overrides.load_failed' => 'Error al cargar el catalogo',
+    'errors.admin.i18n_overrides.save_failed' => 'Error al guardar los ajustes',
 ];
 

@@ -104,6 +104,42 @@ class Translator
      *
      * @return array<string, string>
      */
+    /**
+     * Returns the path to the base PHP catalog file for a locale/namespace.
+     */
+    public function getPhpCatalogPath(string $locale, string $namespace): string
+    {
+        return $this->basePath . '/' . $locale . '/' . $namespace . '.php';
+    }
+
+    /**
+     * Returns the path to the JSON overlay file for a locale/namespace.
+     * The overlay file does not need to exist; the path is for reading or writing.
+     */
+    public function getOverlayPath(string $locale, string $namespace): string
+    {
+        return $this->basePath . '/overrides/' . $locale . '/' . $namespace . '.json';
+    }
+
+    /**
+     * Returns catalog namespaces available for a locale (based on .php files present).
+     *
+     * @return string[]
+     */
+    public function getAvailableNamespaces(string $locale): array
+    {
+        $locale = $this->resolveToSupportedLocale($locale);
+        $dir = $this->basePath . '/' . $locale;
+        $namespaces = [];
+        if (is_dir($dir)) {
+            foreach (glob($dir . '/*.php') ?: [] as $file) {
+                $namespaces[] = basename($file, '.php');
+            }
+        }
+        sort($namespaces);
+        return $namespaces;
+    }
+
     public function getCatalog(string $locale, string $namespace = 'common'): array
     {
         $resolvedLocale = $this->resolveToSupportedLocale($locale);
@@ -194,6 +230,20 @@ class Translator
         foreach ($data as $k => $v) {
             if (is_string($k) && is_string($v)) {
                 $catalog[$k] = $v;
+            }
+        }
+
+        // Apply JSON overlay overrides (sysop-customized phrases)
+        $overlayPath = $this->getOverlayPath($locale, $namespace);
+        if (is_file($overlayPath)) {
+            $overlayRaw  = file_get_contents($overlayPath);
+            $overlayData = ($overlayRaw !== false) ? json_decode($overlayRaw, true) : null;
+            if (is_array($overlayData)) {
+                foreach ($overlayData as $k => $v) {
+                    if (is_string($k) && is_string($v)) {
+                        $catalog[$k] = $v;
+                    }
+                }
             }
         }
 

@@ -425,4 +425,10 @@ return [
     'errors.virus_scanner.not_available' => 'Virus scanning not available',
     'errors.virus_scanner.file_not_found' => 'File not found for virus scan',
     'errors.virus_scanner.scan_error' => 'Virus scan error',
+
+    // Language overlay editor
+    'errors.admin.i18n_overrides.invalid_locale' => 'Invalid or unsupported locale',
+    'errors.admin.i18n_overrides.missing_params' => 'Locale and catalog name are required',
+    'errors.admin.i18n_overrides.load_failed' => 'Failed to load catalog',
+    'errors.admin.i18n_overrides.save_failed' => 'Failed to save overrides',
 ];

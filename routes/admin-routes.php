@@ -210,6 +210,14 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
         $template->renderResponse('admin/template_editor.twig');
     });
 
+    // Language overlay editor page
+    SimpleRouter::get('/i18n-overrides', function() {
+        $user = RouteHelper::requireAdmin();
+
+        $template = new Template();
+        $template->renderResponse('admin/i18n_overrides.twig');
+    });
+
     // Upgrade notes viewer
     SimpleRouter::get('/upgrade-notes', function() {
         RouteHelper::requireAdmin();
@@ -2422,6 +2430,76 @@ SimpleRouter::group(['prefix' => '/admin'], function() {
                 apiError('errors.admin.custom_templates.install_failed', apiLocalizedText('errors.admin.custom_templates.install_failed', 'Failed to install custom template'));
             }
         });
+    });
+
+    // ========================================
+    // Language Overlay Editor
+    // ========================================
+
+    // GET /admin/api/i18n-overrides/namespaces?locale=en
+    SimpleRouter::get('/api/i18n-overrides/namespaces', function() {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $locale = trim($_GET['locale'] ?? '');
+        if ($locale === '') {
+            apiError('errors.admin.i18n_overrides.invalid_locale', 'Locale is required', 400);
+        }
+
+        $translator = new \BinktermPHP\I18n\Translator();
+        if (!$translator->isSupportedLocale($locale)) {
+            apiError('errors.admin.i18n_overrides.invalid_locale', 'Unsupported locale', 400);
+        }
+
+        echo json_encode([
+            'success'    => true,
+            'locale'     => $locale,
+            'namespaces' => $translator->getAvailableNamespaces($locale),
+        ]);
+    });
+
+    // GET /admin/api/i18n-overrides?locale=en&ns=common
+    SimpleRouter::get('/api/i18n-overrides', function() {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $locale = trim($_GET['locale'] ?? '');
+        $ns     = trim($_GET['ns'] ?? '');
+
+        if ($locale === '' || $ns === '') {
+            apiError('errors.admin.i18n_overrides.missing_params', 'locale and ns are required', 400);
+        }
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->getI18nOverlay($locale, $ns);
+            echo json_encode(array_merge(['success' => true, 'locale' => $locale, 'ns' => $ns], $result));
+        } catch (Exception $e) {
+            apiError('errors.admin.i18n_overrides.load_failed', 'Failed to load overlay: ' . $e->getMessage(), 500);
+        }
+    });
+
+    // POST /admin/api/i18n-overrides
+    SimpleRouter::post('/api/i18n-overrides', function() {
+        $user = RouteHelper::requireAdmin();
+        header('Content-Type: application/json');
+
+        $input     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $locale    = trim((string)($input['locale'] ?? ''));
+        $ns        = trim((string)($input['ns'] ?? ''));
+        $overrides = is_array($input['overrides'] ?? null) ? $input['overrides'] : [];
+
+        if ($locale === '' || $ns === '') {
+            apiError('errors.admin.i18n_overrides.missing_params', 'locale and ns are required', 400);
+        }
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->saveI18nOverlay($locale, $ns, $overrides);
+            echo json_encode(['success' => true, 'saved' => count(array_filter($overrides, fn($v) => $v !== ''))]);
+        } catch (Exception $e) {
+            apiError('errors.admin.i18n_overrides.save_failed', 'Failed to save overlay: ' . $e->getMessage(), 500);
+        }
     });
 
     // Auto Feed page

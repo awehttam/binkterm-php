@@ -22,7 +22,8 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 - Out of scope (initial rollout):
   - Translating user-generated content (messages, posts, ads).
   - Auto-translation services.
-  - Telnet/BinkP protocol payload text.
+  - BinkP protocol payload text.
+  - ~~Telnet/BinkP protocol payload text~~ — **Telnet daemon localization was added to scope and completed in 1.8.6.** All user-facing strings in the telnet server (shell menus, message editor, echomail/netmail browsers, polls, shoutbox, door launcher) are translated via the `telnet` catalog namespace.
 
 ## Guiding Principles
 - Preserve API stability while introducing localization safely.
@@ -87,7 +88,7 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 - Fall back to `en`.
 
 ## Implementation Phases
-### Status Update (March 5, 2026)
+### Status Update (March 6, 2026) — Shipped in 1.8.6
 - Phase 0 (Foundation): **Completed**
   - Translator + locale resolver added and wired through Twig `t()`.
   - Locale persistence/resolution path implemented.
@@ -95,22 +96,27 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 - Phase 1 (Shared Shell/UI Chrome): **Completed (with one intentional deferral)**
   - `templates/base.twig`, `templates/shells/web/base.twig`, and `templates/shells/bbs-menu/base.twig` are localized.
   - `templates/old.base.twig` is intentionally deferred by project decision.
-- Phase 2 (High-Traffic User Pages): **In Progress (substantial progress)**
+- Phase 2 (High-Traffic User Pages): **Completed**
   - Localized pages include: dashboard, netmail, echomail, compose, settings, login, register, forgot/reset password, profile, user profile, about, 404, create poll, shoutbox, polls, shared message, and files.
-  - `public_html/js/netmail.js` and `public_html/js/echomail.js` have additional consumer-side string migration to translation keys.
-  - Remaining cleanup is now mostly consistency/polish, not broad literal replacement.
-- Phase 3 (API Error Code Migration): **Completed (functional), hardening ongoing**
-  - `apiError(error_code, error, ...)` pattern is in active use.
+  - `public_html/js/netmail.js` and `public_html/js/echomail.js` fully migrated to translation keys.
+- Phase 3 (API Error Code Migration): **Completed**
+  - `apiError(error_code, error, ...)` pattern is in active use across all major endpoints.
   - Frontend consumers use `getApiErrorMessage(...)` broadly.
-  - Legacy-style responses have been reduced significantly; residual endpoints should continue to be normalized.
-- Phase 4 (Admin Surface): **Completed (major templates migrated)**
-  - High-use admin templates and related UI text have been migrated to translation keys across users, dashboard, binkp, economy, polls, doors, file areas, chat/admin tooling, and configuration pages.
+  - Legacy plain-text error responses normalized.
+- Phase 4 (Admin Surface): **Completed**
+  - All high-use admin templates migrated to translation keys: users, dashboard, binkp, economy, polls, doors, file areas, chat/admin tooling, and configuration pages.
 - Phase 5 (Hardening and Cleanup): **In Progress (advanced)**
-  - Validation scripts are in place and passing:
+  - Validation scripts in place and passing:
     - `scripts/check_i18n_hardcoded_strings.php`
     - `scripts/check_i18n_error_keys.php`
-  - Latest validation snapshot: `Detected hardcoded UI strings: 0`, `New violations: 0`, `Missing keys: 0`.
-  - Remaining work focuses on final consistency checks, regression QA, and eventual API legacy fallback retirement timing.
+  - Validation snapshot: `Detected hardcoded UI strings: 0`, `New violations: 0`, `Missing keys: 0`.
+  - Playwright tests verify `es` catalog API structure and key parity with `en`.
+  - Manual visual QA conducted against a checklist in both `en` and `es` on core user and admin flows.
+  - Remaining: no automated Playwright smoke pass runs with the user locale set to `es` — secondary locale coverage is manual only.
+- Telnet Daemon Localization (added to scope): **Completed**
+  - All user-facing strings in the telnet server translated via the `telnet` catalog namespace.
+  - Daemon defaults to system locale pre-login, switches to user's saved locale after login.
+  - Ships with `en` and `es` catalogs (`config/i18n/<locale>/telnet.php`).
 
 ## Phase 0: Foundation (No User-Visible Language Changes)
 - Add translator service and locale resolver.
@@ -226,8 +232,40 @@ Add multi-language support (i18n/l10n) to the web application without a destabil
 2. Enable locale switch behind feature flag for internal testing.
 3. Expand locale coverage after API code migration stabilizes.
 
+## Phase 6: System Scripts and Daemons
+
+CLI scripts and daemons in `scripts/` generally fall into three categories for i18n purposes:
+
+**User-facing daemons** (output seen directly by end users — highest priority):
+- `src/TelnetServer/` — **Completed in 1.8.6** via `telnet` catalog namespace.
+
+**Interactive sysop tools** (output seen by the person running the command):
+- `scripts/user-manager.php` — interactive user management CLI
+- `scripts/binkp_status.php` — status display
+- `scripts/who.php` — who's online
+- `scripts/admin_client.php` — admin CLI client
+
+**Background daemons and cron scripts** (output goes to log files, sysop-facing only):
+- `scripts/binkp_server.php`, `scripts/binkp_scheduler.php`, `scripts/binkp_poll.php`
+- `scripts/admin_daemon.php`, `scripts/mrc_daemon.php`, `scripts/gemini_daemon.php`
+- `scripts/process_packets.php`, `scripts/echomail_maintenance.php`, and other maintenance scripts
+- `scripts/setup.php`, `scripts/upgrade.php`
+
+**Current Status: Not started.**
+Background daemon log output is sysop/developer-facing and is low priority for translation. Interactive sysop tools are moderate priority. No script outside the telnet daemon currently uses the i18n `Translator` class.
+
+## Phase 7: Legacy API Error Field Retirement
+
+API responses currently return both `error_code` (the stable translation key) and `error` (a plain English fallback string) for backward compatibility. Once all frontend consumers have been confirmed to use `error_code` exclusively via `getApiErrorMessage(...)`, the plain `error` field can be retired.
+
+**Current Status: Deferred — compatibility window still open.**
+
+This is intentionally deferred until there is confidence that no external integrations or older client versions rely on the plain `error` text. Suggested criteria before retiring:
+- At least one full release cycle has passed since `error_code` became universal.
+- A grep confirms no frontend code matches on raw English error strings.
+- Release notes call out the removal explicitly.
+
 ## Immediate Next Steps (From Current Status)
-1. Perform focused manual QA in `en` and `es` on core user/admin flows to catch context/grammar issues now that key coverage is broad.
-2. Add/maintain CI guardrails to keep `hardcoded` and `error key` checks green on every PR.
-3. Identify and schedule the compatibility window for reducing frontend reliance on legacy plain `error` text in API responses.
-4. Document translation contribution workflow for future features (key naming, catalog sync, and JS/Twig usage patterns).
+1. Keep CI guardrails green (`check_i18n_hardcoded_strings.php`, `check_i18n_error_keys.php`) on every PR adding new UI or API work.
+2. Add a Playwright smoke pass that sets the user locale to `es` and verifies core pages render without raw i18n keys (completes Phase 5).
+3. Legacy `error` field retirement is tracked in Phase 7 — no action needed until the compatibility window is judged closed.

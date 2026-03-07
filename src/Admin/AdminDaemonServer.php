@@ -568,6 +568,18 @@ class AdminDaemonServer
                     $this->writeHouseRules($text);
                     $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
                     break;
+                case 'get_i18n_overlay':
+                    $locale = (string)($data['locale'] ?? '');
+                    $ns     = (string)($data['ns'] ?? '');
+                    $this->writeResponse($client, ['ok' => true, 'result' => $this->getI18nOverlay($locale, $ns)]);
+                    break;
+                case 'save_i18n_overlay':
+                    $locale    = (string)($data['locale'] ?? '');
+                    $ns        = (string)($data['ns'] ?? '');
+                    $overrides = is_array($data['overrides'] ?? null) ? $data['overrides'] : [];
+                    $this->saveI18nOverlay($locale, $ns, $overrides);
+                    $this->writeResponse($client, ['ok' => true, 'result' => ['success' => true]]);
+                    break;
                 case 'stop_services':
                     $results = $this->stopServices();
                     $this->writeResponse($client, ['ok' => true, 'result' => $results]);
@@ -1476,6 +1488,119 @@ class AdminDaemonServer
 
         if (@file_put_contents($path, $text, LOCK_EX) === false) {
             throw new \RuntimeException('Failed to write house rules');
+        }
+    }
+
+    // =========================================================================
+    // Language overlay editor
+    // =========================================================================
+
+    private function getI18nBasePath(): string
+    {
+        return rtrim(__DIR__ . '/../../config/i18n', '/\\');
+    }
+
+    /**
+     * Validates and returns the absolute overlay file path for a locale/namespace.
+     * Returns null if the locale or namespace is invalid.
+     */
+    private function resolveOverlayPath(string $locale, string $namespace): ?string
+    {
+        // Locale: 2-letter code with optional region, e.g. en, es, en-US
+        if (!preg_match('/^[a-z]{2}(-[A-Z]{2})?$/', $locale)) {
+            return null;
+        }
+        // Namespace: lowercase alphanumeric + underscore only
+        if (!preg_match('/^[a-z][a-z0-9_]*$/', $namespace)) {
+            return null;
+        }
+
+        $basePath = $this->getI18nBasePath();
+        return $basePath . '/overrides/' . $locale . '/' . $namespace . '.json';
+    }
+
+    /**
+     * Returns the base PHP catalog keys + current overlay overrides for a locale/namespace.
+     *
+     * @return array{base: array<string,string>, overrides: array<string,string>}
+     */
+    private function getI18nOverlay(string $locale, string $namespace): array
+    {
+        if ($this->resolveOverlayPath($locale, $namespace) === null) {
+            throw new \RuntimeException('Invalid locale or namespace');
+        }
+
+        $basePath = $this->getI18nBasePath();
+        $phpPath  = $basePath . '/' . $locale . '/' . $namespace . '.php';
+
+        $base = [];
+        if (is_file($phpPath)) {
+            $data = include $phpPath;
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    if (is_string($k) && is_string($v)) {
+                        $base[$k] = $v;
+                    }
+                }
+            }
+        }
+
+        $overlayPath = $this->resolveOverlayPath($locale, $namespace);
+        $overrides   = [];
+        if ($overlayPath !== null && is_file($overlayPath)) {
+            $raw  = file_get_contents($overlayPath);
+            $data = ($raw !== false) ? json_decode($raw, true) : null;
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    if (is_string($k) && is_string($v)) {
+                        $overrides[$k] = $v;
+                    }
+                }
+            }
+        }
+
+        return ['base' => $base, 'overrides' => $overrides];
+    }
+
+    /**
+     * Saves an overlay JSON file for the given locale/namespace.
+     * Passing an empty overrides array removes the overlay file.
+     *
+     * @param array<string,string> $overrides
+     */
+    private function saveI18nOverlay(string $locale, string $namespace, array $overrides): void
+    {
+        $overlayPath = $this->resolveOverlayPath($locale, $namespace);
+        if ($overlayPath === null) {
+            throw new \RuntimeException('Invalid locale or namespace');
+        }
+
+        // Sanitize: string keys and values only; skip empty overrides
+        $clean = [];
+        foreach ($overrides as $k => $v) {
+            if (is_string($k) && $k !== '' && is_string($v) && $v !== '') {
+                $clean[$k] = $v;
+            }
+        }
+
+        if (empty($clean)) {
+            // No overrides — remove file if it exists
+            if (is_file($overlayPath)) {
+                if (!@unlink($overlayPath)) {
+                    throw new \RuntimeException('Failed to remove overlay file');
+                }
+            }
+            return;
+        }
+
+        $dir = dirname($overlayPath);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+            throw new \RuntimeException('Failed to create overlay directory');
+        }
+
+        $json = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        if ($json === false || @file_put_contents($overlayPath, $json, LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to write overlay file');
         }
     }
 

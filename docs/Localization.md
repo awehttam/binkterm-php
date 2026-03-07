@@ -14,6 +14,9 @@ config/i18n/
 ├── es/
 │   ├── common.php
 │   └── errors.php
+├── overrides/          # Sysop phrase overrides (JSON, applied on top of base catalogs)
+│   └── <locale>/
+│       └── <namespace>.json
 └── hardcoded_allowlist.php   # Known-OK English strings exempt from the linter
 ```
 
@@ -33,6 +36,7 @@ Loads and caches catalog files, performs key lookup with fallback, and interpola
 - Supported locales are read from `I18N_SUPPORTED_LOCALES` (comma-separated), or auto-discovered from the `config/i18n/` directory structure.
 - On a missing key, falls back to the default locale, then returns the key itself as a last resort.
 - Missing keys can be logged by setting `I18N_LOG_MISSING_KEYS=true` and optionally `I18N_MISSING_KEYS_LOG_FILE`.
+- After loading a base `.php` catalog, automatically merges any sysop overrides from `config/i18n/overrides/<locale>/<namespace>.json` (see [Language Phrase Overrides](#language-phrase-overrides)).
 
 ### `LocaleResolver` (`src/I18n/LocaleResolver.php`)
 
@@ -334,6 +338,39 @@ Open a pull request against the `main` branch with only the new locale files (`c
 - **HTML is not used inside catalog strings.** Do not add markup.
 - **Gendered / plural forms** are not currently supported — choose a neutral phrasing where the language requires it.
 - Missing keys fall back to English automatically, so a partial translation ships gracefully without breaking the interface.
+
+---
+
+## Language Phrase Overrides
+
+Sysops can customize individual phrases for any locale without editing the base translation files. Overrides are layered on top of the base catalog at runtime — only the keys you define in an override file are affected; everything else falls through to the base catalog as normal.
+
+### Admin UI
+
+Navigate to **Admin → BBS Settings → Language Overrides**. Select a locale and catalog, then click **Load**. Each row shows the translation key, the current base value, and an input field for your override. Leave a field empty to use the base value. Click **Save Overrides** when done.
+
+### File Format
+
+Override files are plain JSON stored at `config/i18n/overrides/<locale>/<namespace>.json`:
+
+```json
+{
+    "ui.telnet.server.banner.title": "My BBS Telnet Service",
+    "ui.nav.home": "Home Base"
+}
+```
+
+Only include the keys you want to override. Keys not present in the file are unaffected. Saving an empty set of overrides removes the file entirely.
+
+### How It Works
+
+When `Translator` loads a catalog it checks for a corresponding override file after loading the base `.php` catalog and merges any matching keys on top. The override is transparent to all callers — `t()`, `window.t()`, and API responses all see the overridden values automatically without any code changes.
+
+### Notes
+
+- Override files are written through the **admin daemon** — the web process never writes them directly.
+- Keys in override files that do not exist in the base catalog are silently ignored at runtime but are still saved in the file.
+- Override files are not tracked by the i18n validation scripts (`check_i18n_hardcoded_strings.php`, `check_i18n_error_keys.php`) and do not need to be committed to version control for a production installation.
 
 ---
 
