@@ -665,7 +665,8 @@ class AdminDaemonServer
                         2 => ['file', $logFile, 'a'],
                     ];
                     $escaped = implode(' ', array_map('escapeshellarg', $command));
-                    $process = proc_open($escaped, $descriptorSpec, $pipes, getcwd());
+                    $cwd = dirname(dirname(__DIR__)); // project root (src/Admin -> src -> root)
+                    $process = proc_open($escaped, $descriptorSpec, $pipes, $cwd);
                     if (is_resource($process)) {
                         proc_close($process);
                     }
