@@ -655,9 +655,21 @@ class AdminDaemonServer
                 if ($workerPid === -1) {
                     exit(1);
                 } elseif ($workerPid === 0) {
-                    // Worker grandchild — replace image with the actual command.
-                    pcntl_exec($command[0], array_slice($command, 1));
-                    exit(1); // only reached if exec fails
+                    // Worker grandchild — run the command via proc_open so that
+                    // stdout/stderr (including pre-logger PHP fatal errors) are
+                    // captured in binkp_poll.log rather than silently discarded.
+                    $logFile = \BinktermPHP\Config::getLogPath('binkp_poll.log');
+                    $descriptorSpec = [
+                        0 => ['file', '/dev/null', 'r'],
+                        1 => ['file', $logFile, 'a'],
+                        2 => ['file', $logFile, 'a'],
+                    ];
+                    $escaped = implode(' ', array_map('escapeshellarg', $command));
+                    $process = proc_open($escaped, $descriptorSpec, $pipes, getcwd());
+                    if (is_resource($process)) {
+                        proc_close($process);
+                    }
+                    exit(0);
                 }
                 // Intermediate child exits, orphaning the worker to init.
                 exit(0);
