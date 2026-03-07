@@ -48,6 +48,8 @@ return [
     'ui.telnet.server.banner.origin'           => 'Origin: ',
     'ui.telnet.server.banner.web'              => 'Web: ',
     'ui.telnet.server.banner.visit_web'        => 'For a good time visit us on the web @ {url}',
+    'ui.telnet.server.banner.tls'             => 'Connected using TLS',
+    'ui.telnet.server.banner.no_tls'          => 'Connected without TLS — use port {port} for an encrypted connection',
 
     // --- Main menu ---
     'ui.telnet.server.menu.title'              => 'Main Menu',

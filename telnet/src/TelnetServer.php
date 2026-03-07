@@ -64,6 +64,10 @@ class TelnetServer
     private array $failedLoginAttempts = [];
     private Translator $translator;
     private string $systemLocale;
+    private bool $tlsEnabled = true;
+    private int $tlsPort = 8023;
+    private ?string $tlsCert = null;
+    private ?string $tlsKey = null;
 
     /**
      * Create a new Telnet Server instance
@@ -117,6 +121,30 @@ class TelnetServer
     }
 
     /**
+     * Configure TLS. TLS is enabled by default on port 8023.
+     * If cert/key are omitted a self-signed certificate is auto-generated.
+     *
+     * @param int         $port Port to listen on for TLS connections
+     * @param string|null $cert Path to PEM certificate file (null = auto-generate)
+     * @param string|null $key  Path to PEM private key file (null = auto-generate)
+     */
+    public function setTls(int $port, ?string $cert = null, ?string $key = null): void
+    {
+        $this->tlsEnabled = true;
+        $this->tlsPort    = $port;
+        $this->tlsCert    = $cert;
+        $this->tlsKey     = $key;
+    }
+
+    /**
+     * Disable TLS entirely.
+     */
+    public function disableTls(): void
+    {
+        $this->tlsEnabled = false;
+    }
+
+    /**
      * Start the telnet server
      *
      * @param bool $daemonMode Run as background daemon
@@ -157,11 +185,14 @@ class TelnetServer
             });
 
             // Handle SIGTERM and SIGINT for graceful shutdown
-            $gracefulShutdown = function($signo) use (&$server) {
+            $gracefulShutdown = function($signo) use (&$server, &$tlsServer) {
                 $this->log("Received shutdown signal, cleaning up...");
                 $this->cleanupDaemon();
                 if (isset($server) && is_resource($server)) {
                     fclose($server);
+                }
+                if (isset($tlsServer) && is_resource($tlsServer)) {
+                    fclose($tlsServer);
                 }
                 exit(0);
             };
@@ -174,14 +205,67 @@ class TelnetServer
             }
         }
 
-        // Create server socket
+        // Create plain-text server socket
         $server = stream_socket_server("tcp://{$this->host}:{$this->port}", $errno, $errstr);
         if (!$server) {
             fwrite(STDERR, "Failed to bind telnet server: {$errstr} ({$errno})\n");
             exit(1);
         }
+        $this->log("Telnet daemon " . Version::getVersion() . " listening on {$this->host}:{$this->port}");
 
-        $this->log("Telnet daemon ".Version::getVersion()." listening on {$this->host}:{$this->port}");
+        // Create TLS server socket if enabled
+        $tlsServer = null;
+        if ($this->tlsEnabled) {
+            // Resolve default cert paths and auto-generate if needed
+            $dataDir = dirname(dirname(__DIR__)) . '/data/telnet';
+            if ($this->tlsCert === null) {
+                $this->tlsCert = $dataDir . '/telnetd.crt';
+            }
+            if ($this->tlsKey === null) {
+                $this->tlsKey = $dataDir . '/telnetd.key';
+            }
+
+            try {
+                $this->ensureTlsCert($dataDir);
+            } catch (\Exception $e) {
+                $this->log("WARNING: Could not generate TLS certificate: " . $e->getMessage());
+                $this->log("WARNING: TLS disabled — fix certificate configuration or provide valid cert/key files");
+                $this->tlsEnabled = false;
+            }
+
+            if ($this->tlsEnabled) {
+                // Use tcp:// and perform the TLS handshake explicitly via
+                // stream_socket_enable_crypto() after accept.  This gives us proper
+                // OpenSSL error visibility on failure; ssl:// swallows errors on Windows.
+                // SSL context options are set here at server-creation time so accepted
+                // child sockets inherit them.
+                $tlsContext = stream_context_create([
+                    'ssl' => [
+                        'local_cert'          => $this->tlsCert,
+                        'local_pk'            => $this->tlsKey,
+                        'allow_self_signed'   => true,
+                        'verify_peer'         => false,
+                        'crypto_method'       => STREAM_CRYPTO_METHOD_TLSv1_2_SERVER
+                                              | STREAM_CRYPTO_METHOD_TLSv1_1_SERVER
+                                              | STREAM_CRYPTO_METHOD_TLSv1_0_SERVER,
+                        'ciphers'             => 'DEFAULT:@SECLEVEL=0',
+                        'disable_compression' => true,
+                    ],
+                ]);
+                $tlsServer = @stream_socket_server(
+                    "tcp://{$this->host}:{$this->tlsPort}",
+                    $errno, $errstr,
+                    STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+                    $tlsContext
+                );
+                if (!$tlsServer) {
+                    $this->log("WARNING: Failed to bind TLS server on port {$this->tlsPort}: {$errstr} ({$errno})");
+                } else {
+                    $this->log("TLS listening on {$this->host}:{$this->tlsPort}");
+                }
+            }
+        }
+
         if ($this->debug) {
             $this->log("DEBUG MODE");
             $this->log("API Base URL: {$this->apiBase}");
@@ -194,56 +278,119 @@ class TelnetServer
 
         $connectionCount = 0;
 
-        // Main server loop
+        // Main server loop — use stream_select to watch plain and TLS sockets together
         while (true) {
             // Dispatch signals if async signals not available
             if (function_exists('pcntl_signal_dispatch') && !function_exists('pcntl_async_signals')) {
                 pcntl_signal_dispatch();
             }
 
-            $conn = @stream_socket_accept($server, 60);
-            if (!$conn) {
-                // Timeout or error, reap zombies and continue
+            $readSockets = array_filter([$server, $tlsServer]);
+            $write = null;
+            $except = null;
+            $changed = @stream_select($readSockets, $write, $except, 60);
+
+            if ($changed === false || $changed === 0) {
+                // Timeout or interrupted — reap zombies and continue
                 if (function_exists('pcntl_waitpid')) {
-                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {
-                        // Reap zombie processes
-                    }
+                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
                 }
                 continue;
             }
 
-            $connectionCount++;
-            if ($this->debug) {
-                $peerName = @stream_socket_get_name($conn, true);
-                echo "[" . date('Y-m-d H:i:s') . "] Connection #{$connectionCount} from {$peerName}\n";
-            }
-
-            $forked = false;
-            if (function_exists('pcntl_fork')) {
-                $pid = pcntl_fork();
-                if ($pid === -1) {
-                    // Fork failed
-                    $forked = false;
-                    if ($this->debug) {
-                        echo "[" . date('Y-m-d H:i:s') . "] WARNING: Fork failed, handling connection in main process\n";
-                    }
-                } elseif ($pid === 0) {
-                    // Child process
-                    fclose($server);
-                    $forked = true;
-                } else {
-                    // Parent process
-                    fclose($conn);
-                    // Reap any finished children (non-blocking)
-                    while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {
-                        // Zombie reaped
-                    }
+            foreach ($readSockets as $readySocket) {
+                $isTls = ($tlsServer && $readySocket === $tlsServer);
+                $conn = @stream_socket_accept($readySocket, 0);
+                if (!$conn) {
                     continue;
                 }
-            }
 
-            // Handle connection
-            $this->handleConnection($conn, $forked);
+                if ($isTls) {
+                    $peerName = @stream_socket_get_name($conn, true);
+                    $peerIp   = $peerName ? explode(':', $peerName)[0] : 'unknown';
+
+                    stream_set_blocking($conn, true);
+                    stream_set_timeout($conn, 10);
+
+                    // Set SSL options explicitly on the accepted socket as a belt-and-
+                    // suspenders measure — context inheritance from the server socket
+                    // is not guaranteed on all PHP/OS combinations.
+                    stream_context_set_option($conn, 'ssl', 'local_cert',        $this->tlsCert);
+                    stream_context_set_option($conn, 'ssl', 'local_pk',          $this->tlsKey);
+                    stream_context_set_option($conn, 'ssl', 'allow_self_signed', true);
+                    stream_context_set_option($conn, 'ssl', 'verify_peer',       false);
+                    stream_context_set_option($conn, 'ssl', 'ciphers',           'DEFAULT:@SECLEVEL=0');
+                    stream_context_set_option($conn, 'ssl', 'disable_compression', true);
+
+                    $cryptoMethod = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER
+                                  | STREAM_CRYPTO_METHOD_TLSv1_1_SERVER
+                                  | STREAM_CRYPTO_METHOD_TLSv1_0_SERVER;
+
+                    error_clear_last();
+                    $handshake = false;
+                    $attempts  = 0;
+                    while ($attempts++ < 50) {
+                        $result = @stream_socket_enable_crypto($conn, true, $cryptoMethod);
+                        if ($result === true)  { $handshake = true; break; }
+                        if ($result === false) { break; }
+                        usleep(50000);
+                    }
+
+                    if (!$handshake) {
+                        $opensslErrors = [];
+                        while ($err = openssl_error_string()) {
+                            $opensslErrors[] = $err;
+                        }
+                        $phpError = error_get_last();
+                        $detail   = $opensslErrors ? ': ' . implode(' | ', $opensslErrors) : '';
+                        if ($phpError) {
+                            $detail .= ' [PHP: ' . $phpError['message'] . ']';
+                        }
+                        $this->log("TLS handshake failed from {$peerIp}{$detail}");
+                        fclose($conn);
+                        continue;
+                    }
+
+                    $meta     = stream_get_meta_data($conn);
+                    $crypto   = $meta['crypto'] ?? [];
+                    $protocol = $crypto['protocol']    ?? 'unknown';
+                    $cipher   = $crypto['cipher_name'] ?? 'unknown';
+                    $bits     = $crypto['cipher_bits'] ?? '?';
+                    $this->log("TLS connection from {$peerIp} [{$protocol} {$cipher} {$bits}-bit]");
+                }
+
+                $connectionCount++;
+                if ($this->debug) {
+                    $peerName = @stream_socket_get_name($conn, true);
+                    $this->log("Connection #{$connectionCount} from {$peerName}" . ($isTls ? ' (TLS)' : ''));
+                }
+
+                $forked = false;
+                if (function_exists('pcntl_fork')) {
+                    $pid = pcntl_fork();
+                    if ($pid === -1) {
+                        // Fork failed — handle in main process
+                        $forked = false;
+                        if ($this->debug) {
+                            $this->log("WARNING: Fork failed, handling connection in main process");
+                        }
+                    } elseif ($pid === 0) {
+                        // Child process
+                        fclose($server);
+                        if ($tlsServer) {
+                            fclose($tlsServer);
+                        }
+                        $forked = true;
+                    } else {
+                        // Parent process
+                        fclose($conn);
+                        while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
+                        continue;
+                    }
+                }
+
+                $this->handleConnection($conn, $forked, $isTls);
+            }
         }
     }
 
@@ -329,12 +476,142 @@ class TelnetServer
     }
 
     /**
+     * Ensure a TLS certificate and key exist, generating a self-signed pair if not.
+     * Mirrors the approach used by the Gemini capsule server: openssl CLI first,
+     * PHP openssl_* functions as fallback.
+     *
+     * @param string $dataDir Directory to create/store generated cert files
+     * @throws \RuntimeException if certificate generation fails
+     */
+    private function ensureTlsCert(string $dataDir): void
+    {
+        if (file_exists($this->tlsCert) && file_exists($this->tlsKey)) {
+            return;
+        }
+
+        if (!is_dir($dataDir)) {
+            mkdir($dataDir, 0750, true);
+        }
+
+        $this->log('Generating self-signed TLS certificate...');
+
+        $cn = 'localhost';
+        try {
+            $siteUrl = Config::getSiteUrl();
+            $parsed  = parse_url($siteUrl);
+            if (!empty($parsed['host'])) {
+                $cn = $parsed['host'];
+            }
+        } catch (\Exception $e) {
+            // fall back to localhost
+        }
+
+        $opensslCnf = realpath(dirname(dirname(__DIR__)) . '/config/gemini_openssl.cnf');
+
+        if ($opensslCnf !== false && $this->generateTlsCertViaCli($cn, $opensslCnf)) {
+            return;
+        }
+
+        // Fallback: PHP openssl_* functions
+        $opensslCfg = $opensslCnf ? ['config' => $opensslCnf] : [];
+
+        $pkey = openssl_pkey_new(array_merge([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ], $opensslCfg));
+
+        if ($pkey === false) {
+            throw new \RuntimeException('openssl_pkey_new() failed — check that the openssl PHP extension is enabled');
+        }
+
+        $csr = openssl_csr_new(
+            ['commonName' => $cn],
+            $pkey,
+            array_merge(['digest_alg' => 'sha256'], $opensslCfg)
+        );
+        if ($csr === false) {
+            throw new \RuntimeException('openssl_csr_new() failed');
+        }
+
+        $cert = openssl_csr_sign($csr, null, $pkey, 3650, array_merge(['digest_alg' => 'sha256'], $opensslCfg));
+        if ($cert === false) {
+            throw new \RuntimeException('openssl_csr_sign() failed');
+        }
+
+        $certPem = '';
+        $keyPem  = '';
+        openssl_x509_export($cert, $certPem);
+        openssl_pkey_export($pkey, $keyPem, null, $opensslCfg);
+
+        file_put_contents($this->tlsCert, $certPem . $keyPem);
+        file_put_contents($this->tlsKey, $keyPem);
+        chmod($this->tlsCert, 0600);
+        chmod($this->tlsKey, 0600);
+
+        $this->log("TLS certificate generated for CN={$cn} (PHP), stored in {$dataDir}/");
+    }
+
+    /**
+     * Attempt to generate a self-signed cert using the openssl CLI.
+     *
+     * @return bool True on success, false if CLI is unavailable or fails
+     */
+    private function generateTlsCertViaCli(string $cn, string $opensslCnf): bool
+    {
+        // escapeshellarg() wraps in quotes, so a single leading slash is correct
+        // on all platforms.  The historical '//CN=' Windows workaround is not
+        // needed here and causes OpenSSL 3.x to produce an empty subject DN.
+        $subj = '/CN=' . $cn;
+
+        $sanParts = filter_var($cn, FILTER_VALIDATE_IP) ? ['IP:' . $cn] : ['DNS:' . $cn];
+        if ($cn !== 'localhost') {
+            $sanParts[] = 'DNS:localhost';
+            $sanParts[] = 'IP:127.0.0.1';
+        } else {
+            $sanParts[] = 'IP:127.0.0.1';
+        }
+        $san = implode(',', $sanParts);
+
+        $cmd = implode(' ', [
+            'openssl', 'req',
+            '-x509',
+            '-newkey', 'rsa:2048',
+            '-keyout', escapeshellarg($this->tlsKey),
+            '-out',    escapeshellarg($this->tlsCert),
+            '-days',   '3650',
+            '-nodes',
+            '-config', escapeshellarg($opensslCnf),
+            '-subj',   escapeshellarg($subj),
+            '-addext', escapeshellarg("subjectAltName={$san}"),
+            '2>&1',
+        ]);
+
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0 || !file_exists($this->tlsCert) || !file_exists($this->tlsKey)) {
+            $this->log('DEBUG: openssl CLI unavailable or failed: ' . implode(' | ', $output));
+            return false;
+        }
+
+        // Append key to cert file so PHP ssl:// local_cert can load both from one file
+        $certPem = file_get_contents($this->tlsCert);
+        $keyPem  = file_get_contents($this->tlsKey);
+        file_put_contents($this->tlsCert, $certPem . $keyPem);
+        chmod($this->tlsCert, 0600);
+        chmod($this->tlsKey, 0600);
+
+        $this->log("TLS certificate generated for CN={$cn} (openssl CLI), stored in " . dirname($this->tlsCert) . '/');
+        return true;
+    }
+
+    /**
      * Handle an individual client connection
      *
      * @param resource $conn Socket connection resource
      * @param bool $forked Whether this is running in a forked child process
+     * @param bool $isTls Whether the connection is TLS-encrypted
      */
-    private function handleConnection($conn, bool $forked): void
+    private function handleConnection($conn, bool $forked, bool $isTls = false): void
     {
         stream_set_timeout($conn, 300);
         $state = [
@@ -348,6 +625,7 @@ class TelnetServer
             'idle_disconnect_timeout' => 420,  // 7 minutes (5 + 2)
             'pushback' => '',
             'locale' => $this->systemLocale,
+            'isTls' => $isTls,
         ];
 
         if ($this->debug) {
@@ -846,6 +1124,11 @@ class TelnetServer
         // Print service name before showing login screen
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.banner.title', 'BinktermPHP Telnet Service', [], $state['locale']), self::ANSI_MAGENTA . self::ANSI_BOLD));
+        if ($state['isTls']) {
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.banner.tls', 'Connected using TLS', [], $state['locale']), self::ANSI_GREEN));
+        } elseif ($this->tlsEnabled && $this->tlsPort) {
+            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.banner.no_tls', 'Connected without TLS — use port {port} for an encrypted connection', ['port' => $this->tlsPort], $state['locale']), self::ANSI_YELLOW));
+        }
         $this->writeLine($conn, '');
 
         if(TelnetUtils::showScreenIfExists("login.ans", $this, $conn)){
