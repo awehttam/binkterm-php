@@ -45,10 +45,15 @@ class Translator
             }
 
             // Auto-discover locales from filesystem when env config is absent.
+            // Only directories whose names look like locale codes (e.g. "en", "es", "zh-CN")
+            // are considered; utility directories like "overrides" are ignored.
             if (empty($this->supportedLocales) && is_dir($this->basePath)) {
                 $dirs = glob($this->basePath . '/*', GLOB_ONLYDIR) ?: [];
                 foreach ($dirs as $dir) {
                     $name = basename($dir);
+                    if (!preg_match('/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/', $name)) {
+                        continue;
+                    }
                     $normalized = $this->normalizeLocale($name);
                     if ($normalized !== '') {
                         $this->supportedLocales[$normalized] = true;
