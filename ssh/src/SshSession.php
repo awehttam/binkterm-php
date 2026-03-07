@@ -392,12 +392,12 @@ class SshSession
                     return $loginResult;
                 }
 
-                $this->dbg("Auth failed for {$username}");
-                $fail  = chr(self::MSG_USERAUTH_FAILURE);
-                $fail .= $this->sshString('password');
-                $fail .= chr(0);
-                $this->sendPacket($fail);
-                continue;
+                // Wrong password — accept the client anyway and let BbsSession
+                // show its own login screen.  Sending FAILURE causes most clients
+                // to disconnect immediately, which defeats the fallback UX.
+                $this->dbg("Auth failed for {$username}, falling through to BBS login");
+                $this->sendPacket(chr(self::MSG_USERAUTH_SUCCESS));
+                return ['authenticated' => false];
             }
 
             // Unknown method

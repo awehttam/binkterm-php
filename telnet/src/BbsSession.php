@@ -631,7 +631,7 @@ class BbsSession
     {
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize(
-            $this->t('ui.telnet.server.banner.title', 'BinktermPHP Telnet Service', [], $state['locale']),
+            $this->t('ui.telnet.server.banner.title', 'BinktermPHP Terminal', [], $state['locale']),
             self::ANSI_MAGENTA . self::ANSI_BOLD
         ));
 
