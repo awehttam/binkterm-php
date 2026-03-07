@@ -1545,6 +1545,20 @@ class AdminDaemonServer
             }
         }
 
+        // Always load the English base so the editor can show en → locale comparison.
+        $enBase  = [];
+        $enPath  = $basePath . '/en/' . $namespace . '.php';
+        if (is_file($enPath)) {
+            $data = include $enPath;
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    if (is_string($k) && is_string($v)) {
+                        $enBase[$k] = $v;
+                    }
+                }
+            }
+        }
+
         $overlayPath = $this->resolveOverlayPath($locale, $namespace);
         $overrides   = [];
         if ($overlayPath !== null && is_file($overlayPath)) {
@@ -1559,7 +1573,7 @@ class AdminDaemonServer
             }
         }
 
-        return ['base' => $base, 'overrides' => $overrides];
+        return ['base' => $base, 'en_base' => $enBase, 'overrides' => $overrides];
     }
 
     /**

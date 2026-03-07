@@ -75,6 +75,7 @@
     let currentLocale = null;
     let currentNs     = null;
     let baseData      = {};
+    let enBaseData    = {};
     let overrideData  = {};
 
     // ── Locale change: reload namespace list ──────────────────────────────────
@@ -121,6 +122,7 @@
             currentLocale = locale;
             currentNs     = ns;
             baseData      = json.base     || {};
+            enBaseData    = json.en_base  || {};
             overrideData  = Object.assign({}, json.overrides || {});
 
             renderTable();
@@ -168,15 +170,19 @@
 
         filtered.forEach(key => {
             const base     = escHtml(baseData[key] || '');
+            const enVal    = enBaseData[key] !== undefined ? enBaseData[key] : null;
             const override = overrideData[key] || '';
             const isOver   = !!override;
             const badge    = isOver
                 ? `<span class="badge bg-warning text-dark ms-1">{{ t('ui.admin.i18n_overrides.overridden_badge', {}, 'common') }}</span>`
                 : '';
             const rowClass = isOver ? 'table-warning' : '';
+            const enSnippet = (enVal !== null && currentLocale !== 'en')
+                ? `<div class="text-muted small mt-1" style="font-family:inherit;white-space:pre-wrap">&ldquo;${escHtml(enVal)}&rdquo;</div>`
+                : '';
 
             html += `<tr class="${rowClass}" data-key="${escAttr(key)}" data-overridden="${isOver ? '1' : '0'}">
-                <td class="font-monospace small text-break">${escHtml(key)}${badge}</td>
+                <td class="font-monospace small text-break">${escHtml(key)}${badge}${enSnippet}</td>
                 <td class="small text-muted text-break" style="white-space:pre-wrap">${base}</td>
                 <td>
                     <textarea class="form-control form-control-sm override-input font-monospace"
