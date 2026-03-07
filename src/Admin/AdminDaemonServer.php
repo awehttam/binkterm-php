@@ -626,6 +626,9 @@ class AdminDaemonServer
      * Used for long-running operations (e.g. binkp_poll) that should not block
      * the admin daemon socket response.
      *
+     * Uses a double-fork so the spawned process is fully adopted by init/systemd
+     * and is not affected by the calling child's exit or the parent's SIGCHLD handler.
+     *
      * On Windows, process spawning is unreliable from a daemon context, so we
      * skip the immediate poll.  The outbound packet is already spooled to disk
      * and the scheduler will deliver it on its next scheduled interval.
@@ -637,6 +640,35 @@ class AdminDaemonServer
             return;
         }
 
+        if (function_exists('pcntl_fork') && function_exists('posix_setsid')) {
+            // Double-fork: intermediate child creates a new session then forks
+            // the real worker, then exits immediately.  The worker is re-parented
+            // to init so it outlives both the intermediate child and this process.
+            $intermediatePid = pcntl_fork();
+            if ($intermediatePid === -1) {
+                $this->logger->warning('spawnCommand: first fork failed, falling back to nohup');
+            } elseif ($intermediatePid === 0) {
+                // Intermediate child — detach from the daemon's session.
+                posix_setsid();
+
+                $workerPid = pcntl_fork();
+                if ($workerPid === -1) {
+                    exit(1);
+                } elseif ($workerPid === 0) {
+                    // Worker grandchild — replace image with the actual command.
+                    pcntl_exec($command[0], array_slice($command, 1));
+                    exit(1); // only reached if exec fails
+                }
+                // Intermediate child exits, orphaning the worker to init.
+                exit(0);
+            } else {
+                // Parent (or caller's forked child) — reap the intermediate child.
+                pcntl_waitpid($intermediatePid, $status);
+                return;
+            }
+        }
+
+        // Fallback for environments without pcntl.
         $escaped = implode(' ', array_map('escapeshellarg', $command));
         exec("nohup {$escaped} > /dev/null 2>&1 &");
     }
