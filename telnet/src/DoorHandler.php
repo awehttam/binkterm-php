@@ -19,14 +19,14 @@ use BinktermPHP\NativeDoorManager;
  */
 class DoorHandler
 {
-    private TelnetServer $server;
+    private BbsSession $server;
     private string $apiBase;
 
     /**
-     * @param TelnetServer $server Telnet server instance for I/O operations
+     * @param BbsSession $server Telnet server instance for I/O operations
      * @param string $apiBase Base URL for API requests
      */
-    public function __construct(TelnetServer $server, string $apiBase)
+    public function __construct(BbsSession $server, string $apiBase)
     {
         $this->server = $server;
         $this->apiBase = $apiBase;

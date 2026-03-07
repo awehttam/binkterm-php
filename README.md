@@ -29,6 +29,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
 - [Telnet Interface](#telnet-interface)
+- [SSH Interface](#ssh-interface)
 - [Operation](#operation)
 - [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Troubleshooting](#troubleshooting)
@@ -135,13 +136,23 @@ Here are some screen shots showing various aspects of the interface with differe
 
 ### Telnet Interface
 
-A basic telnet service is available.  
+A basic telnet service is available.
 
 - **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
 - **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
 - **Security Features** - Login rate limiting (3 attempts per connection, 5/minute per IP) and connection logging
 - **Multi-Platform** - Works with PuTTY, SyncTERM, and standard telnet clients on Linux/macOS/Windows
 - See **[telnet/README.md](telnet/README.md)** for complete documentation, configuration options, and troubleshooting
+
+### SSH Interface
+
+A pure-PHP SSH-2 server provides the same BBS terminal experience over an encrypted connection with no external SSH daemon required.
+
+- **Encrypted** - Full SSH-2 transport encryption; no credentials travel in plaintext
+- **Direct Login** - Correct SSH credentials skip the login screen and land directly on the main menu
+- **Login Fallback** - Failed SSH auth drops to the BBS login/register screen rather than disconnecting
+- **No Extra Dependencies** - Uses only `ext-openssl` and `ext-gmp`; no new Composer packages
+- See **[docs/SSHServer.md](docs/SSHServer.md)** for complete documentation, configuration options, and troubleshooting
 
 ### Credits System
 
@@ -1340,6 +1351,9 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 
 # Optional: start telnet daemon on boot
 @reboot /usr/bin/php /path/to/binktest/telnet/telnet_daemon.php --daemon
+
+# Optional: start SSH daemon on boot
+@reboot /usr/bin/php /path/to/binktest/ssh/ssh_daemon.php --daemon
 
 # Optional: start Gemini daemon on boot
 @reboot /usr/bin/php /path/to/binktest/scripts/gemini_daemon.php --daemon

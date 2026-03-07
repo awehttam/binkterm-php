@@ -14,7 +14,7 @@ use BinktermPHP\TelnetServer\TelnetServer;
 class ShoutboxHandler
 {
     /** @var TelnetServer The telnet server instance */
-    private TelnetServer $server;
+    private BbsSession $server;
 
     /** @var string Base URL for API requests */
     private string $apiBase;
@@ -22,10 +22,10 @@ class ShoutboxHandler
     /**
      * Create a new ShoutboxHandler instance
      *
-     * @param TelnetServer $server The telnet server instance for I/O operations
+     * @param BbsSession $server The telnet server instance for I/O operations
      * @param string $apiBase Base URL for API requests
      */
-    public function __construct(TelnetServer $server, string $apiBase)
+    public function __construct(BbsSession $server, string $apiBase)
     {
         $this->server = $server;
         $this->apiBase = $apiBase;

@@ -49,7 +49,7 @@ return [
     'ui.telnet.server.banner.web'              => 'Web: ',
     'ui.telnet.server.banner.visit_web'        => 'Para una buena experiencia visítenos en la web @ {url}',
     'ui.telnet.server.banner.tls'             => 'Conectado usando TLS',
-    'ui.telnet.server.banner.no_tls'          => 'Conectado sin TLS — use el puerto {port} para una conexión cifrada',
+    'ui.telnet.server.banner.no_tls'          => 'Conectado sin TLS - use el puerto {port} para una conexión cifrada',
 
     // --- Main menu ---
     'ui.telnet.server.menu.title'              => 'Menú Principal',

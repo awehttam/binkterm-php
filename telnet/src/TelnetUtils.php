@@ -542,7 +542,7 @@ class TelnetUtils
         return substr($line, 0, $cols - 1);
     }
 
-    public static function showScreenIfExists(string $screenFile, TelnetServer &$server, $conn)
+    public static function showScreenIfExists(string $screenFile, BbsSession &$server, $conn)
     {
         $screenFile = __DIR__ . '/../screens/'.$screenFile;
 
