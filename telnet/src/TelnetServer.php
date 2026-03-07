@@ -305,60 +305,6 @@ class TelnetServer
                     continue;
                 }
 
-                if ($isTls) {
-                    $peerName = @stream_socket_get_name($conn, true);
-                    $peerIp   = $peerName ? explode(':', $peerName)[0] : 'unknown';
-
-                    stream_set_blocking($conn, true);
-                    stream_set_timeout($conn, 10);
-
-                    // Set SSL options explicitly on the accepted socket as a belt-and-
-                    // suspenders measure — context inheritance from the server socket
-                    // is not guaranteed on all PHP/OS combinations.
-                    stream_context_set_option($conn, 'ssl', 'local_cert',        $this->tlsCert);
-                    stream_context_set_option($conn, 'ssl', 'local_pk',          $this->tlsKey);
-                    stream_context_set_option($conn, 'ssl', 'allow_self_signed', true);
-                    stream_context_set_option($conn, 'ssl', 'verify_peer',       false);
-                    stream_context_set_option($conn, 'ssl', 'ciphers',           'DEFAULT:@SECLEVEL=0');
-                    stream_context_set_option($conn, 'ssl', 'disable_compression', true);
-
-                    $cryptoMethod = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER
-                                  | STREAM_CRYPTO_METHOD_TLSv1_1_SERVER
-                                  | STREAM_CRYPTO_METHOD_TLSv1_0_SERVER;
-
-                    error_clear_last();
-                    $handshake = false;
-                    $attempts  = 0;
-                    while ($attempts++ < 50) {
-                        $result = @stream_socket_enable_crypto($conn, true, $cryptoMethod);
-                        if ($result === true)  { $handshake = true; break; }
-                        if ($result === false) { break; }
-                        usleep(50000);
-                    }
-
-                    if (!$handshake) {
-                        $opensslErrors = [];
-                        while ($err = openssl_error_string()) {
-                            $opensslErrors[] = $err;
-                        }
-                        $phpError = error_get_last();
-                        $detail   = $opensslErrors ? ': ' . implode(' | ', $opensslErrors) : '';
-                        if ($phpError) {
-                            $detail .= ' [PHP: ' . $phpError['message'] . ']';
-                        }
-                        $this->log("TLS handshake failed from {$peerIp}{$detail}");
-                        fclose($conn);
-                        continue;
-                    }
-
-                    $meta     = stream_get_meta_data($conn);
-                    $crypto   = $meta['crypto'] ?? [];
-                    $protocol = $crypto['protocol']    ?? 'unknown';
-                    $cipher   = $crypto['cipher_name'] ?? 'unknown';
-                    $bits     = $crypto['cipher_bits'] ?? '?';
-                    $this->log("TLS connection from {$peerIp} [{$protocol} {$cipher} {$bits}-bit]");
-                }
-
                 $connectionCount++;
                 if ($this->debug) {
                     $peerName = @stream_socket_get_name($conn, true);
@@ -369,22 +315,39 @@ class TelnetServer
                 if (function_exists('pcntl_fork')) {
                     $pid = pcntl_fork();
                     if ($pid === -1) {
-                        // Fork failed — handle in main process
+                        // Fork failed — handle TLS handshake and connection in main process
                         $forked = false;
                         if ($this->debug) {
                             $this->log("WARNING: Fork failed, handling connection in main process");
                         }
+                        if ($isTls && !$this->doTlsHandshake($conn)) {
+                            fclose($conn);
+                            continue;
+                        }
                     } elseif ($pid === 0) {
-                        // Child process
+                        // Child process — TLS handshake must happen here, after fork.
+                        // If we did it in the parent, the parent's fclose() would send
+                        // SSL close_notify and destroy the session before the child uses it.
                         fclose($server);
                         if ($tlsServer) {
                             fclose($tlsServer);
                         }
                         $forked = true;
+                        if ($isTls && !$this->doTlsHandshake($conn)) {
+                            fclose($conn);
+                            exit(0);
+                        }
                     } else {
-                        // Parent process
+                        // Parent process — conn is still a plain TCP socket (no TLS yet),
+                        // so fclose() just decrements the OS fd refcount; no SSL close_notify.
                         fclose($conn);
                         while (pcntl_waitpid(-1, $status, WNOHANG) > 0) {}
+                        continue;
+                    }
+                } else {
+                    // No fork (Windows or pcntl not compiled in) — handshake in main process
+                    if ($isTls && !$this->doTlsHandshake($conn)) {
+                        fclose($conn);
                         continue;
                     }
                 }
@@ -473,6 +436,71 @@ class TelnetServer
         if ($this->pidFile && file_exists($this->pidFile) && getmypid() === $this->masterPid) {
             @unlink($this->pidFile);
         }
+    }
+
+    /**
+     * Perform TLS handshake on an accepted TCP socket.
+     *
+     * Must be called in the process that will use the connection (child after fork,
+     * or main process when no fork is available).  Calling it in the parent before
+     * fork would cause the parent's fclose() to send SSL close_notify and tear down
+     * the session before the child can use it.
+     *
+     * @param resource $conn Accepted TCP socket
+     * @return bool True on successful handshake, false on failure (caller must fclose)
+     */
+    private function doTlsHandshake($conn): bool
+    {
+        $peerName = @stream_socket_get_name($conn, true);
+        $peerIp   = $peerName ? explode(':', $peerName)[0] : 'unknown';
+
+        stream_set_blocking($conn, true);
+        stream_set_timeout($conn, 10);
+
+        // Set SSL options explicitly on the accepted socket — context inheritance
+        // from the server socket is not guaranteed on all PHP/OS combinations.
+        stream_context_set_option($conn, 'ssl', 'local_cert',          $this->tlsCert);
+        stream_context_set_option($conn, 'ssl', 'local_pk',            $this->tlsKey);
+        stream_context_set_option($conn, 'ssl', 'allow_self_signed',   true);
+        stream_context_set_option($conn, 'ssl', 'verify_peer',         false);
+        stream_context_set_option($conn, 'ssl', 'ciphers',             'DEFAULT:@SECLEVEL=0');
+        stream_context_set_option($conn, 'ssl', 'disable_compression', true);
+
+        $cryptoMethod = STREAM_CRYPTO_METHOD_TLSv1_2_SERVER
+                      | STREAM_CRYPTO_METHOD_TLSv1_1_SERVER
+                      | STREAM_CRYPTO_METHOD_TLSv1_0_SERVER;
+
+        error_clear_last();
+        $handshake = false;
+        $attempts  = 0;
+        while ($attempts++ < 50) {
+            $result = @stream_socket_enable_crypto($conn, true, $cryptoMethod);
+            if ($result === true)  { $handshake = true; break; }
+            if ($result === false) { break; }
+            usleep(50000);
+        }
+
+        if (!$handshake) {
+            $opensslErrors = [];
+            while ($err = openssl_error_string()) {
+                $opensslErrors[] = $err;
+            }
+            $phpError = error_get_last();
+            $detail   = $opensslErrors ? ': ' . implode(' | ', $opensslErrors) : '';
+            if ($phpError) {
+                $detail .= ' [PHP: ' . $phpError['message'] . ']';
+            }
+            $this->log("TLS handshake failed from {$peerIp}{$detail}");
+            return false;
+        }
+
+        $meta     = stream_get_meta_data($conn);
+        $crypto   = $meta['crypto'] ?? [];
+        $protocol = $crypto['protocol']    ?? 'unknown';
+        $cipher   = $crypto['cipher_name'] ?? 'unknown';
+        $bits     = $crypto['cipher_bits'] ?? '?';
+        $this->log("TLS connection from {$peerIp} [{$protocol} {$cipher} {$bits}-bit]");
+        return true;
     }
 
     /**
