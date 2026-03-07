@@ -39,8 +39,7 @@
 - API responses are now expected to use `error_code` / `message_code` (with optional params), so clients can localize consistently per user locale.
 - JavaScript translations use lazy catalog loading (`/api/i18n/catalog`). Pages that render text dynamically must initialize after user settings + i18n catalogs are loaded to avoid English fallback text.
 - The **telnet daemon** now supports localization. All user-facing strings in the telnet server, shell menus, message editor, echomail/netmail browsers, polls, shoutbox, and door launcher are translated via the new `telnet` catalog namespace (`config/i18n/<locale>/telnet.php`). The daemon defaults to the system locale (`I18N_DEFAULT_LOCALE`) pre-login and switches to the user's saved locale immediately after a successful login.
-- The **telnet daemon** now supports TLS encryption (experimental). TLS is enabled by default on port 8023 with an auto-generated self-signed certificate stored in `data/telnet/`. Set `TELNET_TLS=false` in `.env` to disable, or provide your own certificate via `TELNET_TLS_CERT` and `TELNET_TLS_KEY`. Use `--no-tls` on the command line to disable for a single run. Note: compatibility with some older telnet clients (e.g. SyncTERM 1.8rc1) is known to be limited due to TLS library issues in those clients; ZOC and OpenSSL-based clients work correctly.
-- New CI checks enforce i18n quality:
+- The **telnet daemon** now supports TLS encryption (experimental). TLS is enabled by default on port 8023 with an auto-generated self-signed certificate stored in `data/telnet/`. Set `TELNET_TLS=false` in `.env` to disable, or provide your own certificate via `TELNET_TLS_CERT` and `TELNET_TLS_KEY`. Use `--no-tls` on the command line to disable for a single run.- New CI checks enforce i18n quality:
   - `php scripts/check_i18n_error_keys.php` validates error key coverage.
   - `php scripts/check_i18n_hardcoded_strings.php` blocks new hardcoded UI strings not in the allowlist.
 
