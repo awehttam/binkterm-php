@@ -1558,6 +1558,19 @@ class MessageHandler
             $this->db->prepare("UPDATE netmail SET is_sent = TRUE WHERE id = ?")
                      ->execute([$messageId]);
 
+            try {
+                $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                $daemonClient->serverLog('INFO', 'netmail sent', [
+                    'from'    => "{$fromName} <{$fromAddr}>",
+                    'to'      => "{$toName} <{$toAddr}>",
+                    'subject' => $subject,
+                    'msgid'   => $message['message_id'] ?? '',
+                    'packet'  => $packetName,
+                ]);
+            } catch (\Throwable $e) {
+                error_log("FALLBACK LOG: netmail sent  from={$fromName} <{$fromAddr}>  to={$toName} <{$toAddr}>  subject={$subject}  msgid=" . ($message['message_id'] ?? '') . "  packet={$packetName}");
+            }
+
             //error_log("[SPOOL] Netmail #{$messageId} spooled to packet {$packetName} (routed via {$routeAddress})");
             return true;
         } catch (\Exception $e) {
@@ -1585,6 +1598,22 @@ class MessageHandler
         // Check if this is a local-only echoarea
         if (!empty($message['is_local'])) {
             //error_log("[SPOOL] Echomail #{$messageId} in local-only area {$echoareaTag} - not spooling to uplink");
+            try {
+                $fromName = $message['from_name'] ?? 'unknown';
+                $fromAddr = $message['from_address'] ?? 'unknown';
+                $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                $daemonClient->serverLog('INFO', 'echomail posted (local area)', [
+                    'area'    => $echoareaTag,
+                    'from'    => "{$fromName} <{$fromAddr}>",
+                    'to'      => $message['to_name'] ?? 'All',
+                    'subject' => $message['subject'] ?? '(no subject)',
+                    'msgid'   => $message['message_id'] ?? '',
+                    'packet'  => '(local)',
+                ]);
+            } catch (\Throwable $e) {
+                $localFrom = ($message['from_name'] ?? 'unknown') . ' <' . ($message['from_address'] ?? 'unknown') . '>';
+                error_log("FALLBACK LOG: echomail posted (local area)  area={$echoareaTag}  from={$localFrom}  to=" . ($message['to_name'] ?? 'All') . "  subject=" . ($message['subject'] ?? '(no subject)') . "  msgid=" . ($message['message_id'] ?? '') . "  packet=(local)");
+            }
             return true; // Success - message stored locally, no upstream transmission needed
         }
 
@@ -1615,6 +1644,21 @@ class MessageHandler
                 $packetFile = $binkdProcessor->createOutboundPacket([$message], $uplinkAddress);
                 $packetName = basename($packetFile);
                 $this->queueImmediateOutboundPoll($uplinkAddress, "echomail #{$messageId}");
+
+                try {
+                    $daemonClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                    $daemonClient->serverLog('INFO', 'echomail posted', [
+                        'area'    => $areaTag,
+                        'from'    => "{$fromName} <{$fromAddr}>",
+                        'to'      => $message['to_name'] ?? 'All',
+                        'subject' => $subject,
+                        'msgid'   => $message['message_id'] ?? '',
+                        'packet'  => $packetName,
+                    ]);
+                } catch (\Throwable $e) {
+                    error_log("FALLBACK LOG: echomail posted  area={$areaTag}  from={$fromName} <{$fromAddr}>  to=" . ($message['to_name'] ?? 'All') . "  subject={$subject}  msgid=" . ($message['message_id'] ?? '') . "  packet={$packetName}");
+                }
+
                 //error_log("[SPOOL] Echomail #{$messageId} spooled to packet {$packetName} for uplink {$uplinkAddress}");
             } else {
                 error_log("[SPOOL] WARNING: No uplink address configured for echoarea {$areaTag} - message #{$messageId} not spooled");

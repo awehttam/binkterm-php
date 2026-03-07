@@ -1,6 +1,7 @@
 composer.lock
 config/*.json
 !config/*.example
+config/i18n/overrides/
 config/*.json.*
 config/taglines.txt
 config/welcome.txt

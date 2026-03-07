@@ -585,6 +585,13 @@ class AdminDaemonServer
                     $this->writeResponse($client, ['ok' => true, 'result' => $results]);
                     $this->shutdownRequested = true;
                     break;
+                case 'server_log':
+                    $level   = strtoupper((string)($data['level']   ?? 'INFO'));
+                    $message = (string)($data['message'] ?? '');
+                    $context = is_array($data['context'] ?? null) ? $data['context'] : [];
+                    $this->appendServerLog($level, $message, $context);
+                    $this->writeResponse($client, ['ok' => true, 'result' => []]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;
@@ -697,6 +704,30 @@ class AdminDaemonServer
             'cmd' => $cmd,
             'exit_code' => $result['exit_code'] ?? null
         ]);
+    }
+
+    /**
+     * Append a structured entry to data/logs/server.log.
+     *
+     * Each line is written in the format:
+     *   [YYYY-MM-DD HH:MM:SS] LEVEL message  key=value key=value ...
+     *
+     * @param string               $level   Log level (INFO, WARNING, ERROR, …)
+     * @param string               $message Human-readable message
+     * @param array<string,scalar> $context Optional key/value context pairs
+     */
+    private function appendServerLog(string $level, string $message, array $context = []): void
+    {
+        $logPath = Config::getLogPath('server.log');
+        $timestamp = date('Y-m-d H:i:s');
+
+        $line = "[{$timestamp}] {$level} {$message}";
+        foreach ($context as $k => $v) {
+            $line .= '  ' . $k . '=' . (is_string($v) ? $v : json_encode($v));
+        }
+        $line .= "\n";
+
+        @file_put_contents($logPath, $line, FILE_APPEND | LOCK_EX);
     }
 
     private function sanitizeLogData(array $data): array

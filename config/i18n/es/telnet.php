@@ -42,7 +42,7 @@ return [
     'ui.telnet.server.press_esc'               => 'Presione ESC dos veces para continuar...',
 
     // --- Banner (login screen) ---
-    'ui.telnet.server.banner.title'            => 'Servicio Telnet BinktermPHP',
+    'ui.telnet.server.banner.title'            => 'Terminal BinktermPHP',
     'ui.telnet.server.banner.system'           => 'Sistema: ',
     'ui.telnet.server.banner.location'         => 'Ubicación: ',
     'ui.telnet.server.banner.origin'           => 'Origen: ',

@@ -269,6 +269,26 @@ class AdminDaemonClient
         return $this->sendCommand('stop_services');
     }
 
+    /**
+     * Write an entry to data/logs/server.log via the admin daemon.
+     *
+     * This is the correct way for web routes to log application-level events
+     * (e.g. "user sent netmail, packet ID xyz") without writing to local files
+     * directly, since the daemon owns the log directory exclusively.
+     *
+     * @param string               $level   Log level string: INFO, WARNING, ERROR, DEBUG
+     * @param string               $message Human-readable message
+     * @param array<string,scalar> $context Optional structured context (username, packet_id, …)
+     */
+    public function serverLog(string $level, string $message, array $context = []): array
+    {
+        return $this->sendCommand('server_log', [
+            'level'   => strtoupper($level),
+            'message' => $message,
+            'context' => $context,
+        ]);
+    }
+
     public function getMrcConfig(): array
     {
         return $this->sendCommand('get_mrc_config');

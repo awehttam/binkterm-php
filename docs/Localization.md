@@ -249,6 +249,71 @@ Examples:
 
 ---
 
+## Automated Catalog Generation
+
+The script `scripts/create_translation_catalog.php` translates the English catalogs into a new locale automatically using an AI API (OpenAI or Anthropic Claude).  It is the fastest way to bootstrap a new locale and produces a complete `common.php` and `errors.php` ready for human review.
+
+### Requirements
+
+- **OpenAI**: set `OPENAI_API_KEY` in `.env` (optionally `OPENAI_API_BASE` for a custom endpoint)
+- **Claude**: set `ANTHROPIC_API_KEY` in `.env` (optionally `ANTHROPIC_API_BASE`)
+
+### Basic Usage
+
+```bash
+# Translate into French using whichever API key is configured
+php scripts/create_translation_catalog.php --locale=fr --language="French"
+
+# Force a specific provider
+php scripts/create_translation_catalog.php --locale=fr --language="French" --provider=claude
+php scripts/create_translation_catalog.php --locale=de --language="German" --provider=openai
+
+# Specific model
+php scripts/create_translation_catalog.php --locale=ja --language="Japanese" --model=claude-opus-4-6
+
+# Overwrite an existing locale
+php scripts/create_translation_catalog.php --locale=es --language="Spanish" --overwrite
+
+# Dry run — translate but do not write files
+php scripts/create_translation_catalog.php --locale=fr --language="French" --dry-run
+```
+
+### Provider Auto-Detection
+
+The script selects the provider automatically when `--provider` is not given:
+
+- If only `ANTHROPIC_API_KEY` is set → **Claude**
+- Otherwise → **OpenAI**
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--locale` | *(required)* | Target locale code, e.g. `fr`, `de`, `pt-BR` |
+| `--language` | *(required)* | Full language name passed to the model, e.g. `French` |
+| `--provider` | auto | `openai` or `claude` |
+| `--model` | `gpt-4o-mini` / `claude-sonnet-4-6` | Model to use (default depends on provider) |
+| `--namespaces` | `common,errors` | Which catalogs to translate |
+| `--batch-size` | `150` | Translation keys per API request |
+| `--timeout` | `120` | HTTP timeout in seconds per request |
+| `--retries` | `3` | Retries on batch failure |
+| `--pause-ms` | `0` | Milliseconds between batch requests |
+| `--overwrite` | off | Overwrite existing locale files |
+| `--dry-run` | off | Translate but do not write files |
+
+### Output
+
+Writes `config/i18n/<locale>/common.php` and `config/i18n/<locale>/errors.php`.  Any keys where placeholder tokens (`{name}`, `%s`, etc.) did not survive translation are kept in English and logged to `config/i18n/<locale>/translation_warnings.log`.
+
+### After Running
+
+1. Review the output files for quality — AI translations are a starting point, not a finished product.
+2. Fix any entries in `translation_warnings.log`.
+3. Test by setting `?locale=<code>` in the browser and browsing key pages.
+4. Commit the new locale directory.
+
+---
+
 ## Translation Contributor Workflow
 
 This section describes how to contribute a translation for a new language from start to finish.
