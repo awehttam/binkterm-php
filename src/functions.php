@@ -199,12 +199,14 @@ function quoteMessageText($messageText, $initials) {
 
         // Check if line is already quoted (FSC-0032 style: optional initials + one or more >)
         // e.g. " RW> text", "RW> text", "> text", " RW>> text"
-        if (preg_match('/^\s*[A-Za-z]{0,2}(>+)/', $trimmed)) {
-            // Bump existing quote depth by inserting an extra > after the initials prefix
-            // " RW> text"  -> " RW>> text"
+        if (preg_match('/^\s*[A-Za-z]{0,2}>/', $trimmed)) {
+            // Bump existing quote depth by inserting an extra > after the initials.
+            // Prepend a space to $trimmed so the leading space is always present,
+            // regardless of whether the original line had one.
+            // "RW> text"   -> " RW>> text"
             // " RW>> text" -> " RW>>> text"
-            // "> text"     -> ">> text"
-            $quotedLines[] = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', $trimmed);
+            // "> text"     -> " >> text"
+            $quotedLines[] = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', ' ' . $trimmed);
         } else {
             // Original (unquoted) line — apply FSC-0032 attribution prefix: " XX> text"
             $quotedLines[] = ' ' . $initials . '> ' . $trimmed;

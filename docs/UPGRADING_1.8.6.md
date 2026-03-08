@@ -45,6 +45,7 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Log lines are now prefixed with `[sessionId|username|ip]` for every session-scoped event, including emulator adapter output (DOSBox, DOSEMU, Native), DB updates, and drop file writes. This makes it straightforward to correlate all activity for a specific user or connection in the log.
 
 ### Echomail / Netmail
+- Fixed multi-level echomail quoting: when replying to a message containing already-quoted lines (e.g. `RW>> text`), the bumped quote now consistently carries a leading space (` RW>>> text`) matching the FSC-0032 quoting style used for first-level quotes.
 - Fixed 30–45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** — see upgrade instructions below.
 - Fixed posting identity guideline showing in English regardless of user locale on initial page load. The server-rendered (correctly translated) text is now preserved until the user selects an echo area or enters an address.
 
