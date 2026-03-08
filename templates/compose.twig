@@ -345,6 +345,18 @@ function updateMarkdownSection(allowed) {
     }
 }
 
+let currentAddressIsLocal = false;
+
+function updateCrashmailForAttachment() {
+    const hasFile = $('#attachmentFile')[0] && $('#attachmentFile')[0].files.length > 0;
+    if (!hasFile) return;
+    if (currentAddressIsLocal) {
+        $('#crashmail').prop('checked', false).prop('disabled', false);
+    } else {
+        $('#crashmail').prop('checked', true).prop('disabled', true);
+    }
+}
+
 function fetchMarkdownSupport(params) {
     $.get('/api/messages/markdown-support', params)
         .done(function(response) {
@@ -352,6 +364,8 @@ function fetchMarkdownSupport(params) {
             const messageType = $('#messageType').val();
             if (messageType === 'netmail') {
                 updateNetmailGuidelinesPostingName((response && response.posting_name_policy) || 'real_name');
+                currentAddressIsLocal = !!response.is_local_address;
+                updateCrashmailForAttachment();
             }
         })
         .fail(function() {
@@ -359,6 +373,8 @@ function fetchMarkdownSupport(params) {
             const messageType = $('#messageType').val();
             if (messageType === 'netmail') {
                 updateNetmailGuidelinesPostingName('real_name');
+                currentAddressIsLocal = false;
+                updateCrashmailForAttachment();
             }
         });
 }
@@ -432,6 +448,8 @@ function refreshMarkdownSupportForNetmail() {
     const address = ($('#toAddress').val() || '').trim();
     if (!address) {
         updateMarkdownSection(false);
+        currentAddressIsLocal = true; // blank address routes to local system
+        updateCrashmailForAttachment();
         // No address yet — leave the server-rendered (translated) guideline text untouched.
         return;
     }
@@ -899,8 +917,8 @@ $(document).ready(function() {
             if (file) {
                 // Set subject to filename and lock it
                 $('#subject').val(file.name).prop('readonly', true);
-                // Force crashmail on and disable the checkbox
-                $('#crashmail').prop('checked', true).prop('disabled', true);
+                // Force crashmail on for remote delivery; local delivery doesn't need it
+                updateCrashmailForAttachment();
                 const size = file.size < 1048576
                     ? (file.size / 1024).toFixed(1) + ' KB'
                     : (file.size / 1048576).toFixed(1) + ' MB';

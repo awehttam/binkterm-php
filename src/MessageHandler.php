@@ -742,7 +742,7 @@ class MessageHandler
                 $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
                 // Only route locally if destination is one of our addresses (or no address specified)
                 if (empty($toAddress) || $binkpConfig->isMyAddress($toAddress)) {
-                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null, $markupAllowed);
+                    return $this->sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName, $replyToId, $tagline ?? null, $markupAllowed, $attachment);
                 }
             } catch (\Exception $e) {
                 // If we can't get config, fall through to normal send
@@ -778,18 +778,13 @@ class MessageHandler
             }
         }
 
-        // Attachment requires crashmail (direct delivery to ensure the file arrives with the message)
-        if ($attachment !== null && !$crashmail) {
+        // Attachment to a remote node requires crashmail (direct delivery ensures the file
+        // arrives with the message).  Local delivery handles attachments differently — the
+        // file is stored directly into the recipient's private file area, so crashmail is
+        // not required or meaningful.
+        if ($attachment !== null && $toAddress !== $originAddress && !$crashmail) {
             @unlink($attachment['file_path'] ?? '');
             throw new \Exception('File attachments require crashmail (direct delivery) to be enabled.');
-        }
-
-        // Attachments can only be delivered to remote nodes via crashmail.
-        // All users on this system share the same FTN address, so local delivery
-        // (self or any same-system user) is not supported for attachments.
-        if ($attachment !== null && $toAddress === $originAddress) {
-            @unlink($attachment['file_path'] ?? '');
-            throw new \Exception('File attachments can only be sent to remote nodes. Sending to a local address (including yourself or other users on this system) is not supported.');
         }
 
         // For file attachments, the FidoNet convention is that the subject IS the filename
@@ -841,14 +836,62 @@ class MessageHandler
 
             // Store attachment path and set FILE_ATTACH attribute when a file is attached
             if ($attachment !== null) {
-                $fileAttachAttr = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
-                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
-                    | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
-                $attStmt = $this->db->prepare("
-                    UPDATE netmail SET outbound_attachment_path = ?, attributes = ?
-                    WHERE id = ?
-                ");
-                $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+                if ($toAddress === $originAddress) {
+                    // Local delivery: store directly into the recipient's private file area.
+                    // Look up recipient by to_name; fall back to sysop if not found.
+                    $recipientStmt = $this->db->prepare("
+                        SELECT id FROM users
+                        WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                        LIMIT 1
+                    ");
+                    $recipientStmt->execute([$toName, $toName]);
+                    $recipientUser = $recipientStmt->fetch();
+
+                    if (!$recipientUser) {
+                        // Fall back to sysop
+                        try {
+                            $sysopName = $binkpConfig->getSystemSysop();
+                            $sysopStmt = $this->db->prepare("
+                                SELECT id FROM users
+                                WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
+                                LIMIT 1
+                            ");
+                            $sysopStmt->execute([$sysopName, $sysopName]);
+                            $recipientUser = $sysopStmt->fetch();
+                        } catch (\Exception $e) {
+                            $recipientUser = null;
+                        }
+                    }
+
+                    if ($recipientUser) {
+                        try {
+                            $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                            $fileAreaManager->storeNetmailAttachment(
+                                (int)$recipientUser['id'],
+                                $attachment['file_path'],
+                                $attachment['filename'],
+                                $messageId,
+                                $originAddress
+                            );
+                        } catch (\Exception $e) {
+                            error_log("[NETMAIL] Failed to store local attachment for message {$messageId}: " . $e->getMessage());
+                            @unlink($attachment['file_path']);
+                        }
+                    } else {
+                        error_log("[NETMAIL] Could not find recipient '{$toName}' for local attachment on message {$messageId}; file dropped.");
+                        @unlink($attachment['file_path']);
+                    }
+                } else {
+                    // Remote delivery: record outbound attachment path and FILE_ATTACH attribute
+                    $fileAttachAttr = \BinktermPHP\Crashmail\CrashmailService::ATTR_PRIVATE
+                        | \BinktermPHP\Crashmail\CrashmailService::ATTR_FILE_ATTACH
+                        | \BinktermPHP\Crashmail\CrashmailService::ATTR_LOCAL;
+                    $attStmt = $this->db->prepare("
+                        UPDATE netmail SET outbound_attachment_path = ?, attributes = ?
+                        WHERE id = ?
+                    ");
+                    $attStmt->execute([$attachment['file_path'], $fileAttachAttr, $messageId]);
+                }
             }
 
             if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
@@ -892,7 +935,7 @@ class MessageHandler
         return $result;
     }
 
-    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $markupType = null)
+    private function sendLocalSysopMessage($fromUserId, $subject, $messageText, $fromName = null, $replyToId = null, $tagline = null, $markupType = null, $attachment = null)
     {
         // Get sysop name from config
         try {
@@ -940,14 +983,15 @@ class MessageHandler
             $msgId = trim($matches[1]);
         }
 
-        // Create local netmail message to sysop
+        // Create local netmail message to sysop — is_sent = FALSE marks it as received
+        // (inbox) from the sysop's perspective; no outbound spooling occurs for local delivery.
         $stmt = $this->db->prepare("
             INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, ?, ?, ?, NULL)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL)
         ");
 
         $result = $stmt->execute([
-            $sysopUser['id'],
+            $fromUserId,     // sender owns the record so it appears in their "all" view
             $systemAddress,
             $systemAddress,  // Local delivery - same address
             $senderName,
@@ -961,6 +1005,24 @@ class MessageHandler
 
         if ($result) {
             $messageId = $this->db->lastInsertId();
+
+            // Store attachment into sysop's private file area if provided
+            if ($attachment !== null) {
+                try {
+                    $fileAreaManager = new \BinktermPHP\FileAreaManager();
+                    $fileAreaManager->storeNetmailAttachment(
+                        (int)$sysopUser['id'],
+                        $attachment['file_path'],
+                        $attachment['filename'],
+                        $messageId,
+                        $systemAddress
+                    );
+                } catch (\Exception $e) {
+                    error_log("[NETMAIL] Failed to store local sysop attachment for message {$messageId}: " . $e->getMessage());
+                    @unlink($attachment['file_path']);
+                }
+            }
+
             $creditsRules = $this->getCreditsRules();
             if ($creditsRules['enabled'] && $creditsRules['netmail_cost'] > 0) {
                 $charged = UserCredit::debit(

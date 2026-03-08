@@ -3531,6 +3531,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $area    = $_GET['area']    ?? null;  // full tag@domain string for echomail
         $allowed = false;
         $postingNamePolicy = 'real_name';
+        $isLocalAddress = false;
 
         try {
             $binkpConfig = \BinktermPHP\Binkp\Config\BinkpConfig::getInstance();
@@ -3573,6 +3574,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             } elseif (!empty($address)) {
                 $allowed = $binkpConfig->isMarkdownAllowedForDestination((string)$address);
                 $postingNamePolicy = $binkpConfig->getPostingNamePolicyForDestination((string)$address);
+                $systemAddress = $binkpConfig->getSystemAddress();
+                $isLocalAddress = (trim((string)$address) === trim((string)$systemAddress));
             }
         } catch (\Exception $e) {
             $allowed = false;
@@ -3580,8 +3583,9 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
 
         echo json_encode([
-            'allowed' => $allowed,
-            'posting_name_policy' => $postingNamePolicy
+            'allowed'            => $allowed,
+            'posting_name_policy' => $postingNamePolicy,
+            'is_local_address'   => $isLocalAddress,
         ]);
     });
 
