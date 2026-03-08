@@ -55,6 +55,29 @@ start_process() {
     (cd "$ROOT_DIR" && nohup ${cmd} > /dev/null 2>&1 &)
 }
 
+stop_service() {
+    local svc="$1"
+    case "$svc" in
+        admin_daemon)        stop_process "$ADMIN_PID"     "admin_daemon"        || true ;;
+        binkp_scheduler)     stop_process "$SCHEDULER_PID" "binkp_scheduler"     || true ;;
+        binkp_server)        stop_process "$SERVER_PID"    "binkp_server"        || true ;;
+        telnetd)             stop_process "$TELNETD_PID"   "telnetd"             || true ;;
+        mrc_daemon)          stop_process "$MRC_PID"       "mrc_daemon"          || true ;;
+        multiplexing-server) stop_process "$MULTIPLEX_PID" "multiplexing-server" || true ;;
+        gemini_daemon)       stop_process "$GEMINI_PID"    "gemini_daemon"       || true ;;
+        ssh_daemon|sshd)     stop_process "$SSHD_PID"      "ssh_daemon"          || true ;;
+        termserver)
+            stop_service telnetd
+            stop_service ssh_daemon
+            ;;
+        *)
+            echo "Unknown service: ${svc}"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, ssh_daemon, termserver"
+            exit 1
+            ;;
+    esac
+}
+
 # Restart one service by name.
 # Services marked "must_be_running" are only started if they were running before.
 restart_service() {
@@ -110,10 +133,11 @@ restart_service() {
 }
 
 if [[ $# -gt 0 && "$1" == "--help" ]]; then
-    echo "Usage: restart_daemons.sh [--help] [--list] [service]"
+    echo "Usage: restart_daemons.sh [--help] [--list] [--stop <service>] [service]"
     echo ""
     echo "  (no arguments)   Restart all services"
     echo "  <service>        Restart a single service"
+    echo "  --stop <service> Stop a single service without restarting"
     echo "  --list           List available services"
     echo "  --help           Show this help"
     exit 0
@@ -126,8 +150,10 @@ elif [[ $# -gt 0 && "$1" == "--list" ]]; then
     echo "multiplexing-server (only if running)"
     echo "gemini_daemon       (only if running)"
     echo "ssh_daemon          (only if running)"
-    echo "termserver          (alias: restarts telnetd + ssh_daemon)"
+    echo "termserver          (alias: restarts/stops telnetd + ssh_daemon)"
     exit 0
+elif [[ $# -gt 1 && "$1" == "--stop" ]]; then
+    stop_service "$2"
 elif [[ $# -gt 0 ]]; then
     restart_service "$1"
 else
