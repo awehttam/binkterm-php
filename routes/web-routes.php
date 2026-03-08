@@ -977,19 +977,20 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 $cleanSubject = preg_replace('/^Re:\s*/i', '', $subject);
                 $templateVars['reply_subject'] = 'Re: ' . $cleanSubject;
 
-                // Filter out kludge lines from the quoted message
-                $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
+                // Filter out kludge lines but preserve blank lines so quoted structure is intact
+                $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
                 $replyToAddress = $templateVars['reply_to_address']; // Use the address we determined above
 
                 // Quote using FSC-0032 style (same as echomail)
                 $initials = generateInitials($originalMessage['from_name']);
                 $quotedText = quoteMessageText($cleanMessageText, $initials);
 
-                $templateVars['reply_text'] = "\n\n--- Original Message ---\n" .
-                    "From: {$originalMessage['from_name']} <{$replyToAddress}>\n" .
-                    "Date: {$originalMessage['date_written']}\n" .
-                    "Subject: {$originalMessage['subject']}\n\n" .
-                    $quotedText;
+                $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
+                $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
+                    'date' => $replyDate,
+                    'name' => $originalMessage['from_name'],
+                ]);
+                $templateVars['reply_text'] = "\n\n" . $attribution . "\n\n" . $quotedText;
               } else {
                   $templateVars['reply_to_id'] = $replyId;
                   $templateVars['reply_to_name'] = $originalMessage['from_name'];
@@ -1000,23 +1001,21 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 // Set echoarea with domain for proper select matching (format: tag@domain)
                 $echoarea = $originalMessage['echoarea'] . '@' . $originalMessage['domain'];
                 $templateVars['domain'] = $originalMessage['domain'];
-                // Filter out kludge lines from the quoted message
-                $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
+                // Filter out kludge lines but preserve blank lines so quoted structure is intact
+                $cleanMessageText = filterKludgeLinesPreserveEmptyLines($originalMessage['message_text']);
 
                 // Generate initials from the original poster's name
                 $initials = generateInitials($originalMessage['from_name']);
 
-
-
                 // Quote the message intelligently - only quote original lines, not existing quotes
                 $quotedText = quoteMessageText($cleanMessageText, $initials);
 
-
-                $templateVars['reply_text'] = "\n\n--- Original Message ---\n" .
-                    "From: {$originalMessage['from_name']}\n" .
-                    "Date: {$originalMessage['date_written']}\n" .
-                    "Subject: {$originalMessage['subject']}\n\n" .
-                    $quotedText;
+                $replyDate = date('F j Y', strtotime($originalMessage['date_written']));
+                $attribution = webLocalizedText('ui.compose.reply_attribution', 'On {date}, {name} wrote:', $user, [
+                    'date' => $replyDate,
+                    'name' => $originalMessage['from_name'],
+                ]);
+                $templateVars['reply_text'] = "\n\n" . $attribution . "\n\n" . $quotedText;
               }
           }
       }

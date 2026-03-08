@@ -2419,6 +2419,7 @@ return [
     'ui.compose.invalid_fidonet_address_format' => 'Formato de direccion Fidonet invalido (p. ej., 1:123/456)',
     'ui.compose.send_failed_type' => 'No se pudo enviar {type}',
     'ui.compose.upload_attachment_failed' => 'No se pudo cargar el adjunto',
+    'ui.compose.reply_attribution' => 'El {date}, {name} escribió:',
     'ui.compose.markdown.help.text_formatting' => 'Formato de texto',
     'ui.compose.markdown.help.syntax' => 'Sintaxis',
     'ui.compose.markdown.help.result' => 'Resultado',

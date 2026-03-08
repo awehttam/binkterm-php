@@ -181,23 +181,38 @@ function generateInitials($name) {
 }
 
 /**
- * Quote message text intelligently - only quote original lines, not existing quotes
- * Preserves existing quote attribution while adding new quotes with current author's initials
+ * Wrap a single quoted line so that the total width stays within $maxWidth.
+ * The prefix (e.g. " MA> ") is prepended to every wrapped segment.
+ *
+ * @param string $prefix  The quote prefix including trailing space, e.g. " MA> "
+ * @param string $content The text content (no prefix)
+ * @param int    $maxWidth Maximum total line width (default 79)
+ * @return array Array of prefixed lines
+ */
+function wrapQuotedLine(string $prefix, string $content, int $maxWidth = 75): array
+{
+    $available = $maxWidth - strlen($prefix);
+    if ($available <= 0 || strlen($content) <= $available) {
+        return [$prefix . $content];
+    }
+    $wrapped = wordwrap($content, $available, "\n", true);
+    return array_map(fn($l) => $prefix . $l, explode("\n", $wrapped));
+}
+
+/**
+ * Quote message text intelligently - only quote original lines, not existing quotes.
+ * Preserves blank lines as bare '>' and wraps all lines to 79 characters.
  */
 function quoteMessageText($messageText, $initials) {
     $lines = explode("\n", $messageText);
     $quotedLines = [];
-    $lastInitials = null; // initials of the last non-empty quoted line
-    $lastWasBlank = true; // suppress leading blank line
 
     foreach ($lines as $line) {
         $trimmed = trim($line);
 
-        // Blank lines: pass through and reset initials tracking
+        // Blank lines: pass through as empty lines (no > prefix — standard FTN practice)
         if ($trimmed === '') {
-            $quotedLines[] = $line;
-            $lastInitials = null;
-            $lastWasBlank = true;
+            $quotedLines[] = '';
             continue;
         }
 
@@ -205,33 +220,22 @@ function quoteMessageText($messageText, $initials) {
         // e.g. " RW> text", "RW> text", "> text", " RW>> text"
         if (preg_match('/^\s*[A-Za-z]{0,2}>/', $trimmed)) {
             // Bump existing quote depth by inserting an extra > after the initials.
-            // Prepend a space to $trimmed so the leading space is always present,
-            // regardless of whether the original line had one.
-            // "RW> text"   -> " RW>> text"
-            // " RW>> text" -> " RW>>> text"
-            // "> text"     -> " >> text"
+            // Prepend a space to $trimmed so the leading space is always present.
             $bumped = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', ' ' . $trimmed);
 
-            // Extract initials of this line (without depth) for change detection
-            preg_match('/^\s*([A-Za-z]{0,2})>/', $bumped, $m);
-            $lineInitials = $m[1] ?? '';
-
-            // Insert a blank separator when the quote attribution changes
-            if ($lastInitials !== null && $lineInitials !== $lastInitials && !$lastWasBlank) {
-                $quotedLines[] = '';
+            // Split bumped line into prefix (everything up to and including "> ") and content
+            if (preg_match('/^(\s*[A-Za-z]{0,2}>+\s*)(.*)$/', $bumped, $m)) {
+                foreach (wrapQuotedLine($m[1], $m[2]) as $wrapped) {
+                    $quotedLines[] = $wrapped;
+                }
+            } else {
+                $quotedLines[] = $bumped;
             }
-
-            $quotedLines[] = $bumped;
-            $lastInitials  = $lineInitials;
-            $lastWasBlank  = false;
         } else {
-            // Original (unquoted) line — apply FSC-0032 attribution prefix: " XX> text"
-            if ($lastInitials !== null && $lastInitials !== $initials && !$lastWasBlank) {
-                $quotedLines[] = '';
+            // Original (unquoted) line — apply FSC-0032 attribution prefix: " XX> "
+            foreach (wrapQuotedLine(' ' . $initials . '> ', $trimmed) as $wrapped) {
+                $quotedLines[] = $wrapped;
             }
-            $quotedLines[] = ' ' . $initials . '> ' . $trimmed;
-            $lastInitials  = $initials;
-            $lastWasBlank  = false;
         }
     }
 

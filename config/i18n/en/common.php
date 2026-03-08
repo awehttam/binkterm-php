@@ -2419,6 +2419,7 @@ return [
     'ui.compose.invalid_fidonet_address_format' => 'Invalid Fidonet address format (e.g., 1:123/456)',
     'ui.compose.send_failed_type' => 'Failed to send {type}',
     'ui.compose.upload_attachment_failed' => 'Failed to upload attachment',
+    'ui.compose.reply_attribution' => 'On {date}, {name} wrote:',
     'ui.compose.markdown.help.text_formatting' => 'Text Formatting',
     'ui.compose.markdown.help.syntax' => 'Syntax',
     'ui.compose.markdown.help.result' => 'Result',
