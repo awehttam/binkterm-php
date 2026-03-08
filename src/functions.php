@@ -187,13 +187,17 @@ function generateInitials($name) {
 function quoteMessageText($messageText, $initials) {
     $lines = explode("\n", $messageText);
     $quotedLines = [];
+    $lastInitials = null; // initials of the last non-empty quoted line
+    $lastWasBlank = true; // suppress leading blank line
 
     foreach ($lines as $line) {
         $trimmed = trim($line);
 
-        // Skip completely empty lines
+        // Blank lines: pass through and reset initials tracking
         if ($trimmed === '') {
             $quotedLines[] = $line;
+            $lastInitials = null;
+            $lastWasBlank = true;
             continue;
         }
 
@@ -206,10 +210,28 @@ function quoteMessageText($messageText, $initials) {
             // "RW> text"   -> " RW>> text"
             // " RW>> text" -> " RW>>> text"
             // "> text"     -> " >> text"
-            $quotedLines[] = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', ' ' . $trimmed);
+            $bumped = preg_replace('/^(\s*[A-Za-z]{0,2})(>+)/', '$1$2>', ' ' . $trimmed);
+
+            // Extract initials of this line (without depth) for change detection
+            preg_match('/^\s*([A-Za-z]{0,2})>/', $bumped, $m);
+            $lineInitials = $m[1] ?? '';
+
+            // Insert a blank separator when the quote attribution changes
+            if ($lastInitials !== null && $lineInitials !== $lastInitials && !$lastWasBlank) {
+                $quotedLines[] = '';
+            }
+
+            $quotedLines[] = $bumped;
+            $lastInitials  = $lineInitials;
+            $lastWasBlank  = false;
         } else {
             // Original (unquoted) line — apply FSC-0032 attribution prefix: " XX> text"
+            if ($lastInitials !== null && $lastInitials !== $initials && !$lastWasBlank) {
+                $quotedLines[] = '';
+            }
             $quotedLines[] = ' ' . $initials . '> ' . $trimmed;
+            $lastInitials  = $initials;
+            $lastWasBlank  = false;
         }
     }
 

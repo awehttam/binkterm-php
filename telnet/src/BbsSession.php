@@ -590,9 +590,11 @@ class BbsSession
      */
     private function negotiateTelnet($conn): void
     {
-        // Request 8-bit clean transport in both directions for binary transfers (ZMODEM).
-        $this->sendTelnetCommand($conn, self::WILL,      self::OPT_BINARY);
-        $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_BINARY);
+        // Do NOT negotiate OPT_BINARY: if the client accepts binary mode it stops
+        // interpreting 0xFF as IAC, but our ZMODEM layer always doubles 0xFF for
+        // telnet transport.  Leaving binary mode un-negotiated keeps both sides
+        // consistent — the client continues to IAC-unescape incoming data and
+        // IAC-escape outgoing data.
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_NAWS);
         $this->sendTelnetCommand($conn, self::WILL,      self::OPT_SUPPRESS_GA);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_LINEMODE);
@@ -756,8 +758,19 @@ class BbsSession
             }
             if ($byte === self::IAC) {
                 $cmd = fread($conn, 1);
-                if ($cmd !== false && in_array(ord($cmd), [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                    fread($conn, 1);
+                if ($cmd !== false) {
+                    $cmdByte = ord($cmd);
+                    if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
+                        fread($conn, 1); // consume option byte
+                    } elseif ($cmdByte === self::SB) {
+                        // Consume subnegotiation data until IAC SE
+                        while (($sb = fread($conn, 1)) !== false) {
+                            if (ord($sb) === self::IAC) {
+                                $next = fread($conn, 1);
+                                if ($next !== false && ord($next) === self::SE) { break; }
+                            }
+                        }
+                    }
                 }
                 continue;
             }
@@ -1140,6 +1153,12 @@ class BbsSession
 
             if ($byte === self::IAC) { $state['telnet_mode'] = 'IAC'; continue; }
 
+            // Consume the LF (or NUL) that follows a CR in non-binary telnet.
+            if (!empty($state['skip_lf_once'])) {
+                $state['skip_lf_once'] = false;
+                if ($byte === 10 || $byte === 0) { continue; }
+            }
+
             if ($byte === 10) {
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
                 return $line;
@@ -1360,6 +1379,14 @@ class BbsSession
 
         $byte = ord($char);
 
+        // Consume the LF or NUL that follows a CR in non-binary telnet mode.
+        if (!empty($state['skip_lf_once'])) {
+            $state['skip_lf_once'] = false;
+            if ($byte === 10 || $byte === 0) {
+                return $this->readRawChar($conn, $state);
+            }
+        }
+
         // Handle TELNET IAC sequences
         if ($byte === self::IAC) {
             $cmd = fread($conn, 1);
@@ -1368,7 +1395,7 @@ class BbsSession
             if ($cmdByte === self::IAC) { return chr(self::IAC); }
             if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
                 fread($conn, 1); // consume option byte
-                return $char;   // return the IAC byte (caller ignores it)
+                return $this->readRawChar($conn, $state); // skip negotiation; return next real char
             }
             if ($cmdByte === self::SB) {
                 // Consume subnegotiation until IAC SE
@@ -1379,8 +1406,10 @@ class BbsSession
                         if ($next !== false && ord($next) === self::SE) { break; }
                     }
                 }
-                return $char;
+                return $this->readRawChar($conn, $state); // skip subneg; return next real char
             }
+            // Unknown IAC command — skip and read next real char
+            return $this->readRawChar($conn, $state);
         }
 
         // ANSI escape sequences (arrow keys, etc.)

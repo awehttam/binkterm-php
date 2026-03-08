@@ -243,9 +243,14 @@ class ZmodemTransfer
         self::sendHexHeader($conn, self::ZFIN, [0, 0, 0, 0], $escapeTelnetIac);
         self::dbg("TX " . self::frameName(self::ZFIN));
 
-        // 9. Drain "OO" (over-and-out) from receiver
-        @stream_set_timeout($conn, 5);
-        @fread($conn, 4);
+        // 9. Drain "OO" (over-and-out) and any telnet negotiation that buffered
+        //    during the transfer.  Two reads with a short timeout cover OO plus
+        //    any slightly-delayed bytes.  stream_select is intentionally avoided
+        //    here because it is unreliable with SSL streams on Windows.
+        @stream_set_timeout($conn, 1);
+        @fread($conn, 512); // first pass: "OO" + anything that arrived promptly
+        @fread($conn, 512); // second pass: catch any slightly-delayed bytes
+        @stream_set_timeout($conn, 300); // restore normal session timeout
 
         self::dbg("SEND success");
         self::info("SEND via PHP: " . basename($path) . " — ok");
