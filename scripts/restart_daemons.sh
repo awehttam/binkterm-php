@@ -10,6 +10,7 @@ SCHEDULER_PID="${SCHEDULER_PID:-${RUN_DIR}/binkp_scheduler.pid}"
 SERVER_PID="${SERVER_PID:-${RUN_DIR}/binkp_server.pid}"
 TELNETD_PID="${TELNETD_PID:-${RUN_DIR}/telnetd.pid}"
 MRC_PID="${MRC_PID:-${RUN_DIR}/mrc_daemon.pid}"
+SSHD_PID="${SSHD_PID:-${RUN_DIR}/sshd.pid}"
 
 # Track which processes were running before restart
 TELNETD_WAS_RUNNING=false
@@ -21,6 +22,7 @@ GEMINI_PID="${GEMINI_PID:-${RUN_DIR}/gemini_daemon.pid}"
 TELNETD_WAS_RUNNING=false
 MULTIPLEX_WAS_RUNNING=false
 GEMINI_WAS_RUNNING=false
+SSHD_WAS_RUNNING=false
 
 stop_process() {
     local pid_file="$1"
@@ -87,6 +89,11 @@ if stop_process "$GEMINI_PID" "gemini_daemon"; then
     GEMINI_WAS_RUNNING=true
 fi
 
+# Check if SSH daemon was running before stopping it
+if stop_process "$SSHD_PID" "ssh_daemon"; then
+    SSHD_WAS_RUNNING=true
+fi
+
 start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
 start_process "${PHP_BIN} scripts/binkp_scheduler.php --daemon --pid-file=${SCHEDULER_PID}" "binkp_scheduler"
 start_process "${PHP_BIN} scripts/binkp_server.php --daemon --pid-file=${SERVER_PID}" "binkp_server"
@@ -109,6 +116,11 @@ fi
 # Restart Gemini daemon only if it was running
 if [[ "$GEMINI_WAS_RUNNING" == "true" ]]; then
     start_process "${PHP_BIN} scripts/gemini_daemon.php --daemon --pid-file=${GEMINI_PID}" "gemini_daemon"
+fi
+
+# Restart SSH daemon only if it was running
+if [[ "$SSHD_WAS_RUNNING" == "true" ]]; then
+    start_process "${PHP_BIN} ssh/ssh_daemon.php --daemon --pid-file=${SSHD_PID}" "ssh_daemon"
 fi
 
 echo "Done."
