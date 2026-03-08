@@ -78,6 +78,45 @@ stop_service() {
     esac
 }
 
+start_service() {
+    local svc="$1"
+    case "$svc" in
+        admin_daemon)
+            start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
+            ;;
+        binkp_scheduler)
+            start_process "${PHP_BIN} scripts/binkp_scheduler.php --daemon --pid-file=${SCHEDULER_PID}" "binkp_scheduler"
+            ;;
+        binkp_server)
+            start_process "${PHP_BIN} scripts/binkp_server.php --daemon --pid-file=${SERVER_PID}" "binkp_server"
+            ;;
+        telnetd)
+            start_process "${PHP_BIN} telnet/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
+            ;;
+        mrc_daemon)
+            start_process "${PHP_BIN} scripts/mrc_daemon.php --daemon --pid-file=${MRC_PID}" "mrc_daemon"
+            ;;
+        multiplexing-server)
+            start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"
+            ;;
+        gemini_daemon)
+            start_process "${PHP_BIN} scripts/gemini_daemon.php --daemon --pid-file=${GEMINI_PID}" "gemini_daemon"
+            ;;
+        ssh_daemon|sshd)
+            start_process "${PHP_BIN} ssh/ssh_daemon.php --daemon --pid-file=${SSHD_PID}" "ssh_daemon"
+            ;;
+        termserver)
+            start_service telnetd
+            start_service ssh_daemon
+            ;;
+        *)
+            echo "Unknown service: ${svc}"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, ssh_daemon, termserver"
+            exit 1
+            ;;
+    esac
+}
+
 # Restart one service by name.
 # Services marked "must_be_running" are only started if they were running before.
 restart_service() {
@@ -133,13 +172,14 @@ restart_service() {
 }
 
 if [[ $# -gt 0 && "$1" == "--help" ]]; then
-    echo "Usage: restart_daemons.sh [--help] [--list] [--stop <service>] [service]"
+    echo "Usage: restart_daemons.sh [--help] [--list] [--start <service>] [--stop <service>] [service]"
     echo ""
-    echo "  (no arguments)   Restart all services"
-    echo "  <service>        Restart a single service"
-    echo "  --stop <service> Stop a single service without restarting"
-    echo "  --list           List available services"
-    echo "  --help           Show this help"
+    echo "  (no arguments)    Restart all services"
+    echo "  <service>         Restart a single service"
+    echo "  --start <service> Start a single service"
+    echo "  --stop <service>  Stop a single service without restarting"
+    echo "  --list            List available services"
+    echo "  --help            Show this help"
     exit 0
 elif [[ $# -gt 0 && "$1" == "--list" ]]; then
     echo "admin_daemon        (always restarted)"
@@ -152,6 +192,8 @@ elif [[ $# -gt 0 && "$1" == "--list" ]]; then
     echo "ssh_daemon          (only if running)"
     echo "termserver          (alias: restarts/stops telnetd + ssh_daemon)"
     exit 0
+elif [[ $# -gt 1 && "$1" == "--start" ]]; then
+    start_service "$2"
 elif [[ $# -gt 1 && "$1" == "--stop" ]]; then
     stop_service "$2"
 elif [[ $# -gt 0 ]]; then
