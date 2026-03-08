@@ -745,6 +745,15 @@ class BbsSession
             }
 
             $byte = ord($char);
+
+            // After CR line termination, swallow one optional LF on next read
+            // without using stream_select() lookahead on wrapped streams.
+            if (!empty($state['skip_lf_once'])) {
+                $state['skip_lf_once'] = false;
+                if ($byte === 10) {
+                    continue;
+                }
+            }
             if ($byte === self::IAC) {
                 $cmd = fread($conn, 1);
                 if ($cmd !== false && in_array(ord($cmd), [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
@@ -1136,13 +1145,7 @@ class BbsSession
                 return $line;
             }
             if ($byte === 13) {
-                $read = [$conn]; $write = $except = null;
-                if (stream_select($read, $write, $except, 0, 50000) > 0) {
-                    $next = fread($conn, 1);
-                    if ($next !== false && $next !== '' && ord($next) !== 10) {
-                        $state['pushback'] = ($state['pushback'] ?? '') . $next;
-                    }
-                }
+                $state['skip_lf_once'] = true;
                 if (!empty($state['input_echo'])) { $this->safeWrite($conn, "\r\n"); }
                 return $line;
             }

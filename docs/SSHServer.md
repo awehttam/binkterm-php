@@ -4,6 +4,15 @@ BinktermPHP includes a built-in pure-PHP SSH-2 server that provides the same
 BBS terminal experience as the Telnet daemon over an encrypted connection.  No
 external SSH daemon (OpenSSH, Dropbear, etc.) is required.
 
+SSH is one access method for the shared BinktermPHP Terminal Server. The
+post-login feature set (netmail, echomail, file areas, doors, polls, shoutbox,
+editor behavior, and menu flow) is documented in:
+
+- [BinktermPHP Terminal Server](TerminalServer.md)
+
+This document focuses on SSH-specific transport, daemon setup, and
+troubleshooting.
+
 ## Features
 
 - **SSH-2 protocol** — pure PHP implementation using only `ext-openssl` and

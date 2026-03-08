@@ -28,8 +28,9 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
-- [Telnet Interface](#telnet-interface)
-- [SSH Interface](#ssh-interface)
+- [Terminal Server](#terminal-server)
+- [Terminal Access via Telnet](#terminal-access-via-telnet)
+- [Terminal Access via SSH](#terminal-access-via-ssh)
 - [Operation](#operation)
 - [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Troubleshooting](#troubleshooting)
@@ -134,25 +135,38 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
 
-### Telnet Interface
+### Terminal Server
 
-A basic telnet service is available.
+BinktermPHP provides a shared terminal server experience for text-mode access.
+After login, Telnet and SSH users get the same core functionality:
 
-- **Classic BBS Experience** - Traditional telnet-based text interface with screen-aware display and ANSI color support
-- **Full-Screen Editor** - Write and reply to messages with arrow key navigation, line editing, and message quoting
-- **Security Features** - Login rate limiting (3 attempts per connection, 5/minute per IP) and connection logging
-- **Multi-Platform** - Works with PuTTY, SyncTERM, and standard telnet clients on Linux/macOS/Windows
-- See **[telnet/README.md](telnet/README.md)** for complete documentation, configuration options, and troubleshooting
+- **Netmail + Echomail** - Browse, read, compose, and reply in terminal mode
+- **File Areas** - Browse file areas and transfer files via ZMODEM
+- **Doors, Polls, Shoutbox** - Access enabled interactive features from the menu
+- **Full-Screen Editor** - Cursor-aware editing with message quoting and shortcuts
+- **Screen-Aware ANSI UI** - Terminal-dimension-aware rendering and ANSI color support
 
-### SSH Interface
+See **[docs/TerminalServer.md](docs/TerminalServer.md)** for full terminal feature documentation.
 
-A pure-PHP SSH-2 server provides the same BBS terminal experience over an encrypted connection with no external SSH daemon required.
+### Terminal Access via Telnet
 
-- **Encrypted** - Full SSH-2 transport encryption; no credentials travel in plaintext
-- **Direct Login** - Correct SSH credentials skip the login screen and land directly on the main menu
-- **Login Fallback** - Failed SSH auth drops to the BBS login/register screen rather than disconnecting
-- **No Extra Dependencies** - Uses only `ext-openssl` and `ext-gmp`; no new Composer packages
-- See **[docs/SSHServer.md](docs/SSHServer.md)** for complete documentation, configuration options, and troubleshooting
+The Telnet daemon is one access method for the shared Terminal Server.
+
+- **Classic BBS Access** - Traditional telnet-based terminal connection
+- **Multi-Platform** - Works with PuTTY, SyncTERM, ZOC, and standard telnet clients
+- **Optional TLS Listener** - Encrypted telnet access available when enabled
+
+See **[telnet/README.md](telnet/README.md)** for daemon setup, configuration, and troubleshooting.
+
+### Terminal Access via SSH
+
+The built-in pure-PHP SSH server is another access method for the same Terminal Server.
+
+- **Encrypted Transport** - SSH-2 encryption for terminal sessions
+- **Direct Login Path** - Valid SSH credentials can skip the BBS login menu
+- **No External SSH Daemon Required** - Runs from BinktermPHP directly
+
+See **[docs/SSHServer.md](docs/SSHServer.md)** for daemon setup, configuration, and troubleshooting.
 
 ### Credits System
 
