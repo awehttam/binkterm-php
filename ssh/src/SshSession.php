@@ -605,22 +605,24 @@ class SshSession
 
         $this->seqNoSend++;
         $this->rawWrite($raw);
-    }
-
-    /**
+    }    /**
      * Send data on the open session channel (wraps in SSH_MSG_CHANNEL_DATA).
      */
     public function sendChannelData(string $data): void
     {
         if (!$this->channelOpen || strlen($data) === 0) { return; }
 
-        // Respect peer window size
         while (strlen($data) > 0) {
-            $chunk = substr($data, 0, min(strlen($data), $this->maxPacketSize, $this->peerWindowSize));
-            if (strlen($chunk) === 0) {
-                // Window exhausted — wait for window adjust (simplified: just drop)
-                break;
+            if ($this->peerWindowSize <= 0) {
+                if (!$this->waitForPeerWindowAdjust(30)) {
+                    break;
+                }
             }
+
+            $chunkLen = min(strlen($data), $this->maxPacketSize, $this->peerWindowSize);
+            if ($chunkLen <= 0) { break; }
+
+            $chunk = substr($data, 0, $chunkLen);
             $msg  = chr(self::MSG_CHANNEL_DATA);
             $msg .= pack('N', $this->peerChannelId);
             $msg .= $this->sshString($chunk);
@@ -628,6 +630,35 @@ class SshSession
             $this->peerWindowSize -= strlen($chunk);
             $data = substr($data, strlen($chunk));
         }
+    }
+
+    /**
+     * Wait for SSH_MSG_CHANNEL_WINDOW_ADJUST so we can continue sending.
+     */
+    private function waitForPeerWindowAdjust(int $timeoutSecs): bool
+    {
+        $deadline = time() + max(1, $timeoutSecs);
+        while ($this->channelOpen && $this->peerWindowSize <= 0 && time() < $deadline) {
+            $pkt = $this->recvPacket();
+            if ($pkt === null || $pkt === '') {
+                return false;
+            }
+
+            $msgType = ord($pkt[0]);
+            if ($msgType === self::MSG_CHANNEL_WINDOW_ADJUST) {
+                $offset = 1;
+                $this->unpackUint32($pkt, $offset); // channel id
+                $this->peerWindowSize += $this->unpackUint32($pkt, $offset);
+                continue;
+            }
+            if ($msgType === self::MSG_CHANNEL_EOF || $msgType === self::MSG_CHANNEL_CLOSE) {
+                $this->channelOpen = false;
+                return false;
+            }
+            // Ignore unrelated packet types while waiting for window credit.
+        }
+
+        return $this->channelOpen && $this->peerWindowSize > 0;
     }
 
     /**

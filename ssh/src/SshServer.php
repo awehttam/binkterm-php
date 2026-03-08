@@ -331,26 +331,42 @@ class SshServer
     private function runBridge($sshConn, SshSession $sshSession, $plainSocket): void
     {
         stream_set_blocking($plainSocket, false);
+        $toPlain = '';
 
         while (true) {
-            // Check for data from SSH side (blocking with short timeout)
             $read   = [$sshConn, $plainSocket];
-            $write  = $except = null;
-            $ready  = @stream_select($read, $write, $except, 1, 0);
+            $write  = $toPlain !== '' ? [$plainSocket] : null;
+            $except = null;
+            $sec    = $toPlain !== '' ? 0 : 1;
+            $usec   = $toPlain !== '' ? 10000 : 0;
+            $ready  = @stream_select($read, $write, $except, $sec, $usec);
 
             if ($ready === false) { break; }
 
-            // SSH → plain
+            // SSH -> plain (buffer first; write on writable events)
             if (in_array($sshConn, $read, true)) {
                 $data = $sshSession->readChannelData();
                 if ($data === null) { break; }
                 if ($data !== '') {
-                    $written = @fwrite($plainSocket, $data);
-                    if ($written === false) { break; }
+                    $toPlain .= $data;
+                    // Flush immediately to avoid per-iteration latency buildup.
+                    $writtenNow = @fwrite($plainSocket, $toPlain);
+                    if ($writtenNow === false) { break; }
+                    if ($writtenNow > 0) {
+                        $toPlain = (string)substr($toPlain, $writtenNow);
+                    }
                 }
             }
 
-            // plain → SSH
+            if ($toPlain !== '' && is_array($write) && in_array($plainSocket, $write, true)) {
+                $written = @fwrite($plainSocket, $toPlain);
+                if ($written === false) { break; }
+                if ($written > 0) {
+                    $toPlain = (string)substr($toPlain, $written);
+                }
+            }
+
+            // plain -> SSH
             if (in_array($plainSocket, $read, true)) {
                 $data = fread($plainSocket, 4096);
                 if ($data === false || ($data === '' && feof($plainSocket))) { break; }
@@ -364,11 +380,6 @@ class SshServer
 
         $sshSession->sendChannelClose();
     }
-
-    // =========================================================================
-    // HOST KEY
-    // =========================================================================
-
     private function ensureHostKey(): void
     {
         if (file_exists($this->hostKeyFile)) { return; }

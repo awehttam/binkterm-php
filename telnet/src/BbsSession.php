@@ -25,6 +25,7 @@ class BbsSession
 {
     // ===== TELNET PROTOCOL CONSTANTS =====
     private const IAC         = 255;
+    private const OPT_BINARY  = 0;
     private const DONT        = 254;
     private const TELNET_DO   = 253;
     private const WONT        = 252;
@@ -312,6 +313,7 @@ class BbsSession
         $shoutboxHandler = new ShoutboxHandler($this, $this->apiBase);
         $pollsHandler    = new PollsHandler($this, $this->apiBase);
         $doorHandler     = new DoorHandler($this, $this->apiBase);
+        $fileHandler     = new FileHandler($this, $this->apiBase, $this->isSsh);
 
         $shoutboxHandler->show($conn, $state, $session, 5, false);
 
@@ -358,6 +360,7 @@ class BbsSession
                 $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
                 $showPolls    = BbsConfig::isFeatureEnabled('voting_booth');
                 $showDoors    = BbsConfig::isFeatureEnabled('webdoors');
+                $showFiles    = \BinktermPHP\FileAreaManager::isFeatureEnabled();
                 $locale       = $state['locale'];
 
                 $o = '| ' . $this->t('ui.telnet.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
@@ -366,9 +369,10 @@ class BbsSession
                 $o = '| ' . $this->t('ui.telnet.server.menu.echomail', 'E) Echomail ({count} messages)', ['count' => $messageCounts['echomail']], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
-                $shoutboxOption = null;
-                $pollsOption    = null;
-                $doorsOption    = null;
+                $shoutboxOption   = null;
+                $pollsOption      = null;
+                $doorsOption      = null;
+                $filesOption      = null;
                 $whosOnlineOption = 'w';
 
                 $o = '| ' . $this->t('ui.telnet.server.menu.whos_online', "W) Who's Online", [], $locale);
@@ -388,6 +392,11 @@ class BbsSession
                     $o = '| ' . $this->t('ui.telnet.server.menu.doors', 'D) Door Games', [], $locale);
                     $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                     $doorsOption = 'd';
+                }
+                if ($showFiles) {
+                    $o = '| ' . $this->t('ui.telnet.server.menu.files', 'F) Files', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                    $filesOption = 'f';
                 }
                 $o = '| ' . $this->t('ui.telnet.server.menu.quit', 'Q) Quit', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
@@ -420,7 +429,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','p','w','d'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','p','w','d','f'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -440,6 +449,8 @@ class BbsSession
                 $pollsHandler->show($conn, $state, $session);
             } elseif (!empty($doorsOption) && $choice === $doorsOption) {
                 $doorHandler->show($conn, $state, $session);
+            } elseif (!empty($filesOption) && $choice === $filesOption) {
+                $fileHandler->show($conn, $state, $session);
             } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
                 $this->showWhosOnline($conn, $state, $session);
             } elseif ($choice === 'q') {
@@ -579,6 +590,9 @@ class BbsSession
      */
     private function negotiateTelnet($conn): void
     {
+        // Request 8-bit clean transport in both directions for binary transfers (ZMODEM).
+        $this->sendTelnetCommand($conn, self::WILL,      self::OPT_BINARY);
+        $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_BINARY);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_NAWS);
         $this->sendTelnetCommand($conn, self::WILL,      self::OPT_SUPPRESS_GA);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_LINEMODE);
