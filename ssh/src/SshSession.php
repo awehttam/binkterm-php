@@ -1157,8 +1157,20 @@ class SshSession
         $sent  = 0;
         while ($sent < $total) {
             $n = @fwrite($this->socket, substr($data, $sent));
-            if ($n === false || $n === 0) {
+            if ($n === false) {
                 throw new \RuntimeException('SSH socket write failed');
+            }
+            if ($n === 0) {
+                // Send buffer temporarily full (non-blocking socket).
+                // Wait up to 5 s for the socket to become writable before retrying.
+                $w = [$this->socket];
+                $r = null;
+                $e = null;
+                $ready = @stream_select($r, $w, $e, 5);
+                if ($ready === false || $ready === 0) {
+                    throw new \RuntimeException('SSH socket write timed out');
+                }
+                continue;
             }
             $sent += $n;
         }

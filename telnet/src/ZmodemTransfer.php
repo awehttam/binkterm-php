@@ -649,6 +649,12 @@ class ZmodemTransfer
             }
         }
 
+        // Restore $conn to blocking mode.  The PTY path set it non-blocking to
+        // prevent writeRaw() deadlocks; callers (BbsSession) expect blocking I/O.
+        if ($usePty) {
+            @stream_set_blocking($conn, true);
+        }
+
         if ($usePty  && is_resource($pty))    { @fclose($pty); }
         if (!$usePty && is_resource($stdin))  { @fclose($stdin); }
         if (!$usePty && is_resource($stdout)) { @fclose($stdout); }
