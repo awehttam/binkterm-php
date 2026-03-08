@@ -122,12 +122,27 @@ class ZmodemTransfer
             return false;
         }
 
+        // Some receivers (e.g. ZOC) send a second ZRINIT retry before their
+        // ZMODEM engine is fully ready to accept ZFILE.  Without a drain, that
+        // queued ZRINIT is read as the response to ZFILE attempt=1, forcing a
+        // needless retry and making the terminal log spurious "Garbage count
+        // exceeded" errors for every byte of the first ZFILE frame.
+        // Wait 100 ms for any such retries to arrive, then discard them.
+        usleep(100000);
+        $r = [$conn]; $w = null; $e = null;
+        if (@stream_select($r, $w, $e, 0, 0)) {
+            @fread($conn, 1024);
+        }
+        self::$rxBuffer    = '';
+        self::$rxBufferPos = 0;
+
         // 3-4. Send ZFILE and wait for ZRPOS. Some receivers may resync with
         // ZRINIT/ZNAK; retry a few times before failing.
         $fileInfo = $name . "\0" . $fileSize . " 0 0 0\0";
         $header   = null;
         $zfileOk  = false;
         for ($attempt = 1; $attempt <= 5; $attempt++) {
+            self::$lastZdleSent = 0; // reset escape state for each attempt
             self::sendBinHeader($conn, self::ZFILE, [0, 0, 0, 0], $escapeTelnetIac);
             self::sendDataSubpacket($conn, $fileInfo, self::ZCRCW, $escapeTelnetIac);
             self::dbg("TX " . self::frameName(self::ZFILE) . " + fileinfo attempt={$attempt}");
