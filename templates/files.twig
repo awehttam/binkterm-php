@@ -787,7 +787,11 @@ function showRenameDialog() {
     bootstrap.Modal.getInstance('#fileDetailsModal').hide();
     new bootstrap.Modal('#fileRenameModal').show();
     $('#fileRenameModal').on('shown.bs.modal', function() {
-        $('#renameFilenameInput').focus().select();
+        const input = $('#renameFilenameInput')[0];
+        input.focus();
+        const dotIndex = currentFilename.lastIndexOf('.');
+        const end = dotIndex > 0 ? dotIndex : currentFilename.length;
+        input.setSelectionRange(0, end);
     });
 }
 
