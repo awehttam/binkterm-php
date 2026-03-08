@@ -49,22 +49,34 @@ login are the same.
 ## ZMODEM Requirements (Non-Windows)
 
 On non-Windows hosts, file transfer support uses external `sz`/`rz` binaries
-from the `lrzsz` package.
+from the `lrzsz` package, falling back to the built-in PHP ZMODEM implementation
+when the binaries are not found.
 
-- **Current status:** terminal ZMODEM transfers are known to be unreliable in
-  some environments (timeouts/stalls have been observed).
 - **Default behavior:** terminal file transfers are disabled by default.
 - Install `lrzsz` to enable ZMODEM download/upload in file areas.
-- If `sz`/`rz` are missing, download/upload options are hidden in the file area UI.
-- The built-in PHP ZMODEM implementation is retained for Windows/testing.
-- To enable terminal file transfers anyway, set the following in `.env`:
+- If `sz`/`rz` are not found, the built-in PHP implementation is used automatically.
+- To enable terminal file transfers, set the following in `.env`:
 
 ```ini
 TERMINAL_FILE_TRANSFERS=true
 ```
 
-When enabled on non-Windows hosts, ensure `sz` and `rz` are present (typically
-via `lrzsz`) and available in `PATH` or via `TELNET_SZ_BIN` / `TELNET_RZ_BIN`.
+When enabled, ensure `sz` and `rz` are present (typically via `lrzsz`) and
+available in `PATH`, or specify their paths explicitly:
+
+```ini
+TELNET_SZ_BIN=/usr/bin/sz
+TELNET_RZ_BIN=/usr/bin/rz
+```
+
+### Forcing the built-in PHP ZMODEM implementation
+
+To bypass external `sz`/`rz` binaries and always use the built-in PHP ZMODEM
+implementation (useful for testing or if external binaries are unreliable):
+
+```ini
+TELNET_ZMODEM_FORCE_PHP=true
+```
 
 ## Related Documentation
 
