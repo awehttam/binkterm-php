@@ -473,8 +473,10 @@ function displayMessages(messages, isThreaded = false) {
             const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
 
-            // Add thread-specific CSS classes
-            const threadClasses = isThreaded ? `thread-level-${threadLevel} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
+            // Add thread-specific CSS classes; indent up to 2 levels (0.5rem each)
+            const threadClasses = isThreaded ? `thread-level-${Math.min(threadLevel, 9)} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
+            const indentRem = isThreaded && threadLevel > 0 ? Math.min(threadLevel, 2) * 0.5 : 0;
+            const threadIndent = indentRem > 0 ? `padding-left: ${indentRem}rem;` : '';
 
             html += `
                 <tr class="message-row ${readClass} ${threadClasses}" data-message-id="${msg.id}">
@@ -483,7 +485,7 @@ function displayMessages(messages, isThreaded = false) {
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
                         </div>
                     </td>
-                    <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                    <td class="message-from clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;${threadIndent}">
                         ${threadIcon}${readIcon}${shareIcon}${saveIcon}<a href="/compose/netmail?to=${encodeURIComponent((msg.replyto_address && msg.replyto_address !== '') ? msg.replyto_address : msg.from_address)}&to_name=${encodeURIComponent((msg.replyto_name && msg.replyto_name !== '') ? msg.replyto_name : msg.from_name)}&subject=${encodeURIComponent('Re: ' + (msg.subject || ''))}" class="text-decoration-none" onclick="event.stopPropagation()" title="${uiT('ui.common.send_netmail_to', 'Send netmail to {name}', { name: msg.from_name })}">${escapeHtml(msg.from_name)}</a>
                     </td>
                     <td class="message-subject clickable-cell" onclick="viewMessage(${msg.id})" style="cursor: pointer;">

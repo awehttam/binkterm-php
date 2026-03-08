@@ -722,11 +722,7 @@ window.echomailDateField = '{{ echomail_date_field|default("received") }}';
     background-color: rgba(108, 117, 125, 0.1) !important;
 }
 
-/* Reply indentation */
-.thread-reply .message-from,
-.thread-reply .message-subject {
-    padding-left: 2em;
-}
+/* Reply indentation handled inline per thread level */
 
 /* Mobile threading adjustments */
 @media (max-width: 991.98px) {
@@ -740,19 +736,9 @@ window.echomailDateField = '{{ echomail_date_field|default("received") }}';
         border-left-width: 2px;
     }
     
-    /* Reduce reply padding on mobile */
-    .thread-reply .message-from,
-    .thread-reply .message-subject {
-        padding-left: 1em;
-    }
 }
 
 @media (max-width: 575.98px) {
-    /* Further reduce reply padding on very small screens */
-    .thread-reply .message-from,
-    .thread-reply .message-subject {
-        padding-left: 0.5em;
-    }
 }
 
 /* Green text for messages addressed to current user */
