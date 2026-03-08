@@ -990,7 +990,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
                     'date' => $replyDate,
                     'name' => $originalMessage['from_name'],
                 ]);
-                $templateVars['reply_text'] = "\n\n" . $attribution . "\n\n" . $quotedText;
+                $templateVars['reply_text'] = "\n" . $attribution . "\n" . $quotedText;
               } else {
                   $templateVars['reply_to_id'] = $replyId;
                   $templateVars['reply_to_name'] = $originalMessage['from_name'];
@@ -1015,7 +1015,7 @@ SimpleRouter::get('/compose/{type}', function($type) {
                     'date' => $replyDate,
                     'name' => $originalMessage['from_name'],
                 ]);
-                $templateVars['reply_text'] = "\n\n" . $attribution . "\n\n" . $quotedText;
+                $templateVars['reply_text'] = "\n" . $attribution . "\n" . $quotedText;
               }
           }
       }
