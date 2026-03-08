@@ -420,7 +420,7 @@ Override files are plain JSON stored at `config/i18n/overrides/<locale>/<namespa
 
 ```json
 {
-    "ui.telnet.server.banner.title": "My BBS Telnet Service",
+    "ui.terminalserver.server.banner.title": "My BBS Telnet Service",
     "ui.nav.home": "Home Base"
 }
 ```
@@ -489,3 +489,4 @@ loadI18nNamespaces(['common']).then(function() {
     $('#myElement').text(window.t('ui.my_feature.label', {}, 'My Label'));
 });
 ```
+

@@ -168,7 +168,7 @@ class BbsSession
         if ($this->isRateLimited($peerIp)) {
             $this->writeLine($conn, '');
             $this->writeLine($conn, $this->colorize(
-                $this->t('ui.telnet.server.rate_limited', 'Too many failed login attempts. Please try again later.', [], $state['locale']),
+                $this->t('ui.terminalserver.server.rate_limited', 'Too many failed login attempts. Please try again later.', [], $state['locale']),
                 self::ANSI_RED
             ));
             $this->writeLine($conn, '');
@@ -196,16 +196,16 @@ class BbsSession
             $loginResult = $this->preAuthSession;
         } else {
             while ($loginResult === null) {
-                $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
-                $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.login',   '  (L) Login to existing account', [], $state['locale']));
-                $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.register','  (R) Register new account', [], $state['locale']));
-                $this->writeLine($conn, $this->t('ui.telnet.server.login_menu.quit',    '  (Q) Quit', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.prompt', 'Would you like to:', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.login',   '  (L) Login to existing account', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.register','  (R) Register new account', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.login_menu.quit',    '  (Q) Quit', [], $state['locale']));
                 $this->writeLine($conn, '');
-                $choice = $this->prompt($conn, $state, $this->t('ui.telnet.server.login_menu.choice', 'Your choice: ', [], $state['locale']), true);
+                $choice = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login_menu.choice', 'Your choice: ', [], $state['locale']), true);
 
                 if ($choice === null || strtolower(trim($choice)) === 'q') {
                     $this->writeLine($conn, $this->colorize(
-                        $this->t('ui.telnet.server.goodbye', 'Goodbye!', [], $state['locale']),
+                        $this->t('ui.terminalserver.server.goodbye', 'Goodbye!', [], $state['locale']),
                         self::ANSI_CYAN
                     ));
                     fclose($conn);
@@ -216,7 +216,7 @@ class BbsSession
                 if (strtolower(trim($choice)) === 'r') {
                     $registered = $this->attemptRegistration($conn, $state);
                     if ($registered) {
-                        $this->writeLine($conn, $this->t('ui.telnet.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
+                        $this->writeLine($conn, $this->t('ui.terminalserver.server.press_enter_disconnect', 'Press Enter to disconnect.', [], $state['locale']));
                         $this->readLineWithIdleCheck($conn, $state);
                         fclose($conn);
                         if ($forked) { exit(0); }
@@ -234,7 +234,7 @@ class BbsSession
 
                     if ($loginResult !== null) {
                         $this->writeLine($conn, $this->colorize(
-                            $this->t('ui.telnet.server.login.success', 'Login successful.', [], $state['locale']),
+                            $this->t('ui.terminalserver.server.login.success', 'Login successful.', [], $state['locale']),
                             self::ANSI_GREEN
                         ));
                         $this->writeLine($conn, '');
@@ -248,13 +248,13 @@ class BbsSession
                     if ($attempt < $maxAttempts) {
                         $remaining = $maxAttempts - $attempt;
                         $this->writeLine($conn, $this->colorize(
-                            $this->t('ui.telnet.server.login.failed_remaining', 'Login failed. {remaining} attempt(s) remaining.', ['remaining' => $remaining], $state['locale']),
+                            $this->t('ui.terminalserver.server.login.failed_remaining', 'Login failed. {remaining} attempt(s) remaining.', ['remaining' => $remaining], $state['locale']),
                             self::ANSI_RED
                         ));
                         $this->writeLine($conn, '');
                     } else {
                         $this->writeLine($conn, $this->colorize(
-                            $this->t('ui.telnet.server.login.failed_max', 'Login failed. Maximum attempts exceeded.', [], $state['locale']),
+                            $this->t('ui.terminalserver.server.login.failed_max', 'Login failed. Maximum attempts exceeded.', [], $state['locale']),
                             self::ANSI_RED
                         ));
                         $this->writeLine($conn, '');
@@ -353,7 +353,7 @@ class BbsSession
                 $this->safeWrite($conn, "\033[2;1H");
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-                $titleLine = '| ' . str_pad($this->t('ui.telnet.server.menu.title', 'Main Menu', [], $state['locale']), $innerWidth, ' ', STR_PAD_BOTH) . ' |';
+                $titleLine = '| ' . str_pad($this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']), $innerWidth, ' ', STR_PAD_BOTH) . ' |';
                 $this->writeLine($conn, $menuPad . $this->colorize($titleLine, self::ANSI_BLUE . self::ANSI_BOLD));
                 $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_CYAN));
 
@@ -363,10 +363,10 @@ class BbsSession
                 $showFiles    = \BinktermPHP\FileAreaManager::isFeatureEnabled();
                 $locale       = $state['locale'];
 
-                $o = '| ' . $this->t('ui.telnet.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
+                $o = '| ' . $this->t('ui.terminalserver.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
-                $o = '| ' . $this->t('ui.telnet.server.menu.echomail', 'E) Echomail ({count} messages)', ['count' => $messageCounts['echomail']], $locale);
+                $o = '| ' . $this->t('ui.terminalserver.server.menu.echomail', 'E) Echomail ({count} messages)', ['count' => $messageCounts['echomail']], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
                 $shoutboxOption   = null;
@@ -375,30 +375,30 @@ class BbsSession
                 $filesOption      = null;
                 $whosOnlineOption = 'w';
 
-                $o = '| ' . $this->t('ui.telnet.server.menu.whos_online', "W) Who's Online", [], $locale);
+                $o = '| ' . $this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
 
                 if ($showShoutbox) {
-                    $o = '| ' . $this->t('ui.telnet.server.menu.shoutbox', 'S) Shoutbox', [], $locale);
+                    $o = '| ' . $this->t('ui.terminalserver.server.menu.shoutbox', 'S) Shoutbox', [], $locale);
                     $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                     $shoutboxOption = 's';
                 }
                 if ($showPolls) {
-                    $o = '| ' . $this->t('ui.telnet.server.menu.polls', 'P) Polls', [], $locale);
+                    $o = '| ' . $this->t('ui.terminalserver.server.menu.polls', 'P) Polls', [], $locale);
                     $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                     $pollsOption = 'p';
                 }
                 if ($showDoors) {
-                    $o = '| ' . $this->t('ui.telnet.server.menu.doors', 'D) Door Games', [], $locale);
+                    $o = '| ' . $this->t('ui.terminalserver.server.menu.doors', 'D) Door Games', [], $locale);
                     $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                     $doorsOption = 'd';
                 }
                 if ($showFiles) {
-                    $o = '| ' . $this->t('ui.telnet.server.menu.files', 'F) Files', [], $locale);
+                    $o = '| ' . $this->t('ui.terminalserver.server.menu.files', 'F) Files', [], $locale);
                     $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
                     $filesOption = 'f';
                 }
-                $o = '| ' . $this->t('ui.telnet.server.menu.quit', 'Q) Quit', [], $locale);
+                $o = '| ' . $this->t('ui.terminalserver.server.menu.quit', 'Q) Quit', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
                 $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
@@ -409,7 +409,7 @@ class BbsSession
             while ($choice === '') {
                 if (!$promptShown) {
                     $this->writeLine($conn, $this->colorize(
-                        $this->t('ui.telnet.server.menu.select_option', 'Select option:', [], $state['locale']),
+                        $this->t('ui.terminalserver.server.menu.select_option', 'Select option:', [], $state['locale']),
                         self::ANSI_DIM
                     ));
                     $promptShown = true;
@@ -457,14 +457,14 @@ class BbsSession
                 TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $this->colorize(
-                    $this->t('ui.telnet.server.farewell', 'Thank you for visiting, have a great day!', [], $state['locale']),
+                    $this->t('ui.terminalserver.server.farewell', 'Thank you for visiting, have a great day!', [], $state['locale']),
                     self::ANSI_CYAN . self::ANSI_BOLD
                 ));
                 $this->writeLine($conn, '');
                 try {
                     $siteUrl = Config::getSiteUrl();
                     $this->writeLine($conn, $this->colorize(
-                        $this->t('ui.telnet.server.visit_web', 'Come back and visit us on the web at {url}', ['url' => $siteUrl], $state['locale']),
+                        $this->t('ui.terminalserver.server.visit_web', 'Come back and visit us on the web at {url}', ['url' => $siteUrl], $state['locale']),
                         self::ANSI_YELLOW
                     ));
                 } catch (\Exception $e) {}
@@ -484,11 +484,11 @@ class BbsSession
     // ===== TRANSLATION =====
 
     /**
-     * Translate a telnet UI string from the 'telnet' catalog namespace.
+     * Translate a terminal server UI string from the 'terminalserver' catalog namespace.
      */
     public function t(string $key, string $fallback, array $params = [], string $locale = ''): string
     {
-        $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['telnet']);
+        $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['terminalserver']);
         if ($result === $key) {
             foreach ($params as $k => $v) {
                 $fallback = str_replace('{' . $k . '}', (string)$v, $fallback);
@@ -645,7 +645,7 @@ class BbsSession
     {
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize(
-            $this->t('ui.telnet.server.banner.title', 'BinktermPHP Terminal', [], $state['locale']),
+            $this->t('ui.terminalserver.server.banner.title', 'BinktermPHP Terminal', [], $state['locale']),
             self::ANSI_MAGENTA . self::ANSI_BOLD
         ));
 
@@ -653,12 +653,12 @@ class BbsSession
             $this->writeLine($conn, $this->colorize('Connected via SSH', self::ANSI_GREEN));
         } elseif ($this->isTls) {
             $this->writeLine($conn, $this->colorize(
-                $this->t('ui.telnet.server.banner.tls', 'Connected using TLS', [], $state['locale']),
+                $this->t('ui.terminalserver.server.banner.tls', 'Connected using TLS', [], $state['locale']),
                 self::ANSI_GREEN
             ));
         } elseif ($this->tlsEnabled && $this->tlsPort) {
             $this->writeLine($conn, $this->colorize(
-                $this->t('ui.telnet.server.banner.no_tls', 'Connected without TLS - use port {port} for an encrypted connection', ['port' => $this->tlsPort], $state['locale']),
+                $this->t('ui.terminalserver.server.banner.no_tls', 'Connected without TLS - use port {port} for an encrypted connection', ['port' => $this->tlsPort], $state['locale']),
                 self::ANSI_YELLOW
             ));
         }
@@ -674,13 +674,13 @@ class BbsSession
 
         $rawLines = [
             ['text' => '', 'color' => self::ANSI_DIM, 'center' => false],
-            ['text' => $this->t('ui.telnet.server.banner.system',   'System: ',   [], $state['locale']) . $config->getSystemName(),     'color' => self::ANSI_CYAN, 'center' => false],
-            ['text' => $this->t('ui.telnet.server.banner.location', 'Location: ', [], $state['locale']) . $config->getSystemLocation(), 'color' => self::ANSI_DIM,  'center' => false],
-            ['text' => $this->t('ui.telnet.server.banner.origin',   'Origin: ',   [], $state['locale']) . $config->getSystemOrigin(),   'color' => self::ANSI_DIM,  'center' => false],
+            ['text' => $this->t('ui.terminalserver.server.banner.system',   'System: ',   [], $state['locale']) . $config->getSystemName(),     'color' => self::ANSI_CYAN, 'center' => false],
+            ['text' => $this->t('ui.terminalserver.server.banner.location', 'Location: ', [], $state['locale']) . $config->getSystemLocation(), 'color' => self::ANSI_DIM,  'center' => false],
+            ['text' => $this->t('ui.terminalserver.server.banner.origin',   'Origin: ',   [], $state['locale']) . $config->getSystemOrigin(),   'color' => self::ANSI_DIM,  'center' => false],
         ];
         if ($siteUrl !== '') {
             $rawLines[] = ['text' => '', 'color' => self::ANSI_DIM, 'center' => false];
-            $rawLines[] = ['text' => $this->t('ui.telnet.server.banner.web', 'Web: ', [], $state['locale']) . $siteUrl, 'color' => self::ANSI_YELLOW, 'center' => false];
+            $rawLines[] = ['text' => $this->t('ui.terminalserver.server.banner.web', 'Web: ', [], $state['locale']) . $siteUrl, 'color' => self::ANSI_YELLOW, 'center' => false];
         }
 
         $maxLen = 0;
@@ -707,7 +707,7 @@ class BbsSession
         $this->writeLine($conn, '');
 
         if ($siteUrl !== '') {
-            $visitLine = $this->t('ui.telnet.server.banner.visit_web', 'For a good time visit us on the web @ {url}', ['url' => $siteUrl], $state['locale']);
+            $visitLine = $this->t('ui.terminalserver.server.banner.visit_web', 'For a good time visit us on the web @ {url}', ['url' => $siteUrl], $state['locale']);
             $visitPad  = str_repeat(' ', max(0, (int)floor(($cols - strlen($visitLine)) / 2)));
             $this->writeLine($conn, $visitPad . $this->colorize($visitLine, self::ANSI_YELLOW));
             $this->writeLine($conn, '');
@@ -724,7 +724,7 @@ class BbsSession
     {
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize(
-            $this->t('ui.telnet.server.press_esc', 'Press ESC twice to continue...', [], $state['locale']),
+            $this->t('ui.terminalserver.server.press_esc', 'Press ESC twice to continue...', [], $state['locale']),
             self::ANSI_CYAN
         ));
 
@@ -792,14 +792,14 @@ class BbsSession
 
         $this->safeWrite($conn, "\033[2J\033[H");
         $this->writeLine($conn, $this->colorize(
-            $this->t('ui.telnet.server.whos_online.title', "Who's Online (last {minutes} minutes)", ['minutes' => $minutes], $state['locale']),
+            $this->t('ui.terminalserver.server.whos_online.title', "Who's Online (last {minutes} minutes)", ['minutes' => $minutes], $state['locale']),
             self::ANSI_CYAN . self::ANSI_BOLD
         ));
         $this->writeLine($conn, '');
 
         if (!$users) {
             $this->writeLine($conn, $this->colorize(
-                $this->t('ui.telnet.server.whos_online.empty', 'No users online.', [], $state['locale']),
+                $this->t('ui.terminalserver.server.whos_online.empty', 'No users online.', [], $state['locale']),
                 self::ANSI_YELLOW
             ));
         } else {
@@ -821,7 +821,7 @@ class BbsSession
 
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize(
-            $this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $state['locale']),
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']),
             self::ANSI_YELLOW
         ));
         $this->readKeyWithIdleCheck($conn, $state);
@@ -838,18 +838,18 @@ class BbsSession
     {
         $this->writeLine($conn, '');
         $this->writeLine($conn, $this->colorize(
-            $this->t('ui.telnet.server.registration.title', '=== New User Registration ===', [], $state['locale']),
+            $this->t('ui.terminalserver.server.registration.title', '=== New User Registration ===', [], $state['locale']),
             self::ANSI_CYAN . self::ANSI_BOLD
         ));
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->t('ui.telnet.server.registration.intro',       'Please provide the following information to create your account.', [], $state['locale']));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.registration.cancel_hint', '(Type "cancel" at any prompt to abort registration)', [], $state['locale']), self::ANSI_DIM));
+        $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.intro',       'Please provide the following information to create your account.', [], $state['locale']));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.registration.cancel_hint', '(Type "cancel" at any prompt to abort registration)', [], $state['locale']), self::ANSI_DIM));
         $this->writeLine($conn, '');
 
         $fields = [
-            ['key' => 'ui.telnet.server.registration.username', 'fallback' => 'Username (3-20 chars, letters/numbers/underscore): ', 'echo' => true,  'var' => 'username'],
-            ['key' => 'ui.telnet.server.registration.password', 'fallback' => 'Password (min 8 characters): ',                        'echo' => false, 'var' => 'password'],
-            ['key' => 'ui.telnet.server.registration.confirm',  'fallback' => 'Confirm password: ',                                   'echo' => false, 'var' => 'confirm'],
+            ['key' => 'ui.terminalserver.server.registration.username', 'fallback' => 'Username (3-20 chars, letters/numbers/underscore): ', 'echo' => true,  'var' => 'username'],
+            ['key' => 'ui.terminalserver.server.registration.password', 'fallback' => 'Password (min 8 characters): ',                        'echo' => false, 'var' => 'password'],
+            ['key' => 'ui.terminalserver.server.registration.confirm',  'fallback' => 'Confirm password: ',                                   'echo' => false, 'var' => 'confirm'],
         ];
         $data = [];
         foreach ($fields as $f) {
@@ -861,7 +861,7 @@ class BbsSession
 
         if ($data['password'] !== $data['confirm']) {
             $this->writeLine($conn, $this->colorize(
-                $this->t('ui.telnet.server.registration.password_mismatch', 'Error: Passwords do not match.', [], $state['locale']),
+                $this->t('ui.terminalserver.server.registration.password_mismatch', 'Error: Passwords do not match.', [], $state['locale']),
                 self::ANSI_RED
             ));
             $this->writeLine($conn, '');
@@ -869,9 +869,9 @@ class BbsSession
         }
 
         foreach ([
-            ['key' => 'ui.telnet.server.registration.realname', 'fallback' => 'Real Name: ',          'var' => 'realname'],
-            ['key' => 'ui.telnet.server.registration.email',    'fallback' => 'Email (optional): ',    'var' => 'email'],
-            ['key' => 'ui.telnet.server.registration.location', 'fallback' => 'Location (optional): ','var' => 'location'],
+            ['key' => 'ui.terminalserver.server.registration.realname', 'fallback' => 'Real Name: ',          'var' => 'realname'],
+            ['key' => 'ui.terminalserver.server.registration.email',    'fallback' => 'Email (optional): ',    'var' => 'email'],
+            ['key' => 'ui.terminalserver.server.registration.location', 'fallback' => 'Location (optional): ','var' => 'location'],
         ] as $f) {
             $val = $this->prompt($conn, $state, $this->t($f['key'], $f['fallback'], [], $state['locale']), true);
             if ($val === null || strtolower(trim($val)) === 'cancel') { return false; }
@@ -879,7 +879,7 @@ class BbsSession
         }
 
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->t('ui.telnet.server.registration.submitting', 'Submitting registration...', [], $state['locale']));
+        $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.submitting', 'Submitting registration...', [], $state['locale']));
 
         try {
             $transport = $this->isSsh ? 'SSH' : 'Telnet';
@@ -894,10 +894,10 @@ class BbsSession
 
             if ($result['status'] === 200 || $result['status'] === 201) {
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.registration.success', 'Registration successful!', [], $state['locale']), self::ANSI_GREEN . self::ANSI_BOLD));
+                $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.registration.success', 'Registration successful!', [], $state['locale']), self::ANSI_GREEN . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $this->t('ui.telnet.server.registration.pending',        'Your account has been created and is pending approval.', [], $state['locale']));
-                $this->writeLine($conn, $this->t('ui.telnet.server.registration.pending_review', 'You will be notified once an administrator has reviewed your registration.', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending',        'Your account has been created and is pending approval.', [], $state['locale']));
+                $this->writeLine($conn, $this->t('ui.terminalserver.server.registration.pending_review', 'You will be notified once an administrator has reviewed your registration.', [], $state['locale']));
                 $this->writeLine($conn, '');
                 return true;
             }
@@ -922,11 +922,11 @@ class BbsSession
      */
     private function attemptLogin($conn, array &$state, string &$attemptedUsername = ''): ?array
     {
-        $username = $this->prompt($conn, $state, $this->t('ui.telnet.server.login.username_prompt', 'Username: ', [], $state['locale']), true);
+        $username = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login.username_prompt', 'Username: ', [], $state['locale']), true);
         if ($username === null) { return null; }
         $attemptedUsername = $username;
 
-        $password = $this->prompt($conn, $state, $this->t('ui.telnet.server.login.password_prompt', 'Password: ', [], $state['locale']), false);
+        $password = $this->prompt($conn, $state, $this->t('ui.terminalserver.server.login.password_prompt', 'Password: ', [], $state['locale']), false);
         if ($password === null) { return null; }
         $this->writeLine($conn, '');
 
@@ -967,13 +967,13 @@ class BbsSession
 
         if ($elapsed >= $disconnAt) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.disconnect', 'Idle timeout - disconnecting...', [], $state['locale']), self::ANSI_YELLOW));
+            $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.disconnect', 'Idle timeout - disconnecting...', [], $state['locale']), self::ANSI_YELLOW));
             $this->writeLine($conn, '');
             return [null, true, true];
         }
         if (!$state['idle_warned'] && $elapsed >= $warnAt) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.warning_line', 'Are you still there? (Press Enter to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
+            $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.warning_line', 'Are you still there? (Press Enter to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
             $this->writeLine($conn, '');
             $state['idle_warned'] = true;
         }
@@ -1007,13 +1007,13 @@ class BbsSession
 
         if ($elapsed >= $disconnAt) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.disconnect', 'Idle timeout - disconnecting...', [], $state['locale']), self::ANSI_YELLOW));
+            $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.disconnect', 'Idle timeout - disconnecting...', [], $state['locale']), self::ANSI_YELLOW));
             $this->writeLine($conn, '');
             return [null, true, true];
         }
         if (!$state['idle_warned'] && $elapsed >= $warnAt) {
             $this->writeLine($conn, '');
-            $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.idle.warning_key', 'Are you still there? (Press any key to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
+            $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.idle.warning_key', 'Are you still there? (Press any key to continue)', [], $state['locale']), self::ANSI_YELLOW . self::ANSI_BOLD));
             $this->writeLine($conn, '');
             $state['idle_warned'] = true;
         }
@@ -1175,13 +1175,13 @@ class BbsSession
         }
 
         if ($initialText !== '') {
-            $this->writeLine($conn, $this->t('ui.telnet.editor.starting_text', 'Starting with quoted text. Enter your reply below.', [], $state['locale']));
+            $this->writeLine($conn, $this->t('ui.terminalserver.editor.starting_text', 'Starting with quoted text. Enter your reply below.', [], $state['locale']));
             $this->writeLine($conn, '');
             foreach (explode("\n", $initialText) as $l) { $this->writeLine($conn, $l); }
             $this->writeLine($conn, '');
         }
 
-        $this->writeLine($conn, $this->t('ui.telnet.editor.instructions', 'Enter message text. End with a single "." line. Type "/abort" to cancel.', [], $state['locale']));
+        $this->writeLine($conn, $this->t('ui.terminalserver.editor.instructions', 'Enter message text. End with a single "." line. Type "/abort" to cancel.', [], $state['locale']));
         $lines = $initialText !== '' ? explode("\n", $initialText) : [];
 
         while (true) {
@@ -1212,9 +1212,9 @@ class BbsSession
 
         $headerLines = 0;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.title',     'MESSAGE EDITOR - FULL SCREEN MODE',   [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.title',     'MESSAGE EDITOR - FULL SCREEN MODE',   [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']), self::ANSI_YELLOW)); $headerLines++;
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.shortcuts', 'Ctrl+K=Help  Ctrl+Z=Send  Ctrl+C=Cancel', [], $state['locale']), self::ANSI_YELLOW)); $headerLines++;
         $this->writeLine($conn, $this->colorize($separator, self::ANSI_CYAN . self::ANSI_BOLD)); $headerLines++;
 
         $lines     = $initialText !== '' ? explode("\n", $initialText) ?: [''] : [''];
@@ -1249,7 +1249,7 @@ class BbsSession
             $ord = ord($char[0]);
 
             if ($ord === 26) { break; }  // Ctrl+Z — send
-            if ($ord === 3)  { $this->setEcho($conn, $state, true); $this->writeLine($conn, ''); $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.cancelled', 'Message cancelled.', [], $state['locale']), self::ANSI_RED)); return ''; }
+            if ($ord === 3)  { $this->setEcho($conn, $state, true); $this->writeLine($conn, ''); $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.cancelled', 'Message cancelled.', [], $state['locale']), self::ANSI_RED)); return ''; }
             if ($ord === 25) { // Ctrl+Y — delete line
                 if (count($lines) > 1) { array_splice($lines, $cursorRow, 1); if ($cursorRow >= count($lines)) { $cursorRow = count($lines) - 1; } $cursorCol = min($cursorCol, strlen($lines[$cursorRow])); }
                 else { $lines[0] = ''; $cursorCol = 0; }
@@ -1310,7 +1310,7 @@ class BbsSession
         $this->setEcho($conn, $state, true);
         $this->safeWrite($conn, "\033[" . ($startRow + $maxRows + 1) . ";1H");
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.saved', 'Message saved and ready to send.', [], $state['locale']), self::ANSI_GREEN));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.saved', 'Message saved and ready to send.', [], $state['locale']), self::ANSI_GREEN));
         $this->writeLine($conn, '');
 
         while (count($lines) > 0 && trim($lines[count($lines) - 1]) === '') { array_pop($lines); }
@@ -1323,18 +1323,18 @@ class BbsSession
     private function showEditorHelp($conn, array &$state): void
     {
         $this->safeWrite($conn, "\033[2J\033[H");
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.title',       'MESSAGE EDITOR HELP',                  [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.separator',   '-------------------',                  [], $state['locale']), self::ANSI_CYAN));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.navigate',    'Arrow Keys = Navigate cursor',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.edit',        'Backspace/Delete = Edit text',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.help',        'Ctrl+K = Help',                       [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.start_of_line','Ctrl+A = Start of line',             [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.end_of_line', 'Ctrl+E = End of line',                [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.delete_line', 'Ctrl+Y = Delete entire line',         [], $state['locale']), self::ANSI_YELLOW));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.save',        'Ctrl+Z = Save message and send',      [], $state['locale']), self::ANSI_GREEN));
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.editor.help.cancel',      'Ctrl+C = Cancel and discard message', [], $state['locale']), self::ANSI_RED));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.title',       'MESSAGE EDITOR HELP',                  [], $state['locale']), self::ANSI_CYAN . self::ANSI_BOLD));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.separator',   '-------------------',                  [], $state['locale']), self::ANSI_CYAN));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.navigate',    'Arrow Keys = Navigate cursor',         [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.edit',        'Backspace/Delete = Edit text',         [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.help',        'Ctrl+K = Help',                       [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.start_of_line','Ctrl+A = Start of line',             [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.end_of_line', 'Ctrl+E = End of line',                [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.delete_line', 'Ctrl+Y = Delete entire line',         [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.save',        'Ctrl+Z = Save message and send',      [], $state['locale']), self::ANSI_GREEN));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.editor.help.cancel',      'Ctrl+C = Cancel and discard message', [], $state['locale']), self::ANSI_RED));
         $this->writeLine($conn, '');
-        $this->writeLine($conn, $this->colorize($this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $state['locale']), self::ANSI_YELLOW));
+        $this->writeLine($conn, $this->colorize($this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $state['locale']), self::ANSI_YELLOW));
         $this->readRawChar($conn, $state);
         $this->safeWrite($conn, "\033[?25h");
     }
@@ -1506,3 +1506,4 @@ class BbsSession
         $this->log("{$event}: {$username} (session duration: " . floor($duration / 60) . "m " . ($duration % 60) . "s)");
     }
 }
+

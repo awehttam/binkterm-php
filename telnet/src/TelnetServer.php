@@ -89,9 +89,9 @@ class TelnetServer
     }
 
     /**
-     * Translate a telnet UI string.
+     * Translate a terminal server UI string.
      *
-     * @param string $key Translation key (looked up in the 'telnet' namespace)
+     * @param string $key Translation key (looked up in the 'terminalserver' namespace)
      * @param string $fallback English fallback used when the key is missing from all catalogs
      * @param array $params Placeholder substitutions ({key} => value)
      * @param string $locale User locale; defaults to system locale
@@ -99,7 +99,7 @@ class TelnetServer
      */
     public function t(string $key, string $fallback, array $params = [], string $locale = ''): string
     {
-        $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['telnet']);
+        $result = $this->translator->translate($key, $params, $locale !== '' ? $locale : null, ['terminalserver']);
         if ($result === $key) {
             // Key not found in any catalog — use fallback with param interpolation
             foreach ($params as $k => $v) {

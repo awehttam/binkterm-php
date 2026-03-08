@@ -56,14 +56,14 @@ class NetmailHandler
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage);
 
             if (!$messages) {
-                TelnetUtils::writeLine($conn, $this->server->t('ui.telnet.netmail.no_messages', 'No netmail messages.', [], $state['locale']));
+                TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.netmail.no_messages', 'No netmail messages.', [], $state['locale']));
                 return;
             }
 
             // Clear screen before displaying
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
 
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.netmail.header', 'Netmail (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.header', 'Netmail (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
             $listStartRow = 2;
             $cols = $state['cols'] ?? 80;
             $rows = $state['rows'] ?? 24;
@@ -246,7 +246,7 @@ class NetmailHandler
     public function compose($conn, array &$state, string $session, ?array $reply = null): void
     {
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.compose_title', '=== Compose Netmail ===', [], $state['locale']), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD));
         TelnetUtils::writeLine($conn, '');
 
         if ($reply && !empty($reply['id'])) {
@@ -266,7 +266,7 @@ class NetmailHandler
         $toAddressDefault = $reply['replyto_address'] ?? $reply['from_address'] ?? '';
         $subjectDefault = $reply ? 'Re: ' . MailUtils::normalizeSubject((string)($reply['subject'] ?? '')) : '';
 
-        $toNamePrompt = TelnetUtils::colorize($this->server->t('ui.telnet.compose.to_name', 'To Name: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
+        $toNamePrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.to_name', 'To Name: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
         if ($toNameDefault) {
             $toNamePrompt .= TelnetUtils::colorize("[{$toNameDefault}] ", TelnetUtils::ANSI_YELLOW);
         }
@@ -278,12 +278,12 @@ class NetmailHandler
             if ($toNameDefault !== '') {
                 $toName = $toNameDefault;
             } else {
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.compose.no_recipient', 'Recipient name required. Message cancelled.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.no_recipient', 'Recipient name required. Message cancelled.', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
                 return;
             }
         }
 
-        $toAddressPrompt = TelnetUtils::colorize($this->server->t('ui.telnet.compose.to_address', 'To Address: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
+        $toAddressPrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.to_address', 'To Address: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
         if ($toAddressDefault) {
             $toAddressPrompt .= TelnetUtils::colorize("[{$toAddressDefault}] ", TelnetUtils::ANSI_YELLOW);
         }
@@ -295,7 +295,7 @@ class NetmailHandler
             $toAddress = $toAddressDefault;
         }
 
-        $subjectPrompt = TelnetUtils::colorize($this->server->t('ui.telnet.compose.subject', 'Subject: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
+        $subjectPrompt = TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.subject', 'Subject: ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
         if ($subjectDefault) {
             $subjectPrompt .= TelnetUtils::colorize("[{$subjectDefault}] ", TelnetUtils::ANSI_YELLOW);
         }
@@ -308,7 +308,7 @@ class NetmailHandler
         }
 
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.compose.enter_message', 'Enter your message below:', [], $state['locale']), TelnetUtils::ANSI_GREEN));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.enter_message', 'Enter your message below:', [], $state['locale']), TelnetUtils::ANSI_GREEN));
 
         $cols = $state['cols'] ?? 80;
 
@@ -317,8 +317,8 @@ class NetmailHandler
         $defaultTagline = MailUtils::getUserDefaultTagline($this->apiBase, $session);
         if (!empty($taglines)) {
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.compose.select_tagline', 'Select a tagline:', [], $state['locale']), TelnetUtils::ANSI_CYAN));
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.compose.no_tagline', ' 0) None', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.select_tagline', 'Select a tagline:', [], $state['locale']), TelnetUtils::ANSI_CYAN));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.no_tagline', ' 0) None', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             foreach ($taglines as $idx => $tagline) {
                 TelnetUtils::writeLine($conn, sprintf(' %d) %s', $idx + 1, $tagline));
             }
@@ -332,8 +332,8 @@ class NetmailHandler
                 }
             }
             $prompt = $defaultIndex > 0
-                ? TelnetUtils::colorize($this->server->t('ui.telnet.compose.tagline_default', 'Tagline # [{default}] (Enter for Default): ', ['default' => $defaultIndex], $state['locale']), TelnetUtils::ANSI_CYAN)
-                : TelnetUtils::colorize($this->server->t('ui.telnet.compose.tagline_none', 'Tagline # (Enter for None): ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
+                ? TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.tagline_default', 'Tagline # [{default}] (Enter for Default): ', ['default' => $defaultIndex], $state['locale']), TelnetUtils::ANSI_CYAN)
+                : TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.tagline_none', 'Tagline # (Enter for None): ', [], $state['locale']), TelnetUtils::ANSI_CYAN);
             $choice = $this->server->prompt($conn, $state, $prompt, true);
             if ($choice === null) {
                 return;
@@ -366,7 +366,7 @@ class NetmailHandler
         $messageText = $this->server->readMultiline($conn, $state, $cols, $initialText);
         if ($messageText === '') {
             TelnetUtils::writeLine($conn, '');
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.compose.message_cancelled', 'Message cancelled (empty).', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.compose.message_cancelled', 'Message cancelled (empty).', [], $state['locale']), TelnetUtils::ANSI_YELLOW));
             return;
         }
 
@@ -385,12 +385,12 @@ class NetmailHandler
         }
 
         TelnetUtils::writeLine($conn, '');
-        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.netmail.sending', 'Sending netmail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.sending', 'Sending netmail...', [], $state['locale']), TelnetUtils::ANSI_CYAN));
         $result = MailUtils::sendMessage($this->apiBase, $session, $payload, $state['csrf_token'] ?? null);
         if ($result['success']) {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.netmail.send_success', '✓ Netmail sent successfully!', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.send_success', '✓ Netmail sent successfully!', [], $state['locale']), TelnetUtils::ANSI_GREEN . TelnetUtils::ANSI_BOLD));
         } else {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.telnet.netmail.send_failed', '✗ Failed to send netmail: {error}', ['error' => $result['error'] ?? 'Unknown error'], $state['locale']), TelnetUtils::ANSI_RED));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize($this->server->t('ui.terminalserver.netmail.send_failed', '✗ Failed to send netmail: {error}', ['error' => $result['error'] ?? 'Unknown error'], $state['locale']), TelnetUtils::ANSI_RED));
         }
         TelnetUtils::writeLine($conn, '');
     }
@@ -576,3 +576,4 @@ class NetmailHandler
         TelnetUtils::safeWrite($conn, str_pad($line, max(1, $cols - 1)));
     }
 }
+
