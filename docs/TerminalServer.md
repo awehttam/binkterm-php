@@ -50,5 +50,4 @@ login are the same.
 
 - [Telnet Daemon](../telnet/README.md)
 - [SSH Server](SSHServer.md)
-- [File Areas](FileAreas.md)
-- [Doors Overview](Doors.md)
+
