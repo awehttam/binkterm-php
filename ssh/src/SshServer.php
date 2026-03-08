@@ -254,12 +254,18 @@ class SshServer
         if ($bridgePid === 0) {
             // Bridge child — shuttles data between SSH socket and sshSide of pair
             fclose($plainSide);
+            // Suppress SIGPIPE so that a broken plain socket returns false from
+            // fwrite rather than killing the bridge process immediately.
+            if (function_exists('pcntl_signal')) { pcntl_signal(SIGPIPE, SIG_IGN); }
             $this->runBridge($conn, $sshSession, $sshSide);
             exit(0);
         }
 
         // Session child — BbsSession runs on plainSide
         fclose($sshSide);
+        // Suppress SIGPIPE so that if the bridge exits during a file transfer,
+        // writes to $plainSide return false rather than killing the session.
+        if (function_exists('pcntl_signal')) { pcntl_signal(SIGPIPE, SIG_IGN); }
 
         $bbsSession = new BbsSession(
             $plainSide,
@@ -356,7 +362,12 @@ class SshServer
             $usec = $windowFull ? 50000 : 0;
 
             $ready = @stream_select($read, $write, $except, $sec, $usec);
-            if ($ready === false) { break; }
+            if ($ready === false) {
+                // stream_select can return false when interrupted by a signal
+                // (EINTR).  Only break if the sockets are actually dead.
+                if (feof($sshConn) || feof($plainSocket)) { break; }
+                continue;
+            }
 
             // Feed any newly arrived raw SSH bytes into the session buffer.
             if (in_array($sshConn, $read, true)) {

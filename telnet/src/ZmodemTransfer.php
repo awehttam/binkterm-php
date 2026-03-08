@@ -1381,7 +1381,9 @@ class ZmodemTransfer
     private static function info(string $message): void
     {
         $line = '[' . date('Y-m-d H:i:s') . '] ZMODEM ' . $message . PHP_EOL;
-        fwrite(STDERR, $line);
+        // Only write to STDERR when it is still open (foreground mode).
+        // In daemon mode STDERR is closed and the resource is invalid.
+        if (is_resource(STDERR)) { @fwrite(STDERR, $line); }
         $file = dirname(__DIR__, 2) . '/data/logs/zmodem.log';
         @error_log($line, 3, $file);
     }
