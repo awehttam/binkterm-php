@@ -213,6 +213,11 @@ class ZmodemTransfer
             if ($header['type'] === self::ZSKIP || $header['type'] === self::ZABORT) {
                 return false;
             }
+            if ($header['type'] === self::ZFIN) {
+                // Client ended the session directly (common in lrzsz rz).
+                $complete = true;
+                break;
+            }
         }
         if (!$complete) {
             self::dbg("SEND fail: did not receive ZRINIT after EOF/retries");
