@@ -2227,7 +2227,21 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $userId = $user['user_id'] ?? $user['id'] ?? null;
         $isAdmin = !empty($user['is_admin']);
 
-        if (!$manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin)) {
+        $hasAccess = $manager->canAccessFileArea($file['file_area_id'], $userId, $isAdmin);
+
+        // Senders of netmail attachments can always download what they sent, even though
+        // the file lives in the recipient's private area.
+        if (!$hasAccess && $file['source_type'] === 'netmail_attachment' && $file['message_id'] !== null) {
+            $db = \BinktermPHP\Database::getInstance()->getPdo();
+            $nmStmt = $db->prepare("SELECT user_id FROM netmail WHERE id = ? LIMIT 1");
+            $nmStmt->execute([$file['message_id']]);
+            $nm = $nmStmt->fetch();
+            if ($nm && (int)$nm['user_id'] === (int)$userId) {
+                $hasAccess = true;
+            }
+        }
+
+        if (!$hasAccess) {
             http_response_code(403);
             echo apiLocalizedText('errors.files.access_denied', 'Access denied to this file area', $user);
             return;
