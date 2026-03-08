@@ -354,7 +354,7 @@ function handleHomePage($socket, string $geminiHost): void
             }
         }
 
-        // Echo area stats by network (public Gemini-visible areas only)
+        // Echo area stats by network (all active areas)
         $statsStmt = $db->query(
             "SELECT
                 CASE
@@ -364,7 +364,7 @@ function handleHomePage($socket, string $geminiHost): void
                 COUNT(*) AS area_count,
                 COALESCE(SUM(message_count), 0) AS message_count
              FROM echoareas
-             WHERE gemini_public = TRUE AND is_active = TRUE
+             WHERE is_active = TRUE
              GROUP BY 1"
         );
         $networkStats = $statsStmt->fetchAll(\PDO::FETCH_ASSOC);
