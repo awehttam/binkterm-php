@@ -25,6 +25,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Features](#features)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [Network Ports](#network-ports)
 - [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
@@ -575,6 +576,29 @@ Note:  Be sure to restart BBS services after editing binkp.json.  You can use th
     }
 }
 ```
+
+### Network Ports
+
+Common ports used by BinktermPHP and related services:
+
+| Service | Default Port(s) | Protocol | Direction | Config Source / Notes |
+|-------|---------|----------|-----------|------------------------|
+| Web interface (Apache/Caddy/Nginx) | `80`, `443` | HTTP/HTTPS | Inbound | Web server/reverse proxy config (not a BinktermPHP daemon port) |
+| BinkP server daemon | `24554` | TCP | Inbound | `config/binkp.json` -> `binkp.port` |
+| Telnet daemon (plain) | `2323` | Telnet/TCP | Inbound | `.env` `TELNET_PORT` |
+| Telnet daemon (TLS) | `8023` | Telnet over TLS/TCP | Inbound | `.env` `TELNET_TLS_PORT` (`TELNET_TLS=true` by default) |
+| SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
+| Gemini capsule daemon | `1965` | Gemini/TLS/TCP | Inbound | `.env` `GEMINI_PORT` |
+| DOS/Native door multiplexor WebSocket | `6001` | WebSocket (ws/wss) | Inbound | `.env` `DOSDOOR_WS_PORT` |
+| DOSBox bridge serial/TCP session range | `5000-5100` | TCP | Internal (host-local) | Used between bridge and emulator instances |
+| Admin daemon (if TCP socket used) | `9065` | TCP | Internal/localhost | `.env` `ADMIN_DAEMON_SOCKET=tcp://127.0.0.1:9065` (Unix socket is recommended on Linux) |
+| PostgreSQL | `5432` | TCP | Internal | `.env` `DB_PORT` |
+| Outbound MRC relay (remote server) | `5000` / `5001` | TCP / TLS | Outbound | `config/mrc.json` server port |
+| Optional web terminal gateway | `443` (typical) | WebSocket over HTTPS | Outbound | `.env` `TERMINAL_PROXY_PORT` (external service) |
+
+Notes:
+- Expose only the services you actually run.
+- For production, bind internal services to `127.0.0.1` where possible and publish through a reverse proxy/firewall.
 
 ### Configuration Options
 
