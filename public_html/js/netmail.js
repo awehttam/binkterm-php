@@ -251,9 +251,8 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            // Cap visual indent at 3 levels; deeper nesting shown via border-left color class
-            const indentLevels = Math.min(threadLevel, 3);
-            const threadIndent = indentLevels > 0 ? `style="text-indent: ${indentLevels * 0.5}rem;"` : '';
+            // Use a fixed small indent for all reply levels; depth is shown via border-left color
+            const threadIndent = threadLevel > 0 ? 'style="padding-left: 0.75rem;"' : '';
             const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
             const threadLevelClass = threadLevel > 0 ? ` thread-reply thread-level-${Math.min(threadLevel, 9)}` : '';
@@ -269,7 +268,7 @@ function displayMessages(messages, isThreaded = false) {
                         ${isUnread ? `<i class="fas fa-envelope text-primary me-1" title="${uiT('ui.common.unread', 'Unread')}"></i>` : `<i class="far fa-envelope-open text-muted me-1" title="${uiT('ui.common.read', 'Read')}"></i>`}${threadIcon}<strong>${escapeHtml(isSent ? `${uiT('ui.common.to_label', 'To:')} ` + msg.to_name : msg.from_name)}</strong>
                         <br>
                     </td>
-                    <td ${threadIndent}>
+                    <td>
                         ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
                         <br>
                         <small class="text-muted">
