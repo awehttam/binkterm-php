@@ -29,7 +29,7 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Fixed TLS on Linux: TLS handshake now correctly runs in the child process after `pcntl_fork()`, preventing the parent's `fclose()` from sending an SSL `close_notify` that destroyed the child's TLS session.
 
 #### Terminal Features
-- New **File Areas** section in the BBS terminal (`F` from the main menu). Users can list file areas, browse files, and transfer files via the ZMODEM protocol. File areas must be enabled via Admin → BBS Settings → Enable File Areas. Only areas with `upload_permission` set to *Users Allowed* accept uploads from regular users.
+- New **File Areas** section in the BBS terminal (`F` from the main menu). 
 
 ### Native Doors
 - Anonymous (guest) access: sysops can now allow unauthenticated users to launch specific native doors by setting `allow_anonymous: true` and `guest_max_sessions: N` in `config/nativedoors.json`. Requires migration v1.10.17.2 (run via `setup.php`).
