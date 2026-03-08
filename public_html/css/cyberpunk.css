@@ -1181,10 +1181,6 @@ input:focus, textarea:focus {
     background-color: rgba(255, 42, 109, 0.1) !important;
 }
 
-.thread-reply {
-    position: relative;
-}
-
 .thread-level-1 {
     border-left: 2px solid var(--cyber-cyan) !important;
     background-color: rgba(5, 217, 232, 0.05) !important;
@@ -1203,10 +1199,6 @@ input:focus, textarea:focus {
 .thread-level-4, .thread-level-5, .thread-level-6, .thread-level-7, .thread-level-8, .thread-level-9 {
     border-left: 2px solid var(--cyber-pink-dim) !important;
     background-color: rgba(204, 32, 87, 0.05) !important;
-}
-
-.thread-reply::before {
-    background-color: var(--cyber-purple-dim) !important;
 }
 
 .thread-root:hover {

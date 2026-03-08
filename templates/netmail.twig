@@ -275,10 +275,6 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
     background-color: rgba(13, 110, 253, 0.05);
 }
 
-.thread-reply {
-    position: relative;
-}
-
 .thread-level-1 {
     border-left: 2px solid #6c757d;
     background-color: rgba(108, 117, 125, 0.05);
@@ -297,17 +293,6 @@ window.currentUser = {{ current_user|json_encode(15)|raw }};
 .thread-level-4, .thread-level-5, .thread-level-6, .thread-level-7, .thread-level-8, .thread-level-9 {
     border-left: 2px solid #dc3545;
     background-color: rgba(220, 53, 69, 0.05);
-}
-
-/* Threading connection lines */
-.thread-reply::before {
-    content: '';
-    position: absolute;
-    left: -1px;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background-color: #dee2e6;
 }
 
 /* Thread root styling enhancement */
