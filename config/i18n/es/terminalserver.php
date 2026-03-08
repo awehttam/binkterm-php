@@ -50,6 +50,9 @@ return [
     'ui.terminalserver.server.banner.visit_web'        => 'Para una buena experiencia visítenos en la web @ {url}',
     'ui.terminalserver.server.banner.tls'             => 'Conectado usando TLS',
     'ui.terminalserver.server.banner.no_tls'          => 'Conectado sin TLS - use el puerto {port} para una conexión cifrada',
+    'ui.terminalserver.server.ssh_banner.welcome'     => 'Bienvenido a {system}.',
+    'ui.terminalserver.server.ssh_banner.line2'       => 'Inicie sesión con sus credenciales, o introduzca cualquier usuario/contraseña',
+    'ui.terminalserver.server.ssh_banner.line3'       => 'para continuar a la pantalla principal de inicio de sesión del BBS.',
 
     // --- Main menu ---
     'ui.terminalserver.server.menu.title'              => 'Menú Principal',

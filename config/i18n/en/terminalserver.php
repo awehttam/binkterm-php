@@ -50,6 +50,9 @@ return [
     'ui.terminalserver.server.banner.visit_web'        => 'For a good time visit us on the web @ {url}',
     'ui.terminalserver.server.banner.tls'             => 'Connected using TLS',
     'ui.terminalserver.server.banner.no_tls'          => 'Connected without TLS - use port {port} for an encrypted connection',
+    'ui.terminalserver.server.ssh_banner.welcome'     => 'Welcome to {system}.',
+    'ui.terminalserver.server.ssh_banner.line2'       => 'Log in with your account credentials, or enter any username/password',
+    'ui.terminalserver.server.ssh_banner.line3'       => 'to continue to the main BBS login screen.',
 
     // --- Main menu ---
     'ui.terminalserver.server.menu.title'              => 'Main Menu',

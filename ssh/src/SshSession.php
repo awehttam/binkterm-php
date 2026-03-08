@@ -357,6 +357,7 @@ class SshSession
 
         $accept  = chr(self::MSG_SERVICE_ACCEPT) . $this->sshString('ssh-userauth');
         $this->sendPacket($accept);
+        $this->sendPreAuthBanner();
 
         // Auth loop — allow up to 6 attempts
         $maxAttempts = 6;
@@ -412,6 +413,45 @@ class SshSession
         // a channel, but flag the result so BbsSession shows its own login UI.
         $this->sendPacket(chr(self::MSG_USERAUTH_SUCCESS));
         return ['authenticated' => false];
+    }
+
+    /**
+     * Send an SSH userauth banner (issue.net-style) before password auth begins.
+     */
+    private function sendPreAuthBanner(): void
+    {
+        $systemName = 'this BBS';
+        try {
+            $cfgName = (string)\BinktermPHP\Binkp\Config\BinkpConfig::getInstance()->getSystemName();
+            if (trim($cfgName) !== '') {
+                $systemName = $cfgName;
+            }
+        } catch (\Throwable $e) {
+            // Non-fatal: keep generic banner text.
+        }
+
+        $locale = (string)\BinktermPHP\Config::env('I18N_DEFAULT_LOCALE', 'en');
+        $translator = new \BinktermPHP\I18n\Translator();
+        $t = function (string $key, string $fallback, array $params = []) use ($translator, $locale): string {
+            $value = $translator->translate($key, $params, $locale, ['terminalserver']);
+            if ($value === $key) {
+                foreach ($params as $k => $v) {
+                    $fallback = str_replace('{' . $k . '}', (string)$v, $fallback);
+                }
+                return $fallback;
+            }
+            return $value;
+        };
+
+        $message =
+            $t('ui.terminalserver.server.ssh_banner.welcome', 'Welcome to {system}.', ['system' => $systemName]) . "\r\n" .
+            $t('ui.terminalserver.server.ssh_banner.line2', 'Log in with your account credentials, or enter any username/password') . "\r\n" .
+            $t('ui.terminalserver.server.ssh_banner.line3', 'to continue to the main BBS login screen.') . "\r\n";
+
+        $pkt  = chr(self::MSG_USERAUTH_BANNER);
+        $pkt .= $this->sshString($message);
+        $pkt .= $this->sshString($locale);
+        $this->sendPacket($pkt);
     }
 
     /**
