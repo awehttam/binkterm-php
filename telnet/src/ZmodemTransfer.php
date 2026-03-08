@@ -69,6 +69,8 @@ class ZmodemTransfer
     /** Buffered inbound bytes and read cursor. */
     private static string $rxBuffer = '';
     private static int $rxBufferPos = 0;
+    /** Whether to un-escape Telnet IAC (0xFF 0xFF → 0xFF) on inbound data. */
+    private static bool $unescapeIac = false;
 
     // ===========================================================
     // PUBLIC API
@@ -280,6 +282,7 @@ class ZmodemTransfer
         self::$lastZdleSent = 0;
         self::$rxBuffer = '';
         self::$rxBufferPos = 0;
+        self::$unescapeIac = $escapeTelnetIac;
         self::dbg("RECV start dir={$destDir} telnetIac=" . ($escapeTelnetIac ? '1' : '0'));
 
         // Compatibility trigger: many terminal clients expect "rz" prompt text
@@ -1114,33 +1117,38 @@ class ZmodemTransfer
      */
     private static function readByte($conn): ?int
     {
-        if (self::$rxBufferPos < strlen(self::$rxBuffer)) {
-            $b = self::$rxBuffer[self::$rxBufferPos++];
-            if (self::$rxBufferPos >= strlen(self::$rxBuffer)) {
-                self::$rxBuffer = '';
-                self::$rxBufferPos = 0;
+        // Refill the buffer in bulk when empty (much faster than fgetc() per byte,
+        // especially over TLS where each syscall has high overhead).
+        if (self::$rxBufferPos >= strlen(self::$rxBuffer)) {
+            self::$rxBuffer    = '';
+            self::$rxBufferPos = 0;
+
+            $chunk = @fread($conn, 8192);
+            if ($chunk === false || $chunk === '') {
+                return null;
             }
-            $val = ord($b);
-            if ($val === 0x18) {
-                self::$canCount++;
-                if (self::$canCount >= self::CAN_ABORT_COUNT) {
-                    return null;
-                }
-            } else {
-                self::$canCount = 0;
+
+            // Un-escape Telnet IAC sequences (0xFF 0xFF → 0xFF) on the inbound
+            // stream when operating over plain (non-binary) telnet.  Without this
+            // any 0xFF byte in the uploaded file would be doubled by the client,
+            // corrupting the ZMODEM data stream.
+            if (self::$unescapeIac) {
+                $chunk = str_replace("\xFF\xFF", "\xFF", $chunk);
             }
-            return $val;
+
+            self::$rxBuffer = $chunk;
         }
 
-        $b = @fgetc($conn);
-        if ($b === false || $b === '') {
-            return null;
+        $val = ord(self::$rxBuffer[self::$rxBufferPos++]);
+        if (self::$rxBufferPos >= strlen(self::$rxBuffer)) {
+            self::$rxBuffer    = '';
+            self::$rxBufferPos = 0;
         }
-        $val = ord($b);
+
         if ($val === 0x18) {
             self::$canCount++;
             if (self::$canCount >= self::CAN_ABORT_COUNT) {
-                return null; // Remote sent abort sequence
+                return null;
             }
         } else {
             self::$canCount = 0;

@@ -980,11 +980,16 @@ SimpleRouter::get('/compose/{type}', function($type) {
                 // Filter out kludge lines from the quoted message
                 $cleanMessageText = filterKludgeLines($originalMessage['message_text']);
                 $replyToAddress = $templateVars['reply_to_address']; // Use the address we determined above
+
+                // Quote using FSC-0032 style (same as echomail)
+                $initials = generateInitials($originalMessage['from_name']);
+                $quotedText = quoteMessageText($cleanMessageText, $initials);
+
                 $templateVars['reply_text'] = "\n\n--- Original Message ---\n" .
                     "From: {$originalMessage['from_name']} <{$replyToAddress}>\n" .
                     "Date: {$originalMessage['date_written']}\n" .
                     "Subject: {$originalMessage['subject']}\n\n" .
-                    "> " . str_replace("\n", "\n> ", $cleanMessageText);
+                    $quotedText;
               } else {
                   $templateVars['reply_to_id'] = $replyId;
                   $templateVars['reply_to_name'] = $originalMessage['from_name'];

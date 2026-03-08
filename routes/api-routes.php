@@ -3317,6 +3317,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         header('Content-Type: application/json');
 
         if (empty($_FILES['file'])) {
+            error_log('[netmail/attachment/upload] No file in $_FILES');
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -3325,6 +3326,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $file = $_FILES['file'];
 
         if ($file['error'] !== UPLOAD_ERR_OK) {
+            error_log('[netmail/attachment/upload] PHP upload error code: ' . $file['error']);
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -3332,6 +3334,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         $maxBytes = (int)\BinktermPHP\Config::env('NETMAIL_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024);
         if ($file['size'] > $maxBytes) {
+            error_log('[netmail/attachment/upload] File too large: ' . $file['size'] . ' bytes (max ' . $maxBytes . ')');
             http_response_code(400);
             apiError('', apiLocalizedText('', ''));
             return;
@@ -3347,11 +3350,17 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         $token = bin2hex(random_bytes(16));
         $destDir = __DIR__ . '/../data/netmail_attachments';
         if (!is_dir($destDir)) {
-            mkdir($destDir, 0777, true);
+            if (!mkdir($destDir, 0777, true)) {
+                error_log('[netmail/attachment/upload] Failed to create directory: ' . $destDir);
+                http_response_code(500);
+                apiError('', apiLocalizedText('', ''));
+                return;
+            }
         }
         $destPath = $destDir . '/' . $token . '_' . $safeName;
 
         if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+            error_log('[netmail/attachment/upload] move_uploaded_file failed: tmp=' . $file['tmp_name'] . ' dest=' . $destPath . ' dir_writable=' . (is_writable($destDir) ? 'yes' : 'no'));
             http_response_code(500);
             apiError('', apiLocalizedText('', ''));
             return;
