@@ -221,6 +221,10 @@ class FileHandler
                 $navHint = $this->t('ui.terminalserver.files.files_nav_none', 'n/p (next/prev)  Q)uit', [], $locale);
             }
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($navHint, TelnetUtils::ANSI_DIM));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.files_view_hint', 'Enter a file number to view details.', [], $locale),
+                TelnetUtils::ANSI_DIM
+            ));
             if (!$transfersAvailable && PHP_OS_FAMILY !== 'Windows') {
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                     $this->t('ui.terminalserver.files.transfer_unavailable', 'ZMODEM disabled: install lrzsz (sz/rz) on the server to enable transfers.', [], $locale),
@@ -252,18 +256,191 @@ class FileHandler
                 }
                 continue;
             }
-        if (($input === 'd' || $input === 'D') && $downloadAvailable) {
-            $this->zdbg('action=download');
-            $this->promptDownload($conn, $state, $session, $files, $page, $perPage, $locale);
-            continue;
+            if (ctype_digit($input) && !empty($files)) {
+                $displayNum = (int)$input;
+                $startNum   = ($page - 1) * $perPage + 1;
+                $idx        = $displayNum - $startNum;
+                if (isset($files[$idx])) {
+                    $this->showFileDetail($conn, $state, $session, $files[$idx], $downloadAvailable);
+                    $needsFetch = false;
+                }
+                continue;
+            }
+            if (($input === 'd' || $input === 'D') && $downloadAvailable) {
+                $this->zdbg('action=download');
+                $this->promptDownload($conn, $state, $session, $files, $page, $perPage, $locale);
+                continue;
+            }
+            if (($input === 'u' || $input === 'U') && $uploadAvailable) {
+                $this->zdbg('action=upload');
+                $this->promptUpload($conn, $state, $session, $area, $locale);
+                $needsFetch = true; // Refresh file list after upload
+                continue;
+            }
         }
-        if (($input === 'u' || $input === 'U') && $uploadAvailable) {
-            $this->zdbg('action=upload');
-            $this->promptUpload($conn, $state, $session, $area, $locale);
-            $needsFetch = true; // Refresh file list after upload
-            continue;
+    }
+
+    // ===========================================================
+    // FILE DETAIL VIEW
+    // ===========================================================
+
+    /**
+     * Display full details for a single file and offer a download option.
+     *
+     * @param resource $conn             Socket connection
+     * @param array    $state            Terminal state
+     * @param string   $session          Session token
+     * @param array    $file             Basic file record from the list API
+     * @param bool     $downloadAvailable Whether ZMODEM download is available
+     */
+    private function showFileDetail($conn, array &$state, string $session, array $file, bool $downloadAvailable): void
+    {
+        $locale = $state['locale'] ?? '';
+        $fileId = (int)($file['id'] ?? 0);
+        $cols   = max(40, (int)($state['cols'] ?? 80));
+
+        // Fetch the full record (includes long_description, virus scan, storage_path, etc.)
+        $response = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/files/' . $fileId, null, $session);
+        $full     = $response['data']['file'] ?? $file;
+
+        while (true) {
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+
+            $filename = $full['filename'] ?? '?';
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.detail_header', 'File: {name}', ['name' => $filename], $locale),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            ));
+            TelnetUtils::writeLine($conn, str_repeat('-', min($cols, 78)));
+
+            $this->writeField($conn,
+                $this->t('ui.terminalserver.files.detail_size', 'Size', [], $locale),
+                $this->formatSize((int)($full['filesize'] ?? 0))
+            );
+            $this->writeField($conn,
+                $this->t('ui.terminalserver.files.detail_uploaded', 'Uploaded', [], $locale),
+                $this->formatDate((string)($full['created_at'] ?? ''))
+            );
+            $this->writeField($conn,
+                $this->t('ui.terminalserver.files.detail_area', 'Area', [], $locale),
+                (string)($full['area_tag'] ?? '')
+            );
+
+            $from = (string)($full['uploaded_from_address'] ?? '');
+            if ($from !== '') {
+                $this->writeField($conn,
+                    $this->t('ui.terminalserver.files.detail_from', 'From', [], $locale),
+                    $from
+                );
+            }
+
+            // Virus scan status
+            $scanLine = $this->t('ui.terminalserver.files.detail_not_scanned', 'Not scanned', [], $locale);
+            if (!empty($full['virus_scanned'])) {
+                $result = (string)($full['virus_scan_result'] ?? '');
+                if ($result === 'clean') {
+                    $scanLine = TelnetUtils::colorize(
+                        $this->t('ui.terminalserver.files.detail_scan_clean', 'Clean', [], $locale),
+                        TelnetUtils::ANSI_GREEN
+                    );
+                } elseif ($result === 'infected') {
+                    $sig = (string)($full['virus_signature'] ?? $this->t('ui.common.unknown', 'Unknown', [], $locale));
+                    $scanLine = TelnetUtils::colorize(
+                        $this->t('ui.terminalserver.files.detail_scan_infected', 'INFECTED: {sig}', ['sig' => $sig], $locale),
+                        TelnetUtils::ANSI_RED
+                    );
+                } elseif ($result === 'error') {
+                    $scanLine = TelnetUtils::colorize(
+                        $this->t('ui.terminalserver.files.detail_scan_error', 'Scan error', [], $locale),
+                        TelnetUtils::ANSI_YELLOW
+                    );
+                } elseif ($result === 'skipped') {
+                    $scanLine = $this->t('ui.terminalserver.files.detail_scan_skipped', 'Skipped', [], $locale);
+                }
+            }
+            $this->writeField($conn,
+                $this->t('ui.terminalserver.files.detail_virus_scan', 'Virus scan', [], $locale),
+                $scanLine
+            );
+
+            // Short description
+            $shortDesc = (string)($full['short_description'] ?? '');
+            if ($shortDesc !== '') {
+                $this->writeField($conn,
+                    $this->t('ui.terminalserver.files.detail_description', 'Description', [], $locale),
+                    $shortDesc
+                );
+            }
+
+            // Long description
+            $longDesc = (string)($full['long_description'] ?? '');
+            if ($longDesc !== '') {
+                TelnetUtils::writeLine($conn, '');
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->t('ui.terminalserver.files.detail_long_description', 'Details:', [], $locale),
+                    TelnetUtils::ANSI_YELLOW
+                ));
+                $wrapWidth = max(40, min($cols - 4, 76));
+                foreach (explode("\n", wordwrap($longDesc, $wrapWidth, "\n", true)) as $line) {
+                    TelnetUtils::writeLine($conn, '  ' . $line);
+                }
+            }
+
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, str_repeat('-', min($cols, 78)));
+
+            if ($downloadAvailable) {
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->t('ui.terminalserver.files.detail_nav_download', 'D)ownload  B)ack', [], $locale),
+                    TelnetUtils::ANSI_DIM
+                ));
+            } else {
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->t('ui.terminalserver.files.detail_nav', 'B)ack', [], $locale),
+                    TelnetUtils::ANSI_DIM
+                ));
+            }
+
+            $raw   = $this->server->prompt($conn, $state, '', true);
+            if ($raw === null) {
+                return;
+            }
+            $input = strtolower(trim($raw));
+
+            if ($input === 'b' || $input === '') {
+                return;
+            }
+            if ($input === 'd' && $downloadAvailable) {
+                $this->zdbg('action=download from detail view');
+                $this->downloadFile($conn, $state, $session, $full, $locale);
+                return; // return to file list after download
+            }
         }
+    }
+
+    /**
+     * Write a label: value line in the detail view.
+     *
+     * @param resource $conn
+     */
+    private function writeField($conn, string $label, string $value): void
+    {
+        TelnetUtils::writeLine($conn,
+            TelnetUtils::colorize(sprintf('  %-14s', $label . ':'), TelnetUtils::ANSI_YELLOW)
+            . ' ' . $value
+        );
+    }
+
+    /**
+     * Format a UTC/local datetime string for terminal display.
+     */
+    private function formatDate(string $dateStr): string
+    {
+        if ($dateStr === '') {
+            return '-';
         }
+        $ts = strtotime($dateStr);
+        return $ts !== false ? date('Y-m-d H:i', $ts) : $dateStr;
     }
 
     // ===========================================================
@@ -271,14 +448,12 @@ class FileHandler
     // ===========================================================
 
     /**
-     * Ask the user for a file number then initiate a ZMODEM download.
+     * Ask the user for a file number then initiate a ZMODEM download directly.
+     * (Quick-download shortcut — the D key from the file list.)
      */
     private function promptDownload($conn, array &$state, string $session, array $files, int $page, int $perPage, string $locale): void
     {
-        if (!ZmodemTransfer::canDownload()) {
-            return;
-        }
-        if (empty($files)) {
+        if (!ZmodemTransfer::canDownload() || empty($files)) {
             return;
         }
 
@@ -295,7 +470,6 @@ class FileHandler
             return;
         }
 
-        // Convert displayed number to the index within the current page slice
         $displayNum = (int)$input;
         $startNum   = ($page - 1) * $perPage + 1;
         $idx        = $displayNum - $startNum;
@@ -309,11 +483,8 @@ class FileHandler
             return;
         }
 
-        $file   = $files[$idx];
-        $fileId = (int)($file['id'] ?? 0);
-        $name   = $file['filename'] ?? 'file';
-
-        // Fetch full record (includes storage_path for server-side ZMODEM send)
+        // Fetch full record to obtain storage_path
+        $fileId         = (int)($files[$idx]['id'] ?? 0);
         $detailResponse = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/files/' . $fileId, null, $session);
         $fileRecord     = $detailResponse['data']['file'] ?? null;
 
@@ -326,7 +497,28 @@ class FileHandler
             return;
         }
 
-        $storagePath = $fileRecord['storage_path'];
+        $this->downloadFile($conn, $state, $session, $fileRecord, $locale);
+    }
+
+    /**
+     * Initiate a ZMODEM send for a file record that already contains storage_path.
+     *
+     * @param resource $conn
+     * @param array    $fileRecord Full file record (must include storage_path and filename)
+     */
+    private function downloadFile($conn, array &$state, string $session, array $fileRecord, string $locale): void
+    {
+        $storagePath = (string)($fileRecord['storage_path'] ?? '');
+        $name        = (string)($fileRecord['filename'] ?? 'file');
+
+        if ($storagePath === '') {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->t('ui.terminalserver.files.download_error', 'File not found on server.', [], $locale),
+                TelnetUtils::ANSI_RED
+            ));
+            sleep(2);
+            return;
+        }
 
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
