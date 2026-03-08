@@ -63,6 +63,9 @@ class ZmodemTransfer
     private static int $lastZdleSent = 0;
     /** Lazy-loaded debug toggle. */
     private static ?bool $debugEnabled = null;
+    /** Optional cached external binary paths. */
+    private static ?string $szPath = null;
+    private static ?string $rzPath = null;
     /** Buffered inbound bytes and read cursor. */
     private static string $rxBuffer = '';
     private static int $rxBufferPos = 0;
@@ -82,6 +85,9 @@ class ZmodemTransfer
      */
     public static function send($conn, string $path, string $name, bool $escapeTelnetIac = false): bool
     {
+        if (!self::shouldUsePhpImplementation()) {
+            return self::sendWithSz($conn, $path, $escapeTelnetIac);
+        }
         self::$canCount = 0;
         self::$lastZdleSent = 0;
         self::$rxBuffer = '';
@@ -229,6 +235,9 @@ class ZmodemTransfer
      */
     public static function receive($conn, string $destDir, bool $escapeTelnetIac = false): ?string
     {
+        if (!self::shouldUsePhpImplementation()) {
+            return self::receiveWithRz($conn, $destDir, $escapeTelnetIac);
+        }
         self::$canCount = 0;
         self::$lastZdleSent = 0;
         self::$rxBuffer = '';
@@ -356,6 +365,304 @@ class ZmodemTransfer
 
         self::dbg("RECV success path={$destPath}");
         return $destPath;
+    }
+
+    /**
+     * True when download transfers are available for this runtime.
+     */
+    public static function canDownload(): bool
+    {
+        if (self::shouldUsePhpImplementation()) {
+            return true;
+        }
+        return self::getSzPath() !== null;
+    }
+
+    /**
+     * True when upload transfers are available for this runtime.
+     */
+    public static function canUpload(): bool
+    {
+        if (self::shouldUsePhpImplementation()) {
+            return true;
+        }
+        return self::getRzPath() !== null;
+    }
+
+    private static function shouldUsePhpImplementation(): bool
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return true;
+        }
+        $forcePhp = (string)\BinktermPHP\Config::env('TELNET_ZMODEM_FORCE_PHP', 'false');
+        return in_array(strtolower($forcePhp), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private static function sendWithSz($conn, string $path, bool $escapeTelnetIac): bool
+    {
+        $sz = self::getSzPath();
+        if ($sz === null || !is_readable($path)) {
+            self::dbg("SEND external unavailable (sz/path)");
+            return false;
+        }
+        $cmd = escapeshellarg($sz) . ' --zmodem --binary --quiet -- ' . escapeshellarg($path);
+        $ok = self::runExternalTransfer($conn, $cmd, dirname($path), $escapeTelnetIac, 300);
+        self::dbg("SEND external result=" . ($ok ? 'ok' : 'fail'));
+        return $ok;
+    }
+
+    private static function receiveWithRz($conn, string $destDir, bool $escapeTelnetIac): ?string
+    {
+        $rz = self::getRzPath();
+        if ($rz === null) {
+            self::dbg("RECV external unavailable (rz missing)");
+            return null;
+        }
+        if (!is_dir($destDir) && !@mkdir($destDir, 0775, true)) {
+            self::dbg("RECV external unable to create dest dir");
+            return null;
+        }
+
+        $before = self::snapshotFiles($destDir);
+        $cmd = escapeshellarg($rz) . ' --zmodem --binary --overwrite --quiet';
+        $ok = self::runExternalTransfer($conn, $cmd, $destDir, $escapeTelnetIac, 300);
+        if (!$ok) {
+            self::dbg("RECV external transfer failed");
+            return null;
+        }
+
+        $after = self::snapshotFiles($destDir);
+        $file = self::findNewestChangedFile($before, $after);
+        self::dbg("RECV external result=" . ($file !== null ? $file : 'none'));
+        return $file;
+    }
+
+    /**
+     * Bridge client socket <-> external sz/rz process stdio.
+     */
+    private static function runExternalTransfer($conn, string $cmd, string $cwd, bool $escapeTelnetIac, int $idleTimeout): bool
+    {
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $pipes = [];
+        $proc = @proc_open($cmd, $descriptors, $pipes, $cwd);
+        if (!is_resource($proc)) {
+            self::dbg("external proc_open failed: {$cmd}");
+            return false;
+        }
+
+        $stdin = $pipes[0] ?? null;
+        $stdout = $pipes[1] ?? null;
+        $stderr = $pipes[2] ?? null;
+        if (!is_resource($stdin) || !is_resource($stdout) || !is_resource($stderr)) {
+            @proc_terminate($proc);
+            @proc_close($proc);
+            return false;
+        }
+
+        $connMeta = @stream_get_meta_data($conn);
+        $connWasBlocked = is_array($connMeta) ? (bool)($connMeta['blocked'] ?? true) : true;
+        @stream_set_blocking($conn, false);
+        @stream_set_blocking($stdin, false);
+        @stream_set_blocking($stdout, false);
+        @stream_set_blocking($stderr, false);
+
+        $toProc = '';
+        $lastActivity = time();
+        $stderrLog = '';
+
+        while (true) {
+            $status = @proc_get_status($proc);
+            $running = is_array($status) ? !empty($status['running']) : false;
+
+            $read = [];
+            if ($running && is_resource($conn)) { $read[] = $conn; }
+            if (is_resource($stdout)) { $read[] = $stdout; }
+            if (is_resource($stderr)) { $read[] = $stderr; }
+
+            $write = [];
+            if ($toProc !== '' && is_resource($stdin)) { $write[] = $stdin; }
+
+            if (empty($read) && empty($write)) {
+                break;
+            }
+
+            $except = null;
+            $ready = @stream_select($read, $write, $except, 0, 200000);
+            if ($ready === false) {
+                break;
+            }
+
+            foreach ($read as $r) {
+                if ($r === $conn) {
+                    $chunk = @fread($conn, 8192);
+                    if ($chunk !== false && $chunk !== '') {
+                        $toProc .= $chunk;
+                        $lastActivity = time();
+                    }
+                } elseif ($r === $stdout) {
+                    $chunk = @fread($stdout, 8192);
+                    if ($chunk !== false && $chunk !== '') {
+                        self::writeRaw($conn, $chunk, $escapeTelnetIac);
+                        $lastActivity = time();
+                    } elseif (@feof($stdout)) {
+                        @fclose($stdout);
+                        $stdout = null;
+                    }
+                } elseif ($r === $stderr) {
+                    $chunk = @fread($stderr, 4096);
+                    if ($chunk !== false && $chunk !== '') {
+                        $stderrLog .= $chunk;
+                        if (strlen($stderrLog) > 4096) {
+                            $stderrLog = substr($stderrLog, -4096);
+                        }
+                        $lastActivity = time();
+                    } elseif (@feof($stderr)) {
+                        @fclose($stderr);
+                        $stderr = null;
+                    }
+                }
+            }
+
+            foreach ($write as $w) {
+                if ($w === $stdin && $toProc !== '') {
+                    $n = @fwrite($stdin, $toProc);
+                    if ($n === false) {
+                        $n = 0;
+                    }
+                    if ($n > 0) {
+                        $toProc = (string)substr($toProc, $n);
+                        $lastActivity = time();
+                    }
+                }
+            }
+
+            if ((time() - $lastActivity) > $idleTimeout) {
+                self::dbg("external transfer idle timeout");
+                @proc_terminate($proc);
+                break;
+            }
+
+            if (!$running && $toProc === '') {
+                break;
+            }
+        }
+
+        if (is_resource($stdin)) { @fclose($stdin); }
+        if (is_resource($stdout)) { @fclose($stdout); }
+        if (is_resource($stderr)) { @fclose($stderr); }
+        @stream_set_blocking($conn, $connWasBlocked);
+
+        $exit = @proc_close($proc);
+        if ($exit !== 0) {
+            $trimmed = trim($stderrLog);
+            if ($trimmed !== '') {
+                self::dbg("external exit={$exit} stderr=" . $trimmed);
+            } else {
+                self::dbg("external exit={$exit}");
+            }
+        }
+        return $exit === 0;
+    }
+
+    private static function getSzPath(): ?string
+    {
+        if (self::$szPath !== null) {
+            return self::$szPath;
+        }
+        $override = trim((string)\BinktermPHP\Config::env('TELNET_SZ_BIN', ''));
+        self::$szPath = self::resolveBinaryPath($override !== '' ? $override : 'sz');
+        return self::$szPath;
+    }
+
+    private static function getRzPath(): ?string
+    {
+        if (self::$rzPath !== null) {
+            return self::$rzPath;
+        }
+        $override = trim((string)\BinktermPHP\Config::env('TELNET_RZ_BIN', ''));
+        self::$rzPath = self::resolveBinaryPath($override !== '' ? $override : 'rz');
+        return self::$rzPath;
+    }
+
+    private static function resolveBinaryPath(string $nameOrPath): ?string
+    {
+        $candidate = trim($nameOrPath);
+        if ($candidate === '') {
+            return null;
+        }
+        if (str_contains($candidate, '/') || str_contains($candidate, '\\')) {
+            return (is_file($candidate) && is_executable($candidate)) ? $candidate : null;
+        }
+        $path = getenv('PATH') ?: '';
+        foreach (explode(PATH_SEPARATOR, $path) as $dir) {
+            $dir = trim($dir);
+            if ($dir === '') {
+                continue;
+            }
+            $full = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . $candidate;
+            if (is_file($full) && is_executable($full)) {
+                return $full;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Snapshot files in a directory for upload result detection.
+     *
+     * @return array<string, array{mtime:int,size:int}>
+     */
+    private static function snapshotFiles(string $dir): array
+    {
+        $out = [];
+        $files = @scandir($dir);
+        if (!is_array($files)) {
+            return $out;
+        }
+        foreach ($files as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            $path = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . $name;
+            if (!is_file($path)) {
+                continue;
+            }
+            $mtime = @filemtime($path);
+            $size = @filesize($path);
+            $out[$path] = [
+                'mtime' => is_int($mtime) ? $mtime : 0,
+                'size' => is_int($size) ? $size : 0,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string, array{mtime:int,size:int}> $before
+     * @param array<string, array{mtime:int,size:int}> $after
+     */
+    private static function findNewestChangedFile(array $before, array $after): ?string
+    {
+        $candidates = [];
+        foreach ($after as $path => $meta) {
+            if (!isset($before[$path])) {
+                $candidates[$path] = $meta['mtime'];
+                continue;
+            }
+            if ($before[$path]['mtime'] !== $meta['mtime'] || $before[$path]['size'] !== $meta['size']) {
+                $candidates[$path] = $meta['mtime'];
+            }
+        }
+        if (empty($candidates)) {
+            return null;
+        }
+        arsort($candidates, SORT_NUMERIC);
+        $path = (string)array_key_first($candidates);
+        return $path !== '' ? $path : null;
     }
 
     // ===========================================================

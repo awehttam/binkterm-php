@@ -1749,7 +1749,7 @@ return [
     // Files Page
     'ui.files.title' => 'Archivos',
     'ui.files.security_notice_label' => 'Aviso de seguridad:',
-    'ui.files.security_notice_text' => 'Todos los archivos subidos se escanean automaticamente en busca de virus. Los archivos sospechosos pueden ponerse en cuarentena o rechazarse.',
+    'ui.files.security_notice_text' => 'Usted es responsable de asegurarse de que los archivos que descarga sean seguros. Utilice software de protección contra malware adecuado.',
     'ui.files.recent_uploads' => 'Subidas recientes',
     'ui.files.upload_file' => 'Subir archivo',
     'ui.files.search_placeholder' => 'Buscar archivos...',

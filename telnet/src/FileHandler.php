@@ -67,12 +67,12 @@ class FileHandler
             if (empty($areas)) {
                 TelnetUtils::writeLine($conn, '');
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.telnet.files.no_areas', 'No file areas available.', [], $locale),
+                    $this->t('ui.terminalserver.files.no_areas', 'No file areas available.', [], $locale),
                     TelnetUtils::ANSI_YELLOW
                 ));
                 TelnetUtils::writeLine($conn, '');
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $locale),
+                    $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
                     TelnetUtils::ANSI_DIM
                 ));
                 $this->server->readKeyWithIdleCheck($conn, $state);
@@ -84,7 +84,7 @@ class FileHandler
 
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.areas_header', 'File Areas (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $locale),
+                $this->t('ui.terminalserver.files.areas_header', 'File Areas (page {page}/{total}):', ['page' => $page, 'total' => $totalPages], $locale),
                 TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
             ));
             TelnetUtils::writeLine($conn, '');
@@ -101,7 +101,7 @@ class FileHandler
 
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $locale),
+                $this->t('ui.terminalserver.files.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $locale),
                 TelnetUtils::ANSI_DIM
             ));
 
@@ -159,7 +159,7 @@ class FileHandler
         $areaTag = $area['tag'] ?? '';
 
         $uploadPerm = (int)($area['upload_permission'] ?? FileAreaManager::UPLOAD_READ_ONLY);
-        $canUpload  = $uploadPerm !== FileAreaManager::UPLOAD_READ_ONLY;
+        $canUploadByPolicy  = $uploadPerm !== FileAreaManager::UPLOAD_READ_ONLY;
 
         $allFiles   = null; // lazy-loaded; set to null to trigger initial fetch
         $needsFetch = true;
@@ -179,7 +179,7 @@ class FileHandler
 
             TelnetUtils::safeWrite($conn, "\033[2J\033[H");
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.area_header', 'Files: {area} (page {page}/{total})', [
+                $this->t('ui.terminalserver.files.area_header', 'Files: {area} (page {page}/{total})', [
                     'area'  => $areaTag,
                     'page'  => $page,
                     'total' => $totalPages,
@@ -190,7 +190,7 @@ class FileHandler
 
             if (empty($files)) {
                 TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                    $this->t('ui.telnet.files.no_files', 'No files in this area.', [], $locale),
+                    $this->t('ui.terminalserver.files.no_files', 'No files in this area.', [], $locale),
                     TelnetUtils::ANSI_YELLOW
                 ));
             } else {
@@ -207,20 +207,26 @@ class FileHandler
 
             TelnetUtils::writeLine($conn, '');
 
-            if ($canUpload) {
-                $navHint = $this->t(
-                    'ui.telnet.files.files_nav_upload',
-                    'D)ownload  U)pload  n/p (next/prev)  Q)uit',
-                    [], $locale
-                );
+            $downloadAvailable = ZmodemTransfer::canDownload();
+            $uploadAvailable = $canUploadByPolicy && ZmodemTransfer::canUpload();
+            $transfersAvailable = $downloadAvailable || $uploadAvailable;
+
+            if ($downloadAvailable && $uploadAvailable) {
+                $navHint = $this->t('ui.terminalserver.files.files_nav_upload', 'D)ownload  U)pload  n/p (next/prev)  Q)uit', [], $locale);
+            } elseif ($downloadAvailable) {
+                $navHint = $this->t('ui.terminalserver.files.files_nav', 'D)ownload  n/p (next/prev)  Q)uit', [], $locale);
+            } elseif ($uploadAvailable) {
+                $navHint = $this->t('ui.terminalserver.files.files_nav_upload_only', 'U)pload  n/p (next/prev)  Q)uit', [], $locale);
             } else {
-                $navHint = $this->t(
-                    'ui.telnet.files.files_nav',
-                    'D)ownload  n/p (next/prev)  Q)uit',
-                    [], $locale
-                );
+                $navHint = $this->t('ui.terminalserver.files.files_nav_none', 'n/p (next/prev)  Q)uit', [], $locale);
             }
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($navHint, TelnetUtils::ANSI_DIM));
+            if (!$transfersAvailable && PHP_OS_FAMILY !== 'Windows') {
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->t('ui.terminalserver.files.transfer_unavailable', 'ZMODEM disabled: install lrzsz (sz/rz) on the server to enable transfers.', [], $locale),
+                    TelnetUtils::ANSI_YELLOW
+                ));
+            }
 
             $raw = $this->server->prompt($conn, $state, '', true);
             if ($raw === null) {
@@ -246,12 +252,12 @@ class FileHandler
                 }
                 continue;
             }
-        if ($input === 'd' || $input === 'D') {
+        if (($input === 'd' || $input === 'D') && $downloadAvailable) {
             $this->zdbg('action=download');
             $this->promptDownload($conn, $state, $session, $files, $page, $perPage, $locale);
             continue;
         }
-        if (($input === 'u' || $input === 'U') && $canUpload) {
+        if (($input === 'u' || $input === 'U') && $uploadAvailable) {
             $this->zdbg('action=upload');
             $this->promptUpload($conn, $state, $session, $area, $locale);
             $needsFetch = true; // Refresh file list after upload
@@ -269,6 +275,9 @@ class FileHandler
      */
     private function promptDownload($conn, array &$state, string $session, array $files, int $page, int $perPage, string $locale): void
     {
+        if (!ZmodemTransfer::canDownload()) {
+            return;
+        }
         if (empty($files)) {
             return;
         }
@@ -276,7 +285,7 @@ class FileHandler
         TelnetUtils::writeLine($conn, '');
         $input = trim($this->server->prompt($conn, $state,
             TelnetUtils::colorize(
-                $this->t('ui.telnet.files.download_prompt', 'File # to download (Enter to cancel): ', [], $locale),
+                $this->t('ui.terminalserver.files.download_prompt', 'File # to download (Enter to cancel): ', [], $locale),
                 TelnetUtils::ANSI_YELLOW
             ),
             true
@@ -293,7 +302,7 @@ class FileHandler
 
         if (!isset($files[$idx])) {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.invalid_selection', 'Invalid selection.', [], $locale),
+                $this->t('ui.terminalserver.files.invalid_selection', 'Invalid selection.', [], $locale),
                 TelnetUtils::ANSI_RED
             ));
             sleep(1);
@@ -310,7 +319,7 @@ class FileHandler
 
         if (!$fileRecord || empty($fileRecord['storage_path'])) {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.download_error', 'File not found on server.', [], $locale),
+                $this->t('ui.terminalserver.files.download_error', 'File not found on server.', [], $locale),
                 TelnetUtils::ANSI_RED
             ));
             sleep(2);
@@ -321,11 +330,11 @@ class FileHandler
 
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.telnet.files.download_starting', 'Starting ZMODEM download: {name}', ['name' => $name], $locale),
+            $this->t('ui.terminalserver.files.download_starting', 'Starting ZMODEM download: {name}', ['name' => $name], $locale),
             TelnetUtils::ANSI_CYAN
         ));
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.telnet.files.download_hint', 'Start ZMODEM receive in your terminal now...', [], $locale),
+            $this->t('ui.terminalserver.files.download_hint', 'Start ZMODEM receive in your terminal now...', [], $locale),
             TelnetUtils::ANSI_DIM
         ));
         sleep(1);
@@ -336,18 +345,18 @@ class FileHandler
         TelnetUtils::writeLine($conn, '');
         if ($ok) {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.download_done', 'Transfer complete.', [], $locale),
+                $this->t('ui.terminalserver.files.download_done', 'Transfer complete.', [], $locale),
                 TelnetUtils::ANSI_GREEN
             ));
         } else {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.download_failed', 'Transfer failed or was cancelled.', [], $locale),
+                $this->t('ui.terminalserver.files.download_failed', 'Transfer failed or was cancelled.', [], $locale),
                 TelnetUtils::ANSI_RED
             ));
         }
 
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $locale),
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
             TelnetUtils::ANSI_DIM
         ));
         $this->server->readKeyWithIdleCheck($conn, $state);
@@ -362,20 +371,23 @@ class FileHandler
      */
     private function promptUpload($conn, array &$state, string $session, array $area, string $locale): void
     {
+        if (!ZmodemTransfer::canUpload()) {
+            return;
+        }
         TelnetUtils::safeWrite($conn, "\033[2J\033[H");
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.telnet.files.upload_title', '=== Upload File ===', [], $locale),
+            $this->t('ui.terminalserver.files.upload_title', '=== Upload File ===', [], $locale),
             TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
         ));
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.telnet.files.upload_area', 'Area: {area}', ['area' => $area['tag'] ?? ''], $locale),
+            $this->t('ui.terminalserver.files.upload_area', 'Area: {area}', ['area' => $area['tag'] ?? ''], $locale),
             TelnetUtils::ANSI_GREEN
         ));
         TelnetUtils::writeLine($conn, '');
 
         $shortDesc = trim($this->server->prompt($conn, $state,
             TelnetUtils::colorize(
-                $this->t('ui.telnet.files.upload_desc_prompt', 'Short description (blank to cancel): ', [], $locale),
+                $this->t('ui.terminalserver.files.upload_desc_prompt', 'Short description (blank to cancel): ', [], $locale),
                 TelnetUtils::ANSI_YELLOW
             ),
             true
@@ -383,7 +395,7 @@ class FileHandler
 
         if ($shortDesc === '') {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.upload_cancelled', 'Upload cancelled.', [], $locale),
+                $this->t('ui.terminalserver.files.upload_cancelled', 'Upload cancelled.', [], $locale),
                 TelnetUtils::ANSI_DIM
             ));
             sleep(1);
@@ -392,7 +404,7 @@ class FileHandler
 
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.telnet.files.upload_starting', 'Start ZMODEM send in your terminal now...', [], $locale),
+            $this->t('ui.terminalserver.files.upload_starting', 'Start ZMODEM send in your terminal now...', [], $locale),
             TelnetUtils::ANSI_CYAN
         ));
 
@@ -403,11 +415,11 @@ class FileHandler
         if ($destPath === null) {
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.upload_failed', 'Transfer failed or was cancelled.', [], $locale),
+                $this->t('ui.terminalserver.files.upload_failed', 'Transfer failed or was cancelled.', [], $locale),
                 TelnetUtils::ANSI_RED
             ));
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $locale),
+                $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
                 TelnetUtils::ANSI_DIM
             ));
             $this->server->readKeyWithIdleCheck($conn, $state);
@@ -427,7 +439,7 @@ class FileHandler
         if ($uploadPerm === FileAreaManager::UPLOAD_ADMIN_ONLY && !$isAdmin) {
             @unlink($destPath);
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.upload_admin_only', 'Only administrators can upload to this area.', [], $locale),
+                $this->t('ui.terminalserver.files.upload_admin_only', 'Only administrators can upload to this area.', [], $locale),
                 TelnetUtils::ANSI_RED
             ));
             sleep(2);
@@ -440,20 +452,20 @@ class FileHandler
 
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.upload_done', 'File uploaded successfully (ID: {id}).', ['id' => $fileId], $locale),
+                $this->t('ui.terminalserver.files.upload_done', 'File uploaded successfully (ID: {id}).', ['id' => $fileId], $locale),
                 TelnetUtils::ANSI_GREEN
             ));
         } catch (\Exception $e) {
             @unlink($destPath);
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.telnet.files.upload_error', 'Upload error: {error}', ['error' => $e->getMessage()], $locale),
+                $this->t('ui.terminalserver.files.upload_error', 'Upload error: {error}', ['error' => $e->getMessage()], $locale),
                 TelnetUtils::ANSI_RED
             ));
         }
 
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-            $this->t('ui.telnet.server.press_any_key', 'Press any key to return...', [], $locale),
+            $this->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
             TelnetUtils::ANSI_DIM
         ));
         $this->server->readKeyWithIdleCheck($conn, $state);
@@ -478,10 +490,11 @@ class FileHandler
     }
 
     /**
-     * Translate a string from the 'telnet' catalog namespace via the BbsSession.
+     * Translate a string from the 'terminalserver' catalog namespace via the BbsSession.
      */
     private function t(string $key, string $fallback, array $params = [], string $locale = ''): string
     {
         return $this->server->t($key, $fallback, $params, $locale);
     }
 }
+

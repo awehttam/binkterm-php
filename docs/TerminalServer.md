@@ -46,8 +46,16 @@ consistent across Telnet and SSH.
 These differences are transport-layer concerns only; terminal features after
 login are the same.
 
+## ZMODEM Requirements (Non-Windows)
+
+On non-Windows hosts, file transfer support uses external `sz`/`rz` binaries
+from the `lrzsz` package.
+
+- Install `lrzsz` to enable ZMODEM download/upload in file areas.
+- If `sz`/`rz` are missing, download/upload options are hidden in the file area UI.
+- The built-in PHP ZMODEM implementation is retained for Windows/testing.
+
 ## Related Documentation
 
 - [Telnet Daemon](../telnet/README.md)
 - [SSH Server](SSHServer.md)
-

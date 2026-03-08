@@ -1749,7 +1749,7 @@ return [
     // Files Page
     'ui.files.title' => 'Files',
     'ui.files.security_notice_label' => 'Security Notice:',
-    'ui.files.security_notice_text' => 'All uploaded files are automatically virus-scanned. Suspicious files may be quarantined or rejected.',
+    'ui.files.security_notice_text' => 'You are responsible for ensuring files you download are safe. Use appropriate malware protection software.',
     'ui.files.recent_uploads' => 'Recent Uploads',
     'ui.files.upload_file' => 'Upload File',
     'ui.files.search_placeholder' => 'Search files...',
