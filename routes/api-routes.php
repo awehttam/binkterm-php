@@ -2507,6 +2507,58 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
+    /**
+     * PUT /api/files/{id}/rename
+     * Rename a file (auth required, owner or admin).
+     */
+    SimpleRouter::put('/files/{id}/rename', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $body = json_decode(file_get_contents('php://input'), true);
+        $newFilename = trim($body['filename'] ?? '');
+
+        if ($newFilename === '') {
+            http_response_code(400);
+            apiError('errors.files.rename_filename_required', apiLocalizedText('errors.files.rename_filename_required', 'New filename is required', $user));
+            return;
+        }
+
+        try {
+            $userId = $user['user_id'] ?? $user['id'] ?? 0;
+            $isAdmin = !empty($user['is_admin']);
+
+            $manager = new \BinktermPHP\FileAreaManager();
+            $manager->renameFile((int)$id, $newFilename, $userId, $isAdmin);
+
+            echo json_encode([
+                'success' => true,
+                'filename' => basename($newFilename),
+                'message_code' => 'ui.api.files.renamed'
+            ]);
+
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'permission')) {
+                http_response_code(403);
+                apiError('errors.files.rename_forbidden', apiLocalizedText('errors.files.rename_forbidden', 'You do not have permission to rename this file', $user));
+            } elseif (str_contains($msg, 'already exists')) {
+                http_response_code(409);
+                apiError('errors.files.rename_conflict', apiLocalizedText('errors.files.rename_conflict', 'A file with that name already exists in this area', $user));
+            } else {
+                http_response_code(400);
+                apiError('errors.files.rename_failed', apiLocalizedText('errors.files.rename_failed', 'Failed to rename file', $user));
+            }
+        }
+    })->where(['id' => '[0-9]+']);
+
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
         $user = RouteHelper::requireAuth();

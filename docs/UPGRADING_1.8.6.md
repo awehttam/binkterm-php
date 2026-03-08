@@ -29,7 +29,10 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Fixed TLS on Linux: TLS handshake now correctly runs in the child process after `pcntl_fork()`, preventing the parent's `fclose()` from sending an SSL `close_notify` that destroyed the child's TLS session.
 
 #### Terminal Features
-- New **File Areas** section in the BBS terminal (`F` from the main menu). 
+- New **File Areas** section in the BBS terminal (`F` from the main menu).
+
+### File Areas
+- File owners and admins can now rename a file through the web interface. The Rename button appears in the file detail modal for users who have permission. Renaming updates both the on-disk filename and the database record.
 
 ### Native Doors
 - Anonymous (guest) access: sysops can now allow unauthenticated users to launch specific native doors by setting `allow_anonymous: true` and `guest_max_sessions: N` in `config/nativedoors.json`. Requires migration v1.10.17.2 (run via `setup.php`).

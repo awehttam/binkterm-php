@@ -129,12 +129,40 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
+                <button type="button" class="btn btn-outline-warning" id="renameFileBtn" onclick="showRenameDialog()" style="display:none;">
+                    <i class="fas fa-pencil-alt"></i> {{ t('ui.files.rename', {}, 'common') }}
+                </button>
                 <button type="button" class="btn btn-outline-info" id="shareFileBtn" onclick="showFileShareDialog()">
                     <i class="fas fa-share-alt"></i> {{ t('ui.common.share', {}, 'common') }}
                 </button>
                 <a href="#" class="btn btn-primary" id="downloadFileBtn" download>
                     <i class="fas fa-download"></i> {{ t('ui.files.download', {}, 'common') }}
                 </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Rename Modal -->
+<div class="modal fade" id="fileRenameModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-pencil-alt me-2"></i>{{ t('ui.files.rename_file', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="renameFilenameInput" class="form-label">{{ t('ui.files.new_filename', {}, 'common') }}</label>
+                    <input type="text" class="form-control" id="renameFilenameInput" maxlength="255">
+                </div>
+                <div id="renameErrorMsg" class="alert alert-danger" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-warning" onclick="submitRename()">
+                    <i class="fas fa-pencil-alt"></i> {{ t('ui.files.rename', {}, 'common') }}
+                </button>
             </div>
         </div>
     </div>
@@ -641,6 +669,9 @@ function showFileDetails(fileId) {
             $('#downloadFileBtn').attr('href', `/api/files/${fileId}/download`);
             $('#fileDetailsTitle').text(file.filename);
 
+            const canRename = isAdmin || (file.owner_id && file.owner_id === currentUserId);
+            $('#renameFileBtn').toggle(canRename);
+
             new bootstrap.Modal('#fileDetailsModal').show();
         })
         .fail(function() {
@@ -748,6 +779,50 @@ function uploadFile() {
         }
     });
 }
+
+function showRenameDialog() {
+    const currentFilename = $('#detailFilename').text();
+    $('#renameFilenameInput').val(currentFilename);
+    $('#renameErrorMsg').hide();
+    bootstrap.Modal.getInstance('#fileDetailsModal').hide();
+    new bootstrap.Modal('#fileRenameModal').show();
+    $('#fileRenameModal').on('shown.bs.modal', function() {
+        $('#renameFilenameInput').focus().select();
+    });
+}
+
+function submitRename() {
+    const newFilename = $('#renameFilenameInput').val().trim();
+    if (!newFilename) return;
+
+    $('#renameErrorMsg').hide();
+
+    $.ajax({
+        url: `/api/files/${currentFileId}/rename`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ filename: newFilename })
+    }).done(function(data) {
+        bootstrap.Modal.getInstance('#fileRenameModal').hide();
+        showSuccess(uiT('ui.files.rename_success', 'File renamed successfully'));
+        // Update file listing
+        if (currentAreaId) {
+            loadFiles(currentAreaId);
+        } else {
+            loadRecentFiles();
+        }
+    }).fail(function(xhr) {
+        const err = xhr.responseJSON;
+        const renameErrMsg = window.getApiErrorMessage ? window.getApiErrorMessage(err, uiT('errors.files.rename_failed', 'Failed to rename file')) : (err?.error || uiT('errors.files.rename_failed', 'Failed to rename file'));
+        $('#renameErrorMsg').text(renameErrMsg);
+        $('#renameErrorMsg').show();
+    });
+}
+
+// Allow Enter key in rename input
+$(document).on('keydown', '#renameFilenameInput', function(e) {
+    if (e.key === 'Enter') submitRename();
+});
 
 function confirmDeleteFile(fileId, filename) {
     if (confirm(uiT('ui.files.delete_confirm', `Are you sure you want to delete "${filename}"? This action cannot be undone.`, { filename }))) {

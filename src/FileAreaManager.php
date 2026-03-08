@@ -823,6 +823,66 @@ class FileAreaManager
     }
 
     /**
+     * Rename a file (on disk and in the database).
+     *
+     * @param int    $fileId      ID of the file to rename
+     * @param string $newFilename New filename (basename only; no path components)
+     * @param int    $userId      Requesting user ID
+     * @param bool   $isAdmin     Whether the requesting user is an admin
+     * @return bool
+     * @throws \Exception If not found, no permission, invalid name, or name collision
+     */
+    public function renameFile(int $fileId, string $newFilename, int $userId, bool $isAdmin): bool
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+
+        // Only owner or admin may rename
+        if (!$isAdmin && ($file['owner_id'] === null || $file['owner_id'] != $userId)) {
+            throw new \Exception('You do not have permission to rename this file');
+        }
+
+        // Sanitize: strip any directory component
+        $newFilename = basename(trim($newFilename));
+        if ($newFilename === '' || $newFilename === '.' || $newFilename === '..') {
+            throw new \Exception('Invalid filename');
+        }
+        if (strlen($newFilename) > 255) {
+            throw new \Exception('Filename too long');
+        }
+
+        // No change?
+        if ($newFilename === $file['filename']) {
+            return true;
+        }
+
+        // Check for collision in the same area directory
+        $newPath = dirname($file['storage_path']) . DIRECTORY_SEPARATOR . $newFilename;
+        if (file_exists($newPath)) {
+            throw new \Exception('A file with that name already exists in this area');
+        }
+
+        // Rename on disk
+        if (file_exists($file['storage_path'])) {
+            if (!rename($file['storage_path'], $newPath)) {
+                throw new \Exception('Failed to rename file on disk');
+            }
+        } else {
+            // File missing on disk — update DB record only
+            $newPath = $file['storage_path'];
+        }
+
+        $stmt = $this->db->prepare(
+            "UPDATE files SET filename = ?, storage_path = ?, updated_at = NOW() WHERE id = ?"
+        );
+        $stmt->execute([$newFilename, $newPath, $fileId]);
+
+        return true;
+    }
+
+    /**
      * Delete a file by storage path (used by automation rules)
      *
      * @param string $filepath
