@@ -89,9 +89,11 @@ class ZmodemTransfer
             self::dbg("SEND blocked: TERMINAL_FILE_TRANSFERS disabled");
             return false;
         }
-        if (!self::shouldUsePhpImplementation()) {
+        if (!self::forcePHPImplementation() && self::getSzPath() !== null) {
+            self::info("SEND via sz: " . basename($path));
             return self::sendWithSz($conn, $path, $escapeTelnetIac);
         }
+        self::info("SEND via PHP: " . basename($path));
         self::$canCount = 0;
         self::$lastZdleSent = 0;
         self::$rxBuffer = '';
@@ -226,6 +228,7 @@ class ZmodemTransfer
         @fread($conn, 4);
 
         self::dbg("SEND success");
+        self::info("SEND via PHP: " . basename($path) . " — ok");
         return true;
     }
 
@@ -243,9 +246,11 @@ class ZmodemTransfer
             self::dbg("RECV blocked: TERMINAL_FILE_TRANSFERS disabled");
             return null;
         }
-        if (!self::shouldUsePhpImplementation()) {
+        if (!self::forcePHPImplementation() && self::getRzPath() !== null) {
+            self::info("RECV via rz: dir={$destDir}");
             return self::receiveWithRz($conn, $destDir, $escapeTelnetIac);
         }
+        self::info("RECV via PHP: dir={$destDir}");
         self::$canCount = 0;
         self::$lastZdleSent = 0;
         self::$rxBuffer = '';
@@ -372,35 +377,28 @@ class ZmodemTransfer
         }
 
         self::dbg("RECV success path={$destPath}");
+        self::info("RECV via PHP: " . basename($destPath) . " — ok");
         return $destPath;
     }
 
     /**
      * True when download transfers are available for this runtime.
+     * The internal PHP implementation is always available as a fallback, so this
+     * returns true whenever file transfers are enabled.
      */
     public static function canDownload(): bool
     {
-        if (!self::isTransfersEnabled()) {
-            return false;
-        }
-        if (self::shouldUsePhpImplementation()) {
-            return true;
-        }
-        return self::getSzPath() !== null;
+        return self::isTransfersEnabled();
     }
 
     /**
      * True when upload transfers are available for this runtime.
+     * The internal PHP implementation is always available as a fallback, so this
+     * returns true whenever file transfers are enabled.
      */
     public static function canUpload(): bool
     {
-        if (!self::isTransfersEnabled()) {
-            return false;
-        }
-        if (self::shouldUsePhpImplementation()) {
-            return true;
-        }
-        return self::getRzPath() !== null;
+        return self::isTransfersEnabled();
     }
 
     private static function isTransfersEnabled(): bool
@@ -409,11 +407,13 @@ class ZmodemTransfer
         return in_array(strtolower($val), ['1', 'true', 'yes', 'on'], true);
     }
 
-    private static function shouldUsePhpImplementation(): bool
+    /**
+     * Return true when the internal PHP Z-modem implementation should be used
+     * exclusively, bypassing any installed sz/rz binaries.
+     * Set TELNET_ZMODEM_FORCE_PHP=true in .env to force this behaviour.
+     */
+    private static function forcePHPImplementation(): bool
     {
-        if (PHP_OS_FAMILY === 'Windows') {
-            return true;
-        }
         $forcePhp = (string)\BinktermPHP\Config::env('TELNET_ZMODEM_FORCE_PHP', 'false');
         return in_array(strtolower($forcePhp), ['1', 'true', 'yes', 'on'], true);
     }
@@ -428,6 +428,7 @@ class ZmodemTransfer
         $cmd = escapeshellarg($sz) . ' --zmodem --binary --quiet -- ' . escapeshellarg($path);
         $ok = self::runExternalTransfer($conn, $cmd, dirname($path), $escapeTelnetIac, 300);
         self::dbg("SEND external result=" . ($ok ? 'ok' : 'fail'));
+        self::info("SEND via sz: " . basename($path) . " — " . ($ok ? 'ok' : 'FAILED'));
         return $ok;
     }
 
@@ -454,64 +455,112 @@ class ZmodemTransfer
         $after = self::snapshotFiles($destDir);
         $file = self::findNewestChangedFile($before, $after);
         self::dbg("RECV external result=" . ($file !== null ? $file : 'none'));
+        self::info("RECV via rz: " . ($file !== null ? basename($file) . ' — ok' : 'no file received'));
         return $file;
     }
 
     /**
      * Bridge client socket <-> external sz/rz process stdio.
+     *
+     * When the system supports PTY descriptors (Linux/Unix with PHP PTY support),
+     * fd 0 and fd 1 of the child process are connected to a PTY slave.  This
+     * causes lrzsz to detect a real terminal via isatty(), put it into raw mode,
+     * and stream data without internal stdio buffering — which is the main source
+     * of download timeouts and the reason upload support was unreliable when using
+     * plain pipes.  On systems without PTY support the old pipe path is used as a
+     * fallback.
      */
     private static function runExternalTransfer($conn, string $cmd, string $cwd, bool $escapeTelnetIac, int $idleTimeout): bool
     {
-        $descriptors = [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
+        $usePty = self::hasPtySupport();
+
+        if ($usePty) {
+            // fd 0 and fd 1 share the same PTY slave; PHP returns the master handle
+            // in $pipes[0] (and an equivalent handle in $pipes[1] — we only need one).
+            $descriptors = [
+                0 => ['pty'],
+                1 => ['pty'],
+                2 => ['pipe', 'w'],
+            ];
+        } else {
+            // Use binary mode ('rb'/'wb') to prevent Windows text-mode pipe
+            // translation of \n → \r\n which corrupts the binary Z-modem stream.
+            $descriptors = [
+                0 => ['pipe', 'rb'],
+                1 => ['pipe', 'wb'],
+                2 => ['pipe', 'w'],
+            ];
+        }
+
         $pipes = [];
-        $proc = @proc_open($cmd, $descriptors, $pipes, $cwd);
+        $proc  = @proc_open($cmd, $descriptors, $pipes, $cwd);
         if (!is_resource($proc)) {
             self::dbg("external proc_open failed: {$cmd}");
             return false;
         }
 
-        $stdin = $pipes[0] ?? null;
-        $stdout = $pipes[1] ?? null;
-        $stderr = $pipes[2] ?? null;
-        if (!is_resource($stdin) || !is_resource($stdout) || !is_resource($stderr)) {
-            @proc_terminate($proc);
-            @proc_close($proc);
-            return false;
+        if ($usePty) {
+            $pty    = $pipes[0] ?? null;  // PTY master: read=process-stdout, write=process-stdin
+            $stdin  = null;
+            $stdout = null;
+            $stderr = $pipes[2] ?? null;
+            if (!is_resource($pty)) {
+                @proc_terminate($proc);
+                @proc_close($proc);
+                return false;
+            }
+            @stream_set_blocking($pty, false);
+        } else {
+            $pty    = null;
+            $stdin  = $pipes[0] ?? null;
+            $stdout = $pipes[1] ?? null;
+            $stderr = $pipes[2] ?? null;
+            if (!is_resource($stdin) || !is_resource($stdout) || !is_resource($stderr)) {
+                @proc_terminate($proc);
+                @proc_close($proc);
+                return false;
+            }
+            @stream_set_blocking($stdin,  false);
+            @stream_set_blocking($stdout, false);
         }
 
-        $connMeta = @stream_get_meta_data($conn);
-        $connWasBlocked = is_array($connMeta) ? (bool)($connMeta['blocked'] ?? true) : true;
-        @stream_set_blocking($conn, false);
-        @stream_set_blocking($stdin, false);
-        @stream_set_blocking($stdout, false);
-        @stream_set_blocking($stderr, false);
+        if (is_resource($stderr)) {
+            @stream_set_blocking($stderr, false);
+        }
 
-        $toProc = '';
+        // Do NOT set $conn to non-blocking.  Reads are gated by stream_select so
+        // they will not stall on a blocking socket.  Making $conn non-blocking
+        // causes rawWrite() inside SshStreamWrapper to throw when the SSH send
+        // buffer fills, which the stream wrapper swallows, silently dropping data
+        // and producing CRC errors on the receiving end.
+
+        $toProc       = '';
         $lastActivity = time();
-        $stderrLog = '';
+        $stderrLog    = '';
+        $ptyEof       = false;
 
         while (true) {
-            $status = @proc_get_status($proc);
+            $status  = @proc_get_status($proc);
             $running = is_array($status) ? !empty($status['running']) : false;
 
             $read = [];
             if ($running && is_resource($conn)) { $read[] = $conn; }
-            if (is_resource($stdout)) { $read[] = $stdout; }
+            if ($usePty  && is_resource($pty)    && !$ptyEof) { $read[] = $pty; }
+            if (!$usePty && is_resource($stdout)) { $read[] = $stdout; }
             if (is_resource($stderr)) { $read[] = $stderr; }
 
             $write = [];
-            if ($toProc !== '' && is_resource($stdin)) { $write[] = $stdin; }
+            if ($toProc !== '') {
+                if ($usePty  && is_resource($pty))   { $write[] = $pty; }
+                if (!$usePty && is_resource($stdin))  { $write[] = $stdin; }
+            }
 
             if (empty($read) && empty($write)) {
                 break;
             }
 
             $except = null;
-            $ready = @stream_select($read, $write, $except, 0, 200000);
+            $ready  = @stream_select($read, $write, $except, 0, 200000);
             if ($ready === false) {
                 break;
             }
@@ -523,14 +572,18 @@ class ZmodemTransfer
                         $toProc .= $chunk;
                         $lastActivity = time();
                     }
-                } elseif ($r === $stdout) {
-                    $chunk = @fread($stdout, 8192);
+                } elseif ($r === $pty || $r === $stdout) {
+                    $chunk = @fread($r, 8192);
                     if ($chunk !== false && $chunk !== '') {
                         self::writeRaw($conn, $chunk, $escapeTelnetIac);
                         $lastActivity = time();
-                    } elseif (@feof($stdout)) {
-                        @fclose($stdout);
-                        $stdout = null;
+                    } elseif (@feof($r)) {
+                        if ($usePty) {
+                            $ptyEof = true; // process closed its slave end; drain remaining data below
+                        } else {
+                            @fclose($stdout);
+                            $stdout = null;
+                        }
                     }
                 } elseif ($r === $stderr) {
                     $chunk = @fread($stderr, 4096);
@@ -548,11 +601,9 @@ class ZmodemTransfer
             }
 
             foreach ($write as $w) {
-                if ($w === $stdin && $toProc !== '') {
-                    $n = @fwrite($stdin, $toProc);
-                    if ($n === false) {
-                        $n = 0;
-                    }
+                if ($toProc !== '') {
+                    $n = @fwrite($w, $toProc);
+                    if ($n === false) { $n = 0; }
                     if ($n > 0) {
                         $toProc = (string)substr($toProc, $n);
                         $lastActivity = time();
@@ -571,10 +622,10 @@ class ZmodemTransfer
             }
         }
 
-        if (is_resource($stdin)) { @fclose($stdin); }
-        if (is_resource($stdout)) { @fclose($stdout); }
+        if ($usePty  && is_resource($pty))    { @fclose($pty); }
+        if (!$usePty && is_resource($stdin))  { @fclose($stdin); }
+        if (!$usePty && is_resource($stdout)) { @fclose($stdout); }
         if (is_resource($stderr)) { @fclose($stderr); }
-        @stream_set_blocking($conn, $connWasBlocked);
 
         $exit = @proc_close($proc);
         if ($exit !== 0) {
@@ -586,6 +637,38 @@ class ZmodemTransfer
             }
         }
         return $exit === 0;
+    }
+
+    /**
+     * Return true if proc_open supports PTY descriptors on this system.
+     *
+     * PTY support requires a Unix-like OS and PHP compiled with PTY support
+     * (the default on Linux).  The result is cached after the first call.
+     */
+    private static function hasPtySupport(): bool
+    {
+        static $supported = null;
+        if ($supported !== null) {
+            return $supported;
+        }
+        if (PHP_OS_FAMILY === 'Windows') {
+            return $supported = false;
+        }
+        // Probe with a no-op process to confirm PHP was built with PTY support.
+        $desc  = [0 => ['pty'], 1 => ['pty'], 2 => ['pipe', 'w']];
+        $pipes = [];
+        $proc  = @proc_open('true', $desc, $pipes, '/tmp');
+        if (is_resource($proc)) {
+            foreach ($pipes as $p) {
+                if (is_resource($p)) { @fclose($p); }
+            }
+            @proc_close($proc);
+            $supported = true;
+        } else {
+            $supported = false;
+        }
+        self::dbg('PTY support: ' . ($supported ? 'yes' : 'no'));
+        return $supported;
     }
 
     private static function getSzPath(): ?string
@@ -617,15 +700,23 @@ class ZmodemTransfer
         if (str_contains($candidate, '/') || str_contains($candidate, '\\')) {
             return (is_file($candidate) && is_executable($candidate)) ? $candidate : null;
         }
+        // On Windows also search with .exe suffix if not already present.
+        $candidates = [$candidate];
+        if (PHP_OS_FAMILY === 'Windows' && !str_ends_with(strtolower($candidate), '.exe')) {
+            $candidates[] = $candidate . '.exe';
+        }
+
         $path = getenv('PATH') ?: '';
         foreach (explode(PATH_SEPARATOR, $path) as $dir) {
             $dir = trim($dir);
             if ($dir === '') {
                 continue;
             }
-            $full = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . $candidate;
-            if (is_file($full) && is_executable($full)) {
-                return $full;
+            foreach ($candidates as $name) {
+                $full = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . $name;
+                if (is_file($full) && is_executable($full)) {
+                    return $full;
+                }
             }
         }
         return null;
@@ -1243,6 +1334,18 @@ class ZmodemTransfer
         }
         $file = dirname(__DIR__, 2) . '/data/logs/zmodem.log';
         @error_log('[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL, 3, $file);
+    }
+
+    /**
+     * Always-on informational log: writes to stderr (visible on the daemon
+     * console in foreground mode) and appends to zmodem.log.
+     */
+    private static function info(string $message): void
+    {
+        $line = '[' . date('Y-m-d H:i:s') . '] ZMODEM ' . $message . PHP_EOL;
+        fwrite(STDERR, $line);
+        $file = dirname(__DIR__, 2) . '/data/logs/zmodem.log';
+        @error_log($line, 3, $file);
     }
 
     private static function headerToString(?array $header): string

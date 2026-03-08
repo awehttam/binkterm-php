@@ -324,60 +324,81 @@ class SshServer
     // =========================================================================
 
     /**
-     * Bridge process: reads SSH channel data from $sshSession, writes it to
-     * $plainSocket; reads from $plainSocket, sends it as SSH channel data.
-     * Runs until either side closes.
+     * Bridge process: shuttles data between the SSH socket and the plain socket pair.
+     *
+     * Both sockets are kept in non-blocking mode.  Raw bytes from the SSH socket
+     * are fed into SshSession's reassembly buffer via feedRawBytes(); complete SSH
+     * packets are extracted with tryReadChannelData() without ever blocking.
+     * trySendChannelData() honours the SSH flow-control window and returns
+     * immediately if the window is exhausted, avoiding the blocking loop that
+     * waitForPeerWindowAdjust() would otherwise introduce.
+     *
+     * This removes the head-of-line blocking that previously stalled Z-modem
+     * transfers when the bridge was waiting inside readChannelData() while the
+     * BBS session needed the plain socket serviced in the other direction.
      */
     private function runBridge($sshConn, SshSession $sshSession, $plainSocket): void
     {
+        stream_set_blocking($sshConn,    false);
         stream_set_blocking($plainSocket, false);
-        $toPlain = '';
+
+        $toPlain = '';  // SSH channel data → plain socket
+        $toSsh   = '';  // plain socket data → SSH channel
 
         while (true) {
             $read   = [$sshConn, $plainSocket];
-            $write  = $toPlain !== '' ? [$plainSocket] : null;
+            $write  = null;
             $except = null;
-            $sec    = $toPlain !== '' ? 0 : 1;
-            $usec   = $toPlain !== '' ? 10000 : 0;
-            $ready  = @stream_select($read, $write, $except, $sec, $usec);
+            // When plain→SSH data is queued but the SSH window is full, use a
+            // short timeout so we wake up quickly once a WINDOW_ADJUST arrives.
+            $windowFull = $toSsh !== '' && $sshSession->getPeerWindowSize() <= 0;
+            $sec  = $windowFull ? 0 : 1;
+            $usec = $windowFull ? 50000 : 0;
 
+            $ready = @stream_select($read, $write, $except, $sec, $usec);
             if ($ready === false) { break; }
 
-            // SSH -> plain (buffer first; write on writable events)
+            // Feed any newly arrived raw SSH bytes into the session buffer.
             if (in_array($sshConn, $read, true)) {
-                $data = $sshSession->readChannelData();
-                if ($data === null) { break; }
-                if ($data !== '') {
-                    $toPlain .= $data;
-                    // Flush immediately to avoid per-iteration latency buildup.
-                    $writtenNow = @fwrite($plainSocket, $toPlain);
-                    if ($writtenNow === false) { break; }
-                    if ($writtenNow > 0) {
-                        $toPlain = (string)substr($toPlain, $writtenNow);
-                    }
-                }
+                $raw = @fread($sshConn, 65536);
+                if ($raw === false || ($raw === '' && feof($sshConn))) { break; }
+                if ($raw !== '') { $sshSession->feedRawBytes($raw); }
             }
 
-            if ($toPlain !== '' && is_array($write) && in_array($plainSocket, $write, true)) {
-                $written = @fwrite($plainSocket, $toPlain);
-                if ($written === false) { break; }
-                if ($written > 0) {
-                    $toPlain = (string)substr($toPlain, $written);
-                }
+            // Drain all complete SSH packets from the buffer.  This runs every
+            // loop iteration so bytes carried over from a prior read are consumed.
+            while (true) {
+                $data = $sshSession->tryReadChannelData();
+                if ($data === null) { goto bridgeDone; }
+                if ($data === false) { break; }
+                if ($data !== '') { $toPlain .= $data; }
             }
 
-            // plain -> SSH
+            // Read BBS-session output from the plain socket.
             if (in_array($plainSocket, $read, true)) {
-                $data = fread($plainSocket, 4096);
-                if ($data === false || ($data === '' && feof($plainSocket))) { break; }
-                if ($data !== '') {
-                    try {
-                        $sshSession->sendChannelData($data);
-                    } catch (\Throwable $e) { break; }
-                }
+                $chunk = @fread($plainSocket, 8192);
+                if ($chunk === false || ($chunk === '' && feof($plainSocket))) { break; }
+                if ($chunk !== '') { $toSsh .= $chunk; }
+            }
+
+            // Forward plain→SSH within the current window.  Unsent remainder
+            // stays in $toSsh and is retried once the window reopens.
+            if ($toSsh !== '') {
+                try {
+                    $sshSession->trySendChannelData($toSsh);
+                } catch (\Throwable $e) { break; }
+            }
+
+            // Forward SSH→plain.  Non-blocking fwrite returns immediately; a
+            // partial write leaves the remainder in $toPlain for the next pass.
+            if ($toPlain !== '') {
+                $n = @fwrite($plainSocket, $toPlain);
+                if ($n === false) { break; }
+                if ($n > 0) { $toPlain = (string)substr($toPlain, $n); }
             }
         }
 
+        bridgeDone:
         $sshSession->sendChannelClose();
     }
     private function ensureHostKey(): void

@@ -11,18 +11,10 @@ SERVER_PID="${SERVER_PID:-${RUN_DIR}/binkp_server.pid}"
 TELNETD_PID="${TELNETD_PID:-${RUN_DIR}/telnetd.pid}"
 MRC_PID="${MRC_PID:-${RUN_DIR}/mrc_daemon.pid}"
 SSHD_PID="${SSHD_PID:-${RUN_DIR}/sshd.pid}"
-
-# Track which processes were running before restart
-TELNETD_WAS_RUNNING=false
-MRC_WAS_RUNNING=false
 MULTIPLEX_PID="${MULTIPLEX_PID:-${RUN_DIR}/multiplexing-server.pid}"
 GEMINI_PID="${GEMINI_PID:-${RUN_DIR}/gemini_daemon.pid}"
 
-# Track which processes were running before restart
-TELNETD_WAS_RUNNING=false
-MULTIPLEX_WAS_RUNNING=false
-GEMINI_WAS_RUNNING=false
-SSHD_WAS_RUNNING=false
+mkdir -p "$RUN_DIR"
 
 stop_process() {
     local pid_file="$1"
@@ -63,64 +55,92 @@ start_process() {
     (cd "$ROOT_DIR" && nohup ${cmd} > /dev/null 2>&1 &)
 }
 
-mkdir -p "$RUN_DIR"
+# Restart one service by name.
+# Services marked "must_be_running" are only started if they were running before.
+restart_service() {
+    local svc="$1"
+    case "$svc" in
+        admin_daemon)
+            stop_process "$ADMIN_PID" "admin_daemon" || true
+            start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
+            ;;
+        binkp_scheduler)
+            stop_process "$SCHEDULER_PID" "binkp_scheduler" || true
+            start_process "${PHP_BIN} scripts/binkp_scheduler.php --daemon --pid-file=${SCHEDULER_PID}" "binkp_scheduler"
+            ;;
+        binkp_server)
+            stop_process "$SERVER_PID" "binkp_server" || true
+            start_process "${PHP_BIN} scripts/binkp_server.php --daemon --pid-file=${SERVER_PID}" "binkp_server"
+            ;;
+        telnetd)
+            if stop_process "$TELNETD_PID" "telnetd"; then
+                start_process "${PHP_BIN} telnet/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
+            fi
+            ;;
+        mrc_daemon)
+            if stop_process "$MRC_PID" "mrc_daemon"; then
+                start_process "${PHP_BIN} scripts/mrc_daemon.php --daemon --pid-file=${MRC_PID}" "mrc_daemon"
+            fi
+            ;;
+        multiplexing-server)
+            if stop_process "$MULTIPLEX_PID" "multiplexing-server"; then
+                start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"
+            fi
+            ;;
+        gemini_daemon)
+            if stop_process "$GEMINI_PID" "gemini_daemon"; then
+                start_process "${PHP_BIN} scripts/gemini_daemon.php --daemon --pid-file=${GEMINI_PID}" "gemini_daemon"
+            fi
+            ;;
+        ssh_daemon|sshd)
+            if stop_process "$SSHD_PID" "ssh_daemon"; then
+                start_process "${PHP_BIN} ssh/ssh_daemon.php --daemon --pid-file=${SSHD_PID}" "ssh_daemon"
+            fi
+            ;;
+        termserver)
+            restart_service telnetd
+            restart_service ssh_daemon
+            ;;
+        *)
+            echo "Unknown service: ${svc}"
+            echo "Available services: admin_daemon, binkp_scheduler, binkp_server, telnetd, mrc_daemon, multiplexing-server, gemini_daemon, ssh_daemon, termserver"
+            exit 1
+            ;;
+    esac
+}
 
-stop_process "$ADMIN_PID" "admin_daemon" || true
-stop_process "$SCHEDULER_PID" "binkp_scheduler" || true
-stop_process "$SERVER_PID" "binkp_server" || true
-
-# Check if telnetd was running before stopping it
-if stop_process "$TELNETD_PID" "telnetd"; then
-    TELNETD_WAS_RUNNING=true
-fi
-
-# Check if MRC daemon was running before stopping it
-if stop_process "$MRC_PID" "mrc_daemon"; then
-    MRC_WAS_RUNNING=true
-fi
-
-# Check if multiplexing server was running before stopping it
-if stop_process "$MULTIPLEX_PID" "multiplexing-server"; then
-    MULTIPLEX_WAS_RUNNING=true
-fi
-
-# Check if Gemini daemon was running before stopping it
-if stop_process "$GEMINI_PID" "gemini_daemon"; then
-    GEMINI_WAS_RUNNING=true
-fi
-
-# Check if SSH daemon was running before stopping it
-if stop_process "$SSHD_PID" "ssh_daemon"; then
-    SSHD_WAS_RUNNING=true
-fi
-
-start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
-start_process "${PHP_BIN} scripts/binkp_scheduler.php --daemon --pid-file=${SCHEDULER_PID}" "binkp_scheduler"
-start_process "${PHP_BIN} scripts/binkp_server.php --daemon --pid-file=${SERVER_PID}" "binkp_server"
-
-# Restart telnetd only if it was running
-if [[ "$TELNETD_WAS_RUNNING" == "true" ]]; then
-    start_process "${PHP_BIN} telnet/telnet_daemon.php --daemon --pid-file=${TELNETD_PID}" "telnetd"
-fi
-
-# Restart MRC daemon only if it was running
-if [[ "$MRC_WAS_RUNNING" == "true" ]]; then
-    start_process "${PHP_BIN} scripts/mrc_daemon.php --daemon --pid-file=${MRC_PID}" "mrc_daemon"
-fi
-
-# Restart multiplexing server only if it was running
-if [[ "$MULTIPLEX_WAS_RUNNING" == "true" ]]; then
-    start_process "${NODE_BIN} scripts/dosbox-bridge/multiplexing-server.js --daemon" "multiplexing-server"
-fi
-
-# Restart Gemini daemon only if it was running
-if [[ "$GEMINI_WAS_RUNNING" == "true" ]]; then
-    start_process "${PHP_BIN} scripts/gemini_daemon.php --daemon --pid-file=${GEMINI_PID}" "gemini_daemon"
-fi
-
-# Restart SSH daemon only if it was running
-if [[ "$SSHD_WAS_RUNNING" == "true" ]]; then
-    start_process "${PHP_BIN} ssh/ssh_daemon.php --daemon --pid-file=${SSHD_PID}" "ssh_daemon"
+if [[ $# -gt 0 && "$1" == "--help" ]]; then
+    echo "Usage: restart_daemons.sh [--help] [--list] [service]"
+    echo ""
+    echo "  (no arguments)   Restart all services"
+    echo "  <service>        Restart a single service"
+    echo "  --list           List available services"
+    echo "  --help           Show this help"
+    exit 0
+elif [[ $# -gt 0 && "$1" == "--list" ]]; then
+    echo "admin_daemon        (always restarted)"
+    echo "binkp_scheduler     (always restarted)"
+    echo "binkp_server        (always restarted)"
+    echo "telnetd             (only if running)"
+    echo "mrc_daemon          (only if running)"
+    echo "multiplexing-server (only if running)"
+    echo "gemini_daemon       (only if running)"
+    echo "ssh_daemon          (only if running)"
+    echo "termserver          (alias: restarts telnetd + ssh_daemon)"
+    exit 0
+elif [[ $# -gt 0 ]]; then
+    restart_service "$1"
+else
+    # Restart all services. Always-on services restart unconditionally;
+    # optional services only restart if they were already running.
+    restart_service admin_daemon
+    restart_service binkp_scheduler
+    restart_service binkp_server
+    restart_service telnetd
+    restart_service mrc_daemon
+    restart_service multiplexing-server
+    restart_service gemini_daemon
+    restart_service ssh_daemon
 fi
 
 echo "Done."

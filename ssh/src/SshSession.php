@@ -113,6 +113,9 @@ class SshSession
     private int $termRows = 24;
     private bool $shellStarted = false;
 
+    // Raw bytes pre-fed by the bridge for non-blocking packet reassembly.
+    private string $rawBuf = '';
+
     // RSA host key (loaded/generated in __construct)
     private \OpenSSLAsymmetricKey $hostKey;
     private string $hostKeyBlob = '';  // wire-format public key blob
@@ -812,6 +815,199 @@ class SshSession
         $close = chr(self::MSG_CHANNEL_CLOSE) . pack('N', $this->peerChannelId);
         try { $this->sendPacket($eof); } catch (\Throwable $e) {}
         try { $this->sendPacket($close); } catch (\Throwable $e) {}
+    }
+
+    // =========================================================================
+    // NON-BLOCKING BRIDGE INTERFACE
+    // =========================================================================
+
+    /**
+     * Feed raw bytes from the network into the reassembly buffer.
+     * Called by the bridge process after a non-blocking fread() on the SSH socket.
+     */
+    public function feedRawBytes(string $data): void
+    {
+        $this->rawBuf .= $data;
+    }
+
+    /**
+     * Return the current peer (client) SSH window size.
+     * The bridge uses this to decide whether it can call trySendChannelData().
+     */
+    public function getPeerWindowSize(): int
+    {
+        return $this->peerWindowSize;
+    }
+
+    /**
+     * Non-blocking counterpart to readChannelData().
+     *
+     * Reads from the pre-fed rawBuf rather than blocking on the socket.
+     * The bridge should call feedRawBytes() with any freshly read network data
+     * before calling this, then drain all complete messages by calling it in a
+     * loop until it returns false.
+     *
+     * Returns:
+     *   string  — channel data payload (may be empty after a WINDOW_ADJUST)
+     *   false   — not enough buffered bytes to complete a packet; call again after
+     *             feeding more data with feedRawBytes()
+     *   null    — channel closed or protocol error
+     */
+    public function tryReadChannelData(): string|false|null
+    {
+        while (true) {
+            $pkt = $this->tryRecvPacket();
+            if ($pkt === false) { return false; }
+            if ($pkt === null)  { return null; }
+
+            $msgType = strlen($pkt) > 0 ? ord($pkt[0]) : 0;
+
+            if ($msgType === self::MSG_CHANNEL_DATA) {
+                $offset = 1;
+                $this->unpackUint32($pkt, $offset); // channel id
+                return $this->readString($pkt, $offset);
+            }
+            if ($msgType === self::MSG_CHANNEL_WINDOW_ADJUST) {
+                $offset = 1;
+                $this->unpackUint32($pkt, $offset); // channel id
+                $this->peerWindowSize += $this->unpackUint32($pkt, $offset);
+                continue; // process next buffered packet
+            }
+            if ($msgType === self::MSG_CHANNEL_EOF || $msgType === self::MSG_CHANNEL_CLOSE) {
+                $this->sendChannelClose();
+                return null;
+            }
+            if ($msgType === self::MSG_IGNORE)     { continue; }
+            if ($msgType === self::MSG_DISCONNECT) { return null; }
+            // Unknown packet type — skip and continue draining.
+        }
+    }
+
+    /**
+     * Send channel data without blocking on SSH flow-control window.
+     *
+     * Sends as much data as the current window allows, then returns.  Any bytes
+     * that could not be sent (window exhausted or channel closed) remain in $data
+     * so the bridge can retry once tryReadChannelData() processes a WINDOW_ADJUST.
+     *
+     * @param string $data Modified in-place; holds unsent remainder on return.
+     */
+    public function trySendChannelData(string &$data): void
+    {
+        if (!$this->channelOpen) {
+            return;
+        }
+        while (strlen($data) > 0 && $this->peerWindowSize > 0) {
+            $chunkLen = min(strlen($data), $this->maxPacketSize, $this->peerWindowSize);
+            if ($chunkLen <= 0) { break; }
+            $chunk = substr($data, 0, $chunkLen);
+            $msg   = chr(self::MSG_CHANNEL_DATA);
+            $msg  .= pack('N', $this->peerChannelId);
+            $msg  .= $this->sshString($chunk);
+            $this->sendPacket($msg);
+            $this->peerWindowSize -= strlen($chunk);
+            $data = substr($data, strlen($chunk));
+        }
+    }
+
+    /**
+     * Try to receive and parse one SSH packet from the pre-fed rawBuf.
+     *
+     * Returns:
+     *   string  — decrypted packet payload
+     *   false   — not enough buffered bytes yet (cipher state is not advanced)
+     *   null    — protocol error or disconnect
+     *
+     * AES-CTR state safety: the counter is saved before decrypting the first
+     * block.  If the full packet is not yet buffered, the counter is restored so
+     * that the same bytes will decrypt identically when called again after more
+     * data has been fed.
+     */
+    private function tryRecvPacket(): string|false|null
+    {
+        $blockSize = 16;
+        $macLen    = $this->encrypted ? 32 : 0;
+
+        if (strlen($this->rawBuf) < $blockSize) {
+            return false;
+        }
+
+        // Save AES-CTR counter before decrypting — allows a no-op rollback if
+        // the full packet is not yet available.
+        $savedCtr   = $this->ctrC2S;
+        $firstBlock = substr($this->rawBuf, 0, $blockSize);
+        if ($this->encrypted) {
+            $firstBlock = $this->aesCtrDecrypt($firstBlock, $this->encKeyC2S, $this->ctrC2S);
+        }
+
+        $pktLen = unpack('N', substr($firstBlock, 0, 4))[1];
+        if ($pktLen < 1 || $pktLen > 65536) {
+            return null;
+        }
+
+        $remaining   = $pktLen - ($blockSize - 4);
+        $totalNeeded = $blockSize + max(0, $remaining) + $macLen;
+
+        if (strlen($this->rawBuf) < $totalNeeded) {
+            // Not enough data — roll back counter and wait for more bytes.
+            $this->ctrC2S = $savedCtr;
+            return false;
+        }
+
+        // Commit: consume the first block and decrypt the remainder.
+        $this->rawBuf = substr($this->rawBuf, $blockSize);
+        $rest = '';
+        if ($remaining > 0) {
+            $rest = substr($this->rawBuf, 0, $remaining);
+            $this->rawBuf = substr($this->rawBuf, $remaining);
+            if ($this->encrypted) {
+                $rest = $this->aesCtrDecrypt($rest, $this->encKeyC2S, $this->ctrC2S);
+            }
+        }
+
+        $full = $firstBlock . $rest;
+
+        if ($macLen > 0) {
+            $receivedMac = substr($this->rawBuf, 0, $macLen);
+            $this->rawBuf = substr($this->rawBuf, $macLen);
+            $expectedMac = hash_hmac(
+                'sha256',
+                pack('N', $this->seqNoRecv) . substr($full, 0, 4 + $pktLen),
+                $this->macKeyC2S,
+                true
+            );
+            if (!hash_equals($expectedMac, $receivedMac)) {
+                $this->dbg("tryRecvPacket: MAC verification failed seq={$this->seqNoRecv}");
+                return null;
+            }
+        }
+
+        $this->seqNoRecv++;
+
+        $padLen  = ord($full[4]);
+        $payload = substr($full, 5, $pktLen - $padLen - 1);
+
+        // Transparent message handling (mirrors recvPacket).
+        $msgType = strlen($payload) > 0 ? ord($payload[0]) : 0;
+        if ($msgType === self::MSG_IGNORE)     { return $this->tryRecvPacket(); }
+        if ($msgType === self::MSG_DISCONNECT) { return null; }
+
+        // Update receive window for channel data packets.
+        if ($msgType === self::MSG_CHANNEL_DATA && $this->channelOpen) {
+            $offset  = 1;
+            $this->unpackUint32($payload, $offset); // channel id
+            $dataLen = $this->unpackUint32($payload, $offset);
+            $this->windowSize -= $dataLen;
+            if ($this->windowSize < 524288) {
+                $adj  = chr(self::MSG_CHANNEL_WINDOW_ADJUST);
+                $adj .= pack('N', $this->peerChannelId);
+                $adj .= pack('N', 1048576);
+                $this->sendPacket($adj);
+                $this->windowSize += 1048576;
+            }
+        }
+
+        return $payload;
     }
 
     // =========================================================================
