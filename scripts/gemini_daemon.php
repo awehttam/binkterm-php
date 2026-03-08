@@ -354,6 +354,60 @@ function handleHomePage($socket, string $geminiHost): void
             }
         }
 
+        // Echo area stats by network (public Gemini-visible areas only)
+        $statsStmt = $db->query(
+            "SELECT
+                CASE
+                    WHEN is_local = TRUE OR domain IS NULL OR TRIM(domain) = '' THEN 'local'
+                    ELSE LOWER(TRIM(domain))
+                END AS network,
+                COUNT(*) AS area_count,
+                COALESCE(SUM(message_count), 0) AS message_count
+             FROM echoareas
+             WHERE gemini_public = TRUE AND is_active = TRUE
+             GROUP BY 1"
+        );
+        $networkStats = $statsStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (!empty($networkStats)) {
+            usort($networkStats, function (array $a, array $b): int {
+                $rank = function (string $network): int {
+                    if ($network === 'local') {
+                        return 0;
+                    }
+                    if ($network === 'lovlynet' || $network === 'lovelynet') {
+                        return 1;
+                    }
+                    return 2;
+                };
+
+                $aNet = (string)$a['network'];
+                $bNet = (string)$b['network'];
+                $aRank = $rank($aNet);
+                $bRank = $rank($bNet);
+                if ($aRank !== $bRank) {
+                    return $aRank <=> $bRank;
+                }
+                return strcmp($aNet, $bNet);
+            });
+
+            $lines[] = '';
+            $lines[] = '## Echo Area Stats by Network';
+            $lines[] = '';
+            foreach ($networkStats as $row) {
+                $network = (string)$row['network'];
+                $areaCount = (int)$row['area_count'];
+                $messageCount = (int)$row['message_count'];
+                $label = ($network === 'local') ? 'Local' : strtoupper($network);
+                if ($network === 'lovlynet') {
+                    $label = 'LOVLYNET';
+                } elseif ($network === 'lovelynet') {
+                    $label = 'LOVELYNET';
+                }
+                $lines[] = "* {$label}: {$areaCount} areas, {$messageCount} messages";
+            }
+        }
+
         // Echo areas
         $areaStmt = $db->query(
             'SELECT tag, domain, description FROM echoareas
