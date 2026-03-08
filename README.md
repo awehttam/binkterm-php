@@ -25,6 +25,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Features](#features)
 - [Installation](#installation)
 - [Configuration](#configuration) — see also [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+- [Network Ports](#network-ports)
 - [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
@@ -522,6 +523,27 @@ After editing any config file, restart services:
 bash scripts/restart_daemons.sh
 ```
 
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference covering all `.env` variables, `binkp.json` fields, nodelists, nodelist URL macros, and welcome text files.
+
+### Network Ports
+
+| Service | Default Port | Protocol | Direction | Configured In |
+|---------|-------------|----------|-----------|---------------|
+| Web interface (Apache/Caddy/Nginx) | `80`, `443` | HTTP/HTTPS | Inbound | Web server / reverse proxy |
+| BinkP daemon | `24554` | TCP | In + Out | `config/binkp.json` → `binkp.port` |
+| Telnet daemon (plain) | `2323` | TCP | Inbound | `.env` `TELNET_PORT` |
+| Telnet daemon (TLS) | `8023` | TCP/TLS | Inbound | `.env` `TELNET_TLS_PORT` |
+| SSH daemon | `2022` | SSH-2/TCP | Inbound | `.env` `SSH_PORT` |
+| Gemini capsule daemon | `1965` | Gemini/TLS | Inbound | `.env` `GEMINI_PORT` |
+| DOS door WebSocket bridge | `6001` | WebSocket | Inbound | `.env` `DOSDOOR_WS_PORT` |
+| DOSBox bridge session range | `5000–5100` | TCP | Internal | Between bridge and emulator |
+| Admin daemon (TCP fallback) | `9065` | TCP | localhost | `.env` `ADMIN_DAEMON_SOCKET` |
+| PostgreSQL | `5432` | TCP | Internal | `.env` `DB_PORT` |
+| MRC relay (remote) | `5000` / `5001` | TCP / TLS | Outbound | `config/mrc.json` |
+
+- Expose only the services you actually run.
+- Bind internal services (admin daemon, DOSBox bridge, PostgreSQL) to `127.0.0.1`.
+- Publish user-facing services through a reverse proxy with TLS.
 
 ## Upgrading
 
