@@ -528,13 +528,23 @@ class ZmodemTransfer
             @stream_set_blocking($stderr, false);
         }
 
-        // Do NOT set $conn to non-blocking.  Reads are gated by stream_select so
-        // they will not stall on a blocking socket.  Making $conn non-blocking
-        // causes rawWrite() inside SshStreamWrapper to throw when the SSH send
-        // buffer fills, which the stream wrapper swallows, silently dropping data
-        // and producing CRC errors on the receiving end.
+        // On the PTY path (Linux) $conn is a plain Unix socket, so it is safe
+        // to set it non-blocking and buffer writes through the select loop.
+        // This prevents a deadlock where writeRaw() blocks on $conn while we
+        // cannot drain the PTY master, causing sz to time out:
+        //   sz writes burst → PTY master readable → writeRaw($conn) blocks
+        //   (bridge stalled on SSH window) → PTY buffer full → sz stalls → timeout.
+        //
+        // On the pipe path (Windows) $conn may be an SshStreamWrapper stream.
+        // Making that non-blocking causes rawWrite() to throw when the SSH send
+        // buffer fills; the wrapper swallows the exception and silently drops
+        // data, producing CRC errors.  Keep $conn blocking on the pipe path.
+        if ($usePty) {
+            @stream_set_blocking($conn, false);
+        }
 
         $toProc       = '';
+        $toConn       = '';   // buffered output to $conn (PTY path only)
         $lastActivity = time();
         $stderrLog    = '';
         $ptyEof       = false;
@@ -553,6 +563,10 @@ class ZmodemTransfer
             if ($toProc !== '') {
                 if ($usePty  && is_resource($pty))   { $write[] = $pty; }
                 if (!$usePty && is_resource($stdin))  { $write[] = $stdin; }
+            }
+            // PTY path: gate writes to $conn through select to avoid blocking.
+            if ($usePty && $toConn !== '' && is_resource($conn)) {
+                $write[] = $conn;
             }
 
             if (empty($read) && empty($write)) {
@@ -575,7 +589,12 @@ class ZmodemTransfer
                 } elseif ($r === $pty || $r === $stdout) {
                     $chunk = @fread($r, 8192);
                     if ($chunk !== false && $chunk !== '') {
-                        self::writeRaw($conn, $chunk, $escapeTelnetIac);
+                        if ($usePty) {
+                            // Buffer for non-blocking write; apply telnet escaping here.
+                            $toConn .= $escapeTelnetIac ? str_replace("\xFF", "\xFF\xFF", $chunk) : $chunk;
+                        } else {
+                            self::writeRaw($conn, $chunk, $escapeTelnetIac);
+                        }
                         $lastActivity = time();
                     } elseif (@feof($r)) {
                         if ($usePty) {
@@ -601,7 +620,15 @@ class ZmodemTransfer
             }
 
             foreach ($write as $w) {
-                if ($toProc !== '') {
+                if ($w === $conn) {
+                    // Non-blocking write to $conn on PTY path.
+                    $n = @fwrite($conn, $toConn);
+                    if ($n === false) { $n = 0; }
+                    if ($n > 0) {
+                        $toConn = (string)substr($toConn, $n);
+                        $lastActivity = time();
+                    }
+                } elseif ($toProc !== '') {
                     $n = @fwrite($w, $toProc);
                     if ($n === false) { $n = 0; }
                     if ($n > 0) {
@@ -617,7 +644,7 @@ class ZmodemTransfer
                 break;
             }
 
-            if (!$running && $toProc === '') {
+            if (!$running && $toProc === '' && $toConn === '') {
                 break;
             }
         }
