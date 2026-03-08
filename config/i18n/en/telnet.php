@@ -150,6 +150,35 @@ return [
     'ui.telnet.shoutbox.posted'                => 'Shout posted.',
     'ui.telnet.shoutbox.post_failed'           => 'Failed to post shout.',
 
+    // --- Main menu: files ---
+    'ui.telnet.server.menu.files'              => 'F) Files',
+
+    // --- File areas ---
+    'ui.telnet.files.no_areas'                 => 'No file areas available.',
+    'ui.telnet.files.areas_header'             => 'File Areas (page {page}/{total}):',
+    'ui.telnet.files.areas_nav'                => 'Enter #, n/p (next/prev), q (quit)',
+    'ui.telnet.files.area_header'              => 'Files: {area} (page {page}/{total})',
+    'ui.telnet.files.no_files'                 => 'No files in this area.',
+    'ui.telnet.files.files_nav'                => 'D)ownload  n/p (next/prev)  Q)uit',
+    'ui.telnet.files.files_nav_upload'         => 'D)ownload  U)pload  n/p (next/prev)  Q)uit',
+    'ui.telnet.files.invalid_selection'        => 'Invalid selection.',
+    'ui.telnet.files.download_prompt'          => 'File # to download (Enter to cancel): ',
+    'ui.telnet.files.download_error'           => 'File not found on server.',
+    'ui.telnet.files.download_starting'        => 'Starting ZMODEM download: {name}',
+    'ui.telnet.files.download_hint'            => 'Start ZMODEM receive in your terminal now...',
+    'ui.telnet.files.download_done'            => 'Transfer complete.',
+    'ui.telnet.files.download_failed'          => 'Transfer failed or was cancelled.',
+    'ui.telnet.files.upload_title'             => '=== Upload File ===',
+    'ui.telnet.files.upload_area'              => 'Area: {area}',
+    'ui.telnet.files.upload_desc_prompt'       => 'Short description (blank to cancel): ',
+    'ui.telnet.files.upload_cancelled'         => 'Upload cancelled.',
+    'ui.telnet.files.upload_starting'          => 'Start ZMODEM send in your terminal now...',
+    'ui.telnet.files.upload_failed'            => 'Transfer failed or was cancelled.',
+    'ui.telnet.files.upload_done'              => 'File uploaded successfully (ID: {id}).',
+    'ui.telnet.files.upload_error'             => 'Upload error: {error}',
+    'ui.telnet.files.upload_readonly'          => 'This area is read-only. Uploads are not permitted.',
+    'ui.telnet.files.upload_admin_only'        => 'Only administrators can upload to this area.',
+
     // --- Door games ---
     'ui.telnet.doors.no_doors'                 => 'No doors are currently available.',
     'ui.telnet.doors.title'                    => '=== Door Games ===',

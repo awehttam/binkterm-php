@@ -60,6 +60,7 @@ return [
     'ui.telnet.server.menu.shoutbox'           => 'S) Shoutbox',
     'ui.telnet.server.menu.polls'              => 'P) Encuestas',
     'ui.telnet.server.menu.doors'              => 'D) Juegos de Puertas',
+    'ui.telnet.server.menu.files'              => 'F) Archivos',
     'ui.telnet.server.menu.quit'              => 'Q) Salir',
 
     // --- Farewell ---
@@ -149,6 +150,32 @@ return [
     'ui.telnet.shoutbox.new_shout'             => 'Nuevo mensaje (en blanco para cancelar): ',
     'ui.telnet.shoutbox.posted'                => 'Mensaje publicado.',
     'ui.telnet.shoutbox.post_failed'           => 'Error al publicar el mensaje.',
+
+    // --- File areas ---
+    'ui.telnet.files.no_areas'                 => 'No hay áreas de archivos disponibles.',
+    'ui.telnet.files.areas_header'             => 'Áreas de archivos (página {page}/{total}):',
+    'ui.telnet.files.areas_nav'                => 'Ingrese #, n/p (siguiente/anterior), q (salir)',
+    'ui.telnet.files.area_header'              => 'Archivos: {area} (página {page}/{total})',
+    'ui.telnet.files.no_files'                 => 'No hay archivos en esta área.',
+    'ui.telnet.files.files_nav'                => 'D)escargar  n/p (siguiente/anterior)  Q)salir',
+    'ui.telnet.files.files_nav_upload'         => 'D)escargar  S)ubir  n/p (siguiente/anterior)  Q)salir',
+    'ui.telnet.files.invalid_selection'        => 'Selección inválida.',
+    'ui.telnet.files.download_prompt'          => 'Número de archivo a descargar (Enter para cancelar): ',
+    'ui.telnet.files.download_error'           => 'Archivo no encontrado en el servidor.',
+    'ui.telnet.files.download_starting'        => 'Iniciando descarga ZMODEM: {name}',
+    'ui.telnet.files.download_hint'            => 'Inicie la recepción ZMODEM en su terminal ahora...',
+    'ui.telnet.files.download_done'            => 'Transferencia completada.',
+    'ui.telnet.files.download_failed'          => 'La transferencia falló o fue cancelada.',
+    'ui.telnet.files.upload_title'             => '=== Subir Archivo ===',
+    'ui.telnet.files.upload_area'              => 'Área: {area}',
+    'ui.telnet.files.upload_desc_prompt'       => 'Descripción breve (en blanco para cancelar): ',
+    'ui.telnet.files.upload_cancelled'         => 'Subida cancelada.',
+    'ui.telnet.files.upload_starting'          => 'Inicie el envío ZMODEM en su terminal ahora...',
+    'ui.telnet.files.upload_failed'            => 'La transferencia falló o fue cancelada.',
+    'ui.telnet.files.upload_done'              => 'Archivo subido exitosamente (ID: {id}).',
+    'ui.telnet.files.upload_error'             => 'Error al subir: {error}',
+    'ui.telnet.files.upload_readonly'          => 'Esta área es de solo lectura. No se permiten subidas.',
+    'ui.telnet.files.upload_admin_only'        => 'Solo los administradores pueden subir a esta área.',
 
     // --- Door games ---
     'ui.telnet.doors.no_doors'                 => 'No hay puertas disponibles actualmente.',

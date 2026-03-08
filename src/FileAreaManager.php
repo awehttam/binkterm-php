@@ -396,6 +396,155 @@ class FileAreaManager
     }
 
     /**
+     * Upload a file to a file area from an existing filesystem path.
+     *
+     * Identical to uploadFile() but accepts a pre-existing file path (e.g. a
+     * ZMODEM receive temp file) instead of a $_FILES entry.  The source file
+     * is moved into the area storage directory; callers must not rely on the
+     * source path remaining valid after this call.
+     *
+     * @param int    $fileAreaId       File area ID
+     * @param string $sourcePath       Absolute path to the source file
+     * @param string $shortDescription Short description
+     * @param string $longDescription  Long description (optional)
+     * @param string $uploadedBy       Username or FidoNet address of uploader
+     * @param int|null $ownerId        User ID of file owner
+     * @return int File ID
+     * @throws \Exception If upload fails
+     */
+    public function uploadFileFromPath(int $fileAreaId, string $sourcePath, string $shortDescription, string $longDescription = '', string $uploadedBy = '', ?int $ownerId = null): int
+    {
+        $fileArea = $this->getFileAreaById($fileAreaId);
+        if (!$fileArea || !$fileArea['is_active']) {
+            throw new \Exception('File area not found or inactive');
+        }
+
+        if (!is_file($sourcePath) || !is_readable($sourcePath)) {
+            throw new \Exception('Source file not found or not readable');
+        }
+
+        $filename = basename($sourcePath);
+        $fileSize = filesize($sourcePath);
+
+        if ($fileSize > $fileArea['max_file_size']) {
+            $maxMB = round($fileArea['max_file_size'] / 1048576, 2);
+            throw new \Exception("File size exceeds maximum allowed size of {$maxMB} MB");
+        }
+
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        if (!empty($fileArea['blocked_extensions'])) {
+            $blockedExts = array_map('trim', explode(',', strtolower($fileArea['blocked_extensions'])));
+            if (in_array($ext, $blockedExts)) {
+                throw new \Exception("File type .{$ext} is not allowed");
+            }
+        }
+
+        if (!empty($fileArea['allowed_extensions'])) {
+            $allowedExts = array_map('trim', explode(',', strtolower($fileArea['allowed_extensions'])));
+            if (!in_array($ext, $allowedExts)) {
+                throw new \Exception("File type .{$ext} is not allowed. Allowed types: " . $fileArea['allowed_extensions']);
+            }
+        }
+
+        $fileHash = hash_file('sha256', $sourcePath);
+
+        $allowDuplicate = !empty($fileArea['allow_duplicate_hash']);
+        if ($allowDuplicate) {
+            $fileHash = $this->makeUniqueHash($fileAreaId, $fileHash);
+        } else {
+            $existingFile = $this->checkDuplicate($fileAreaId, $fileHash);
+            if ($existingFile) {
+                throw new \Exception('This file already exists in this area');
+            }
+        }
+
+        $areaDir     = $this->getAreaStorageDir($fileArea);
+        self::ensureDirectoryExists($areaDir);
+        $storagePath = $areaDir . '/' . $filename;
+
+        if (file_exists($storagePath)) {
+            if ($fileArea['replace_existing']) {
+                $oldFile = $this->getFileByPath($storagePath);
+                if ($oldFile) {
+                    $stmt = $this->db->prepare("DELETE FROM files WHERE id = ?");
+                    $stmt->execute([$oldFile['id']]);
+                }
+                unlink($storagePath);
+            } else {
+                $counter = 1;
+                while (file_exists($storagePath)) {
+                    $pathInfo    = pathinfo($filename);
+                    $newFilename = $pathInfo['filename'] . '_' . $counter;
+                    if (isset($pathInfo['extension'])) {
+                        $newFilename .= '.' . $pathInfo['extension'];
+                    }
+                    $storagePath = $areaDir . '/' . $newFilename;
+                    $filename    = $newFilename;
+                    $counter++;
+                }
+            }
+        }
+
+        if (!rename($sourcePath, $storagePath)) {
+            throw new \Exception('Failed to move uploaded file into storage');
+        }
+
+        chmod($storagePath, 0664);
+        $storagePath = realpath($storagePath);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO files (
+                file_area_id, filename, filesize, file_hash, storage_path,
+                uploaded_from_address, source_type,
+                short_description, long_description,
+                owner_id, status, created_at
+            ) VALUES (
+                ?, ?, ?, ?, ?,
+                ?, 'user_upload',
+                ?, ?,
+                ?, 'approved', NOW()
+            ) RETURNING id
+        ");
+
+        $stmt->execute([
+            $fileAreaId,
+            $filename,
+            $fileSize,
+            $fileHash,
+            $storagePath,
+            $uploadedBy,
+            $shortDescription,
+            $longDescription,
+            $ownerId,
+        ]);
+
+        $result = $stmt->fetch();
+        $fileId = $result['id'];
+
+        $this->updateFileAreaStats($fileAreaId);
+
+        if (!empty($fileArea['scan_virus'])) {
+            $scanResult = $this->scanFileForViruses($fileId, $storagePath);
+            if (($scanResult['result'] ?? '') === 'infected') {
+                throw new \Exception('File rejected: virus detected.');
+            }
+        }
+
+        try {
+            $ruleProcessor = new FileAreaRuleProcessor();
+            $ruleResult    = $ruleProcessor->processFile($storagePath, $fileArea['tag']);
+            if (!empty($ruleResult['output'])) {
+                error_log("File area rules output for {$filename}: " . $ruleResult['output']);
+            }
+        } catch (\Exception $e) {
+            error_log("File area rules error for {$filename}: " . $e->getMessage());
+        }
+
+        return $fileId;
+    }
+
+    /**
      * Upload a file to a file area
      *
      * @param int $fileAreaId File area ID
