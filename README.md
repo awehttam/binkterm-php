@@ -510,7 +510,9 @@ update_nodelists can be used if you have URL's to update from.  Otherwise nodeli
 ## Configuration
 
 ### Basic System Configuration
-`config/binkp.json` is used to configure your system. See `config/binkp.json.example` for a complete reference, including uplink-only options like `send_domain_in_addr`. Settings can be edited through the web interface.
+Most system operators should use the web-based configuration manager (Admin area) to edit settings safely.
+
+This section is a technical description of how configuration works under the hood. `config/binkp.json` is used to configure your system. See `config/binkp.json.example` for a complete reference, including uplink-only options like `send_domain_in_addr`.
 
 Note:  Be sure to restart BBS services after editing binkp.json.  You can use the `scripts/restart_daemons.sh` script for this on Linux.
 
