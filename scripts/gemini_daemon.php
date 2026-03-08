@@ -354,6 +354,27 @@ function handleHomePage($socket, string $geminiHost): void
             }
         }
 
+        // Echo areas
+        $areaStmt = $db->query(
+            'SELECT tag, domain, description FROM echoareas
+             WHERE gemini_public = TRUE AND is_active = TRUE
+             ORDER BY domain, tag'
+        );
+        $areas = $areaStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (!empty($areas)) {
+            $lines[] = '';
+            $lines[] = '## Echo Areas';
+            $lines[] = '';
+            $lines[] = 'A selection of public echo areas are available to read below. Join the BBS for a full list of echo areas and to participate in the conversation!';
+            $lines[] = "=> {$siteUrl}/ Join {$bbsName}";
+            $lines[] = '';
+            foreach ($areas as $area) {
+                $identifier = strtoupper($area['tag']) . '@' . strtolower($area['domain']);
+                $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/ {$identifier} — {$area['description']}";
+            }
+        }
+
         // Echo area stats by network (all active areas)
         $statsStmt = $db->query(
             "SELECT
@@ -405,27 +426,6 @@ function handleHomePage($socket, string $geminiHost): void
                     $label = 'LOVELYNET';
                 }
                 $lines[] = "* {$label}: {$areaCount} areas, {$messageCount} messages";
-            }
-        }
-
-        // Echo areas
-        $areaStmt = $db->query(
-            'SELECT tag, domain, description FROM echoareas
-             WHERE gemini_public = TRUE AND is_active = TRUE
-             ORDER BY domain, tag'
-        );
-        $areas = $areaStmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        if (!empty($areas)) {
-            $lines[] = '';
-            $lines[] = '## Echo Areas';
-            $lines[] = '';
-            $lines[] = 'A selection of public echo areas are available to read below. Join the BBS for a full list of echo areas and to participate in the conversation!';
-            $lines[] = "=> {$siteUrl}/ Join {$bbsName}";
-            $lines[] = '';
-            foreach ($areas as $area) {
-                $identifier = strtoupper($area['tag']) . '@' . strtolower($area['domain']);
-                $lines[] = "=> gemini://{$geminiHost}/echomail/{$identifier}/ {$identifier} — {$area['description']}";
             }
         }
 
