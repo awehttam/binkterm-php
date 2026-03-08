@@ -251,14 +251,15 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            const threadIndent = threadLevel > 0 ? `style="text-indent: ${threadLevel * 0.5}rem;"` : '';
+            // Cap visual indent at 3 levels; deeper nesting shown via border-left color class
+            const indentLevels = Math.min(threadLevel, 3);
+            const threadIndent = indentLevels > 0 ? `style="text-indent: ${indentLevels * 0.5}rem;"` : '';
             const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
-
-            // Add thread-specific CSS classes
+            const threadLevelClass = threadLevel > 0 ? ` thread-reply thread-level-${Math.min(threadLevel, 9)}` : '';
 
             html += `
-                <tr class="${rowClass} message-row" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
+                <tr class="${rowClass} message-row${threadLevelClass}" data-message-id="${msg.id}" onclick="viewMessage(${msg.id})" style="cursor: pointer;">
                     <td class="message-checkbox d-none" onclick="event.stopPropagation()">
                         <div class="form-check">
                             <input class="form-check-input message-select" type="checkbox" value="${msg.id}" onchange="updateSelection()">
