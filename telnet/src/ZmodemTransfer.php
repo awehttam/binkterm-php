@@ -85,6 +85,10 @@ class ZmodemTransfer
      */
     public static function send($conn, string $path, string $name, bool $escapeTelnetIac = false): bool
     {
+        if (!self::isTransfersEnabled()) {
+            self::dbg("SEND blocked: TERMINAL_FILE_TRANSFERS disabled");
+            return false;
+        }
         if (!self::shouldUsePhpImplementation()) {
             return self::sendWithSz($conn, $path, $escapeTelnetIac);
         }
@@ -235,6 +239,10 @@ class ZmodemTransfer
      */
     public static function receive($conn, string $destDir, bool $escapeTelnetIac = false): ?string
     {
+        if (!self::isTransfersEnabled()) {
+            self::dbg("RECV blocked: TERMINAL_FILE_TRANSFERS disabled");
+            return null;
+        }
         if (!self::shouldUsePhpImplementation()) {
             return self::receiveWithRz($conn, $destDir, $escapeTelnetIac);
         }
@@ -372,6 +380,9 @@ class ZmodemTransfer
      */
     public static function canDownload(): bool
     {
+        if (!self::isTransfersEnabled()) {
+            return false;
+        }
         if (self::shouldUsePhpImplementation()) {
             return true;
         }
@@ -383,10 +394,19 @@ class ZmodemTransfer
      */
     public static function canUpload(): bool
     {
+        if (!self::isTransfersEnabled()) {
+            return false;
+        }
         if (self::shouldUsePhpImplementation()) {
             return true;
         }
         return self::getRzPath() !== null;
+    }
+
+    private static function isTransfersEnabled(): bool
+    {
+        $val = (string)\BinktermPHP\Config::env('TERMINAL_FILE_TRANSFERS', 'false');
+        return in_array(strtolower($val), ['1', 'true', 'yes', 'on'], true);
     }
 
     private static function shouldUsePhpImplementation(): bool
