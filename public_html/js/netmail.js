@@ -251,8 +251,9 @@ function displayMessages(messages, isThreaded = false) {
             const threadLevel = msg.thread_level || 0;
             const replyCount = msg.reply_count || 0;
             const isThreadRoot = msg.is_thread_root || false;
-            // Use a fixed small indent for all reply levels; depth is shown via border-left color
-            const threadIndent = threadLevel > 0 ? 'style="padding-left: 0.75rem;"' : '';
+            // Indent up to 2 levels (0.5rem each); deeper nesting shown via border-left color
+            const indentRem = Math.min(threadLevel, 2) * 0.5;
+            const threadIndent = threadLevel > 0 ? `style="padding-left: ${indentRem}rem;"` : '';
             const threadIcon = threadLevel > 0 ? `<i class="fas fa-reply me-1 text-muted" title="${uiT('ui.common.reply', 'Reply')}"></i>` : '';
             const replyCountBadge = isThreadRoot && replyCount > 0 ? ` <span class="badge bg-secondary ms-1" title="${uiT('ui.common.replies_with_count', '{count} replies', { count: replyCount })}">${replyCount}</span>` : '';
             const threadLevelClass = threadLevel > 0 ? ` thread-reply thread-level-${Math.min(threadLevel, 9)}` : '';
