@@ -304,10 +304,14 @@ SimpleRouter::get('/echomail', function() {
         }
     }
 
+    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+    $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
+
     $template = new Template();
     $template->renderResponse('echomail.twig', [
         'echoarea' => $echoarea,
-        'domain' => $domainParam
+        'domain' => $domainParam,
+        'echomail_date_field' => $echoDateOrder,
     ]);
 });
 
@@ -321,8 +325,13 @@ SimpleRouter::get('/echomail/{echoarea}', function($echoarea) {
 
     // URL decode the echoarea parameter to handle dots and special characters
     $echoarea = urldecode($echoarea);
+    $echoDateOrderRaw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+    $echoDateOrder = in_array($echoDateOrderRaw, ['written', 'date_written'], true) ? 'written' : 'received';
     $template = new Template();
-    $template->renderResponse('echomail.twig', ['echoarea' => $echoarea]);
+    $template->renderResponse('echomail.twig', [
+        'echoarea' => $echoarea,
+        'echomail_date_field' => $echoDateOrder,
+    ]);
 })->where(['echoarea' => '[A-Za-z0-9@._-]+']);
 
 SimpleRouter::get('/shared/{area}/{slug}', function($area, $slug) {

@@ -34,8 +34,8 @@ function uiT(key, fallback, params = {}) {
 }
 
 // Date display configuration: 'written' or 'received'
-// TODO: Add user toggle in settings
-const USE_DATE_FIELD = 'received';   // related to ECHOMAIL_DATE_FIELD in backend
+// Sourced from server-side ECHOMAIL_ORDER_DATE env configuration.
+const USE_DATE_FIELD = (window.echomailDateField === 'written') ? 'written' : 'received';
 
 $(document).ready(function() {
     loadEchomailSettings().then(function() {

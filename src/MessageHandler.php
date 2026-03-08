@@ -19,8 +19,8 @@ namespace BinktermPHP;
 class MessageHandler
 {
     // Configuration: which date field to use for echomail sorting
-    // Options: 'date_received' or 'date_written'
-    private const ECHOMAIL_DATE_FIELD = 'date_received';    // Related to USE_DATE_FIELD in echomail.js
+    // .env ECHOMAIL_ORDER_DATE options: 'received' or 'written'
+    private const ECHOMAIL_DATE_FIELD_DEFAULT = 'date_received';
 
     private $db;
     private $pendingImmediateOutboundPolls = [];
@@ -28,6 +28,18 @@ class MessageHandler
     public function __construct()
     {
         $this->db = Database::getInstance()->getPdo();
+    }
+
+    private function getEchomailDateField(): string
+    {
+        $raw = strtolower(trim((string)Config::env('ECHOMAIL_ORDER_DATE', 'received')));
+        if ($raw === 'written' || $raw === 'date_written') {
+            return 'date_written';
+        }
+        if ($raw === 'received' || $raw === 'date_received') {
+            return 'date_received';
+        }
+        return self::ECHOMAIL_DATE_FIELD_DEFAULT;
     }
 
     public function getNetmail($userId, $page = 1, $limit = null, $filter = 'all', $threaded = false)
@@ -264,7 +276,7 @@ class MessageHandler
         } elseif ($filter === 'saved' && $userId) {
             $filterClause = " AND sav.id IS NOT NULL";
         }
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -467,7 +479,7 @@ class MessageHandler
         $echoareaIds = array_column($subscribedEchoareas, 'id');
         $placeholders = str_repeat('?,', count($echoareaIds) - 1) . '?';
 
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -1177,7 +1189,7 @@ class MessageHandler
             ");
             $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $userId]);
         } else {
-            $dateField = self::ECHOMAIL_DATE_FIELD;
+            $dateField = $this->getEchomailDateField();
             $isAdmin = false;
             if ($userId) {
                 $user = $this->getUserById($userId);
@@ -2710,7 +2722,7 @@ class MessageHandler
             ];
         }
 
-        // Already has a slug — just return the current friendly URL
+        // Already has a slug - just return the current friendly URL
         if (!empty($share['area_identifier']) && !empty($share['slug'])) {
             return [
                 'success'   => true,
@@ -2947,7 +2959,7 @@ class MessageHandler
     }
 
     /**
-     * Build share URL — prefers the friendly /shared/{area}/{slug} form when available.
+     * Build share URL - prefers the friendly /shared/{area}/{slug} form when available.
      *
      * @param string      $shareKey
      * @param string|null $areaIdentifier  e.g. "test@lovlynet"
@@ -3096,7 +3108,7 @@ class MessageHandler
         }
         
         // Add INTL kludge for zone routing (required for inter-zone mail).
-        // Per FTS-0001 INTL addresses must be zone:net/node only — no point suffix.
+        // Per FTS-0001 INTL addresses must be zone:net/node only - no point suffix.
         // Points are conveyed separately via FMPT/TOPT kludges below.
         list($fromZone, $fromNetNodeRaw) = explode(':', $fromAddress);
         list($fromNet, $fromNodePoint) = explode('/', $fromNetNodeRaw);
@@ -3418,7 +3430,7 @@ class MessageHandler
      *
      * Recognises:
      *   ^AMARKUP: <format> <version>  (LSC-001 Draft 2)
-     *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge → treated as Markdown)
+     *   ^AMARKDOWN: <version>         (legacy backwards-compatibility kludge -> treated as Markdown)
      *
      * @param array $message
      * @return array{format: string, version: string}|null
@@ -3452,8 +3464,8 @@ class MessageHandler
      * for backwards compatibility with any consumers that predate the general markup system.
      *
      * Supported formats:
-     *   markdown   — rendered by MarkdownRenderer
-     *   stylecodes — rendered by StyleCodesRenderer (MARKUP: StyleCodes 1.0)
+     *   markdown   - rendered by MarkdownRenderer
+     *   stylecodes - rendered by StyleCodesRenderer (MARKUP: StyleCodes 1.0)
      *
      * @param array $message
      * @return array
@@ -3488,7 +3500,7 @@ class MessageHandler
                 break;
 
             default:
-                // Unknown format — do not attempt rendering; display as plain text
+                // Unknown format - do not attempt rendering; display as plain text
                 $message['is_markdown'] = 0;
                 break;
         }
@@ -3548,7 +3560,7 @@ class MessageHandler
 
         // Get messages for current page using standard pagination
         $offset = ($page - 1) * $limit;
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -3603,10 +3615,10 @@ class MessageHandler
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
             };
         });
 
@@ -3738,7 +3750,7 @@ class MessageHandler
 
         // Get root messages for the current page
         $rootOffset = ($page - 1) * $limit;
-        $dateField = self::ECHOMAIL_DATE_FIELD;
+        $dateField = $this->getEchomailDateField();
 
         // Build ORDER BY clause based on sort parameter
         $orderBy = match($sort) {
@@ -3818,10 +3830,10 @@ class MessageHandler
             $aRoot = $a['message'];
             $bRoot = $b['message'];
             return match($sort) {
-                'date_asc' => strtotime($this->getLatestMessageInThread($a)['date_received']) - strtotime($this->getLatestMessageInThread($b)['date_received']),
+                'date_asc' => $this->getThreadSortTimestamp($a) - $this->getThreadSortTimestamp($b),
                 'subject'  => strcasecmp($aRoot['subject'] ?? '', $bRoot['subject'] ?? ''),
                 'author'   => strcasecmp($aRoot['from_name'] ?? '', $bRoot['from_name'] ?? ''),
-                default    => strtotime($this->getLatestMessageInThread($b)['date_received']) - strtotime($this->getLatestMessageInThread($a)['date_received']),
+                default    => $this->getThreadSortTimestamp($b) - $this->getThreadSortTimestamp($a),
             };
         });
 
@@ -3979,7 +3991,7 @@ class MessageHandler
 
             // Sort replies by date
             usort($thread['replies'], function($a, $b) {
-                return strtotime($a['message']['date_received']) - strtotime($b['message']['date_received']);
+                return $this->getMessageDateTimestamp($a['message']) - $this->getMessageDateTimestamp($b['message']);
             });
         }
 
@@ -4025,12 +4037,31 @@ class MessageHandler
         
         foreach ($thread['replies'] as $reply) {
             $replyLatest = $this->getLatestMessageInThread($reply);
-            if (strtotime($replyLatest['date_received']) > strtotime($latest['date_received'])) {
+            if ($this->getMessageDateTimestamp($replyLatest) > $this->getMessageDateTimestamp($latest)) {
                 $latest = $replyLatest;
             }
         }
         
         return $latest;
+    }
+
+    private function getMessageDateTimestamp(array $message): int
+    {
+        $dateField = $this->getEchomailDateField();
+        $primary = (string)($message[$dateField] ?? '');
+        $fallbackField = ($dateField === 'date_written') ? 'date_received' : 'date_written';
+        $fallback = (string)($message[$fallbackField] ?? '');
+
+        $ts = strtotime($primary);
+        if ($ts === false) {
+            $ts = strtotime($fallback);
+        }
+        return ($ts === false) ? 0 : $ts;
+    }
+
+    private function getThreadSortTimestamp(array $thread): int
+    {
+        return $this->getMessageDateTimestamp($this->getLatestMessageInThread($thread));
     }
     
     /**
@@ -4720,4 +4751,3 @@ class MessageHandler
         }
     }
 }
-
