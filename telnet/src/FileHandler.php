@@ -105,7 +105,11 @@ class FileHandler
                 TelnetUtils::ANSI_DIM
             ));
 
-            $input = trim($this->server->prompt($conn, $state, '', true) ?? '');
+            $raw = $this->server->prompt($conn, $state, '', true);
+            if ($raw === null) {
+                return; // disconnected / idle timeout
+            }
+            $input = trim($raw);
 
             if ($input === '') {
                 continue;
@@ -218,7 +222,11 @@ class FileHandler
             }
             TelnetUtils::writeLine($conn, TelnetUtils::colorize($navHint, TelnetUtils::ANSI_DIM));
 
-            $input = trim($this->server->prompt($conn, $state, '', true) ?? '');
+            $raw = $this->server->prompt($conn, $state, '', true);
+            if ($raw === null) {
+                return; // disconnected / idle timeout
+            }
+            $input = trim($raw);
 
             if ($input === '') {
                 continue;
