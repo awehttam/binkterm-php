@@ -475,7 +475,7 @@ function displayMessages(messages, isThreaded = false) {
 
             // Add thread-specific CSS classes; indent up to 2 levels (0.5rem each)
             const threadClasses = isThreaded ? `thread-level-${Math.min(threadLevel, 9)} ${isThreadRoot ? 'thread-root' : 'thread-reply'}` : '';
-            const indentRem = isThreaded && threadLevel > 0 ? Math.min(threadLevel, 2) * 0.5 : 0;
+            const indentRem = isThreaded && threadLevel > 0 ? Math.min(threadLevel, 2) * 0.75 : 0;
             const threadIndent = indentRem > 0 ? `padding-left: ${indentRem}rem;` : '';
 
             html += `
