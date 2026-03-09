@@ -749,7 +749,9 @@ class BbsSession
      */
     private function getLineDrawingChars(): array
     {
-        if ($this->terminalCharset === 'ascii') {
+        // When ANSI color is disabled, keep framing strictly ASCII to avoid
+        // mixed OEM glyph rendering artifacts in monochrome terminal modes.
+        if (!$this->ansiColorEnabled || $this->terminalCharset === 'ascii') {
             return [
                 'h' => '-',
                 'h_bold' => '=',
