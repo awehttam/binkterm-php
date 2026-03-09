@@ -26,11 +26,10 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 
 #### Telnet Access
 - TLS encryption (experimental): enabled by default on port 8023 with an auto-generated self-signed certificate stored in `data/telnet/`. Set `TELNET_TLS=false` in `.env` to disable, or provide your own certificate via `TELNET_TLS_CERT` and `TELNET_TLS_KEY`. Use `--no-tls` on the command line to disable for a single run.
-- Fixed TLS on Linux: TLS handshake now correctly runs in the child process after `pcntl_fork()`, preventing the parent's `fclose()` from sending an SSL `close_notify` that destroyed the child's TLS session.
 
 #### Terminal Features
-- New **File Areas** section in the BBS terminal (`F` from the main menu).
-- Fixed ZMODEM upload speed: uploads previously started at a few KB/s then trickled to near-zero and timed out. Inbound data is now read in bulk (8 KB at a time) instead of one byte per syscall, restoring full transfer speed over both plain telnet and TLS.
+- New **File Areas** section in the BBS terminal (`F` from the main menu)
+- Z-Modem file transfer support has been introduced.  Both a native internal Z-Modem implementation and support for lrzsz are available.  Native internal is presently recommended.
 
 ### File Areas
 - File owners and admins can now rename a file through the web interface. The Rename button appears in the file detail modal for users who have permission. Renaming updates both the on-disk filename and the database record.
@@ -52,7 +51,6 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Fixed multi-level echomail quoting: when replying to a message containing already-quoted lines (e.g. `RW>> text`), the bumped quote now consistently carries a leading space (` RW>>> text`) matching the FSC-0032 quoting style used for first-level quotes.
 - Fixed netmail replies using plain `>` quoting instead of FSC-0032 initials style. Netmail replies now quote identically to echomail replies.
 - Fixed 30–45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** — see upgrade instructions below.
-- Fixed posting identity guideline showing in English regardless of user locale on initial page load. The server-rendered (correctly translated) text is now preserved until the user selects an echo area or enters an address.
 - **Netmail attachments now supported for local delivery.** Sending a file attachment to a user on the local system (including the sysop) stores the file directly into the recipient's private file area. Previously this returned an error. Crashmail is not required for local attachment delivery.
 - Fixed locally sent netmail (e.g. messages to Sysop) not appearing in the sender's All view — only in Sent. The message record is now owned by the sender so it appears in both views; the sysop still sees it in their inbox via address matching.
 
