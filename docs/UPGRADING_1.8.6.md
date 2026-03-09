@@ -30,6 +30,13 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 #### Terminal Features
 - New **File Areas** section in the BBS terminal (`F` from the main menu)
 - Z-Modem file transfer support has been introduced.  Both a native internal Z-Modem implementation and support for lrzsz are available.  Native internal is presently recommended.
+- Terminal netmail reader now supports **downloading file attachments via ZMODEM** (`Z` in the message viewer when attachments exist).
+- Terminal mail browser position is now persisted in `users_meta` using `terminal_*` keys. Netmail restores the last page + selected message. Echomail restores the echoarea list page and per-area message position (page + selected message).
+- New API endpoints for terminal state persistence:
+  - `GET /api/user/terminal-mail-state`
+  - `POST /api/user/terminal-mail-state`
+- Optional debug toggle to force unique outbound attachment filenames during terminal ZMODEM sends:
+  - `TELNET_ZMODEM_DEBUG_UNIQUE_NAMES=true`
 - The message reader now supports **Page Up / Page Down** keys for scrolling through long messages a full screen at a time (in addition to the existing Up/Down line-by-line scrolling).
 - The message reader now renders **LSC-001 MARKUP kludge** formatted messages with ANSI terminal formatting. Markdown messages display headings, bold, italic, code blocks, bullet lists, block quotes, and horizontal rules using ANSI escape sequences. StyleCodes messages display bold, italic, underline, and inverse video. Unrecognized formats fall back to plain text. Quoted lines (`> `) are always rendered as plain dim text regardless of the declared markup format.
 - Markdown strikethrough (`~~text~~`) now renders as dim `-text-` in the terminal and `<del>text</del>` in the web message reader.

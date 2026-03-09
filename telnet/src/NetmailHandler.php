@@ -48,16 +48,36 @@ class NetmailHandler
      */
     public function show($conn, array &$state, string $session): void
     {
-        $page          = 1;
+        $savedState = $this->loadSavedListState($session);
+        $page          = $savedState['page'];
         $perPage       = MailUtils::getMessagesPerPage($state);
         $selectedIndex = 0;
+        $selectedMessageId = $savedState['selected_message_id'];
 
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage);
 
             if (!$messages) {
+                if ($page > 1 && $totalPages > 0) {
+                    $page = min($page, $totalPages);
+                    $selectedIndex = 0;
+                    $selectedMessageId = null;
+                    continue;
+                }
                 TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.netmail.no_messages', 'No netmail messages.', [], $state['locale']));
                 return;
+            }
+
+            if ($selectedMessageId !== null) {
+                $restoredIndex = $this->findMessageIndexById($messages, $selectedMessageId);
+                if ($restoredIndex !== null) {
+                    $selectedIndex = $restoredIndex;
+                }
+                $selectedMessageId = null;
+            }
+
+            if ($selectedIndex < 0 || $selectedIndex >= count($messages)) {
+                $selectedIndex = 0;
             }
 
             $title  = TelnetUtils::colorize(
@@ -66,6 +86,8 @@ class NetmailHandler
             );
             $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex);
             $selectedIndex = $result['selectedIndex'];
+            $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
+            $this->saveListState($session, $page, $currentSelectedId, $state['csrf_token'] ?? null);
 
             switch ($result['action']) {
                 case 'disconnect':
@@ -273,19 +295,6 @@ class NetmailHandler
         $rows  = $state['rows'] ?? 24;
         $width = max(10, $cols - 2);
 
-        $statusLine = TelnetUtils::buildStatusBar([
-            ['text' => 'U/D',       'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'PgUp/PgDn', 'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Page  ',   'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'L/R',       'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'R',         'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Reply  ',  'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'Q',         'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Quit',     'color' => TelnetUtils::ANSI_BLUE],
-        ], $width);
-
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage);
             $msg = $messages[$index] ?? null;
@@ -300,6 +309,28 @@ class NetmailHandler
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/netmail/' . $id, null, $session);
             $body         = $detail['data']['message_text'] ?? '';
             $markupFormat = $detail['data']['markup_format'] ?? null;
+            $attachments  = $detail['data']['attachments'] ?? [];
+            if (!is_array($attachments)) {
+                $attachments = [];
+            }
+
+            $statusSegments = [
+                ['text' => 'U/D',       'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'PgUp/PgDn', 'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Page  ',   'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'L/R',       'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'R',         'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Reply  ',  'color' => TelnetUtils::ANSI_BLUE],
+            ];
+            if (!empty($attachments)) {
+                $statusSegments[] = ['text' => 'Z', 'color' => TelnetUtils::ANSI_RED];
+                $statusSegments[] = ['text' => ' Download  ', 'color' => TelnetUtils::ANSI_BLUE];
+            }
+            $statusSegments[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED];
+            $statusSegments[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
+            $statusLine = TelnetUtils::buildStatusBar($statusSegments, $width);
 
             $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
@@ -317,7 +348,17 @@ class NetmailHandler
                 ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
                 : TelnetUtils::wrapTextLines($body, $width);
 
-            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $headerLines, $wrappedLines, $statusLine, $rows);
+            $result = TelnetUtils::runMessageViewer(
+                $conn,
+                $state,
+                $this->server,
+                $headerLines,
+                $wrappedLines,
+                $statusLine,
+                $rows,
+                0,
+                true
+            );
 
             switch ($result['action']) {
                 case 'quit':
@@ -335,6 +376,10 @@ class NetmailHandler
                     $this->compose($conn, $state, $session, $detail['data'] ?? $msg);
                     TelnetUtils::setCursorVisible($conn, true);
                     return [$page, $index];
+                case 'download':
+                    $this->downloadAttachment($conn, $state, $attachments);
+                    TelnetUtils::setCursorVisible($conn, true);
+                    break;
             }
         }
     }
@@ -361,5 +406,231 @@ class NetmailHandler
         return [$messages, (int)$totalPages];
     }
 
-}
+    /**
+     * Load saved netmail list state from user meta.
+     *
+     * @return array{page:int, selected_message_id:?int}
+     */
+    private function loadSavedListState(string $session): array
+    {
+        $response = TelnetUtils::apiRequest(
+            $this->apiBase,
+            'GET',
+            '/api/user/terminal-mail-state',
+            null,
+            $session
+        );
 
+        $settings = $response['data']['settings'] ?? [];
+        $page = (int)($settings['terminal_netmail_page'] ?? 1);
+        $selectedId = (int)($settings['terminal_netmail_selected_message_id'] ?? 0);
+
+        return [
+            'page' => max(1, $page),
+            'selected_message_id' => $selectedId > 0 ? $selectedId : null,
+        ];
+    }
+
+    /**
+     * Save netmail list state to user meta.
+     */
+    private function saveListState(string $session, int $page, ?int $selectedMessageId, ?string $csrfToken = null): void
+    {
+        $payload = [
+            'terminal_netmail_page' => max(1, $page),
+            'terminal_netmail_selected_message_id' => $selectedMessageId,
+        ];
+
+        TelnetUtils::apiRequest(
+            $this->apiBase,
+            'POST',
+            '/api/user/terminal-mail-state',
+            $payload,
+            $session,
+            3,
+            $csrfToken
+        );
+    }
+
+    /**
+     * Find index of a message id in the current message page.
+     */
+    private function findMessageIndexById(array $messages, int $messageId): ?int
+    {
+        foreach ($messages as $idx => $msg) {
+            if ((int)($msg['id'] ?? 0) === $messageId) {
+                return $idx;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Prompt for an attachment (if needed) and download it via ZMODEM.
+     */
+    private function downloadAttachment($conn, array &$state, array $attachments): void
+    {
+        $locale = $state['locale'] ?? 'en';
+        if (empty($attachments)) {
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.netmail.attachments_none', 'No file attachments on this message.', [], $locale),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_DIM
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        if (!ZmodemTransfer::canDownload()) {
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t(
+                    'ui.terminalserver.files.transfer_unavailable',
+                    'ZMODEM disabled: install lrzsz (sz/rz) on the server to enable transfers.',
+                    [],
+                    $locale
+                ),
+                TelnetUtils::ANSI_YELLOW
+            ));
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+                TelnetUtils::ANSI_DIM
+            ));
+            $this->server->readKeyWithIdleCheck($conn, $state);
+            return;
+        }
+
+        $selected = null;
+        if (count($attachments) === 1) {
+            $selected = $attachments[0];
+        } else {
+            TelnetUtils::safeWrite($conn, "\033[2J\033[H");
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.netmail.attachments_header', 'Attachments:', [], $locale),
+                TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD
+            ));
+            TelnetUtils::writeLine($conn, '');
+            foreach ($attachments as $idx => $attachment) {
+                $num = $idx + 1;
+                $name = (string)($attachment['filename'] ?? 'file');
+                $size = $this->formatSize((int)($attachment['filesize'] ?? 0));
+                TelnetUtils::writeLine($conn, sprintf(' %d) %s (%s)', $num, $name, $size));
+            }
+            TelnetUtils::writeLine($conn, '');
+            $choice = trim((string)$this->server->prompt(
+                $conn,
+                $state,
+                TelnetUtils::colorize(
+                    $this->server->t(
+                        'ui.terminalserver.netmail.attachment_download_prompt',
+                        'Attachment # to download (Enter to cancel): ',
+                        [],
+                        $locale
+                    ),
+                    TelnetUtils::ANSI_YELLOW
+                ),
+                true
+            ));
+            if ($choice === '' || !ctype_digit($choice)) {
+                return;
+            }
+            $index = (int)$choice - 1;
+            if (!isset($attachments[$index])) {
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->server->t('ui.terminalserver.files.invalid_selection', 'Invalid selection.', [], $locale),
+                    TelnetUtils::ANSI_RED
+                ));
+                sleep(1);
+                return;
+            }
+            $selected = $attachments[$index];
+        }
+
+        $storagePath = (string)($selected['storage_path'] ?? '');
+        $name = (string)($selected['filename'] ?? 'file');
+        if ($this->isDebugUniqueAttachmentNameEnabled()) {
+            $name = $this->buildDebugUniqueAttachmentName($name, (int)($selected['message_id'] ?? 0));
+        }
+        if ($storagePath === '' || !is_file($storagePath)) {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.files.download_error', 'File not found on server.', [], $locale),
+                TelnetUtils::ANSI_RED
+            ));
+            sleep(2);
+            return;
+        }
+
+        TelnetUtils::writeLine($conn, '');
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.files.download_starting', 'Starting ZMODEM download: {name}', ['name' => $name], $locale),
+            TelnetUtils::ANSI_CYAN
+        ));
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.files.download_hint', 'Start ZMODEM receive in your terminal now...', [], $locale),
+            TelnetUtils::ANSI_DIM
+        ));
+        sleep(1);
+
+        $ok = ZmodemTransfer::send($conn, $storagePath, $name, !($state['isSsh'] ?? false));
+        TelnetUtils::writeLine($conn, '');
+        if ($ok) {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.files.download_done', 'Transfer complete.', [], $locale),
+                TelnetUtils::ANSI_GREEN
+            ));
+        } else {
+            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.files.download_failed', 'Transfer failed or was cancelled.', [], $locale),
+                TelnetUtils::ANSI_RED
+            ));
+        }
+
+        TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+            $this->server->t('ui.terminalserver.server.press_any_key', 'Press any key to return...', [], $locale),
+            TelnetUtils::ANSI_DIM
+        ));
+        $this->server->readKeyWithIdleCheck($conn, $state);
+    }
+
+    /**
+     * Format a byte count as a human-readable size string.
+     */
+    private function formatSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+        if ($bytes < 1048576) {
+            return round($bytes / 1024, 1) . ' KB';
+        }
+
+        return round($bytes / 1048576, 1) . ' MB';
+    }
+
+    /**
+     * Debug switch: force unique outbound ZMODEM filename for attachments.
+     */
+    private function isDebugUniqueAttachmentNameEnabled(): bool
+    {
+        $val = (string)\BinktermPHP\Config::env('TELNET_ZMODEM_DEBUG_UNIQUE_NAMES', 'false');
+        return in_array(strtolower($val), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * Build a unique filename while preserving extension for receiver-side testing.
+     */
+    private function buildDebugUniqueAttachmentName(string $name, int $messageId): string
+    {
+        $info = pathinfo($name);
+        $base = (string)($info['filename'] ?? 'file');
+        $ext  = isset($info['extension']) && $info['extension'] !== '' ? '.' . $info['extension'] : '';
+        $suffix = '_dbg_nm' . ($messageId > 0 ? $messageId : 0) . '_' . gmdate('YmdHis');
+        return $base . $suffix . $ext;
+    }
+
+}

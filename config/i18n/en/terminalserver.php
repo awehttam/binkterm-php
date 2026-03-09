@@ -133,6 +133,9 @@ return [
     'ui.terminalserver.netmail.sending'                => 'Sending netmail...',
     'ui.terminalserver.netmail.send_success'           => '✓ Netmail sent successfully!',
     'ui.terminalserver.netmail.send_failed'            => '✗ Failed to send netmail: {error}',
+    'ui.terminalserver.netmail.attachments_none'       => 'No file attachments on this message.',
+    'ui.terminalserver.netmail.attachments_header'     => 'Attachments:',
+    'ui.terminalserver.netmail.attachment_download_prompt' => 'Attachment # to download (Enter to cancel): ',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'Voting booth is disabled.',
@@ -186,6 +189,37 @@ return [
     'ui.terminalserver.files.upload_readonly'          => 'This area is read-only. Uploads are not permitted.',
     'ui.terminalserver.files.upload_admin_only'        => 'Only administrators can upload to this area.',
 
+    // --- Main menu: terminal settings ---
+    'ui.terminalserver.server.menu.terminal_settings'  => 'T) Terminal Settings',
+
+    // --- Terminal settings page ---
+    'ui.terminalserver.settings.title'                 => '=== Terminal Settings ===',
+    'ui.terminalserver.settings.charset_label'         => 'Character set : {value}',
+    'ui.terminalserver.settings.ansi_label'            => 'ANSI color    : {value}',
+    'ui.terminalserver.settings.not_set'               => 'Not configured',
+    'ui.terminalserver.settings.menu_detect'           => 'D) Run detection wizard',
+    'ui.terminalserver.settings.menu_charset'          => 'C) Change character set manually',
+    'ui.terminalserver.settings.menu_ansi'             => 'A) Toggle ANSI color',
+    'ui.terminalserver.settings.menu_quit'             => 'Q) Return to main menu',
+    'ui.terminalserver.settings.saved'                 => 'Settings saved.',
+    'ui.terminalserver.settings.save_failed'           => 'Warning: could not save settings.',
+    'ui.terminalserver.settings.invalid_choice'        => 'Invalid choice.',
+    'ui.terminalserver.settings.charset_prompt'        => 'Select: (U)TF-8, (C)P437, (A)SCII: ',
+
+    // --- Terminal detection wizard ---
+    'ui.terminalserver.detect.title'                   => '=== Terminal Setup ===',
+    'ui.terminalserver.detect.intro'                   => 'BBS will now test your terminal to ensure content displays correctly.',
+    'ui.terminalserver.detect.charset_intro'           => 'Character set test:',
+    'ui.terminalserver.detect.charset_question'        => 'Do the above appear as arrows, checkmarks, and accented letters? (Y/N): ',
+    'ui.terminalserver.detect.charset_utf8'            => 'UTF-8 character set enabled.',
+    'ui.terminalserver.detect.charset_cp437'           => 'CP437 (DOS/ANSI) character set enabled.',
+    'ui.terminalserver.detect.ansi_intro'              => 'Color test:',
+    'ui.terminalserver.detect.ansi_question'           => 'Do the words above appear in different colors? (Y/N): ',
+    'ui.terminalserver.detect.ansi_yes'                => 'ANSI color enabled.',
+    'ui.terminalserver.detect.ansi_no'                 => 'ANSI color disabled.',
+    'ui.terminalserver.detect.complete'                => 'Terminal setup complete. Settings saved.',
+    'ui.terminalserver.detect.press_enter'             => 'Press Enter to continue...',
+
     // --- Door games ---
     'ui.terminalserver.doors.no_doors'                 => 'No doors are currently available.',
     'ui.terminalserver.doors.title'                    => '=== Door Games ===',
@@ -198,4 +232,3 @@ return [
     'ui.terminalserver.doors.connected'                => 'Connected! Starting game...',
     'ui.terminalserver.doors.returned'                 => 'Returned from {name}.',
 ];
-

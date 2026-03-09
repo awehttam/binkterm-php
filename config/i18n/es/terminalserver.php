@@ -134,6 +134,9 @@ return [
     'ui.terminalserver.netmail.sending'                => 'Enviando netmail...',
     'ui.terminalserver.netmail.send_success'           => '✓ ¡Netmail enviado exitosamente!',
     'ui.terminalserver.netmail.send_failed'            => '✗ Error al enviar netmail: {error}',
+    'ui.terminalserver.netmail.attachments_none'       => 'No hay archivos adjuntos en este mensaje.',
+    'ui.terminalserver.netmail.attachments_header'     => 'Adjuntos:',
+    'ui.terminalserver.netmail.attachment_download_prompt' => 'Adjunto # para descargar (Enter para cancelar): ',
 
     // --- Polls ---
     'ui.terminalserver.polls.disabled'                 => 'La cabina de votación está deshabilitada.',
@@ -183,6 +186,37 @@ return [
     'ui.terminalserver.files.upload_duplicate'         => 'Este archivo ya existe en esta área.',
     'ui.terminalserver.files.upload_readonly'          => 'Esta área es de solo lectura. No se permiten subidas.',
     'ui.terminalserver.files.upload_admin_only'        => 'Solo los administradores pueden subir a esta área.',
+
+    // --- Main menu: terminal settings ---
+    'ui.terminalserver.server.menu.terminal_settings'  => 'T) Configuración de Terminal',
+
+    // --- Terminal settings page ---
+    'ui.terminalserver.settings.title'                 => '=== Configuración de Terminal ===',
+    'ui.terminalserver.settings.charset_label'         => 'Juego de caracteres : {value}',
+    'ui.terminalserver.settings.ansi_label'            => 'Color ANSI          : {value}',
+    'ui.terminalserver.settings.not_set'               => 'No configurado',
+    'ui.terminalserver.settings.menu_detect'           => 'D) Ejecutar asistente de detección',
+    'ui.terminalserver.settings.menu_charset'          => 'C) Cambiar juego de caracteres manualmente',
+    'ui.terminalserver.settings.menu_ansi'             => 'A) Alternar color ANSI',
+    'ui.terminalserver.settings.menu_quit'             => 'Q) Volver al menú principal',
+    'ui.terminalserver.settings.saved'                 => 'Configuración guardada.',
+    'ui.terminalserver.settings.save_failed'           => 'Advertencia: no se pudo guardar la configuración.',
+    'ui.terminalserver.settings.invalid_choice'        => 'Opción inválida.',
+    'ui.terminalserver.settings.charset_prompt'        => 'Seleccione: (U)TF-8, (C)P437, (A)SCII: ',
+
+    // --- Terminal detection wizard ---
+    'ui.terminalserver.detect.title'                   => '=== Configuración de Terminal ===',
+    'ui.terminalserver.detect.intro'                   => 'El BBS comprobará ahora su terminal para garantizar que el contenido se muestre correctamente.',
+    'ui.terminalserver.detect.charset_intro'           => 'Prueba de juego de caracteres:',
+    'ui.terminalserver.detect.charset_question'        => '¿Los caracteres anteriores aparecen como flechas, marcas de verificación y letras acentuadas? (S/N): ',
+    'ui.terminalserver.detect.charset_utf8'            => 'Juego de caracteres UTF-8 activado.',
+    'ui.terminalserver.detect.charset_cp437'           => 'Juego de caracteres CP437 (DOS/ANSI) activado.',
+    'ui.terminalserver.detect.ansi_intro'              => 'Prueba de color:',
+    'ui.terminalserver.detect.ansi_question'           => '¿Las palabras anteriores aparecen en diferentes colores? (S/N): ',
+    'ui.terminalserver.detect.ansi_yes'                => 'Color ANSI activado.',
+    'ui.terminalserver.detect.ansi_no'                 => 'Color ANSI desactivado.',
+    'ui.terminalserver.detect.complete'                => 'Configuración de terminal completa. Ajustes guardados.',
+    'ui.terminalserver.detect.press_enter'             => 'Presione Enter para continuar...',
 
     // --- Door games ---
     'ui.terminalserver.doors.no_doors'                 => 'No hay puertas disponibles actualmente.',

@@ -46,7 +46,8 @@ class EchomailHandler
      */
     public function showEchoareas($conn, array &$state, string $session): void
     {
-        $page = 1;
+        $savedState = $this->loadSavedListState($session);
+        $page = $savedState['areas_page'];
         $perPage = MailUtils::getMessagesPerPage($state);
 
         while (true) {
@@ -105,12 +106,14 @@ class EchomailHandler
                     if ($input === 'n') {
                         if ($page < $totalPages) {
                             $page++;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
                     if ($input === 'p') {
                         if ($page > 1) {
                             $page--;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
@@ -139,12 +142,14 @@ class EchomailHandler
                     if ($lower === 'n') {
                         if ($page < $totalPages) {
                             $page++;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
                     if ($lower === 'p') {
                         if ($page > 1) {
                             $page--;
+                            $this->saveEchoareasPage($session, $page, $state['csrf_token'] ?? null);
                         }
                         break;
                     }
@@ -179,17 +184,44 @@ class EchomailHandler
      */
     public function showMessages($conn, array &$state, string $session, string $tag, string $domain): void
     {
-        $page          = 1;
         $area          = $tag . '@' . $domain;
+        $savedState    = $this->loadSavedListState($session);
+        $positions     = $savedState['positions'];
+        $areaPosition  = $positions[$area] ?? null;
+        $page          = max(1, (int)($areaPosition['page'] ?? 1));
         $perPage       = MailUtils::getMessagesPerPage($state);
         $selectedIndex = 0;
+        $selectedMessageId = isset($areaPosition['selected_message_id'])
+            ? (int)$areaPosition['selected_message_id']
+            : null;
+        if ($selectedMessageId !== null && $selectedMessageId < 1) {
+            $selectedMessageId = null;
+        }
 
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage);
 
             if (!$messages) {
+                if ($page > 1 && $totalPages > 0) {
+                    $page = min($page, $totalPages);
+                    $selectedIndex = 0;
+                    $selectedMessageId = null;
+                    continue;
+                }
                 TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.no_messages', 'No echomail messages.', [], $state['locale']));
                 return;
+            }
+
+            if ($selectedMessageId !== null) {
+                $restoredIndex = $this->findMessageIndexById($messages, $selectedMessageId);
+                if ($restoredIndex !== null) {
+                    $selectedIndex = $restoredIndex;
+                }
+                $selectedMessageId = null;
+            }
+
+            if ($selectedIndex < 0 || $selectedIndex >= count($messages)) {
+                $selectedIndex = 0;
             }
 
             $title  = TelnetUtils::colorize(
@@ -198,6 +230,8 @@ class EchomailHandler
             );
             $result = TelnetUtils::runMessageList($conn, $state, $this->server, $title, $messages, $page, $totalPages, $selectedIndex);
             $selectedIndex = $result['selectedIndex'];
+            $currentSelectedId = isset($messages[$selectedIndex]['id']) ? (int)$messages[$selectedIndex]['id'] : null;
+            $this->saveEchomailState($session, $positions, $area, $page, $currentSelectedId, $state['csrf_token'] ?? null);
 
             switch ($result['action']) {
                 case 'disconnect':
@@ -496,5 +530,115 @@ class EchomailHandler
             . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
             . $suffix;
     }
-}
 
+    /**
+     * Load saved echomail browser state from user meta.
+     *
+     * @return array{areas_page:int, positions:array<string,array{page:int,selected_message_id:?int}>}
+     */
+    private function loadSavedListState(string $session): array
+    {
+        $response = TelnetUtils::apiRequest(
+            $this->apiBase,
+            'GET',
+            '/api/user/terminal-mail-state',
+            null,
+            $session
+        );
+
+        $settings = $response['data']['settings'] ?? [];
+        $areasPage = (int)($settings['terminal_echomail_areas_page'] ?? 1);
+        $positionsRaw = $settings['terminal_echomail_positions'] ?? '';
+        $positions = [];
+        if (is_string($positionsRaw) && trim($positionsRaw) !== '') {
+            $decoded = json_decode($positionsRaw, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $area => $item) {
+                    if (!is_string($area) || !is_array($item)) {
+                        continue;
+                    }
+                    $page = max(1, (int)($item['page'] ?? 1));
+                    $selected = $item['selected_message_id'] ?? null;
+                    if ($selected !== null) {
+                        $selected = (int)$selected;
+                        if ($selected < 1) {
+                            $selected = null;
+                        }
+                    }
+                    $positions[$area] = [
+                        'page' => $page,
+                        'selected_message_id' => $selected,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'areas_page' => max(1, $areasPage),
+            'positions' => $positions,
+        ];
+    }
+
+    /**
+     * Save echomail message-list state (per area).
+     */
+    private function saveEchomailState(
+        string $session,
+        array &$positions,
+        string $area,
+        int $page,
+        ?int $selectedMessageId,
+        ?string $csrfToken = null
+    ): void
+    {
+        $positions[$area] = [
+            'page' => max(1, $page),
+            'selected_message_id' => ($selectedMessageId !== null && $selectedMessageId > 0) ? $selectedMessageId : null,
+        ];
+
+        $payload = [
+            'terminal_echomail_positions' => $positions,
+        ];
+
+        TelnetUtils::apiRequest(
+            $this->apiBase,
+            'POST',
+            '/api/user/terminal-mail-state',
+            $payload,
+            $session,
+            3,
+            $csrfToken
+        );
+    }
+
+    /**
+     * Save current echoarea listing page.
+     */
+    private function saveEchoareasPage(string $session, int $page, ?string $csrfToken = null): void
+    {
+        TelnetUtils::apiRequest(
+            $this->apiBase,
+            'POST',
+            '/api/user/terminal-mail-state',
+            ['terminal_echomail_areas_page' => max(1, $page)],
+            $session,
+            3,
+            $csrfToken
+        );
+    }
+
+    /**
+     * Find index of a message id in the current message page.
+     */
+    private function findMessageIndexById(array $messages, int $messageId): ?int
+    {
+        foreach ($messages as $idx => $msg) {
+            if ((int)($msg['id'] ?? 0) === $messageId) {
+                return $idx;
+            }
+        }
+
+        return null;
+    }
+
+}

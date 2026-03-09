@@ -28,6 +28,7 @@ class ZmodemTransfer
     private const ZRPOS   = 0x09; // Resume from offset
     private const ZDATA   = 0x0A; // Data subpacket(s)
     private const ZEOF    = 0x0B; // End of file
+    private const ZCRC    = 0x0D; // Request/response: file CRC-32
 
     // ---- Header format bytes (follow ZPAD ZDLE) ----
     private const ZPAD  = 0x2A; // '*'
@@ -156,6 +157,16 @@ class ZmodemTransfer
 
             $header = self::receiveHeader($conn);
             self::dbg("RX " . self::headerToString($header));
+            if ($header !== null && $header['type'] === self::ZCRC) {
+                // Some receivers (notably SyncTERM) may probe with ZCRC before
+                // sending ZRPOS, especially when a same-named local file exists.
+                // Reply with CRC-32 and continue waiting for ZRPOS/ZSKIP.
+                $crc = self::fileCrc32($path);
+                self::sendBinHeader($conn, self::ZCRC, self::int32ToBytes($crc), $escapeTelnetIac);
+                self::dbg("TX " . self::frameName(self::ZCRC) . " crc={$crc} attempt={$attempt}");
+                $header = self::receiveHeader($conn);
+                self::dbg("RX after ZCRC " . self::headerToString($header));
+            }
             if ($header === null) {
                 continue;
             }
@@ -1454,7 +1465,24 @@ class ZmodemTransfer
             self::ZRPOS   => 'ZRPOS',
             self::ZDATA   => 'ZDATA',
             self::ZEOF    => 'ZEOF',
+            self::ZCRC    => 'ZCRC',
             default       => 'TYPE_' . $type,
         };
+    }
+
+    /**
+     * Compute unsigned CRC-32 of a file for ZCRC negotiation.
+     */
+    private static function fileCrc32(string $path): int
+    {
+        $crc = @hash_file('crc32b', $path);
+        if ($crc === false) {
+            return 0;
+        }
+        $value = hexdec($crc);
+        if (!is_int($value)) {
+            $value = (int)$value;
+        }
+        return $value & 0xFFFFFFFF;
     }
 }

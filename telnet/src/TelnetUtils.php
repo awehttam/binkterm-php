@@ -367,8 +367,9 @@ class TelnetUtils
      * @param string   $statusLine    Pre-built status bar string
      * @param int      $rows          Terminal row count
      * @param int      $initialOffset Starting scroll offset (default 0)
+     * @param bool     $allowDownloadAction Whether to return 'download' on Z key
      * @return array{action: string, offset: int}
-     *   action: 'quit' | 'prev' | 'next' | 'reply'
+     *   action: 'quit' | 'prev' | 'next' | 'reply' | 'download'
      *   offset: scroll position at time of exit (unused for quit/reply)
      */
     public static function runMessageViewer(
@@ -379,7 +380,8 @@ class TelnetUtils
         array $wrappedLines,
         string $statusLine,
         int $rows,
-        int $initialOffset = 0
+        int $initialOffset = 0,
+        bool $allowDownloadAction = false
     ): array {
         $bodyHeight = max(1, $rows - count($headerLines) - 1);
         $maxOffset  = max(0, count($wrappedLines) - $bodyHeight);
@@ -410,6 +412,9 @@ class TelnetUtils
             if ($key === 'LEFT')                              return ['action' => 'prev',  'offset' => $offset];
             if ($key === 'RIGHT')                             return ['action' => 'next',  'offset' => $offset];
             if ($key === 'CHAR:r' || $key === 'CHAR:R')      return ['action' => 'reply', 'offset' => $offset];
+            if ($allowDownloadAction && ($key === 'CHAR:z' || $key === 'CHAR:Z')) {
+                return ['action' => 'download', 'offset' => $offset];
+            }
         }
     }
 

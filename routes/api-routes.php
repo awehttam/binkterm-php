@@ -5071,6 +5071,149 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     });
 
+    // Terminal settings API endpoints
+    SimpleRouter::get('/user/terminal-settings', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+
+        $meta = new \BinktermPHP\UserMeta();
+        $settings = [
+            'terminal_charset'    => $meta->getValue((int)$userId, 'terminal_charset'),
+            'terminal_ansi_color' => $meta->getValue((int)$userId, 'terminal_ansi_color'),
+        ];
+        echo json_encode(['success' => true, 'settings' => $settings]);
+    });
+
+    SimpleRouter::post('/user/terminal-settings', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $body     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $settings = $body['settings'] ?? $body; // accept both wrapped and flat
+        $allowed  = ['terminal_charset' => ['utf8','cp437','ascii'], 'terminal_ansi_color' => ['yes','no']];
+        $meta     = new \BinktermPHP\UserMeta();
+        foreach ($allowed as $key => $validValues) {
+            if (isset($settings[$key])) {
+                if (!in_array($settings[$key], $validValues, true)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => "Invalid value for $key"]);
+                    return;
+                }
+                $meta->setValue((int)$userId, $key, $settings[$key]);
+            }
+        }
+        echo json_encode(['success' => true]);
+    });
+
+    // Terminal mail state API endpoints
+    SimpleRouter::get('/user/terminal-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $meta = new \BinktermPHP\UserMeta();
+
+        $settings = [
+            'terminal_netmail_page' => $meta->getValue((int)$userId, 'terminal_netmail_page'),
+            'terminal_netmail_selected_message_id' => $meta->getValue((int)$userId, 'terminal_netmail_selected_message_id'),
+            'terminal_echomail_areas_page' => $meta->getValue((int)$userId, 'terminal_echomail_areas_page'),
+            'terminal_echomail_positions' => $meta->getValue((int)$userId, 'terminal_echomail_positions'),
+        ];
+
+        echo json_encode(['success' => true, 'settings' => $settings]);
+    });
+
+    SimpleRouter::post('/user/terminal-mail-state', function() {
+        $user = RouteHelper::requireAuth();
+        header('Content-Type: application/json');
+
+        $userId = $user['user_id'] ?? $user['id'] ?? null;
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $settings = $body['settings'] ?? $body; // accept both wrapped and flat
+        $meta = new \BinktermPHP\UserMeta();
+
+        $intKeys = [
+            'terminal_netmail_page',
+            'terminal_netmail_selected_message_id',
+            'terminal_echomail_areas_page',
+        ];
+
+        foreach ($intKeys as $key) {
+            if (!array_key_exists($key, $settings)) {
+                continue;
+            }
+
+            $value = $settings[$key];
+            if ($value === null || $value === '') {
+                $meta->setValue((int)$userId, $key, null);
+                continue;
+            }
+
+            if (!is_numeric($value) || (int)$value < 1) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => "Invalid value for $key"]);
+                return;
+            }
+
+            $meta->setValue((int)$userId, $key, (string)((int)$value));
+        }
+
+        if (array_key_exists('terminal_echomail_positions', $settings)) {
+            $positions = $settings['terminal_echomail_positions'];
+            if (is_string($positions)) {
+                $decoded = json_decode($positions, true);
+                if (!is_array($decoded)) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_positions']);
+                    return;
+                }
+                $positions = $decoded;
+            }
+
+            if (!is_array($positions)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_positions']);
+                return;
+            }
+
+            $clean = [];
+            foreach ($positions as $area => $entry) {
+                if (!is_string($area) || trim($area) === '' || strlen($area) > 128 || !is_array($entry)) {
+                    continue;
+                }
+                $page = (int)($entry['page'] ?? 1);
+                if ($page < 1) {
+                    $page = 1;
+                }
+                $selected = $entry['selected_message_id'] ?? null;
+                if ($selected !== null) {
+                    if (!is_numeric($selected) || (int)$selected < 1) {
+                        $selected = null;
+                    } else {
+                        $selected = (int)$selected;
+                    }
+                }
+                $clean[$area] = [
+                    'page' => $page,
+                    'selected_message_id' => $selected,
+                ];
+            }
+
+            $encoded = json_encode($clean);
+            if ($encoded === false || strlen($encoded) > 64000) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid value for terminal_echomail_positions']);
+                return;
+            }
+            $meta->setValue((int)$userId, 'terminal_echomail_positions', $encoded);
+        }
+
+        echo json_encode(['success' => true]);
+    });
+
     // Admin API endpoints for user management
     SimpleRouter::get('/admin/pending-users', function() {
         $user = RouteHelper::requireAuth();
