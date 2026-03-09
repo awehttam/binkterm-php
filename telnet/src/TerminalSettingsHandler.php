@@ -63,6 +63,7 @@ class TerminalSettingsHandler
     public function runDetectionWizard($conn, array &$state, string $session): void
     {
         $locale = $state['locale'] ?? 'en';
+        $previousAnsiEnabled = ($state['terminal_ansi_color'] ?? 'yes') !== 'no';
 
         TelnetUtils::writeLine($conn, '');
         TelnetUtils::writeLine($conn, TelnetUtils::colorize(
@@ -112,6 +113,8 @@ class TerminalSettingsHandler
         TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.detect.ansi_intro',
             'Color test:', [], $locale));
         TelnetUtils::writeLine($conn, '');
+        // Always force color rendering for the test sample so users can answer accurately.
+        TelnetUtils::setAnsiColorEnabled(true);
         TelnetUtils::writeLine($conn, '  '
             . TelnetUtils::colorize('RED ', TelnetUtils::ANSI_RED)
             . TelnetUtils::colorize('GREEN ', TelnetUtils::ANSI_GREEN)
@@ -127,10 +130,12 @@ class TerminalSettingsHandler
         );
         $colorAnswer = $this->server->prompt($conn, $state, $colorQ, true);
         if ($colorAnswer === null) {
+            TelnetUtils::setAnsiColorEnabled($previousAnsiEnabled);
             return;
         }
         $ansiColor = (strtolower(trim($colorAnswer)) === 'y') ? 'yes' : 'no';
         $state['terminal_ansi_color'] = $ansiColor;
+        TelnetUtils::setAnsiColorEnabled($ansiColor === 'yes');
 
         if ($ansiColor === 'yes') {
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
