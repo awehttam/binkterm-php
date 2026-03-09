@@ -20,16 +20,19 @@ namespace BinktermPHP\TelnetServer;
 class TerminalMarkupRenderer
 {
     // ANSI codes used for markup rendering
-    private const R    = "\033[0m";   // reset
+    private const R    = "\033[0m";    // reset (used at line ends only)
     private const BOLD = "\033[1m";
+    private const BOLD_OFF = "\033[22m"; // bold off (avoids mid-line global reset)
     private const DIM  = "\033[2m";
-    private const ITAL = "\033[4m";   // italic fallback: underline
-    private const UL   = "\033[4m";   // underline
-    private const REV  = "\033[7m";   // reverse video
-    private const CYN  = "\033[36m";  // cyan
-    private const YEL  = "\033[33m";  // yellow
-    private const GRN  = "\033[32m";  // green
-    private const MAG  = "\033[35m";  // magenta
+    private const ITAL = "\033[4m";    // italic fallback: underline
+    private const UL   = "\033[4m";    // underline
+    private const UL_OFF = "\033[24m"; // underline off (avoids mid-line global reset)
+    private const REV  = "\033[7m";
+    private const REV_OFF = "\033[27m"; // reverse off
+    private const CYN  = "\033[36m";
+    private const YEL  = "\033[33m";
+    private const GRN  = "\033[32m";
+    private const MAG  = "\033[35m";
 
     /**
      * Render a markup-formatted message body for terminal display.
@@ -225,20 +228,20 @@ class TerminalMarkupRenderer
         }, $text);
 
         // Bold (**text** or __text__)
-        $text = preg_replace('/\*\*(.+?)\*\*/', self::BOLD . '$1' . self::R, $text);
-        $text = preg_replace('/__(.+?)__/',     self::BOLD . '$1' . self::R, $text);
+        $text = preg_replace('/\*\*(.+?)\*\*/', self::BOLD . '$1' . self::BOLD_OFF, $text);
+        $text = preg_replace('/__(.+?)__/',     self::BOLD . '$1' . self::BOLD_OFF, $text);
 
         // Strikethrough (~~text~~ → -text-)
         $text = preg_replace('/~~(.+?)~~/', '-$1-', $text);
 
         // Italic (*text* or _text_)
-        $text = preg_replace('/\*([^*]+)\*/',   self::ITAL . '$1' . self::R, $text);
-        $text = preg_replace('/_([^_]+)_/',     self::ITAL . '$1' . self::R, $text);
+        $text = preg_replace('/\*([^*]+)\*/',   self::ITAL . '$1' . self::UL_OFF, $text);
+        $text = preg_replace('/_([^_]+)_/',     self::ITAL . '$1' . self::UL_OFF, $text);
 
         // Links — show label and URL
         $text = preg_replace_callback(
             '/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/',
-            fn($m) => self::UL . $m[1] . self::R . ' (' . self::DIM . $m[2] . self::R . ')',
+            fn($m) => self::UL . $m[1] . self::UL_OFF . ' (' . $m[2] . ')',
             $text
         );
 
@@ -294,16 +297,16 @@ class TerminalMarkupRenderer
     private static function inlineStyleCodes(string $line): string
     {
         // *bold*
-        $line = preg_replace('/\*([^*\r\n]+)\*/', self::BOLD . '$1' . self::R, $line);
+        $line = preg_replace('/\*([^*\r\n]+)\*/', self::BOLD . '$1' . self::BOLD_OFF, $line);
 
         // /italics/ — exclude slashes adjacent to colons (URLs)
-        $line = preg_replace('/(?<![:\w])\/([^\/\r\n]+)\/(?![\w])/', self::ITAL . '$1' . self::R, $line);
+        $line = preg_replace('/(?<![:\w])\/([^\/\r\n]+)\/(?![\w])/', self::ITAL . '$1' . self::UL_OFF, $line);
 
         // _underlined_
-        $line = preg_replace('/_([^_\r\n]+)_/', self::UL . '$1' . self::R, $line);
+        $line = preg_replace('/_([^_\r\n]+)_/', self::UL . '$1' . self::UL_OFF, $line);
 
         // #inverse#
-        $line = preg_replace('/#([^#\r\n]+)#/', self::REV . '$1' . self::R, $line);
+        $line = preg_replace('/#([^#\r\n]+)#/', self::REV . '$1' . self::REV_OFF, $line);
 
         return $line;
     }

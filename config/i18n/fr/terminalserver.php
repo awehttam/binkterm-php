@@ -144,6 +144,37 @@ return [
     'ui.terminalserver.files.upload_duplicate' => 'Ce fichier existe déjà dans cette zone.',
     'ui.terminalserver.files.upload_readonly' => 'Cette zone est en lecture seule. Les envois ne sont pas autorisés.',
     'ui.terminalserver.files.upload_admin_only' => 'Seuls les administrateurs peuvent envoyer des fichiers dans cette zone.',
+    // --- Main menu: terminal settings ---
+    'ui.terminalserver.server.menu.terminal_settings'  => 'T) Paramètres du terminal',
+
+    // --- Terminal settings page ---
+    'ui.terminalserver.settings.title'                 => '=== Paramètres du terminal ===',
+    'ui.terminalserver.settings.charset_label'         => 'Jeu de caractères : {value}',
+    'ui.terminalserver.settings.ansi_label'            => 'Couleur ANSI      : {value}',
+    'ui.terminalserver.settings.not_set'               => 'Non configuré',
+    'ui.terminalserver.settings.menu_detect'           => 'D) Lancer l\'assistant de détection',
+    'ui.terminalserver.settings.menu_charset'          => 'C) Changer le jeu de caractères manuellement',
+    'ui.terminalserver.settings.menu_ansi'             => 'A) Activer/désactiver la couleur ANSI',
+    'ui.terminalserver.settings.menu_quit'             => 'Q) Retour au menu principal',
+    'ui.terminalserver.settings.saved'                 => 'Paramètres enregistrés.',
+    'ui.terminalserver.settings.save_failed'           => 'Avertissement : impossible d\'enregistrer les paramètres.',
+    'ui.terminalserver.settings.invalid_choice'        => 'Choix invalide.',
+    'ui.terminalserver.settings.charset_prompt'        => 'Sélectionnez : (U)TF-8, (C)P437, (A)SCII : ',
+
+    // --- Terminal detection wizard ---
+    'ui.terminalserver.detect.title'                   => '=== Configuration du terminal ===',
+    'ui.terminalserver.detect.intro'                   => 'Le BBS va maintenant tester votre terminal pour s\'assurer que le contenu s\'affiche correctement.',
+    'ui.terminalserver.detect.charset_intro'           => 'Test du jeu de caractères :',
+    'ui.terminalserver.detect.charset_question'        => 'Les caractères ci-dessus apparaissent-ils comme des flèches, des coches et des lettres accentuées ? (O/N) : ',
+    'ui.terminalserver.detect.charset_utf8'            => 'Jeu de caractères UTF-8 activé.',
+    'ui.terminalserver.detect.charset_cp437'           => 'Jeu de caractères CP437 (DOS/ANSI) activé.',
+    'ui.terminalserver.detect.ansi_intro'              => 'Test des couleurs :',
+    'ui.terminalserver.detect.ansi_question'           => 'Les mots ci-dessus apparaissent-ils en différentes couleurs ? (O/N) : ',
+    'ui.terminalserver.detect.ansi_yes'                => 'Couleur ANSI activée.',
+    'ui.terminalserver.detect.ansi_no'                 => 'Couleur ANSI désactivée.',
+    'ui.terminalserver.detect.complete'                => 'Configuration du terminal terminée. Paramètres enregistrés.',
+    'ui.terminalserver.detect.press_enter'             => 'Appuyez sur Entrée pour continuer...',
+
     'ui.terminalserver.doors.no_doors' => 'Aucun jeu de portes n\'est disponible actuellement.',
     'ui.terminalserver.doors.title' => '=== Jeux de portes ===',
     'ui.terminalserver.doors.enter_choice' => 'Entrez un numéro pour jouer, ou Q pour revenir : ',
