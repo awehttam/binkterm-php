@@ -124,17 +124,22 @@ class ZmodemTransfer
             return false;
         }
 
-        // Some receivers (e.g. ZOC) send a second ZRINIT retry before their
-        // ZMODEM engine is fully ready to accept ZFILE.  Without a drain, that
-        // queued ZRINIT is read as the response to ZFILE attempt=1, forcing a
-        // needless retry and making the terminal log spurious "Garbage count
-        // exceeded" errors for every byte of the first ZFILE frame.
-        // Wait 100 ms for any such retries to arrive, then discard them.
-        usleep(100000);
-        $r = [$conn]; $w = null; $e = null;
-        if (@stream_select($r, $w, $e, 0, 0)) {
-            @fread($conn, 1024);
-        }
+        // Some receivers (e.g. ZOC) continue sending ZRINIT retries after the
+        // first ZRINIT is received, before their ZMODEM engine is fully ready
+        // to accept ZFILE.  A single-shot drain can miss retries that arrive
+        // just after the drain window.  Loop-drain until the socket has been
+        // quiet for at least one polling interval (60 ms), or 400 ms total.
+        // This prevents a stale ZRINIT from being read as the ZRPOS response
+        // to ZFILE attempt=1, which would force a needless ZFILE retry and
+        // cause the terminal to log spurious CRC / "Garbage count" errors.
+        $drainDeadline = microtime(true) + 0.4;
+        do {
+            $r = [$conn]; $w = null; $e = null;
+            if (!@stream_select($r, $w, $e, 0, 60000)) { // quiet for 60 ms → done
+                break;
+            }
+            @fread($conn, 4096);
+        } while (microtime(true) < $drainDeadline);
         self::$rxBuffer    = '';
         self::$rxBufferPos = 0;
 
@@ -403,6 +408,15 @@ class ZmodemTransfer
             self::writeRaw($conn, "OO", $escapeTelnetIac);
             self::dbg("RECV finalize sent ZFIN+OO");
         }
+
+        // Drain "OO" (over-and-out) sent by the client after ZFIN, plus any
+        // telnet negotiation that may have buffered during the transfer.
+        // Without this the BBS session reads those bytes as user input and
+        // echoes "OO" to the prompt.
+        @stream_set_timeout($conn, 1);
+        @fread($conn, 512);
+        @fread($conn, 512);
+        @stream_set_timeout($conn, 300);
 
         self::dbg("RECV success path={$destPath}");
         self::info("RECV via PHP: " . basename($destPath) . " — ok");
