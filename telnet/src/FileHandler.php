@@ -709,11 +709,17 @@ class FileHandler
      */
     private function renderFileAreaSelectionLine(int $num, string $tag, string $desc, int $count): string
     {
-        $suffix = sprintf(' %-12s  %-36s  %d file(s)', $tag, $desc, $count);
+        $tag  = sprintf('%-12s', mb_substr($tag,  0, 12));
+        $desc = sprintf('%-36s', mb_substr($desc, 0, 36));
         return ' '
             . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
             . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
-            . $suffix;
+            . ' '
+            . TelnetUtils::colorize($tag,  TelnetUtils::ANSI_MAGENTA)
+            . '  '
+            . TelnetUtils::colorize($desc, TelnetUtils::ANSI_GREEN)
+            . '  '
+            . TelnetUtils::colorize($count . ' file(s)', TelnetUtils::ANSI_RED);
     }
 
     /**
