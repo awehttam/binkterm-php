@@ -23,7 +23,7 @@ class TerminalMarkupRenderer
     private const R    = "\033[0m";   // reset
     private const BOLD = "\033[1m";
     private const DIM  = "\033[2m";
-    private const ITAL = "\033[2m\033[4m"; // italic fallback: dim + underline (separate sequences for compatibility)
+    private const ITAL = "\033[4m";   // italic fallback: underline
     private const UL   = "\033[4m";   // underline
     private const REV  = "\033[7m";   // reverse video
     private const CYN  = "\033[36m";  // cyan
@@ -228,8 +228,8 @@ class TerminalMarkupRenderer
         $text = preg_replace('/\*\*(.+?)\*\*/', self::BOLD . '$1' . self::R, $text);
         $text = preg_replace('/__(.+?)__/',     self::BOLD . '$1' . self::R, $text);
 
-        // Strikethrough (~~text~~ → -text- dimmed)
-        $text = preg_replace('/~~(.+?)~~/', self::DIM . '-$1-' . self::R, $text);
+        // Strikethrough (~~text~~ → -text-)
+        $text = preg_replace('/~~(.+?)~~/', '-$1-', $text);
 
         // Italic (*text* or _text_)
         $text = preg_replace('/\*([^*]+)\*/',   self::ITAL . '$1' . self::R, $text);
