@@ -288,8 +288,8 @@ let loadedAreas = [];
 let currentFileId = null;
 let currentFile = null;
 let currentShareId = null;
-const currentUserId = {{ current_user.id|default('null') }};
-const isAdmin = {{ current_user.is_admin|default('false') ? 'true' : 'false' }};
+const currentUserId = window.currentUserId ?? null;
+const isAdmin = !!(window.currentUserIsAdmin);
 
 function uiT(key, fallback, params = {}) {
     if (window.t) {
@@ -652,7 +652,7 @@ function showFileDetails(fileId) {
             $('#detailFilename').text(file.filename);
             $('#detailSize').text(formatBytes(file.filesize));
             $('#detailUploaded').text(formatDate(file.created_at));
-            $('#detailFrom').text(file.uploaded_from_address || uiT('ui.common.unknown', 'Unknown'));
+            $('#detailFrom').text(file.uploaded_from_address || file.owner_username || uiT('ui.common.unknown', 'Unknown'));
 
             // Virus scan status
             let scanStatus = uiT('ui.files.not_scanned', 'Not scanned');

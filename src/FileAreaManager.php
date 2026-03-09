@@ -385,9 +385,11 @@ class FileAreaManager
     public function getFileById(int $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT f.*, fa.tag as area_tag, fa.domain
+            SELECT f.*, fa.tag as area_tag, fa.domain,
+                   u.username as owner_username
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
+            LEFT JOIN users u ON f.owner_id = u.id
             WHERE f.id = ?
         ");
         $stmt->execute([$id]);
