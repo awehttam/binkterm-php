@@ -363,9 +363,10 @@ class BbsSession
                 $menuLeft  = max(0, (int)floor(($cols - $menuWidth) / 2));
                 $menuPad   = str_repeat(' ', $menuLeft);
                 $systemName= $config->getSystemName();
-                $boxTop    = '+' . str_repeat('=', $menuWidth - 2) . '+';
-                $boxBottom = '+' . str_repeat('=', $menuWidth - 2) . '+';
-                $divider   = '+' . str_repeat('-', $menuWidth - 2) . '+';
+                $chars     = $this->getLineDrawingChars();
+                $boxTop    = $this->encodeForTerminal($chars['tl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['tr']);
+                $boxBottom = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h_bold'], $menuWidth - 2) . $chars['br']);
+                $divider   = $this->encodeForTerminal($chars['l_tee'] . str_repeat($chars['h'], $menuWidth - 2) . $chars['r_tee']);
 
                 $this->safeWrite($conn, "\033[2J\033[H");
 
@@ -386,9 +387,9 @@ class BbsSession
                     $state
                 );
                 $titleText = $this->mbStrPad($titleLabel, $innerWidth, ' ', STR_PAD_BOTH);
-                $titleLine = $this->colorize('|', self::ANSI_BLUE . self::ANSI_BOLD)
+                $titleLine = $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE . self::ANSI_BOLD)
                     . $this->colorize(' ' . $titleText . ' ', self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD)
-                    . $this->colorize('|', self::ANSI_BLUE . self::ANSI_BOLD);
+                    . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE . self::ANSI_BOLD);
                 $this->writeLine($conn, $menuPad . $titleLine);
                 $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_BLUE));
 
@@ -592,13 +593,15 @@ class BbsSession
         $labelWidth = max(0, $innerWidth - 1 - strlen($hotkeyPrefix));
         $labelPadded = $this->fitTerminalLabel($label, $labelWidth, $state);
 
-        return $this->colorize('|', self::ANSI_BLUE)
+        $chars = $this->getLineDrawingChars();
+
+        return $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE)
             . ' '
             . $this->colorize(strtoupper($hotkey), self::ANSI_CYAN . self::ANSI_BOLD)
             . $this->colorize(')', self::ANSI_BLUE)
             . ' '
             . $labelPadded
-            . $this->colorize('|', self::ANSI_BLUE);
+            . $this->colorize($this->encodeForTerminal($chars['v']), self::ANSI_BLUE);
     }
 
     /**
@@ -733,6 +736,40 @@ class BbsSession
             }
         }
         return preg_replace('/[^\x20-\x7E\r\n\t]/', '', $text) ?? $text;
+    }
+
+    /**
+     * Get line drawing characters for the active terminal character set.
+     *
+     * @return array{h:string,h_bold:string,v:string,tl:string,tr:string,bl:string,br:string,l_tee:string,r_tee:string}
+     */
+    private function getLineDrawingChars(): array
+    {
+        if ($this->terminalCharset === 'ascii') {
+            return [
+                'h' => '-',
+                'h_bold' => '=',
+                'v' => '|',
+                'tl' => '+',
+                'tr' => '+',
+                'bl' => '+',
+                'br' => '+',
+                'l_tee' => '+',
+                'r_tee' => '+',
+            ];
+        }
+
+        return [
+            'h' => '─',
+            'h_bold' => '═',
+            'v' => '│',
+            'tl' => '╔',
+            'tr' => '╗',
+            'bl' => '╚',
+            'br' => '╝',
+            'l_tee' => '╠',
+            'r_tee' => '╣',
+        ];
     }
 
     /**
@@ -934,7 +971,9 @@ class BbsSession
         foreach ($rawLines as $entry) { $maxLen = max($maxLen, strlen($entry['text'])); }
         $frameWidth = max(48, min(90, $maxLen + 6));
         $innerWidth = $frameWidth - 4;
-        $border     = '+' . str_repeat('-', $frameWidth - 2) . '+';
+        $chars      = $this->getLineDrawingChars();
+        $border     = $this->encodeForTerminal($chars['tl'] . str_repeat($chars['h'], $frameWidth - 2) . $chars['tr']);
+        $bottomBorder = $this->encodeForTerminal($chars['bl'] . str_repeat($chars['h'], $frameWidth - 2) . $chars['br']);
         $cols       = $state['cols'] ?? 80;
         $leftPad    = str_repeat(' ', max(0, (int)floor(($cols - $frameWidth) / 2)));
 
@@ -947,10 +986,11 @@ class BbsSession
                 $padded  = $entry['center']
                     ? $this->mbStrPad($part, $innerWidth, ' ', STR_PAD_BOTH)
                     : $this->mbStrPad($part, $innerWidth);
-                $this->writeLine($conn, $leftPad . $this->colorize('| ' . $padded . ' |', $entry['color']));
+                $line = $chars['v'] . ' ' . $padded . ' ' . $chars['v'];
+                $this->writeLine($conn, $leftPad . $this->colorize($this->encodeForTerminal($line), $entry['color']));
             }
         }
-        $this->writeLine($conn, $leftPad . $this->colorize($border, self::ANSI_MAGENTA));
+        $this->writeLine($conn, $leftPad . $this->colorize($bottomBorder, self::ANSI_MAGENTA));
         $this->writeLine($conn, '');
 
         if ($siteUrl !== '') {
