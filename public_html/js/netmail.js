@@ -529,7 +529,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
             </h6>
             <div class="list-group">
                 ${message.attachments.map(file => `
-                    <a href="/api/files/${file.id}/download" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" target="_blank">
+                    <a href="/api/files/${file.id}/download" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" download="${escapeHtml(file.filename)}">
                         <div>
                             <i class="fas fa-file me-2"></i>
                             <strong>${escapeHtml(file.filename)}</strong>
