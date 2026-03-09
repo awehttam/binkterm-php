@@ -566,6 +566,9 @@ class BbsSession
      */
     private function colorize(string $text, string $color): string
     {
+        if (!$this->ansiColorEnabled) {
+            return $text;
+        }
         return $color . $text . self::ANSI_RESET;
     }
 
@@ -707,6 +710,7 @@ class BbsSession
             $this->asciiTextMode   = $fallback;
         }
         $this->ansiColorEnabled = ($state['terminal_ansi_color'] ?? 'yes') !== 'no';
+        TelnetUtils::setAnsiColorEnabled($this->ansiColorEnabled);
     }
 
     /**

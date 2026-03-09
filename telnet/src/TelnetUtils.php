@@ -24,6 +24,16 @@ class TelnetUtils
     public const ANSI_YELLOW = "\033[33m";
     public const ANSI_MAGENTA = "\033[35m";
     public const ANSI_RED = "\033[31m";
+    /** Global session color toggle (set by BbsSession terminal settings). */
+    private static bool $ansiColorEnabled = true;
+
+    /**
+     * Enable or disable ANSI color rendering globally for the active session.
+     */
+    public static function setAnsiColorEnabled(bool $enabled): void
+    {
+        self::$ansiColorEnabled = $enabled;
+    }
 
     /**
      * Make an API request to the BBS
@@ -660,6 +670,17 @@ class TelnetUtils
      */
     public static function buildStatusBar(array $segments, int $width): string
     {
+        if (!self::$ansiColorEnabled) {
+            $plain = '';
+            foreach ($segments as $segment) {
+                $plain .= $segment['text'] ?? '';
+            }
+            if (strlen($plain) < $width) {
+                $plain .= str_repeat(' ', $width - strlen($plain));
+            }
+            return $plain;
+        }
+
         $bg = self::ANSI_BG_WHITE;
         $blue = self::ANSI_BLUE;
         $reset = self::ANSI_RESET;
@@ -692,6 +713,9 @@ class TelnetUtils
      */
     public static function colorize(string $text, string $color): string
     {
+        if (!self::$ansiColorEnabled) {
+            return $text;
+        }
         return $color . $text . self::ANSI_RESET;
     }
 
