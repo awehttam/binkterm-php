@@ -366,7 +366,7 @@ function displayRecentFiles(files) {
         const shortDesc = escapeHtml(file.short_description || '');
         const fileSize = formatBytes(file.filesize);
         const uploadDate = formatDate(file.created_at);
-        const canDelete = isAdmin || (file.owner_id && file.owner_id === currentUserId);
+        const canDelete = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
 
         let areaLabel = escapeHtml(file.area_tag || '');
         if (!file.is_local && file.domain) {
@@ -576,7 +576,7 @@ function displayFiles(files) {
         const shortDesc = escapeHtml(file.short_description || '');
         const fileSize = formatBytes(file.filesize);
         const uploadDate = formatDate(file.created_at);
-        const canDelete = isAdmin || (file.owner_id && file.owner_id === currentUserId);
+        const canDelete = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
 
         // Virus scan status icon
         let scanIcon = '<i class="fas fa-file me-2"></i>';
@@ -686,8 +686,8 @@ function showFileDetails(fileId) {
             $('#downloadFileBtn').attr('href', `/api/files/${fileId}/download`);
             $('#fileDetailsTitle').text(file.filename);
 
-            const canRename = isAdmin || (file.owner_id && file.owner_id === currentUserId);
-            $('#renameFileBtn').toggle(canRename);
+            const canEdit = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
+            $('#renameFileBtn').toggle(canEdit);
 
             new bootstrap.Modal('#fileDetailsModal').show();
         })
