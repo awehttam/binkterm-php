@@ -2512,4 +2512,6 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.api.binkp.poll_all_triggered' => 'Interrogation générale BinkP déclenchée',
     'ui.api.binkp.process_packets_started' => 'Traitement des paquets démarré',
     'ui.api.door.session_resumed' => 'Reprise de la session existante',
+    'ui.files.previous_file' => 'Fichier précédent',
+    'ui.files.next_file' => 'Fichier suivant',
 ];

@@ -1813,6 +1813,8 @@ return [
     'ui.files.edit_file' => 'Edit File',
     'ui.files.short_description' => 'Short Description',
     'ui.files.edit_success' => 'File updated successfully',
+    'ui.files.previous_file' => 'Previous file',
+    'ui.files.next_file' => 'Next file',
     'ui.files.move_to_area' => 'Move to Area',
     'ui.files.active_share_exists' => 'This file already has an active share link.',
     'ui.files.revoke_confirm' => 'Are you sure you want to revoke this share link? Anyone with the link will no longer be able to access it.',

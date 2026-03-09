@@ -386,7 +386,11 @@ class FileAreaManager
     {
         $stmt = $this->db->prepare("
             SELECT f.*, fa.tag as area_tag, fa.domain,
-                   u.username as owner_username
+                   u.username as owner_username,
+                   COALESCE(
+                       NULLIF(TRIM(f.uploaded_from_address), ''),
+                       u.username
+                   ) as display_from
             FROM files f
             JOIN file_areas fa ON f.file_area_id = fa.id
             LEFT JOIN users u ON f.owner_id = u.id

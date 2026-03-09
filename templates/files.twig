@@ -101,6 +101,14 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="prevFileBtn" onclick="navigateFile(-1)" title="{{ t('ui.files.previous_file', {}, 'common') }}">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="nextFileBtn" onclick="navigateFile(1)" title="{{ t('ui.files.next_file', {}, 'common') }}">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
                 <h5 class="modal-title" id="fileDetailsTitle">{{ t('ui.files.file_details', {}, 'common') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -284,6 +292,8 @@
 <script>
 let currentAreaId = null;
 let allFiles = [];
+let displayedFiles = [];
+let currentFileIndex = -1;
 let loadedAreas = [];
 let currentFileId = null;
 let currentFile = null;
@@ -321,6 +331,22 @@ $(document).ready(function() {
     $('#searchFiles').on('input', function() {
         filterFiles($(this).val());
     });
+
+    // Keyboard navigation for file details modal
+    $(document).on('keydown', function(e) {
+        if ($('#fileDetailsModal').hasClass('show')) {
+            switch (e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    navigateFile(-1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    navigateFile(1);
+                    break;
+            }
+        }
+    });
 });
 
 function loadRecentFiles() {
@@ -338,6 +364,7 @@ function loadRecentFiles() {
 }
 
 function displayRecentFiles(files) {
+    displayedFiles = files;
     $('#currentAreaTitle').html(`<i class="fas fa-clock"></i> ${uiT('ui.files.recent_uploads', 'Recent Uploads')}`);
     $('#uploadFileBtn').hide();
 
@@ -552,6 +579,7 @@ function loadFiles(areaId) {
 }
 
 function displayFiles(files) {
+    displayedFiles = files;
     if (files.length === 0) {
         $('#filesContainer').html(`<div class="p-4 text-center text-muted">${uiT('ui.files.no_files_in_area', 'No files in this area')}</div>`);
         return;
@@ -643,6 +671,7 @@ function showFileDetails(fileId) {
     currentFileId = fileId;
     currentFile = null;
     currentShareId = null;
+    currentFileIndex = displayedFiles.findIndex(f => f.id == fileId);
 
     $.get(`/api/files/${fileId}`)
         .done(function(data) {
@@ -652,7 +681,7 @@ function showFileDetails(fileId) {
             $('#detailFilename').text(file.filename);
             $('#detailSize').text(formatBytes(file.filesize));
             $('#detailUploaded').text(formatDate(file.created_at));
-            $('#detailFrom').text(file.uploaded_from_address || file.owner_username || uiT('ui.common.unknown', 'Unknown'));
+            $('#detailFrom').text(file.display_from || uiT('ui.common.unknown', 'Unknown'));
 
             // Virus scan status
             let scanStatus = uiT('ui.files.not_scanned', 'Not scanned');
@@ -684,16 +713,40 @@ function showFileDetails(fileId) {
             }
 
             $('#downloadFileBtn').attr('href', `/api/files/${fileId}/download`);
-            $('#fileDetailsTitle').text(file.filename);
+
+            // Update title with position indicator
+            const position = displayedFiles.length > 1 && currentFileIndex >= 0
+                ? ` <small class="text-muted">(${currentFileIndex + 1} / ${displayedFiles.length})</small>`
+                : '';
+            $('#fileDetailsTitle').html(escapeHtml(file.filename) + position);
+
+            updateFileNavButtons();
 
             const canEdit = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
             $('#renameFileBtn').toggle(canEdit);
 
-            new bootstrap.Modal('#fileDetailsModal').show();
+            if (!$('#fileDetailsModal').hasClass('show')) {
+                new bootstrap.Modal('#fileDetailsModal').show();
+            }
         })
         .fail(function() {
             showError(uiT('ui.files.load_details_failed', 'Failed to load file details'));
         });
+}
+
+function updateFileNavButtons() {
+    $('#prevFileBtn').prop('disabled', currentFileIndex <= 0);
+    $('#nextFileBtn').prop('disabled', currentFileIndex < 0 || currentFileIndex >= displayedFiles.length - 1);
+}
+
+function navigateFile(direction) {
+    if (displayedFiles.length === 0) return;
+    const newIndex = currentFileIndex + direction;
+    if (newIndex < 0 || newIndex >= displayedFiles.length) return;
+    const nextFile = displayedFiles[newIndex];
+    if (!nextFile) return;
+    currentFileIndex = newIndex;
+    showFileDetails(nextFile.id);
 }
 
 function loadStats() {
