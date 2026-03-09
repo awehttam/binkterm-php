@@ -96,7 +96,7 @@ function main(array $argv): void
     $defaultModel = $provider === 'claude' ? DEFAULT_CLAUDE_MODEL : DEFAULT_OPENAI_MODEL;
     $model = trim((string)($options['model'] ?? $defaultModel));
 
-    $namespaces = normalizeNamespaces((string)($options['namespaces'] ?? 'common,errors'));
+    $namespaces = normalizeNamespaces((string)($options['namespaces'] ?? 'common,errors,terminalserver'));
     if ($namespaces === []) {
         fwrite(STDERR, "Error: --namespaces must include at least one of common,errors.\n");
         exit(1);
@@ -197,7 +197,7 @@ function printUsage(): void
     echo "  --locale=<code>         Target locale code (required), e.g. fr, de, pt-BR\n";
     echo "  --language=<name>       Target language name (required), e.g. French\n";
     echo "  --provider=<name>       openai or claude (default: auto-detect from env)\n";
-    echo "  --namespaces=<list>     Comma-separated: common,errors (default: common,errors)\n";
+    echo "  --namespaces=<list>     Comma-separated: common,errors,terminalserver (default: common,errors,terminalserver)\n";
     echo "  --model=<id>            Model ID (default: " . DEFAULT_OPENAI_MODEL . " / " . DEFAULT_CLAUDE_MODEL . ")\n";
     echo "  --batch-size=<n>        Keys per API request (default: " . DEFAULT_BATCH_SIZE . ")\n";
     echo "  --timeout=<sec>         HTTP timeout per request (default: " . DEFAULT_TIMEOUT_SECONDS . ")\n";
@@ -220,7 +220,7 @@ function normalizeNamespaces(string $raw): array
 {
     $parts = array_filter(array_map('trim', explode(',', $raw)), static fn($v) => $v !== '');
     $parts = array_values(array_unique($parts));
-    $allowed = ['common', 'errors'];
+    $allowed = ['common', 'errors', 'terminalserver'];
 
     $out = [];
     foreach ($parts as $part) {
@@ -266,7 +266,7 @@ function loadSourceCatalogs(array $namespaces): array
 function ensureTargetDirectory(string $targetDir, bool $overwrite): void
 {
     if (is_dir($targetDir)) {
-        if (!$overwrite && (is_file($targetDir . '/common.php') || is_file($targetDir . '/errors.php'))) {
+        if (!$overwrite && (is_file($targetDir . '/common.php') || is_file($targetDir . '/errors.php') || is_file($targetDir . '/terminalserver.php'))) {
             fwrite(STDERR, "Error: target locale already exists. Use --overwrite to replace files.\n");
             exit(1);
         }
