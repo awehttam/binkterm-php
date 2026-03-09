@@ -414,6 +414,218 @@ class TelnetUtils
     }
 
     /**
+     * Render and run the interactive message list browser for one page.
+     *
+     * Renders the full screen (title, message lines, status bar) then handles
+     * the key input loop. UP/DOWN are handled internally with single-line
+     * re-renders. Returns when an action requiring the caller's attention occurs.
+     *
+     * @param resource $conn
+     * @param array    $state         Session state (passed by reference for idle tracking)
+     * @param object   $server        BbsSession instance (provides readKeyWithIdleCheck)
+     * @param string   $title         Coloured header line already formatted by caller
+     * @param array    $messages      Page of message summary arrays
+     * @param int      $page          Current page number (1-based)
+     * @param int      $totalPages    Total page count
+     * @param int      $selectedIndex Currently highlighted row index
+     * @return array{action: string, index: int, selectedIndex: int}
+     *   action:        'quit' | 'disconnect' | 'read' | 'compose' | 'prev' | 'next'
+     *   index:         message index to open (only meaningful for 'read')
+     *   selectedIndex: updated highlight position
+     */
+    public static function runMessageList(
+        $conn,
+        array &$state,
+        $server,
+        string $title,
+        array $messages,
+        int $page,
+        int $totalPages,
+        int $selectedIndex
+    ): array {
+        $cols        = $state['cols'] ?? 80;
+        $rows        = $state['rows'] ?? 24;
+        $listStartRow = 2;
+        $inputRow    = max(1, $rows - 1);
+
+        // --- Render full screen ---
+        self::safeWrite($conn, "\033[2J\033[H");
+        self::writeLine($conn, $title);
+
+        foreach ($messages as $idx => $msg) {
+            self::writeLine($conn, self::formatMessageListEntry($msg, $idx + 1, $idx === $selectedIndex, $cols, $state));
+        }
+
+        $statusLine = self::buildStatusBar([
+            ['text' => 'U/D',       'color' => self::ANSI_RED],
+            ['text' => ' Move  ',   'color' => self::ANSI_BLUE],
+            ['text' => 'L/R',       'color' => self::ANSI_RED],
+            ['text' => ' Page  ',   'color' => self::ANSI_BLUE],
+            ['text' => 'C',         'color' => self::ANSI_RED],
+            ['text' => ' Compose  ','color' => self::ANSI_BLUE],
+            ['text' => 'Enter',     'color' => self::ANSI_RED],
+            ['text' => ' Read  ',   'color' => self::ANSI_BLUE],
+            ['text' => 'Q',         'color' => self::ANSI_RED],
+            ['text' => ' Quit',     'color' => self::ANSI_BLUE],
+        ], $cols);
+
+        self::safeWrite($conn, "\033[{$inputRow};1H\033[K");
+        self::safeWrite($conn, $statusLine . "\r");
+        self::safeWrite($conn, "\033[{$inputRow};1H");
+
+        // --- Key loop ---
+        $buffer       = '';
+        $inputColStart = 1;
+
+        while (true) {
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            if ($key === null) {
+                return ['action' => 'disconnect', 'index' => $selectedIndex, 'selectedIndex' => $selectedIndex];
+            }
+
+            if ($key === 'LEFT') {
+                if ($page > 1) {
+                    return ['action' => 'prev', 'index' => 0, 'selectedIndex' => 0];
+                }
+                continue;
+            }
+
+            if ($key === 'RIGHT') {
+                if ($page < $totalPages) {
+                    return ['action' => 'next', 'index' => 0, 'selectedIndex' => 0];
+                }
+                continue;
+            }
+
+            if ($key === 'UP') {
+                if ($selectedIndex > 0) {
+                    $prev = $selectedIndex;
+                    $selectedIndex--;
+                    self::renderMessageListLine($conn, $messages, $prev,          false, $listStartRow, $cols, $state);
+                    self::renderMessageListLine($conn, $messages, $selectedIndex, true,  $listStartRow, $cols, $state);
+                }
+                self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
+                continue;
+            }
+
+            if ($key === 'DOWN') {
+                if ($selectedIndex < count($messages) - 1) {
+                    $prev = $selectedIndex;
+                    $selectedIndex++;
+                    self::renderMessageListLine($conn, $messages, $prev,          false, $listStartRow, $cols, $state);
+                    self::renderMessageListLine($conn, $messages, $selectedIndex, true,  $listStartRow, $cols, $state);
+                }
+                self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
+                continue;
+            }
+
+            if ($key === 'BACKSPACE') {
+                if ($buffer !== '') {
+                    $buffer = substr($buffer, 0, -1);
+                    self::safeWrite($conn, "\x08 \x08");
+                }
+                continue;
+            }
+
+            if ($key === 'ENTER') {
+                $input = strtolower(trim($buffer));
+                $buffer = '';
+                if ($input === '' ) {
+                    $msg = $messages[$selectedIndex] ?? null;
+                    if ($msg && ($msg['id'] ?? null)) {
+                        return ['action' => 'read', 'index' => $selectedIndex, 'selectedIndex' => $selectedIndex];
+                    }
+                    continue;
+                }
+                if ($input === 'q') { return ['action' => 'quit', 'index' => 0, 'selectedIndex' => $selectedIndex]; }
+                if ($input === 'c') { return ['action' => 'compose', 'index' => 0, 'selectedIndex' => $selectedIndex]; }
+                if ($input === 'n') {
+                    if ($page < $totalPages) { return ['action' => 'next', 'index' => 0, 'selectedIndex' => 0]; }
+                    continue;
+                }
+                if ($input === 'p') {
+                    if ($page > 1) { return ['action' => 'prev', 'index' => 0, 'selectedIndex' => 0]; }
+                    continue;
+                }
+                $choice = (int)$input;
+                if ($choice > 0 && $choice <= count($messages)) {
+                    return ['action' => 'read', 'index' => $choice - 1, 'selectedIndex' => $choice - 1];
+                }
+                continue;
+            }
+
+            if (str_starts_with($key, 'CHAR:')) {
+                $char  = substr($key, 5);
+                $lower = strtolower($char);
+                if ($lower === 'q') { return ['action' => 'quit',    'index' => 0, 'selectedIndex' => $selectedIndex]; }
+                if ($lower === 'c') { return ['action' => 'compose', 'index' => 0, 'selectedIndex' => $selectedIndex]; }
+                if ($lower === 'n') {
+                    if ($page < $totalPages) { return ['action' => 'next', 'index' => 0, 'selectedIndex' => 0]; }
+                    continue;
+                }
+                if ($lower === 'p') {
+                    if ($page > 1) { return ['action' => 'prev', 'index' => 0, 'selectedIndex' => 0]; }
+                    continue;
+                }
+                if (ctype_digit($char)) {
+                    $choice = (int)$char;
+                    if ($choice > 0 && $choice <= count($messages)) {
+                        return ['action' => 'read', 'index' => $choice - 1, 'selectedIndex' => $choice - 1];
+                    }
+                    continue;
+                }
+                $buffer .= $char;
+                self::safeWrite($conn, $char);
+            }
+        }
+    }
+
+    /**
+     * Format a single message list entry line with optional highlight.
+     *
+     * @param array  $msg       Message summary array
+     * @param int    $num       Display number (1-based)
+     * @param bool   $selected  Whether to apply selection highlight
+     * @param int    $cols      Terminal column width
+     * @param array  $state     Session state for date formatting
+     * @return string Formatted and optionally coloured line
+     */
+    public static function formatMessageListEntry(array $msg, int $num, bool $selected, int $cols, array &$state): string
+    {
+        $from      = $msg['from_name'] ?? 'Unknown';
+        $subject   = $msg['subject'] ?? '(no subject)';
+        $dateShort = self::formatUserDate($msg['date_written'] ?? '', $state, false);
+        $line      = self::formatMessageListLine($num, $from, $subject, $dateShort, $cols);
+        if ($selected) {
+            $line = self::colorize($line, self::ANSI_BG_BLUE . self::ANSI_BOLD);
+        }
+        return $line;
+    }
+
+    /**
+     * Re-render a single message list row in-place without redrawing the screen.
+     *
+     * @param resource $conn
+     * @param array    $messages     Full messages array for the current page
+     * @param int      $idx          Zero-based index of the row to update
+     * @param bool     $selected     Whether to apply selection highlight
+     * @param int      $listStartRow Screen row where the list begins (1-based)
+     * @param int      $cols         Terminal column width
+     * @param array    $state        Session state for date formatting
+     */
+    public static function renderMessageListLine($conn, array $messages, int $idx, bool $selected, int $listStartRow, int $cols, array &$state): void
+    {
+        if (!isset($messages[$idx])) {
+            return;
+        }
+        $line = self::formatMessageListEntry($messages[$idx], $idx + 1, $selected, $cols, $state);
+        $row  = $listStartRow + $idx;
+        self::safeWrite($conn, "\033[{$row};1H");
+        self::safeWrite($conn, str_pad($line, max(1, $cols - 1)));
+    }
+
+    /**
      * Show or hide the cursor.
      *
      * @param resource $conn
