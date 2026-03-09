@@ -129,8 +129,8 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
-                <button type="button" class="btn btn-outline-warning" id="renameFileBtn" onclick="showRenameDialog()" style="display:none;">
-                    <i class="fas fa-pencil-alt"></i> {{ t('ui.files.rename', {}, 'common') }}
+                <button type="button" class="btn btn-outline-warning" id="renameFileBtn" onclick="showEditDialog()" style="display:none;">
+                    <i class="fas fa-pencil-alt"></i> {{ t('ui.files.edit', {}, 'common') }}
                 </button>
                 <button type="button" class="btn btn-outline-info" id="shareFileBtn" onclick="showFileShareDialog()">
                     <i class="fas fa-share-alt"></i> {{ t('ui.common.share', {}, 'common') }}
@@ -143,12 +143,12 @@
     </div>
 </div>
 
-<!-- File Rename Modal -->
+<!-- Edit File Modal -->
 <div class="modal fade" id="fileRenameModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-pencil-alt me-2"></i>{{ t('ui.files.rename_file', {}, 'common') }}</h5>
+                <h5 class="modal-title"><i class="fas fa-pencil-alt me-2"></i>{{ t('ui.files.edit_file', {}, 'common') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -156,12 +156,24 @@
                     <label for="renameFilenameInput" class="form-label">{{ t('ui.files.new_filename', {}, 'common') }}</label>
                     <input type="text" class="form-control" id="renameFilenameInput" maxlength="255">
                 </div>
+                <div class="mb-3">
+                    <label for="editShortDescInput" class="form-label">{{ t('ui.files.short_description', {}, 'common') }}</label>
+                    <input type="text" class="form-control" id="editShortDescInput" maxlength="255">
+                </div>
+                <div class="mb-3">
+                    <label for="editLongDescInput" class="form-label">{{ t('ui.files.long_description', {}, 'common') }}</label>
+                    <textarea class="form-control" id="editLongDescInput" rows="4" maxlength="2000"></textarea>
+                </div>
+                <div class="mb-3" id="editMoveAreaGroup" style="display:none;">
+                    <label for="editMoveAreaSelect" class="form-label">{{ t('ui.files.move_to_area', {}, 'common') }}</label>
+                    <select class="form-select" id="editMoveAreaSelect"></select>
+                </div>
                 <div id="renameErrorMsg" class="alert alert-danger" style="display:none;"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
-                <button type="button" class="btn btn-warning" onclick="submitRename()">
-                    <i class="fas fa-pencil-alt"></i> {{ t('ui.files.rename', {}, 'common') }}
+                <button type="button" class="btn btn-warning" onclick="submitEdit()">
+                    <i class="fas fa-pencil-alt"></i> {{ t('ui.files.edit', {}, 'common') }}
                 </button>
             </div>
         </div>
@@ -272,7 +284,9 @@
 <script>
 let currentAreaId = null;
 let allFiles = [];
+let loadedAreas = [];
 let currentFileId = null;
+let currentFile = null;
 let currentShareId = null;
 const currentUserId = {{ current_user.id|default('null') }};
 const isAdmin = {{ current_user.is_admin|default('false') ? 'true' : 'false' }};
@@ -439,6 +453,7 @@ function displayFileAreas(areas) {
         return aTag.localeCompare(bTag);
     });
 
+    loadedAreas = areas;
     let html = '';
     sortedAreas.forEach(function(area) {
         const fileCount = area.file_count || 0;
@@ -626,11 +641,13 @@ function filterFiles(query) {
 
 function showFileDetails(fileId) {
     currentFileId = fileId;
+    currentFile = null;
     currentShareId = null;
 
     $.get(`/api/files/${fileId}`)
         .done(function(data) {
             const file = data.file;
+            currentFile = file;
 
             $('#detailFilename').text(file.filename);
             $('#detailSize').text(formatBytes(file.filesize));
@@ -780,10 +797,28 @@ function uploadFile() {
     });
 }
 
-function showRenameDialog() {
-    const currentFilename = $('#detailFilename').text();
+function showEditDialog() {
+    const currentFilename = currentFile ? currentFile.filename : $('#detailFilename').text();
     $('#renameFilenameInput').val(currentFilename);
+    $('#editShortDescInput').val(currentFile ? (currentFile.short_description || '') : '');
+    $('#editLongDescInput').val(currentFile ? (currentFile.long_description || '') : '');
     $('#renameErrorMsg').hide();
+
+    // Admin-only: populate and show the Move to Area dropdown
+    if (isAdmin && loadedAreas.length > 0) {
+        const currentAreaId = currentFile ? currentFile.file_area_id : null;
+        let options = '';
+        loadedAreas.forEach(function(area) {
+            const label = area.domain ? `${area.tag}@${area.domain}` : area.tag;
+            const selected = area.id === currentAreaId ? ' selected' : '';
+            options += `<option value="${area.id}"${selected}>${escapeHtml(label)}</option>`;
+        });
+        $('#editMoveAreaSelect').html(options);
+        $('#editMoveAreaGroup').show();
+    } else {
+        $('#editMoveAreaGroup').hide();
+    }
+
     bootstrap.Modal.getInstance('#fileDetailsModal').hide();
     new bootstrap.Modal('#fileRenameModal').show();
     $('#fileRenameModal').on('shown.bs.modal', function() {
@@ -795,21 +830,49 @@ function showRenameDialog() {
     });
 }
 
-function submitRename() {
-    const newFilename = $('#renameFilenameInput').val().trim();
-    if (!newFilename) return;
+function submitEdit() {
+    const newFilename  = $('#renameFilenameInput').val().trim();
+    const shortDesc    = $('#editShortDescInput').val().trim();
+    const longDesc     = $('#editLongDescInput').val().trim();
+
+    if (!newFilename) {
+        $('#renameErrorMsg').text(uiT('errors.files.rename_filename_required', 'New filename is required'));
+        $('#renameErrorMsg').show();
+        return;
+    }
+    if (!shortDesc) {
+        $('#renameErrorMsg').text(uiT('errors.files.short_description_required', 'Short description is required'));
+        $('#renameErrorMsg').show();
+        return;
+    }
 
     $('#renameErrorMsg').hide();
+
+    const originalFilename = currentFile ? currentFile.filename : null;
+    const originalAreaId   = currentFile ? currentFile.file_area_id : null;
+    const selectedAreaId   = isAdmin ? parseInt($('#editMoveAreaSelect').val(), 10) : null;
+
+    const payload = {
+        short_description: shortDesc,
+        long_description:  longDesc || null,
+    };
+    // Only send filename if it changed
+    if (newFilename !== originalFilename) {
+        payload.filename = newFilename;
+    }
+    // Only send file_area_id if admin moved it to a different area
+    if (isAdmin && selectedAreaId && selectedAreaId !== originalAreaId) {
+        payload.file_area_id = selectedAreaId;
+    }
 
     $.ajax({
         url: `/api/files/${currentFileId}/rename`,
         method: 'PUT',
         contentType: 'application/json',
-        data: JSON.stringify({ filename: newFilename })
+        data: JSON.stringify(payload)
     }).done(function(data) {
         bootstrap.Modal.getInstance('#fileRenameModal').hide();
-        showSuccess(uiT('ui.files.rename_success', 'File renamed successfully'));
-        // Update file listing
+        showSuccess(uiT('ui.files.edit_success', 'File updated successfully'));
         if (currentAreaId) {
             loadFiles(currentAreaId);
         } else {
@@ -817,15 +880,17 @@ function submitRename() {
         }
     }).fail(function(xhr) {
         const err = xhr.responseJSON;
-        const renameErrMsg = window.getApiErrorMessage ? window.getApiErrorMessage(err, uiT('errors.files.rename_failed', 'Failed to rename file')) : (err?.error || uiT('errors.files.rename_failed', 'Failed to rename file'));
-        $('#renameErrorMsg').text(renameErrMsg);
+        const errMsg = window.getApiErrorMessage
+            ? window.getApiErrorMessage(err, uiT('errors.files.edit_failed', 'Failed to update file'))
+            : (err?.error || uiT('errors.files.edit_failed', 'Failed to update file'));
+        $('#renameErrorMsg').text(errMsg);
         $('#renameErrorMsg').show();
     });
 }
 
-// Allow Enter key in rename input
+// Allow Enter key in filename input to submit
 $(document).on('keydown', '#renameFilenameInput', function(e) {
-    if (e.key === 'Enter') submitRename();
+    if (e.key === 'Enter') submitEdit();
 });
 
 function confirmDeleteFile(fileId, filename) {

@@ -883,6 +883,105 @@ class FileAreaManager
     }
 
     /**
+     * Update a file's description fields.
+     *
+     * @param int    $fileId           File ID
+     * @param string $shortDescription Short description (required, max 255 chars)
+     * @param string|null $longDescription  Optional extended description
+     * @param int    $userId           Requesting user ID
+     * @param bool   $isAdmin          Whether the user is an admin
+     * @return bool
+     * @throws \Exception If not found, no permission, or validation fails
+     */
+    public function updateFileDescription(int $fileId, string $shortDescription, ?string $longDescription, int $userId, bool $isAdmin): bool
+    {
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+
+        if (!$isAdmin && ($file['owner_id'] === null || $file['owner_id'] != $userId)) {
+            throw new \Exception('You do not have permission to edit this file');
+        }
+
+        $shortDescription = trim($shortDescription);
+        if ($shortDescription === '') {
+            throw new \Exception('Short description is required');
+        }
+        if (strlen($shortDescription) > 255) {
+            throw new \Exception('Short description is too long');
+        }
+
+        $stmt = $this->db->prepare(
+            "UPDATE files SET short_description = ?, long_description = ?, updated_at = NOW() WHERE id = ?"
+        );
+        $stmt->execute([$shortDescription, $longDescription ?: null, $fileId]);
+
+        return true;
+    }
+
+    /**
+     * Move a file to a different file area (admin only).
+     *
+     * Moves the physical file to the target area's storage directory and
+     * updates the database record. Throws if the filename already exists
+     * in the target area.
+     *
+     * @param int  $fileId       File ID
+     * @param int  $targetAreaId Target file area ID
+     * @param bool $isAdmin      Must be true; only admins may move files
+     * @return bool
+     * @throws \Exception If not admin, file/area not found, collision, or move fails
+     */
+    public function moveFile(int $fileId, int $targetAreaId, bool $isAdmin): bool
+    {
+        if (!$isAdmin) {
+            throw new \Exception('You do not have permission to move files');
+        }
+
+        $file = $this->getFileById($fileId);
+        if (!$file) {
+            throw new \Exception('File not found');
+        }
+
+        if ((int)$file['file_area_id'] === $targetAreaId) {
+            return true; // already in the target area — nothing to do
+        }
+
+        $targetArea = $this->getFileAreaById($targetAreaId);
+        if (!$targetArea) {
+            throw new \Exception('Target file area not found');
+        }
+
+        $targetDir  = $this->getAreaStorageDir($targetArea);
+        self::ensureDirectoryExists($targetDir);
+
+        $filename   = $file['filename'];
+        $targetPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+
+        if (file_exists($targetPath)) {
+            throw new \Exception('A file with that name already exists in the target area');
+        }
+
+        if (file_exists($file['storage_path'])) {
+            if (!rename($file['storage_path'], $targetPath)) {
+                throw new \Exception('Failed to move file on disk');
+            }
+            $newPath = realpath($targetPath);
+        } else {
+            // File missing on disk — update DB to new expected path
+            $newPath = $targetPath;
+        }
+
+        $stmt = $this->db->prepare(
+            "UPDATE files SET file_area_id = ?, storage_path = ?, updated_at = NOW() WHERE id = ?"
+        );
+        $stmt->execute([$targetAreaId, $newPath, $fileId]);
+
+        return true;
+    }
+
+    /**
      * Delete a file by storage path (used by automation rules)
      *
      * @param string $filepath

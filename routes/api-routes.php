@@ -2523,7 +2523,10 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
     /**
      * PUT /api/files/{id}/rename
-     * Rename a file (auth required, owner or admin).
+     * Edit a file's name and/or description (auth required, owner or admin).
+     * filename is optional — omit or send unchanged to skip rename.
+     * short_description and long_description are optional; if short_description
+     * is present it will be updated (and is required to be non-empty).
      */
     SimpleRouter::put('/files/{id}/rename', function($id) {
         $user = RouteHelper::requireAuth();
@@ -2536,39 +2539,71 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
         header('Content-Type: application/json');
 
-        $body = json_decode(file_get_contents('php://input'), true);
-        $newFilename = trim($body['filename'] ?? '');
+        $body         = json_decode(file_get_contents('php://input'), true) ?? [];
+        $newFilename   = isset($body['filename']) ? trim($body['filename']) : null;
+        $shortDesc     = isset($body['short_description']) ? trim($body['short_description']) : null;
+        $longDesc      = isset($body['long_description'])  ? (trim($body['long_description']) ?: null) : null;
+        $targetAreaId  = isset($body['file_area_id']) ? (int)$body['file_area_id'] : null;
 
-        if ($newFilename === '') {
+        // Validate: filename must not be blank if provided
+        if ($newFilename !== null && $newFilename === '') {
             http_response_code(400);
             apiError('errors.files.rename_filename_required', apiLocalizedText('errors.files.rename_filename_required', 'New filename is required', $user));
             return;
         }
 
+        // Validate: short_description must not be blank if provided
+        if ($shortDesc !== null && $shortDesc === '') {
+            http_response_code(400);
+            apiError('errors.files.short_description_required', apiLocalizedText('errors.files.short_description_required', 'Short description is required', $user));
+            return;
+        }
+
+        // Validate: only admins may move files
+        $isAdmin = !empty($user['is_admin']);
+        if ($targetAreaId !== null && !$isAdmin) {
+            http_response_code(403);
+            apiError('errors.files.move_forbidden', apiLocalizedText('errors.files.move_forbidden', 'Only administrators can move files between areas', $user));
+            return;
+        }
+
         try {
-            $userId = $user['user_id'] ?? $user['id'] ?? 0;
-            $isAdmin = !empty($user['is_admin']);
+            $userId   = $user['user_id'] ?? $user['id'] ?? 0;
+            $manager  = new \BinktermPHP\FileAreaManager();
+            $response = ['success' => true];
 
-            $manager = new \BinktermPHP\FileAreaManager();
-            $manager->renameFile((int)$id, $newFilename, $userId, $isAdmin);
+            if ($newFilename !== null) {
+                $manager->renameFile((int)$id, $newFilename, $userId, $isAdmin);
+                $response['filename'] = basename($newFilename);
+            }
 
-            echo json_encode([
-                'success' => true,
-                'filename' => basename($newFilename),
-                'message_code' => 'ui.api.files.renamed'
-            ]);
+            if ($shortDesc !== null) {
+                $manager->updateFileDescription((int)$id, $shortDesc, $longDesc, $userId, $isAdmin);
+                $response['short_description'] = $shortDesc;
+                $response['long_description']  = $longDesc;
+            }
+
+            if ($targetAreaId !== null) {
+                $manager->moveFile((int)$id, $targetAreaId, $isAdmin);
+                $response['file_area_id'] = $targetAreaId;
+            }
+
+            echo json_encode($response);
 
         } catch (\Exception $e) {
             $msg = $e->getMessage();
             if (str_contains($msg, 'permission')) {
                 http_response_code(403);
-                apiError('errors.files.rename_forbidden', apiLocalizedText('errors.files.rename_forbidden', 'You do not have permission to rename this file', $user));
+                apiError('errors.files.edit_forbidden', apiLocalizedText('errors.files.edit_forbidden', 'You do not have permission to edit this file', $user));
+            } elseif (str_contains($msg, 'already exists in the target')) {
+                http_response_code(409);
+                apiError('errors.files.move_conflict', apiLocalizedText('errors.files.move_conflict', 'A file with that name already exists in the target area', $user));
             } elseif (str_contains($msg, 'already exists')) {
                 http_response_code(409);
                 apiError('errors.files.rename_conflict', apiLocalizedText('errors.files.rename_conflict', 'A file with that name already exists in this area', $user));
             } else {
                 http_response_code(400);
-                apiError('errors.files.rename_failed', apiLocalizedText('errors.files.rename_failed', 'Failed to rename file', $user));
+                apiError('errors.files.edit_failed', apiLocalizedText('errors.files.edit_failed', 'Failed to update file', $user));
             }
         }
     })->where(['id' => '[0-9]+']);

@@ -43,7 +43,9 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - In the message list, you can now type a message number to jump directly to it. The selection highlight updates live as digits are typed; press Enter to open.
 
 ### File Areas
-- File owners and admins can now rename a file through the web interface. The Rename button appears in the file detail modal for users who have permission. Renaming updates both the on-disk filename and the database record.
+- File owners and admins can now edit a file through the web interface. The **Edit** button appears in the file detail modal for users who have permission. The edit dialog allows changing the filename (which renames the file on disk), the short description, and the long description in a single operation.
+- Admins can **move a file to a different file area** from the same edit dialog. A "Move to Area" dropdown is shown to admins only; selecting a different area moves the physical file on disk to the new area's storage directory and updates the database record.
+- The terminal capability detection wizard now correctly detects **ASCII-only terminals**. When UTF-8 is not supported, the wizard shows a CP437 box-drawing test; terminals that cannot render CP437 are set to ASCII mode instead of defaulting to CP437.
 
 ### Native Doors
 - Anonymous (guest) access: sysops can now allow unauthenticated users to launch specific native doors by setting `allow_anonymous: true` and `guest_max_sessions: N` in `config/nativedoors.json`. Requires migration v1.10.17.2 (run via `setup.php`).
