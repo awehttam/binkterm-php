@@ -73,6 +73,10 @@ class BbsSession
     private ?string $logFile;
     private bool $logToConsole;
     private bool $asciiTextMode;
+    /** @var string Terminal character set: 'utf8', 'cp437', or 'ascii' */
+    private string $terminalCharset = 'ascii';
+    /** @var bool Whether ANSI color is enabled for this terminal */
+    private bool $ansiColorEnabled = true;
     private array $failedLoginAttempts = [];
     private Translator $translator;
     private string $systemLocale;
@@ -327,6 +331,15 @@ class BbsSession
         $doorHandler     = new DoorHandler($this, $this->apiBase);
         $fileHandler     = new FileHandler($this, $this->apiBase, $this->isSsh);
 
+        // Load saved terminal settings and apply them to the session
+        $terminalSettingsHandler = new TerminalSettingsHandler($this, $this->apiBase);
+        $terminalSettingsHandler->loadSettings($conn, $state, $session);
+
+        // Run first-time detection wizard if no terminal settings have been saved yet
+        if (($state['terminal_charset'] ?? null) === null) {
+            $terminalSettingsHandler->runDetectionWizard($conn, $state, $session);
+        }
+
         $shoutboxHandler->show($conn, $state, $session, 5, false);
 
         $messageCounts = MailUtils::getMessageCounts($this->apiBase, $session);
@@ -420,6 +433,9 @@ class BbsSession
                     $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('F', $o, $menuWidth, $state));
                     $filesOption = 'f';
                 }
+                $o = $this->t('ui.terminalserver.server.menu.terminal_settings', 'T) Terminal Settings', [], $locale);
+                $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('T', $o, $menuWidth, $state));
+
                 $o = $this->t('ui.terminalserver.server.menu.quit', 'Q) Quit', [], $locale);
                 $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('Q', $o, $menuWidth, $state));
                 $this->writeLine($conn, $menuPad . $this->colorize($boxBottom, self::ANSI_BLUE . self::ANSI_BOLD));
@@ -451,7 +467,7 @@ class BbsSession
 
                 if (str_starts_with($key, 'CHAR:')) {
                     $char = strtolower(substr($key, 5));
-                    if (in_array($char, ['n','e','q','s','p','w','d','f'], true) || ctype_digit($char)) {
+                    if (in_array($char, ['n','e','q','s','p','w','d','f','t'], true) || ctype_digit($char)) {
                         $choice = $char;
                     }
                 }
@@ -475,6 +491,8 @@ class BbsSession
                 $fileHandler->show($conn, $state, $session);
             } elseif (!empty($whosOnlineOption) && $choice === $whosOnlineOption) {
                 $this->showWhosOnline($conn, $state, $session);
+            } elseif ($choice === 't') {
+                $terminalSettingsHandler->show($conn, $state, $session);
             } elseif ($choice === 'q') {
                 TelnetUtils::showScreenIfExists("bye.ans", $this, $conn);
                 $this->writeLine($conn, '');
@@ -551,6 +569,19 @@ class BbsSession
     }
 
     /**
+     * Colorize text, respecting the terminal's ANSI color capability.
+     *
+     * Public version used by handler classes that need color-aware output.
+     */
+    public function colorizeForTerminal(string $text, string $color): string
+    {
+        if (!$this->ansiColorEnabled) {
+            return $text;
+        }
+        return TelnetUtils::colorize($text, $color);
+    }
+
+    /**
      * Build one main-menu line with blue borders, cyan hotkey, and regular text label.
      */
     private function renderMainMenuOptionLine(string $hotkey, string $translatedLine, int $menuWidth, array $state): string
@@ -596,10 +627,11 @@ class BbsSession
      */
     private function normalizeTerminalTextForClient(string $text, array $state): string
     {
-        if (!$this->shouldUseAsciiFallback($state)) {
-            return $text;
-        }
-        return $this->normalizeTerminalAscii($text);
+        return match ($this->terminalCharset) {
+            'utf8'  => $text,
+            'cp437' => $this->convertToCP437($text),
+            default => $this->normalizeTerminalAscii($text),
+        };
     }
 
     /**
@@ -652,6 +684,55 @@ class BbsSession
         }
 
         return preg_replace('/[^\x20-\x7E]/', '', $text) ?? $text;
+    }
+
+    /**
+     * Apply terminal settings from state to session properties.
+     */
+    public function applyTerminalSettings(array $state): void
+    {
+        $charset = $state['terminal_charset'] ?? null;
+        if ($charset === 'utf8') {
+            $this->terminalCharset = 'utf8';
+            $this->asciiTextMode   = false;
+        } elseif ($charset === 'cp437') {
+            $this->terminalCharset = 'cp437';
+            $this->asciiTextMode   = false;
+        } else {
+            $fallback = $this->shouldUseAsciiFallback($state);
+            $this->terminalCharset = $fallback ? 'ascii' : 'utf8';
+            $this->asciiTextMode   = $fallback;
+        }
+        $this->ansiColorEnabled = ($state['terminal_ansi_color'] ?? 'yes') !== 'no';
+    }
+
+    /**
+     * Encode a UTF-8 string for the current terminal's character set.
+     */
+    public function encodeForTerminal(string $text): string
+    {
+        return match ($this->terminalCharset) {
+            'utf8'  => $text,
+            'cp437' => $this->convertToCP437($text),
+            default => $this->normalizeTerminalAscii($text),
+        };
+    }
+
+    /**
+     * Convert a UTF-8 string to CP437, transliterating where possible.
+     */
+    private function convertToCP437(string $text): string
+    {
+        if (!preg_match('/[^\x20-\x7E\r\n\t]/', $text)) {
+            return $text;
+        }
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'CP437//TRANSLIT//IGNORE', $text);
+            if (is_string($converted) && $converted !== '') {
+                return $converted;
+            }
+        }
+        return preg_replace('/[^\x20-\x7E\r\n\t]/', '', $text) ?? $text;
     }
 
     /**

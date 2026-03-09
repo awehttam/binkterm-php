@@ -14,6 +14,7 @@ require_once __DIR__ . '/src/PollsHandler.php';
 require_once __DIR__ . '/src/DoorHandler.php';
 require_once __DIR__ . '/src/ZmodemTransfer.php';
 require_once __DIR__ . '/src/FileHandler.php';
+require_once __DIR__ . '/src/TerminalSettingsHandler.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\TelnetServer\TelnetServer;
