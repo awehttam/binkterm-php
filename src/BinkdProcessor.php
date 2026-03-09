@@ -177,6 +177,7 @@ class BinkdProcessor
 
             try {
                 $packetInfo = $this->parsePacketHeader($header);
+                $packetInfo['packet_name'] = $packetName;
                 $origAddress = $packetInfo['origZone'] . ':' . $packetInfo['origNet'] . '/' . $packetInfo['origNode'];
                 $destAddress = $packetInfo['destZone'] . ':' . $packetInfo['destNet'] . '/' . $packetInfo['destNode'];
 
@@ -202,9 +203,10 @@ class BinkdProcessor
             }
 
             // Process messages in packet
-            $messageCount = 0;
-            $failedMessages = 0;
-            $echomailRejected = false;
+            $messageCount      = 0;
+            $failedMessages    = 0;
+            $echomailRejected  = false;
+            $hasUndeliverable  = false;
 
             while (!feof($handle)) {
                 try {
@@ -218,7 +220,9 @@ class BinkdProcessor
                             break; // Stop processing this packet
                         }
 
-                        $this->storeMessage($message, $packetInfo, $isInsecureSession);
+                        $msgUndeliverable = false;
+                        $this->storeMessage($message, $packetInfo, $isInsecureSession, $msgUndeliverable);
+                        $hasUndeliverable = $hasUndeliverable || $msgUndeliverable;
                         $messageCount++;
                     }
                 } catch (\Exception $e) {
@@ -237,7 +241,22 @@ class BinkdProcessor
                 $this->logPacket($filename, 'IN', 'error');
                 throw new \Exception($error);
             }
-            
+
+            // Preserve a copy of the original packet if any message was undeliverable
+            if ($hasUndeliverable) {
+                $baseDir      = dirname(__DIR__);
+                $undeliverDir = $baseDir . '/data/undeliverable';
+                if (!is_dir($undeliverDir)) {
+                    @mkdir($undeliverDir, 0755, true);
+                }
+                $dest = $undeliverDir . '/' . date('Ymd_His') . '_' . $packetName;
+                if (@copy($filename, $dest)) {
+                    $this->log("[BINKD] Undeliverable packet preserved to: data/undeliverable/" . basename($dest));
+                } else {
+                    $this->log("[BINKD] WARNING: Could not preserve undeliverable packet $packetName");
+                }
+            }
+
             $this->log("[BINKD] Packet $packetName processed: $messageCount messages stored, $failedMessages failed");
             $this->logPacket($filename, 'IN', 'processed');
             
@@ -592,14 +611,14 @@ class BinkdProcessor
         return null; // No CHRS kludge found
     }
 
-    private function storeMessage($message, $packetInfo = null, $isInsecureSession = false)
+    private function storeMessage($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
         // Determine if this is netmail or echomail based on FidoNet standards
         // Use comprehensive detection that works with raw message text
         $isNetmail = $this->isNetmailMessage($message, true);
 
         if ($isNetmail) {
-            $this->storeNetmail($message, $packetInfo, $isInsecureSession);
+            $this->storeNetmail($message, $packetInfo, $isInsecureSession, $undeliverable);
         } else {
             $this->storeEchomail($message, $packetInfo, $message['domain']);
         }
@@ -687,10 +706,31 @@ class BinkdProcessor
         return strpos($firstLine, 'AREA:') === 0;
     }
 
-    private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false)
+    private function storeNetmail($message, $packetInfo = null, $isInsecureSession = false, bool &$undeliverable = false)
     {
         // Find target user using hybrid matching approach
         $userId = $this->findTargetUser($message['destAddr'], $message['toName']);
+
+        // Drop undeliverable netmail — no user matched by address or name.
+        // The old sysop catch-all has been removed to prevent misrouted echomail
+        // (which typically has no AREA:/SEEN-BY/PATH markers and an unrecognised
+        // toName) from silently landing in the sysop inbox.
+        // The caller will preserve the original packet file for sysop review.
+        if ($userId === null) {
+            $msgid = '';
+            if (preg_match('/^\x01MSGID:\s*(.+)$/mi', $message['text'] ?? '', $m)) {
+                $msgid = ' msgid=' . trim($m[1]);
+            }
+            $this->log("[BINKD] Dropping undeliverable netmail:"
+                . " pkt=" . ($packetInfo['packet_name'] ?? 'unknown')
+                . " from=" . $message['fromName'] . " <" . $message['origAddr'] . ">"
+                . " to=" . $message['toName'] . " <" . $message['destAddr'] . ">"
+                . " subj=" . $message['subject']
+                . " date=" . $message['dateTime']
+                . $msgid);
+            $undeliverable = true;
+            return;
+        }
         
         // Parse netmail message text to separate kludges from content
         $messageText = $message['text'];
@@ -1733,26 +1773,8 @@ class BinkdProcessor
             }
         }
         
-        // Strategy 5: Fallback to system administrator from config
-        $sysopName = $this->config->getSystemSysop();
-        if (!empty($sysopName)) {
-            $stmt = $this->db->prepare("
-                SELECT id FROM users 
-                WHERE LOWER(real_name) = LOWER(?) OR LOWER(username) = LOWER(?)
-                LIMIT 1
-            ");
-            $stmt->execute([$sysopName, $sysopName]);
-            $user = $stmt->fetch();
-            if ($user) {
-                return $user['id'];
-            }
-        }
-        
-        // Final fallback: First user in database (assumed to be admin)
-        $stmt = $this->db->prepare("SELECT id FROM users WHERE is_admin=true ORDER BY id LIMIT 1");
-        $stmt->execute();
-        $user = $stmt->fetch();
-        return $user ? $user['id'] : 1; // Default to ID 1 if no users exist
+        // No match found — return null so caller can decide how to handle undeliverable mail
+        return null;
     }
 
     private function processBundle($bundleFile)

@@ -152,6 +152,15 @@ When sending netmail, check the "Crash" option to attempt direct delivery.
 4. Run `php cli/binkp_poll.php --domain=<domain>` to poll your uplink
 5. Check `data/logs/packets.log` and `data/logs/binkp_poll.log` for errors
 
+### Q: If a packet contains multiple messages and one fails, are other messages affected?
+**A:** It depends on the failure type:
+
+- **Single message exception** (e.g. database error, malformed message data): Only that message is skipped. Processing continues normally for all remaining messages in the packet.
+- **Undeliverable netmail** (no matching local user found by address or name): The message is dropped with a detailed log entry (from/to/subject/date/MSGID) and processing continues. The original `.pkt` file is also preserved to `data/undeliverable/` for manual inspection.
+- **Echomail from an insecure session** (security rejection): Processing stops immediately — the rest of the packet is abandoned and moved to the error directory.
+
+In the first two cases the packet is still considered successfully processed even if individual messages were skipped.
+
 ---
 
 ## Binkp Server & Polling
