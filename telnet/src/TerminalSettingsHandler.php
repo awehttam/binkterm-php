@@ -93,20 +93,51 @@ class TerminalSettingsHandler
         if ($answer === null) {
             return;
         }
-        $charset = (strtolower(trim($answer)) === 'y') ? 'utf8' : 'cp437';
-        $state['terminal_charset'] = $charset;
 
-        if ($charset === 'utf8') {
+        if (strtolower(trim($answer)) === 'y') {
+            $charset = 'utf8';
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
                 $this->server->t('ui.terminalserver.detect.charset_utf8', 'UTF-8 character set enabled.', [], $locale),
                 TelnetUtils::ANSI_GREEN
             ));
         } else {
-            TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->server->t('ui.terminalserver.detect.charset_cp437', 'CP437 (DOS/ANSI) character set enabled.', [], $locale),
-                TelnetUtils::ANSI_GREEN
-            ));
+            // UTF-8 not supported — test for CP437 box-drawing support
+            TelnetUtils::writeLine($conn, '');
+            TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.detect.charset_cp437_intro',
+                'CP437 box-drawing test:', [], $locale));
+            TelnetUtils::writeLine($conn, '');
+            // Raw CP437 bytes: ┌───┐ / │   │ / └───┘
+            TelnetUtils::writeLine($conn, '  ' . "\xda\xc4\xc4\xc4\xbf");
+            TelnetUtils::writeLine($conn, '  ' . "\xb3   \xb3");
+            TelnetUtils::writeLine($conn, '  ' . "\xc0\xc4\xc4\xc4\xd9");
+            TelnetUtils::writeLine($conn, '');
+
+            $cp437Q = TelnetUtils::colorize(
+                $this->server->t('ui.terminalserver.detect.charset_cp437_question',
+                    'Do the above appear as a box drawn with lines and corners? (Y/N): ', [], $locale),
+                TelnetUtils::ANSI_CYAN
+            );
+            $cp437Answer = $this->server->prompt($conn, $state, $cp437Q, true);
+            if ($cp437Answer === null) {
+                return;
+            }
+
+            if (strtolower(trim($cp437Answer)) === 'y') {
+                $charset = 'cp437';
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->server->t('ui.terminalserver.detect.charset_cp437', 'CP437 (DOS/ANSI) character set enabled.', [], $locale),
+                    TelnetUtils::ANSI_GREEN
+                ));
+            } else {
+                $charset = 'ascii';
+                TelnetUtils::writeLine($conn, TelnetUtils::colorize(
+                    $this->server->t('ui.terminalserver.detect.charset_ascii', 'ASCII mode enabled.', [], $locale),
+                    TelnetUtils::ANSI_GREEN
+                ));
+            }
         }
+
+        $state['terminal_charset'] = $charset;
         TelnetUtils::writeLine($conn, '');
 
         // --- ANSI color test ---
