@@ -353,6 +353,67 @@ class TelnetUtils
     }
 
     /**
+     * Run the shared message viewer loop for a single already-fetched message.
+     *
+     * Handles rendering and all scroll keys (Up/Down/PgUp/PgDn/Home/End)
+     * internally. Returns when the user presses a key that requires the caller
+     * to take action (navigate, reply, or quit).
+     *
+     * @param resource $conn
+     * @param array    $state         Session state (passed by reference for idle tracking)
+     * @param object   $server        BbsSession instance (provides readKeyWithIdleCheck)
+     * @param array    $headerLines   Pre-built header lines (border, From, Subj, etc.)
+     * @param array    $wrappedLines  Pre-wrapped/rendered body lines
+     * @param string   $statusLine    Pre-built status bar string
+     * @param int      $rows          Terminal row count
+     * @param int      $initialOffset Starting scroll offset (default 0)
+     * @return array{action: string, offset: int}
+     *   action: 'quit' | 'prev' | 'next' | 'reply'
+     *   offset: scroll position at time of exit (unused for quit/reply)
+     */
+    public static function runMessageViewer(
+        $conn,
+        array &$state,
+        $server,
+        array $headerLines,
+        array $wrappedLines,
+        string $statusLine,
+        int $rows,
+        int $initialOffset = 0
+    ): array {
+        $bodyHeight = max(1, $rows - count($headerLines) - 1);
+        $maxOffset  = max(0, count($wrappedLines) - $bodyHeight);
+        $offset     = min($initialOffset, $maxOffset);
+
+        while (true) {
+            $visibleLines = array_slice($wrappedLines, $offset, $bodyHeight);
+            self::renderFullScreen($conn, $headerLines, $visibleLines, $statusLine, $rows);
+
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            if ($key === null || $key === 'ENTER') {
+                self::setCursorVisible($conn, true);
+                return ['action' => 'quit', 'offset' => $offset];
+            }
+            if ($key === 'CHAR:q' || $key === 'CHAR:Q') {
+                self::setCursorVisible($conn, true);
+                return ['action' => 'quit', 'offset' => $offset];
+            }
+            if ($key === 'UP')     { if ($offset > 0) $offset--;                               continue; }
+            if ($key === 'DOWN')   { if ($offset < $maxOffset) $offset++;                      continue; }
+            if ($key === 'HOME')   { $offset = 0;                                              continue; }
+            if ($key === 'END')    { $offset = $maxOffset;                                     continue; }
+            if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);                  continue; }
+            if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);         continue; }
+
+            // Navigation / action keys — return to caller
+            if ($key === 'LEFT')                              return ['action' => 'prev',  'offset' => $offset];
+            if ($key === 'RIGHT')                             return ['action' => 'next',  'offset' => $offset];
+            if ($key === 'CHAR:r' || $key === 'CHAR:R')      return ['action' => 'reply', 'offset' => $offset];
+        }
+    }
+
+    /**
      * Show or hide the cursor.
      *
      * @param resource $conn

@@ -532,11 +532,23 @@ class EchomailHandler
      */
     private function displayMessage($conn, array &$state, string $session, string $area, int $page, int $perPage, int $totalPages, int $index): array
     {
-        $cols = $state['cols'] ?? 80;
-        $rows = $state['rows'] ?? 24;
+        $cols  = $state['cols'] ?? 80;
+        $rows  = $state['rows'] ?? 24;
         $width = max(10, $cols - 2);
 
-        $offset = 0;
+        $statusLine = TelnetUtils::buildStatusBar([
+            ['text' => 'U/D',       'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'PgUp/PgDn', 'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Page  ',   'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'L/R',       'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'R',         'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Reply  ',  'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'Q',         'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Quit',     'color' => TelnetUtils::ANSI_BLUE],
+        ], $width);
+
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage);
             $msg = $messages[$index] ?? null;
@@ -548,131 +560,46 @@ class EchomailHandler
                 return [$page, $index];
             }
 
-            $detail = TelnetUtils::apiRequest(
-                $this->apiBase,
-                'GET',
-                '/api/messages/echomail/' . urlencode($area) . '/' . $id,
-                null,
-                $session
-            );
+            $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
             $body         = $detail['data']['message_text'] ?? '';
             $markupFormat = $detail['data']['markup_format'] ?? null;
 
-            // Format from line with address
-            $fromName = $msg['from_name'] ?? 'Unknown';
+            $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
-            $fromLine = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
-
-            // Format date using user's timezone and date format preferences
-            $dateFormatted = TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state);
-
-            $border = str_repeat('-', $width);
+            $fromLine    = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
+            $border      = str_repeat('-', $width);
             $headerLines = [
                 $border,
                 TelnetUtils::colorize(substr($fromLine, 0, $width), TelnetUtils::ANSI_DIM),
                 TelnetUtils::colorize(substr('Subj: ' . ($msg['subject'] ?? 'Message'), 0, $width), TelnetUtils::ANSI_BOLD),
                 TelnetUtils::colorize(substr('To: ' . ($msg['to_name'] ?? 'All'), 0, $width), TelnetUtils::ANSI_DIM),
                 TelnetUtils::colorize(substr('Area: ' . $area, 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Date: ' . $dateFormatted, 0, $width), TelnetUtils::ANSI_DIM),
-                $border
+                TelnetUtils::colorize(substr('Date: ' . TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state), 0, $width), TelnetUtils::ANSI_DIM),
+                $border,
             ];
 
-            if ($markupFormat !== null) {
-                $wrappedLines = TerminalMarkupRenderer::render($markupFormat, $body, $width);
-            } else {
-                $wrappedLines = TelnetUtils::wrapTextLines($body, $width);
-            }
-            $bodyHeight = max(1, $rows - count($headerLines) - 1);
-            $maxOffset = max(0, count($wrappedLines) - $bodyHeight);
-            $offset = min($offset, $maxOffset);
+            $wrappedLines = $markupFormat !== null
+                ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
+                : TelnetUtils::wrapTextLines($body, $width);
 
-            $visibleLines = array_slice($wrappedLines, $offset, $bodyHeight);
-            $statusLine = TelnetUtils::buildStatusBar([
-                ['text' => 'U/D', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'PgUp/PgDn', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Page  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'L/R', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'R', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Reply  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE],
-            ], $width);
-            TelnetUtils::renderFullScreen($conn, $headerLines, $visibleLines, $statusLine, $rows);
+            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $headerLines, $wrappedLines, $statusLine, $rows);
 
-            $key = $this->server->readKeyWithIdleCheck($conn, $state);
-            if ($key === null || $key === 'ENTER') {
-                TelnetUtils::setCursorVisible($conn, true);
-                return [$page, $index];
-            }
-            if ($key === 'CHAR:q' || $key === 'CHAR:Q') {
-                TelnetUtils::setCursorVisible($conn, true);
-                return [$page, $index];
-            }
-            if ($key === 'UP') {
-                if ($offset > 0) {
-                    $offset--;
-                }
-                continue;
-            }
-            if ($key === 'DOWN') {
-                if ($offset < $maxOffset) {
-                    $offset++;
-                }
-                continue;
-            }
-            if ($key === 'HOME') {
-                $offset = 0;
-                continue;
-            }
-            if ($key === 'END') {
-                $offset = $maxOffset;
-                continue;
-            }
-            if ($key === 'PGUP') {
-                $offset = max(0, $offset - $bodyHeight);
-                continue;
-            }
-            if ($key === 'PGDOWN') {
-                $offset = min($maxOffset, $offset + $bodyHeight);
-                continue;
-            }
-            if ($key === 'LEFT') {
-                if ($index > 0) {
-                    $index--;
-                    $offset = 0;
-                    continue;
-                }
-                if ($page > 1) {
-                    $page--;
-                    $index = max(0, $perPage - 1);
-                    $offset = 0;
-                }
-                continue;
-            }
-            if ($key === 'RIGHT') {
-                if ($index < count($messages) - 1) {
-                    $index++;
-                    $offset = 0;
-                    continue;
-                }
-                if ($page < $totalPages) {
-                    $page++;
-                    $index = 0;
-                    $offset = 0;
-                }
-                continue;
-            }
-            if (str_starts_with($key, 'CHAR:')) {
-                $char = strtolower(substr($key, 5));
-                if ($char === 'r') {
-                    $replyData = $detail['data'] ?? $msg;
+            switch ($result['action']) {
+                case 'quit':
+                    return [$page, $index];
+                case 'prev':
+                    if ($index > 0) { $index--; break; }
+                    if ($page > 1)  { $page--; $index = max(0, $perPage - 1); }
+                    break;
+                case 'next':
+                    if ($index < count($messages) - 1) { $index++; break; }
+                    if ($page < $totalPages)            { $page++; $index = 0; }
+                    break;
+                case 'reply':
                     TelnetUtils::safeWrite($conn, "\033[2J\033[H");
-                    $this->compose($conn, $state, $session, $area, $replyData);
+                    $this->compose($conn, $state, $session, $area, $detail['data'] ?? $msg);
                     TelnetUtils::setCursorVisible($conn, true);
                     return [$page, $index];
-                }
             }
         }
     }
