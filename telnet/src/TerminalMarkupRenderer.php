@@ -23,6 +23,7 @@ class TerminalMarkupRenderer
     private const R    = "\033[0m";   // reset
     private const BOLD = "\033[1m";
     private const DIM  = "\033[2m";
+    private const ITAL = "\033[2m\033[4m"; // italic fallback: dim + underline (separate sequences for compatibility)
     private const UL   = "\033[4m";   // underline
     private const REV  = "\033[7m";   // reverse video
     private const CYN  = "\033[36m";  // cyan
@@ -162,7 +163,7 @@ class TerminalMarkupRenderer
                     $wrapped      = self::wrapRaw($itemText, max(4, $continuation));
                     $first        = true;
                     foreach ($wrapped as $wl) {
-                        $prefix   = $first ? self::BOLD . '• ' . self::R : '  ';
+                        $prefix   = $first ? self::BOLD . '* ' . self::R : '  ';
                         $output[] = $prefix . self::inlineMarkdown($wl);
                         $first    = false;
                     }
@@ -227,9 +228,12 @@ class TerminalMarkupRenderer
         $text = preg_replace('/\*\*(.+?)\*\*/', self::BOLD . '$1' . self::R, $text);
         $text = preg_replace('/__(.+?)__/',     self::BOLD . '$1' . self::R, $text);
 
+        // Strikethrough (~~text~~ → -text- dimmed)
+        $text = preg_replace('/~~(.+?)~~/', self::DIM . '-$1-' . self::R, $text);
+
         // Italic (*text* or _text_)
-        $text = preg_replace('/\*([^*]+)\*/',   self::UL   . '$1' . self::R, $text);
-        $text = preg_replace('/_([^_]+)_/',     self::UL   . '$1' . self::R, $text);
+        $text = preg_replace('/\*([^*]+)\*/',   self::ITAL . '$1' . self::R, $text);
+        $text = preg_replace('/_([^_]+)_/',     self::ITAL . '$1' . self::R, $text);
 
         // Links — show label and URL
         $text = preg_replace_callback(
@@ -293,7 +297,7 @@ class TerminalMarkupRenderer
         $line = preg_replace('/\*([^*\r\n]+)\*/', self::BOLD . '$1' . self::R, $line);
 
         // /italics/ — exclude slashes adjacent to colons (URLs)
-        $line = preg_replace('/(?<![:\w])\/([^\/\r\n]+)\/(?![\w])/', self::UL . '$1' . self::R, $line);
+        $line = preg_replace('/(?<![:\w])\/([^\/\r\n]+)\/(?![\w])/', self::ITAL . '$1' . self::R, $line);
 
         // _underlined_
         $line = preg_replace('/_([^_\r\n]+)_/', self::UL . '$1' . self::R, $line);

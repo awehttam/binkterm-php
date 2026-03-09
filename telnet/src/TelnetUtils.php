@@ -569,9 +569,18 @@ class TelnetUtils
                     continue;
                 }
                 if (ctype_digit($char)) {
-                    $choice = (int)$char;
-                    if ($choice > 0 && $choice <= count($messages)) {
-                        return ['action' => 'read', 'index' => $choice - 1, 'selectedIndex' => $choice - 1];
+                    $buffer .= $char;
+                    self::safeWrite($conn, $char);
+                    // Update selection highlight live as number is typed
+                    $num = (int)$buffer;
+                    if ($num > 0 && $num <= count($messages)) {
+                        $prev = $selectedIndex;
+                        $selectedIndex = $num - 1;
+                        if ($prev !== $selectedIndex) {
+                            self::renderMessageListLine($conn, $messages, $prev,          false, $listStartRow, $cols, $state);
+                            self::renderMessageListLine($conn, $messages, $selectedIndex, true,  $listStartRow, $cols, $state);
+                        }
+                        self::safeWrite($conn, "\033[{$inputRow};" . ($inputColStart + strlen($buffer)) . "H");
                     }
                     continue;
                 }

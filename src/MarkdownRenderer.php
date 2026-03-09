@@ -172,6 +172,9 @@ class MarkdownRenderer
         $text = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $text);
         $text = preg_replace('/__(.+?)__/', '<strong>$1</strong>', $text);
 
+        // Strikethrough (~~...~~)
+        $text = preg_replace('/~~(.+?)~~/', '<del>$1</del>', $text);
+
         // Italic (*...* or _..._) — single delimiters only
         $text = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $text);
         $text = preg_replace('/_([^_]+)_/', '<em>$1</em>', $text);
