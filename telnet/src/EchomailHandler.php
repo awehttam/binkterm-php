@@ -78,7 +78,15 @@ class EchomailHandler
                 $tag = $area['tag'] ?? '';
                 $domain = $area['domain'] ?? '';
                 $desc = $area['description'] ?? '';
-                TelnetUtils::writeLine($conn, sprintf(' %2d) %-20s %-10s %s', $num, substr($tag, 0, 20), substr($domain, 0, 10), substr($desc, 0, 40)));
+                TelnetUtils::writeLine(
+                    $conn,
+                    $this->renderEchoAreaSelectionLine(
+                        $num,
+                        (string)substr($tag, 0, 20),
+                        (string)substr($domain, 0, 10),
+                        (string)substr($desc, 0, 40)
+                    )
+                );
             }
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, $this->server->t('ui.terminalserver.echomail.areas_nav', 'Enter #, n/p (next/prev), q (quit)', [], $state['locale']));
@@ -696,6 +704,18 @@ class EchomailHandler
         $row = $listStartRow + $idx;
         TelnetUtils::safeWrite($conn, "\033[{$row};1H");
         TelnetUtils::safeWrite($conn, str_pad($line, max(1, $cols - 1)));
+    }
+
+    /**
+     * Render one echoarea option with cyan number hotkey and blue ")" accent.
+     */
+    private function renderEchoAreaSelectionLine(int $num, string $tag, string $domain, string $desc): string
+    {
+        $suffix = sprintf(' %-20s %-10s %s', $tag, $domain, $desc);
+        return ' '
+            . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+            . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
+            . $suffix;
     }
 }
 

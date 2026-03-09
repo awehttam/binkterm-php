@@ -651,6 +651,7 @@ class TelnetServer
             $this->tlsEnabled,
             $this->tlsPort,
             $this->logFile,
+            !$this->daemonMode,
             null
         );
         $session->run($forked);

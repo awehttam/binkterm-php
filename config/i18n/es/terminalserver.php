@@ -180,6 +180,7 @@ return [
     'ui.terminalserver.files.upload_failed'            => 'La transferencia falló o fue cancelada.',
     'ui.terminalserver.files.upload_done'              => 'Archivo subido exitosamente (ID: {id}).',
     'ui.terminalserver.files.upload_error'             => 'Error al subir: {error}',
+    'ui.terminalserver.files.upload_duplicate'         => 'Este archivo ya existe en esta área.',
     'ui.terminalserver.files.upload_readonly'          => 'Esta área es de solo lectura. No se permiten subidas.',
     'ui.terminalserver.files.upload_admin_only'        => 'Solo los administradores pueden subir a esta área.',
 

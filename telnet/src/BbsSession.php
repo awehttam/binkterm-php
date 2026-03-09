@@ -36,6 +36,7 @@ class BbsSession
     private const OPT_SUPPRESS_GA = 3;
     private const OPT_NAWS    = 31;
     private const OPT_LINEMODE = 34;
+    private const OPT_TTYPE   = 24;
 
     // ===== KEY SEQUENCE CONSTANTS =====
     private const KEY_UP     = "\033[A";
@@ -58,6 +59,7 @@ class BbsSession
     private const ANSI_YELLOW  = "\033[33m";
     private const ANSI_MAGENTA = "\033[35m";
     private const ANSI_RED     = "\033[31m";
+    private const ANSI_BG_BLUE = "\033[44m";
 
     /** @var resource */
     private $conn;
@@ -69,6 +71,8 @@ class BbsSession
     private bool $tlsEnabled;
     private int $tlsPort;
     private ?string $logFile;
+    private bool $logToConsole;
+    private bool $asciiTextMode;
     private array $failedLoginAttempts = [];
     private Translator $translator;
     private string $systemLocale;
@@ -92,6 +96,7 @@ class BbsSession
      * @param bool        $tlsEnabled     Whether TLS is enabled on the server (for banner hint)
      * @param int         $tlsPort        TLS port number (for banner hint)
      * @param string|null $logFile        Path to daemon log file, or null for stdout only
+     * @param bool        $logToConsole   Mirror session logs to stdout
      * @param array|null  $preAuthSession Pre-authenticated user data from SSH layer
      */
     public function __construct(
@@ -104,6 +109,7 @@ class BbsSession
         bool $tlsEnabled = true,
         int $tlsPort = 8023,
         ?string $logFile = null,
+        bool $logToConsole = false,
         ?array $preAuthSession = null
     ) {
         $this->conn           = $conn;
@@ -115,6 +121,9 @@ class BbsSession
         $this->tlsEnabled     = $tlsEnabled;
         $this->tlsPort        = $tlsPort;
         $this->logFile        = $logFile;
+        $this->logToConsole   = $logToConsole;
+        // Conservative default for Telnet until terminal capabilities are known.
+        $this->asciiTextMode  = !$this->isSsh;
         $this->preAuthSession = $preAuthSession;
         $this->translator     = new Translator();
         $this->systemLocale   = (string)Config::env('I18N_DEFAULT_LOCALE', 'en');
@@ -138,6 +147,8 @@ class BbsSession
             'input_echo'  => true,
             'cols'        => 80,
             'rows'        => 24,
+            'terminal_type' => '',
+            'terminal_info_logged' => false,
             'last_activity'          => time(),
             'idle_warned'            => false,
             'idle_warning_timeout'   => 300,
@@ -160,6 +171,7 @@ class BbsSession
 
         if (!$this->isSsh) {
             $this->negotiateTelnet($conn);
+            $this->requestTerminalType($conn);
         }
 
         $peerName = @stream_socket_get_name($conn, true);
@@ -321,6 +333,8 @@ class BbsSession
 
         // ===== MAIN MENU LOOP =====
         while (true) {
+            $this->logTerminalInfoOnce($state);
+
             if (!is_resource($conn) || feof($conn)) {
                 $this->logDuration("Connection lost", $username, $loginTime);
                 break;
@@ -336,7 +350,8 @@ class BbsSession
                 $menuLeft  = max(0, (int)floor(($cols - $menuWidth) / 2));
                 $menuPad   = str_repeat(' ', $menuLeft);
                 $systemName= $config->getSystemName();
-                $border    = '+' . str_repeat('=', $menuWidth - 2) . '+';
+                $boxTop    = '+' . str_repeat('=', $menuWidth - 2) . '+';
+                $boxBottom = '+' . str_repeat('=', $menuWidth - 2) . '+';
                 $divider   = '+' . str_repeat('-', $menuWidth - 2) . '+';
 
                 $this->safeWrite($conn, "\033[2J\033[H");
@@ -352,10 +367,17 @@ class BbsSession
                 $this->safeWrite($conn, $statusLine . "\r");
                 $this->safeWrite($conn, "\033[2;1H");
                 $this->writeLine($conn, '');
-                $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-                $titleLine = '| ' . $this->mbStrPad($this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']), $innerWidth, ' ', STR_PAD_BOTH) . ' |';
-                $this->writeLine($conn, $menuPad . $this->colorize($titleLine, self::ANSI_BLUE . self::ANSI_BOLD));
-                $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_CYAN));
+                $this->writeLine($conn, $menuPad . $this->colorize($boxTop, self::ANSI_BLUE . self::ANSI_BOLD));
+                $titleLabel = $this->normalizeTerminalTextForClient(
+                    $this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']),
+                    $state
+                );
+                $titleText = $this->mbStrPad($titleLabel, $innerWidth, ' ', STR_PAD_BOTH);
+                $titleLine = $this->colorize('|', self::ANSI_BLUE . self::ANSI_BOLD)
+                    . $this->colorize(' ' . $titleText . ' ', self::ANSI_BG_BLUE . self::ANSI_CYAN . self::ANSI_BOLD)
+                    . $this->colorize('|', self::ANSI_BLUE . self::ANSI_BOLD);
+                $this->writeLine($conn, $menuPad . $titleLine);
+                $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_BLUE));
 
                 $showShoutbox = BbsConfig::isFeatureEnabled('shoutbox');
                 $showPolls    = BbsConfig::isFeatureEnabled('voting_booth');
@@ -363,11 +385,11 @@ class BbsSession
                 $showFiles    = \BinktermPHP\FileAreaManager::isFeatureEnabled();
                 $locale       = $state['locale'];
 
-                $o = '| ' . $this->t('ui.terminalserver.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
+                $o = $this->t('ui.terminalserver.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
+                $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('N', $o, $menuWidth, $state));
 
-                $o = '| ' . $this->t('ui.terminalserver.server.menu.echomail', 'E) Echomail ({count} messages)', ['count' => $messageCounts['echomail']], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
+                $o = $this->t('ui.terminalserver.server.menu.echomail', 'E) Echomail ({count} messages)', ['count' => $messageCounts['echomail']], $locale);
+                $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('E', $o, $menuWidth, $state));
 
                 $shoutboxOption   = null;
                 $pollsOption      = null;
@@ -375,32 +397,32 @@ class BbsSession
                 $filesOption      = null;
                 $whosOnlineOption = 'w';
 
-                $o = '| ' . $this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
+                $o = $this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale);
+                $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('W', $o, $menuWidth, $state));
 
                 if ($showShoutbox) {
-                    $o = '| ' . $this->t('ui.terminalserver.server.menu.shoutbox', 'S) Shoutbox', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
+                    $o = $this->t('ui.terminalserver.server.menu.shoutbox', 'S) Shoutbox', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('S', $o, $menuWidth, $state));
                     $shoutboxOption = 's';
                 }
                 if ($showPolls) {
-                    $o = '| ' . $this->t('ui.terminalserver.server.menu.polls', 'P) Polls', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
+                    $o = $this->t('ui.terminalserver.server.menu.polls', 'P) Polls', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('P', $o, $menuWidth, $state));
                     $pollsOption = 'p';
                 }
                 if ($showDoors) {
-                    $o = '| ' . $this->t('ui.terminalserver.server.menu.doors', 'D) Door Games', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
+                    $o = $this->t('ui.terminalserver.server.menu.doors', 'D) Door Games', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('D', $o, $menuWidth, $state));
                     $doorsOption = 'd';
                 }
                 if ($showFiles) {
-                    $o = '| ' . $this->t('ui.terminalserver.server.menu.files', 'F) Files', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
+                    $o = $this->t('ui.terminalserver.server.menu.files', 'F) Files', [], $locale);
+                    $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('F', $o, $menuWidth, $state));
                     $filesOption = 'f';
                 }
-                $o = '| ' . $this->t('ui.terminalserver.server.menu.quit', 'Q) Quit', [], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_YELLOW));
-                $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
+                $o = $this->t('ui.terminalserver.server.menu.quit', 'Q) Quit', [], $locale);
+                $this->writeLine($conn, $menuPad . $this->renderMainMenuOptionLine('Q', $o, $menuWidth, $state));
+                $this->writeLine($conn, $menuPad . $this->colorize($boxBottom, self::ANSI_BLUE . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
             }
 
@@ -493,9 +515,9 @@ class BbsSession
             foreach ($params as $k => $v) {
                 $fallback = str_replace('{' . $k . '}', (string)$v, $fallback);
             }
-            return $fallback;
+            return $this->asciiTextMode ? $this->normalizeTerminalAscii($fallback) : $fallback;
         }
-        return $result;
+        return $this->asciiTextMode ? $this->normalizeTerminalAscii($result) : $result;
     }
 
     // ===== I/O HELPERS =====
@@ -526,6 +548,120 @@ class BbsSession
     private function colorize(string $text, string $color): string
     {
         return $color . $text . self::ANSI_RESET;
+    }
+
+    /**
+     * Build one main-menu line with blue borders, cyan hotkey, and regular text label.
+     */
+    private function renderMainMenuOptionLine(string $hotkey, string $translatedLine, int $menuWidth, array $state): string
+    {
+        $label = $this->normalizeTerminalTextForClient($this->stripMenuHotkeyPrefix($translatedLine, $hotkey), $state);
+        $hotkeyPrefix = strtoupper($hotkey) . ') ';
+        $innerWidth = $menuWidth - 2;
+        $labelWidth = max(0, $innerWidth - 1 - strlen($hotkeyPrefix));
+        $labelPadded = $this->fitTerminalLabel($label, $labelWidth, $state);
+
+        return $this->colorize('|', self::ANSI_BLUE)
+            . ' '
+            . $this->colorize(strtoupper($hotkey), self::ANSI_CYAN . self::ANSI_BOLD)
+            . $this->colorize(')', self::ANSI_BLUE)
+            . ' '
+            . $labelPadded
+            . $this->colorize('|', self::ANSI_BLUE);
+    }
+
+    /**
+     * Fit a menu label to a fixed terminal cell width.
+     */
+    private function fitTerminalLabel(string $label, int $width, array $state): string
+    {
+        if ($width <= 0) {
+            return '';
+        }
+
+        if ($this->shouldUseAsciiFallback($state)) {
+            if (strlen($label) > $width) {
+                $label = substr($label, 0, $width);
+            }
+            return str_pad($label, $width);
+        }
+
+        $trimmed = mb_strimwidth($label, 0, $width, '', 'UTF-8');
+        $pad = max(0, $width - mb_strwidth($trimmed, 'UTF-8'));
+        return $trimmed . str_repeat(' ', $pad);
+    }
+
+    /**
+     * Normalize text for the current client based on terminal capability detection.
+     */
+    private function normalizeTerminalTextForClient(string $text, array $state): string
+    {
+        if (!$this->shouldUseAsciiFallback($state)) {
+            return $text;
+        }
+        return $this->normalizeTerminalAscii($text);
+    }
+
+    /**
+     * Return true when this session should use ASCII-safe text rendering.
+     */
+    private function shouldUseAsciiFallback(array $state): bool
+    {
+        if ($this->isSsh) {
+            // SSH clients are typically UTF-8 capable.
+            return false;
+        }
+
+        $ttype = strtoupper((string)($state['terminal_type'] ?? ''));
+        if ($ttype === '') {
+            // Conservative default for telnet clients when unknown.
+            return true;
+        }
+
+        $utf8Hints = ['UTF-8', 'UTF8', 'XTERM', 'ALACRITTY', 'KITTY', 'WEZTERM', 'ITERM', 'VTE'];
+        foreach ($utf8Hints as $hint) {
+            if (str_contains($ttype, $hint)) {
+                return false;
+            }
+        }
+
+        $asciiHints = ['ANSI', 'VT100', 'VT220', 'IBM', 'PCANSI', 'CP437', 'DUMB'];
+        foreach ($asciiHints as $hint) {
+            if (str_contains($ttype, $hint)) {
+                return true;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Transliterate to 7-bit ASCII for terminals that do not render UTF-8 reliably.
+     */
+    private function normalizeTerminalAscii(string $text): string
+    {
+        if (!preg_match('/[^\x20-\x7E]/', $text)) {
+            return $text;
+        }
+
+        if (function_exists('iconv')) {
+            $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+            if (is_string($ascii) && $ascii !== '') {
+                return $ascii;
+            }
+        }
+
+        return preg_replace('/[^\x20-\x7E]/', '', $text) ?? $text;
+    }
+
+    /**
+     * Remove a translated menu line's leading "<key>) " prefix if present.
+     */
+    private function stripMenuHotkeyPrefix(string $line, string $hotkey): string
+    {
+        $pattern = '/^\s*' . preg_quote($hotkey, '/') . '\)\s*/iu';
+        $stripped = preg_replace($pattern, '', $line, 1);
+        return $stripped ?? $line;
     }
 
     /**
@@ -598,6 +734,7 @@ class BbsSession
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_NAWS);
         $this->sendTelnetCommand($conn, self::WILL,      self::OPT_SUPPRESS_GA);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_LINEMODE);
+        $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_TTYPE);
     }
 
     /**
@@ -606,6 +743,14 @@ class BbsSession
     private function sendTelnetCommand($conn, int $cmd, int $opt): void
     {
         $this->safeWrite($conn, chr(self::IAC) . chr($cmd) . chr($opt));
+    }
+
+    /**
+     * Send "TERMINAL-TYPE SEND" subnegotiation request.
+     */
+    private function requestTerminalType($conn): void
+    {
+        $this->safeWrite($conn, chr(self::IAC) . chr(self::SB) . chr(self::OPT_TTYPE) . chr(1) . chr(self::IAC) . chr(self::SE));
     }
 
     /**
@@ -1136,6 +1281,9 @@ class BbsSession
                     continue;
                 }
                 if ($state['telnet_mode'] === 'IAC_CMD') {
+                    if (($state['telnet_cmd'] ?? null) === self::WILL && $byte === self::OPT_TTYPE) {
+                        $this->requestTerminalType($conn);
+                    }
                     $state['telnet_mode'] = null;
                     $state['telnet_cmd']  = null;
                     continue;
@@ -1154,6 +1302,9 @@ class BbsSession
                             if ($w > 0) { $state['cols'] = $w; }
                             if ($h > 0) { $state['rows'] = $h; }
                             if ($this->debug) { $this->log("NAWS: {$w}x{$h}"); }
+                        } elseif ($state['sb_opt'] === self::OPT_TTYPE && strlen($state['sb_data']) >= 2 && ord($state['sb_data'][0]) === 0) {
+                            $ttype = trim(substr($state['sb_data'], 1));
+                            $this->recordTerminalType($state, $ttype);
                         }
                         $state['telnet_mode'] = null;
                         $state['sb_opt']      = null;
@@ -1413,17 +1564,34 @@ class BbsSession
             $cmdByte = ord($cmd);
             if ($cmdByte === self::IAC) { return chr(self::IAC); }
             if (in_array($cmdByte, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                fread($conn, 1); // consume option byte
+                $opt = fread($conn, 1); // consume option byte
+                if ($opt !== false && $cmdByte === self::WILL && ord($opt) === self::OPT_TTYPE) {
+                    $this->requestTerminalType($conn);
+                }
                 return $this->readRawChar($conn, $state); // skip negotiation; return next real char
             }
             if ($cmdByte === self::SB) {
+                $optByte = fread($conn, 1);
+                $sbOpt = $optByte === false ? null : ord($optByte);
+                $sbData = '';
                 // Consume subnegotiation until IAC SE
                 while (true) {
                     $b = fread($conn, 1);
-                    if ($b === false || ord($b) === self::IAC) {
+                    if ($b === false) { break; }
+                    if (ord($b) === self::IAC) {
                         $next = fread($conn, 1);
                         if ($next !== false && ord($next) === self::SE) { break; }
+                        if ($next !== false && ord($next) === self::IAC) {
+                            $sbData .= chr(self::IAC);
+                            continue;
+                        }
+                        continue;
                     }
+                    $sbData .= $b;
+                }
+                if ($sbOpt === self::OPT_TTYPE && strlen($sbData) >= 2 && ord($sbData[0]) === 0) {
+                    $ttype = trim(substr($sbData, 1));
+                    $this->recordTerminalType($state, $ttype);
                 }
                 return $this->readRawChar($conn, $state); // skip subneg; return next real char
             }
@@ -1540,9 +1708,56 @@ class BbsSession
         $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n";
         if ($this->logFile) {
             file_put_contents($this->logFile, $line, FILE_APPEND);
-        } else {
+        }
+        if ($this->logToConsole || !$this->logFile) {
             echo $line;
         }
+    }
+
+    /**
+     * Store and log the detected TELNET terminal type.
+     * Logs once per distinct value per session.
+     */
+    private function recordTerminalType(array &$state, string $ttype): void
+    {
+        $normalized = strtoupper(trim($ttype));
+        if ($normalized === '') {
+            return;
+        }
+        if (($state['terminal_type'] ?? '') === $normalized) {
+            return;
+        }
+        $state['terminal_type'] = $normalized;
+        $this->asciiTextMode = $this->shouldUseAsciiFallback($state);
+        $this->log("TTYPE detected: {$normalized}");
+    }
+
+    /**
+     * Log terminal capability summary once per session.
+     */
+    private function logTerminalInfoOnce(array &$state): void
+    {
+        if (!empty($state['terminal_info_logged'])) {
+            return;
+        }
+        $state['terminal_info_logged'] = true;
+
+        $ttype = strtoupper((string)($state['terminal_type'] ?? ''));
+        if ($ttype !== '') {
+            $ascii = $this->shouldUseAsciiFallback($state) ? 'yes' : 'no';
+            $this->asciiTextMode = ($ascii === 'yes');
+            $this->log("Client terminal profile: TTYPE={$ttype}, ascii_fallback={$ascii}");
+            return;
+        }
+
+        if ($this->isSsh) {
+            $this->asciiTextMode = false;
+            $this->log("Client terminal profile: SSH session, assumed utf8-capable");
+            return;
+        }
+
+        $this->asciiTextMode = true;
+        $this->log("Client terminal profile: TTYPE not received, ascii_fallback=yes");
     }
 
     /**

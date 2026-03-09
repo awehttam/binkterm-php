@@ -94,8 +94,10 @@ class FileHandler
                 $tag   = $area['tag'] ?? '';
                 $desc  = $area['description'] ?? '';
                 $count = (int)($area['file_count'] ?? 0);
-                $line  = sprintf(' %2d) %-12s  %-36s  %d file(s)', $num, $tag, $desc, $count);
-                TelnetUtils::writeLine($conn, TelnetUtils::colorize($line, TelnetUtils::ANSI_GREEN));
+                TelnetUtils::writeLine(
+                    $conn,
+                    $this->renderFileAreaSelectionLine($num, (string)$tag, (string)$desc, $count)
+                );
                 $num++;
             }
 
@@ -199,8 +201,10 @@ class FileHandler
                     $name = $file['filename'] ?? '?';
                     $desc = $file['short_description'] ?? '';
                     $size = $this->formatSize((int)($file['filesize'] ?? 0));
-                    $line = sprintf(' %2d) %-22s  %-28s  %s', $num, $name, $desc, $size);
-                    TelnetUtils::writeLine($conn, TelnetUtils::colorize($line, TelnetUtils::ANSI_GREEN));
+                    TelnetUtils::writeLine(
+                        $conn,
+                        $this->renderFileSelectionLine($num, (string)$name, (string)$desc, (string)$size)
+                    );
                     $num++;
                 }
             }
@@ -649,9 +653,10 @@ class FileHandler
             ));
         } catch (\Exception $e) {
             @unlink($destPath);
+            $errorMessage = $this->localizeUploadError($e->getMessage(), $locale);
             TelnetUtils::writeLine($conn, '');
             TelnetUtils::writeLine($conn, TelnetUtils::colorize(
-                $this->t('ui.terminalserver.files.upload_error', 'Upload error: {error}', ['error' => $e->getMessage()], $locale),
+                $this->t('ui.terminalserver.files.upload_error', 'Upload error: {error}', ['error' => $errorMessage], $locale),
                 TelnetUtils::ANSI_RED
             ));
         }
@@ -679,6 +684,48 @@ class FileHandler
             return round($bytes / 1024, 1) . ' KB';
         }
         return round($bytes / 1048576, 1) . ' MB';
+    }
+
+    /**
+     * Translate known backend upload exception text to localized terminal strings.
+     */
+    private function localizeUploadError(string $error, string $locale): string
+    {
+        $normalized = strtolower(trim($error));
+        if ($normalized === 'this file already exists in this area'
+            || $normalized === 'a file with that name already exists in this area') {
+            return $this->t(
+                'ui.terminalserver.files.upload_duplicate',
+                'This file already exists in this area.',
+                [],
+                $locale
+            );
+        }
+        return $error;
+    }
+
+    /**
+     * Render one file-area option with cyan number hotkey and blue ")" accent.
+     */
+    private function renderFileAreaSelectionLine(int $num, string $tag, string $desc, int $count): string
+    {
+        $suffix = sprintf(' %-12s  %-36s  %d file(s)', $tag, $desc, $count);
+        return ' '
+            . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+            . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
+            . $suffix;
+    }
+
+    /**
+     * Render one file option with cyan number hotkey and blue ")" accent.
+     */
+    private function renderFileSelectionLine(int $num, string $name, string $desc, string $size): string
+    {
+        $suffix = sprintf(' %-22s  %-28s  %s', $name, $desc, $size);
+        return ' '
+            . TelnetUtils::colorize(sprintf('%2d', $num), TelnetUtils::ANSI_CYAN . TelnetUtils::ANSI_BOLD)
+            . TelnetUtils::colorize(')', TelnetUtils::ANSI_BLUE)
+            . $suffix;
     }
 
     /**

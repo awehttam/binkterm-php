@@ -182,6 +182,7 @@ return [
     'ui.terminalserver.files.upload_failed'            => 'Transfer failed or was cancelled.',
     'ui.terminalserver.files.upload_done'              => 'File uploaded successfully (ID: {id}).',
     'ui.terminalserver.files.upload_error'             => 'Upload error: {error}',
+    'ui.terminalserver.files.upload_duplicate'         => 'This file already exists in this area.',
     'ui.terminalserver.files.upload_readonly'          => 'This area is read-only. Uploads are not permitted.',
     'ui.terminalserver.files.upload_admin_only'        => 'Only administrators can upload to this area.',
 

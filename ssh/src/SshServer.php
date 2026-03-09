@@ -241,6 +241,7 @@ class SshServer
                 $this->insecure,
                 false, true, false, 0,
                 $this->logFile,
+                !$this->daemonMode,
                 $preAuth
             );
             $bbsSession->run($forked);
@@ -277,6 +278,7 @@ class SshServer
             false,   // tlsEnabled (no hint needed for SSH)
             0,       // tlsPort
             $this->logFile,
+            !$this->daemonMode,
             $preAuth
         );
 
