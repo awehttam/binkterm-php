@@ -271,6 +271,7 @@ function displayMessages(messages, isThreaded = false) {
                     </td>
                     <td>
                         ${isUnread ? '<strong>' : ''}<span>${escapeHtml(msg.subject || uiT('messages.no_subject', '(No Subject)'))}</span>${isUnread ? '</strong>' : ''}${replyCountBadge}
+                        ${msg.has_attachment ? ` <i class="fas fa-paperclip text-muted" title="${uiT('ui.common.has_attachment', 'Has attachment')}"></i>` : ''}
                         <br>
                         <small class="text-muted">
                             <span class="badge bg-secondary">${uiT('ui.netmail.badge_netmail', 'NETMAIL')}</span>

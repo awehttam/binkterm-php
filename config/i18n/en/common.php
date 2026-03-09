@@ -38,6 +38,7 @@ return [
     'ui.common.read' => 'Read',
     'ui.common.sent' => 'Sent',
     'ui.common.drafts' => 'Drafts',
+    'ui.common.has_attachment' => 'Has attachment',
     'ui.common.select' => 'Select',
     'ui.common.selected' => 'Selected',
     'ui.common.total' => 'Total',

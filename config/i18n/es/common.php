@@ -38,6 +38,7 @@ return [
     'ui.common.read' => 'Leidos',
     'ui.common.sent' => 'Enviados',
     'ui.common.drafts' => 'Borradores',
+    'ui.common.has_attachment' => 'Tiene adjunto',
     'ui.common.select' => 'Seleccionar',
     'ui.common.selected' => 'Seleccionados',
     'ui.common.total' => 'Total',

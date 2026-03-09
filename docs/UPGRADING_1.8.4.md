@@ -28,6 +28,7 @@ Make sure you've made a backup of your database and files before upgrading.
 **Bug Fixes**
 - Compose: sidebar panel can now be collapsed sideways to give the editor more width, with state persisted across page loads
 - Echo list: areas can now be opened in a new tab via right-click
+- Netmail list now shows a paperclip icon next to the subject for messages that have file attachments
 
 ## Upgrade Instructions
 
