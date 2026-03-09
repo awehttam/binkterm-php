@@ -353,7 +353,7 @@ class BbsSession
                 $this->safeWrite($conn, "\033[2;1H");
                 $this->writeLine($conn, '');
                 $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
-                $titleLine = '| ' . str_pad($this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']), $innerWidth, ' ', STR_PAD_BOTH) . ' |';
+                $titleLine = '| ' . $this->mbStrPad($this->t('ui.terminalserver.server.menu.title', 'Main Menu', [], $state['locale']), $innerWidth, ' ', STR_PAD_BOTH) . ' |';
                 $this->writeLine($conn, $menuPad . $this->colorize($titleLine, self::ANSI_BLUE . self::ANSI_BOLD));
                 $this->writeLine($conn, $menuPad . $this->colorize($divider, self::ANSI_CYAN));
 
@@ -364,10 +364,10 @@ class BbsSession
                 $locale       = $state['locale'];
 
                 $o = '| ' . $this->t('ui.terminalserver.server.menu.netmail', 'N) Netmail ({count} messages)', ['count' => $messageCounts['netmail']], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
 
                 $o = '| ' . $this->t('ui.terminalserver.server.menu.echomail', 'E) Echomail ({count} messages)', ['count' => $messageCounts['echomail']], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
 
                 $shoutboxOption   = null;
                 $pollsOption      = null;
@@ -376,30 +376,30 @@ class BbsSession
                 $whosOnlineOption = 'w';
 
                 $o = '| ' . $this->t('ui.terminalserver.server.menu.whos_online', "W) Who's Online", [], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
 
                 if ($showShoutbox) {
                     $o = '| ' . $this->t('ui.terminalserver.server.menu.shoutbox', 'S) Shoutbox', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
                     $shoutboxOption = 's';
                 }
                 if ($showPolls) {
                     $o = '| ' . $this->t('ui.terminalserver.server.menu.polls', 'P) Polls', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
                     $pollsOption = 'p';
                 }
                 if ($showDoors) {
                     $o = '| ' . $this->t('ui.terminalserver.server.menu.doors', 'D) Door Games', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
                     $doorsOption = 'd';
                 }
                 if ($showFiles) {
                     $o = '| ' . $this->t('ui.terminalserver.server.menu.files', 'F) Files', [], $locale);
-                    $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_GREEN));
+                    $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_GREEN));
                     $filesOption = 'f';
                 }
                 $o = '| ' . $this->t('ui.terminalserver.server.menu.quit', 'Q) Quit', [], $locale);
-                $this->writeLine($conn, $menuPad . $this->colorize(str_pad($o, $menuWidth - 1, ' ', STR_PAD_RIGHT) . '|', self::ANSI_YELLOW));
+                $this->writeLine($conn, $menuPad . $this->colorize($this->mbStrPad($o, $menuWidth - 1) . '|', self::ANSI_YELLOW));
                 $this->writeLine($conn, $menuPad . $this->colorize($border, self::ANSI_CYAN . self::ANSI_BOLD));
                 $this->writeLine($conn, '');
             }
@@ -608,6 +608,25 @@ class BbsSession
         $this->safeWrite($conn, chr(self::IAC) . chr($cmd) . chr($opt));
     }
 
+    /**
+     * Multibyte-aware str_pad. Pads $str to $length visual columns using mb_strlen
+     * so that UTF-8 strings with accented characters align correctly in the terminal.
+     */
+    private function mbStrPad(string $str, int $length, string $padStr = ' ', int $padType = STR_PAD_RIGHT): string
+    {
+        $pad = max(0, $length - mb_strlen($str, 'UTF-8'));
+        $padding = str_repeat($padStr, $pad);
+        if ($padType === STR_PAD_BOTH) {
+            $left  = (int)floor($pad / 2);
+            $right = $pad - $left;
+            return str_repeat($padStr, $left) . $str . str_repeat($padStr, $right);
+        }
+        if ($padType === STR_PAD_LEFT) {
+            return $padding . $str;
+        }
+        return $str . $padding;
+    }
+
     // ===== RATE LIMITING =====
 
     private function isRateLimited(string $ip): bool
@@ -700,8 +719,8 @@ class BbsSession
             $wrapped = wordwrap($text, $innerWidth, "\n", true);
             foreach (explode("\n", $wrapped) as $part) {
                 $padded  = $entry['center']
-                    ? str_pad($part, $innerWidth, ' ', STR_PAD_BOTH)
-                    : str_pad($part, $innerWidth, ' ', STR_PAD_RIGHT);
+                    ? $this->mbStrPad($part, $innerWidth, ' ', STR_PAD_BOTH)
+                    : $this->mbStrPad($part, $innerWidth);
                 $this->writeLine($conn, $leftPad . $this->colorize('| ' . $padded . ' |', $entry['color']));
             }
         }
