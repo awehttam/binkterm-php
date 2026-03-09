@@ -15,6 +15,7 @@ require_once __DIR__ . '/../telnet/src/PollsHandler.php';
 require_once __DIR__ . '/../telnet/src/DoorHandler.php';
 require_once __DIR__ . '/../telnet/src/ZmodemTransfer.php';
 require_once __DIR__ . '/../telnet/src/FileHandler.php';
+require_once __DIR__ . '/../telnet/src/TerminalSettingsHandler.php';
 
 use BinktermPHP\Config;
 use BinktermPHP\SshServer\SshServer;
