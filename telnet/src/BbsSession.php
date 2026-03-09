@@ -1214,8 +1214,10 @@ class BbsSession
         if ($char === self::KEY_DOWN)  { return ['DOWN',  false, false]; }
         if ($char === self::KEY_LEFT)  { return ['LEFT',  false, false]; }
         if ($char === self::KEY_RIGHT) { return ['RIGHT', false, false]; }
-        if ($char === self::KEY_HOME)  { return ['HOME',  false, false]; }
-        if ($char === self::KEY_END)   { return ['END',   false, false]; }
+        if ($char === self::KEY_HOME)   { return ['HOME',   false, false]; }
+        if ($char === self::KEY_END)    { return ['END',    false, false]; }
+        if ($char === self::KEY_PGUP)   { return ['PGUP',   false, false]; }
+        if ($char === self::KEY_PGDOWN) { return ['PGDOWN', false, false]; }
 
         $ord = ord($char[0]);
         if ($ord === 13) {

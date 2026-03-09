@@ -555,7 +555,8 @@ class EchomailHandler
                 null,
                 $session
             );
-            $body = $detail['data']['message_text'] ?? '';
+            $body         = $detail['data']['message_text'] ?? '';
+            $markupFormat = $detail['data']['markup_format'] ?? null;
 
             // Format from line with address
             $fromName = $msg['from_name'] ?? 'Unknown';
@@ -576,7 +577,11 @@ class EchomailHandler
                 $border
             ];
 
-            $wrappedLines = TelnetUtils::wrapTextLines($body, $width);
+            if ($markupFormat !== null) {
+                $wrappedLines = TerminalMarkupRenderer::render($markupFormat, $body, $width);
+            } else {
+                $wrappedLines = TelnetUtils::wrapTextLines($body, $width);
+            }
             $bodyHeight = max(1, $rows - count($headerLines) - 1);
             $maxOffset = max(0, count($wrappedLines) - $bodyHeight);
             $offset = min($offset, $maxOffset);
@@ -585,6 +590,8 @@ class EchomailHandler
             $statusLine = TelnetUtils::buildStatusBar([
                 ['text' => 'U/D', 'color' => TelnetUtils::ANSI_RED],
                 ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
+                ['text' => 'PgUp/PgDn', 'color' => TelnetUtils::ANSI_RED],
+                ['text' => ' Page  ', 'color' => TelnetUtils::ANSI_BLUE],
                 ['text' => 'L/R', 'color' => TelnetUtils::ANSI_RED],
                 ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
                 ['text' => 'R', 'color' => TelnetUtils::ANSI_RED],
@@ -621,6 +628,14 @@ class EchomailHandler
             }
             if ($key === 'END') {
                 $offset = $maxOffset;
+                continue;
+            }
+            if ($key === 'PGUP') {
+                $offset = max(0, $offset - $bodyHeight);
+                continue;
+            }
+            if ($key === 'PGDOWN') {
+                $offset = min($maxOffset, $offset + $bodyHeight);
                 continue;
             }
             if ($key === 'LEFT') {

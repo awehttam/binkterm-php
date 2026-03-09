@@ -30,6 +30,8 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 #### Terminal Features
 - New **File Areas** section in the BBS terminal (`F` from the main menu)
 - Z-Modem file transfer support has been introduced.  Both a native internal Z-Modem implementation and support for lrzsz are available.  Native internal is presently recommended.
+- The message reader now supports **Page Up / Page Down** keys for scrolling through long messages a full screen at a time (in addition to the existing Up/Down line-by-line scrolling).
+- The message reader now renders **LSC-001 MARKUP kludge** formatted messages with ANSI terminal formatting. Markdown messages display headings, bold, italic, code blocks, bullet lists, block quotes, and horizontal rules using ANSI escape sequences. StyleCodes messages display bold, italic, underline, and inverse video. Unrecognized formats fall back to plain text. Quoted lines (`> `) are always rendered as plain dim text regardless of the declared markup format.
 
 ### File Areas
 - File owners and admins can now rename a file through the web interface. The Rename button appears in the file detail modal for users who have permission. Renaming updates both the on-disk filename and the database record.
