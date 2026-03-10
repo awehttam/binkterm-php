@@ -151,6 +151,23 @@ class MarkdownRenderer
             $text
         );
 
+        // Protect markdown links before emphasis parsing so underscores in URLs
+        // are not interpreted as italics.
+        $links = [];
+        $text = preg_replace_callback(
+            '/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\)]+)\)/',
+            function ($m) use (&$links) {
+                $label = $m[1]; // already htmlspecialchars-encoded
+                $url   = $m[2];
+                $isExternal = str_starts_with($url, 'http');
+                $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
+                $token = '%%LINK' . count($links) . '%%';
+                $links[$token] = '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
+                return $token;
+            },
+            $text
+        );
+
         // Bold (**...** or __...__)
         $text = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $text);
         $text = preg_replace('/__(.+?)__/', '<strong>$1</strong>', $text);
@@ -162,21 +179,11 @@ class MarkdownRenderer
         $text = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $text);
         $text = preg_replace('/_([^_]+)_/', '<em>$1</em>', $text);
 
-        // Markdown links [label](url) — absolute (https?://) or root-relative (/)
-        $text = preg_replace_callback(
-            '/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\)]+)\)/',
-            function ($m) {
-                $label = $m[1]; // already htmlspecialchars-encoded
-                $url   = $m[2];
-                $isExternal = str_starts_with($url, 'http');
-                $extra = $isExternal ? ' target="_blank" rel="noopener"' : '';
-                return '<a href="' . $url . '"' . $extra . '>' . $label . '</a>';
-            },
-            $text
-        );
-
         if (!empty($codeSpans)) {
             $text = strtr($text, $codeSpans);
+        }
+        if (!empty($links)) {
+            $text = strtr($text, $links);
         }
 
         return $text;
@@ -260,3 +267,4 @@ class MarkdownRenderer
         return '<ul>' . implode('', $items) . '</ul>';
     }
 }
+
