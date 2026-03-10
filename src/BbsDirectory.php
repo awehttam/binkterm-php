@@ -173,8 +173,18 @@ class BbsDirectory
     }
 
     /**
-     * Upsert a BBS entry by name (case-insensitive). Sets source='auto' and updates last_seen.
-     * Used by robot processors and import scripts.
+     * Upsert a BBS entry by telnet address (preferred) or name (fallback).
+     * Sets source='auto' and updates last_seen. Used by robot processors and import scripts.
+     *
+     * Match priority:
+     *   1. If telnet_host is provided, look for an existing entry with the same host+port.
+     *      The same BBS may appear under different names in different sources, so address
+     *      is a more reliable key than name.
+     *   2. If no address match (or no address given), fall back to case-insensitive name match.
+     *   3. If neither matches, insert a new row.
+     *
+     * Entries with is_local=TRUE are never modified.
+     * When matched by address, the stored name is preserved (not overwritten by the caller's name).
      *
      * @param array $data Must contain 'name'; optionally sysop, location, os, telnet_host,
      *                    telnet_port, ssh_port, website, software
@@ -182,6 +192,58 @@ class BbsDirectory
      */
     public function upsertByName(array $data): int
     {
+        $telnetHost = !empty($data['telnet_host']) ? trim($data['telnet_host']) : null;
+        $telnetPort = isset($data['telnet_port']) && $data['telnet_port'] !== '' ? (int)$data['telnet_port'] : 23;
+
+        // ── Step 1: try to match by telnet address ────────────────────────────
+        if ($telnetHost !== null) {
+            $sel = $this->db->prepare("
+                SELECT id, is_local FROM bbs_directory
+                WHERE LOWER(telnet_host) = LOWER(?) AND telnet_port = ?
+                LIMIT 1
+            ");
+            $sel->execute([$telnetHost, $telnetPort]);
+            $existing = $sel->fetch(\PDO::FETCH_ASSOC);
+
+            if ($existing) {
+                if ($existing['is_local']) {
+                    return (int)$existing['id'];
+                }
+
+                // Update in place; preserve the stored name
+                $upd = $this->db->prepare("
+                    UPDATE bbs_directory SET
+                        sysop       = COALESCE(:sysop,     sysop),
+                        location    = COALESCE(:location,  location),
+                        os          = COALESCE(:os,        os),
+                        telnet_host = :telnet_host,
+                        telnet_port = :telnet_port,
+                        ssh_port    = COALESCE(:ssh_port,  ssh_port),
+                        website     = COALESCE(:website,   website),
+                        software    = COALESCE(:software,  software),
+                        source      = CASE WHEN source = 'manual' THEN 'manual' ELSE 'auto' END,
+                        status      = 'active',
+                        last_seen   = NOW(),
+                        is_active   = TRUE,
+                        updated_at  = NOW()
+                    WHERE id = :id
+                ");
+                $upd->execute([
+                    ':sysop'       => $data['sysop'] ?? null,
+                    ':location'    => $data['location'] ?? null,
+                    ':os'          => $data['os'] ?? null,
+                    ':telnet_host' => $telnetHost,
+                    ':telnet_port' => $telnetPort,
+                    ':ssh_port'    => isset($data['ssh_port']) && $data['ssh_port'] !== '' ? (int)$data['ssh_port'] : null,
+                    ':website'     => $data['website'] ?? null,
+                    ':software'    => $data['software'] ?? null,
+                    ':id'          => (int)$existing['id'],
+                ]);
+                return (int)$existing['id'];
+            }
+        }
+
+        // ── Step 2: fall back to name-based upsert ────────────────────────────
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
                 (name, sysop, location, os, telnet_host, telnet_port, ssh_port, website, software, source, status, last_seen, is_active, created_at, updated_at)
@@ -210,8 +272,8 @@ class BbsDirectory
             ':sysop'       => $data['sysop'] ?? null,
             ':location'    => $data['location'] ?? null,
             ':os'          => $data['os'] ?? null,
-            ':telnet_host' => $data['telnet_host'] ?? null,
-            ':telnet_port' => isset($data['telnet_port']) && $data['telnet_port'] !== '' ? (int)$data['telnet_port'] : 23,
+            ':telnet_host' => $telnetHost,
+            ':telnet_port' => $telnetPort,
             ':ssh_port'    => isset($data['ssh_port']) && $data['ssh_port'] !== '' ? (int)$data['ssh_port'] : null,
             ':website'     => $data['website'] ?? null,
             ':software'    => $data['software'] ?? null,
