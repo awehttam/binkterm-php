@@ -3189,6 +3189,22 @@ SimpleRouter::post('/admin/api/bbs-directory/entries', function() {
     }
 });
 
+// BBS Directory API - get single entry
+SimpleRouter::get('/admin/api/bbs-directory/entries/{id}', function($id) {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+    $entry = $directory->getEntry((int)$id);
+    if (!$entry) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.not_found', apiLocalizedText('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'));
+        return;
+    }
+    echo json_encode(['entry' => $entry]);
+});
+
 // BBS Directory API - update entry
 SimpleRouter::put('/admin/api/bbs-directory/entries/{id}', function($id) {
     $user = RouteHelper::requireAdmin();
