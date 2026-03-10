@@ -1792,6 +1792,7 @@ return [
     'ui.files.shared' => 'Compartido',
     'ui.files.file_areas_load_failed' => 'No se pudieron cargar las areas de archivos',
     'ui.files.no_file_areas' => 'No hay areas de archivos disponibles',
+    'ui.files.search_areas_placeholder' => 'Buscar áreas…',
     'ui.files.files_count_label' => 'archivos',
     'ui.files.loading_files' => 'Cargando archivos...',
     'ui.files.load_files_failed' => 'No se pudieron cargar los archivos',

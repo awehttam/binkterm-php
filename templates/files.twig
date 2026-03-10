@@ -46,6 +46,11 @@
             <div class="card-header">
                 <h6 class="mb-0">{{ t('ui.files.title', {}, 'common') }}</h6>
             </div>
+            <div class="px-2 pt-2">
+                <input type="text" class="form-control form-control-sm" id="fileAreaSearch"
+                       placeholder="{{ t('ui.files.search_areas_placeholder', {}, 'common') }}"
+                       onkeyup="searchFileAreas(this.value)">
+            </div>
             <div class="list-group list-group-flush" id="fileAreasList" style="max-height: 300px; overflow-y: auto;">
                 <div class="loading-spinner p-3">
                     <i class="fas fa-spinner fa-spin me-2"></i>
@@ -300,6 +305,8 @@ let allFiles = [];
 let displayedFiles = [];
 let currentFileIndex = -1;
 let loadedAreas = [];
+let allFileAreas = [];
+let fileAreaSearchQuery = '';
 let currentFileId = null;
 let currentFile = null;
 let currentShareId = null;
@@ -461,7 +468,28 @@ function loadFileAreas() {
         });
 }
 
+function searchFileAreas(query) {
+    fileAreaSearchQuery = query.toLowerCase();
+    applyFileAreaFilter();
+}
+
+function applyFileAreaFilter() {
+    let filtered = allFileAreas;
+    if (fileAreaSearchQuery.length > 0) {
+        filtered = allFileAreas.filter(area =>
+            (area.tag || '').toLowerCase().includes(fileAreaSearchQuery) ||
+            (area.description || '').toLowerCase().includes(fileAreaSearchQuery)
+        );
+    }
+    renderFileAreaList(filtered);
+}
+
 function displayFileAreas(areas) {
+    allFileAreas = areas;
+    applyFileAreaFilter();
+}
+
+function renderFileAreaList(areas) {
     if (areas.length === 0) {
         $('#fileAreasList').html(`<div class="p-3 text-muted">${uiT('ui.files.no_file_areas', 'No file areas available')}</div>`);
         return;
@@ -485,7 +513,7 @@ function displayFileAreas(areas) {
         return aTag.localeCompare(bTag);
     });
 
-    loadedAreas = areas;
+    loadedAreas = allFileAreas;
     let html = '';
     sortedAreas.forEach(function(area) {
         const fileCount = area.file_count || 0;

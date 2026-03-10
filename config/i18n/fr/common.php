@@ -1709,6 +1709,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.shared' => 'Partagé',
     'ui.files.file_areas_load_failed' => 'Échec du chargement des zones de fichiers',
     'ui.files.no_file_areas' => 'Aucune zone de fichiers disponible',
+    'ui.files.search_areas_placeholder' => 'Rechercher des zones…',
     'ui.files.files_count_label' => 'fichiers',
     'ui.files.loading_files' => 'Chargement des fichiers...',
     'ui.files.load_files_failed' => 'Échec du chargement des fichiers',

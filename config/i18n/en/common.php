@@ -1792,6 +1792,7 @@ return [
     'ui.files.shared' => 'Shared',
     'ui.files.file_areas_load_failed' => 'Failed to load file areas',
     'ui.files.no_file_areas' => 'No file areas available',
+    'ui.files.search_areas_placeholder' => 'Search areas…',
     'ui.files.files_count_label' => 'files',
     'ui.files.loading_files' => 'Loading files...',
     'ui.files.load_files_failed' => 'Failed to load files',
