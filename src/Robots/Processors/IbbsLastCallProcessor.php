@@ -14,7 +14,7 @@ use BinktermPHP\Robots\MessageProcessorInterface;
  *
  * Body line format after ROT47 decode (0-indexed):
  *   0: >>> BEGIN marker (ROT47: "mmm qtvx}")
- *   1: Sysop name
+ *   1: Last caller name (not the sysop — do not store in sysop field)
  *   2: BBS name
  *   3: Date (MM/DD/YY or YY/MM/DD)
  *   4: Time
@@ -116,16 +116,15 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
         }
 
         $name     = trim($lines[2]);
-        $sysop    = trim($lines[1]);
         $location = trim($lines[5]);
         $os       = trim($lines[6]);
         $hostPort = trim($lines[7]);
 
         if ($this->debugCallback !== null) {
             ($this->debugCallback)(sprintf(
-                "    EXTRACTED: name=%s | sysop=%s | location=%s | os=%s | hostPort=%s",
-                json_encode($name), json_encode($sysop),
-                json_encode($location), json_encode($os), json_encode($hostPort)
+                "    EXTRACTED: name=%s | location=%s | os=%s | hostPort=%s",
+                json_encode($name), json_encode($location),
+                json_encode($os), json_encode($hostPort)
             ));
         }
 
@@ -155,7 +154,6 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
         $directory = new BbsDirectory($this->db);
         $directory->upsertByName([
             'name'        => $name,
-            'sysop'       => $sysop ?: null,
             'location'    => $location ?: null,
             'os'          => $os ?: null,
             'telnet_host' => $telnetHost,
