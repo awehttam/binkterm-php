@@ -23,7 +23,7 @@ use BinktermPHP\Robots\MessageProcessorInterface;
  * quoting the original body and kludge lines. Intended for test message routing.
  *
  * Processor config keys (stored in echomail_robots.processor_config JSONB):
- *   sysop_user_id   int      Required. BBS user ID to post replies as.
+ *   sender_username string   Required. Username of the BBS account to post replies as.
  *   reply_text      string   Optional. Text prepended to the quoted body.
  *                            Default: "This is an automated reply to your test message."
  *   quote_kludges   bool     Optional. Include kludge lines in the quote. Default: true.
@@ -84,16 +84,22 @@ class AutoReplyProcessor implements MessageProcessorInterface
      */
     public function processMessage(array $message, array $robotConfig): bool
     {
-        $userId       = (int)($robotConfig['sysop_user_id'] ?? 0);
-        $replyText    = $robotConfig['reply_text'] ?? 'This is an automated reply to your test message.';
-        $quoteKludges = (bool)($robotConfig['quote_kludges'] ?? true);
+        $senderUsername = trim($robotConfig['sender_username'] ?? '');
+        $replyText      = $robotConfig['reply_text'] ?? 'This is an automated reply to your test message.';
+        $quoteKludges   = (bool)($robotConfig['quote_kludges'] ?? true);
 
-        if ($userId <= 0) {
-            $this->debug('  ERROR: sysop_user_id not configured in processor_config');
+        if ($senderUsername === '') {
+            $this->debug('  ERROR: sender_username not configured in processor_config');
             return false;
         }
 
-        // Build skip list: configured names + the posting user's name
+        $userId = $this->getUserIdByUsername($senderUsername);
+        if ($userId === null) {
+            $this->debug("  ERROR: user '{$senderUsername}' not found");
+            return false;
+        }
+
+        // Build skip list: configured names + the posting user's real_name
         $skipFromNames = array_map('mb_strtolower', (array)($robotConfig['skip_from_names'] ?? []));
         $posterName    = $this->getUserName($userId);
         if ($posterName !== null) {
@@ -227,6 +233,20 @@ class AutoReplyProcessor implements MessageProcessorInterface
 
         // Cap at 2 characters; fall back to "??" if name is empty
         return mb_substr($initials ?: '??', 0, 2);
+    }
+
+    /**
+     * Look up a user's ID by username (case-insensitive).
+     *
+     * @param  string   $username
+     * @return int|null
+     */
+    private function getUserIdByUsername(string $username): ?int
+    {
+        $stmt = $this->db->prepare("SELECT id FROM users WHERE LOWER(username) = LOWER(?)");
+        $stmt->execute([$username]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ? (int)$row['id'] : null;
     }
 
     /**

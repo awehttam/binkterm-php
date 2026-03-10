@@ -251,9 +251,9 @@ function renderRobots(robots) {
 // Processor-type-specific config hints and default templates
 const PROCESSOR_CONFIG_HINTS = {
     auto_reply: {
-        hint: 'sysop_user_id (required), reply_text, quote_kludges (bool), skip_from_names (array)',
+        hint: 'sender_username (required), reply_text, quote_kludges (bool), skip_from_names (array)',
         template: JSON.stringify({
-            sysop_user_id: 1,
+            sender_username: '',
             reply_text: 'This is an automated reply to your test message.',
             quote_kludges: true,
             skip_from_names: []
