@@ -70,7 +70,7 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - **TIC file encoding fix**: TIC files and `FILE_ID.DIZ` contents containing CP437 or ISO-8859-1 characters no longer cause a PostgreSQL encoding error. Text is converted to UTF-8 before database insertion.
 - **TIC bundle extraction fix**: Files distributed via TIC that are compressed inside a FidoNet day-of-week bundle (e.g. `.FR0`) are now correctly extracted and made available for TIC processing instead of being silently discarded.
 - **Inbound processing lock**: `process_packets.php` now uses a file lock to prevent multiple concurrent instances.
-- **Unprocessed files**: After packet and TIC processing, any unrecognized files remaining in `data/inbound/` are moved to `data/inbound/unprocessed/` for manual review instead of accumulating indefinitely.
+- **Unprocessed files**: `process_packets.php` now deletes unrecognized files left in `data/inbound/` by default. To keep them for manual review, set `BINKP_KEEP_UNPROCESSED_FILES=true` in `.env`; they will be moved to `data/inbound/unprocessed/`.
 - File owners and admins can now edit a file through the web interface. The **Edit** button appears in the file detail modal for users who have permission. The edit dialog allows changing the filename (which renames the file on disk), the short description, and the long description in a single operation.
 - Admins can **move a file to a different file area** from the same edit dialog. A "Move to Area" dropdown is shown to admins only; selecting a different area moves the physical file on disk to the new area's storage directory and updates the database record.
 ### Native Doors
@@ -142,4 +142,3 @@ wget https://raw.githubusercontent.com/awehttam/binkterm-php-installer/main/bink
 php binkterm-installer.phar
 scripts/restart_daemons.sh
 ```
-

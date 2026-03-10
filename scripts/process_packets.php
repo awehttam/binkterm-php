@@ -6,8 +6,10 @@ chdir(__DIR__);
 // Packet processing script - run this via cron or as a service
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/functions.php';
 
 use BinktermPHP\BinkdProcessor;
+use BinktermPHP\Config;
 use BinktermPHP\Database;
 use BinktermPHP\TicFileProcessor;
 
@@ -28,7 +30,8 @@ if (!$lockFh || !flock($lockFh, LOCK_EX | LOCK_NB)) {
 /**
  * Process TIC files from inbound directory
  */
-function processInboundTicFiles($ticProcessor) {
+function processInboundTicFiles($ticProcessor)
+{
     $inboundPath = __DIR__ . '/../data/inbound';
     $processedCount = 0;
 
@@ -58,17 +61,17 @@ function processInboundTicFiles($ticProcessor) {
                 $result = $ticProcessor->processTicFile($ticPath, $dataPath);
 
                 if ($result['success']) {
-                    echo "  ✓ Stored in area: {$result['area']} (file_id={$result['file_id']})\n";
+                    echo "  OK Stored in area: {$result['area']} (file_id={$result['file_id']})\n";
 
                     if (isset($result['duplicate']) && $result['duplicate']) {
-                        echo "  ⚠ Duplicate file (skipped)\n";
+                        echo "  WARN Duplicate file (skipped)\n";
                     }
 
                     // Clean up TIC file (data file was cleaned up by processor)
                     unlink($ticPath);
                     $processedCount++;
                 } else {
-                    echo "  ✗ Error: {$result['error']}\n";
+                    echo "  ERROR: {$result['error']}\n";
                     // Move failed TIC to .failed directory for manual review
                     $failedDir = $inboundPath . '/.failed';
                     if (!is_dir($failedDir)) {
@@ -81,10 +84,10 @@ function processInboundTicFiles($ticProcessor) {
                 }
             } else {
                 // TIC exists but data file missing - log warning
-                echo "  ⚠ TIC file without data file: $ticFilename (waiting for $dataFilename)\n";
+                echo "  WARN TIC file without data file: $ticFilename (waiting for $dataFilename)\n";
             }
         } else {
-            echo "  ✗ Invalid TIC file (no File field): $ticFilename\n";
+            echo "  ERROR Invalid TIC file (no File field): $ticFilename\n";
             unlink($ticPath);
         }
     }
@@ -113,32 +116,48 @@ try {
 
     // Clean up old packet records (older than 6 months)
     $cleaned = $processor->cleanupOldPackets();
-    if($cleaned)
+    if ($cleaned) {
         echo "Cleaned up {$cleaned} old packet records\n";
+    }
 
-    // Move any unrecognized/unprocessed files from inbound to unprocessed/.
-    // TIC files are left in place — they may still be waiting for their data file.
+    // Keep unprocessed files only when explicitly enabled in .env.
+    $keepUnprocessedFiles = filter_var(
+        (string) Config::env('BINKP_KEEP_UNPROCESSED_FILES', 'false'),
+        FILTER_VALIDATE_BOOLEAN
+    );
+
+    // Handle any unrecognized/unprocessed files in inbound.
+    // TIC files are left in place because they may still be waiting for their data file.
     $inboundPath = __DIR__ . '/../data/inbound';
     $unprocessedDir = $inboundPath . '/unprocessed';
     $leftover = array_filter(glob($inboundPath . '/*') ?: [], 'is_file');
+
+    if ($keepUnprocessedFiles && !is_dir($unprocessedDir)) {
+        mkdir($unprocessedDir, 0755, true);
+    }
+
     foreach ($leftover as $file) {
         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         if ($ext === 'tic') {
-            continue; // Leave TIC files — still waiting for their data file
+            continue; // Leave TIC files because they may still be waiting for their data file
         }
-        if (!is_dir($unprocessedDir)) {
-            mkdir($unprocessedDir, 0755, true);
+
+        if ($keepUnprocessedFiles) {
+            $dest = $unprocessedDir . '/' . basename($file);
+            if (rename($file, $dest)) {
+                echo "  -> Moved unprocessed file to unprocessed/: " . basename($file) . "\n";
+            }
+            continue;
         }
-        $dest = $unprocessedDir . '/' . basename($file);
-        if (rename($file, $dest)) {
-            echo "  → Moved unprocessed file to unprocessed/: " . basename($file) . "\n";
+
+        if (unlink($file)) {
+            echo "  -> Deleted unprocessed file: " . basename($file) . "\n";
         }
     }
 
     // TODO: Process outbound queue (send pending messages)
 
     echo "Packet processing completed\n";
-    
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";
     flock($lockFh, LOCK_UN);

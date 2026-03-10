@@ -216,6 +216,10 @@ PERF_LOG_SLOW_MS=500
 # Echomail sort field (received = date_received, written = date_written)
 # ECHOMAIL_ORDER_DATE=received
 
+# Keep unprocessed inbound files by moving them to data/inbound/unprocessed/
+# Default is false, which deletes unprocessed files after packet/TIC processing
+# BINKP_KEEP_UNPROCESSED_FILES=false
+
 # Archive extractors for Fidonet bundles (JSON array)
 # ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
 
