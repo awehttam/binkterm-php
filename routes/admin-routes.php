@@ -3438,13 +3438,13 @@ SimpleRouter::delete('/admin/api/bbs-directory/robots/{id}', function($id) {
     echo json_encode(['success' => true]);
 });
 
-// BBS Directory API - run robot now
+// BBS Directory API - run robot now (via admin daemon)
 SimpleRouter::post('/admin/api/bbs-directory/robots/{id}/run', function($id) {
     RouteHelper::requireAdmin();
     $db = \BinktermPHP\Database::getInstance()->getPdo();
     header('Content-Type: application/json');
 
-    $checkStmt = $db->prepare("SELECT id FROM echomail_robots WHERE id = ?");
+    $checkStmt = $db->prepare("SELECT id, name FROM echomail_robots WHERE id = ?");
     $checkStmt->execute([$id]);
     if (!$checkStmt->fetch()) {
         http_response_code(404);
@@ -3453,20 +3453,14 @@ SimpleRouter::post('/admin/api/bbs-directory/robots/{id}/run', function($id) {
     }
 
     try {
-        $runner  = new \BinktermPHP\Robots\EchomailRobotRunner($db);
-        $results = $runner->run((int)$id);
-        $result  = $results[0] ?? ['examined' => 0, 'processed' => 0, 'error' => null];
-
-        if ($result['error'] !== null) {
-            http_response_code(500);
-            apiError('errors.admin.bbs_directory.run_failed', $result['error']);
-            return;
-        }
+        $client = new \BinktermPHP\Admin\AdminDaemonClient();
+        $result = $client->runEchomailRobot((int)$id);
 
         echo json_encode([
             'success'   => true,
-            'examined'  => $result['examined'],
-            'processed' => $result['processed'],
+            'exit_code' => $result['exit_code'] ?? 0,
+            'output'    => trim($result['stdout'] ?? ''),
+            'stderr'    => trim($result['stderr'] ?? ''),
         ]);
     } catch (\Throwable $e) {
         http_response_code(500);

@@ -633,6 +633,16 @@ class AdminDaemonServer
                     ]);
                     $this->writeResponse($client, ['ok' => true, 'result' => $scanResult]);
                     break;
+                case 'run_echomail_robot':
+                    $robotId = (int)($data['robot_id'] ?? 0);
+                    if ($robotId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'missing_robot_id']);
+                        break;
+                    }
+                    $result = $this->runCommand([PHP_BINARY, 'scripts/echomail_robots.php', "--robot-id={$robotId}", '--debug']);
+                    $this->logCommandResult('run_echomail_robot', $result);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $result]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;

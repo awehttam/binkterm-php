@@ -314,6 +314,18 @@ class AdminDaemonClient
         return $this->sendCommand('restart_mrc_daemon');
     }
 
+    /**
+     * Run a specific echomail robot by ID via the admin daemon.
+     * Runs with --debug so output includes per-message decode details.
+     *
+     * @param int $robotId
+     * @return array ['exit_code' => int, 'stdout' => string, 'stderr' => string]
+     */
+    public function runEchomailRobot(int $robotId): array
+    {
+        return $this->sendCommand('run_echomail_robot', ['robot_id' => $robotId]);
+    }
+
 
     public function close(): void
     {

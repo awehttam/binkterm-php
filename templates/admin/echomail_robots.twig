@@ -93,6 +93,28 @@
     </div>
 </div>
 
+{# ── Run Output Modal ──────────────────────────────────────────────────── #}
+<div class="modal fade" id="runOutputModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-terminal me-2"></i>
+                    <span id="runOutputTitle">Robot Output</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="runOutputStatus" class="px-3 pt-3 pb-2"></div>
+                <pre id="runOutputContent" class="m-0 px-3 pb-3" style="background:#1e1e1e;color:#d4d4d4;max-height:60vh;overflow-y:auto;font-size:0.8rem;white-space:pre-wrap;word-break:break-all;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {# ── Delete Confirmation Modal ─────────────────────────────────────────── #}
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
@@ -276,17 +298,30 @@ function saveRobot() {
 }
 
 function runRobotNow(id, name) {
-    showInfo(uiT('ui.admin.bbs_directory.run_now', 'Run Now') + ': ' + name + '...');
+    $('#runOutputTitle').text(uiT('ui.admin.echomail_robots.run_output_title', 'Robot Output') + ': ' + name);
+    $('#runOutputStatus').html('<i class="fas fa-spinner fa-spin me-2"></i> Running...');
+    $('#runOutputContent').text('');
+    $('#runOutputModal').modal('show');
 
     $.post(`/admin/api/bbs-directory/robots/${id}/run`)
         .done(function(data) {
-            const msg = uiT('ui.admin.bbs_directory.run_complete',
-                'Robot run complete: examined {examined}, processed {processed}',
-                { examined: data.examined, processed: data.processed });
-            showSuccess(msg);
+            const exitOk = data.exit_code === 0;
+            const badge = exitOk
+                ? '<span class="badge bg-success">Exit 0</span>'
+                : `<span class="badge bg-danger">Exit ${data.exit_code}</span>`;
+            $('#runOutputStatus').html(badge + (data.stderr ? ' <span class="text-warning small ms-2"><i class="fas fa-exclamation-triangle"></i> stderr below</span>' : ''));
+
+            let output = data.output || '';
+            if (data.stderr) {
+                output += (output ? '\n\n' : '') + '--- STDERR ---\n' + data.stderr;
+            }
+            $('#runOutputContent').text(output || '(no output)');
             loadRobots();
         })
-        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Run failed')); });
+        .fail(function(xhr) {
+            $('#runOutputStatus').html('<span class="badge bg-danger">Error</span>');
+            $('#runOutputContent').text(apiErr(xhr.responseJSON, 'Run failed'));
+        });
 }
 
 function showDeleteModal(id, name) {
