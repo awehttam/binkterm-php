@@ -112,6 +112,13 @@ class AutoReplyProcessor implements MessageProcessorInterface
             return false;
         }
 
+        // Never reply to messages older than 24 hours
+        $received = $message['date_received'] ?? $message['date_written'] ?? null;
+        if ($received !== null && (time() - strtotime($received)) > 86400) {
+            $this->debug("  Skip: message is more than 24 hours old ({$received})");
+            return false;
+        }
+
         // Resolve echo area
         $echoareaId = (int)($message['echoarea_id'] ?? 0);
         if ($echoareaId === 0) {
