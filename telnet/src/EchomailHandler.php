@@ -425,24 +425,6 @@ class EchomailHandler
      */
     private function displayMessage($conn, array &$state, string $session, string $area, int $page, int $perPage, int $totalPages, int $index): array
     {
-        $cols  = $state['cols'] ?? 80;
-        $rows  = $state['rows'] ?? 24;
-        $width = max(10, $cols - 2);
-
-        $statusLine = TelnetUtils::buildStatusBar([
-            ['text' => 'U/D',       'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'PgUp/PgDn', 'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Page  ',   'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'L/R',       'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'R',         'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Reply  ',  'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'H',         'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Headers  ', 'color' => TelnetUtils::ANSI_BLUE],
-            ['text' => 'Q',         'color' => TelnetUtils::ANSI_RED],
-            ['text' => ' Quit',     'color' => TelnetUtils::ANSI_BLUE],
-        ], $width);
 
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $area, $page, $perPage);
@@ -463,23 +445,45 @@ class EchomailHandler
 
             $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
-            $fromLine    = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
-            $border      = str_repeat('-', $width);
-            $headerLines = [
-                $border,
-                TelnetUtils::colorize(substr($fromLine, 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Subj: ' . ($msg['subject'] ?? 'Message'), 0, $width), TelnetUtils::ANSI_BOLD),
-                TelnetUtils::colorize(substr('To: ' . ($msg['to_name'] ?? 'All'), 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Area: ' . $area, 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Date: ' . TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state), 0, $width), TelnetUtils::ANSI_DIM),
-                $border,
-            ];
 
-            $wrappedLines = $markupFormat !== null
-                ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
-                : TelnetUtils::wrapTextLines($body, $width);
+            // Closure that rebuilds all layout-dependent view components from current $state.
+            // Called once on open and again whenever the terminal is resized.
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $area, $fromName, $fromAddress): array {
+                $cols    = $s['cols'] ?? 80;
+                $width   = max(10, $cols - 2);
+                $charset = $s['terminal_charset'] ?? 'ascii';
+                $fromLine = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
 
-            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $headerLines, $wrappedLines, $statusLine, $rows, 0, false, $kludgeLines);
+                return [
+                    'headerLines'  => TelnetUtils::buildMessageHeaderBox($width, [
+                        ['label' => 'From: ', 'value' => $fromLine,                                                      'style' => 'normal'],
+                        ['label' => 'Subj: ', 'value' => $msg['subject'] ?? 'Message',                                  'style' => 'bold'],
+                        ['label' => 'To:   ', 'value' => $msg['to_name'] ?? 'All',                                      'style' => 'dim'],
+                        ['label' => 'Area: ', 'value' => $area,                                                         'style' => 'dim'],
+                        ['label' => 'Date: ', 'value' => TelnetUtils::formatUserDate($msg['date_written'] ?? '', $s),   'style' => 'dim'],
+                    ], $charset),
+                    'wrappedLines' => $markupFormat !== null
+                        ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
+                        : TelnetUtils::wrapTextLines($body, $width),
+                    'statusLine'   => TelnetUtils::buildStatusBar([
+                        ['text' => 'U/D',          'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Scroll  ',    'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'PgUp/PgDn',    'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Page  ',      'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'L/R',          'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'R',            'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Reply  ',     'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'H',            'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Headers  ',   'color' => TelnetUtils::ANSI_BLUE],
+                        ['text' => 'Q',            'color' => TelnetUtils::ANSI_RED],
+                        ['text' => ' Quit',        'color' => TelnetUtils::ANSI_BLUE],
+                    ], $width),
+                ];
+            };
+
+            $view   = $buildView($state);
+            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $view['headerLines'], $view['wrappedLines'], $view['statusLine'], $state['rows'] ?? 24, 0, false, $kludgeLines, $buildView);
 
             switch ($result['action']) {
                 case 'quit':

@@ -5,6 +5,7 @@ namespace BinktermPHP\SshServer;
 use BinktermPHP\Config;
 use BinktermPHP\Version;
 use BinktermPHP\TelnetServer\BbsSession;
+use BinktermPHP\SshServer\SshSession;
 
 /**
  * SshServer — pure-PHP SSH-2 BBS server daemon.
@@ -385,6 +386,13 @@ class SshServer
                 if ($data === null) { goto bridgeDone; }
                 if ($data === false) { break; }
                 if ($data !== '') { $toPlain .= $data; }
+            }
+
+            // Inject a NAWS subneg if a window-change channel request arrived.
+            // BbsSession's existing NAWS handler picks this up transparently.
+            $resize = $sshSession->consumePendingResize();
+            if ($resize !== null) {
+                $toPlain .= SshSession::nawsBytes($resize['cols'], $resize['rows']);
             }
 
             // Read BBS-session output from the plain socket.

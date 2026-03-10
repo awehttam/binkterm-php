@@ -176,6 +176,17 @@ class BbsSession
         if (!$this->isSsh) {
             $this->negotiateTelnet($conn);
             $this->requestTerminalType($conn);
+            // Probe ANSI support before showing the banner. Default to no color
+            // for telnet until confirmed — SSH clients are assumed to support ANSI.
+            $this->ansiColorEnabled = false;
+            TelnetUtils::setAnsiColorEnabled(false);
+            if ($this->probeAnsiSupport($conn, $state)) {
+                $this->ansiColorEnabled = true;
+                TelnetUtils::setAnsiColorEnabled(true);
+                if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
+            } else {
+                if ($this->debug) { $this->log('ANSI auto-detect: no CPR response, defaulting to plain ASCII'); }
+            }
         }
 
         $peerName = @stream_socket_get_name($conn, true);
@@ -875,6 +886,119 @@ class BbsSession
     private function requestTerminalType($conn): void
     {
         $this->safeWrite($conn, chr(self::IAC) . chr(self::SB) . chr(self::OPT_TTYPE) . chr(1) . chr(self::IAC) . chr(self::SE));
+    }
+
+    /**
+     * Probe whether the remote terminal supports ANSI escape sequences by
+     * sending a Device Status Report (DSR, ESC[6n) and waiting for a Cursor
+     * Position Report (CPR, ESC[row;colR) in response.
+     *
+     * ANSI-capable terminals reply within a few hundred milliseconds.
+     * Dumb terminals, raw TCP clients, and bots produce no response.
+     *
+     * Any bytes read that are not part of the CPR (e.g. lingering TELNET
+     * subnegotiation data) are pushed back into $state['pushback'] so that
+     * subsequent reads are not disrupted.
+     *
+     * @param resource $conn
+     * @param array    &$state Session state (pushback used for leftover bytes)
+     * @return bool True if a CPR response was received (ANSI supported)
+     */
+    private function probeAnsiSupport($conn, array &$state): bool
+    {
+        // Send ANSI DSR — request cursor position report
+        $this->safeWrite($conn, "\033[6n");
+
+        $buf      = '';
+        $deadline = microtime(true) + 1.5;
+        // Subnegotiation accumulator (may span multiple reads)
+        $inSb   = false;
+        $sbOpt  = -1;
+        $sbData = '';
+
+        while (microtime(true) < $deadline) {
+            if (!is_resource($conn) || feof($conn)) {
+                break;
+            }
+            $read  = [$conn];
+            $write = $except = null;
+            $usec  = max(0, (int)(($deadline - microtime(true)) * 1_000_000));
+            if (@stream_select($read, $write, $except, 0, $usec) < 1) {
+                break;
+            }
+
+            $chunk = @fread($conn, 64);
+            if ($chunk === false || $chunk === '') {
+                if (feof($conn)) { break; }
+                continue;
+            }
+
+            $i   = 0;
+            $len = strlen($chunk);
+            while ($i < $len) {
+                $byte = ord($chunk[$i]);
+
+                // Inside a subnegotiation — accumulate until IAC SE
+                if ($inSb) {
+                    if ($byte === self::IAC && $i + 1 < $len && ord($chunk[$i + 1]) === self::SE) {
+                        // Process known subnegotiations before discarding
+                        if ($sbOpt === self::OPT_NAWS && strlen($sbData) >= 4) {
+                            $w = (ord($sbData[0]) << 8) | ord($sbData[1]);
+                            $h = (ord($sbData[2]) << 8) | ord($sbData[3]);
+                            if ($w > 0) { $state['cols'] = $w; }
+                            if ($h > 0) { $state['rows'] = $h; }
+                            if ($this->debug) { $this->log("probe NAWS: {$w}x{$h}"); }
+                        }
+                        $inSb   = false;
+                        $sbOpt  = -1;
+                        $sbData = '';
+                        $i += 2; // skip IAC SE
+                    } else {
+                        $sbData .= $chunk[$i];
+                        $i++;
+                    }
+                    continue;
+                }
+
+                // IAC command handling
+                if ($byte === self::IAC && $i + 1 < $len) {
+                    $cmd = ord($chunk[$i + 1]);
+                    if (in_array($cmd, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
+                        $i += ($i + 2 < $len) ? 3 : 2; // IAC CMD OPT (consume option if present)
+                        continue;
+                    }
+                    if ($cmd === self::SB && $i + 2 < $len) {
+                        $sbOpt  = ord($chunk[$i + 2]);
+                        $sbData = '';
+                        $inSb   = true;
+                        $i += 3; // IAC SB OPT
+                        continue;
+                    }
+                    // Unknown IAC — skip the IAC byte only
+                    $i++;
+                    continue;
+                }
+
+                $buf .= $chunk[$i];
+                $i++;
+            }
+
+            // Check for CPR: ESC [ <row> ; <col> R
+            if (preg_match('/\033\[\d+;\d+R/', $buf, $match, PREG_OFFSET_CAPTURE)) {
+                // Push back anything after the matched CPR
+                $afterMatch = substr($buf, $match[0][1] + strlen($match[0][0]));
+                if ($afterMatch !== '') {
+                    $state['pushback'] = $afterMatch . ($state['pushback'] ?? '');
+                }
+                return true;
+            }
+        }
+
+        // No CPR received — push back any non-IAC bytes we accumulated
+        if ($buf !== '') {
+            $state['pushback'] = $buf . ($state['pushback'] ?? '');
+        }
+        return false;
     }
 
     /**

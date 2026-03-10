@@ -363,21 +363,59 @@ class TelnetUtils
     }
 
     /**
+     * Repaint only the body region of the message viewer without clearing the screen.
+     *
+     * Uses absolute cursor positioning to overwrite each body row in place.
+     * The header and status bar are left untouched, eliminating flicker on scroll.
+     * Only call this when ANSI cursor control is available.
+     *
+     * @param resource $conn
+     * @param int      $headerCount Number of header lines (determines body start row)
+     * @param array    $bodyLines   Visible body lines for the current scroll position
+     * @param int      $rows        Terminal row count
+     */
+    private static function renderBodyOnly($conn, int $headerCount, array $bodyLines, int $rows): void
+    {
+        $bodyHeight   = max(1, $rows - $headerCount - 1);
+        $bodyStartRow = $headerCount + 1; // 1-based screen row where body begins
+
+        self::safeWrite($conn, "\033[?25l");
+
+        for ($i = 0; $i < $bodyHeight; $i++) {
+            $row  = $bodyStartRow + $i;
+            $line = $bodyLines[$i] ?? '';
+            // Position cursor at start of row, erase to EOL, write new content
+            self::safeWrite($conn, "\033[{$row};1H\033[K" . $line);
+        }
+
+        self::safeWrite($conn, "\033[H");
+    }
+
+    /**
      * Run the shared message viewer loop for a single already-fetched message.
      *
      * Handles rendering and all scroll keys (Up/Down/PgUp/PgDn/Home/End)
      * internally. Returns when the user presses a key that requires the caller
      * to take action (navigate, reply, or quit).
      *
-     * @param resource $conn
-     * @param array    $state         Session state (passed by reference for idle tracking)
-     * @param object   $server        BbsSession instance (provides readKeyWithIdleCheck)
-     * @param array    $headerLines   Pre-built header lines (border, From, Subj, etc.)
-     * @param array    $wrappedLines  Pre-wrapped/rendered body lines
-     * @param string   $statusLine    Pre-built status bar string
-     * @param int      $rows          Terminal row count
-     * @param int      $initialOffset Starting scroll offset (default 0)
-     * @param bool     $allowDownloadAction Whether to return 'download' on Z key
+     * When $rebuildFn is provided the viewer supports live terminal resize:
+     * after each keypress it compares the current $state['cols']/$state['rows']
+     * to the values used for the last render. On change it calls $rebuildFn($state)
+     * which must return:
+     *   ['headerLines' => array, 'wrappedLines' => array, 'statusLine' => string]
+     * The viewer then recalculates layout and does a full redraw.
+     *
+     * @param resource      $conn
+     * @param array         &$state              Session state (passed by reference for idle tracking)
+     * @param object        $server              BbsSession instance (provides readKeyWithIdleCheck)
+     * @param array         $headerLines         Pre-built header lines (border, From, Subj, etc.)
+     * @param array         $wrappedLines        Pre-wrapped/rendered body lines
+     * @param string        $statusLine          Pre-built status bar string
+     * @param int           $rows                Terminal row count (initial value; live value read from $state)
+     * @param int           $initialOffset       Starting scroll offset (default 0)
+     * @param bool          $allowDownloadAction Whether to return 'download' on Z key
+     * @param array         $kludgeLines         Raw kludge lines for the H viewer
+     * @param callable|null $rebuildFn           Optional resize callback: fn(array $state): array
      * @return array{action: string, offset: int}
      *   action: 'quit' | 'prev' | 'next' | 'reply' | 'download'
      *   offset: scroll position at time of exit (unused for quit/reply)
@@ -392,17 +430,46 @@ class TelnetUtils
         int $rows,
         int $initialOffset = 0,
         bool $allowDownloadAction = false,
-        array $kludgeLines = []
+        array $kludgeLines = [],
+        ?callable $rebuildFn = null
     ): array {
-        $bodyHeight = max(1, $rows - count($headerLines) - 1);
-        $maxOffset  = max(0, count($wrappedLines) - $bodyHeight);
-        $offset     = min($initialOffset, $maxOffset);
+        $headerCount = count($headerLines);
+        $lastRows    = $state['rows'] ?? $rows;
+        $lastCols    = $state['cols'] ?? 80;
+        $bodyHeight  = max(1, $lastRows - $headerCount - 1);
+        $maxOffset   = max(0, count($wrappedLines) - $bodyHeight);
+        $offset      = min($initialOffset, $maxOffset);
+        $fullRedraw  = true; // first render always does a full draw
 
         while (true) {
             $visibleLines = array_slice($wrappedLines, $offset, $bodyHeight);
-            self::renderFullScreen($conn, $headerLines, $visibleLines, $statusLine, $rows);
+
+            if ($fullRedraw || !self::$ansiColorEnabled) {
+                self::renderFullScreen($conn, $headerLines, $visibleLines, $statusLine, $lastRows);
+                $fullRedraw = false;
+            } else {
+                // Scroll only changed the body — repaint body rows in-place
+                self::renderBodyOnly($conn, $headerCount, $visibleLines, $lastRows);
+            }
 
             $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            // Check for terminal resize (NAWS update may have changed state mid-read)
+            $newRows = $state['rows'] ?? $lastRows;
+            $newCols = $state['cols'] ?? $lastCols;
+            if (($newRows !== $lastRows || $newCols !== $lastCols) && $rebuildFn !== null) {
+                $rebuilt      = $rebuildFn($state);
+                $headerLines  = $rebuilt['headerLines'];
+                $wrappedLines = $rebuilt['wrappedLines'];
+                $statusLine   = $rebuilt['statusLine'];
+                $headerCount  = count($headerLines);
+                $bodyHeight   = max(1, $newRows - $headerCount - 1);
+                $maxOffset    = max(0, count($wrappedLines) - $bodyHeight);
+                $offset       = min($offset, $maxOffset);
+                $lastRows     = $newRows;
+                $lastCols     = $newCols;
+                $fullRedraw   = true;
+            }
 
             if ($key === null || $key === 'ENTER') {
                 self::setCursorVisible($conn, true);
@@ -419,9 +486,10 @@ class TelnetUtils
             if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);                  continue; }
             if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);         continue; }
 
-            // Show kludge/header viewer
+            // Returning from the kludge viewer requires a full redraw
             if ($key === 'CHAR:h' || $key === 'CHAR:H') {
-                self::runKludgeViewer($conn, $state, $server, $kludgeLines, $rows);
+                self::runKludgeViewer($conn, $state, $server, $kludgeLines, $lastRows);
+                $fullRedraw = true;
                 continue;
             }
 
@@ -763,6 +831,69 @@ class TelnetUtils
         }
 
         return $line . $reset;
+    }
+
+    /**
+     * Build a framed message header box using charset-appropriate box-drawing characters.
+     *
+     * In ANSI mode renders a dark-blue panel with gray border characters.
+     * In plain mode renders a simple ASCII/CP437 box without color sequences.
+     *
+     * @param int    $width   Total visual width of the box including border chars.
+     *                        Should match the viewer's $width (typically $cols - 2).
+     * @param array  $fields  Array of field descriptors:
+     *                        ['label' => string, 'value' => string, 'style' => 'normal'|'dim'|'bold']
+     * @param string $charset 'utf8', 'cp437', or 'ascii'
+     * @return array Lines suitable for passing as $headerLines to runMessageViewer()
+     */
+    public static function buildMessageHeaderBox(int $width, array $fields, string $charset = 'ascii'): array
+    {
+        // Charset-specific box-drawing characters
+        if ($charset === 'utf8') {
+            $tl = '┌'; $tr = '┐'; $bl = '└'; $br = '┘'; $hz = '─'; $vt = '│';
+        } elseif ($charset === 'cp437') {
+            $tl = "\xda"; $tr = "\xbf"; $bl = "\xc0"; $br = "\xd9"; $hz = "\xc4"; $vt = "\xb3";
+        } else {
+            $tl = '+'; $tr = '+'; $bl = '+'; $br = '+'; $hz = '-'; $vt = '|';
+        }
+
+        // Inner content width: box width minus two corner/vertical chars and two space pads
+        $innerWidth = max(0, $width - 4);
+        $hFill      = str_repeat($hz, max(0, $width - 2));
+
+        if (!self::$ansiColorEnabled) {
+            $lines   = [$tl . $hFill . $tr];
+            foreach ($fields as $field) {
+                $text    = ($field['label'] ?? '') . ($field['value'] ?? '');
+                $text    = str_pad(substr($text, 0, $innerWidth), $innerWidth);
+                $lines[] = $vt . ' ' . $text . ' ' . $vt;
+            }
+            $lines[] = $bl . $hFill . $br;
+            return $lines;
+        }
+
+        // ANSI mode: dark blue background, gray frame characters
+        $bg    = self::ANSI_BG_BLUE;
+        $rst   = self::ANSI_RESET;
+        $frame = $bg . "\033[37m"; // gray foreground on dark blue background
+
+        $lines   = [$frame . $tl . $hFill . $tr . $rst];
+
+        foreach ($fields as $field) {
+            $text = ($field['label'] ?? '') . ($field['value'] ?? '');
+            $text = str_pad(substr($text, 0, $innerWidth), $innerWidth);
+
+            $contentAnsi = match ($field['style'] ?? 'normal') {
+                'bold'  => $bg . "\033[1;37m",  // bold white on dark blue
+                'dim'   => $bg . "\033[2;37m",  // dim gray on dark blue
+                default => $bg . "\033[37m",     // gray on dark blue
+            };
+
+            $lines[] = $frame . $vt . $contentAnsi . ' ' . $text . ' ' . $frame . $vt . $rst;
+        }
+
+        $lines[] = $frame . $bl . $hFill . $br . $rst;
+        return $lines;
     }
 
     /**

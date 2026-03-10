@@ -291,10 +291,6 @@ class NetmailHandler
      */
     private function displayMessage($conn, array &$state, string $session, int $page, int $perPage, int $totalPages, int $index): array
     {
-        $cols  = $state['cols'] ?? 80;
-        $rows  = $state['rows'] ?? 24;
-        $width = max(10, $cols - 2);
-
         while (true) {
             [$messages, $totalPages] = $this->fetchMessagesPage($session, $page, $perPage);
             $msg = $messages[$index] ?? null;
@@ -316,53 +312,65 @@ class NetmailHandler
                 $attachments = [];
             }
 
-            $statusSegments = [
-                ['text' => 'U/D',       'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Scroll  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'PgUp/PgDn', 'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Page  ',   'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'L/R',       'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
-                ['text' => 'R',         'color' => TelnetUtils::ANSI_RED],
-                ['text' => ' Reply  ',  'color' => TelnetUtils::ANSI_BLUE],
-            ];
-            if (!empty($attachments)) {
-                $statusSegments[] = ['text' => 'Z', 'color' => TelnetUtils::ANSI_RED];
-                $statusSegments[] = ['text' => ' Download  ', 'color' => TelnetUtils::ANSI_BLUE];
-            }
-            $statusSegments[] = ['text' => 'H', 'color' => TelnetUtils::ANSI_RED];
-            $statusSegments[] = ['text' => ' Headers  ', 'color' => TelnetUtils::ANSI_BLUE];
-            $statusSegments[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED];
-            $statusSegments[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
-            $statusLine = TelnetUtils::buildStatusBar($statusSegments, $width);
+            $hasAttachments = !empty($attachments);
 
-            $fromName    = $msg['from_name'] ?? 'Unknown';
-            $fromAddress = $msg['from_address'] ?? '';
-            $fromLine    = $fromAddress ? "From: {$fromName} <{$fromAddress}>" : "From: {$fromName}";
-            $border      = str_repeat('-', $width);
-            $headerLines = [
-                $border,
-                TelnetUtils::colorize(substr($fromLine, 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Date: ' . TelnetUtils::formatUserDate($msg['date_written'] ?? '', $state), 0, $width), TelnetUtils::ANSI_DIM),
-                TelnetUtils::colorize(substr('Subj: ' . ($msg['subject'] ?? 'Message'), 0, $width), TelnetUtils::ANSI_BOLD),
-                $border,
-            ];
+            // Closure that rebuilds all layout-dependent view components from current $state.
+            // Called once on open and again whenever the terminal is resized.
+            $buildView = function(array $s) use ($msg, $body, $markupFormat, $hasAttachments): array {
+                $cols    = $s['cols'] ?? 80;
+                $width   = max(10, $cols - 2);
+                $charset = $s['terminal_charset'] ?? 'ascii';
 
-            $wrappedLines = $markupFormat !== null
-                ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
-                : TelnetUtils::wrapTextLines($body, $width);
+                $fromName    = $msg['from_name'] ?? 'Unknown';
+                $fromAddress = $msg['from_address'] ?? '';
+                $fromLine    = $fromAddress ? "{$fromName} <{$fromAddress}>" : $fromName;
+
+                $segments = [
+                    ['text' => 'U/D',         'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Scroll  ',   'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'PgUp/PgDn',   'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Page  ',     'color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'L/R',         'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Prev/Next  ','color' => TelnetUtils::ANSI_BLUE],
+                    ['text' => 'R',           'color' => TelnetUtils::ANSI_RED],
+                    ['text' => ' Reply  ',    'color' => TelnetUtils::ANSI_BLUE],
+                ];
+                if ($hasAttachments) {
+                    $segments[] = ['text' => 'Z',           'color' => TelnetUtils::ANSI_RED];
+                    $segments[] = ['text' => ' Download  ', 'color' => TelnetUtils::ANSI_BLUE];
+                }
+                $segments[] = ['text' => 'H',        'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => ' Headers  ','color' => TelnetUtils::ANSI_BLUE];
+                $segments[] = ['text' => 'Q',        'color' => TelnetUtils::ANSI_RED];
+                $segments[] = ['text' => ' Quit',    'color' => TelnetUtils::ANSI_BLUE];
+
+                return [
+                    'headerLines'  => TelnetUtils::buildMessageHeaderBox($width, [
+                        ['label' => 'From: ', 'value' => $fromLine,                                                       'style' => 'normal'],
+                        ['label' => 'Date: ', 'value' => TelnetUtils::formatUserDate($msg['date_written'] ?? '', $s),     'style' => 'dim'],
+                        ['label' => 'Subj: ', 'value' => $msg['subject'] ?? 'Message',                                   'style' => 'bold'],
+                    ], $charset),
+                    'wrappedLines' => $markupFormat !== null
+                        ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
+                        : TelnetUtils::wrapTextLines($body, $width),
+                    'statusLine'   => TelnetUtils::buildStatusBar($segments, $width),
+                ];
+            };
+
+            $view = $buildView($state);
 
             $result = TelnetUtils::runMessageViewer(
                 $conn,
                 $state,
                 $this->server,
-                $headerLines,
-                $wrappedLines,
-                $statusLine,
-                $rows,
+                $view['headerLines'],
+                $view['wrappedLines'],
+                $view['statusLine'],
+                $state['rows'] ?? 24,
                 0,
                 true,
-                $kludgeLines
+                $kludgeLines,
+                $buildView
             );
 
             switch ($result['action']) {

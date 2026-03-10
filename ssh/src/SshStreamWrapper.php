@@ -2,6 +2,8 @@
 
 namespace BinktermPHP\SshServer;
 
+use BinktermPHP\SshServer\SshSession;
+
 /**
  * PHP user-land stream wrapper that presents an SshSession channel as a
  * regular PHP stream resource so BbsSession can read/write it without knowing
@@ -101,6 +103,13 @@ class SshStreamWrapper
         if ($chunk === null) {
             $this->eof = true;
             return false;
+        }
+
+        // If a window-change arrived while reading, inject a NAWS subneg so
+        // BbsSession's existing NAWS handler updates its terminal dimensions.
+        $resize = $this->session->consumePendingResize();
+        if ($resize !== null) {
+            $this->readBuffer .= SshSession::nawsBytes($resize['cols'], $resize['rows']);
         }
 
         $this->readBuffer .= $chunk;

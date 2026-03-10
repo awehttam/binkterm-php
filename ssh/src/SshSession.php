@@ -108,10 +108,13 @@ class SshSession
     private int $maxPacketSize     = 32768;
     private bool $channelOpen      = false;
 
-    // Terminal size reported by client pty-req
+    // Terminal size reported by client pty-req or window-change
     private int $termCols = 80;
     private int $termRows = 24;
     private bool $shellStarted = false;
+
+    /** Pending resize from a window-change channel request, not yet consumed. */
+    private ?array $pendingResize = null;
 
     // Raw bytes pre-fed by the bridge for non-blocking packet reassembly.
     private string $rawBuf = '';
@@ -599,6 +602,16 @@ class SshSession
             $this->readString($pkt, $offset);          // terminal modes
             $success = true;
             $this->dbg("PTY requested: {$this->termCols}x{$this->termRows}");
+        } elseif ($reqType === 'window-change') {
+            // cols, rows, px-width, px-height
+            $cols = $this->unpackUint32($pkt, $offset);
+            $rows = $this->unpackUint32($pkt, $offset);
+            // px dimensions ignored
+            if ($cols > 0) { $this->termCols = $cols; }
+            if ($rows > 0) { $this->termRows = $rows; }
+            $this->pendingResize = ['cols' => $this->termCols, 'rows' => $this->termRows];
+            $success = true;
+            $this->dbg("window-change: {$this->termCols}x{$this->termRows}");
         } elseif ($reqType === 'shell') {
             $success = true;
             $this->shellStarted = true;
@@ -615,6 +628,34 @@ class SshSession
         }
 
         return true;
+    }
+
+    /**
+     * Return and clear any pending resize event from a window-change request.
+     *
+     * Returns ['cols' => int, 'rows' => int] on resize, null if no resize pending.
+     * Called by the bridge and stream wrapper to inject a NAWS subneg into the
+     * plain data stream so BbsSession can update its terminal dimensions.
+     */
+    public function consumePendingResize(): ?array
+    {
+        $r = $this->pendingResize;
+        $this->pendingResize = null;
+        return $r;
+    }
+
+    /**
+     * Build a TELNET IAC SB NAWS sequence for the given dimensions.
+     *
+     * Injected into the plain-socket stream so BbsSession's existing NAWS
+     * handler picks up SSH window-change events transparently.
+     */
+    public static function nawsBytes(int $cols, int $rows): string
+    {
+        return chr(255) . chr(250) . chr(31)                       // IAC SB NAWS
+             . chr(($cols >> 8) & 0xFF) . chr($cols & 0xFF)
+             . chr(($rows >> 8) & 0xFF) . chr($rows & 0xFF)
+             . chr(255) . chr(240);                                // IAC SE
     }
 
     // =========================================================================
@@ -797,6 +838,10 @@ class SshSession
                 $this->peerWindowSize += $this->unpackUint32($pkt, $offset);
                 continue;
             }
+            if ($msgType === self::MSG_CHANNEL_REQUEST) {
+                $this->handleChannelRequest($pkt);
+                continue;
+            }
             if ($msgType === self::MSG_CHANNEL_EOF || $msgType === self::MSG_CHANNEL_CLOSE) {
                 $this->sendChannelClose();
                 return null;
@@ -876,6 +921,10 @@ class SshSession
             if ($msgType === self::MSG_CHANNEL_EOF || $msgType === self::MSG_CHANNEL_CLOSE) {
                 $this->sendChannelClose();
                 return null;
+            }
+            if ($msgType === self::MSG_CHANNEL_REQUEST) {
+                $this->handleChannelRequest($pkt);
+                continue;
             }
             if ($msgType === self::MSG_IGNORE)     { continue; }
             if ($msgType === self::MSG_DISCONNECT) { return null; }
