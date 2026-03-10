@@ -2,6 +2,7 @@
 
 BinktermPHP integrates with **ClamAV** to scan files for viruses when they are uploaded via the web interface or received via TIC file echo. Scanning is optional and is configured per file area.
 
+Note that ClamAV uses quite a bit of system resources.   Even on a tiny VPS ClamAV wants 1GB of RAM while idle!
 ## How It Works
 
 BinktermPHP uses `clamdscan` (the ClamAV daemon client) rather than `clamscan` directly. This means the `clamd` daemon must be running; `clamdscan` connects to it via socket and submits files for scanning. Using the daemon is significantly faster than launching `clamscan` as a subprocess for each file.
