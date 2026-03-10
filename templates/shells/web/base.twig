@@ -181,10 +181,14 @@
                         </li>
                         {% endif %}
 
-                        <li class="nav-item">
-                            <a class="nav-link" href="/nodelist">
-                                <i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-list-alt"></i> {{ t('ui.base.bbs_lists', {}, 'common') }}
                             </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.bbs_directory', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
+                            </ul>
                         </li>
 
                         {# Custom navigation links (1-3 inline, 4+ as dropdown) #}
@@ -234,9 +238,11 @@
                                         <li><a class="dropdown-item" href="/fileareas"><i class="fas fa-folder-open"></i> {{ t('ui.base.admin.file_areas', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/filearea-rules"><i class="fas fa-filter"></i> {{ t('ui.base.admin.file_area_rules', {}, 'common') }}</a></li>
                                         <li><a class="dropdown-item" href="/admin/subscriptions"><i class="fas fa-bookmark"></i> {{ t('ui.base.admin.subscriptions', {}, 'common') }}</a></li>
+                                        <li><a class="dropdown-item" href="/admin/echomail-robots"><i class="fas fa-robot"></i> {{ t('ui.base.admin.echomail_robots', {}, 'common') }}</a></li>
                                     </ul>
                                 </li>
                                 <li><a class="dropdown-item" href="/admin/auto-feed"><i class="fas fa-rss"></i> {{ t('ui.base.admin.auto_feed', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/admin/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.admin.bbs_directory', {}, 'common') }}</a></li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle" href="#"><i class="fas fa-comments"></i> {{ t('ui.base.local_chat', {}, 'common') }}</a>
                                     <ul class="dropdown-menu">
@@ -283,10 +289,14 @@
                         </li>
                         {% endif %}
                     {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/nodelist">
-                                <i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-list-alt"></i> {{ t('ui.base.bbs_lists', {}, 'common') }}
                             </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.bbs_directory', {}, 'common') }}</a></li>
+                                <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
+                            </ul>
                         </li>
                         {% if bbs_feature_enabled('guest_doors_page') %}
                         <li class="nav-item">

@@ -3120,5 +3120,320 @@ SimpleRouter::get('/admin/subscriptions', function() {
     }
 });
 
+// ─── BBS Directory Admin ─────────────────────────────────────────────────────
+
+// BBS Directory admin page
+SimpleRouter::get('/admin/bbs-directory', function() {
+    RouteHelper::requireAdmin();
+    $template = new Template();
+    $template->renderResponse('admin/bbs_directory.twig');
+});
+
+// Echomail Robots admin page
+SimpleRouter::get('/admin/echomail-robots', function() {
+    RouteHelper::requireAdmin();
+    $template = new Template();
+    $template->renderResponse('admin/echomail_robots.twig');
+});
+
+// BBS Directory API - list entries (paged + search)
+SimpleRouter::get('/admin/api/bbs-directory/entries', function() {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $page    = max(1, (int)($_GET['page'] ?? 1));
+    $perPage = max(1, min(100, (int)($_GET['per_page'] ?? 25)));
+    $search  = trim($_GET['search'] ?? '');
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+    $entries   = $directory->getAllEntries($page, $perPage, $search);
+    $total     = $directory->getTotalCount($search);
+
+    echo json_encode([
+        'entries'  => $entries,
+        'total'    => $total,
+        'page'     => $page,
+        'per_page' => $perPage,
+    ]);
+});
+
+// BBS Directory API - create manual entry
+SimpleRouter::post('/admin/api/bbs-directory/entries', function() {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (empty($input['name'])) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.name_required', apiLocalizedText('errors.admin.bbs_directory.name_required', 'BBS name is required'));
+        return;
+    }
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+
+    try {
+        $id = $directory->createEntry($input);
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        AdminActionLogger::logAction($userId, 'bbs_directory_entry_created', ['entry_id' => $id, 'name' => $input['name']]);
+        echo json_encode(['success' => true, 'id' => $id]);
+    } catch (\PDOException $e) {
+        http_response_code(400);
+        if (strpos($e->getMessage(), 'duplicate key') !== false || strpos($e->getMessage(), 'unique') !== false) {
+            apiError('errors.admin.bbs_directory.duplicate_name', apiLocalizedText('errors.admin.bbs_directory.duplicate_name', 'A BBS with that name already exists'));
+        } else {
+            apiError('errors.admin.bbs_directory.not_found', $e->getMessage());
+        }
+    }
+});
+
+// BBS Directory API - update entry
+SimpleRouter::put('/admin/api/bbs-directory/entries/{id}', function($id) {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (empty($input['name'])) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.name_required', apiLocalizedText('errors.admin.bbs_directory.name_required', 'BBS name is required'));
+        return;
+    }
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+
+    if (!$directory->getEntry((int)$id)) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.not_found', apiLocalizedText('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'));
+        return;
+    }
+
+    try {
+        $directory->updateEntry((int)$id, $input);
+        $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+        AdminActionLogger::logAction($userId, 'bbs_directory_entry_updated', ['entry_id' => $id, 'name' => $input['name']]);
+        echo json_encode(['success' => true]);
+    } catch (\PDOException $e) {
+        http_response_code(400);
+        if (strpos($e->getMessage(), 'duplicate key') !== false || strpos($e->getMessage(), 'unique') !== false) {
+            apiError('errors.admin.bbs_directory.duplicate_name', apiLocalizedText('errors.admin.bbs_directory.duplicate_name', 'A BBS with that name already exists'));
+        } else {
+            apiError('errors.admin.bbs_directory.not_found', $e->getMessage());
+        }
+    }
+});
+
+// BBS Directory API - delete entry
+SimpleRouter::delete('/admin/api/bbs-directory/entries/{id}', function($id) {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+
+    if (!$directory->getEntry((int)$id)) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.not_found', apiLocalizedText('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'));
+        return;
+    }
+
+    $directory->deleteEntry((int)$id);
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    AdminActionLogger::logAction($userId, 'bbs_directory_entry_deleted', ['entry_id' => $id]);
+    echo json_encode(['success' => true]);
+});
+
+// BBS Directory API - list robot rules
+SimpleRouter::get('/admin/api/bbs-directory/robots', function() {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $stmt = $db->query("
+        SELECT r.*, e.tag AS echoarea_tag, e.domain AS echoarea_domain
+        FROM echomail_robots r
+        LEFT JOIN echoareas e ON e.id = r.echoarea_id
+        ORDER BY r.id ASC
+    ");
+    $robots = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo json_encode(['robots' => $robots]);
+});
+
+// BBS Directory API - create robot rule
+SimpleRouter::post('/admin/api/bbs-directory/robots', function() {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (empty($input['name']) || empty($input['echoarea_id']) || empty($input['processor_type'])) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.robot_required_fields', apiLocalizedText('errors.admin.bbs_directory.robot_required_fields', 'Name, echo area, and processor type are required'));
+        return;
+    }
+
+    $runner     = new \BinktermPHP\Robots\EchomailRobotRunner($db);
+    $processors = $runner->getRegisteredProcessors();
+    if (!isset($processors[$input['processor_type']])) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.invalid_processor_type', apiLocalizedText('errors.admin.bbs_directory.invalid_processor_type', 'Unknown or unsupported processor type'));
+        return;
+    }
+
+    $stmt = $db->prepare("
+        INSERT INTO echomail_robots
+            (name, echoarea_id, subject_pattern, processor_type, processor_config, enabled, created_at, updated_at)
+        VALUES
+            (:name, :echoarea_id, :subject_pattern, :processor_type, :processor_config, :enabled, NOW(), NOW())
+        RETURNING id
+    ");
+    $stmt->execute([
+        ':name'             => $input['name'],
+        ':echoarea_id'      => (int)$input['echoarea_id'],
+        ':subject_pattern'  => $input['subject_pattern'] ?? null,
+        ':processor_type'   => $input['processor_type'],
+        ':processor_config' => json_encode($input['processor_config'] ?? []),
+        ':enabled'          => isset($input['enabled']) ? ($input['enabled'] ? 'true' : 'false') : 'true',
+    ]);
+    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+    $robotId = (int)$row['id'];
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    AdminActionLogger::logAction($userId, 'echomail_robot_created', ['robot_id' => $robotId, 'name' => $input['name']]);
+    echo json_encode(['success' => true, 'id' => $robotId]);
+});
+
+// BBS Directory API - update robot rule
+SimpleRouter::put('/admin/api/bbs-directory/robots/{id}', function($id) {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    $checkStmt = $db->prepare("SELECT id FROM echomail_robots WHERE id = ?");
+    $checkStmt->execute([$id]);
+    if (!$checkStmt->fetch()) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.robot_not_found', apiLocalizedText('errors.admin.bbs_directory.robot_not_found', 'Robot rule not found'));
+        return;
+    }
+
+    if (empty($input['name']) || empty($input['echoarea_id']) || empty($input['processor_type'])) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.robot_required_fields', apiLocalizedText('errors.admin.bbs_directory.robot_required_fields', 'Name, echo area, and processor type are required'));
+        return;
+    }
+
+    $runner     = new \BinktermPHP\Robots\EchomailRobotRunner($db);
+    $processors = $runner->getRegisteredProcessors();
+    if (!isset($processors[$input['processor_type']])) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.invalid_processor_type', apiLocalizedText('errors.admin.bbs_directory.invalid_processor_type', 'Unknown or unsupported processor type'));
+        return;
+    }
+
+    $stmt = $db->prepare("
+        UPDATE echomail_robots SET
+            name             = :name,
+            echoarea_id      = :echoarea_id,
+            subject_pattern  = :subject_pattern,
+            processor_type   = :processor_type,
+            processor_config = :processor_config,
+            enabled          = :enabled,
+            updated_at       = NOW()
+        WHERE id = :id
+    ");
+    $stmt->execute([
+        ':name'             => $input['name'],
+        ':echoarea_id'      => (int)$input['echoarea_id'],
+        ':subject_pattern'  => $input['subject_pattern'] ?? null,
+        ':processor_type'   => $input['processor_type'],
+        ':processor_config' => json_encode($input['processor_config'] ?? []),
+        ':enabled'          => isset($input['enabled']) ? ($input['enabled'] ? 'true' : 'false') : 'true',
+        ':id'               => (int)$id,
+    ]);
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    AdminActionLogger::logAction($userId, 'echomail_robot_updated', ['robot_id' => $id, 'name' => $input['name']]);
+    echo json_encode(['success' => true]);
+});
+
+// BBS Directory API - delete robot rule
+SimpleRouter::delete('/admin/api/bbs-directory/robots/{id}', function($id) {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $checkStmt = $db->prepare("SELECT name FROM echomail_robots WHERE id = ?");
+    $checkStmt->execute([$id]);
+    $robot = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$robot) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.robot_not_found', apiLocalizedText('errors.admin.bbs_directory.robot_not_found', 'Robot rule not found'));
+        return;
+    }
+
+    $stmt = $db->prepare("DELETE FROM echomail_robots WHERE id = ?");
+    $stmt->execute([$id]);
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    AdminActionLogger::logAction($userId, 'echomail_robot_deleted', ['robot_id' => $id, 'name' => $robot['name']]);
+    echo json_encode(['success' => true]);
+});
+
+// BBS Directory API - run robot now
+SimpleRouter::post('/admin/api/bbs-directory/robots/{id}/run', function($id) {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $checkStmt = $db->prepare("SELECT id FROM echomail_robots WHERE id = ?");
+    $checkStmt->execute([$id]);
+    if (!$checkStmt->fetch()) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.robot_not_found', apiLocalizedText('errors.admin.bbs_directory.robot_not_found', 'Robot rule not found'));
+        return;
+    }
+
+    try {
+        $runner  = new \BinktermPHP\Robots\EchomailRobotRunner($db);
+        $results = $runner->run((int)$id);
+        $result  = $results[0] ?? ['examined' => 0, 'processed' => 0, 'error' => null];
+
+        if ($result['error'] !== null) {
+            http_response_code(500);
+            apiError('errors.admin.bbs_directory.run_failed', $result['error']);
+            return;
+        }
+
+        echo json_encode([
+            'success'   => true,
+            'examined'  => $result['examined'],
+            'processed' => $result['processed'],
+        ]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        apiError('errors.admin.bbs_directory.run_failed', $e->getMessage());
+    }
+});
+
+// BBS Directory API - get registered processor types
+SimpleRouter::get('/admin/api/bbs-directory/processor-types', function() {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $runner     = new \BinktermPHP\Robots\EchomailRobotRunner($db);
+    $processors = array_values($runner->getRegisteredProcessors());
+    echo json_encode(['processors' => $processors]);
+});
+
 
 

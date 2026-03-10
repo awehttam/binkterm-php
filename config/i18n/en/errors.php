@@ -445,4 +445,13 @@ return [
     'errors.admin.i18n_overrides.missing_params' => 'Locale and catalog name are required',
     'errors.admin.i18n_overrides.load_failed' => 'Failed to load catalog',
     'errors.admin.i18n_overrides.save_failed' => 'Failed to save overrides',
+
+    // BBS Directory
+    'errors.admin.bbs_directory.not_found' => 'BBS directory entry not found',
+    'errors.admin.bbs_directory.robot_not_found' => 'Robot rule not found',
+    'errors.admin.bbs_directory.name_required' => 'BBS name is required',
+    'errors.admin.bbs_directory.duplicate_name' => 'A BBS with that name already exists',
+    'errors.admin.bbs_directory.robot_required_fields' => 'Name, echo area, and processor type are required',
+    'errors.admin.bbs_directory.run_failed' => 'Robot run failed',
+    'errors.admin.bbs_directory.invalid_processor_type' => 'Unknown or unsupported processor type',
 ];

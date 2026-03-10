@@ -102,6 +102,16 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Fixed locally sent netmail (e.g. messages to Sysop) not appearing in the sender's All view — only in Sent. The message record is now owned by the sender so it appears in both views; the sysop still sees it in their inbox via address matching.
 - Fixed malformed or misaddressed echomail (e.g. newsletter feeds without `AREA:`/`SEEN-BY`/`PATH` kludges) being incorrectly delivered to the sysop's netmail inbox. The sysop catch-all fallback in address routing has been removed. Undeliverable messages are now dropped with a detailed log entry (from, to, subject, date, MSGID) and the original `.pkt` packet file is preserved to `data/undeliverable/` for manual inspection.
 
+### BBS Directory
+
+- New public **BBS Directory** page (`/bbs-directory`) lists known BBS systems — automatically populated from echomail announcements and supplementable with manual entries. Accessible without login.
+- Admin CRUD at **Admin → BBS Directory**: add, edit, and delete entries; search and paginate. Entries carry an Auto/Manual source badge; auto-populated entries updated by robots preserve manual entries' source flag.
+- New **Echomail Robots** framework: generic rule-based system that watches echo areas for matching messages and dispatches them to a configured processor. Manage rules at **Admin → Area Management → Echomail Robots**.
+- Built-in processor `ibbslastcall_rot47`: decodes ROT47-encoded `ibbslastcall-data` messages from FSXNet's FSX_DAT echo area and upserts BBS entries into the directory automatically.
+- CLI runner `scripts/echomail_robots.php` — run all enabled robots or a specific one (`--robot-id=N`). Supports `--dry-run` and `--quiet`. Schedule via cron for automatic processing.
+- **BBS Lists** dropdown replaces the standalone Nodelist link in the main navigation (logged-in and guest views). The dropdown contains BBS Directory and Nodelist.
+- See `docs/Robots.md` for architecture details and instructions for writing custom processors.
+
 ### Admin / Sysop Tools
 - New **Language Overrides** editor in Admin → BBS Settings → Language Overrides. Sysops can customize individual phrases for any locale and catalog without editing the base translation files. Overrides are stored as JSON in `config/i18n/overrides/<locale>/<namespace>.json` and are applied transparently on top of the base catalog at runtime.
 - PWA manifest: added app shortcuts for Doors (`/games`) and Files (`/files`). Shortcuts updated: Compose Netmail, Netmail inbox, and Echomail replace the previous Compose Echomail shortcut; Compose Netmail is listed first.
@@ -120,6 +130,8 @@ git pull
 php scripts/setup.php
 scripts/restart_daemons.sh
 ```
+
+`setup.php` applies migration `v1.11.0_bbs_directory.sql` which creates the `bbs_directory` and `echomail_robots` tables.
 
 ### Using the Installer
 

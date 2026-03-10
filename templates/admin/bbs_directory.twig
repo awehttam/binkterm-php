@@ -1,0 +1,337 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.admin.bbs_directory.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-server"></i>
+        {{ t('ui.admin.bbs_directory.heading', {}, 'common') }}
+    </h2>
+    <button class="btn btn-fidonet" onclick="showAddEntryModal()">
+        <i class="fas fa-plus"></i>
+        {{ t('ui.admin.bbs_directory.add_entry', {}, 'common') }}
+    </button>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="input-group" style="max-width:320px">
+        <input type="text" class="form-control" id="entrySearch" placeholder="Search...">
+        <button class="btn btn-outline-secondary" onclick="loadEntries()">
+            <i class="fas fa-search"></i>
+        </button>
+    </div>
+    <a href="/admin/echomail-robots" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-robot"></i>
+        {{ t('ui.base.admin.echomail_robots', {}, 'common') }}
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div id="entriesContainer">
+            <div class="text-center py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i> Loading...
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="entriesPagination" class="mt-3 d-flex justify-content-center"></div>
+
+{# ── Entry Add/Edit Modal ──────────────────────────────────────────────── #}
+<div class="modal fade" id="entryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="entryModalTitle">{{ t('ui.admin.bbs_directory.add_entry', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="entryForm">
+                    <input type="hidden" id="entryId">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">BBS Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="entryName" maxlength="100" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">OS</label>
+                            <input type="text" class="form-control" id="entryOs" maxlength="50">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Sysop</label>
+                            <input type="text" class="form-control" id="entrySysop" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Location</label>
+                            <input type="text" class="form-control" id="entryLocation" maxlength="100">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Telnet Host</label>
+                            <input type="text" class="form-control" id="entryTelnetHost" maxlength="255">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Telnet Port</label>
+                            <input type="number" class="form-control" id="entryTelnetPort" value="23" min="1" max="65535">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Website</label>
+                        <input type="url" class="form-control" id="entryWebsite" maxlength="255">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="entryNotes" rows="3"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="entryActive" checked>
+                        <label class="form-check-label" for="entryActive">Active</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-fidonet" onclick="saveEntry()">
+                    <i class="fas fa-save"></i> {{ t('ui.common.save', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Delete Confirmation Modal ─────────────────────────────────────────── #}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Delete <strong id="deleteItemName"></strong>?</p>
+                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash"></i> {{ t('ui.common.delete', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentEntryId = null;
+let currentPage    = 1;
+const perPage      = 25;
+
+function uiT(key, fallback, params = {}) {
+    return window.t ? window.t(key, params, fallback) : fallback;
+}
+
+function apiErr(payload, fallback) {
+    return window.getApiErrorMessage ? window.getApiErrorMessage(payload, fallback) : (payload?.error || fallback);
+}
+
+$(document).ready(function() {
+    const init = function() { loadEntries(); };
+    if (typeof loadUserSettings === 'function') {
+        loadUserSettings().finally(init);
+    } else {
+        init();
+    }
+
+    $('#entrySearch').on('keydown', function(e) {
+        if (e.key === 'Enter') { currentPage = 1; loadEntries(); }
+    });
+});
+
+function loadEntries() {
+    const search = $('#entrySearch').val().trim();
+    $('#entriesContainer').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Loading...</div>');
+
+    $.get('/admin/api/bbs-directory/entries', { page: currentPage, per_page: perPage, search: search })
+        .done(function(data) { renderEntries(data.entries, data.total); })
+        .fail(function(xhr) {
+            $('#entriesContainer').html(`<div class="text-center text-danger py-4">${apiErr(xhr.responseJSON, 'Failed to load entries')}</div>`);
+        });
+}
+
+function renderEntries(entries, total) {
+    const container = $('#entriesContainer');
+
+    if (!entries || entries.length === 0) {
+        container.html(`<div class="text-center text-muted py-4">${uiT('ui.admin.bbs_directory.no_entries', 'No entries yet.')}</div>`);
+        $('#entriesPagination').empty();
+        return;
+    }
+
+    let html = `<div class="table-responsive"><table class="table table-hover mb-0">
+        <thead><tr>
+            <th>${uiT('ui.admin.bbs_directory.col_name', 'Name')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_sysop', 'Sysop')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_location', 'Location')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_telnet', 'Telnet')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_source', 'Source')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_last_seen', 'Last Seen')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_actions', 'Actions')}</th>
+        </tr></thead><tbody>`;
+
+    entries.forEach(function(e) {
+        const telnet = e.telnet_host
+            ? `<span class="font-monospace small">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</span>`
+            : '';
+        const sourceClass = e.source === 'auto' ? 'bg-info' : 'bg-secondary';
+        const sourceLabel = e.source === 'auto'
+            ? uiT('ui.bbs_directory.source_auto', 'Auto')
+            : uiT('ui.bbs_directory.source_manual', 'Manual');
+        const lastSeen = e.last_seen ? new Date(e.last_seen).toLocaleDateString() : `<span class="text-muted">—</span>`;
+        const activeIcon = (e.is_active == true || e.is_active === 't')
+            ? '<i class="fas fa-check-circle text-success"></i>'
+            : '<i class="fas fa-times-circle text-danger"></i>';
+
+        html += `<tr>
+            <td>${activeIcon} <strong>${escapeHtml(e.name)}</strong></td>
+            <td>${escapeHtml(e.sysop || '')}</td>
+            <td>${escapeHtml(e.location || '')}</td>
+            <td>${telnet}</td>
+            <td><span class="badge ${sourceClass}">${sourceLabel}</span></td>
+            <td><small>${lastSeen}</small></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editEntry(${e.id})" title="${uiT('ui.common.edit', 'Edit')}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.common.delete', 'Delete')}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.html(html);
+
+    const totalPages = Math.ceil(total / perPage);
+    renderPagination('#entriesPagination', currentPage, totalPages, function(p) {
+        currentPage = p;
+        loadEntries();
+    });
+}
+
+function showAddEntryModal() {
+    currentEntryId = null;
+    $('#entryModalTitle').text(uiT('ui.admin.bbs_directory.add_entry', 'Add Entry'));
+    $('#entryForm')[0].reset();
+    $('#entryId').val('');
+    $('#entryTelnetPort').val(23);
+    $('#entryActive').prop('checked', true);
+    $('#entryModal').modal('show');
+}
+
+function editEntry(id) {
+    currentEntryId = id;
+    $('#entryModalTitle').text(uiT('ui.common.edit', 'Edit') + ' Entry');
+
+    $.get('/admin/api/bbs-directory/entries', { page: 1, per_page: 1000 })
+        .done(function(data) {
+            const entry = data.entries.find(e => e.id == id);
+            if (!entry) { showError(uiT('errors.admin.bbs_directory.not_found', 'BBS directory entry not found')); return; }
+
+            $('#entryId').val(entry.id);
+            $('#entryName').val(entry.name || '');
+            $('#entrySysop').val(entry.sysop || '');
+            $('#entryLocation').val(entry.location || '');
+            $('#entryOs').val(entry.os || '');
+            $('#entryTelnetHost').val(entry.telnet_host || '');
+            $('#entryTelnetPort').val(entry.telnet_port || 23);
+            $('#entryWebsite').val(entry.website || '');
+            $('#entryNotes').val(entry.notes || '');
+            $('#entryActive').prop('checked', entry.is_active == true || entry.is_active === 't' || entry.is_active === '1');
+            $('#entryModal').modal('show');
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, uiT('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'))); });
+}
+
+function saveEntry() {
+    const form = $('#entryForm')[0];
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const data = {
+        name:        $('#entryName').val(),
+        sysop:       $('#entrySysop').val() || null,
+        location:    $('#entryLocation').val() || null,
+        os:          $('#entryOs').val() || null,
+        telnet_host: $('#entryTelnetHost').val() || null,
+        telnet_port: parseInt($('#entryTelnetPort').val()) || 23,
+        website:     $('#entryWebsite').val() || null,
+        notes:       $('#entryNotes').val() || null,
+        is_active:   $('#entryActive').is(':checked'),
+    };
+
+    const url    = currentEntryId ? `/admin/api/bbs-directory/entries/${currentEntryId}` : '/admin/api/bbs-directory/entries';
+    const method = currentEntryId ? 'PUT' : 'POST';
+
+    $.ajax({ url, method, contentType: 'application/json', data: JSON.stringify(data) })
+        .done(function() {
+            $('#entryModal').modal('hide');
+            showSuccess(uiT('ui.admin.bbs_directory.entry_saved', 'Entry saved successfully'));
+            loadEntries();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Save failed')); });
+}
+
+function showDeleteModal(id, name) {
+    $('#deleteItemName').text(name);
+    $('#deleteModal').modal('show');
+    $('#confirmDeleteBtn').off('click').on('click', function() { deleteEntry(id); });
+}
+
+function deleteEntry(id) {
+    $.ajax({ url: `/admin/api/bbs-directory/entries/${id}`, method: 'DELETE' })
+        .done(function() {
+            $('#deleteModal').modal('hide');
+            showSuccess(uiT('ui.admin.bbs_directory.entry_deleted', 'Entry deleted successfully'));
+            loadEntries();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Delete failed')); });
+}
+
+function renderPagination(selector, currentPage, totalPages, callback) {
+    const container = $(selector);
+    if (totalPages <= 1) { container.empty(); return; }
+
+    let html = '<nav><ul class="pagination pagination-sm">';
+    html += `<li class="page-item${currentPage === 1 ? ' disabled' : ''}">
+        <a class="page-link" href="#" onclick="return false;" data-page="${currentPage - 1}">&laquo;</a></li>`;
+
+    for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)) {
+            html += `<li class="page-item${p === currentPage ? ' active' : ''}">
+                <a class="page-link" href="#" onclick="return false;" data-page="${p}">${p}</a></li>`;
+        } else if (p === currentPage - 3 || p === currentPage + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+        }
+    }
+
+    html += `<li class="page-item${currentPage === totalPages ? ' disabled' : ''}">
+        <a class="page-link" href="#" onclick="return false;" data-page="${currentPage + 1}">&raquo;</a></li>`;
+    html += '</ul></nav>';
+
+    container.html(html);
+    container.find('[data-page]').on('click', function() {
+        const p = parseInt($(this).data('page'));
+        if (p >= 1 && p <= totalPages && p !== currentPage) { callback(p); }
+    });
+}
+</script>
+{% endblock %}

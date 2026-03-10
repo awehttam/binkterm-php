@@ -1191,6 +1191,16 @@ SimpleRouter::get('/shell-art/{name}', function(string $name) {
     readfile($path);
 });
 
+// Public BBS Directory page
+SimpleRouter::get('/bbs-directory', function() {
+    $db        = \BinktermPHP\Database::getInstance()->getPdo();
+    $directory = new \BinktermPHP\BbsDirectory($db);
+    $entries   = $directory->getActiveEntries();
+
+    $template = new Template();
+    $template->renderResponse('bbs_directory.twig', ['entries' => $entries]);
+});
+
 // Public /about page (only when enabled in appearance settings)
 SimpleRouter::get('/about', function() {
     if (!\BinktermPHP\AppearanceConfig::isAboutPageEnabled()) {

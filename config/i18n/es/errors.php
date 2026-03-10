@@ -445,5 +445,14 @@ return [
     'errors.admin.i18n_overrides.missing_params' => 'Se requieren el idioma y el nombre del catalogo',
     'errors.admin.i18n_overrides.load_failed' => 'Error al cargar el catalogo',
     'errors.admin.i18n_overrides.save_failed' => 'Error al guardar los ajustes',
+
+    // BBS Directory
+    'errors.admin.bbs_directory.not_found' => 'Entrada del directorio BBS no encontrada',
+    'errors.admin.bbs_directory.robot_not_found' => 'Regla de robot no encontrada',
+    'errors.admin.bbs_directory.name_required' => 'Se requiere el nombre del BBS',
+    'errors.admin.bbs_directory.duplicate_name' => 'Ya existe un BBS con ese nombre',
+    'errors.admin.bbs_directory.robot_required_fields' => 'Se requieren nombre, area echo y tipo de procesador',
+    'errors.admin.bbs_directory.run_failed' => 'La ejecucion del robot fallo',
+    'errors.admin.bbs_directory.invalid_processor_type' => 'Tipo de procesador desconocido o no soportado',
 ];
 

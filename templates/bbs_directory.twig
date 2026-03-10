@@ -1,0 +1,79 @@
+{% extends "base.twig" %}
+
+{% block title %}{{ t('ui.bbs_directory.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2>
+        <i class="fas fa-server"></i>
+        {{ t('ui.bbs_directory.heading', {}, 'common') }}
+    </h2>
+    <p class="text-muted">{{ t('ui.bbs_directory.description', {}, 'common') }}</p>
+</div>
+
+{% if entries | length == 0 %}
+<div class="card">
+    <div class="card-body text-center text-muted py-5">
+        <i class="fas fa-server fa-3x mb-3 d-block"></i>
+        {{ t('ui.bbs_directory.no_entries', {}, 'common') }}
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>{{ t('ui.bbs_directory.col_name', {}, 'common') }}</th>
+                        <th>{{ t('ui.bbs_directory.col_sysop', {}, 'common') }}</th>
+                        <th>{{ t('ui.bbs_directory.col_location', {}, 'common') }}</th>
+                        <th>{{ t('ui.bbs_directory.col_os', {}, 'common') }}</th>
+                        <th>{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</th>
+                        <th>{{ t('ui.bbs_directory.col_website', {}, 'common') }}</th>
+                        <th>{{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr>
+                        <td>
+                            {% if entry.telnet_host %}
+                                <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="fw-semibold">
+                                    {{ entry.name | e }}
+                                </a>
+                            {% else %}
+                                <span class="fw-semibold">{{ entry.name | e }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ entry.sysop | e | default('') }}</td>
+                        <td>{{ entry.location | e | default('') }}</td>
+                        <td>{{ entry.os | e | default('') }}</td>
+                        <td>
+                            {% if entry.telnet_host %}
+                                <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="font-monospace small">
+                                    {{ entry.telnet_host | e }}{% if entry.telnet_port != 23 %}:{{ entry.telnet_port }}{% endif %}
+                                </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if entry.website %}
+                                <a href="{{ entry.website | e }}" target="_blank" rel="noopener noreferrer" title="{{ entry.website | e }}">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if entry.last_seen %}
+                                <small class="text-muted" title="{{ entry.last_seen }}">{{ entry.last_seen | date('Y-m-d') }}</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
