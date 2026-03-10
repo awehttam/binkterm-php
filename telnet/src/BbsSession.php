@@ -145,6 +145,7 @@ class BbsSession
     {
         $conn = $this->conn;
         stream_set_timeout($conn, 300);
+        stream_set_write_buffer($conn, 0); // Disable write buffering so banner/prompts are sent immediately
 
         $state = [
             'telnet_mode' => null,
