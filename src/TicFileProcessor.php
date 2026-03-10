@@ -335,10 +335,13 @@ class TicFileProcessor
         }
 
         // Validate CRC32
+        // Normalize both values to 8 uppercase hex digits before comparing — TIC files
+        // sometimes omit leading zeros (e.g. "A85C382" instead of "0A85C382").
         if (isset($ticData['Crc'])) {
-            $actualCrc = $this->calculateCrc32($filePath);
-            if (strtoupper($actualCrc) !== strtoupper($ticData['Crc'])) {
-                $this->log("TIC CRC mismatch: expected {$ticData['Crc']}, got $actualCrc");
+            $actualCrc   = $this->calculateCrc32($filePath);
+            $expectedCrc = sprintf('%08X', hexdec($ticData['Crc']));
+            if ($actualCrc !== $expectedCrc) {
+                $this->log("TIC CRC mismatch: expected {$expectedCrc}, got {$actualCrc}");
                 return false;
             }
         }
