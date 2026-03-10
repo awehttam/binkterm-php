@@ -367,6 +367,84 @@ class BbsDirectory
     }
 
     /**
+     * Merge a duplicate entry into a target (keep) entry, then delete the duplicate.
+     *
+     * Fields that are null in the target are filled from the duplicate.
+     * last_seen is set to whichever is more recent.
+     * source is set to 'manual' if either entry has source='manual'.
+     *
+     * @param int $keepId      ID of the entry to keep
+     * @param int $discardId   ID of the entry to delete after merging
+     * @return bool            False if either entry is not found or keepId === discardId
+     */
+    public function mergeEntries(int $keepId, int $discardId): bool
+    {
+        if ($keepId === $discardId) {
+            return false;
+        }
+
+        $keep    = $this->getEntry($keepId);
+        $discard = $this->getEntry($discardId);
+
+        if (!$keep || !$discard) {
+            return false;
+        }
+
+        // Resolve merged field values in PHP, then issue a clean UPDATE
+        $nullCoalesce = fn($a, $b) => $a !== null && $a !== '' ? $a : $b;
+
+        // Telnet host+port: only substitute both together
+        $mergedTelnetHost = $nullCoalesce($keep['telnet_host'], $discard['telnet_host']);
+        $mergedTelnetPort = !empty($keep['telnet_host'])
+            ? (int)$keep['telnet_port']
+            : (int)($discard['telnet_port'] ?? 23);
+
+        // last_seen: most recent non-null value
+        $mergedLastSeen = $keep['last_seen'];
+        if ($discard['last_seen'] !== null) {
+            if ($mergedLastSeen === null || $discard['last_seen'] > $mergedLastSeen) {
+                $mergedLastSeen = $discard['last_seen'];
+            }
+        }
+
+        // source: 'manual' wins
+        $mergedSource = ($keep['source'] === 'manual' || $discard['source'] === 'manual') ? 'manual' : $keep['source'];
+
+        $this->db->prepare("
+            UPDATE bbs_directory SET
+                sysop       = :sysop,
+                location    = :location,
+                os          = :os,
+                telnet_host = :telnet_host,
+                telnet_port = :telnet_port,
+                ssh_port    = :ssh_port,
+                website     = :website,
+                software    = :software,
+                notes       = :notes,
+                last_seen   = :last_seen,
+                source      = :source,
+                updated_at  = NOW()
+            WHERE id = :id
+        ")->execute([
+            ':sysop'       => $nullCoalesce($keep['sysop'],    $discard['sysop']),
+            ':location'    => $nullCoalesce($keep['location'], $discard['location']),
+            ':os'          => $nullCoalesce($keep['os'],       $discard['os']),
+            ':telnet_host' => $mergedTelnetHost,
+            ':telnet_port' => $mergedTelnetPort,
+            ':ssh_port'    => $nullCoalesce($keep['ssh_port'], $discard['ssh_port']),
+            ':website'     => $nullCoalesce($keep['website'],  $discard['website']),
+            ':software'    => $nullCoalesce($keep['software'], $discard['software']),
+            ':notes'       => $nullCoalesce($keep['notes'],    $discard['notes']),
+            ':last_seen'   => $mergedLastSeen,
+            ':source'      => $mergedSource,
+            ':id'          => $keepId,
+        ]);
+
+        $this->deleteEntry($discardId);
+        return true;
+    }
+
+    /**
      * Delete a BBS directory entry.
      *
      * @param int $id

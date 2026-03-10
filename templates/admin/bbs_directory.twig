@@ -147,6 +147,37 @@
     </div>
 </div>
 
+{# ── Merge Modal ───────────────────────────────────────────────────────── #}
+<div class="modal fade" id="mergeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ t('ui.admin.bbs_directory.merge_title', {}, 'common') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>{{ t('ui.admin.bbs_directory.merge_keep_label', {}, 'common') }} <strong id="mergeKeepName"></strong></p>
+                <p class="text-muted small">{{ t('ui.admin.bbs_directory.merge_help', {}, 'common') }}</p>
+                <label class="form-label">{{ t('ui.admin.bbs_directory.merge_discard_label', {}, 'common') }}</label>
+                <input type="text" class="form-control mb-2" id="mergeSearch" placeholder="{{ t('ui.admin.bbs_directory.merge_search_placeholder', {}, 'common') }}" autocomplete="off">
+                <div id="mergeSearchResults" class="list-group" style="max-height:220px;overflow-y:auto"></div>
+                <div id="mergeSelectedWrap" class="mt-2 d-none">
+                    <div class="alert alert-warning py-2 mb-0">
+                        <i class="fas fa-trash me-1"></i>
+                        {{ t('ui.admin.bbs_directory.merge_will_delete', {}, 'common') }} <strong id="mergeDiscardName"></strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-warning" id="confirmMergeBtn" disabled onclick="confirmMerge()">
+                    <i class="fas fa-compress-arrows-alt me-1"></i>{{ t('ui.admin.bbs_directory.merge_confirm', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {# ── Delete Confirmation Modal ─────────────────────────────────────────── #}
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
@@ -268,6 +299,9 @@ function renderEntries(entries, total) {
                 <div class="btn-group" role="group">
                     <button class="btn btn-sm btn-outline-primary" onclick="editEntry(${e.id})" title="${uiT('ui.common.edit', 'Edit')}">
                         <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showMergeModal(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.admin.bbs_directory.merge', 'Merge duplicate')}">
+                        <i class="fas fa-compress-arrows-alt"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.common.delete', 'Delete')}">
                         <i class="fas fa-trash"></i>
@@ -433,6 +467,74 @@ function saveEntry() {
             loadPending();
         })
         .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Save failed')); });
+}
+
+// ── Merge ───────────────────────────────────────────────────────────────
+
+let mergeKeepId   = null;
+let mergeDiscardId = null;
+let mergeSearchTimer = null;
+
+function showMergeModal(id, name) {
+    mergeKeepId    = id;
+    mergeDiscardId = null;
+    $('#mergeKeepName').text(name);
+    $('#mergeSearch').val('');
+    $('#mergeSearchResults').empty();
+    $('#mergeSelectedWrap').addClass('d-none');
+    $('#confirmMergeBtn').prop('disabled', true);
+    $('#mergeModal').modal('show');
+    setTimeout(function() { $('#mergeSearch').focus(); }, 300);
+}
+
+$('#mergeSearch').on('input', function() {
+    clearTimeout(mergeSearchTimer);
+    const q = $(this).val().trim();
+    if (q.length < 2) { $('#mergeSearchResults').empty(); return; }
+    mergeSearchTimer = setTimeout(function() {
+        $.get('/admin/api/bbs-directory/entries', { page: 1, per_page: 20, search: q })
+            .done(function(data) {
+                const results = (data.entries || []).filter(e => e.id !== mergeKeepId);
+                let html = '';
+                results.forEach(function(e) {
+                    const addr = e.telnet_host ? `<small class="text-muted ms-2">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</small>` : '';
+                    html += `<button type="button" class="list-group-item list-group-item-action py-1" onclick="selectMergeDiscard(${e.id}, '${escapeHtml(e.name)}')">
+                        ${escapeHtml(e.name)}${addr}
+                    </button>`;
+                });
+                $('#mergeSearchResults').html(html || `<div class="list-group-item text-muted">${uiT('ui.admin.bbs_directory.no_entries', 'No entries found')}</div>`);
+            });
+    }, 300);
+});
+
+function selectMergeDiscard(id, name) {
+    mergeDiscardId = id;
+    $('#mergeDiscardName').text(name);
+    $('#mergeSelectedWrap').removeClass('d-none');
+    $('#confirmMergeBtn').prop('disabled', false);
+    $('#mergeSearchResults').empty();
+    $('#mergeSearch').val(name);
+}
+
+function confirmMerge() {
+    if (!mergeKeepId || !mergeDiscardId) return;
+    $('#confirmMergeBtn').prop('disabled', true);
+
+    $.ajax({
+        url: `/admin/api/bbs-directory/entries/${mergeKeepId}/merge`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ discard_id: mergeDiscardId }),
+    })
+    .done(function() {
+        $('#mergeModal').modal('hide');
+        showSuccess(uiT('ui.admin.bbs_directory.merge_success', 'Entries merged successfully'));
+        loadEntries();
+    })
+    .fail(function(xhr) {
+        showError(apiErr(xhr.responseJSON, 'Merge failed'));
+        $('#confirmMergeBtn').prop('disabled', false);
+    });
 }
 
 // ── Delete ──────────────────────────────────────────────────────────────

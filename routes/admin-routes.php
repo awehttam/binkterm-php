@@ -3262,6 +3262,47 @@ SimpleRouter::delete('/admin/api/bbs-directory/entries/{id}', function($id) {
     echo json_encode(['success' => true]);
 });
 
+// BBS Directory API - merge duplicate into keep entry
+SimpleRouter::post('/admin/api/bbs-directory/entries/{id}/merge', function($id) {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $input     = json_decode(file_get_contents('php://input'), true);
+    $discardId = (int)($input['discard_id'] ?? 0);
+
+    if ($discardId === 0) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.merge_missing_discard', apiLocalizedText('errors.admin.bbs_directory.merge_missing_discard', 'discard_id is required'));
+        return;
+    }
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+
+    if (!$directory->getEntry((int)$id)) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.not_found', apiLocalizedText('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'));
+        return;
+    }
+
+    if (!$directory->getEntry($discardId)) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.not_found', apiLocalizedText('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'));
+        return;
+    }
+
+    $ok = $directory->mergeEntries((int)$id, $discardId);
+    if (!$ok) {
+        http_response_code(400);
+        apiError('errors.admin.bbs_directory.merge_failed', apiLocalizedText('errors.admin.bbs_directory.merge_failed', 'Merge failed'));
+        return;
+    }
+
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    AdminActionLogger::logAction($userId, 'bbs_directory_entry_merged', ['keep_id' => (int)$id, 'discard_id' => $discardId]);
+    echo json_encode(['success' => true]);
+});
+
 // BBS Directory API - list pending entries
 SimpleRouter::get('/admin/api/bbs-directory/entries/pending', function() {
     RouteHelper::requireAdmin();

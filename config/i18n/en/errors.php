@@ -466,5 +466,7 @@ return [
     'errors.admin.bbs_directory.robot_required_fields' => 'Name, echo area, and processor type are required',
     'errors.admin.bbs_directory.run_failed' => 'Robot run failed',
     'errors.admin.bbs_directory.invalid_processor_type' => 'Unknown or unsupported processor type',
+    'errors.admin.bbs_directory.merge_missing_discard' => 'discard_id is required',
+    'errors.admin.bbs_directory.merge_failed' => 'Merge failed',
     'errors.admin.echomail_robots.invalid_config_json' => 'Processor config is not valid JSON',
 ];
