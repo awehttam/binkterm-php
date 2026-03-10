@@ -53,6 +53,7 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - The message reader now renders **LSC-001 MARKUP kludge** formatted messages with ANSI terminal formatting. Markdown messages display headings, bold, italic, code blocks, bullet lists, block quotes, and horizontal rules using ANSI escape sequences. StyleCodes messages display bold, italic, underline, and inverse video. Unrecognized formats fall back to plain text. Quoted lines (`> `) are always rendered as plain dim text regardless of the declared markup format.
 - Markdown strikethrough (`~~text~~`) now renders as dim `-text-` in the terminal and `<del>text</del>` in the web message reader.
 - In the message list, you can now type a message number to jump directly to it. The selection highlight updates live as digits are typed; press Enter to open.
+- The terminal capability detection wizard now correctly detects **ASCII-only terminals**. When UTF-8 is not supported, the wizard shows a CP437 box-drawing test; terminals that cannot render CP437 are set to ASCII mode instead of defaulting to CP437.
 
 ### File Areas
 - **ClamAV improvements**: Files can now be manually scanned for viruses by admins from the file details modal using the new **Virus Scan** button. New `.env` option:
@@ -67,8 +68,6 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - **Unprocessed files**: After packet and TIC processing, any unrecognized files remaining in `data/inbound/` are moved to `data/inbound/unprocessed/` for manual review instead of accumulating indefinitely.
 - File owners and admins can now edit a file through the web interface. The **Edit** button appears in the file detail modal for users who have permission. The edit dialog allows changing the filename (which renames the file on disk), the short description, and the long description in a single operation.
 - Admins can **move a file to a different file area** from the same edit dialog. A "Move to Area" dropdown is shown to admins only; selecting a different area moves the physical file on disk to the new area's storage directory and updates the database record.
-- The terminal capability detection wizard now correctly detects **ASCII-only terminals**. When UTF-8 is not supported, the wizard shows a CP437 box-drawing test; terminals that cannot render CP437 are set to ASCII mode instead of defaulting to CP437.
-
 ### Native Doors
 - Anonymous (guest) access: sysops can now allow unauthenticated users to launch specific native doors by setting `allow_anonymous: true` and `guest_max_sessions: N` in `config/nativedoors.json`. Requires migration v1.10.17.2 (run via `setup.php`).
 - New native door: **PubTerm (Public Terminal)** — connects anonymous users to the BBS via telnet. Disabled by default; enable in Admin → Native Doors. Configure target host/port via `PUBTERM_HOST` and `PUBTERM_PORT` in `.env` (defaults to `127.0.0.1:2323`). Linux uses `telnet -E -K`; Windows uses PuTTY `plink` (install via `winget install PuTTY.PuTTY`, or set `PUBTERM_PLINK_BIN` in `.env`). When enabled, a "Connect via Telnet" button appears on the login page.
