@@ -194,13 +194,15 @@ Handles BBS node announcement messages posted to the **FSX_DAT** echo area by iB
 **Message body format** (after ROT47 decode, newline-separated):
 
 ```
-Line 0  BBS name
+Line 0  >>> BEGIN marker
 Line 1  Sysop name
-Line 2  Date (MM/DD/YY)
-Line 3  Time
-Line 4  Location
-Line 5  Operating system
-Line 6  telnet-host:port
+Line 2  BBS name
+Line 3  Date (MM/DD/YY or YY/MM/DD)
+Line 4  Time
+Line 5  Location
+Line 6  Operating system
+Line 7  telnet-host:port
+Line 8  >>> END marker
 ```
 
 On a successful parse the processor upserts a row in `bbs_directory`. If the BBS name already exists (case-insensitive), the sysop, location, OS, and telnet address are updated and `last_seen` is refreshed. Manual entries (`source = 'manual'`) are updated in place but their source flag is preserved.

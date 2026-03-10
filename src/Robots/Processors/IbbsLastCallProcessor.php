@@ -13,13 +13,15 @@ use BinktermPHP\Robots\MessageProcessorInterface;
  * BBS node announcement data (name, sysop, location, OS, telnet address).
  *
  * Body line format after ROT47 decode (0-indexed):
- *   0: BBS name
+ *   0: >>> BEGIN marker (ROT47: "mmm qtvx}")
  *   1: Sysop name
- *   2: Date (MM/DD/YY)
- *   3: Time
- *   4: Location
- *   5: OS
- *   6: host:port
+ *   2: BBS name
+ *   3: Date (MM/DD/YY or YY/MM/DD)
+ *   4: Time
+ *   5: Location
+ *   6: OS
+ *   7: host:port
+ *   8: >>> END marker
  */
 class IbbsLastCallProcessor implements MessageProcessorInterface
 {
@@ -97,19 +99,27 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
             }
         }
 
-        // Need at least 7 lines: name, sysop, date, time, location, os, host:port
-        if (count($lines) < 7) {
+        // Validate >>> BEGIN marker (ROT47-encoded "mmm qtvx}" = ">>> BEGIN")
+        if (trim($lines[0]) !== 'mmm qtvx}') {
             if ($this->debugCallback !== null) {
-                ($this->debugCallback)("    SKIP: only " . count($lines) . " lines, need ≥7");
+                ($this->debugCallback)("    SKIP: missing >>> BEGIN marker on line 0 (got: " . trim($lines[0]) . ")");
             }
             return false;
         }
 
-        $name     = trim($lines[0]);
+        // Need at least 8 lines: BEGIN, sysop, name, date, time, location, os, host:port
+        if (count($lines) < 8) {
+            if ($this->debugCallback !== null) {
+                ($this->debugCallback)("    SKIP: only " . count($lines) . " lines, need ≥8");
+            }
+            return false;
+        }
+
+        $name     = trim($lines[2]);
         $sysop    = trim($lines[1]);
-        $location = trim($lines[4]);
-        $os       = trim($lines[5]);
-        $hostPort = trim($lines[6]);
+        $location = trim($lines[5]);
+        $os       = trim($lines[6]);
+        $hostPort = trim($lines[7]);
 
         if ($this->debugCallback !== null) {
             ($this->debugCallback)(sprintf(
