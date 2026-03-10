@@ -309,6 +309,44 @@
                     </button>
                 </div>
             </div>
+
+            {# Keyboard shortcuts help overlay — covers the modal body area #}
+            <div id="keyboardHelpOverlay" style="display:none; position:absolute; inset:0; z-index:20; background:rgba(0,0,0,0.82); padding:2rem; overflow-y:auto;">
+                <div class="mx-auto" style="max-width:480px;">
+                    <h5 class="text-white mb-3"><i class="fas fa-keyboard me-2"></i>{{ t('ui.echomail.shortcuts.title', {}, locale, ['common']) }}</h5>
+                    <table class="table table-sm table-dark table-borderless mb-3">
+                        <tbody>
+                            <tr>
+                                <td class="text-center" style="width:120px;">
+                                    <kbd>&larr;</kbd> <kbd>&rarr;</kbd>
+                                </td>
+                                <td>{{ t('ui.echomail.shortcuts.prev_next', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>A</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.toggle_ansi', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>D</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.download', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>F</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.fullscreen', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>?</kbd> <kbd>H</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.help', {}, locale, ['common']) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center"><kbd>Esc</kbd></td>
+                                <td>{{ t('ui.echomail.shortcuts.close', {}, locale, ['common']) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="text-muted small mb-0">{{ t('ui.echomail.shortcuts.dismiss', {}, locale, ['common']) }}</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>

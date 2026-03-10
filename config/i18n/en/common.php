@@ -2527,6 +2527,16 @@ return [
     'ui.echomail.shares.check_failed' => 'Failed to check existing shares',
     'ui.echomail.shares.friendly_url_failed' => 'Failed to generate friendly URL',
     'ui.echomail.shares.revoke_confirm' => 'Are you sure you want to revoke this share link? It will no longer be accessible to others.',
+    'ui.echomail.plain_text_mode' => 'Plain text mode',
+    'ui.echomail.press_a_to_toggle' => 'press A to toggle',
+    'ui.echomail.shortcuts.title' => 'Keyboard Shortcuts',
+    'ui.echomail.shortcuts.prev_next' => 'Previous / next message',
+    'ui.echomail.shortcuts.toggle_ansi' => 'Toggle ANSI / plain text rendering',
+    'ui.echomail.shortcuts.download' => 'Download message',
+    'ui.echomail.shortcuts.fullscreen' => 'Toggle fullscreen',
+    'ui.echomail.shortcuts.help' => 'Show / hide keyboard shortcuts',
+    'ui.echomail.shortcuts.close' => 'Close message',
+    'ui.echomail.shortcuts.dismiss' => 'Press ? or H to close this help',
 
     // Admin subscriptions
     'ui.admin_subscriptions.page_title' => 'Admin: Manage Subscriptions',

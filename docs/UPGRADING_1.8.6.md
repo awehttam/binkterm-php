@@ -55,7 +55,8 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - In the message list, you can now type a message number to jump directly to it. The selection highlight updates live as digits are typed; press Enter to open.
 - The message reader now displays headers in a **styled box** instead of plain `---` separators. The box uses charset-appropriate line-drawing characters (UTF-8, CP437, or ASCII) and renders with a dark blue background and gray border on ANSI terminals. The subject line is bold; the date and secondary fields are dimmed for visual hierarchy.
 - **Scroll optimization**: Scrolling through a message no longer clears and redraws the entire screen. Only the body rows are repainted in-place using cursor positioning, eliminating flicker on every keypress.- The terminal capability detection wizard now correctly detects **ASCII-only terminals**. When UTF-8 is not supported, the wizard shows a CP437 box-drawing test; terminals that cannot render CP437 are set to ASCII mode instead of defaulting to CP437.
-- **Automatic ANSI detection on telnet connect**: The server now sends an ANSI Device Status Report (`ESC[6n`) immediately after TELNET negotiation and waits up to 1.5 seconds for a Cursor Position Report response. ANSI color is enabled automatically if the terminal responds; otherwise the session defaults to plain ASCII with no color escape sequences. This means plain-text clients and scanners (e.g. Shodan) will see clean, readable output instead of raw ANSI codes. Saved user terminal settings continue to override the auto-detected value after login.
+- **Automatic ANSI detection on telnet connect**: ANSI color capability is now detected at connection time via the TELNET TTYPE negotiation (RFC 1091). The server sends `TTYPE SEND` only after the client acknowledges `DO TTYPE` (proper RFC sequence), then uses the terminal-type string to enable color automatically. Clients reporting `DUMB` or sending no TTYPE are served plain ASCII with no color escape sequences. The previous ESC[6n DSR/CPR probe has been removed — it caused SyncTerm and similar clients to pause display rendering until a key was pressed. Saved user terminal settings continue to override the auto-detected value after login.
+- **Telnet connect hang fix**: Added `stream_set_write_buffer($conn, 0)` on accepted sockets to disable PHP's userspace write buffer. Previously, banner text and prompts could sit in an 8 KB buffer and not reach the client until a read operation flushed it — appearing as a blank screen on connect.
 
 ### File Areas
 - **ClamAV improvements**: Files can now be manually scanned for viruses by admins from the file details modal using the new **Virus Scan** button. New `.env` option:
@@ -85,6 +86,10 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 
 ### TIC / File Areas (FidoNet)
 - Fixed a PostgreSQL encoding error (`Character not in repertoire`) that occurred when processing TIC files whose `FILE_ID.DIZ` or `Desc`/`LDesc` fields contained CP437 or ISO-8859-1 characters. Descriptions are now converted to valid UTF-8 before database insertion, matching the encoding handling already applied to message packets.
+
+### Web Echomail Reader
+- **ANSI / plain text toggle**: Press `A` while reading a message to switch between ANSI/preformatted rendering and plain text mode. A badge is shown when plain text mode is active. The mode resets to ANSI when opening a new message.
+- **Keyboard shortcuts help**: Press `?` or `H` while the message reader is open to display an overlay listing all available keyboard shortcuts. Press either key again to dismiss.
 
 ### Echomail / Netmail
 - Fixed multi-level echomail quoting: when replying to a message containing already-quoted lines (e.g. `RW>> text`), the bumped quote now consistently carries a leading space (` RW>>> text`) matching the FSC-0032 quoting style used for first-level quotes.

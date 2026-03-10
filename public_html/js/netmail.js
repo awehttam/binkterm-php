@@ -10,6 +10,7 @@ let userSettings = {};
 let currentSearchTerms = [];
 let selectMode = false;
 let selectedMessages = new Set();
+let keyboardHelpVisible = false;
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -70,6 +71,12 @@ $(document).ready(function() {
                     e.preventDefault();
                     downloadCurrentMessage();
                     break;
+                case '?':
+                case 'h':
+                case 'H':
+                    e.preventDefault();
+                    toggleKeyboardHelp();
+                    break;
             }
         }
     });
@@ -81,6 +88,7 @@ $(document).ready(function() {
             history.back();
         }
         modalClosedByBackButton = false;
+        hideKeyboardHelp();
     });
 
     // Filter change handler
@@ -1291,4 +1299,14 @@ function downloadCurrentMessage() {
         return;
     }
     window.location.href = `/api/messages/netmail/${encodeURIComponent(currentMessageId)}/download`;
+}
+
+function toggleKeyboardHelp() {
+    keyboardHelpVisible = !keyboardHelpVisible;
+    $('#keyboardHelpOverlay').toggle(keyboardHelpVisible);
+}
+
+function hideKeyboardHelp() {
+    keyboardHelpVisible = false;
+    $('#keyboardHelpOverlay').hide();
 }

@@ -98,7 +98,7 @@ function parseEchomailMessage(messageText, storedKludgeLines = null, storedBotto
 }
 
 // Smart text processing for mobile-friendly rendering
-function formatMessageText(messageText, searchTerms = []) {
+function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     if (!messageText || messageText.trim() === '') {
         return '';
     }
@@ -120,7 +120,7 @@ function formatMessageText(messageText, searchTerms = []) {
     const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
     const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
 
-    const shouldRenderAnsiArt = hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30);
+    const shouldRenderAnsiArt = !forcePlain && (hasCursorAnsi || (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) || (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30));
     const ansiLineStyle = hasColorCodes ? ' style="white-space: pre;"' : '';
 
     // Check if this is ANSI art (cursor positioning or dense ANSI text)

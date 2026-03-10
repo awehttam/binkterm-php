@@ -9,6 +9,9 @@ let currentMessages = [];
 let currentMessageIndex = -1;
 let currentSearchTerms = [];
 let currentMessageData = null;
+let currentParsedMessage = null;
+let ansiRenderingEnabled = true;
+let keyboardHelpVisible = false;
 let allEchoareas = [];
 let echoareaSearchQuery = '';
 let searchResultCounts = null;
@@ -76,6 +79,7 @@ $(document).ready(function() {
             history.back();
         }
         modalClosedByBackButton = false;
+        hideKeyboardHelp();
     });
 
     // Add keyboard navigation for message modal
@@ -103,6 +107,17 @@ $(document).ready(function() {
                 case 'F':
                     e.preventDefault();
                     toggleModalFullscreen();
+                    break;
+                case 'a':
+                case 'A':
+                    e.preventDefault();
+                    toggleAnsiRendering();
+                    break;
+                case '?':
+                case 'h':
+                case 'H':
+                    e.preventDefault();
+                    toggleKeyboardHelp();
                     break;
             }
         }
@@ -737,6 +752,45 @@ function displayMessageContent(message) {
     checkAndDisplayEchomailMessage(message, parsedMessage);
 }
 
+function toggleKeyboardHelp() {
+    keyboardHelpVisible = !keyboardHelpVisible;
+    $('#keyboardHelpOverlay').toggle(keyboardHelpVisible);
+}
+
+function hideKeyboardHelp() {
+    keyboardHelpVisible = false;
+    $('#keyboardHelpOverlay').hide();
+}
+
+function toggleAnsiRendering() {
+    if (!currentMessageData || !currentParsedMessage) return;
+
+    ansiRenderingEnabled = !ansiRenderingEnabled;
+
+    const body = currentParsedMessage.messageBody;
+    let bodyHtml;
+    if (ansiRenderingEnabled && currentMessageData.markup_html) {
+        bodyHtml = currentMessageData.markup_html;
+    } else {
+        bodyHtml = formatMessageText(body, currentSearchTerms, !ansiRenderingEnabled);
+    }
+
+    // Replace only the body content, keeping the badge
+    const container = document.getElementById('messageTextContainer');
+    if (!container) return;
+
+    // Update badge visibility
+    const badge = document.getElementById('ansiRenderBadge');
+    if (badge) badge.style.display = ansiRenderingEnabled ? 'none' : '';
+
+    // Replace everything after the badge with the new body
+    const existing = container.querySelectorAll(':scope > :not(#ansiRenderBadge)');
+    existing.forEach(el => el.remove());
+    const tmp = document.createElement('div');
+    tmp.innerHTML = bodyHtml;
+    while (tmp.firstChild) container.appendChild(tmp.firstChild);
+}
+
 function downloadCurrentMessage() {
     if (!currentMessageId || !currentMessageData) {
         return;
@@ -772,6 +826,9 @@ function checkAndDisplayEchomailMessage(message, parsedMessage) {
 }
 
 function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
+    currentParsedMessage = parsedMessage;
+    ansiRenderingEnabled = true;
+    hideKeyboardHelp();
     let addressBookButton;
     if (isInAddressBook) {
         addressBookButton = `
@@ -842,7 +899,10 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
         </div>
 
-        <div class="message-text">
+        <div class="message-text" id="messageTextContainer">
+            <div id="ansiRenderBadge" style="display:none;" class="mb-2">
+                <span class="badge bg-secondary">${uiT('ui.echomail.plain_text_mode', 'Plain text mode')} &mdash; ${uiT('ui.echomail.press_a_to_toggle', 'press A to toggle')}</span>
+            </div>
             ${bodyHtml}
         </div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}

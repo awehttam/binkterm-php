@@ -2527,6 +2527,16 @@ return [
     'ui.echomail.shares.check_failed' => 'No se pudieron verificar los compartidos existentes',
     'ui.echomail.shares.friendly_url_failed' => 'No se pudo generar la URL amigable',
     'ui.echomail.shares.revoke_confirm' => 'Esta seguro de que desea revocar este enlace compartido? Ya no sera accesible para otros.',
+    'ui.echomail.plain_text_mode' => 'Modo texto plano',
+    'ui.echomail.press_a_to_toggle' => 'presione A para alternar',
+    'ui.echomail.shortcuts.title' => 'Atajos de teclado',
+    'ui.echomail.shortcuts.prev_next' => 'Mensaje anterior / siguiente',
+    'ui.echomail.shortcuts.toggle_ansi' => 'Alternar renderizado ANSI / texto plano',
+    'ui.echomail.shortcuts.download' => 'Descargar mensaje',
+    'ui.echomail.shortcuts.fullscreen' => 'Alternar pantalla completa',
+    'ui.echomail.shortcuts.help' => 'Mostrar / ocultar atajos de teclado',
+    'ui.echomail.shortcuts.close' => 'Cerrar mensaje',
+    'ui.echomail.shortcuts.dismiss' => 'Presione ? o H para cerrar esta ayuda',
 
     // Admin subscriptions
     'ui.admin_subscriptions.page_title' => 'Admin: Gestionar suscripciones',
