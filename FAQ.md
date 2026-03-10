@@ -116,11 +116,19 @@ Users will see the new theme in their settings dropdown immediately after the co
 1. For local-only areas: Enable the "Local Only" flag on the echo area
 2. For networked areas: Add an uplink configuration in `binkp.json` for that domain
 
-### Q: What's the difference between uplink_address on an echo area vs in binkp.json?
-**A:**
-- The `uplink_address` on an echo area is an optional (experimental) override for where to send messages for that specific area
-- The uplink in `binkp.json` defines the actual connection details (hostname, password) for polling and sending mail
-- If an echo area has no `uplink_address`, messages go to the default uplink for that domain
+### Q: What is the uplink_address field on an echo area actually used for?
+**A:** It is a per-echo-area override for the outbound packet destination. For most installations it should be left blank.
+
+When BinktermPHP spools an outbound echomail message it determines where to send it using this priority order:
+
+1. **Echo area `uplink_address`** — if set, this address is used for that area only
+2. **Domain-level uplink** — the uplink in `binkp.json` whose `domain` matches the echo area's domain
+3. **Fallback** — the uplink in `binkp.json` marked `"default": true`, or if none is marked, the first enabled uplink
+4. **None** — message is not sent upstream (effectively local delivery)
+
+In practice, for a typical setup, step 2 handles everything and `uplink_address` is always left blank. It would only be needed if you had two different uplinks on the same domain and wanted specific echo areas routed to a specific one — an uncommon scenario.
+
+**Note:** The `uplink_address` stored here is just the FTN address (e.g. `21:1/100`). The actual connection details (hostname, port, password) are always defined in `binkp.json` — this field only selects *which* of those configured uplinks to use.
 
 ### Q: Why does ANSI art render incorrectly?
 **A:**
