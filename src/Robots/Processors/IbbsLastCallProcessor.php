@@ -18,7 +18,7 @@ use BinktermPHP\Robots\MessageProcessorInterface;
  *   2: BBS name
  *   3: Date (MM/DD/YY or YY/MM/DD)
  *   4: Time
- *   5: Location
+ *   5: Last caller location (not the BBS location — do not store)
  *   6: OS
  *   7: host:port
  *   8: >>> END marker
@@ -116,15 +116,13 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
         }
 
         $name     = trim($lines[2]);
-        $location = trim($lines[5]);
         $os       = trim($lines[6]);
         $hostPort = trim($lines[7]);
 
         if ($this->debugCallback !== null) {
             ($this->debugCallback)(sprintf(
-                "    EXTRACTED: name=%s | location=%s | os=%s | hostPort=%s",
-                json_encode($name), json_encode($location),
-                json_encode($os), json_encode($hostPort)
+                "    EXTRACTED: name=%s | os=%s | hostPort=%s",
+                json_encode($name), json_encode($os), json_encode($hostPort)
             ));
         }
 
@@ -154,7 +152,6 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
         $directory = new BbsDirectory($this->db);
         $directory->upsertByName([
             'name'        => $name,
-            'location'    => $location ?: null,
             'os'          => $os ?: null,
             'telnet_host' => $telnetHost,
             'telnet_port' => $telnetPort,
