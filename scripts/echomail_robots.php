@@ -36,6 +36,38 @@ foreach ($argv as $arg) {
         $debug = true;
     } elseif ($arg === '--quiet') {
         $quiet = true;
+    } elseif ($arg === '--help' || $arg === '-h') {
+        echo <<<'HELP'
+Usage: php scripts/echomail_robots.php [options]
+
+Runs one or all enabled echomail robot rules. Each robot watches an echo area
+for matching messages and dispatches them to a configured processor.
+
+Options:
+  --robot-id=N   Run only the robot with this ID (default: run all enabled)
+  --dry-run      Process messages but roll back all DB changes at the end;
+                 implies --debug so you can inspect what would be written
+  --debug        Print per-message decode details (raw body, decoded lines,
+                 extracted fields) to help diagnose parsing problems
+  --quiet        Suppress all output; exit code reflects errors (for cron)
+  --help, -h     Show this help and exit
+
+Exit codes:
+  0  All robots ran without errors
+  1  One or more robots encountered an error
+
+Examples:
+  # Run all enabled robots (normal cron usage)
+  php scripts/echomail_robots.php --quiet
+
+  # Test a specific robot without writing anything
+  php scripts/echomail_robots.php --robot-id=1 --dry-run
+
+  # Debug a robot's message parsing live
+  php scripts/echomail_robots.php --robot-id=1 --debug
+
+HELP;
+        exit(0);
     }
 }
 
