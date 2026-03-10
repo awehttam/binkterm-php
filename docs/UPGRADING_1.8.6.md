@@ -46,6 +46,9 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - **ClamAV improvements**: Files can now be manually scanned for viruses by admins from the file details modal using the new **Virus Scan** button. New `.env` option:
   - `CLAMAV_ALLOW_INFECTED=true` — accept infected files rather than rejecting them; scan result is still recorded
 - **Virus detection error**: When an upload is rejected due to virus detection, the UI now shows a specific "File rejected: virus detected" message instead of the generic upload failure. The rejection is also logged to the server log. See [docs/AntiVirus.md](AntiVirus.md) for full setup and configuration instructions.
+- The file areas sidebar now has a **search/filter box** to quickly find areas by tag or description.
+- The file areas sidebar list is now scrollable with a fixed height, matching the echomail reader style.
+- The page and sidebar heading has been renamed from "Files" to "File Areas".
 - **TIC file encoding fix**: TIC files and `FILE_ID.DIZ` contents containing CP437 or ISO-8859-1 characters no longer cause a PostgreSQL encoding error. Text is converted to UTF-8 before database insertion.
 - **TIC bundle extraction fix**: Files distributed via TIC that are compressed inside a FidoNet day-of-week bundle (e.g. `.FR0`) are now correctly extracted and made available for TIC processing instead of being silently discarded.
 - **Inbound processing lock**: `process_packets.php` now uses a file lock to prevent multiple concurrent instances.
