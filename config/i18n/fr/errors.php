@@ -85,6 +85,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Le tag et la description sont requis',
     'errors.echoareas.invalid_tag_format' => 'Format de tag invalide',
     'errors.echoareas.invalid_color_format' => 'Format de couleur invalide',
+    'errors.echoareas.tag_already_exists' => 'Une zone echo avec ce tag existe déjà',
     'errors.echoareas.create_failed' => 'Échec de la création de la zone echo',
     'errors.echoareas.not_found_or_unchanged' => 'Zone echo introuvable ou aucune modification effectuée',
     'errors.echoareas.update_failed' => 'Échec de la mise à jour de la zone echo',

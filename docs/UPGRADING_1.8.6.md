@@ -105,6 +105,7 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 ### Admin / Sysop Tools
 - New **Language Overrides** editor in Admin → BBS Settings → Language Overrides. Sysops can customize individual phrases for any locale and catalog without editing the base translation files. Overrides are stored as JSON in `config/i18n/overrides/<locale>/<namespace>.json` and are applied transparently on top of the base catalog at runtime.
 - PWA manifest: added app shortcuts for Doors (`/games`) and Files (`/files`). Shortcuts updated: Compose Netmail, Netmail inbox, and Echomail replace the previous Compose Echomail shortcut; Compose Netmail is listed first.
+- **Echo area editor error display**: When saving an echo area fails, the error message is now shown inline within the edit modal instead of behind it where it was invisible. Duplicate tag submissions now return a specific "An echo area with that tag already exists" message instead of the generic failure.
 
 ### Web / PWA
 - Fixed service worker caching: static assets (CSS, JS, fonts) are now served from the SW cache on every navigation with no redundant network requests. Switched from stale-while-revalidate to cache-first strategy; theme stylesheets and FontAwesome fonts are pre-cached at install time. The `sw.js` script now has a dedicated `Cache-Control: no-cache` header in `.htaccess` per the Service Worker spec recommendation.

@@ -106,6 +106,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Tag and description are required',
     'errors.echoareas.invalid_tag_format' => 'Invalid tag format',
     'errors.echoareas.invalid_color_format' => 'Invalid color format',
+    'errors.echoareas.tag_already_exists' => 'An echo area with that tag already exists',
     'errors.echoareas.create_failed' => 'Failed to create echo area',
     'errors.echoareas.not_found_or_unchanged' => 'Echo area not found or no changes made',
     'errors.echoareas.update_failed' => 'Failed to update echo area',

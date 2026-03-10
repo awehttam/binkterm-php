@@ -124,6 +124,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="echoareaModalError" class="alert alert-danger d-none" role="alert"></div>
                 <form id="echoareaForm">
                     <input type="hidden" id="echoareaId">
                     
@@ -462,6 +463,7 @@ function displayEchoareas(echoareas) {
 function showAddEchoareaModal() {
     currentEchoareaId = null;
     $('#echoareaModalTitle').text(uiT('ui.echoareas.add_echo_area', 'Add Echo Area'));
+    $('#echoareaModalError').addClass('d-none').text('');
     $('#echoareaForm')[0].reset();
     $('#echoareaId').val('');
     $("#echoareaDomain").val('');
@@ -478,6 +480,7 @@ function showAddEchoareaModal() {
 function editEchoarea(id) {
     currentEchoareaId = id;
     $('#echoareaModalTitle').text(uiT('ui.echoareas.edit_echo_area', 'Edit Echo Area'));
+    $('#echoareaModalError').addClass('d-none').text('');
 
     $.get(`/api/echoareas/${id}`)
         .done(function(data) {
@@ -550,7 +553,7 @@ function saveEchoarea() {
                     ? uiT('errors.echoareas.update_failed', 'Failed to update echo area')
                     : uiT('errors.echoareas.create_failed', 'Failed to create echo area')
             );
-            showError(error);
+            $('#echoareaModalError').text(error).removeClass('d-none');
         }
     });
 }

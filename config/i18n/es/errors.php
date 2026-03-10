@@ -106,6 +106,7 @@ return [
     'errors.echoareas.tag_description_required' => 'Se requieren etiqueta y descripcion',
     'errors.echoareas.invalid_tag_format' => 'Formato de etiqueta invalido',
     'errors.echoareas.invalid_color_format' => 'Formato de color invalido',
+    'errors.echoareas.tag_already_exists' => 'Ya existe un área de eco con esa etiqueta',
     'errors.echoareas.create_failed' => 'No se pudo crear el area de eco',
     'errors.echoareas.not_found_or_unchanged' => 'Area de eco no encontrada o sin cambios',
     'errors.echoareas.update_failed' => 'No se pudo actualizar el area de eco',

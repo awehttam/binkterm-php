@@ -1870,6 +1870,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_tag_format', apiLocalizedText('errors.echoareas.invalid_tag_format', 'Invalid tag format', $user));
             } elseif ($message === 'Invalid color format') {
                 apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
+            } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
+                apiError('errors.echoareas.tag_already_exists', apiLocalizedText('errors.echoareas.tag_already_exists', 'An echo area with that tag already exists', $user));
             } else {
                 apiError('errors.echoareas.create_failed', apiLocalizedText('errors.echoareas.create_failed', 'Failed to create echo area', $user));
             }
@@ -1951,6 +1953,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.echoareas.invalid_color_format', apiLocalizedText('errors.echoareas.invalid_color_format', 'Invalid color format', $user));
             } elseif ($message === 'Echo area not found or no changes made') {
                 apiError('errors.echoareas.not_found_or_unchanged', apiLocalizedText('errors.echoareas.not_found_or_unchanged', 'Echo area not found or no changes made', $user));
+            } elseif ($e instanceof \PDOException && $e->getCode() === '23505') {
+                apiError('errors.echoareas.tag_already_exists', apiLocalizedText('errors.echoareas.tag_already_exists', 'An echo area with that tag already exists', $user));
             } else {
                 apiError('errors.echoareas.update_failed', apiLocalizedText('errors.echoareas.update_failed', 'Failed to update echo area', $user));
             }
