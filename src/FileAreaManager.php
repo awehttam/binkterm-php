@@ -767,6 +767,19 @@ class FileAreaManager
             $allowInfected = Config::env('CLAMAV_ALLOW_INFECTED', 'false') === 'true';
             error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (CLAMAV_ALLOW_INFECTED: keeping file)' : ''));
 
+            try {
+                $client = new \BinktermPHP\Admin\AdminDaemonClient();
+                $client->serverLog('WARNING', 'Virus detected in uploaded file', [
+                    'file_id'   => $fileId,
+                    'signature' => $result['signature'] ?? 'unknown',
+                    'file_path' => $filePath,
+                    'allowed'   => $allowInfected,
+                ]);
+                $client->close();
+            } catch (\Throwable $e) {
+                error_log("Failed to write virus detection server log: " . $e->getMessage());
+            }
+
             if ($allowInfected) {
                 // Keep the file but leave its scan result recorded as infected
             } else {
