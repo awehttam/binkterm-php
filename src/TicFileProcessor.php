@@ -232,6 +232,7 @@ class TicFileProcessor
             return;
         }
 
+        $dizContent = $this->sanitizeToUtf8($dizContent);
         $dizContent = str_replace(["\r\n", "\r"], "\n", $dizContent);
         $lines = array_values(array_filter(array_map('rtrim', explode("\n", $dizContent)), fn($l) => $l !== ''));
 
@@ -597,13 +598,13 @@ class TicFileProcessor
         $fileSize = filesize($storagePath);
 
         // Build descriptions
-        $shortDesc = $ticData['Desc'] ?? '';
-        $longDesc = !empty($ticData['LDesc']) ? implode("\n", $ticData['LDesc']) : '';
+        $shortDesc = $this->sanitizeToUtf8($ticData['Desc'] ?? '');
+        $longDesc = !empty($ticData['LDesc']) ? $this->sanitizeToUtf8(implode("\n", $ticData['LDesc'])) : '';
 
         // Truncate fields to fit database constraints (VARCHAR 255)
         $filename = mb_substr($filename, 0, 255);
         $shortDesc = mb_substr($shortDesc, 0, 255);
-        $fromAddress = mb_substr($ticData['From'] ?? '', 0, 255);
+        $fromAddress = mb_substr($this->sanitizeToUtf8($ticData['From'] ?? ''), 0, 255);
 
         // Store in database
         $stmt = $this->db->prepare("
@@ -742,6 +743,33 @@ class TicFileProcessor
         }
 
         return $result;
+    }
+
+    /**
+     * Convert a string to valid UTF-8, trying CP437 first (common FidoNet/DOS encoding).
+     * Invalid bytes are dropped rather than causing a PostgreSQL encoding error.
+     *
+     * @param string $text Raw input that may be CP437, ISO-8859-1, or already UTF-8
+     * @return string Valid UTF-8 string
+     */
+    private function sanitizeToUtf8(string $text): string
+    {
+        if (mb_check_encoding($text, 'UTF-8')) {
+            return $text;
+        }
+
+        if (function_exists('iconv')) {
+            $converted = @iconv('CP437', 'UTF-8//IGNORE', $text);
+            if ($converted !== false) {
+                return $converted;
+            }
+            $converted = @iconv('ISO-8859-1', 'UTF-8//IGNORE', $text);
+            if ($converted !== false) {
+                return $converted;
+            }
+        }
+
+        return mb_convert_encoding($text, 'UTF-8', 'CP437');
     }
 
     /**
