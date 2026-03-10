@@ -99,11 +99,13 @@ class AutoReplyProcessor implements MessageProcessorInterface
             return false;
         }
 
-        // Build skip list: configured names + the posting user's real_name
+        // Build skip list: configured names + the posting user's username and real_name
+        // (echoarea posting name policy may use either one as from_name)
         $skipFromNames = array_map('mb_strtolower', (array)($robotConfig['skip_from_names'] ?? []));
-        $posterName    = $this->getUserName($userId);
-        if ($posterName !== null) {
-            $skipFromNames[] = mb_strtolower($posterName);
+        $skipFromNames[] = mb_strtolower($senderUsername);
+        $posterRealName = $this->getUserName($userId);
+        if ($posterRealName !== null) {
+            $skipFromNames[] = mb_strtolower($posterRealName);
         }
 
         $msgFromName = mb_strtolower(trim($message['from_name'] ?? ''));
