@@ -133,8 +133,6 @@ php scripts/setup.php
 scripts/restart_daemons.sh
 ```
 
-`setup.php` applies migration `v1.11.0_bbs_directory.sql` which creates the `bbs_directory` and `echomail_robots` tables.
-
 ### Using the Installer
 
 ```bash

@@ -96,26 +96,9 @@ class MarkdownRenderer
                 continue;
             }
 
-            // --- Unordered list ---
-            if (preg_match('/^[-*]\s+(.+)$/', $line, $m)) {
-                $items = [];
-                while ($i < $total && preg_match('/^[-*]\s+(.+)$/', $lines[$i], $lm)) {
-                    $itemLines = [$lm[1]];
-                    $i++;
-
-                    while (
-                        $i < $total &&
-                        trim($lines[$i]) !== '' &&
-                        preg_match('/^\s+(.+)$/', $lines[$i], $continuation) &&
-                        !preg_match('/^\s*[-*]\s+/', $lines[$i])
-                    ) {
-                        $itemLines[] = trim($continuation[1]);
-                        $i++;
-                    }
-
-                    $items[] = '<li>' . self::inlineHtml(implode(' ', $itemLines)) . '</li>';
-                }
-                $output[] = '<ul>' . implode('', $items) . '</ul>';
+            // --- Unordered list (supports nested indented sub-lists) ---
+            if (preg_match('/^(\s*)[-*]\s+(.+)$/', $line, $m)) {
+                $output[] = self::parseUnorderedList($lines, $i, $total, strlen($m[1]));
                 continue;
             }
 
@@ -210,5 +193,70 @@ class MarkdownRenderer
         $row   = trim($row, " \t|");
         $cells = explode('|', $row);
         return array_map('trim', $cells);
+    }
+
+    /**
+     * Parse an unordered list block at the given indentation level.
+     *
+     * @param string[] $lines
+     * @param int      $i Current line index (advanced by reference)
+     * @param int      $total Total line count
+     * @param int      $baseIndent Indentation level for this list
+     * @return string
+     */
+    private static function parseUnorderedList(array $lines, int &$i, int $total, int $baseIndent): string
+    {
+        $items = [];
+
+        while ($i < $total) {
+            if (!preg_match('/^(\s*)[-*]\s+(.+)$/', $lines[$i], $itemMatch)) {
+                break;
+            }
+
+            $itemIndent = strlen($itemMatch[1]);
+            if ($itemIndent < $baseIndent) {
+                break;
+            }
+            if ($itemIndent > $baseIndent) {
+                // Deeper indentation belongs to a nested list under the previous item.
+                break;
+            }
+
+            $itemText  = [$itemMatch[2]];
+            $itemInner = '';
+            $i++;
+
+            while ($i < $total) {
+                $current = $lines[$i];
+                if (trim($current) === '') {
+                    break;
+                }
+
+                if (preg_match('/^(\s*)[-*]\s+(.+)$/', $current, $nestedMatch)) {
+                    $nestedIndent = strlen($nestedMatch[1]);
+                    if ($nestedIndent > $baseIndent) {
+                        $itemInner .= self::parseUnorderedList($lines, $i, $total, $nestedIndent);
+                        continue;
+                    }
+                    if ($nestedIndent === $baseIndent) {
+                        break;
+                    }
+                    break;
+                }
+
+                if (preg_match('/^\s+(.+)$/', $current, $continuation)) {
+                    $itemText[] = trim($continuation[1]);
+                    $i++;
+                    continue;
+                }
+
+                break;
+            }
+
+            $li = '<li>' . self::inlineHtml(implode(' ', $itemText)) . $itemInner . '</li>';
+            $items[] = $li;
+        }
+
+        return '<ul>' . implode('', $items) . '</ul>';
     }
 }
