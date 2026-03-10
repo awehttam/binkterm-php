@@ -14,6 +14,17 @@ use BinktermPHP\TicFileProcessor;
 // Initialize database
 Database::getInstance();
 
+// Ensure only one instance runs at a time
+$lockFile = __DIR__ . '/../data/run/process_packets.lock';
+if (!is_dir(dirname($lockFile))) {
+    mkdir(dirname($lockFile), 0755, true);
+}
+$lockFh = fopen($lockFile, 'c');
+if (!$lockFh || !flock($lockFh, LOCK_EX | LOCK_NB)) {
+    echo "Another instance of process_packets.php is already running. Exiting.\n";
+    exit(0);
+}
+
 /**
  * Process TIC files from inbound directory
  */
@@ -105,11 +116,35 @@ try {
     if($cleaned)
         echo "Cleaned up {$cleaned} old packet records\n";
 
+    // Move any unrecognized/unprocessed files from inbound to unprocessed/.
+    // TIC files are left in place — they may still be waiting for their data file.
+    $inboundPath = __DIR__ . '/../data/inbound';
+    $unprocessedDir = $inboundPath . '/unprocessed';
+    $leftover = array_filter(glob($inboundPath . '/*') ?: [], 'is_file');
+    foreach ($leftover as $file) {
+        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if ($ext === 'tic') {
+            continue; // Leave TIC files — still waiting for their data file
+        }
+        if (!is_dir($unprocessedDir)) {
+            mkdir($unprocessedDir, 0755, true);
+        }
+        $dest = $unprocessedDir . '/' . basename($file);
+        if (rename($file, $dest)) {
+            echo "  → Moved unprocessed file to unprocessed/: " . basename($file) . "\n";
+        }
+    }
+
     // TODO: Process outbound queue (send pending messages)
 
     echo "Packet processing completed\n";
     
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";
+    flock($lockFh, LOCK_UN);
+    fclose($lockFh);
     exit(1);
 }
+
+flock($lockFh, LOCK_UN);
+fclose($lockFh);

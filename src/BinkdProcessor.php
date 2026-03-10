@@ -1959,6 +1959,22 @@ class BinkdProcessor
             }
         }
 
+        // Move any non-pkt files extracted from the bundle back to inbound so that
+        // TIC processing can find them (e.g. NIXLIST.Z65 inside a .FR0 day bundle)
+        $remaining = glob($tempDir . '/*') ?: [];
+        foreach ($remaining as $file) {
+            if (!is_file($file)) {
+                continue;
+            }
+            $dest = $this->inboundPath . '/' . basename($file);
+            if (rename($file, $dest)) {
+                $this->log("[BINKD] Moved non-packet file to inbound: " . basename($file));
+            } else {
+                $this->log("[BINKD] Failed to move non-packet file to inbound: " . basename($file));
+                unlink($file);
+            }
+        }
+
         return $processed;
     }
     
