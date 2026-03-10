@@ -27,10 +27,15 @@
     </div>
 </div>
 {% else %}
+<div class="mb-3">
+    <input type="search" id="bbsSearch" class="form-control"
+           placeholder="{{ t('ui.bbs_directory.search_placeholder', {}, 'common') }}"
+           autocomplete="off">
+</div>
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0" id="bbsTable">
                 <thead>
                     <tr>
                         <th>{{ t('ui.bbs_directory.col_name', {}, 'common') }}</th>
@@ -42,9 +47,9 @@
                         <th>{{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="bbsTableBody">
                     {% for entry in entries %}
-                    <tr>
+                    <tr data-search="{{ ([entry.name, entry.sysop, entry.location, entry.os, entry.telnet_host, entry.software] | join(' ') | lower | e) }}">
                         <td>
                             {% if entry.telnet_host %}
                                 <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="fw-semibold">
@@ -80,6 +85,9 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+        <div id="bbsNoResults" class="text-center text-muted py-4 d-none">
+            {{ t('ui.bbs_directory.no_results', {}, 'common') }}
         </div>
     </div>
 </div>
@@ -155,6 +163,32 @@
 {% endblock %}
 
 {% block scripts %}
+{% if entries | length > 0 %}
+<script>
+(function() {
+    const input    = document.getElementById('bbsSearch');
+    const rows     = document.querySelectorAll('#bbsTableBody tr');
+    const noResult = document.getElementById('bbsNoResults');
+    const table    = document.getElementById('bbsTable');
+
+    if (!input) return;
+
+    input.addEventListener('input', function() {
+        const q = this.value.trim().toLowerCase();
+        let visible = 0;
+
+        rows.forEach(function(row) {
+            const match = !q || row.dataset.search.indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+
+        table.style.display  = visible > 0 ? '' : 'none';
+        noResult.classList.toggle('d-none', visible > 0);
+    });
+})();
+</script>
+{% endif %}
 {% if current_user %}
 <script>
 function showSubmitModal() {

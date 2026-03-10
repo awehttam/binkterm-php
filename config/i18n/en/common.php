@@ -2672,7 +2672,7 @@ return [
     // BBS Directory (public page)
     'ui.bbs_directory.page_title' => 'BBS Directory',
     'ui.bbs_directory.heading' => 'BBS Directory',
-    'ui.bbs_directory.description' => 'A listing of BBS systems known to this network, automatically populated from echomail announcements and supplemented with manually curated entries.',
+    'ui.bbs_directory.description' => 'A list of BBS systems known to this BBS, automatically discovered through various sources and supplemented by manually curated entries.',
     'ui.bbs_directory.col_name' => 'BBS Name',
     'ui.bbs_directory.col_sysop' => 'Sysop',
     'ui.bbs_directory.col_location' => 'Location',
@@ -2681,6 +2681,8 @@ return [
     'ui.bbs_directory.col_website' => 'Website',
     'ui.bbs_directory.col_last_seen' => 'Last Seen',
     'ui.bbs_directory.no_entries' => 'No BBS entries yet.',
+    'ui.bbs_directory.search_placeholder' => 'Search by name, sysop, location...',
+    'ui.bbs_directory.no_results' => 'No entries match your search.',
     'ui.bbs_directory.connect' => 'Connect',
     'ui.bbs_directory.source_auto' => 'Auto',
     'ui.bbs_directory.source_manual' => 'Manual',
