@@ -60,6 +60,9 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Trusted proxy support: resolves the real client IP from the `X-Forwarded-For` header when the connection originates from a trusted proxy. Set `DOSDOOR_TRUSTED_PROXIES` in `.env` to a comma-separated list of proxy IPs (default: `127.0.0.1`). Connections from unlisted addresses always use the raw socket IP.
 - Log lines are now prefixed with `[sessionId|username|ip]` for every session-scoped event, including emulator adapter output (DOSBox, DOSEMU, Native), DB updates, and drop file writes. This makes it straightforward to correlate all activity for a specific user or connection in the log.
 
+### TIC / File Areas (FidoNet)
+- Fixed a PostgreSQL encoding error (`Character not in repertoire`) that occurred when processing TIC files whose `FILE_ID.DIZ` or `Desc`/`LDesc` fields contained CP437 or ISO-8859-1 characters. Descriptions are now converted to valid UTF-8 before database insertion, matching the encoding handling already applied to message packets.
+
 ### Echomail / Netmail
 - Fixed multi-level echomail quoting: when replying to a message containing already-quoted lines (e.g. `RW>> text`), the bumped quote now consistently carries a leading space (` RW>>> text`) matching the FSC-0032 quoting style used for first-level quotes.
 - Fixed netmail replies using plain `>` quoting instead of FSC-0032 initials style. Netmail replies now quote identically to echomail replies.
