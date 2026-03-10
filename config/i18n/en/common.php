@@ -1748,7 +1748,7 @@ return [
     'ui.echomail.shares.url_copied' => 'Share URL copied to clipboard!',
 
     // Files Page
-    'ui.files.title' => 'Files',
+    'ui.files.title' => 'File Areas',
     'ui.files.security_notice_label' => 'Security Notice:',
     'ui.files.security_notice_text' => 'You are responsible for ensuring files you download are safe. Use appropriate malware protection software.',
     'ui.files.recent_uploads' => 'Recent Uploads',

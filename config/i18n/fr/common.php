@@ -1665,7 +1665,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.echomail.shares.friendly_url_generated' => 'URL conviviale générée !',
     'ui.echomail.shares.revoked' => 'Lien de partage révoqué',
     'ui.echomail.shares.url_copied' => 'URL de partage copiée dans le presse-papiers !',
-    'ui.files.title' => 'Fichiers',
+    'ui.files.title' => 'Zones de Fichiers',
     'ui.files.security_notice_label' => 'Avis de sécurité :',
     'ui.files.security_notice_text' => 'Vous êtes responsable de vous assurer que les fichiers que vous téléchargez sont sûrs. Utilisez un logiciel de protection contre les logiciels malveillants approprié.',
     'ui.files.recent_uploads' => 'Téléversements récents',
