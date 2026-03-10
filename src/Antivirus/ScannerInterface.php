@@ -13,35 +13,43 @@
  *
  */
 
-namespace BinktermPHP;
-
-use BinktermPHP\Antivirus\AntivirusManager;
+namespace BinktermPHP\Antivirus;
 
 /**
- * Backward-compatibility shim.
+ * Contract for antivirus scanner backends.
  *
- * New code should use AntivirusManager::create() directly.
- * This class delegates to AntivirusManager so existing call sites continue
- * to work without modification.
+ * Each scanner backend (ClamAV, VirusTotal, etc.) must implement this interface.
+ * Scanners are registered with AntivirusManager, which runs all enabled backends
+ * and aggregates their results.
  *
- * @deprecated Use \BinktermPHP\Antivirus\AntivirusManager::create() instead.
+ * Return array shape from scanFile():
+ * [
+ *   'scanned'    => bool,          // true if the scanner actually ran
+ *   'result'     => string,        // 'clean' | 'infected' | 'error' | 'skipped'
+ *   'signature'  => string|null,   // virus/malware name when infected
+ *   'error_code' => string,        // i18n key for errors (empty string when clean)
+ *   'error'      => string|null,   // human-readable error description
+ * ]
  */
-class VirusScanner
+interface ScannerInterface
 {
-    private AntivirusManager $manager;
+    /**
+     * Human-readable name used in logs and aggregated result metadata.
+     */
+    public function getName(): string;
 
-    public function __construct()
-    {
-        $this->manager = AntivirusManager::create();
-    }
+    /**
+     * Returns true if this scanner is configured and operational.
+     * AntivirusManager skips scanners that are not enabled.
+     */
+    public function isEnabled(): bool;
 
-    public function isEnabled(): bool
-    {
-        return $this->manager->isEnabled();
-    }
-
-    public function scanFile(string $filePath): array
-    {
-        return $this->manager->scanFile($filePath);
-    }
+    /**
+     * Scan a file and return a result array.
+     *
+     * @param  string      $filePath  Absolute path to the file to scan
+     * @param  string|null $sha256    Pre-computed SHA-256 hash (optional optimisation)
+     * @return array{scanned: bool, result: string, signature: ?string, error_code: string, error: ?string}
+     */
+    public function scanFile(string $filePath, ?string $sha256 = null): array;
 }

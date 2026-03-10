@@ -59,8 +59,10 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - **Telnet connect hang fix**: Added `stream_set_write_buffer($conn, 0)` on accepted sockets to disable PHP's userspace write buffer. Previously, banner text and prompts could sit in an 8 KB buffer and not reach the client until a read operation flushed it — appearing as a blank screen on connect.
 
 ### File Areas
-- **ClamAV improvements**: Files can now be manually scanned for viruses by admins from the file details modal using the new **Virus Scan** button. New `.env` option:
-  - `CLAMAV_ALLOW_INFECTED=true` — accept infected files rather than rejecting them; scan result is still recorded
+- **Pluggable antivirus layer**: Virus scanning now uses a generic `Antivirus\ScannerInterface` that multiple backends can be plugged into. Built-in backends:
+  - **ClamAV** — unchanged behaviour; local scanning via `clamdscan`. Files can be manually re-scanned by admins from the file details modal using the **Virus Scan** button.
+  - **VirusTotal** — new optional cloud scanning backend. Enable by setting `VIRUSTOTAL_API_KEY` in `.env`. Performs a hash lookup first; only uploads files whose hash is not already in the VirusTotal database. **Note:** files uploaded to VirusTotal may be shared with security researchers and should not be considered private — see [docs/AntiVirus.md](AntiVirus.md) for details.
+- The `CLAMAV_ALLOW_INFECTED` `.env` variable has been renamed to `FILES_ALLOW_INFECTED`. Update your `.env` if you had this set.
 - **Virus detection error**: When an upload is rejected due to virus detection, the UI now shows a specific "File rejected: virus detected" message instead of the generic upload failure. The rejection is also logged to the server log. See [docs/AntiVirus.md](AntiVirus.md) for full setup and configuration instructions.
 - The file areas sidebar now has a **search/filter box** to quickly find areas by tag or description.
 - The file areas sidebar list is now scrollable with a fixed height, matching the echomail reader style.

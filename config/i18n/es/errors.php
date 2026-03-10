@@ -440,6 +440,13 @@ return [
     'errors.virus_scanner.file_not_found' => 'Archivo no encontrado para analisis de virus',
     'errors.virus_scanner.scan_error' => 'Error en el analisis de virus',
 
+    // VirusTotal scanner backend
+    'errors.virustotal.not_configured'   => 'Clave de API de VirusTotal no configurada',
+    'errors.virustotal.file_too_large'   => 'Archivo demasiado grande para subir a VirusTotal (max 32 MB)',
+    'errors.virustotal.upload_failed'    => 'Error al subir el archivo a VirusTotal',
+    'errors.virustotal.api_error'        => 'Error en la API de VirusTotal',
+    'errors.virustotal.analysis_pending' => 'Analisis de VirusTotal en progreso; vuelva a escanear mas tarde',
+
     // Language overlay editor
     'errors.admin.i18n_overrides.invalid_locale' => 'Idioma no valido o no admitido',
     'errors.admin.i18n_overrides.missing_params' => 'Se requieren el idioma y el nombre del catalogo',

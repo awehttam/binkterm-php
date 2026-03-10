@@ -440,6 +440,13 @@ return [
     'errors.virus_scanner.file_not_found' => 'File not found for virus scan',
     'errors.virus_scanner.scan_error' => 'Virus scan error',
 
+    // VirusTotal scanner backend
+    'errors.virustotal.not_configured'   => 'VirusTotal API key not configured',
+    'errors.virustotal.file_too_large'   => 'File too large for VirusTotal upload (max 32 MB)',
+    'errors.virustotal.upload_failed'    => 'Failed to upload file to VirusTotal',
+    'errors.virustotal.api_error'        => 'VirusTotal API error',
+    'errors.virustotal.analysis_pending' => 'VirusTotal analysis still in progress; re-scan later',
+
     // Language overlay editor
     'errors.admin.i18n_overrides.invalid_locale' => 'Invalid or unsupported locale',
     'errors.admin.i18n_overrides.missing_params' => 'Locale and catalog name are required',

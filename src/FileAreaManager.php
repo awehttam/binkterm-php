@@ -532,7 +532,7 @@ class FileAreaManager
 
         if (!empty($fileArea['scan_virus'])) {
             $scanResult = $this->scanFileForViruses($fileId, $storagePath);
-            if (($scanResult['result'] ?? '') === 'infected' && Config::env('CLAMAV_ALLOW_INFECTED', 'false') !== 'true') {
+            if (($scanResult['result'] ?? '') === 'infected' && Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
                 throw new \Exception('File rejected: virus detected.');
             }
         }
@@ -693,7 +693,7 @@ class FileAreaManager
         // Scan for viruses if enabled for this file area
         if (!empty($fileArea['scan_virus'])) {
             $scanResult = $this->scanFileForViruses($fileId, $storagePath);
-            if (($scanResult['result'] ?? '') === 'infected' && Config::env('CLAMAV_ALLOW_INFECTED', 'false') !== 'true') {
+            if (($scanResult['result'] ?? '') === 'infected' && Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
                 throw new \Exception('File rejected: virus detected.');
             }
         }
@@ -764,8 +764,8 @@ class FileAreaManager
 
         // Handle infected files
         if ($result['result'] === 'infected') {
-            $allowInfected = Config::env('CLAMAV_ALLOW_INFECTED', 'false') === 'true';
-            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (CLAMAV_ALLOW_INFECTED: keeping file)' : ''));
+            $allowInfected = Config::env('FILES_ALLOW_INFECTED', 'false') === 'true';
+            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (FILES_ALLOW_INFECTED: keeping file)' : ''));
 
             try {
                 $client = new \BinktermPHP\Admin\AdminDaemonClient();

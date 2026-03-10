@@ -142,7 +142,7 @@ class TicFileProcessor
 
             // Scan for viruses if enabled for this file area
             $scanResult = $this->scanFileForViruses($fileId, $fileArea);
-            if (($scanResult['result'] ?? '') === 'infected' && \BinktermPHP\Config::env('CLAMAV_ALLOW_INFECTED', 'false') !== 'true') {
+            if (($scanResult['result'] ?? '') === 'infected' && \BinktermPHP\Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
                 return [
                     'success' => false,
                     'error_code' => 'errors.tic.virus_detected',
@@ -727,8 +727,8 @@ class TicFileProcessor
 
         // Handle infected files
         if ($result['result'] === 'infected') {
-            $allowInfected = \BinktermPHP\Config::env('CLAMAV_ALLOW_INFECTED', 'false') === 'true';
-            $this->log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (CLAMAV_ALLOW_INFECTED: keeping file)' : ''));
+            $allowInfected = \BinktermPHP\Config::env('FILES_ALLOW_INFECTED', 'false') === 'true';
+            $this->log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (FILES_ALLOW_INFECTED: keeping file)' : ''));
 
             if (!$allowInfected) {
                 // Delete infected file immediately
