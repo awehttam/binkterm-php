@@ -220,16 +220,18 @@ class AutoReplyProcessor implements MessageProcessorInterface
         $lines[] = ' * Original message from ' . $fromName . ($dateStr !== '' ? ' (' . $dateStr . ')' : '') . ':';
         $lines[] = '';
 
-        // Quoted kludge lines (^A rendered as ^A so they show in the message body)
-        if ($quoteKludges && !empty($message['kludge_lines'])) {
-            foreach (explode("\n", rtrim($message['kludge_lines'])) as $kl) {
-                $kl = rtrim($kl);
-                if ($kl !== '') {
-                    // Replace SOH (0x01) with printable ^A so it appears in body text
-                    $lines[] = str_replace("\x01", '^A', $kl);
+        if ($quoteKludges) {
+            // Top kludges (^A-prefixed: MSGID, REPLY, TZUTC, CHRS, …)
+            if (!empty($message['kludge_lines'])) {
+                foreach (explode("\n", rtrim($message['kludge_lines'])) as $kl) {
+                    $kl = rtrim($kl);
+                    if ($kl !== '') {
+                        // Replace SOH (0x01) with printable ^A so it appears in body text
+                        $lines[] = str_replace("\x01", '^A', $kl);
+                    }
                 }
+                $lines[] = '';
             }
-            $lines[] = '';
         }
 
         // Quoted message body
@@ -237,6 +239,19 @@ class AutoReplyProcessor implements MessageProcessorInterface
         $msgText  = rtrim($message['message_text'] ?? '');
         foreach (explode("\n", $msgText) as $line) {
             $lines[] = $initials . '> ' . rtrim($line);
+        }
+
+        if ($quoteKludges) {
+            // Bottom kludges (SEEN-BY, PATH, ^AVIA — stripped from body during import)
+            if (!empty($message['bottom_kludges'])) {
+                $lines[] = '';
+                foreach (explode("\n", rtrim($message['bottom_kludges'])) as $kl) {
+                    $kl = rtrim($kl);
+                    if ($kl !== '') {
+                        $lines[] = str_replace("\x01", '^A', $kl);
+                    }
+                }
+            }
         }
 
         return implode("\n", $lines);
