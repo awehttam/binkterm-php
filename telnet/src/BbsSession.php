@@ -176,9 +176,10 @@ class BbsSession
 
         if (!$this->isSsh) {
             $this->negotiateTelnet($conn);
-            $this->requestTerminalType($conn);
-            // Probe ANSI support before showing the banner. Default to no color
-            // for telnet until confirmed — SSH clients are assumed to support ANSI.
+            // Probe ANSI support before showing the banner by doing the TTYPE
+            // handshake properly: send TTYPE SEND only after receiving WILL TTYPE,
+            // then use the IS response to determine color capability.
+            // Default to no color until confirmed; SSH clients are assumed ANSI.
             $this->ansiColorEnabled = false;
             TelnetUtils::setAnsiColorEnabled(false);
             if ($this->probeAnsiSupport($conn, $state)) {
@@ -186,7 +187,7 @@ class BbsSession
                 TelnetUtils::setAnsiColorEnabled(true);
                 if ($this->debug) { $this->log('ANSI auto-detect: ANSI color enabled'); }
             } else {
-                if ($this->debug) { $this->log('ANSI auto-detect: no CPR response, defaulting to plain ASCII'); }
+                if ($this->debug) { $this->log('ANSI auto-detect: TTYPE absent or dumb terminal, defaulting to plain ASCII'); }
             }
         }
 
@@ -907,15 +908,24 @@ class BbsSession
      */
     private function probeAnsiSupport($conn, array &$state): bool
     {
-        // Send ANSI DSR — request cursor position report
-        $this->safeWrite($conn, "\033[6n");
+        // Perform the RFC 1091 TTYPE handshake at connection start and use the
+        // terminal-type string to determine ANSI color support.
+        //
+        // We send TTYPE SEND only after receiving IAC WILL TTYPE from the client
+        // (proper RFC sequence).  Sending it immediately — before the client
+        // acknowledges DO TTYPE — causes many clients to ignore the request.
+        //
+        // We do NOT send ESC[6n (DSR/CPR): several clients (notably SyncTerm)
+        // pause display rendering while waiting to send the CPR reply, producing
+        // a blank-screen hang until the user presses a key.
 
-        $buf      = '';
-        $deadline = microtime(true) + 1.5;
-        // Subnegotiation accumulator (may span multiple reads)
-        $inSb   = false;
-        $sbOpt  = -1;
-        $sbData = '';
+        $buf            = '';
+        $deadline       = microtime(true) + 2.0;
+        $inSb           = false;
+        $sbOpt          = -1;
+        $sbData         = '';
+        $ttype          = '';
+        $sentTtypeSend  = false;
 
         while (microtime(true) < $deadline) {
             if (!is_resource($conn) || feof($conn)) {
@@ -928,7 +938,7 @@ class BbsSession
                 break;
             }
 
-            $chunk = @fread($conn, 64);
+            $chunk = @fread($conn, 256);
             if ($chunk === false || $chunk === '') {
                 if (feof($conn)) { break; }
                 continue;
@@ -942,13 +952,15 @@ class BbsSession
                 // Inside a subnegotiation — accumulate until IAC SE
                 if ($inSb) {
                     if ($byte === self::IAC && $i + 1 < $len && ord($chunk[$i + 1]) === self::SE) {
-                        // Process known subnegotiations before discarding
                         if ($sbOpt === self::OPT_NAWS && strlen($sbData) >= 4) {
                             $w = (ord($sbData[0]) << 8) | ord($sbData[1]);
                             $h = (ord($sbData[2]) << 8) | ord($sbData[3]);
                             if ($w > 0) { $state['cols'] = $w; }
                             if ($h > 0) { $state['rows'] = $h; }
                             if ($this->debug) { $this->log("probe NAWS: {$w}x{$h}"); }
+                        } elseif ($sbOpt === self::OPT_TTYPE && strlen($sbData) >= 2 && ord($sbData[0]) === 0) {
+                            $ttype = trim(substr($sbData, 1));
+                            $this->recordTerminalType($state, $ttype);
                         }
                         $inSb   = false;
                         $sbOpt  = -1;
@@ -965,7 +977,13 @@ class BbsSession
                 if ($byte === self::IAC && $i + 1 < $len) {
                     $cmd = ord($chunk[$i + 1]);
                     if (in_array($cmd, [self::TELNET_DO, self::DONT, self::WILL, self::WONT], true)) {
-                        $i += ($i + 2 < $len) ? 3 : 2; // IAC CMD OPT (consume option if present)
+                        $opt = ($i + 2 < $len) ? ord($chunk[$i + 2]) : -1;
+                        // Send TTYPE SEND as soon as the client agrees to TTYPE
+                        if ($cmd === self::WILL && $opt === self::OPT_TTYPE && !$sentTtypeSend) {
+                            $this->requestTerminalType($conn);
+                            $sentTtypeSend = true;
+                        }
+                        $i += ($opt >= 0) ? 3 : 2;
                         continue;
                     }
                     if ($cmd === self::SB && $i + 2 < $len) {
@@ -984,22 +1002,20 @@ class BbsSession
                 $i++;
             }
 
-            // Check for CPR: ESC [ <row> ; <col> R
-            if (preg_match('/\033\[\d+;\d+R/', $buf, $match, PREG_OFFSET_CAPTURE)) {
-                // Push back anything after the matched CPR
-                $afterMatch = substr($buf, $match[0][1] + strlen($match[0][0]));
-                if ($afterMatch !== '') {
-                    $state['pushback'] = $afterMatch . ($state['pushback'] ?? '');
-                }
-                return true;
+            // Stop as soon as we have the TTYPE IS response
+            if ($ttype !== '') {
+                break;
             }
         }
 
-        // No CPR received — push back any non-IAC bytes we accumulated
+        // Push back any non-IAC bytes accumulated (e.g. early keystrokes)
         if ($buf !== '') {
             $state['pushback'] = $buf . ($state['pushback'] ?? '');
         }
-        return false;
+
+        // ANSI color: enabled for any recognised terminal type except DUMB / empty
+        $ttypeUpper = strtoupper(trim($ttype));
+        return $ttypeUpper !== '' && $ttypeUpper !== 'DUMB' && $ttypeUpper !== 'UNKNOWN';
     }
 
     /**
