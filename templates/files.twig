@@ -137,6 +137,11 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
+                {% if current_user.is_admin %}
+                <button type="button" class="btn btn-outline-secondary" id="virusScanBtn" onclick="requestVirusScan()" style="display:none;">
+                    <i class="fas fa-shield-alt"></i> {{ t('ui.files.virus_scan_now', {}, 'common') }}
+                </button>
+                {% endif %}
                 <button type="button" class="btn btn-outline-warning" id="renameFileBtn" onclick="showEditDialog()" style="display:none;">
                     <i class="fas fa-pencil-alt"></i> {{ t('ui.files.edit', {}, 'common') }}
                 </button>
@@ -724,6 +729,7 @@ function showFileDetails(fileId) {
 
             const canEdit = isAdmin || (currentUserId !== null && file.owner_id !== null && file.owner_id === currentUserId);
             $('#renameFileBtn').toggle(canEdit);
+            $('#virusScanBtn').toggle(isAdmin).data('file-id', fileId);
 
             if (!$('#fileDetailsModal').hasClass('show')) {
                 new bootstrap.Modal('#fileDetailsModal').show();
@@ -846,6 +852,32 @@ function uploadFile() {
             const error = apiError(xhr.responseJSON, uiT('errors.files.upload.failed', 'Failed to upload file'));
             $('#uploadErrorBox').removeClass('d-none').text(error);
             $('#uploadProgress').hide();
+        }
+    });
+}
+
+function requestVirusScan() {
+    const fileId = $('#virusScanBtn').data('file-id');
+    if (!fileId) return;
+
+    const $btn = $('#virusScanBtn');
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> ' + uiT('ui.files.scanning', 'Scanning…'));
+
+    $.ajax({
+        url: `/api/files/${fileId}/scan`,
+        method: 'POST',
+        success: function(data) {
+            // Refresh the file details to show updated scan result
+            showFileDetails(fileId);
+        },
+        error: function(xhr) {
+            const msg = window.getApiErrorMessage && xhr.responseJSON
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('ui.files.scan_failed', 'Virus scan failed'))
+                : uiT('ui.files.scan_failed', 'Virus scan failed');
+            showError(msg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="fas fa-shield-alt"></i> ' + uiT('ui.files.virus_scan_now', 'Virus Scan'));
         }
     });
 }

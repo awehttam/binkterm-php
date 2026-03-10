@@ -142,7 +142,7 @@ class TicFileProcessor
 
             // Scan for viruses if enabled for this file area
             $scanResult = $this->scanFileForViruses($fileId, $fileArea);
-            if (($scanResult['result'] ?? '') === 'infected') {
+            if (($scanResult['result'] ?? '') === 'infected' && \BinktermPHP\Config::env('CLAMAV_ALLOW_INFECTED', 'false') !== 'true') {
                 return [
                     'success' => false,
                     'error_code' => 'errors.tic.virus_detected',
@@ -727,17 +727,20 @@ class TicFileProcessor
 
         // Handle infected files
         if ($result['result'] === 'infected') {
-            $this->log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}");
+            $allowInfected = \BinktermPHP\Config::env('CLAMAV_ALLOW_INFECTED', 'false') === 'true';
+            $this->log("VIRUS DETECTED in TIC file: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (CLAMAV_ALLOW_INFECTED: keeping file)' : ''));
 
-            // Delete infected file immediately
-            if (file_exists($filePath)) {
-                unlink($filePath);
-                $this->log("Deleted infected TIC file: {$filePath}");
+            if (!$allowInfected) {
+                // Delete infected file immediately
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                    $this->log("Deleted infected TIC file: {$filePath}");
+                }
+
+                // Mark file record as rejected
+                $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
+                $stmt->execute([$fileId]);
             }
-
-            // Mark file record as rejected
-            $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
-            $stmt->execute([$fileId]);
         } elseif ($result['result'] === 'error') {
             $this->log("Virus scan error for TIC file ID {$fileId}: {$result['error']}");
         }

@@ -2608,6 +2608,51 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
+    /**
+     * POST /api/files/{id}/scan
+     * Trigger an on-demand ClamAV virus scan for a file. Admin only.
+     */
+    SimpleRouter::post('/files/{id}/scan', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            apiError('errors.files.feature_disabled', apiLocalizedText('errors.files.feature_disabled', 'File areas feature is disabled', $user));
+            return;
+        }
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.files.scan_forbidden', apiLocalizedText('errors.files.scan_forbidden', 'Admin access required to scan files', $user));
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        try {
+            $client = new \BinktermPHP\Admin\AdminDaemonClient();
+            $result = $client->scanFile((int)$id);
+            $client->close();
+
+            if (!($result['ok'] ?? false)) {
+                $error = $result['error'] ?? 'scan failed';
+                http_response_code(500);
+                apiError('errors.files.scan_failed', $error);
+                return;
+            }
+
+            echo json_encode([
+                'success'   => true,
+                'result'    => $result['result']['result'] ?? null,
+                'signature' => $result['result']['signature'] ?? null,
+                'scanned'   => $result['result']['scanned'] ?? false,
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            apiError('errors.files.scan_failed', apiLocalizedText('errors.files.scan_failed', 'Virus scan failed', $user));
+        }
+    })->where(['id' => '[0-9]+']);
+
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
         $user = RouteHelper::requireAuth();

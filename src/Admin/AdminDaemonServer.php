@@ -592,6 +592,47 @@ class AdminDaemonServer
                     $this->appendServerLog($level, $message, $context);
                     $this->writeResponse($client, ['ok' => true, 'result' => []]);
                     break;
+                case 'scan_file':
+                    $fileId = (int)($data['file_id'] ?? 0);
+                    if ($fileId <= 0) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'invalid file_id']);
+                        break;
+                    }
+                    $db = \BinktermPHP\Database::getInstance()->getPdo();
+                    $stmt = $db->prepare('SELECT storage_path FROM files WHERE id = ?');
+                    $stmt->execute([$fileId]);
+                    $file = $stmt->fetch();
+                    if (!$file || !file_exists($file['storage_path'])) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'file not found']);
+                        break;
+                    }
+                    $scanner = new \BinktermPHP\VirusScanner();
+                    if (!$scanner->isEnabled()) {
+                        $this->writeResponse($client, ['ok' => false, 'error' => 'virus scanner not available']);
+                        break;
+                    }
+                    $scanResult = $scanner->scanFile($file['storage_path']);
+                    $update = $db->prepare("
+                        UPDATE files
+                        SET virus_scanned = ?,
+                            virus_scan_result = ?,
+                            virus_signature = ?,
+                            virus_scanned_at = NOW()
+                        WHERE id = ?
+                    ");
+                    $update->execute([
+                        $scanResult['scanned'] ? 'true' : 'false',
+                        $scanResult['result'],
+                        $scanResult['signature'] ?? null,
+                        $fileId
+                    ]);
+                    $this->logger->info('Manual virus scan', [
+                        'file_id' => $fileId,
+                        'result'  => $scanResult['result'],
+                        'sig'     => $scanResult['signature'] ?? null,
+                    ]);
+                    $this->writeResponse($client, ['ok' => true, 'result' => $scanResult]);
+                    break;
                 default:
                     $this->writeResponse($client, ['ok' => false, 'error' => 'unknown_command']);
                     break;

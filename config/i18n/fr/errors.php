@@ -100,6 +100,8 @@ return [
     'errors.files.not_found' => 'Fichier introuvable',
     'errors.files.share_not_found_or_forbidden' => 'Lien de partage introuvable ou non autorisé',
     'errors.files.delete_failed' => 'Échec de la suppression du fichier',
+    'errors.files.scan_forbidden' => 'Accès administrateur requis pour analyser les fichiers',
+    'errors.files.scan_failed' => 'Échec de l\'analyse antivirus',
     'errors.files.rename_filename_required' => 'Le nouveau nom de fichier est requis',
     'errors.files.rename_forbidden' => 'Vous n\'avez pas la permission de renommer ce fichier',
     'errors.files.rename_conflict' => 'Un fichier portant ce nom existe déjà dans cette zone',

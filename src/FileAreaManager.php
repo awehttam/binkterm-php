@@ -532,7 +532,7 @@ class FileAreaManager
 
         if (!empty($fileArea['scan_virus'])) {
             $scanResult = $this->scanFileForViruses($fileId, $storagePath);
-            if (($scanResult['result'] ?? '') === 'infected') {
+            if (($scanResult['result'] ?? '') === 'infected' && Config::env('CLAMAV_ALLOW_INFECTED', 'false') !== 'true') {
                 throw new \Exception('File rejected: virus detected.');
             }
         }
@@ -693,7 +693,7 @@ class FileAreaManager
         // Scan for viruses if enabled for this file area
         if (!empty($fileArea['scan_virus'])) {
             $scanResult = $this->scanFileForViruses($fileId, $storagePath);
-            if (($scanResult['result'] ?? '') === 'infected') {
+            if (($scanResult['result'] ?? '') === 'infected' && Config::env('CLAMAV_ALLOW_INFECTED', 'false') !== 'true') {
                 throw new \Exception('File rejected: virus detected.');
             }
         }
@@ -764,23 +764,28 @@ class FileAreaManager
 
         // Handle infected files
         if ($result['result'] === 'infected') {
-            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}");
+            $allowInfected = Config::env('CLAMAV_ALLOW_INFECTED', 'false') === 'true';
+            error_log("VIRUS DETECTED: File ID {$fileId} infected with {$result['signature']}" . ($allowInfected ? ' (CLAMAV_ALLOW_INFECTED: keeping file)' : ''));
 
-            // Delete infected file immediately
-            if (file_exists($filePath)) {
-                unlink($filePath);
-                error_log("Deleted infected file: {$filePath}");
-            }
+            if ($allowInfected) {
+                // Keep the file but leave its scan result recorded as infected
+            } else {
+                // Delete infected file immediately
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                    error_log("Deleted infected file: {$filePath}");
+                }
 
-            // Mark file record as rejected and update area stats
-            $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
-            $stmt->execute([$fileId]);
+                // Mark file record as rejected and update area stats
+                $stmt = $this->db->prepare("UPDATE files SET status = 'rejected' WHERE id = ?");
+                $stmt->execute([$fileId]);
 
-            $areaStmt = $this->db->prepare("SELECT file_area_id FROM files WHERE id = ?");
-            $areaStmt->execute([$fileId]);
-            $areaRow = $areaStmt->fetch();
-            if ($areaRow) {
-                $this->updateFileAreaStats((int)$areaRow['file_area_id']);
+                $areaStmt = $this->db->prepare("SELECT file_area_id FROM files WHERE id = ?");
+                $areaStmt->execute([$fileId]);
+                $areaRow = $areaStmt->fetch();
+                if ($areaRow) {
+                    $this->updateFileAreaStats((int)$areaRow['file_area_id']);
+                }
             }
         } elseif ($result['result'] === 'error') {
             error_log("Virus scan error for file ID {$fileId}: {$result['error']}");

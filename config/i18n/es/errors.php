@@ -125,6 +125,8 @@ return [
     'errors.files.not_found' => 'Archivo no encontrado',
     'errors.files.share_not_found_or_forbidden' => 'Enlace compartido no encontrado o no permitido',
     'errors.files.delete_failed' => 'No se pudo eliminar el archivo',
+    'errors.files.scan_forbidden' => 'Se requiere acceso de administrador para escanear archivos',
+    'errors.files.scan_failed' => 'Error al realizar el análisis de virus',
     'errors.files.rename_filename_required' => 'Se requiere el nuevo nombre de archivo',
     'errors.files.rename_forbidden' => 'No tiene permiso para renombrar este archivo',
     'errors.files.rename_conflict' => 'Ya existe un archivo con ese nombre en esta area',

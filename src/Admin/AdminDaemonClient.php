@@ -270,6 +270,16 @@ class AdminDaemonClient
     }
 
     /**
+     * Request an on-demand virus scan for a specific file.
+     *
+     * @param int $fileId Database ID of the file to scan
+     */
+    public function scanFile(int $fileId): array
+    {
+        return $this->sendCommand('scan_file', ['file_id' => $fileId]);
+    }
+
+    /**
      * Write an entry to data/logs/server.log via the admin daemon.
      *
      * This is the correct way for web routes to log application-level events
