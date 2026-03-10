@@ -114,6 +114,24 @@ class AutoReplyProcessor implements MessageProcessorInterface
             return false;
         }
 
+        // Only reply to messages addressed to All
+        $toName = trim($message['to_name'] ?? '');
+        if (mb_strtolower($toName) !== 'all') {
+            $this->debug("  Skip: to_name is '{$toName}' (not All)");
+            return false;
+        }
+
+        // Skip replies — subject starts with Re: or message has a ^AREPLY kludge
+        $subject = trim($message['subject'] ?? '');
+        if (stripos($subject, 'Re:') === 0) {
+            $this->debug("  Skip: subject starts with Re:");
+            return false;
+        }
+        if (!empty($message['kludge_lines']) && preg_match('/^\x01REPLY:/m', $message['kludge_lines'])) {
+            $this->debug("  Skip: message has ^AREPLY kludge");
+            return false;
+        }
+
         // Never reply to messages older than 24 hours
         $received = $message['date_received'] ?? $message['date_written'] ?? null;
         if ($received !== null && (time() - strtotime($received)) > 86400) {
