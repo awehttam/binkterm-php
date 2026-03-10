@@ -867,7 +867,16 @@ function requestVirusScan() {
         url: `/api/files/${fileId}/scan`,
         method: 'POST',
         success: function(data) {
-            // Refresh the file details to show updated scan result
+            const result = data.result;
+            if (result === 'clean') {
+                showSuccess(uiT('ui.files.virus_scan_clean', 'Virus scan: Clean'));
+            } else if (result === 'infected') {
+                const sig = data.signature || uiT('ui.common.unknown', 'Unknown');
+                showError(uiT('ui.files.virus_detected_prefix', 'Virus detected: ') + sig);
+            } else {
+                showError(uiT('ui.files.virus_scan_error', 'Virus scan: Error'));
+            }
+            // Refresh the file details panel to show the updated scan status row
             showFileDetails(fileId);
         },
         error: function(xhr) {
