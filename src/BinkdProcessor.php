@@ -1933,39 +1933,85 @@ class BinkdProcessor
         ];
     }
 
+    /**
+     * Ensure a path is strictly underneath an allowed base directory.
+     * Resolves symlinks and `..` segments before comparing.
+     * Returns false if the path escapes the base or cannot be resolved.
+     *
+     * @param string $path     Path to check
+     * @param string $base     Allowed base directory (must already exist)
+     * @return bool
+     */
+    private function pathIsUnder(string $path, string $base): bool
+    {
+        $realBase = realpath($base);
+        if ($realBase === false) {
+            return false;
+        }
+        // For files that don't exist yet, resolve the parent directory
+        $realPath = realpath($path);
+        if ($realPath === false) {
+            $realPath = realpath(dirname($path));
+            if ($realPath === false) {
+                return false;
+            }
+        }
+        return str_starts_with($realPath . DIRECTORY_SEPARATOR, $realBase . DIRECTORY_SEPARATOR);
+    }
+
     private function processExtractedPackets(string $tempDir): int
     {
         $processed = 0;
 
-        // Process all .pkt files in the extracted bundle (both lowercase and uppercase)
-        $extractedFiles = array_merge(
-            glob($tempDir . '/*.pkt') ?: [],
-            glob($tempDir . '/*.PKT') ?: []
+        // Guard: tempDir must be inside inbound to prevent operating on arbitrary paths
+        if (!$this->pathIsUnder($tempDir, $this->inboundPath)) {
+            $this->log("[BINKD] Security: tempDir '$tempDir' is outside inbound path, aborting extraction");
+            return 0;
+        }
+
+        // Recursively find all files in the extracted bundle (archives may extract
+        // into subdirectories, e.g. RETROPCK/ inside the temp dir)
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($tempDir, \RecursiveDirectoryIterator::SKIP_DOTS)
         );
 
-        $this->log("[BINKD] Found " . count($extractedFiles) . " packet files in extracted bundle");
+        $pktFiles = [];
+        $otherFiles = [];
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+            // Guard: skip any file that escaped the temp dir via symlink or traversal
+            if (!$this->pathIsUnder($file->getPathname(), $tempDir)) {
+                $this->log("[BINKD] Security: skipping file outside tempDir: " . $file->getPathname());
+                continue;
+            }
+            $ext = strtolower($file->getExtension());
+            if ($ext === 'pkt') {
+                $pktFiles[] = $file->getPathname();
+            } else {
+                $otherFiles[] = $file->getPathname();
+            }
+        }
 
-        foreach ($extractedFiles as $pktFile) {
+        $this->log("[BINKD] Found " . count($pktFiles) . " packet files in extracted bundle");
+
+        foreach ($pktFiles as $pktFile) {
             try {
                 $this->log("[BINKD] Processing extracted packet: " . basename($pktFile));
                 if ($this->processPacket($pktFile)) {
                     $processed++;
                 }
-                unlink($pktFile); // Remove processed packet
+                unlink($pktFile);
             } catch (\Exception $e) {
                 $this->log("Error processing extracted packet $pktFile: " . $e->getMessage());
-                // Move failed packet to error directory
                 $this->moveToErrorDir($pktFile);
             }
         }
 
-        // Move any non-pkt files extracted from the bundle back to inbound so that
-        // TIC processing can find them (e.g. NIXLIST.Z65 inside a .FR0 day bundle)
-        $remaining = glob($tempDir . '/*') ?: [];
-        foreach ($remaining as $file) {
-            if (!is_file($file)) {
-                continue;
-            }
+        // Move any non-pkt files back to inbound so TIC processing can find them
+        // (e.g. NIXLIST.Z65 or RETRONET.z65 bundled inside a day archive)
+        foreach ($otherFiles as $file) {
             $dest = $this->inboundPath . '/' . basename($file);
             if (rename($file, $dest)) {
                 $this->log("[BINKD] Moved non-packet file to inbound: " . basename($file));
@@ -1977,21 +2023,43 @@ class BinkdProcessor
 
         return $processed;
     }
-    
-    private function cleanupTempDir($tempDir)
+
+    /**
+     * Recursively delete a temporary extraction directory.
+     * Includes a path guard to prevent deletion of files outside inbound.
+     *
+     * @param string $tempDir Path to the temporary directory
+     */
+    private function cleanupTempDir(string $tempDir): void
     {
         if (!is_dir($tempDir)) {
             return;
         }
-        
-        // Clean up any remaining files in temp directory
-        $remainingFiles = glob($tempDir . '/*');
-        foreach ($remainingFiles as $file) {
-            if (is_file($file)) {
-                unlink($file);
+
+        // Guard: refuse to operate on anything outside the inbound directory
+        if (!$this->pathIsUnder($tempDir, $this->inboundPath)) {
+            $this->log("[BINKD] Security: refusing to clean up tempDir '$tempDir' outside inbound path");
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($tempDir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            // Guard each item individually against path traversal
+            if (!$this->pathIsUnder($item->getPathname(), $tempDir)) {
+                $this->log("[BINKD] Security: skipping item outside tempDir during cleanup: " . $item->getPathname());
+                continue;
+            }
+            if ($item->isFile()) {
+                unlink($item->getPathname());
+            } elseif ($item->isDir()) {
+                rmdir($item->getPathname());
             }
         }
-        
+
         rmdir($tempDir);
     }
 
