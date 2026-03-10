@@ -191,7 +191,7 @@ return [
     'ui.base.echomail' => 'Echomail',
     'ui.base.local_chat' => 'Local Chat',
     'ui.base.mrc_chat' => 'MRC Chat',
-    'ui.base.doors_games' => 'Doors & Games',
+    'ui.base.doors_games' => 'Doors',
     'ui.base.files' => 'Files',
     'ui.base.nodelist' => 'Nodelist',
     'ui.base.admin' => 'Admin',

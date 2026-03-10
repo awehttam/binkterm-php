@@ -180,7 +180,7 @@ return [
     'ui.base.echomail' => 'Echomail',
     'ui.base.local_chat' => 'Chat local',
     'ui.base.mrc_chat' => 'Chat MRC',
-    'ui.base.doors_games' => 'Portes & Jeux',
+    'ui.base.doors_games' => 'Portes',
     'ui.base.files' => 'Fichiers',
     'ui.base.nodelist' => 'Liste des nœuds',
     'ui.base.admin' => 'Admin',
