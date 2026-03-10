@@ -391,7 +391,8 @@ class TelnetUtils
         string $statusLine,
         int $rows,
         int $initialOffset = 0,
-        bool $allowDownloadAction = false
+        bool $allowDownloadAction = false,
+        array $kludgeLines = []
     ): array {
         $bodyHeight = max(1, $rows - count($headerLines) - 1);
         $maxOffset  = max(0, count($wrappedLines) - $bodyHeight);
@@ -418,6 +419,12 @@ class TelnetUtils
             if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);                  continue; }
             if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);         continue; }
 
+            // Show kludge/header viewer
+            if ($key === 'CHAR:h' || $key === 'CHAR:H') {
+                self::runKludgeViewer($conn, $state, $server, $kludgeLines, $rows);
+                continue;
+            }
+
             // Navigation / action keys — return to caller
             if ($key === 'LEFT')                              return ['action' => 'prev',  'offset' => $offset];
             if ($key === 'RIGHT')                             return ['action' => 'next',  'offset' => $offset];
@@ -425,6 +432,60 @@ class TelnetUtils
             if ($allowDownloadAction && ($key === 'CHAR:z' || $key === 'CHAR:Z')) {
                 return ['action' => 'download', 'offset' => $offset];
             }
+        }
+    }
+
+    /**
+     * Display a scrollable view of message kludge lines (message headers).
+     * Invoked when the user presses H in the message viewer.
+     *
+     * @param resource $conn
+     * @param array    $state        Session state (cols, rows, locale, etc.)
+     * @param object   $server       BbsSession instance
+     * @param array    $kludgeLines  Pre-formatted kludge lines from extractKludgeLines()
+     * @param int      $rows         Terminal row count
+     */
+    private static function runKludgeViewer($conn, array &$state, $server, array $kludgeLines, int $rows): void
+    {
+        $cols  = $state['cols'] ?? 80;
+        $width = max(10, $cols - 2);
+
+        $title       = $server->t('ui.terminalserver.message.headers_title', '=== Message Headers ===', [], $state['locale'] ?? 'en');
+        $headerLines = [self::colorize(substr($title, 0, $width), self::ANSI_CYAN . self::ANSI_BOLD)];
+
+        if (empty($kludgeLines)) {
+            $noHeaders = $server->t('ui.terminalserver.message.no_headers', '(No message headers)', [], $state['locale'] ?? 'en');
+            $kludgeLines = [self::colorize($noHeaders, self::ANSI_DIM)];
+        }
+
+        $bodyHeight = max(1, $rows - count($headerLines) - 1);
+        $maxOffset  = max(0, count($kludgeLines) - $bodyHeight);
+        $offset     = 0;
+
+        $statusLine = self::buildStatusBar([
+            ['text' => 'U/D',      'color' => self::ANSI_RED],
+            ['text' => ' Scroll  ', 'color' => self::ANSI_BLUE],
+            ['text' => 'PgUp/PgDn', 'color' => self::ANSI_RED],
+            ['text' => ' Page  ',  'color' => self::ANSI_BLUE],
+            ['text' => 'Q',        'color' => self::ANSI_RED],
+            ['text' => ' Close',   'color' => self::ANSI_BLUE],
+        ], $width);
+
+        while (true) {
+            $visibleLines = array_slice($kludgeLines, $offset, $bodyHeight);
+            self::renderFullScreen($conn, $headerLines, $visibleLines, $statusLine, $rows);
+
+            $key = $server->readKeyWithIdleCheck($conn, $state);
+
+            if ($key === null || $key === 'ENTER' || $key === 'CHAR:q' || $key === 'CHAR:Q' || $key === 'CHAR:h' || $key === 'CHAR:H') {
+                break;
+            }
+            if ($key === 'UP')     { if ($offset > 0) $offset--;                          }
+            if ($key === 'DOWN')   { if ($offset < $maxOffset) $offset++;                  }
+            if ($key === 'HOME')   { $offset = 0;                                          }
+            if ($key === 'END')    { $offset = $maxOffset;                                 }
+            if ($key === 'PGUP')   { $offset = max(0, $offset - $bodyHeight);              }
+            if ($key === 'PGDOWN') { $offset = min($maxOffset, $offset + $bodyHeight);     }
         }
     }
 

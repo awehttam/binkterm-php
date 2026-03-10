@@ -438,6 +438,8 @@ class EchomailHandler
             ['text' => ' Prev/Next  ', 'color' => TelnetUtils::ANSI_BLUE],
             ['text' => 'R',         'color' => TelnetUtils::ANSI_RED],
             ['text' => ' Reply  ',  'color' => TelnetUtils::ANSI_BLUE],
+            ['text' => 'H',         'color' => TelnetUtils::ANSI_RED],
+            ['text' => ' Headers  ', 'color' => TelnetUtils::ANSI_BLUE],
             ['text' => 'Q',         'color' => TelnetUtils::ANSI_RED],
             ['text' => ' Quit',     'color' => TelnetUtils::ANSI_BLUE],
         ], $width);
@@ -456,6 +458,8 @@ class EchomailHandler
             $detail       = TelnetUtils::apiRequest($this->apiBase, 'GET', '/api/messages/echomail/' . urlencode($area) . '/' . $id, null, $session);
             $body         = $detail['data']['message_text'] ?? '';
             $markupFormat = $detail['data']['markup_format'] ?? null;
+            $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
+            $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
 
             $fromName    = $msg['from_name'] ?? 'Unknown';
             $fromAddress = $msg['from_address'] ?? '';
@@ -475,7 +479,7 @@ class EchomailHandler
                 ? TerminalMarkupRenderer::render($markupFormat, $body, $width)
                 : TelnetUtils::wrapTextLines($body, $width);
 
-            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $headerLines, $wrappedLines, $statusLine, $rows);
+            $result = TelnetUtils::runMessageViewer($conn, $state, $this->server, $headerLines, $wrappedLines, $statusLine, $rows, 0, false, $kludgeLines);
 
             switch ($result['action']) {
                 case 'quit':

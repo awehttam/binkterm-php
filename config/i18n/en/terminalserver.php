@@ -234,4 +234,7 @@ return [
     'ui.terminalserver.doors.connect_failed'           => 'Could not connect to game bridge. Is the DOS door bridge running?',
     'ui.terminalserver.doors.connected'                => 'Connected! Starting game...',
     'ui.terminalserver.doors.returned'                 => 'Returned from {name}.',
+
+    'ui.terminalserver.message.headers_title'          => '=== Message Headers ===',
+    'ui.terminalserver.message.no_headers'             => '(No message headers)',
 ];

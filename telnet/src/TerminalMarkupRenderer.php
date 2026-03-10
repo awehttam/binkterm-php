@@ -54,6 +54,36 @@ class TerminalMarkupRenderer
     }
 
     /**
+     * Extract and format kludge lines from a raw message body for display.
+     *
+     * Returns each kludge line with the SOH byte stripped and the kludge name
+     * colorized in yellow for easy reading.
+     *
+     * @param string $text Raw message body (may contain kludge lines)
+     * @return string[]    Array of ANSI-formatted kludge lines, one per kludge
+     */
+    public static function extractKludgeLines(string $text): array
+    {
+        $lines  = preg_split('/\r\n|\r|\n/', $text);
+        $result = [];
+        foreach ($lines as $line) {
+            if (strlen($line) === 0 || ord($line[0]) !== 0x01) {
+                continue;
+            }
+            $content = substr($line, 1); // strip SOH
+            // Colorize the kludge keyword (before first ':' or first space)
+            if (preg_match('/^([A-Za-z0-9_@]+)(:.*)$/s', $content, $m)) {
+                $result[] = self::YEL . $m[1] . self::R . $m[2];
+            } elseif (preg_match('/^([A-Za-z0-9_@]+)(\s.+)$/s', $content, $m)) {
+                $result[] = self::YEL . $m[1] . self::R . $m[2];
+            } else {
+                $result[] = $content;
+            }
+        }
+        return $result;
+    }
+
+    /**
      * Strip SOH-prefixed kludge lines from message text, preserving blank lines.
      *
      * @param string $text Raw message body

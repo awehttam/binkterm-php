@@ -188,4 +188,7 @@ return [
     'ui.terminalserver.doors.connect_failed' => 'Impossible de se connecter au pont de jeu. Le pont DOS door est-il en cours d\'exécution ?',
     'ui.terminalserver.doors.connected' => 'Connecté ! Démarrage du jeu...',
     'ui.terminalserver.doors.returned' => 'Retour depuis {name}.',
+
+    'ui.terminalserver.message.headers_title' => '=== En-têtes du message ===',
+    'ui.terminalserver.message.no_headers'    => '(Aucun en-tête de message)',
 ];

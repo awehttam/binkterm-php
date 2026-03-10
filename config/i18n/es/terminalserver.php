@@ -232,5 +232,8 @@ return [
     'ui.terminalserver.doors.connect_failed'           => 'No se pudo conectar al puente de juegos. ¿Está ejecutándose el puente de puertas DOS?',
     'ui.terminalserver.doors.connected'                => '¡Conectado! Iniciando juego...',
     'ui.terminalserver.doors.returned'                 => 'Regresó de {name}.',
+
+    'ui.terminalserver.message.headers_title'          => '=== Encabezados del mensaje ===',
+    'ui.terminalserver.message.no_headers'             => '(Sin encabezados de mensaje)',
 ];
 

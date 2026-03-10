@@ -310,6 +310,8 @@ class NetmailHandler
             $body         = $detail['data']['message_text'] ?? '';
             $markupFormat = $detail['data']['markup_format'] ?? null;
             $attachments  = $detail['data']['attachments'] ?? [];
+            $rawKludges   = ($detail['data']['kludge_lines'] ?? '') . "\n" . ($detail['data']['bottom_kludges'] ?? '');
+            $kludgeLines  = TerminalMarkupRenderer::extractKludgeLines($rawKludges);
             if (!is_array($attachments)) {
                 $attachments = [];
             }
@@ -328,6 +330,8 @@ class NetmailHandler
                 $statusSegments[] = ['text' => 'Z', 'color' => TelnetUtils::ANSI_RED];
                 $statusSegments[] = ['text' => ' Download  ', 'color' => TelnetUtils::ANSI_BLUE];
             }
+            $statusSegments[] = ['text' => 'H', 'color' => TelnetUtils::ANSI_RED];
+            $statusSegments[] = ['text' => ' Headers  ', 'color' => TelnetUtils::ANSI_BLUE];
             $statusSegments[] = ['text' => 'Q', 'color' => TelnetUtils::ANSI_RED];
             $statusSegments[] = ['text' => ' Quit', 'color' => TelnetUtils::ANSI_BLUE];
             $statusLine = TelnetUtils::buildStatusBar($statusSegments, $width);
@@ -357,7 +361,8 @@ class NetmailHandler
                 $statusLine,
                 $rows,
                 0,
-                true
+                true,
+                $kludgeLines
             );
 
             switch ($result['action']) {
