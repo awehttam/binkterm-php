@@ -187,6 +187,8 @@ class Template
         $this->twig->addGlobal('webdoors_active', GameConfig::isGameSystemEnabled());
         $this->twig->addGlobal('mrc_webdoor_enabled', GameConfig::isEnabled('mrc'));
 
+        $this->twig->addGlobal('bbs_directory_enabled', BbsConfig::isFeatureEnabled('bbs_directory'));
+
         $creditsConfig = BbsConfig::getConfig()['credits'] ?? [];
         $creditsEnabled = !empty($creditsConfig['enabled']);
         $creditsSymbol = trim((string)($creditsConfig['symbol'] ?? '$'));

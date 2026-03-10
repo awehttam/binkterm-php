@@ -89,10 +89,15 @@
                             <input class="form-check-input" type="checkbox" id="bbsFileAreas">
                             <label class="form-check-label" for="bbsFileAreas">{{ t('ui.admin.bbs_settings.features.enable_file_areas', {}, locale, ['common']) }}</label>
                         </div>
-                        <div class="form-check mb-3">
+                        <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="bbsGuestDoorsPage">
                             <label class="form-check-label" for="bbsGuestDoorsPage">{{ t('ui.admin.bbs_settings.features.enable_guest_doors_page', {}, locale, ['common']) }}</label>
                             <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.guest_doors_page_help', {}, locale, ['common']) }}</small></div>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="bbsBbsDirectory">
+                            <label class="form-check-label" for="bbsBbsDirectory">{{ t('ui.admin.bbs_settings.features.enable_bbs_directory', {}, locale, ['common']) }}</label>
+                            <div><small class="text-muted">{{ t('ui.admin.bbs_settings.features.bbs_directory_help', {}, locale, ['common']) }}</small></div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="bbsDefaultEchoInterface">{{ t('ui.admin.bbs_settings.features.default_echo_interface', {}, locale, ['common']) }}</label>
@@ -250,6 +255,7 @@ function loadBbsSettings() {
             document.getElementById('bbsChat').checked = !!features.chat;
             document.getElementById('bbsFileAreas').checked = !!features.file_areas;
             document.getElementById('bbsGuestDoorsPage').checked = !!features.guest_doors_page;
+            document.getElementById('bbsBbsDirectory').checked = features.bbs_directory !== false;
             document.getElementById('bbsDefaultEchoInterface').value = data.config?.default_echo_interface || 'echolist';
             const maxCrossPost = parseInt(data.config?.max_cross_post_areas, 10);
             document.getElementById('bbsMaxCrossPost').value = Number.isNaN(maxCrossPost) ? 5 : maxCrossPost;
@@ -304,7 +310,8 @@ function saveBbsSettings() {
                     voting_booth: document.getElementById('bbsVoting').checked,
                     chat: document.getElementById('bbsChat').checked,
                     file_areas: document.getElementById('bbsFileAreas').checked,
-                    guest_doors_page: document.getElementById('bbsGuestDoorsPage').checked
+                    guest_doors_page: document.getElementById('bbsGuestDoorsPage').checked,
+                    bbs_directory: document.getElementById('bbsBbsDirectory').checked
                 },
                 credits: credits,
                 max_cross_post_areas: maxCrossPost,

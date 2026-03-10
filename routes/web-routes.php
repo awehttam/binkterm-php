@@ -1193,6 +1193,12 @@ SimpleRouter::get('/shell-art/{name}', function(string $name) {
 
 // Public BBS Directory page
 SimpleRouter::get('/bbs-directory', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {
+        http_response_code(404);
+        (new Template())->renderResponse('404.twig');
+        return;
+    }
+
     $db        = \BinktermPHP\Database::getInstance()->getPdo();
     $directory = new \BinktermPHP\BbsDirectory($db);
     $entries   = $directory->getActiveEntries();
@@ -1203,6 +1209,13 @@ SimpleRouter::get('/bbs-directory', function() {
 
 // Submit a BBS listing (authenticated users only — creates pending entry)
 SimpleRouter::post('/api/bbs-directory/submit', function() {
+    if (!\BinktermPHP\BbsConfig::isFeatureEnabled('bbs_directory')) {
+        http_response_code(404);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Not found']);
+        return;
+    }
+
     $user  = RouteHelper::requireAuth();
     $db    = \BinktermPHP\Database::getInstance()->getPdo();
     header('Content-Type: application/json');

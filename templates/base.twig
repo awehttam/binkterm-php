@@ -164,6 +164,7 @@
                         </li>
                         {% endif %}
 
+                        {% if bbs_directory_enabled %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-list-alt"></i> {{ t('ui.base.bbs_lists', {}, 'common') }}
@@ -173,6 +174,7 @@
                                 <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
                             </ul>
                         </li>
+                        {% endif %}
 
                         {% if current_user.is_admin %}
 
@@ -241,6 +243,7 @@
                         </li>
                         {% endif %}
                     {% else %}
+                        {% if bbs_directory_enabled %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-list-alt"></i> {{ t('ui.base.bbs_lists', {}, 'common') }}
@@ -250,6 +253,7 @@
                                 <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
                             </ul>
                         </li>
+                        {% endif %}
                         {% if bbs_feature_enabled('guest_doors_page') %}
                         <li class="nav-item">
                             <a class="nav-link" href="/guest-doors">

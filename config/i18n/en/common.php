@@ -1034,6 +1034,8 @@ return [
     'ui.admin.bbs_settings.features.enable_file_areas' => 'Enable File Areas',
     'ui.admin.bbs_settings.features.enable_guest_doors_page' => 'Enable Guest Doors Page',
     'ui.admin.bbs_settings.features.guest_doors_page_help' => 'Shows a public /guest-doors page listing anonymous-accessible doors. Also shows a link on the login page.',
+    'ui.admin.bbs_settings.features.enable_bbs_directory' => 'Enable BBS Directory',
+    'ui.admin.bbs_settings.features.bbs_directory_help' => 'Shows the public /bbs-directory page and BBS Lists nav menu. When disabled, the page returns 404.',
     'ui.admin.bbs_settings.features.default_echo_interface' => 'Default Echo Interface',
     'ui.admin.bbs_settings.features.echo_list_forum' => 'Echo List (Forum view)',
     'ui.admin.bbs_settings.features.reader_message_list' => 'Reader (Message list)',

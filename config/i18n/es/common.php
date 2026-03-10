@@ -1034,6 +1034,8 @@ return [
     'ui.admin.bbs_settings.features.enable_file_areas' => 'Habilitar areas de archivos',
     'ui.admin.bbs_settings.features.enable_guest_doors_page' => 'Habilitar pagina de puertas de invitados',
     'ui.admin.bbs_settings.features.guest_doors_page_help' => 'Muestra una pagina publica /guest-doors con puertas de acceso anonimo. Tambien muestra un enlace en la pagina de inicio de sesion.',
+    'ui.admin.bbs_settings.features.enable_bbs_directory' => 'Habilitar directorio BBS',
+    'ui.admin.bbs_settings.features.bbs_directory_help' => 'Muestra la pagina publica /bbs-directory y el menu de navegacion de listas BBS. Cuando esta deshabilitado, la pagina devuelve 404.',
     'ui.admin.bbs_settings.features.default_echo_interface' => 'Interfaz de echo predeterminada',
     'ui.admin.bbs_settings.features.echo_list_forum' => 'Lista de echo (vista foro)',
     'ui.admin.bbs_settings.features.reader_message_list' => 'Lector (lista de mensajes)',
