@@ -3,12 +3,20 @@
 {% block title %}{{ t('ui.bbs_directory.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-    <h2>
-        <i class="fas fa-server"></i>
-        {{ t('ui.bbs_directory.heading', {}, 'common') }}
-    </h2>
-    <p class="text-muted">{{ t('ui.bbs_directory.description', {}, 'common') }}</p>
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2>
+            <i class="fas fa-server"></i>
+            {{ t('ui.bbs_directory.heading', {}, 'common') }}
+        </h2>
+        <p class="text-muted mb-0">{{ t('ui.bbs_directory.description', {}, 'common') }}</p>
+    </div>
+    {% if current_user %}
+    <button class="btn btn-fidonet ms-3 flex-shrink-0" onclick="showSubmitModal()">
+        <i class="fas fa-plus"></i>
+        {{ t('ui.bbs_directory.add_listing', {}, 'common') }}
+    </button>
+    {% endif %}
 </div>
 
 {% if entries | length == 0 %}
@@ -76,4 +84,126 @@
     </div>
 </div>
 {% endif %}
+
+{% if current_user %}
+{# ── Submit BBS Modal ──────────────────────────────────────────────────── #}
+<div class="modal fade" id="submitBbsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-server me-2"></i>
+                    {{ t('ui.bbs_directory.submit_title', {}, 'common') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{{ t('ui.bbs_directory.submit_description', {}, 'common') }}</p>
+                <div id="submitAlert" class="alert d-none"></div>
+                <form id="submitBbsForm">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_name', {}, 'common') }} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="submitName" maxlength="100" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_os', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitOs" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_sysop', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitSysop" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_location', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitLocation" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</label>
+                            <input type="text" class="form-control" id="submitTelnetHost" maxlength="255" placeholder="bbs.example.com">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{{ t('ui.bbs_directory.col_telnet_port', {}, 'common') }}</label>
+                            <input type="number" class="form-control" id="submitTelnetPort" value="23" min="1" max="65535">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ t('ui.bbs_directory.col_website', {}, 'common') }}</label>
+                        <input type="url" class="form-control" id="submitWebsite" maxlength="255" placeholder="https://">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ t('ui.bbs_directory.col_notes', {}, 'common') }}</label>
+                        <textarea class="form-control" id="submitNotes" rows="2" maxlength="1000"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.cancel', {}, 'common') }}</button>
+                <button type="button" class="btn btn-fidonet" id="submitBbsBtn" onclick="submitBbs()">
+                    <i class="fas fa-paper-plane"></i>
+                    {{ t('ui.bbs_directory.submit_btn', {}, 'common') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
+
+{% if current_user %}
+{% block scripts %}
+<script>
+function showSubmitModal() {
+    $('#submitBbsForm')[0].reset();
+    $('#submitTelnetPort').val(23);
+    $('#submitAlert').addClass('d-none').text('');
+    $('#submitBbsBtn').prop('disabled', false);
+    $('#submitBbsModal').modal('show');
+}
+
+function submitBbs() {
+    const form = $('#submitBbsForm')[0];
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const data = {
+        name:        $('#submitName').val().trim(),
+        sysop:       $('#submitSysop').val().trim() || null,
+        location:    $('#submitLocation').val().trim() || null,
+        os:          $('#submitOs').val().trim() || null,
+        telnet_host: $('#submitTelnetHost').val().trim() || null,
+        telnet_port: parseInt($('#submitTelnetPort').val()) || 23,
+        website:     $('#submitWebsite').val().trim() || null,
+        notes:       $('#submitNotes').val().trim() || null,
+    };
+
+    $('#submitBbsBtn').prop('disabled', true);
+
+    $.ajax({
+        url: '/api/bbs-directory/submit',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+    })
+    .done(function() {
+        const msg = window.t
+            ? window.t('ui.bbs_directory.submit_success', {}, '{{ t('ui.bbs_directory.submit_success', {}, 'common') | escape('js') }}')
+            : '{{ t('ui.bbs_directory.submit_success', {}, 'common') | escape('js') }}';
+        $('#submitAlert').removeClass('d-none alert-danger').addClass('alert-success').text(msg);
+        $('#submitBbsForm').addClass('d-none');
+        $('#submitBbsBtn').addClass('d-none');
+    })
+    .fail(function(xhr) {
+        const msg = window.getApiErrorMessage
+            ? window.getApiErrorMessage(xhr.responseJSON, 'Submission failed')
+            : (xhr.responseJSON?.error || 'Submission failed');
+        $('#submitAlert').removeClass('d-none alert-success').addClass('alert-danger').text(msg);
+        $('#submitBbsBtn').prop('disabled', false);
+    });
+}
+</script>
+{% endblock %}
+{% endif %}

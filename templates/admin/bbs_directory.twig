@@ -8,36 +8,71 @@
         <i class="fas fa-server"></i>
         {{ t('ui.admin.bbs_directory.heading', {}, 'common') }}
     </h2>
-    <button class="btn btn-fidonet" onclick="showAddEntryModal()">
-        <i class="fas fa-plus"></i>
-        {{ t('ui.admin.bbs_directory.add_entry', {}, 'common') }}
-    </button>
-</div>
-
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div class="input-group" style="max-width:320px">
-        <input type="text" class="form-control" id="entrySearch" placeholder="Search...">
-        <button class="btn btn-outline-secondary" onclick="loadEntries()">
-            <i class="fas fa-search"></i>
-        </button>
-    </div>
     <a href="/admin/echomail-robots" class="btn btn-outline-secondary btn-sm">
         <i class="fas fa-robot"></i>
         {{ t('ui.base.admin.echomail_robots', {}, 'common') }}
     </a>
 </div>
 
-<div class="card">
-    <div class="card-body p-0">
-        <div id="entriesContainer">
-            <div class="text-center py-4">
-                <i class="fas fa-spinner fa-spin me-2"></i> Loading...
+{# ── Tabs ──────────────────────────────────────────────────────────────── #}
+<ul class="nav nav-tabs mb-3" id="dirTabs">
+    <li class="nav-item">
+        <a class="nav-link active" id="tab-all" data-bs-toggle="tab" href="#pane-all">
+            {{ t('ui.admin.bbs_directory.tab_all', {}, 'common') }}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="tab-pending" data-bs-toggle="tab" href="#pane-pending">
+            {{ t('ui.admin.bbs_directory.tab_pending', {}, 'common') }}
+            <span class="badge bg-warning text-dark ms-1 d-none" id="pendingBadge"></span>
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+{# ── All Entries tab ───────────────────────────────────────────────────── #}
+<div class="tab-pane fade show active" id="pane-all">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="input-group" style="max-width:320px">
+            <input type="text" class="form-control" id="entrySearch" placeholder="Search...">
+            <button class="btn btn-outline-secondary" onclick="loadEntries()">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        <button class="btn btn-fidonet" onclick="showAddEntryModal()">
+            <i class="fas fa-plus"></i>
+            {{ t('ui.admin.bbs_directory.add_entry', {}, 'common') }}
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div id="entriesContainer">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i> Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="entriesPagination" class="mt-3 d-flex justify-content-center"></div>
+</div>
+
+{# ── Pending Review tab ────────────────────────────────────────────────── #}
+<div class="tab-pane fade" id="pane-pending">
+    <div class="card mt-2">
+        <div class="card-body p-0">
+            <div id="pendingContainer">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i> Loading...
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div id="entriesPagination" class="mt-3 d-flex justify-content-center"></div>
+</div>{# /tab-content #}
 
 {# ── Entry Add/Edit Modal ──────────────────────────────────────────────── #}
 <div class="modal fade" id="entryModal" tabindex="-1">
@@ -57,7 +92,7 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">OS</label>
-                            <input type="text" class="form-control" id="entryOs" maxlength="50">
+                            <input type="text" class="form-control" id="entryOs" maxlength="255">
                         </div>
                     </div>
                     <div class="row mb-3">
@@ -67,7 +102,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Location</label>
-                            <input type="text" class="form-control" id="entryLocation" maxlength="100">
+                            <input type="text" class="form-control" id="entryLocation" maxlength="255">
                         </div>
                     </div>
                     <div class="row mb-3">
@@ -142,7 +177,10 @@ function apiErr(payload, fallback) {
 }
 
 $(document).ready(function() {
-    const init = function() { loadEntries(); };
+    const init = function() {
+        loadEntries();
+        loadPending();
+    };
     if (typeof loadUserSettings === 'function') {
         loadUserSettings().finally(init);
     } else {
@@ -152,7 +190,12 @@ $(document).ready(function() {
     $('#entrySearch').on('keydown', function(e) {
         if (e.key === 'Enter') { currentPage = 1; loadEntries(); }
     });
+
+    // Reload pending tab when it becomes visible
+    $('#tab-pending').on('shown.bs.tab', function() { loadPending(); });
 });
+
+// ── All Entries ─────────────────────────────────────────────────────────
 
 function loadEntries() {
     const search = $('#entrySearch').val().trim();
@@ -193,13 +236,16 @@ function renderEntries(entries, total) {
         const sourceLabel = e.source === 'auto'
             ? uiT('ui.bbs_directory.source_auto', 'Auto')
             : uiT('ui.bbs_directory.source_manual', 'Manual');
+        const statusBadge = e.status === 'pending'
+            ? `<span class="badge bg-warning text-dark ms-1">${uiT('ui.bbs_directory.status_pending', 'Pending')}</span>`
+            : (e.status === 'rejected' ? `<span class="badge bg-danger ms-1">${uiT('ui.bbs_directory.status_rejected', 'Rejected')}</span>` : '');
         const lastSeen = e.last_seen ? new Date(e.last_seen).toLocaleDateString() : `<span class="text-muted">—</span>`;
         const activeIcon = (e.is_active == true || e.is_active === 't')
             ? '<i class="fas fa-check-circle text-success"></i>'
             : '<i class="fas fa-times-circle text-danger"></i>';
 
         html += `<tr>
-            <td>${activeIcon} <strong>${escapeHtml(e.name)}</strong></td>
+            <td>${activeIcon} <strong>${escapeHtml(e.name)}</strong>${statusBadge}</td>
             <td>${escapeHtml(e.sysop || '')}</td>
             <td>${escapeHtml(e.location || '')}</td>
             <td>${telnet}</td>
@@ -227,6 +273,90 @@ function renderEntries(entries, total) {
         loadEntries();
     });
 }
+
+// ── Pending Review ──────────────────────────────────────────────────────
+
+function loadPending() {
+    $('#pendingContainer').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Loading...</div>');
+
+    $.get('/admin/api/bbs-directory/entries/pending')
+        .done(function(data) { renderPending(data.entries); })
+        .fail(function(xhr) {
+            $('#pendingContainer').html(`<div class="text-center text-danger py-4">${apiErr(xhr.responseJSON, 'Failed to load pending entries')}</div>`);
+        });
+}
+
+function renderPending(entries) {
+    const badge = $('#pendingBadge');
+    if (!entries || entries.length === 0) {
+        badge.addClass('d-none');
+        $('#pendingContainer').html(`<div class="text-center text-muted py-4">${uiT('ui.admin.bbs_directory.no_pending', 'No pending listings.')}</div>`);
+        return;
+    }
+
+    badge.text(entries.length).removeClass('d-none');
+
+    let html = `<div class="table-responsive"><table class="table table-hover mb-0">
+        <thead><tr>
+            <th>${uiT('ui.admin.bbs_directory.col_name', 'Name')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_sysop', 'Sysop')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_location', 'Location')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_telnet', 'Telnet')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_submitted_by', 'Submitted By')}</th>
+            <th>${uiT('ui.admin.bbs_directory.col_actions', 'Actions')}</th>
+        </tr></thead><tbody>`;
+
+    entries.forEach(function(e) {
+        const telnet = e.telnet_host
+            ? `<span class="font-monospace small">${escapeHtml(e.telnet_host)}${e.telnet_port != 23 ? ':' + e.telnet_port : ''}</span>`
+            : '';
+
+        html += `<tr>
+            <td><strong>${escapeHtml(e.name)}</strong></td>
+            <td>${escapeHtml(e.sysop || '')}</td>
+            <td>${escapeHtml(e.location || '')}</td>
+            <td>${telnet}</td>
+            <td><small>${escapeHtml(e.submitted_by_username || '—')}</small></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-success" onclick="approveEntry(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.admin.bbs_directory.approve', 'Approve')}">
+                        <i class="fas fa-check"></i> ${uiT('ui.admin.bbs_directory.approve', 'Approve')}
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="rejectEntry(${e.id}, '${escapeHtml(e.name)}')" title="${uiT('ui.admin.bbs_directory.reject', 'Reject')}">
+                        <i class="fas fa-times"></i> ${uiT('ui.admin.bbs_directory.reject', 'Reject')}
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="editEntry(${e.id})" title="${uiT('ui.common.edit', 'Edit')}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    $('#pendingContainer').html(html);
+}
+
+function approveEntry(id, name) {
+    $.ajax({ url: `/admin/api/bbs-directory/entries/${id}/approve`, method: 'POST' })
+        .done(function() {
+            showSuccess(`${uiT('ui.admin.bbs_directory.approved', 'Entry approved')}: ${escapeHtml(name)}`);
+            loadPending();
+            loadEntries();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Approve failed')); });
+}
+
+function rejectEntry(id, name) {
+    $.ajax({ url: `/admin/api/bbs-directory/entries/${id}/reject`, method: 'POST' })
+        .done(function() {
+            showSuccess(`${uiT('ui.admin.bbs_directory.rejected', 'Entry rejected')}: ${escapeHtml(name)}`);
+            loadPending();
+        })
+        .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Reject failed')); });
+}
+
+// ── Add / Edit ──────────────────────────────────────────────────────────
 
 function showAddEntryModal() {
     currentEntryId = null;
@@ -286,9 +416,12 @@ function saveEntry() {
             $('#entryModal').modal('hide');
             showSuccess(uiT('ui.admin.bbs_directory.entry_saved', 'Entry saved successfully'));
             loadEntries();
+            loadPending();
         })
         .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Save failed')); });
 }
+
+// ── Delete ──────────────────────────────────────────────────────────────
 
 function showDeleteModal(id, name) {
     $('#deleteItemName').text(name);
@@ -302,9 +435,12 @@ function deleteEntry(id) {
             $('#deleteModal').modal('hide');
             showSuccess(uiT('ui.admin.bbs_directory.entry_deleted', 'Entry deleted successfully'));
             loadEntries();
+            loadPending();
         })
         .fail(function(xhr) { showError(apiErr(xhr.responseJSON, 'Delete failed')); });
 }
+
+// ── Pagination ──────────────────────────────────────────────────────────
 
 function renderPagination(selector, currentPage, totalPages, callback) {
     const container = $(selector);

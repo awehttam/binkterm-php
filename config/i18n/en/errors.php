@@ -446,7 +446,12 @@ return [
     'errors.admin.i18n_overrides.load_failed' => 'Failed to load catalog',
     'errors.admin.i18n_overrides.save_failed' => 'Failed to save overrides',
 
-    // BBS Directory
+    // BBS Directory (user submissions)
+    'errors.bbs_directory.name_required' => 'BBS name is required',
+    'errors.bbs_directory.duplicate_name' => 'A BBS with that name already exists',
+    'errors.bbs_directory.submit_failed' => 'Submission failed. Please try again.',
+
+    // BBS Directory (admin)
     'errors.admin.bbs_directory.not_found' => 'BBS directory entry not found',
     'errors.admin.bbs_directory.robot_not_found' => 'Robot rule not found',
     'errors.admin.bbs_directory.name_required' => 'BBS name is required',

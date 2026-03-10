@@ -446,7 +446,12 @@ return [
     'errors.admin.i18n_overrides.load_failed' => 'Error al cargar el catalogo',
     'errors.admin.i18n_overrides.save_failed' => 'Error al guardar los ajustes',
 
-    // BBS Directory
+    // BBS Directory (envios de usuarios)
+    'errors.bbs_directory.name_required' => 'Se requiere el nombre del BBS',
+    'errors.bbs_directory.duplicate_name' => 'Ya existe un BBS con ese nombre',
+    'errors.bbs_directory.submit_failed' => 'El envio fallo. Por favor intentalo de nuevo.',
+
+    // BBS Directory (admin)
     'errors.admin.bbs_directory.not_found' => 'Entrada del directorio BBS no encontrada',
     'errors.admin.bbs_directory.robot_not_found' => 'Regla de robot no encontrada',
     'errors.admin.bbs_directory.name_required' => 'Se requiere el nombre del BBS',

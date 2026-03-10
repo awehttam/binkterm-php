@@ -25,10 +25,102 @@ class BbsDirectory
         $stmt = $this->db->query("
             SELECT *
             FROM bbs_directory
-            WHERE is_active = TRUE
+            WHERE status = 'active'
             ORDER BY LOWER(name) ASC
         ");
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get all entries with status='pending', oldest first.
+     *
+     * @return array
+     */
+    public function getPendingEntries(): array
+    {
+        $stmt = $this->db->query("
+            SELECT d.*, u.username AS submitted_by_username
+            FROM bbs_directory d
+            LEFT JOIN users u ON u.id = d.submitted_by_user_id
+            WHERE d.status = 'pending'
+            ORDER BY d.created_at ASC
+        ");
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Count entries currently pending review.
+     *
+     * @return int
+     */
+    public function getPendingCount(): int
+    {
+        return (int)$this->db->query("SELECT COUNT(*) FROM bbs_directory WHERE status = 'pending'")->fetchColumn();
+    }
+
+    /**
+     * Approve a pending entry (set status = 'active').
+     *
+     * @param int $id
+     * @return bool
+     */
+    public function approveEntry(int $id): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE bbs_directory SET status = 'active', is_active = TRUE, updated_at = NOW() WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Reject a pending entry (set status = 'rejected').
+     *
+     * @param int $id
+     * @return bool
+     */
+    public function rejectEntry(int $id): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE bbs_directory SET status = 'rejected', is_active = FALSE, updated_at = NOW() WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Create a user-submitted listing in 'pending' state.
+     *
+     * @param array $data
+     * @param int   $userId
+     * @return int  New entry ID
+     */
+    public function createPendingEntry(array $data, int $userId): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO bbs_directory
+                (name, sysop, location, os, telnet_host, telnet_port, website, notes,
+                 source, status, is_active, submitted_by_user_id, created_at, updated_at)
+            VALUES
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes,
+                 'manual', 'pending', FALSE, :user_id, NOW(), NOW())
+            RETURNING id
+        ");
+
+        $stmt->execute([
+            ':name'        => $data['name'],
+            ':sysop'       => $data['sysop'] ?? null,
+            ':location'    => $data['location'] ?? null,
+            ':os'          => $data['os'] ?? null,
+            ':telnet_host' => $data['telnet_host'] ?? null,
+            ':telnet_port' => isset($data['telnet_port']) ? (int)$data['telnet_port'] : 23,
+            ':website'     => $data['website'] ?? null,
+            ':notes'       => $data['notes'] ?? null,
+            ':user_id'     => $userId,
+        ]);
+
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return (int)$row['id'];
     }
 
     /**
@@ -91,9 +183,9 @@ class BbsDirectory
     {
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
-                (name, sysop, location, os, telnet_host, telnet_port, website, source, last_seen, is_active, created_at, updated_at)
+                (name, sysop, location, os, telnet_host, telnet_port, website, source, status, last_seen, is_active, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, 'auto', NOW(), TRUE, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, 'auto', 'active', NOW(), TRUE, NOW(), NOW())
             ON CONFLICT (LOWER(name)) DO UPDATE SET
                 sysop        = EXCLUDED.sysop,
                 location     = EXCLUDED.location,
@@ -102,6 +194,7 @@ class BbsDirectory
                 telnet_port  = EXCLUDED.telnet_port,
                 website      = COALESCE(EXCLUDED.website, bbs_directory.website),
                 source       = CASE WHEN bbs_directory.source = 'manual' THEN 'manual' ELSE 'auto' END,
+                status       = 'active',
                 last_seen    = NOW(),
                 is_active    = TRUE,
                 updated_at   = NOW()

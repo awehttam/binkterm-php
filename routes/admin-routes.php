@@ -3246,6 +3246,56 @@ SimpleRouter::delete('/admin/api/bbs-directory/entries/{id}', function($id) {
     echo json_encode(['success' => true]);
 });
 
+// BBS Directory API - list pending entries
+SimpleRouter::get('/admin/api/bbs-directory/entries/pending', function() {
+    RouteHelper::requireAdmin();
+    $db = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+    echo json_encode(['entries' => $directory->getPendingEntries()]);
+});
+
+// BBS Directory API - approve pending entry
+SimpleRouter::post('/admin/api/bbs-directory/entries/{id}/approve', function($id) {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+
+    if (!$directory->getEntry((int)$id)) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.not_found', apiLocalizedText('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'));
+        return;
+    }
+
+    $directory->approveEntry((int)$id);
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    AdminActionLogger::logAction($userId, 'bbs_directory_entry_approved', ['entry_id' => $id]);
+    echo json_encode(['success' => true]);
+});
+
+// BBS Directory API - reject pending entry
+SimpleRouter::post('/admin/api/bbs-directory/entries/{id}/reject', function($id) {
+    $user = RouteHelper::requireAdmin();
+    $db   = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+
+    if (!$directory->getEntry((int)$id)) {
+        http_response_code(404);
+        apiError('errors.admin.bbs_directory.not_found', apiLocalizedText('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'));
+        return;
+    }
+
+    $directory->rejectEntry((int)$id);
+    $userId = (int)($user['user_id'] ?? $user['id'] ?? 0);
+    AdminActionLogger::logAction($userId, 'bbs_directory_entry_rejected', ['entry_id' => $id]);
+    echo json_encode(['success' => true]);
+});
+
 // BBS Directory API - list robot rules
 SimpleRouter::get('/admin/api/bbs-directory/robots', function() {
     RouteHelper::requireAdmin();

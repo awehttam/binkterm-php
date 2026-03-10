@@ -1201,6 +1201,36 @@ SimpleRouter::get('/bbs-directory', function() {
     $template->renderResponse('bbs_directory.twig', ['entries' => $entries]);
 });
 
+// Submit a BBS listing (authenticated users only — creates pending entry)
+SimpleRouter::post('/api/bbs-directory/submit', function() {
+    $user  = RouteHelper::requireAuth();
+    $db    = \BinktermPHP\Database::getInstance()->getPdo();
+    header('Content-Type: application/json');
+
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (empty($input['name'])) {
+        http_response_code(400);
+        apiError('errors.bbs_directory.name_required', apiLocalizedText('errors.bbs_directory.name_required', 'BBS name is required'));
+        return;
+    }
+
+    $directory = new \BinktermPHP\BbsDirectory($db);
+    $userId    = (int)($user['user_id'] ?? $user['id'] ?? 0);
+
+    try {
+        $id = $directory->createPendingEntry($input, $userId);
+        echo json_encode(['success' => true, 'id' => $id]);
+    } catch (\PDOException $e) {
+        http_response_code(400);
+        if (strpos($e->getMessage(), 'duplicate key') !== false || strpos($e->getMessage(), 'unique') !== false) {
+            apiError('errors.bbs_directory.duplicate_name', apiLocalizedText('errors.bbs_directory.duplicate_name', 'A BBS with that name already exists'));
+        } else {
+            apiError('errors.bbs_directory.submit_failed', apiLocalizedText('errors.bbs_directory.submit_failed', 'Submission failed'));
+        }
+    }
+});
+
 // Public /about page (only when enabled in appearance settings)
 SimpleRouter::get('/about', function() {
     if (!\BinktermPHP\AppearanceConfig::isAboutPageEnabled()) {
