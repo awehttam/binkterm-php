@@ -154,8 +154,8 @@
 {% endif %}
 {% endblock %}
 
-{% if current_user %}
 {% block scripts %}
+{% if current_user %}
 <script>
 function showSubmitModal() {
     $('#submitBbsForm')[0].reset();
@@ -205,5 +205,5 @@ function submitBbs() {
     });
 }
 </script>
-{% endblock %}
 {% endif %}
+{% endblock %}
