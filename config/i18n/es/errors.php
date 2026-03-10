@@ -459,5 +459,6 @@ return [
     'errors.admin.bbs_directory.robot_required_fields' => 'Se requieren nombre, area echo y tipo de procesador',
     'errors.admin.bbs_directory.run_failed' => 'La ejecucion del robot fallo',
     'errors.admin.bbs_directory.invalid_processor_type' => 'Tipo de procesador desconocido o no soportado',
+    'errors.admin.echomail_robots.invalid_config_json' => 'La configuracion del procesador no es JSON valido',
 ];
 

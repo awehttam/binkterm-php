@@ -2701,6 +2701,7 @@ return [
     'ui.admin.echomail_robots.about_text' => 'Las reglas de robot monitorean areas de echo en busca de mensajes coincidentes y los procesan automaticamente. Los resultados se almacenan en el Directorio BBS u otros destinos segun el procesador.',
     'ui.admin.echomail_robots.cron_hint' => 'Ejecutar periodicamente via cron:',
     'ui.admin.echomail_robots.run_output_title' => 'Salida del Robot',
+    'ui.admin.echomail_robots.processor_config_label' => 'Configuracion del Procesador (JSON)',
 
     // BBS Directory (admin page)
     'ui.admin.bbs_directory.page_title' => 'Directorio BBS',

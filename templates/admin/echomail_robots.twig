@@ -77,6 +77,11 @@
                         </select>
                         <div class="form-text" id="processorDescription"></div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ t('ui.admin.echomail_robots.processor_config_label', {}, 'common') }}</label>
+                        <textarea class="form-control font-monospace" id="robotProcessorConfig" rows="6" placeholder="{}"></textarea>
+                        <div class="form-text" id="processorConfigHint"></div>
+                    </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="robotEnabled" checked>
                         <label class="form-check-label" for="robotEnabled">Enabled</label>
@@ -167,6 +172,7 @@ $(document).ready(function() {
         const type = $(this).val();
         const proc = processorTypes.find(p => p.type === type);
         $('#processorDescription').text(proc ? proc.description : '');
+        updateProcessorConfigHint(type);
     });
 });
 
@@ -242,6 +248,33 @@ function renderRobots(robots) {
     container.html(html);
 }
 
+// Processor-type-specific config hints and default templates
+const PROCESSOR_CONFIG_HINTS = {
+    auto_reply: {
+        hint: 'sysop_user_id (required), reply_text, quote_kludges (bool), skip_from_names (array)',
+        template: JSON.stringify({
+            sysop_user_id: 1,
+            reply_text: 'This is an automated reply to your test message.',
+            quote_kludges: true,
+            skip_from_names: []
+        }, null, 2)
+    }
+};
+
+function updateProcessorConfigHint(type) {
+    const info = PROCESSOR_CONFIG_HINTS[type];
+    if (info) {
+        $('#processorConfigHint').text(info.hint);
+        // Only set template if field is empty or contains just {}
+        const current = $('#robotProcessorConfig').val().trim();
+        if (current === '' || current === '{}') {
+            $('#robotProcessorConfig').val(info.template);
+        }
+    } else {
+        $('#processorConfigHint').text('');
+    }
+}
+
 function showAddRobotModal() {
     currentRobotId = null;
     $('#robotModalTitle').text(uiT('ui.admin.bbs_directory.add_robot', 'Add Robot'));
@@ -249,6 +282,8 @@ function showAddRobotModal() {
     $('#robotId').val('');
     $('#robotEnabled').prop('checked', true);
     $('#processorDescription').text('');
+    $('#processorConfigHint').text('');
+    $('#robotProcessorConfig').val('{}');
     $('#robotModal').modal('show');
 }
 
@@ -267,6 +302,12 @@ function editRobot(id) {
             $('#robotSubjectPattern').val(robot.subject_pattern || '');
             $('#robotProcessorType').val(robot.processor_type);
             $('#robotEnabled').prop('checked', robot.enabled == true || robot.enabled === 't');
+
+            // Load processor_config JSON
+            let configObj = {};
+            try { configObj = JSON.parse(robot.processor_config || '{}'); } catch(e) {}
+            $('#robotProcessorConfig').val(JSON.stringify(configObj, null, 2));
+
             $('#robotProcessorType').trigger('change');
             $('#robotModal').modal('show');
         })
@@ -277,12 +318,24 @@ function saveRobot() {
     const form = $('#robotForm')[0];
     if (!form.checkValidity()) { form.reportValidity(); return; }
 
+    let processorConfig = {};
+    const configRaw = $('#robotProcessorConfig').val().trim();
+    if (configRaw && configRaw !== '{}') {
+        try {
+            processorConfig = JSON.parse(configRaw);
+        } catch(e) {
+            showError(uiT('errors.admin.echomail_robots.invalid_config_json', 'Processor config is not valid JSON') + ': ' + e.message);
+            return;
+        }
+    }
+
     const data = {
-        name:            $('#robotName').val(),
-        echoarea_id:     parseInt($('#robotEchoarea').val()),
-        subject_pattern: $('#robotSubjectPattern').val() || null,
-        processor_type:  $('#robotProcessorType').val(),
-        enabled:         $('#robotEnabled').is(':checked'),
+        name:             $('#robotName').val(),
+        echoarea_id:      parseInt($('#robotEchoarea').val()),
+        subject_pattern:  $('#robotSubjectPattern').val() || null,
+        processor_type:   $('#robotProcessorType').val(),
+        processor_config: processorConfig,
+        enabled:          $('#robotEnabled').is(':checked'),
     };
 
     const url    = currentRobotId ? `/admin/api/bbs-directory/robots/${currentRobotId}` : '/admin/api/bbs-directory/robots';

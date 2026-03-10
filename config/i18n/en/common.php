@@ -2701,6 +2701,7 @@ return [
     'ui.admin.echomail_robots.about_text' => 'Robot rules watch echo areas for matching messages and automatically process them. Results are stored in the BBS Directory or other targets depending on the processor.',
     'ui.admin.echomail_robots.cron_hint' => 'Run periodically via cron:',
     'ui.admin.echomail_robots.run_output_title' => 'Robot Output',
+    'ui.admin.echomail_robots.processor_config_label' => 'Processor Config (JSON)',
 
     // BBS Directory (admin page)
     'ui.admin.bbs_directory.page_title' => 'BBS Directory',
