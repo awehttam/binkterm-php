@@ -143,6 +143,7 @@ return [
     'errors.files.upload.area_not_found' => 'Area de archivos no encontrada',
     'errors.files.upload.read_only' => 'Esta area de archivos es de solo lectura',
     'errors.files.upload.admin_only' => 'Solo los administradores pueden subir archivos a esta area',
+    'errors.files.upload.virus_detected' => 'Archivo rechazado: virus detectado',
     'errors.files.upload.failed' => 'No se pudo subir el archivo',
 
     // Admin Users

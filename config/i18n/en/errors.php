@@ -143,6 +143,7 @@ return [
     'errors.files.upload.area_not_found' => 'File area not found',
     'errors.files.upload.read_only' => 'This file area is read-only',
     'errors.files.upload.admin_only' => 'Only administrators can upload files to this area',
+    'errors.files.upload.virus_detected' => 'File rejected: virus detected',
     'errors.files.upload.failed' => 'Failed to upload file',
 
     // Admin Users

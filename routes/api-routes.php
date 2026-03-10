@@ -2486,7 +2486,22 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 apiError('errors.files.upload.read_only', apiLocalizedText('errors.files.upload.read_only', 'This file area is read-only', $user));
             } elseif ($message === 'Only administrators can upload files to this area.') {
                 apiError('errors.files.upload.admin_only', apiLocalizedText('errors.files.upload.admin_only', 'Only administrators can upload files to this area', $user));
+            } elseif ($message === 'File rejected: virus detected.') {
+                try {
+                    $logClient = new \BinktermPHP\Admin\AdminDaemonClient();
+                    $logClient->serverLog('WARNING', 'Infected file upload rejected', [
+                        'username'  => $user['username'] ?? 'unknown',
+                        'filename'  => $_FILES['file']['name'] ?? 'unknown',
+                        'file_area' => $_POST['file_area_id'] ?? 'unknown',
+                    ]);
+                    $logClient->close();
+                } catch (\Throwable $logEx) {
+                    error_log("Failed to write virus rejection server log: " . $logEx->getMessage());
+                }
+                http_response_code(422);
+                apiError('errors.files.upload.virus_detected', apiLocalizedText('errors.files.upload.virus_detected', 'File rejected: virus detected', $user));
             } else {
+                error_log("File upload error: " . $message);
                 apiError('errors.files.upload.failed', apiLocalizedText('errors.files.upload.failed', 'Failed to upload file', $user));
             }
         }

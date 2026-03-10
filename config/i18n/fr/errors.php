@@ -112,6 +112,7 @@ return [
     'errors.files.upload.area_not_found' => 'Zone de fichiers introuvable',
     'errors.files.upload.read_only' => 'Cette zone de fichiers est en lecture seule',
     'errors.files.upload.admin_only' => 'Seuls les administrateurs peuvent téléverser des fichiers dans cette zone',
+    'errors.files.upload.virus_detected' => 'Fichier rejeté : virus détecté',
     'errors.files.upload.failed' => 'Échec du téléversement du fichier',
     'errors.admin.users.not_found' => 'Utilisateur introuvable',
     'errors.admin.users.create_failed' => 'Échec de la création de l\'utilisateur',
