@@ -43,6 +43,13 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - In the message list, you can now type a message number to jump directly to it. The selection highlight updates live as digits are typed; press Enter to open.
 
 ### File Areas
+- **ClamAV improvements**: Files can now be manually scanned for viruses by admins from the file details modal using the new **Virus Scan** button. New `.env` option:
+  - `CLAMAV_ALLOW_INFECTED=true` — accept infected files rather than rejecting them; scan result is still recorded
+- **Virus detection error**: When an upload is rejected due to virus detection, the UI now shows a specific "File rejected: virus detected" message instead of the generic upload failure. The rejection is also logged to the server log. See [docs/AntiVirus.md](AntiVirus.md) for full setup and configuration instructions.
+- **TIC file encoding fix**: TIC files and `FILE_ID.DIZ` contents containing CP437 or ISO-8859-1 characters no longer cause a PostgreSQL encoding error. Text is converted to UTF-8 before database insertion.
+- **TIC bundle extraction fix**: Files distributed via TIC that are compressed inside a FidoNet day-of-week bundle (e.g. `.FR0`) are now correctly extracted and made available for TIC processing instead of being silently discarded.
+- **Inbound processing lock**: `process_packets.php` now uses a file lock to prevent multiple concurrent instances.
+- **Unprocessed files**: After packet and TIC processing, any unrecognized files remaining in `data/inbound/` are moved to `data/inbound/unprocessed/` for manual review instead of accumulating indefinitely.
 - File owners and admins can now edit a file through the web interface. The **Edit** button appears in the file detail modal for users who have permission. The edit dialog allows changing the filename (which renames the file on disk), the short description, and the long description in a single operation.
 - Admins can **move a file to a different file area** from the same edit dialog. A "Move to Area" dropdown is shown to admins only; selecting a different area moves the physical file on disk to the new area's storage directory and updates the database record.
 - The terminal capability detection wizard now correctly detects **ASCII-only terminals**. When UTF-8 is not supported, the wizard shows a CP437 box-drawing test; terminals that cannot render CP437 are set to ASCII mode instead of defaulting to CP437.
