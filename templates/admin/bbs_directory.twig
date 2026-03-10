@@ -185,9 +185,11 @@ function apiErr(payload, fallback) {
 }
 
 $(document).ready(function() {
+    const editId = new URLSearchParams(window.location.search).get('edit');
     const init = function() {
         loadEntries();
         loadPending();
+        if (editId) { editEntry(parseInt(editId, 10)); }
     };
     if (typeof loadUserSettings === 'function') {
         loadUserSettings().finally(init);

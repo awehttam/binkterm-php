@@ -45,6 +45,7 @@
                         <th>{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</th>
                         <th>{{ t('ui.bbs_directory.col_website', {}, 'common') }}</th>
                         <th>{{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}</th>
+                        {% if current_user and current_user.is_admin %}<th></th>{% endif %}
                     </tr>
                 </thead>
                 <tbody id="bbsTableBody">
@@ -81,6 +82,13 @@
                                 <small class="text-muted" title="{{ entry.last_seen }}">{{ entry.last_seen | date('Y-m-d') }}</small>
                             {% endif %}
                         </td>
+                        {% if current_user and current_user.is_admin %}
+                        <td>
+                            <a href="/admin/bbs-directory?edit={{ entry.id }}" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.common.edit', {}, 'common') }}">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
