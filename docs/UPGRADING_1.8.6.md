@@ -91,6 +91,9 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - **ANSI / plain text toggle**: Press `A` while reading a message to switch between ANSI/preformatted rendering and plain text mode. A badge is shown when plain text mode is active. The mode resets to ANSI when opening a new message.
 - **Keyboard shortcuts help**: Press `?` or `H` while the message reader is open to display an overlay listing all available keyboard shortcuts. Press either key again to dismiss.
 
+### Web Netmail Reader
+- **Keyboard shortcuts help**: Press `?` or `H` while the message reader is open to display an overlay listing all available keyboard shortcuts. Press either key again to dismiss.
+
 ### Echomail / Netmail
 - Fixed multi-level echomail quoting: when replying to a message containing already-quoted lines (e.g. `RW>> text`), the bumped quote now consistently carries a leading space (` RW>>> text`) matching the FSC-0032 quoting style used for first-level quotes.
 - Fixed netmail replies using plain `>` quoting instead of FSC-0032 initials style. Netmail replies now quote identically to echomail replies.
