@@ -191,6 +191,12 @@
                                 <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
                             </ul>
                         </li>
+                        {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/nodelist">
+                                <i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}
+                            </a>
+                        </li>
                         {% endif %}
 
                         {# Custom navigation links (1-3 inline, 4+ as dropdown) #}
@@ -300,6 +306,12 @@
                                 <li><a class="dropdown-item" href="/bbs-directory"><i class="fas fa-server"></i> {{ t('ui.base.bbs_directory', {}, 'common') }}</a></li>
                                 <li><a class="dropdown-item" href="/nodelist"><i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}</a></li>
                             </ul>
+                        </li>
+                        {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/nodelist">
+                                <i class="fas fa-sitemap"></i> {{ t('ui.base.nodelist', {}, 'common') }}
+                            </a>
                         </li>
                         {% endif %}
                         {% if bbs_feature_enabled('guest_doors_page') %}
