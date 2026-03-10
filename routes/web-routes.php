@@ -135,17 +135,23 @@ SimpleRouter::get('/appmanifestjson', function() {
     }
   ],
   "shortcuts": [
-    {  
-        "name": "Compose new Netmail",
+    {
+        "name": "Compose Netmail",
         "short_name": "New Netmail",
-        "description":"Post a new Netmail Message",
-        "url":"/compose/netmail"
+        "description": "Compose a new netmail message",
+        "url": "/compose/netmail"
     },
-    {  
-        "name": "Compose new Echomail",
-        "short_name": "New Echomail",
-        "description":"Post a new Echomail Message",
-        "url":"/compose/echomail"
+    {
+        "name": "Netmail",
+        "short_name": "Netmail",
+        "description": "Read your netmail",
+        "url": "/netmail"
+    },
+    {
+        "name": "Echomail",
+        "short_name": "Echomail",
+        "description": "Browse echomail areas",
+        "url": "/echomail"
     },
     {  
         "name": "Nodelist",
