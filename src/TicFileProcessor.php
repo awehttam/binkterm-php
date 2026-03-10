@@ -185,7 +185,7 @@ class TicFileProcessor
             return [
                 'success' => false,
                 'error_code' => 'errors.tic.processing_failed',
-                'error' => 'TIC processing failed'
+                'error' => $e->getMessage()
             ];
         }
     }
