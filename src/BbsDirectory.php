@@ -174,25 +174,28 @@ class BbsDirectory
 
     /**
      * Upsert a BBS entry by name (case-insensitive). Sets source='auto' and updates last_seen.
-     * Used by robot processors.
+     * Used by robot processors and import scripts.
      *
-     * @param array $data Must contain 'name'; optionally sysop, location, os, telnet_host, telnet_port, website
+     * @param array $data Must contain 'name'; optionally sysop, location, os, telnet_host,
+     *                    telnet_port, ssh_port, website, software
      * @return int The ID of the inserted or updated row
      */
     public function upsertByName(array $data): int
     {
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
-                (name, sysop, location, os, telnet_host, telnet_port, website, source, status, last_seen, is_active, created_at, updated_at)
+                (name, sysop, location, os, telnet_host, telnet_port, ssh_port, website, software, source, status, last_seen, is_active, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, 'auto', 'active', NOW(), TRUE, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :ssh_port, :website, :software, 'auto', 'active', NOW(), TRUE, NOW(), NOW())
             ON CONFLICT (LOWER(name)) DO UPDATE SET
-                sysop        = EXCLUDED.sysop,
-                location     = EXCLUDED.location,
-                os           = EXCLUDED.os,
-                telnet_host  = EXCLUDED.telnet_host,
+                sysop        = COALESCE(EXCLUDED.sysop,       bbs_directory.sysop),
+                location     = COALESCE(EXCLUDED.location,    bbs_directory.location),
+                os           = COALESCE(EXCLUDED.os,          bbs_directory.os),
+                telnet_host  = COALESCE(EXCLUDED.telnet_host, bbs_directory.telnet_host),
                 telnet_port  = EXCLUDED.telnet_port,
-                website      = COALESCE(EXCLUDED.website, bbs_directory.website),
+                ssh_port     = COALESCE(EXCLUDED.ssh_port,    bbs_directory.ssh_port),
+                website      = COALESCE(EXCLUDED.website,     bbs_directory.website),
+                software     = COALESCE(EXCLUDED.software,    bbs_directory.software),
                 source       = CASE WHEN bbs_directory.source = 'manual' THEN 'manual' ELSE 'auto' END,
                 status       = 'active',
                 last_seen    = NOW(),
@@ -207,8 +210,10 @@ class BbsDirectory
             ':location'    => $data['location'] ?? null,
             ':os'          => $data['os'] ?? null,
             ':telnet_host' => $data['telnet_host'] ?? null,
-            ':telnet_port' => isset($data['telnet_port']) ? (int)$data['telnet_port'] : 23,
+            ':telnet_port' => isset($data['telnet_port']) && $data['telnet_port'] !== '' ? (int)$data['telnet_port'] : 23,
+            ':ssh_port'    => isset($data['ssh_port']) && $data['ssh_port'] !== '' ? (int)$data['ssh_port'] : null,
             ':website'     => $data['website'] ?? null,
+            ':software'    => $data['software'] ?? null,
         ]);
 
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
