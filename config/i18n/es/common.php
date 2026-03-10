@@ -2738,6 +2738,8 @@ return [
     'ui.admin.bbs_directory.rejected' => 'Entrada rechazada',
     'ui.admin.bbs_directory.entry_saved' => 'Entrada guardada correctamente',
     'ui.admin.bbs_directory.entry_deleted' => 'Entrada eliminada correctamente',
+    'ui.admin.bbs_directory.is_local_label' => 'Nuestro BBS (protegido)',
+    'ui.admin.bbs_directory.is_local_help' => 'Las importaciones automáticas y los procesadores de robots no modificarán esta entrada.',
     'ui.admin.bbs_directory.robot_saved' => 'Regla de robot guardada correctamente',
     'ui.admin.bbs_directory.robot_deleted' => 'Regla de robot eliminada correctamente',
 ];

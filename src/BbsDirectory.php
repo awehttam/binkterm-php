@@ -201,6 +201,7 @@ class BbsDirectory
                 last_seen    = NOW(),
                 is_active    = TRUE,
                 updated_at   = NOW()
+            WHERE bbs_directory.is_local IS NOT TRUE
             RETURNING id
         ");
 
@@ -217,6 +218,14 @@ class BbsDirectory
         ]);
 
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if ($row === false) {
+            // Entry exists but is protected (is_local=TRUE) — return its id without modifying it
+            $sel = $this->db->prepare("SELECT id FROM bbs_directory WHERE LOWER(name) = LOWER(?)");
+            $sel->execute([$data['name']]);
+            $row = $sel->fetch(\PDO::FETCH_ASSOC);
+        }
+
         return (int)$row['id'];
     }
 
@@ -230,9 +239,9 @@ class BbsDirectory
     {
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
-                (name, sysop, location, os, telnet_host, telnet_port, website, notes, source, is_active, created_at, updated_at)
+                (name, sysop, location, os, telnet_host, telnet_port, website, notes, source, is_active, is_local, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, 'manual', :is_active, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, 'manual', :is_active, :is_local, NOW(), NOW())
             RETURNING id
         ");
 
@@ -246,6 +255,7 @@ class BbsDirectory
             ':website'     => $data['website'] ?? null,
             ':notes'       => $data['notes'] ?? null,
             ':is_active'   => isset($data['is_active']) ? ($data['is_active'] ? 'true' : 'false') : 'true',
+            ':is_local'    => !empty($data['is_local']) ? 'true' : 'false',
         ]);
 
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -272,6 +282,7 @@ class BbsDirectory
                 website     = :website,
                 notes       = :notes,
                 is_active   = :is_active,
+                is_local    = :is_local,
                 updated_at  = NOW()
             WHERE id = :id
         ");
@@ -286,6 +297,7 @@ class BbsDirectory
             ':website'     => $data['website'] ?? null,
             ':notes'       => $data['notes'] ?? null,
             ':is_active'   => isset($data['is_active']) ? ($data['is_active'] ? 'true' : 'false') : 'true',
+            ':is_local'    => !empty($data['is_local']) ? 'true' : 'false',
             ':id'          => $id,
         ]);
 

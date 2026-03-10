@@ -123,9 +123,17 @@
                         <label class="form-label">Notes</label>
                         <textarea class="form-control" id="entryNotes" rows="3"></textarea>
                     </div>
-                    <div class="form-check">
+                    <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="entryActive" checked>
                         <label class="form-check-label" for="entryActive">Active</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="entryIsLocal">
+                        <label class="form-check-label" for="entryIsLocal">
+                            <i class="fas fa-lock text-warning"></i>
+                            {{ t('ui.admin.bbs_directory.is_local_label', {}, 'common') }}
+                        </label>
+                        <div class="form-text">{{ t('ui.admin.bbs_directory.is_local_help', {}, 'common') }}</div>
                     </div>
                 </form>
             </div>
@@ -243,9 +251,12 @@ function renderEntries(entries, total) {
         const activeIcon = (e.is_active == true || e.is_active === 't')
             ? '<i class="fas fa-check-circle text-success"></i>'
             : '<i class="fas fa-times-circle text-danger"></i>';
+        const lockIcon = (e.is_local == true || e.is_local === 't')
+            ? ` <i class="fas fa-lock text-warning ms-1" title="${uiT('ui.admin.bbs_directory.is_local_label', 'Our BBS')}"></i>`
+            : '';
 
         html += `<tr>
-            <td>${activeIcon} <strong>${escapeHtml(e.name)}</strong>${statusBadge}</td>
+            <td>${activeIcon} <strong>${escapeHtml(e.name)}</strong>${lockIcon}${statusBadge}</td>
             <td>${escapeHtml(e.sysop || '')}</td>
             <td>${escapeHtml(e.location || '')}</td>
             <td>${telnet}</td>
@@ -365,6 +376,7 @@ function showAddEntryModal() {
     $('#entryId').val('');
     $('#entryTelnetPort').val(23);
     $('#entryActive').prop('checked', true);
+    $('#entryIsLocal').prop('checked', false);
     $('#entryModal').modal('show');
 }
 
@@ -387,6 +399,7 @@ function editEntry(id) {
             $('#entryWebsite').val(entry.website || '');
             $('#entryNotes').val(entry.notes || '');
             $('#entryActive').prop('checked', entry.is_active == true || entry.is_active === 't' || entry.is_active === '1');
+            $('#entryIsLocal').prop('checked', entry.is_local == true || entry.is_local === 't' || entry.is_local === '1');
             $('#entryModal').modal('show');
         })
         .fail(function(xhr) { showError(apiErr(xhr.responseJSON, uiT('errors.admin.bbs_directory.not_found', 'BBS directory entry not found'))); });
@@ -406,6 +419,7 @@ function saveEntry() {
         website:     $('#entryWebsite').val() || null,
         notes:       $('#entryNotes').val() || null,
         is_active:   $('#entryActive').is(':checked'),
+        is_local:    $('#entryIsLocal').is(':checked'),
     };
 
     const url    = currentEntryId ? `/admin/api/bbs-directory/entries/${currentEntryId}` : '/admin/api/bbs-directory/entries';
