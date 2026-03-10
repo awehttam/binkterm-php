@@ -12,6 +12,9 @@ class EchomailRobotRunner
     /** @var \PDO */
     private \PDO $db;
 
+    /** @var callable|null */
+    private $debugCallback = null;
+
     /**
      * Map of processor_type => fully-qualified class name.
      * Add new processors here to register them.
@@ -26,6 +29,17 @@ class EchomailRobotRunner
     public function __construct(\PDO $db)
     {
         $this->db = $db;
+    }
+
+    /**
+     * Set a callback to receive debug output lines (one string per call).
+     * When set, the runner and processors emit per-message decode details.
+     *
+     * @param callable|null $fn  fn(string $line): void
+     */
+    public function setDebugCallback(?callable $fn): void
+    {
+        $this->debugCallback = $fn;
     }
 
     /**
@@ -87,9 +101,26 @@ class EchomailRobotRunner
             return $summary;
         }
 
+        if ($this->debugCallback !== null) {
+            ($this->debugCallback)(sprintf(
+                "Robot #%d (%s) | processor: %s | echoarea_id: %d | cursor: %d | pattern: %s",
+                $robotId,
+                $robot['name'],
+                $processorType,
+                $echoareaId,
+                $lastId,
+                $subjectPat ?? '(any)'
+            ));
+        }
+
         try {
             /** @var MessageProcessorInterface $processor */
             $processor = new $processorClass($this->db);
+
+            // Pass debug callback to processor if it supports it
+            if ($this->debugCallback !== null && method_exists($processor, 'setDebugCallback')) {
+                $processor->setDebugCallback($this->debugCallback);
+            }
 
             // Build query — subject_pattern is a substring (ILIKE) match
             if (!empty($subjectPat)) {
@@ -125,8 +156,22 @@ class EchomailRobotRunner
                 $examined++;
                 $msgId = (int)$message['id'];
 
-                if ($processor->processMessage($message, $config)) {
+                if ($this->debugCallback !== null) {
+                    ($this->debugCallback)(sprintf(
+                        "  --- Msg #%d | from: %s | subj: %s",
+                        $msgId,
+                        $message['from_name'] ?? '?',
+                        $message['subject'] ?? '?'
+                    ));
+                }
+
+                $handled = $processor->processMessage($message, $config);
+                if ($handled) {
                     $processed++;
+                }
+
+                if ($this->debugCallback !== null) {
+                    ($this->debugCallback)('  → ' . ($handled ? 'processed' : 'skipped'));
                 }
 
                 if ($msgId > $newLastId) {

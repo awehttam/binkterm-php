@@ -9,7 +9,8 @@
  *
  * Options:
  *   --robot-id=N   Run only the robot with this ID
- *   --dry-run      Show what would be processed without making changes
+ *   --dry-run      Show what would be processed without making changes (implies --debug)
+ *   --debug        Print per-message decode details to help diagnose parsing issues
  *   --quiet        Suppress output (exit code still reflects errors)
  */
 
@@ -22,6 +23,7 @@ use BinktermPHP\Robots\EchomailRobotRunner;
 // Parse arguments
 $robotId = null;
 $dryRun  = false;
+$debug   = false;
 $quiet   = false;
 
 foreach ($argv as $arg) {
@@ -29,6 +31,9 @@ foreach ($argv as $arg) {
         $robotId = (int)$m[1];
     } elseif ($arg === '--dry-run') {
         $dryRun = true;
+        $debug  = true;  // dry-run always implies debug
+    } elseif ($arg === '--debug') {
+        $debug = true;
     } elseif ($arg === '--quiet') {
         $quiet = true;
     }
@@ -36,6 +41,9 @@ foreach ($argv as $arg) {
 
 if ($dryRun && !$quiet) {
     echo "[DRY RUN] No changes will be written.\n";
+}
+if ($debug && !$dryRun && !$quiet) {
+    echo "[DEBUG] Per-message decode output enabled.\n";
 }
 
 try {
@@ -50,7 +58,14 @@ if ($dryRun) {
     $db->beginTransaction();
 }
 
-$runner  = new EchomailRobotRunner($db);
+$runner = new EchomailRobotRunner($db);
+
+if ($debug && !$quiet) {
+    $runner->setDebugCallback(function (string $line) {
+        echo $line . "\n";
+    });
+}
+
 $results = $runner->run($robotId);
 
 if (!$quiet) {

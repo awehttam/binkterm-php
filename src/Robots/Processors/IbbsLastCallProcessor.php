@@ -26,9 +26,22 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
     /** @var \PDO */
     private \PDO $db;
 
+    /** @var callable|null */
+    private $debugCallback = null;
+
     public function __construct(\PDO $db)
     {
         $this->db = $db;
+    }
+
+    /**
+     * Set a callback to receive debug output lines.
+     *
+     * @param callable|null $fn  fn(string $line): void
+     */
+    public function setDebugCallback(?callable $fn): void
+    {
+        $this->debugCallback = $fn;
     }
 
     /** {@inheritdoc} */
@@ -57,6 +70,15 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
             return false;
         }
 
+        // Show raw body start (non-printable chars as hex)
+        if ($this->debugCallback !== null) {
+            $rawPreview = substr($body, 0, 200);
+            $rawDisplay = preg_replace_callback('/[\x00-\x1f\x7f]/', function ($m) {
+                return sprintf('[^%02X]', ord($m[0]));
+            }, $rawPreview);
+            ($this->debugCallback)("    RAW(200): " . $rawDisplay);
+        }
+
         // ROT47 decode the entire body
         $decoded = $this->applyRot47($body);
 
@@ -64,8 +86,22 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
         $lines = explode("\n", $decoded);
         $lines = array_map(fn($l) => rtrim($l, "\r"), $lines);
 
+        // Emit decoded lines for debugging
+        if ($this->debugCallback !== null) {
+            ($this->debugCallback)("    DECODED LINES (" . count($lines) . " total):");
+            foreach ($lines as $i => $line) {
+                $lineDisplay = preg_replace_callback('/[\x00-\x1f\x7f]/', function ($m) {
+                    return sprintf('[^%02X]', ord($m[0]));
+                }, $line);
+                ($this->debugCallback)("      [{$i}]: {$lineDisplay}");
+            }
+        }
+
         // Need at least 7 lines: name, sysop, date, time, location, os, host:port
         if (count($lines) < 7) {
+            if ($this->debugCallback !== null) {
+                ($this->debugCallback)("    SKIP: only " . count($lines) . " lines, need ≥7");
+            }
             return false;
         }
 
@@ -74,6 +110,14 @@ class IbbsLastCallProcessor implements MessageProcessorInterface
         $location = trim($lines[4]);
         $os       = trim($lines[5]);
         $hostPort = trim($lines[6]);
+
+        if ($this->debugCallback !== null) {
+            ($this->debugCallback)(sprintf(
+                "    EXTRACTED: name=%s | sysop=%s | location=%s | os=%s | hostPort=%s",
+                json_encode($name), json_encode($sysop),
+                json_encode($location), json_encode($os), json_encode($hostPort)
+            ));
+        }
 
         if (empty($name)) {
             return false;
