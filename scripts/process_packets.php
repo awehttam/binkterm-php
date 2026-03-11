@@ -71,7 +71,12 @@ function processInboundTicFiles($ticProcessor)
                     unlink($ticPath);
                     $processedCount++;
                 } else {
-                    echo "  ERROR: {$result['error']}\n";
+                    $errMsg = $result['error'] ?? 'unknown error';
+                    $errCode = $result['error_code'] ?? '';
+                    echo "  ERROR [{$errCode}]: {$errMsg}\n";
+                    // Log to packets.log so failures are visible even when running via admin daemon
+                    $logLine = "[" . date('Y-m-d H:i:s') . "] [TIC] FAILED {$ticFilename}/{$dataFilename}: [{$errCode}] {$errMsg}\n";
+                    @file_put_contents(__DIR__ . '/../data/logs/packets.log', $logLine, FILE_APPEND | LOCK_EX);
                     // Move failed TIC to .failed directory for manual review
                     $failedDir = $inboundPath . '/.failed';
                     if (!is_dir($failedDir)) {

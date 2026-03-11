@@ -65,24 +65,34 @@ class TicFileProcessor
      */
     public function processTicFile(string $ticPath, string $filePath): array
     {
+        $ticFilename = basename($ticPath);
+        $dataFilename = basename($filePath);
+        $this->log("BEGIN processTicFile: tic={$ticFilename} data={$dataFilename}");
+
         try {
             // Parse TIC file
             $ticData = $this->parseTicFile($ticPath);
+            $this->log("Parsed TIC: Area={$ticData['Area']} File={$ticData['File']} From=" . ($ticData['From'] ?? '(none)') .
+                " Size=" . ($ticData['Size'] ?? '(none)') . " Crc=" . ($ticData['Crc'] ?? '(none)') .
+                " Pw=" . (isset($ticData['Pw']) ? '(set)' : '(not set)'));
 
             // Supplement missing descriptions from FILE_ID.DIZ inside the archive
             $this->enrichFromFileIdDiz($ticData, $filePath);
 
             // Determine domain for this TIC (based on From address)
             $domain = $this->getDomainFromTicData($ticData);
+            $this->log("Resolved domain: " . ($domain ?: '(none)'));
 
             // Check if we have this file area, auto-create if not
             $fileArea = $this->getFileArea($ticData['Area'], $domain);
             if (!$fileArea) {
+                $this->log("File area not found: tag={$ticData['Area']} domain=" . ($domain ?: '(any)') . " — attempting auto-create");
                 // Auto-create file area from TIC
                 $fileAreaId = $this->autoCreateFileArea($ticData['Area'], $ticData, $domain);
                 $fileArea = $this->getFileArea($ticData['Area'], $domain);
 
                 if (!$fileArea) {
+                    $this->log("ERROR: Auto-create of file area {$ticData['Area']} failed — area still not found after insert");
                     return [
                         'success' => false,
                         'error_code' => 'errors.tic.file_area_create_failed',
@@ -91,28 +101,37 @@ class TicFileProcessor
                 }
 
                 $this->log("Auto-created file area: {$ticData['Area']} (id={$fileArea['id']})");
+            } else {
+                $this->log("File area found: tag={$fileArea['tag']} id={$fileArea['id']} is_active=" . ($fileArea['is_active'] ? 'true' : 'false'));
             }
 
             // Validate TIC password — area password takes precedence, uplink tic_password is the fallback
+            $this->log("Validating TIC password for area={$fileArea['tag']} from=" . ($ticData['From'] ?? '(none)'));
             $this->validateTicPassword($ticData, $fileArea, $ticData['From'] ?? '');
+            $this->log("TIC password OK");
 
             // Validate file
+            $this->log("Validating file: {$dataFilename}");
             if (!$this->validateFile($ticData, $filePath)) {
+                $this->log("ERROR: File validation failed for {$dataFilename} (see above for details)");
                 return [
                     'success' => false,
                     'error_code' => 'errors.tic.validation_failed',
                     'error' => 'TIC file validation failed'
                 ];
             }
+            $this->log("File validation passed: {$dataFilename}");
 
             // Calculate hash before any storage operations
             $contentHash = hash_file('sha256', $filePath);
             $fileHash = $contentHash;
+            $this->log("SHA-256: {$contentHash}");
 
             // Check for duplicates (same content in same area)
             $allowDuplicate = !empty($fileArea['allow_duplicate_hash']);
             if ($allowDuplicate) {
                 $fileHash = $this->makeUniqueHash($fileArea['id'], $fileHash);
+                $this->log("Duplicate hashes allowed — using unique hash");
             } else {
                 $existingFile = $this->checkDuplicate($fileArea['id'], $fileHash);
 
@@ -133,16 +152,23 @@ class TicFileProcessor
                         'duplicate' => true
                     ];
                 }
+                $this->log("No duplicate found in area {$fileArea['tag']}");
             }
 
             // Store file (will copy, not move)
+            $this->log("Storing file to file area id={$fileArea['id']}");
             $stored = $this->storeFile($ticData, $filePath, $fileArea, $contentHash, $fileHash);
             $fileId = $stored['id'];
             $storagePath = $stored['storage_path'];
+            $this->log("File stored: file_id={$fileId} path={$storagePath}");
 
             // Scan for viruses if enabled for this file area
             $scanResult = $this->scanFileForViruses($fileId, $fileArea);
-            if (($scanResult['result'] ?? '') === 'infected' && \BinktermPHP\Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
+            $scanResultStr = $scanResult['result'] ?? 'skipped';
+            $this->log("Virus scan result: {$scanResultStr}" . ($scanResult['signature'] ?? ''));
+            if ($scanResultStr === 'infected' && \BinktermPHP\Config::env('FILES_ALLOW_INFECTED', 'false') !== 'true') {
+                $sig = $scanResult['signature'] ?? 'unknown';
+                $this->log("ERROR: File rejected due to virus detection: {$sig}");
                 return [
                     'success' => false,
                     'error_code' => 'errors.tic.virus_detected',
@@ -169,7 +195,6 @@ class TicFileProcessor
                 unlink($filePath);
             }
 
-            // Log successful TIC processing
             $this->log("TIC file processed successfully: {$ticData['File']} -> area {$ticData['Area']} (file_id={$fileId})");
 
             return [
@@ -181,7 +206,8 @@ class TicFileProcessor
             ];
 
         } catch (\Exception $e) {
-            $this->log("TIC processing error: " . $e->getMessage());
+            $this->log("ERROR: TIC processing exception: " . $e->getMessage() .
+                " in " . $e->getFile() . ":" . $e->getLine());
             return [
                 'success' => false,
                 'error_code' => 'errors.tic.processing_failed',
@@ -360,17 +386,21 @@ class TicFileProcessor
     {
         // Per-area password takes precedence; fall back to uplink-level tic_password
         $expected = $fileArea['password'] ?? '';
+        $source = 'area';
         if ($expected === '' && $fromAddress !== '') {
             $expected = BinkpConfig::getInstance()->getTicPasswordForAddress($fromAddress);
+            $source = 'uplink';
         }
 
         if ($expected === '') {
-            return; // No password required
+            $this->log("TIC password: none required");
+            return;
         }
 
         $provided = $ticData['Pw'] ?? '';
+        $this->log("TIC password: checking ({$source}-level password set, provided=" . ($provided !== '' ? '(set)' : '(not set)') . ")");
         if (!hash_equals(strtolower($expected), strtolower($provided))) {
-            throw new \Exception('TIC password rejected for file area');
+            throw new \Exception("TIC password rejected for file area (source={$source}, provided=" . ($provided !== '' ? '(set)' : '(not set)') . ")");
         }
     }
 
@@ -412,6 +442,16 @@ class TicFileProcessor
             $stmt->execute([$tag, $domain]);
         }
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$result) {
+            // Check if the area exists but is inactive — helps diagnose "not found" failures
+            $chk = $this->db->prepare("SELECT id, is_active FROM file_areas WHERE tag = ?" . ($domain ? " AND domain = ?" : ""));
+            $chk->execute($domain ? [$tag, $domain] : [$tag]);
+            $inactive = $chk->fetch(PDO::FETCH_ASSOC);
+            if ($inactive) {
+                $this->log("File area tag={$tag} exists (id={$inactive['id']}) but is_active=false — treating as not found");
+            }
+        }
 
         return $result ?: null;
     }
