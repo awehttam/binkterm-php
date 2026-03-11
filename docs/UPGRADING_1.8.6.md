@@ -12,6 +12,8 @@
 
 ## Summary of Changes
 
+1.8.6 is a major release. The headline feature is full **localization (i18n) support** across the web interface, admin panel, terminal server, and API — shipping with English, Spanish, and French out of the box. The **terminal server** receives significant attention: a new pure-PHP **SSH-2 daemon** joins the existing telnet server, and the terminal experience gains a redesigned message header layout, scroll optimization, ANSI auto-detection, Z-Modem file transfer improvements, and the ability to jump directly to a message by typing its number. **File Areas** gain a pluggable antivirus layer with **VirusTotal cloud scanning** alongside ClamAV, a new web-based file editor and move tool, and new `.env` controls for scanning behaviour. The **BBS Directory** is introduced as a new public-facing page automatically populated from echomail announcements via a new **Echomail Robots** framework. Rounding it out are a new **Guest Doors** page for anonymous door access, DOS door multiplexing improvements, admin language override tools, and miscellaneous bug fixes and stability improvements throughout.
+
 ## Localization (i18n) Support
 
 - Translation catalogs now support broader UI/API coverage across web pages and admin tools. Ships with English (`en`), Spanish (`es`), and French (`fr`). See `docs/Localization.md` for a full technical reference and translation contributor workflow.
