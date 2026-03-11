@@ -31,7 +31,7 @@ BinktermPHP is a modern web interface and mailer tool for FidoNet message packet
 
 ### Prerequisites
 
-- PHP 7.4 or higher
+- PHP 8.2 or higher
 - PostgreSQL database
 - Composer for dependency management
 - Git for version control
