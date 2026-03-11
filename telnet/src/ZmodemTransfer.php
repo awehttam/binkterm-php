@@ -601,10 +601,20 @@ class ZmodemTransfer
         $lastActivity = time();
         $stderrLog    = '';
         $ptyEof       = false;
+        $capturedExit = null; // exit code from proc_get_status(), captured before PTY teardown
 
         while (true) {
             $status  = @proc_get_status($proc);
             $running = is_array($status) ? !empty($status['running']) : false;
+
+            // Capture the exit code as soon as the process stops running.
+            // proc_close() can return -1 on the PTY path even for a clean exit
+            // because closing the PTY master may deliver SIGHUP before waitpid()
+            // collects the real exit status.  proc_get_status()['exitcode'] is
+            // reliable here because the process has already exited.
+            if (!$running && $capturedExit === null && is_array($status)) {
+                $capturedExit = isset($status['exitcode']) ? (int)$status['exitcode'] : null;
+            }
 
             $read = [];
             if ($running && is_resource($conn)) { $read[] = $conn; }
@@ -713,7 +723,12 @@ class ZmodemTransfer
         if (!$usePty && is_resource($stdout)) { @fclose($stdout); }
         if (is_resource($stderr)) { @fclose($stderr); }
 
-        $exit = @proc_close($proc);
+        // Reap the process.  Prefer the exit code captured inside the loop via
+        // proc_get_status(); proc_close() may return -1 on the PTY path due to
+        // SIGHUP delivery when the PTY master is closed (see comment above).
+        $procCloseExit = @proc_close($proc);
+        $exit = ($capturedExit !== null) ? $capturedExit : $procCloseExit;
+
         if ($exit !== 0) {
             $trimmed = trim($stderrLog);
             if ($trimmed !== '') {
