@@ -2653,6 +2653,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $result = $client->scanFile((int)$id);
             $client->close();
 
+            error_log('[FileScan] Daemon result: ' . json_encode($result));
+
             if (!($result['ok'] ?? false)) {
                 $error = $result['error'] ?? 'scan failed';
                 http_response_code(500);
