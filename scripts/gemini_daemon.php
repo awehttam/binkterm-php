@@ -81,7 +81,7 @@ $externalCert = Config::env('GEMINI_CERT_PATH', '') !== '';
 
 function logMsg(string $level, string $message, string $logFile): void
 {
-    $line = '[' . date('Y-m-d H:i:s') . '] [' . $level . '] ' . $message . "\n";
+    $line = '[' . date('Y-m-d H:i:s') . '] [' . getmypid() . '] [' . $level . '] ' . $message . "\n";
     file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
     if (!defined('DAEMON_MODE')) {
         echo $line;
