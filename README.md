@@ -12,7 +12,6 @@ Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loa
 - **Credits economy** — reward logins and participation, or charge for door games and premium features
 - **Message webshare** — let users share posts via secure, expiring links with public or private access
 - **Nodelist browser** — search and reference FTN nodes without leaving the interface
-- **Gateway token SSO** — integrate external services with single-sign-on authentication
 - **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
 - **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
 - **...and more**
