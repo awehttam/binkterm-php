@@ -742,6 +742,11 @@ class FileAreaManager
      */
     private function scanFileForViruses(int $fileId, string $filePath): array
     {
+        if (Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true' ||
+            Config::env('VIRUS_SCAN_NOAUTO', 'false') === 'true') {
+            return ['scanned' => false, 'result' => 'skipped', 'signature' => null, 'error_code' => '', 'error' => null];
+        }
+
         $scanner = new VirusScanner();
         $result = $scanner->scanFile($filePath);
 

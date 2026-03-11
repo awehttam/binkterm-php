@@ -63,6 +63,9 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
   - **ClamAV** — unchanged behaviour; local scanning via `clamdscan`. Files can be manually re-scanned by admins from the file details modal using the **Virus Scan** button.
   - **VirusTotal** — new optional cloud scanning backend. Enable by setting `VIRUSTOTAL_API_KEY` in `.env`. Performs a hash lookup first; only uploads files whose hash is not already in the VirusTotal database. **Note:** files uploaded to VirusTotal may be shared with security researchers and should not be considered private — see [docs/AntiVirus.md](AntiVirus.md) for details.
 - The `CLAMAV_ALLOW_INFECTED` `.env` variable has been renamed to `FILES_ALLOW_INFECTED`. Update your `.env` if you had this set.
+- New **global antivirus controls** in `.env`:
+  - `VIRUS_SCAN_DISABLED=true` — disables all virus scanning (both automatic and manual).
+  - `VIRUS_SCAN_NOAUTO=true` — disables automatic scanning on upload while keeping the manual **Virus Scan** button available. See [docs/AntiVirus.md](AntiVirus.md) for details.
 - **Virus detection error**: When an upload is rejected due to virus detection, the UI now shows a specific "File rejected: virus detected" message instead of the generic upload failure. The rejection is also logged to the server log. See [docs/AntiVirus.md](AntiVirus.md) for full setup and configuration instructions.
 - The file areas sidebar now has a **search/filter box** to quickly find areas by tag or description.
 - The file areas sidebar list is now scrollable with a fixed height, matching the echomail reader style.

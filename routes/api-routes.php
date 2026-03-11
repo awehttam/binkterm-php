@@ -2646,6 +2646,12 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             return;
         }
 
+        if (\BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true') {
+            http_response_code(403);
+            apiError('errors.files.scan_disabled', apiLocalizedText('errors.files.scan_disabled', 'Virus scanning is disabled', $user));
+            return;
+        }
+
         header('Content-Type: application/json');
 
         try {

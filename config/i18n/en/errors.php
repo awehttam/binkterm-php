@@ -127,6 +127,7 @@ return [
     'errors.files.share_not_found_or_forbidden' => 'Share link not found or not permitted',
     'errors.files.delete_failed' => 'Failed to delete file',
     'errors.files.scan_forbidden' => 'Admin access required to scan files',
+    'errors.files.scan_disabled' => 'Virus scanning is disabled',
     'errors.files.scan_failed' => 'Virus scan failed',
     'errors.files.rename_filename_required' => 'New filename is required',
     'errors.files.rename_forbidden' => 'You do not have permission to rename this file',

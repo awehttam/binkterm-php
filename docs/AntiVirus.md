@@ -54,6 +54,17 @@ clamdscan --ping 1
 | `CLAMDSCAN` | *(auto-detected)* | Full path to the `clamdscan` binary. Set this if installed in a non-standard location. |
 | `FILES_ALLOW_INFECTED` | `false` | When `true`, infected files are stored rather than deleted. The scan result is still recorded. Useful for archive/nodelist areas. |
 
+## Global scanning controls
+
+Two `.env` variables control scanning behaviour system-wide, independent of which backends are configured:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VIRUS_SCAN_DISABLED` | `false` | When `true`, disables all virus scanning. Automatic scanning on upload is skipped, and the manual **Virus Scan** button in the file info dialog returns an error. |
+| `VIRUS_SCAN_NOAUTO` | `false` | When `true`, disables automatic scanning on file upload (via web or TIC). The manual **Virus Scan** button in the file info dialog still works. |
+
+Both variables are checked at runtime, so they take effect after an admin daemon restart — no code redeployment needed.
+
 Auto-detection order: `CLAMDSCAN` env var → `/usr/bin/clamdscan` → `/usr/local/bin/clamdscan` → `/opt/clamav/bin/clamdscan` → `which clamdscan`
 
 ### PHP user permissions

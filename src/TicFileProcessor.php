@@ -678,6 +678,11 @@ class TicFileProcessor
      */
     protected function scanFileForViruses(int $fileId, array $fileArea): array
     {
+        if (\BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true' ||
+            \BinktermPHP\Config::env('VIRUS_SCAN_NOAUTO', 'false') === 'true') {
+            return ['scanned' => false, 'result' => 'skipped', 'signature' => null, 'error_code' => '', 'error' => null];
+        }
+
         // Check if virus scanning is enabled for this area
         if (empty($fileArea['scan_virus'])) {
             return [

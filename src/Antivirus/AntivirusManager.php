@@ -51,10 +51,14 @@ class AntivirusManager
     }
 
     /**
-     * Returns true if at least one registered scanner is enabled.
+     * Returns true if at least one registered scanner is enabled and scanning
+     * has not been globally disabled via VIRUS_SCAN_DISABLED=true in .env.
      */
     public function isEnabled(): bool
     {
+        if (Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true') {
+            return false;
+        }
         foreach ($this->scanners as $scanner) {
             if ($scanner->isEnabled()) {
                 return true;
