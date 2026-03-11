@@ -36,7 +36,7 @@ awehttam operates a full instance of BinktermPHP over at https://claudes.lovelyb
   - [Markup Support](#markup-support)
 - [Installation](#installation)
   - [Requirements](#requirements)
-  - [Method 1: Using the Installer (Experimental)](#method-1-using-the-installer-experimental)
+  - [Method 1: Using the Installer](#method-1-using-the-installer)
   - [Method 2: From Git](#method-2-from-git)
   - [Configure Web Server](#configure-web-server)
   - [Set Up Cron Jobs (Recommended)](#set-up-cron-jobs-recommended)
@@ -336,7 +336,7 @@ DB_PASS=your_password
 
 > **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
 
-## Method 1: Using the Installer (Experimental)
+## Method 1: Using the Installer
 
 The installer provides an automated setup process that downloads, configures, and installs BinktermPHP.
 
@@ -358,8 +358,6 @@ The installer will:
 - Configure the database and environment
 - Set up initial admin user
 - Configure FidoNet settings
-
-**Note:** The installer is experimental and under active development. The standard Git-based installation (Method 2) is currently the primary installation method used by most installations.
 
 ## Method 2: From Git
 
