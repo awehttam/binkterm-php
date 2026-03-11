@@ -10,6 +10,16 @@ BinktermPHP supports three types of door games, each suited to different use cas
 
 WebDoors run entirely in the browser and require no additional server-side components. DOS Doors and Native Doors both require the **multiplexing bridge** described below.
 
+## Table of Contents
+
+- [Multiplexing Bridge](#multiplexing-bridge)
+- [Prerequisites](#prerequisites)
+- [File Structure](#file-structure)
+- [Configuration](#configuration)
+- [Running the Bridge](#running-the-bridge)
+- [Reverse Proxy](#reverse-proxy)
+- [Door Type Details](#door-type-details)
+
 ---
 
 ## Multiplexing Bridge

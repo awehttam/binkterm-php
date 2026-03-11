@@ -1,5 +1,22 @@
 # WebDoors Specification
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Directory Structure](#directory-structure)
+- [Manifest Format](#manifest-format)
+- [Configuration System](#configuration-system)
+- [Discovery and Activation](#discovery-and-activation)
+- [Requirements System](#requirements-system)
+- [Configuration Overrides](#configuration-overrides)
+- [Game Access](#game-access)
+- [Integration with BBS Features](#integration-with-bbs-features)
+- [Examples](#example-simple-html5-game)
+- [Installation](#installation)
+- [Best Practices](#best-practices)
+- [Security Considerations](#security-considerations)
+- [Troubleshooting](#troubleshooting)
+
 ## Overview
 
 WebDoors is BinktermPHP's system for integrating external web-based games, applications, and terminal connections into the BBS. Each WebDoor is a self-contained application with its own manifest file that describes its capabilities, requirements, and configuration options.

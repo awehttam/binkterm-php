@@ -2,6 +2,23 @@
 
 > **See also:** [Doors.md](Doors.md) for an overview of all door types and shared multiplexing bridge setup.
 
+## Table of Contents
+
+- [How It Works](#how-it-works)
+- [File Structure](#file-structure)
+- [Creating a New Door](#creating-a-new-door)
+- [nativedoor.json Format](#nativedoorjson-format)
+- [Environment Variables](#environment-variables)
+- [Drop File](#drop-file)
+- [Terminal Settings](#terminal-settings)
+- [Platform Notes](#platform-notes)
+- [Configuration File](#configuration-file)
+- [Included Test Doors](#included-test-doors)
+- [Security Warning](#security-warning)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 Native doors are BBS door programs that run as native Linux binaries or Windows executables, launched directly via PTY (pseudo-terminal). Unlike DOS doors, they require no emulator — the program runs as a regular system process with full ANSI/VT100 terminal support.
 
 ## Multiplexing Bridge Setup
