@@ -81,7 +81,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Customization](#customization)
   - [Appearance System (Admin UI)](#appearance-system-admin-ui)
   - [Manual Customization](#manual-customization)
-  - [Performance Tuning](#performance-tuning)
+- [Performance Tuning](#performance-tuning)
 - [Security Considerations](#security-considerations)
   - [Network Security](#network-security)
   - [File Security](#file-security)
@@ -98,13 +98,13 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Gemini Support](#gemini-support)
   - [Gemini Browser](#gemini-browser)
   - [Gemini Capsule Hosting](#gemini-capsule-hosting)
-- [Developer Guide](#developer-guide)
 - [Localization (i18n) for Contributors](#localization-i18n-for-contributors)
   - [Catalogs and Key Layout](#catalogs-and-key-layout)
   - [Twig Usage](#twig-usage)
   - [JavaScript Usage](#javascript-usage)
   - [API Errors](#api-errors-error_code)
 - [Contributing](#contributing)
+- [Developer Guide](#developer-guide)
 - [License](#license)
 - [Support](#support)
   - [Troubleshooting](#troubleshooting)
@@ -1202,7 +1202,7 @@ All customizations are upgrade-safe and won't be overwritten when updating Binkt
 
 For detailed instructions including the full appearance configuration reference, shell template structure, Twig variables, and code examples, see **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)**.
 
-## Performance Tuning
+# Performance Tuning
 
 ### High Traffic Systems
 1. Increase `max_connections` in configuration
@@ -1579,19 +1579,6 @@ The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) tha
 
 See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
 
-# Developer Guide
-
-For developers working on BinktermPHP or integrating with the system, see the comprehensive **[Developer Guide](docs/DEVELOPER_GUIDE.md)** which covers:
-
-- **Project Architecture** - Overview of the dual web+mailer system
-- **Core Concepts** - FidoNet terminology, message types, network routing
-- **Development Workflow** - Code conventions, database migrations, best practices
-- **Credits System** - In-world currency implementation and API
-- **URL Construction** - Centralized site URL generation for reverse proxy support
-- **WebDoor Integration** - Game/application API for BBS integration
-
-The Developer Guide is essential reading for anyone contributing code, developing WebDoors, or extending the system.
-
 # Localization (i18n) for Contributors
 
 BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and API errors. For a full technical reference see [docs/Localization.md](docs/Localization.md).
@@ -1659,6 +1646,19 @@ We welcome contributions to BinktermPHP! Before contributing, please review:
   - Security considerations
 
 All contributions must be submitted via pull request and will be reviewed by project maintainers.
+
+# Developer Guide
+
+For developers working on BinktermPHP or integrating with the system, see the comprehensive **[Developer Guide](docs/DEVELOPER_GUIDE.md)** which covers:
+
+- **Project Architecture** - Overview of the dual web+mailer system
+- **Core Concepts** - FidoNet terminology, message types, network routing
+- **Development Workflow** - Code conventions, database migrations, best practices
+- **Credits System** - In-world currency implementation and API
+- **URL Construction** - Centralized site URL generation for reverse proxy support
+- **WebDoor Integration** - Game/application API for BBS integration
+
+The Developer Guide is essential reading for anyone contributing code, developing WebDoors, or extending the system.
 
 # License
 
