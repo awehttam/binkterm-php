@@ -623,7 +623,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `restart_daemons.sh` | Stop and restart all running daemons |
 | `send_activityreport.php` | Generate and send an activity digest as netmail |
 | `subscribe_users.php` | Bulk subscribe users to echo areas |
-| `update_nodelists.php` | Download and import nodelists |
+| `update_nodelists.php` | Download and import nodelists from configured URL feeds (optional — the recommended method is file area rules with the import_nodelist tool) |
 | `user-manager.php` | Manage user accounts |
 | `weather_report.php` | Generate weather forecasts for echomail posting |
 | `who.php` | Show currently active users |

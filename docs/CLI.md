@@ -2,6 +2,31 @@
 
 BinktermPHP includes a full suite of CLI tools for managing your system from the terminal.
 
+## Table of Contents
+
+- [Message Posting Tool](#message-posting-tool)
+- [Weather Report Generator](#weather-report-generator)
+- [Activity Digest Generator](#activity-digest-generator)
+- [Activity Report Sender](#activity-report-sender)
+- [Echomail Maintenance Utility](#echomail-maintenance-utility)
+- [Subscribe Users to Echo Areas](#subscribe-users-to-echo-areas)
+- [Move Messages Between Echo Areas](#move-messages-between-echo-areas)
+- [User Management Tool](#user-management-tool)
+- [Binkp Server Management](#binkp-server-management)
+- [Packet Processing](#packet-processing)
+- [Admin Daemon](#admin-daemon)
+- [Admin Client](#admin-client)
+- [Nodelist Updates](#nodelist-updates)
+- [Database Backup](#database-backup)
+- [Crashmail Poll](#crashmail-poll)
+- [Echomail Robots](#echomail-robots)
+- [Create Translation Catalog](#create-translation-catalog)
+- [Generate Ad](#generate-ad)
+- [Log Rotate](#log-rotate)
+- [Post Ad](#post-ad)
+- [Restart Daemons](#restart-daemons)
+- [Who](#who)
+
 ## Message Posting Tool
 Post netmail or echomail from command line:
 
@@ -340,7 +365,10 @@ Environment options:
 - `ADMIN_DAEMON_PID_FILE`: Optional PID file location
 
 ## Nodelist Updates
-Automatically download and import nodelists from configured sources.
+
+> **Note:** The recommended method for updating nodelists is through file area rules combined with the `import_nodelist` tool, which processes nodelists received via TIC file distribution. `update_nodelists.php` is an alternative for sysops who prefer to pull nodelists directly from URL feeds.
+
+Downloads and imports nodelists from configured URL sources.
 
 ### Configuration
 Create `config/nodelists.json` (or run the script once to generate an example):
