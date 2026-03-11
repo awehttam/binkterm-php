@@ -522,10 +522,12 @@ Database changes are managed through versioned SQL migration files stored in `da
 
 Full configuration reference: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
 
-BinktermPHP uses two primary configuration files:
+To get started, two critical files must be configured before first run:
 
-- **`.env`** — database, SMTP, daemon ports, and feature flags.  Copy `.env.example` to `.env` and fill in values before first run.
-- **`config/binkp.json`** — your FTN system identity, uplinks, binkp daemon, security, and crashmail.  Copy `config/binkp.json.example` as a starting point.
+- **`.env`** — database, SMTP, daemon ports, and feature flags. Copy `.env.example` to `.env` and fill in values before first run.
+- **`config/binkp.json`** — your FTN system identity, uplinks, binkp daemon, security, and crashmail. Copy `config/binkp.json.example` as a starting point.
+
+Additional configuration files cover nodelists, file areas, WebDoors, appearance, and more — see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** for the full reference.
 
 Most settings can also be changed at runtime through the **Admin web interface** without editing files directly.
 
