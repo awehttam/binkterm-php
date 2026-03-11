@@ -3514,6 +3514,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 }
 
                 $crashmailFlag = !empty($input['crashmail']);
+                $isFreq = !empty($input['is_freq']);
                 $result = $handler->sendNetmail(
                     $user['user_id'],
                     $input['to_address'],
@@ -3525,7 +3526,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                     $crashmailFlag,
                     $input['tagline'] ?? null,
                     $attachment,
-                    $markupType
+                    $markupType,
+                    $isFreq
                 );
             } elseif ($type === 'echomail') {
                 $foo = explode("@", (string)($input['echoarea'] ?? ''), 2);

@@ -722,7 +722,8 @@ function showFileDetails(fileId) {
                 if (file.virus_scan_result === 'clean') {
                     scanStatus = `<span class="badge bg-success"><i class="fas fa-shield-alt"></i> ${uiT('ui.files.clean', 'Clean')}</span>`;
                 } else if (file.virus_scan_result === 'infected') {
-                    scanStatus = `<span class="badge bg-danger"><i class="fas fa-shield-alt"></i> ${uiT('ui.files.infected', 'Infected')}</span>`;
+                    const sigName = file.virus_signature ? escapeHtml(file.virus_signature) : uiT('ui.common.unknown', 'Unknown');
+                    scanStatus = `<span class="badge bg-danger"><i class="fas fa-shield-alt"></i> ${uiT('ui.files.infected', 'Infected')}</span> <small class="text-danger">${sigName}</small>`;
                 } else if (file.virus_scan_result === 'error') {
                     scanStatus = `<span class="badge bg-warning"><i class="fas fa-shield-alt"></i> ${uiT('ui.files.scan_error', 'Scan Error')}</span>`;
                 } else if (file.virus_scan_result === 'skipped') {

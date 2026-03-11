@@ -45,6 +45,7 @@ A modern web interface and mailer tool that receives and sends Fidonet message p
  - When updating style.css, also update the theme stylesheets: amber.css, dark.css, greenterm.css, and cyberpunk.css
  - Database migrations are handled through scripts/setup.php.  setup.php will also call upgrade.php which handles other upgrade related tasks.
  - Migrations can be SQL or PHP. Use the naming convention vX.Y.Z_description (e.g., v1.9.1.6_migrate_file_area_dirs.sql or .php).
+ - **Migration version numbers**: Before creating a new migration, always check the highest existing version in `database/migrations/` (e.g., `ls database/migrations/ | sort -V | tail -5`). The new migration must be one increment higher than the highest version found — do NOT guess or use a version from a different branch of the version tree. For example, if the latest is `v1.11.0.5_*`, the next is `v1.11.0.6_*`, not `v1.10.19_*`.
  - setup.php must be called when upgrading - this is to ensure certain things like file permissions are correct.
 
 ### PHP Migration Patterns

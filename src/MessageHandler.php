@@ -122,7 +122,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
-                   n.attributes, n.is_sent, n.reply_to_id,
+                   n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
             FROM netmail n
@@ -703,7 +703,7 @@ class MessageHandler
      * @return bool
      * @throws \Exception
      */
-    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null)
+    public function sendNetmail($fromUserId, $toAddress, $toName, $subject, $messageText, $fromName = null, $replyToId = null, $crashmail = false, $tagline = null, $attachment = null, $markupType = null, $isFreq = false)
     {
         $user = $this->getUserById($fromUserId);
         if (!$user) {
@@ -815,8 +815,8 @@ class MessageHandler
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL)
+            INSERT INTO netmail (user_id, from_address, to_address, from_name, to_name, subject, message_text, date_written, is_sent, reply_to_id, message_id, kludge_lines, bottom_kludges, is_freq)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), FALSE, ?, ?, ?, NULL, ?)
         ");
 
         $result = $stmt->execute([
@@ -829,7 +829,8 @@ class MessageHandler
             $messageText,
             $replyToId,
             $msgId,
-            $kludgeLines
+            $kludgeLines,
+            $isFreq ? 'true' : 'false',
         ]);
 
         if ($result) {
@@ -1603,8 +1604,11 @@ class MessageHandler
         try {
             $binkdProcessor = new BinkdProcessor();
 
-            // Set netmail attributes (private flag)
+            // Set netmail attributes: PRIVATE always set; FILE_REQUEST (0x0800) for FREQs
             $message['attributes'] = 0x0001;
+            if (!empty($message['is_freq'])) {
+                $message['attributes'] |= 0x0800;
+            }
 
             // Get the uplink that handles routing for this destination
             // The packet must be addressed to the hub/uplink, not the final destination
@@ -4235,7 +4239,7 @@ class MessageHandler
         $stmt = $this->db->prepare("
             SELECT n.id, n.from_name, n.from_address, n.to_name, n.to_address,
                    n.subject, n.date_received, n.user_id, n.date_written,
-                   n.attributes, n.is_sent, n.reply_to_id,
+                   n.attributes, n.is_sent, n.reply_to_id, n.is_freq,
                    CASE WHEN mrs.read_at IS NOT NULL THEN 1 ELSE 0 END as is_read,
                    EXISTS(SELECT 1 FROM files WHERE message_id = n.id AND message_type = 'netmail') as has_attachment
             FROM netmail n

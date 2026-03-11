@@ -210,7 +210,7 @@ class VirusTotalScanner implements ScannerInterface
     {
         $attrs      = $data['attributes'] ?? [];
         $stats      = $attrs['last_analysis_stats'] ?? [];
-        $detections = (int)($stats['malicious'] ?? 0) + (int)($stats['suspicious'] ?? 0);
+        $detections = (int)($stats['malicious'] ?? 0);
         $id         = $data['id'] ?? null;
         $permalink  = $id ? "https://www.virustotal.com/gui/file/{$id}" : null;
         $signature  = $this->topDetectionName($attrs['last_analysis_results'] ?? []) ?: null;
@@ -225,7 +225,8 @@ class VirusTotalScanner implements ScannerInterface
     private function parseAnalysisAttributes(array $attrs): array
     {
         $stats      = $attrs['stats'] ?? [];
-        $detections = (int)($stats['malicious'] ?? 0) + (int)($stats['suspicious'] ?? 0);
+        $detections = (int)($stats['malicious'] ?? 0);
+        
         $sha256     = $attrs['sha256'] ?? null;
         $permalink  = $sha256 ? "https://www.virustotal.com/gui/file/{$sha256}" : null;
         $signature  = $this->topDetectionName($attrs['results'] ?? []) ?: null;
@@ -241,7 +242,7 @@ class VirusTotalScanner implements ScannerInterface
     {
         $names = [];
         foreach ($results as $detail) {
-            if (in_array($detail['category'] ?? '', ['malicious', 'suspicious'], true)) {
+            if (($detail['category'] ?? '') === 'malicious') {
                 $name = trim($detail['result'] ?? '');
                 if ($name !== '') {
                     $names[] = $name;

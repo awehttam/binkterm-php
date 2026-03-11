@@ -285,6 +285,7 @@ function displayMessages(messages, isThreaded = false) {
                             <span class="badge bg-secondary">${uiT('ui.netmail.badge_netmail', 'NETMAIL')}</span>
                             ${isUnread ? `<span class="badge bg-primary ms-1">${uiT('ui.netmail.badge_new', 'NEW')}</span>` : ''}
                             ${msg.received_insecure ? `<span class="badge bg-warning text-dark ms-1" title="${uiT('ui.netmail.received_insecure_session_title', 'Received via insecure session')}"><i class="fas fa-exclamation-triangle"></i></span>` : ''}
+                            ${msg.is_freq ? `<span class="badge bg-info ms-1" title="${uiT('ui.compose.freq.badge', 'File Request')}"><i class="fas fa-file-download"></i> ${uiT('ui.compose.freq.badge', 'FREQ')}</span>` : ''}
                         </small>
                     </td>
                     <td>
@@ -505,6 +506,16 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
                         <i class="fas fa-exclamation-triangle"></i> ${uiT('ui.netmail.received_insecurely', 'Received Insecurely')}
                     </span>
                     <small class="text-muted ms-2">${uiT('ui.netmail.not_authenticated', 'This message was not authenticated')}</small>
+                </div>
+            </div>
+            ` : ''}
+            ${message.is_freq ? `
+            <div class="row mt-2">
+                <div class="col-12">
+                    <span class="badge bg-info">
+                        <i class="fas fa-file-download"></i> ${uiT('ui.compose.freq.badge', 'File Request (FREQ)')}
+                    </span>
+                    <small class="text-muted ms-2">${uiT('ui.compose.freq.help', 'This message is a file request')}</small>
                 </div>
             </div>
             ` : ''}

@@ -316,7 +316,7 @@ class AdminDaemonClient
             $client->serverLog($level, $message, $context);
             $client->close();
         } catch (\Exception $e) {
-            error_log('[' . strtoupper($level) . '] ' . $message);
+            error_log('FALLBACK [' . strtoupper($level) . '] ' . $message);
         }
     }
 
