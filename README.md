@@ -586,20 +586,31 @@ Individual versions with specific upgrade documentation:
 
 # Command Line Scripts
 
-BinktermPHP includes a full suite of CLI tools for managing your system from the terminal. Key tools include:
+BinktermPHP includes a full suite of CLI tools for managing your system from the terminal.
 
-- **post_message.php** — Post netmail or echomail from the command line
-- **binkp_poll.php** — Manually poll uplinks
-- **binkp_server.php** — Start/stop the BinkP server daemon
-- **binkp_status.php** — View connection and queue status
-- **binkp_scheduler.php** — Manage the automated polling scheduler
-- **process_packets.php** — Process inbound packets manually
-- **admin_daemon.php** — Control socket for backend task management
-- **update_nodelists.php** — Download and import nodelists
-- **weather_report.php** — Generate weather forecasts for echomail posting
-- **echomail_maintenance.php** — Purge old messages by age or count
-- **user-manager.php** — Manage user accounts from the command line
-- **lovlynet_setup.php** — Automated LovlyNet network registration
+**System Daemons** — long-running services started at boot:
+
+| Script | Description |
+|--------|-------------|
+| `binkp_server.php` | BinkP server — accepts inbound FTN connections |
+| `binkp_scheduler.php` | Automated polling scheduler |
+| `admin_daemon.php` | Control socket for backend task management |
+| `telnet/telnet_daemon.php` | Telnet server daemon |
+| `scripts/gemini_daemon.php` | Gemini capsule server daemon |
+
+**Utility Scripts** — run on demand or via cron:
+
+| Script | Description |
+|--------|-------------|
+| `binkp_poll.php` | Manually poll uplinks |
+| `binkp_status.php` | View connection and queue status |
+| `process_packets.php` | Process inbound packets manually |
+| `post_message.php` | Post netmail or echomail from the command line |
+| `user-manager.php` | Manage user accounts |
+| `update_nodelists.php` | Download and import nodelists |
+| `echomail_maintenance.php` | Purge old messages by age or count |
+| `weather_report.php` | Generate weather forecasts for echomail posting |
+| `lovlynet_setup.php` | Automated LovlyNet network registration |
 
 Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for complete documentation on all scripts including usage examples, options, and cron job examples.
 
