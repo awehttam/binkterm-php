@@ -17,6 +17,7 @@
 namespace BinktermPHP;
 
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Version;
 
 class BinkdProcessor
@@ -25,7 +26,7 @@ class BinkdProcessor
     private $inboundPath;
     private $outboundPath;
     private $config;
-    private $logFile;
+    private Logger $logger;
 
     public function __construct()
     {
@@ -33,16 +34,7 @@ class BinkdProcessor
         $this->config = BinkpConfig::getInstance();
         $this->inboundPath = $this->config->getInboundPath();
         $this->outboundPath = $this->config->getOutboundPath();
-
-        // Set up log file path
-        $baseDir = dirname(__DIR__);
-        $logDir = $baseDir . '/data/logs';
-        if (!is_dir($logDir)) {
-            @mkdir($logDir, 0755, true);
-        }
-        $this->logFile = $logDir . '/packets.log';
-
-        // The BinkpConfig methods already handle directory creation
+        $this->logger = new Logger(Config::getLogPath('packets.log'), 'INFO', false);
     }
 
     /**
@@ -50,9 +42,7 @@ class BinkdProcessor
      */
     private function log(string $message): void
     {
-        $timestamp = date('Y-m-d H:i:s');
-        $logLine = "[$timestamp] $message\n";
-        @file_put_contents($this->logFile, $logLine, FILE_APPEND | LOCK_EX);
+        $this->logger->info($message);
     }
 
     public function processInboundPackets()
