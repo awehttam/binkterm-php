@@ -119,6 +119,17 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - **BBS Lists** dropdown replaces the standalone Nodelist link in the main navigation (logged-in and guest views). The dropdown contains BBS Directory and Nodelist.
 - See `docs/Robots.md` for architecture details and instructions for writing custom processors.
 
+### File Areas (continued)
+- **Virus name display**: When a file is marked as infected, the file info modal now shows the detected virus signature name alongside the "Infected" badge.
+- **Admin scan status override**: Admins can manually override the virus scan status of any file (Not Scanned / Clean / Infected) from the file info modal. When setting "Infected", an optional virus name field is shown. This allows correcting false positives or manually flagging files without running a scan.
+- **VirusTotal suspicious detections ignored**: VirusTotal results now only treat `malicious` detections as infected; `suspicious` votes are disregarded to reduce false positives.
+
+### TIC File Processing
+- **Improved failure logging**: TIC file processing now logs a detailed trace to `data/logs/packets.log` at each step — parsed TIC fields, domain resolution, file area lookup (including detection of inactive areas), password check source, validation result, SHA-256 hash, duplicate check, storage result, and virus scan outcome. Exceptions now include file and line number. Failures from `process_packets.php` are also written to `packets.log` with their error code, so failures are visible even when invoked via the admin daemon.
+
+### Echo Areas
+- **Apostrophes allowed in echo area tag names**: Tags containing apostrophes (e.g. `WEN-80'S_MUSIC`) are now accepted by the API and the echoarea importer.
+
 ### Admin / Sysop Tools
 - New **Language Overrides** editor in Admin → BBS Settings → Language Overrides. Sysops can customize individual phrases for any locale and catalog without editing the base translation files. Overrides are stored as JSON in `config/i18n/overrides/<locale>/<namespace>.json` and are applied transparently on top of the base catalog at runtime.
 - PWA manifest: added app shortcuts for Doors (`/games`) and Files (`/files`). Shortcuts updated: Compose Netmail, Netmail inbox, and Echomail replace the previous Compose Echomail shortcut; Compose Netmail is listed first.
