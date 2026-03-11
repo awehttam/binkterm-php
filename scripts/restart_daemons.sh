@@ -82,7 +82,7 @@ start_service() {
     local svc="$1"
     case "$svc" in
         admin_daemon)
-            start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
+            start_process "${PHP_BIN} scripts/admin_daemon.php --daemon --pid-file=${ADMIN_PID}" "admin_daemon"
             ;;
         binkp_scheduler)
             start_process "${PHP_BIN} scripts/binkp_scheduler.php --daemon --pid-file=${SCHEDULER_PID}" "binkp_scheduler"
@@ -124,7 +124,7 @@ restart_service() {
     case "$svc" in
         admin_daemon)
             stop_process "$ADMIN_PID" "admin_daemon" || true
-            start_process "${PHP_BIN} scripts/admin_daemon.php --pid-file=${ADMIN_PID}" "admin_daemon"
+            start_process "${PHP_BIN} scripts/admin_daemon.php --daemon --pid-file=${ADMIN_PID}" "admin_daemon"
             ;;
         binkp_scheduler)
             stop_process "$SCHEDULER_PID" "binkp_scheduler" || true
