@@ -601,7 +601,7 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 - **user-manager.php** — Manage user accounts from the command line
 - **lovlynet_setup.php** — Automated LovlyNet network registration
 
-Run any script with `--help` for full usage. See the `scripts/` directory for all available tools.
+Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for complete documentation on all scripts including usage examples, options, and cron job examples.
 
 # Operation
 
