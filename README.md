@@ -4,7 +4,18 @@ BinktermPHP is a modern web-based BBS that combines classic FTN packet processin
 
 BinktermPHP’s mobile-responsive interface makes netmail and echomail comfortably accessible from phones and tablets while preserving the familiar feel of a classic BBS. ANSI art renders inline, links are detected and hyperlinked automatically, messages are full-text searchable, and built-in address books help users track their contacts. Users can also share individual messages via secure, expiring web links — with public or private access controls and revocation — making it easy to point someone at a great thread without requiring a login. The result is a Fidonet messaging experience that blends traditional FTN communication with practical modern conveniences, even on modest hardware.
 
-BinktermPHP supports a full door system — including native Linux and Windows programs, classic DOS door games, and browser-based doors — letting sysops offer the complete door experience without compromise. Browser-based doors are self-contained and manifest-driven — each door describes its own capabilities, requirements, and configuration, and is automatically discovered by the system once its manifest is in place. An integrated credits economy lets sysops reward logins, message activity, and other participation — or charge credits for game play — creating a living BBS economy. A built-in terminal door provides access to traditional text-mode applications with no telnet client required, while gateway token support enables single-sign-on integration with external services. Rounding it out, the integrated nodelist browser makes it easy to search and reference FTN nodes, simplifying routing and addressing for users and sysops alike.
+Whether you're setting up a lean point or a full BBS node, BinktermPHP comes loaded with the features sysops care about:
+
+- **Built-in BinkP mailer** — connect to multiple Fidonet-style networks simultaneously, sending and receiving echomail and netmail without third-party software
+- **Full door support** — native Linux/Windows programs, classic DOS doors via DOSBox, and browser-based doors with auto-discovery
+- **Telnet & SSH server** — offer classic terminal access alongside the web interface
+- **Credits economy** — reward logins and participation, or charge for door games and premium features
+- **Message webshare** — let users share posts via secure, expiring links with public or private access
+- **Nodelist browser** — search and reference FTN nodes without leaving the interface
+- **Gateway token SSO** — integrate external services with single-sign-on authentication
+- **Full admin interface** — manage users, echo areas, doors, credits, and system settings from the browser
+- **Themeable UI** — ships with multiple themes including ANSI-inspired and cyberpunk styles
+- **...and more**
 
 binkterm-php was largely written by Anthropic's Claude with prompting by awehttam.  It was meant to be a fun little excercise to see what Claude would come up with for an older technology mixed up with a modern interface.
 
