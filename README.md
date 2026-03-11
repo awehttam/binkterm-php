@@ -1,4 +1,4 @@
-# BinktermPHP - “Your Public Home Point on the Network.”
+# BinktermPHP
 
 BinktermPHP is a modern web-based BBS that combines classic FTN packet processing with a full multi-user online experience. It supports native BinkP TCP/IP connectivity for echomail and netmail across multiple simultaneous FTN networks, while delivering a browser-accessible bulletin board where users can read and post messages, chat, play door games, and earn credits — just like on a traditional BBS, no terminal client required. For those who prefer the authentic experience, BinktermPHP also includes a built-in telnet and SSH server. Whether you’re running a lean Public Home Point or a full-featured node and Bulletin Board System, BinktermPHP has you covered.
 
