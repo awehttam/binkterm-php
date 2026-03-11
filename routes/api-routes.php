@@ -2667,6 +2667,7 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 'scanned'   => $result['result']['scanned'] ?? false,
             ]);
         } catch (\Exception $e) {
+            error_log('[FileScan] Exception: ' . $e->getMessage());
             http_response_code(500);
             apiError('errors.files.scan_failed', apiLocalizedText('errors.files.scan_failed', 'Virus scan failed', $user));
         }
