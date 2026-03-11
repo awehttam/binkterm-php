@@ -31,7 +31,7 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 # Table of Contents
 
 - [Contributors Wanted](#-contributors-wanted)
-- [Screen shots](#screen-shots)
+- [Screenshots](#screenshots)
 - [Features](#features)
   - [Web Interface](#web-interface)
   - [Native Binkp Protocol Support](#native-binkp-protocol-support)
@@ -116,42 +116,31 @@ We're looking for experienced PHP developers interested in contributing to Binkt
   - [Frequently Asked Questions](#frequently-asked-questions)
 - [Acknowledgments](#acknowledgments)
 
-# Screen shots
+# Screenshots
 
-Here are some screen shots showing various aspects of the interface with different themes.
+BinktermPHP runs beautifully in any browser — here's a look at the interface across different features and themes.
 
 <table>
   <tr>
-    <td align="center"><b>Echomail list</b><br><img src="docs/screenshots/echomail.png" width="400"></td>
-    <td align="center"><b>Echomail</b><br><img src="docs/screenshots/read_echomail.png" width="400"></td>
+    <td align="center"><b>Echomail List</b><br><img src="docs/screenshots/echomail.png" width="260"></td>
+    <td align="center"><b>Echomail Reader</b><br><img src="docs/screenshots/read_echomail.png" width="260"></td>
+    <td align="center"><b>Netmail</b><br><img src="docs/screenshots/read_netmail.png" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><b>Netmail</b><br><img src="docs/screenshots/read_netmail.png" width="400"></td>
-    <td align="center"><b>Custom Themes</b><br><img src="docs/screenshots/cyberpunk.png" width="400"></td>
+    <td align="center"><b>Cyberpunk Theme</b><br><img src="docs/screenshots/cyberpunk.png" width="260"></td>
+    <td align="center"><b>ANSI Decoder</b><br><img src="docs/screenshots/ansisys.png" width="260"></td>
+    <td align="center"><b>Nodelist Browser</b><br><img src="docs/screenshots/nodelist.png" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><b>User Management</b><br><img src="docs/screenshots/usermanagement.png" width="400"></td>
-    <td align="center"><b>Echoarea management</b><br><img src="docs/screenshots/echomanagement.png" width="400"></td>
+    <td align="center"><b>Mobile Echoread</b><br><img src="docs/screenshots/mobile_echoread.png" width="260"></td>
+    <td align="center"><b>Mobile Echolist</b><br><img src="docs/screenshots/moble_echolist.png" width="260"></td>
+    <td align="center"><b>Doors</b><br><img src="docs/screenshots/webdoors.png" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><b>Mobile Echoread</b><br><img src="docs/screenshots/mobile_echoread.png" width="400"></td>
-    <td align="center"><b>Mobile Echolist</b><br><img src="docs/screenshots/moble_echolist.png" width="400"></td>
+    <td align="center"><b>User Settings</b><br><img src="docs/screenshots/userrsettings.png" width="260"></td>
+    <td align="center"><b>Admin Menu</b><br><img src="docs/screenshots/adminmenu.png" width="260"></td>
+    <td align="center"><b>Telnet Server</b><br><img src="docs/screenshots/telnetserver.png" width="260"></td>
   </tr>
-  <tr>
-    <td align="center"><B>ANSI Decoder</B><br><img src="docs/screenshots/ansisys.png" width="400"></td>
-    <td align="center"><b>Node List Browser</b><br><img src="docs/screenshots/nodelist.png" width="400"></td>
-  </tr>
-   <Tr>
-   <td align="center"><B>Web Doors</B><BR><img src="docs/screenshots/webdoors.png" width="400">"</td>
-   <td align="center"><B>User Settings</B><BR><img src="docs/screenshots/userrsettings.png" width="400">"</td>
-   </Tr>
-<Tr>
-   <td align="center"><B>Admin Menu</B><BR><img src="docs/screenshots/adminmenu.png" width="400">"</td>
-   <td align="center"><B>Telnet Server</B><BR><img src="docs/screenshots/telnetserver.png" width="400">"</td>
-   </Tr>
-<tr>
-</tr>
-
 </table>
 
 
