@@ -233,11 +233,11 @@ Configure your reverse proxy to terminate SSL on a dedicated port (e.g. 6001) an
 ```caddy
 bbs.example.com:6001 {
     reverse_proxy 127.0.0.1:6001 {
-        header_up Upgrade {http.upgrade}
-        header_up Connection "Upgrade"
+        flush_interval -1    # disable buffering for real-time terminal I/O
     }
 }
 ```
+Caddy automatically handles WebSocket upgrade headers and sets the `Host` header. No additional directives are needed for WebSocket proxying.
 
 **NGINX** (`nginx.conf` / site config):
 ```nginx
@@ -254,7 +254,8 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
-        proxy_read_timeout 3600;
+        proxy_buffering off;       # disable buffering for real-time terminal I/O
+        proxy_read_timeout 3600;   # keep long-lived WebSocket connections alive
     }
 }
 ```
@@ -269,10 +270,13 @@ Listen 6001
     SSLCertificateFile    /etc/ssl/certs/bbs.example.com.crt
     SSLCertificateKeyFile /etc/ssl/private/bbs.example.com.key
 
+    ProxyTimeout 3600              # keep long-lived WebSocket connections alive
+
     ProxyPass / ws://127.0.0.1:6001/
     ProxyPassReverse / ws://127.0.0.1:6001/
 </VirtualHost>
 ```
+`mod_proxy_wstunnel` does not buffer WebSocket frames, so no explicit flush directive is needed.
 
 **Option B — Path-based proxy:**
 Forward a path to the bridge. Set `DOSDOOR_WS_URL=wss://bbs.example.com/doorplayersocket`.
