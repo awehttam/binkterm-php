@@ -467,7 +467,7 @@ class ZmodemTransfer
      */
     private static function forcePHPImplementation(): bool
     {
-        $forcePhp = (string)\BinktermPHP\Config::env('TELNET_ZMODEM_FORCE_PHP', 'false');
+        $forcePhp = (string)\BinktermPHP\Config::env('TELNET_ZMODEM_FORCE_PHP', 'true');
         return in_array(strtolower($forcePhp), ['1', 'true', 'yes', 'on'], true);
     }
 
