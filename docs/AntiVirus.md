@@ -71,6 +71,8 @@ systemctl restart clamav-daemon
 
 > **Privacy warning:** Files uploaded to VirusTotal may be shared with their partners and the broader security research community. **Do not enable VirusTotal scanning if your BBS handles files that users expect to remain private.** Hash lookups do not upload file content, but any file whose hash is not already known to VirusTotal will be uploaded and may become publicly accessible. See [VirusTotal's terms of service](https://docs.virustotal.com/docs/terms-of-service) for details.
 
+> VirusTotal may yield a higher number of false positives due to the number of vendors used for sample analysis.  
+> 
 The VirusTotal backend (`Antivirus\VirusTotalScanner`) uses the [VirusTotal API v3](https://docs.virustotal.com/reference/overview). It performs a **hash lookup first** — if the file's SHA-256 is already known to VirusTotal, the result is returned immediately without uploading the file. Unknown files are uploaded and polled until the analysis completes.
 
 ### Free-tier limits
