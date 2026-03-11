@@ -33,15 +33,13 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Contributors Wanted](#-contributors-wanted)
 - [Screen shots](#screen-shots)
 - [Features](#features)
+  - [Terminal Server](#terminal-server)
 - [Installation](#installation)
 - [Configuration](#configuration) — see also [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
 - [Network Ports](#network-ports)
 - [Upgrading](#upgrading)
 - [Database Management](#database-management)
 - [Command Line Scripts](#command-line-scripts)
-- [Terminal Server](#terminal-server)
-- [Terminal Access via Telnet](#terminal-access-via-telnet)
-- [Terminal Access via SSH](#terminal-access-via-ssh)
 - [Operation](#operation)
 - [Joining LovlyNet Network](#joining-lovlynet-network)
 - [Troubleshooting](#troubleshooting)
@@ -49,14 +47,16 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Security Considerations](#security-considerations)
 - [File Areas](#file-areas)
 - [File Area Rules](#file-area-rules)
-- [Authentication Flow](#authentication-flow)
-- [API Specification](#api-specification)
+- [Gateway Token Authentication](#gateway-token-authentication)
+  - [Authentication Flow](#authentication-flow)
+  - [API Specification](#api-specification)
 - [Native Doors](#native-doors---native-linux--windows-door-programs)
 - [DOS Doors](#dos-doors---classic-bbs-door-games)
 - [WebDoors](#webdoors---web-based-door-games)
 - [Gemini Support](#gemini-support)
 - [Frequently Asked Questions](#frequently-asked-questions)
 - [Developer Guide](#developer-guide)
+- [Localization (i18n) for Contributors](#localization-i18n-for-contributors)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -148,7 +148,7 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Echomail Maintenance** - Purge old messages by age or count limits to manage database size ([details](scripts/README_echomail_maintenance.md))
 - **Move Messages** - Move messages between echo areas for reorganization and consolidation
 
-### Terminal Server
+## Terminal Server
 
 BinktermPHP provides a shared terminal server experience for text-mode access.
 After login, Telnet and SSH users get the same core functionality:
@@ -256,7 +256,7 @@ StyleCodes (also known as GoldEd Rich Text, SemPoint Rich Text, or Synchronet Me
 
 Incoming messages are rendered based on the `^AMARKUP` kludge in the message. Markdown messages are rendered server-side by `MarkdownRenderer`; StyleCodes messages are rendered by `StyleCodesRenderer`. Messages without a markup kludge are displayed as plain text. The legacy `^AMARKDOWN:` kludge (Draft 1) is still recognised for backwards compatibility.
 
-## Installation
+# Installation
 
 BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
@@ -449,7 +449,7 @@ Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated bu
 
 update_nodelists can be used if you have URL's to update from.  Otherwise nodelists can be updated using file area actions.  
 
-## Configuration
+# Configuration
 
 Full configuration reference: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
 
@@ -467,7 +467,7 @@ bash scripts/restart_daemons.sh
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference covering all `.env` variables, `binkp.json` fields, nodelists, nodelist URL macros, and welcome text files.
 
-### Network Ports
+# Network Ports
 
 | Service | Default Port | Protocol | Direction | Configured In |
 |---------|-------------|----------|-----------|---------------|
