@@ -2,10 +2,11 @@
 
 namespace BinktermPHP\SshServer;
 
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Config;
-use BinktermPHP\Version;
 use BinktermPHP\TelnetServer\BbsSession;
 use BinktermPHP\SshServer\SshSession;
+use BinktermPHP\Version;
 
 /**
  * SshServer — pure-PHP SSH-2 BBS server daemon.
@@ -32,7 +33,7 @@ class SshServer
     private string $apiBase;
     private bool   $debug;
     private bool   $insecure;
-    private ?string $logFile    = null;
+    private ?Logger $logger     = null;
     private bool   $daemonMode  = false;
     private ?string $pidFile    = null;
     private ?int   $masterPid   = null;
@@ -65,9 +66,11 @@ class SshServer
     {
         $this->daemonMode = $daemonMode;
 
-        $logDir = dirname(__DIR__, 2) . '/data/logs';
-        if (!is_dir($logDir)) { mkdir($logDir, 0755, true); }
-        $this->logFile = $logDir . '/sshd.log';
+        $this->logger = new Logger(
+            Config::getLogPath('sshd.log'),
+            Config::env('SSHD_LOG_LEVEL', 'INFO'),
+            !$daemonMode
+        );
 
         if ($daemonMode) {
             if (!function_exists('pcntl_fork') || !function_exists('posix_setsid')) {
@@ -241,8 +244,7 @@ class SshServer
                 $this->debug,
                 $this->insecure,
                 false, true, false, 0,
-                $this->logFile,
-                !$this->daemonMode,
+                $this->logger,
                 $preAuth
             );
             $bbsSession->run($forked);
@@ -278,8 +280,7 @@ class SshServer
             true,    // isSsh
             false,   // tlsEnabled (no hint needed for SSH)
             0,       // tlsPort
-            $this->logFile,
-            !$this->daemonMode,
+            $this->logger,
             $preAuth
         );
 
@@ -483,12 +484,6 @@ class SshServer
 
     private function log(string $message): void
     {
-        $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n";
-        if ($this->logFile) {
-            file_put_contents($this->logFile, $line, FILE_APPEND);
-        }
-        if (!$this->daemonMode) {
-            echo $line;
-        }
+        $this->logger?->info($message);
     }
 }

@@ -2,11 +2,12 @@
 
 namespace BinktermPHP\TelnetServer;
 
-use BinktermPHP\Config;
-use BinktermPHP\Version;
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\Binkp\Config\BinkpConfig;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\Config;
 use BinktermPHP\I18n\Translator;
+use BinktermPHP\Version;
 
 
 /**
@@ -57,7 +58,7 @@ class TelnetServer
     private string $apiBase;
     private bool $debug;
     private bool $insecure;
-    private ?string $logFile = null;
+    private ?Logger $logger = null;
     private bool $daemonMode = false;
     private ?string $pidFile = null;
     private ?int $masterPid = null;
@@ -155,11 +156,11 @@ class TelnetServer
         $this->daemonMode = $daemonMode;
 
         // Set up logging
-        $logDir = __DIR__ . '/../../data/logs';
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
-        }
-        $this->logFile = $logDir . '/telnetd.log';
+        $this->logger = new Logger(
+            Config::getLogPath('telnetd.log'),
+            Config::env('TELNETD_LOG_LEVEL', 'INFO'),
+            !$daemonMode
+        );
 
         // Daemonize if requested
         if ($daemonMode) {
@@ -362,16 +363,7 @@ class TelnetServer
      */
     private function log(string $message): void
     {
-        $timestamp = '[' . date('Y-m-d H:i:s') . '] ';
-        $logMessage = $timestamp . $message . "\n";
-
-        if ($this->logFile) {
-            file_put_contents($this->logFile, $logMessage, FILE_APPEND);
-        }
-
-        if (!$this->daemonMode) {
-            echo $logMessage;
-        }
+        $this->logger?->info($message);
     }
 
     // ===== TELNET PROTOCOL METHODS =====
@@ -650,8 +642,7 @@ class TelnetServer
             false,
             $this->tlsEnabled,
             $this->tlsPort,
-            $this->logFile,
-            !$this->daemonMode,
+            $this->logger,
             null
         );
         $session->run($forked);

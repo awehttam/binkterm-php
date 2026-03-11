@@ -2,11 +2,12 @@
 
 namespace BinktermPHP\TelnetServer;
 
-use BinktermPHP\Config;
-use BinktermPHP\Version;
 use BinktermPHP\Binkp\Config\BinkpConfig;
+use BinktermPHP\Binkp\Logger;
 use BinktermPHP\BbsConfig;
+use BinktermPHP\Config;
 use BinktermPHP\I18n\Translator;
+use BinktermPHP\Version;
 
 /**
  * BbsSession — handles a single authenticated BBS session over any transport.
@@ -70,8 +71,7 @@ class BbsSession
     private bool $isSsh;
     private bool $tlsEnabled;
     private int $tlsPort;
-    private ?string $logFile;
-    private bool $logToConsole;
+    private ?Logger $logger;
     private bool $asciiTextMode;
     /** @var string Terminal character set: 'utf8', 'cp437', or 'ascii' */
     private string $terminalCharset = 'ascii';
@@ -99,8 +99,7 @@ class BbsSession
      * @param bool        $isSsh          Connection arrived via SSH (skip TELNET protocol)
      * @param bool        $tlsEnabled     Whether TLS is enabled on the server (for banner hint)
      * @param int         $tlsPort        TLS port number (for banner hint)
-     * @param string|null $logFile        Path to daemon log file, or null for stdout only
-     * @param bool        $logToConsole   Mirror session logs to stdout
+     * @param Logger|null $logger          Logger instance, or null for no logging
      * @param array|null  $preAuthSession Pre-authenticated user data from SSH layer
      */
     public function __construct(
@@ -112,8 +111,7 @@ class BbsSession
         bool $isSsh,
         bool $tlsEnabled = true,
         int $tlsPort = 8023,
-        ?string $logFile = null,
-        bool $logToConsole = false,
+        ?Logger $logger = null,
         ?array $preAuthSession = null
     ) {
         $this->conn           = $conn;
@@ -124,8 +122,7 @@ class BbsSession
         $this->isSsh          = $isSsh;
         $this->tlsEnabled     = $tlsEnabled;
         $this->tlsPort        = $tlsPort;
-        $this->logFile        = $logFile;
-        $this->logToConsole   = $logToConsole;
+        $this->logger         = $logger;
         // Conservative default for Telnet until terminal capabilities are known.
         $this->asciiTextMode  = !$this->isSsh;
         $this->preAuthSession = $preAuthSession;
@@ -1975,13 +1972,7 @@ class BbsSession
      */
     private function log(string $message): void
     {
-        $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n";
-        if ($this->logFile) {
-            file_put_contents($this->logFile, $line, FILE_APPEND);
-        }
-        if ($this->logToConsole || !$this->logFile) {
-            echo $line;
-        }
+        $this->logger?->info($message);
     }
 
     /**
