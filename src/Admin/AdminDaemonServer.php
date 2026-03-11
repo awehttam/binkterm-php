@@ -665,9 +665,33 @@ class AdminDaemonServer
             throw new \RuntimeException('Failed to start command');
         }
 
-        $stdout = stream_get_contents($pipes[1]);
+        // Read stdout and stderr concurrently to avoid pipe buffer deadlock.
+        // Sequential reads would block if the child fills the stderr buffer
+        // while the parent is waiting for stdout EOF (or vice versa).
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $stdout = '';
+        $stderr = '';
+        while (true) {
+            $read = [$pipes[1], $pipes[2]];
+            $write = null;
+            $except = null;
+            if (stream_select($read, $write, $except, 5) > 0) {
+                foreach ($read as $pipe) {
+                    if ($pipe === $pipes[1]) {
+                        $stdout .= fread($pipe, 8192);
+                    } elseif ($pipe === $pipes[2]) {
+                        $stderr .= fread($pipe, 8192);
+                    }
+                }
+            }
+            if (feof($pipes[1]) && feof($pipes[2])) {
+                break;
+            }
+        }
+
         fclose($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
         fclose($pipes[2]);
 
         $exitCode = proc_close($process);
