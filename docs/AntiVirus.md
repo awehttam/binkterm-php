@@ -27,6 +27,8 @@ BinktermPHP uses `clamdscan` (the ClamAV daemon client) rather than `clamscan` d
 
 The `--fdpass` flag passes the file descriptor to `clamd` rather than a file path, avoiding permission issues when PHP and `clamd` run as different users.
 
+> **Resource warning:** ClamAV can use a significant amount of RAM, especially as signature databases grow. Plan memory capacity accordingly on low-resource systems.
+
 If `clamd` is not running or `clamdscan` is not found, the ClamAV backend is silently disabled. A log message is written when this occurs.
 
 ### Installation
