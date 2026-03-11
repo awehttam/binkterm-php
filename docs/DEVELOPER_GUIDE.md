@@ -8,6 +8,7 @@
 - [Development Workflow](#development-workflow)
 - [Localization (i18n)](#localization-i18n)
 - [Credits System](#credits-system-overview)
+- [Optional Components & Daemons](#optional-components--daemons)
 - [Getting Help](#getting-help)
 
 ---
@@ -313,6 +314,96 @@ When `credits.enabled` is `false`, `transact()` throws, and `credit()`/`debit()`
 
 - If balances aren't updating, verify `credits.enabled` in `bbs.json` is `true`, and that the migration creating `user_transactions` and `users.credit_balance` ran.
 - If symbols don't match, check `credits.symbol` in `bbs.json`. An empty string is valid and results in no symbol display.
+
+---
+
+## Optional Components & Daemons
+
+Several features require additional background daemons or services beyond the core web interface and binkp mailer. These are optional — only run the ones that apply to the features you want to offer.
+
+### Door Games
+
+BinktermPHP supports three door game types. See [Doors.md](Doors.md) for shared setup (multiplexing bridge, WebSocket configuration, reverse proxy) and type-specific documentation below.
+
+| Type | Description | Doc |
+|------|-------------|-----|
+| **WebDoors** | HTML5/JavaScript games in a browser iframe — no extra server-side process required | [WebDoors.md](WebDoors.md) |
+| **Native Doors** | Linux binaries or Windows executables launched via PTY | [NativeDoors.md](NativeDoors.md) |
+| **DOS Doors** | Classic DOS games running under DOSBox-X | [DOSDoors.md](DOSDoors.md) |
+
+#### Multiplexing Bridge (Node.js)
+
+Native Doors and DOS Doors both require the multiplexing bridge: `scripts/dosbox-bridge/multiplexing-server.js`. See [Doors.md](Doors.md) for full setup, environment variables, reverse proxy configuration, and service/daemon installation.
+
+```bash
+cd scripts/dosbox-bridge
+npm install      # installs ws, pg, node-pty, iconv-lite, dotenv
+
+# Development
+node scripts/dosbox-bridge/multiplexing-server.js
+
+# Production (daemon mode)
+node scripts/dosbox-bridge/multiplexing-server.js --daemon
+```
+
+PID file: `data/run/multiplexing-server.pid` — Log: `data/logs/multiplexing-server.log`
+
+---
+
+### MRC Chat Daemon (`scripts/mrc_daemon.php`)
+
+Provides **Multi Relay Chat** — a real-time chat network for FTN BBSs. Maintains a persistent connection to an MRC server, relays messages, and keeps room state in the database. See [MRC_Chat.md](MRC_Chat.md) for configuration and setup.
+
+```bash
+php scripts/mrc_daemon.php --daemon
+```
+
+PID file: `data/run/mrc_daemon.pid`
+
+---
+
+### Gemini Daemon (`scripts/gemini_daemon.php`)
+
+Serves BBS content (user capsules, echomail) over the [Gemini protocol](https://geminiprotocol.net/) via TLS on port 1965. See [GeminiCapsule.md](GeminiCapsule.md) for TLS certificate setup and configuration.
+
+```bash
+php scripts/gemini_daemon.php --daemon
+```
+
+PID file: `data/run/gemini_daemon.pid` — Log: `data/logs/gemini_daemon.log`
+
+---
+
+### Terminal Servers
+
+The Telnet and SSH daemons provide a classic BBS terminal interface alongside the web UI. See [TerminalServer.md](TerminalServer.md) for Telnet and [SSHServer.md](SSHServer.md) for SSH setup.
+
+---
+
+### Echomail Robots (`scripts/echomail_robots.php`)
+
+Processes robot command messages posted to special echo areas (e.g. AREAS.BBS subscription management, BBS directory updates). See [Robots.md](Robots.md) for available robots and configuration.
+
+---
+
+### Other Background Scripts
+
+Maintenance and scheduling scripts typically run via cron or the admin daemon's task scheduler. See [MAINTENANCE.md](MAINTENANCE.md) and [CLI.md](CLI.md) for full details.
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/binkp_scheduler.php` | Schedules automatic uplink polling |
+| `scripts/binkp_poll.php` | Polls a single uplink on demand |
+| `scripts/echomail_maintenance.php` | Prunes old messages per area retention settings |
+| `scripts/chat_cleanup.php` | Removes expired MRC chat history |
+| `scripts/logrotate.php` | Rotates application log files |
+| `scripts/database_maintenance.php` | Periodic database VACUUM and upkeep |
+| `scripts/update_nodelists.php` | Downloads and imports FTN nodelist files |
+| `scripts/activity_digest.php` | Sends periodic activity digest emails |
+| `scripts/rss_poster.php` | Posts RSS feed items as echomail |
+| `scripts/weather_report.php` | Posts weather reports as echomail |
+
+The `restart_daemons.sh` (Linux) and `start_daemons_windows.cmd` / `start_daemons_windows.ps1` (Windows) scripts start or restart all long-running daemons in one step.
 
 ---
 

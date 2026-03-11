@@ -226,7 +226,7 @@ class VirusTotalScanner implements ScannerInterface
     {
         $stats      = $attrs['stats'] ?? [];
         $detections = (int)($stats['malicious'] ?? 0);
-        
+
         $sha256     = $attrs['sha256'] ?? null;
         $permalink  = $sha256 ? "https://www.virustotal.com/gui/file/{$sha256}" : null;
         $signature  = $this->topDetectionName($attrs['results'] ?? []) ?: null;
