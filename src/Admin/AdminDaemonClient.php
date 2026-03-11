@@ -292,6 +292,10 @@ class AdminDaemonClient
      */
     public function serverLog(string $level, string $message, array $context = []): array
     {
+        if (!isset($context['remote_addr']) && !empty($_SERVER['REMOTE_ADDR'])) {
+            $context['remote_addr'] = $_SERVER['REMOTE_ADDR'];
+        }
+
         return $this->sendCommand('server_log', [
             'level'   => strtoupper($level),
             'message' => $message,
