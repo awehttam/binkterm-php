@@ -58,8 +58,9 @@ class Logger
         
         $timestamp = date($this->dateFormat);
         $levelStr = is_string($level) ? strtoupper($level) : $this->getLevelName($level);
-        
-        $logMessage = "[{$timestamp}] [{$levelStr}] {$message}";
+        $pid = getmypid();
+
+        $logMessage = "[{$timestamp}] [PID:{$pid}] [{$levelStr}] {$message}";
         
         if (!empty($context)) {
             $logMessage .= " " . json_encode($context);
