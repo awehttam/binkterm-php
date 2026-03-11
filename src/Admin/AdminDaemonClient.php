@@ -299,6 +299,27 @@ class AdminDaemonClient
         ]);
     }
 
+    /**
+     * Convenience static method for one-shot logging via the admin daemon.
+     *
+     * Constructs a client, sends the log entry, and closes the connection.
+     * Falls back to error_log() if the daemon is unreachable.
+     *
+     * @param string $level   Log level: INFO, WARNING, ERROR, DEBUG
+     * @param string $message Message to log
+     * @param array<string,scalar> $context Optional structured context
+     */
+    public static function log(string $level, string $message, array $context = []): void
+    {
+        try {
+            $client = new self();
+            $client->serverLog($level, $message, $context);
+            $client->close();
+        } catch (\Exception $e) {
+            error_log('[' . strtoupper($level) . '] ' . $message);
+        }
+    }
+
     public function getMrcConfig(): array
     {
         return $this->sendCommand('get_mrc_config');
