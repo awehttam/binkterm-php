@@ -2666,6 +2666,72 @@ SimpleRouter::group(['prefix' => '/api'], function() {
         }
     })->where(['id' => '[0-9]+']);
 
+    /**
+     * PUT /api/files/{id}/scan-status
+     * Manually override the virus scan status for a file. Admin only.
+     * Body: { status: 'not_scanned'|'clean'|'infected', signature?: string }
+     */
+    SimpleRouter::put('/files/{id}/scan-status', function($id) {
+        $user = RouteHelper::requireAuth();
+
+        if (!\BinktermPHP\FileAreaManager::isFeatureEnabled()) {
+            http_response_code(404);
+            return;
+        }
+
+        if (empty($user['is_admin'])) {
+            http_response_code(403);
+            apiError('errors.files.scan_forbidden', apiLocalizedText('errors.files.scan_forbidden', 'Admin access required', $user));
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $status = $input['status'] ?? '';
+        $allowed = ['not_scanned', 'clean', 'infected'];
+        if (!in_array($status, $allowed, true)) {
+            http_response_code(400);
+            apiError('errors.files.invalid_scan_status', apiLocalizedText('errors.files.invalid_scan_status', 'Invalid scan status', $user));
+            return;
+        }
+
+        $db = \BinktermPHP\Database::getInstance()->getPdo();
+
+        // Verify file exists
+        $stmt = $db->prepare("SELECT id FROM files WHERE id = ?");
+        $stmt->execute([(int)$id]);
+        if (!$stmt->fetch()) {
+            http_response_code(404);
+            apiError('errors.files.not_found', apiLocalizedText('errors.files.not_found', 'File not found', $user));
+            return;
+        }
+
+        if ($status === 'not_scanned') {
+            $stmt = $db->prepare("
+                UPDATE files SET virus_scanned = FALSE, virus_scan_result = NULL,
+                                 virus_signature = NULL, virus_scanned_at = NULL
+                WHERE id = ?
+            ");
+            $stmt->execute([(int)$id]);
+        } else {
+            $signature = ($status === 'infected') ? (trim($input['signature'] ?? '') ?: null) : null;
+            $stmt = $db->prepare("
+                UPDATE files SET virus_scanned = TRUE, virus_scan_result = ?,
+                                 virus_signature = ?, virus_scanned_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$status, $signature, (int)$id]);
+        }
+
+        \BinktermPHP\Admin\AdminDaemonClient::log('INFO', "Admin manually set scan status for file {$id} to {$status}", [
+            'user_id' => $user['user_id'],
+            'file_id' => (int)$id,
+            'status'  => $status,
+        ]);
+
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true]);
+    })->where(['id' => '[0-9]+']);
+
     // Message API routes
     SimpleRouter::get('/messages/netmail', function() {
         $user = RouteHelper::requireAuth();

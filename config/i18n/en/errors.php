@@ -129,6 +129,7 @@ return [
     'errors.files.scan_forbidden' => 'Admin access required to scan files',
     'errors.files.scan_disabled' => 'Virus scanning is disabled',
     'errors.files.scan_failed' => 'Virus scan failed',
+    'errors.files.invalid_scan_status' => 'Invalid scan status value',
     'errors.files.rename_filename_required' => 'New filename is required',
     'errors.files.rename_forbidden' => 'You do not have permission to rename this file',
     'errors.files.rename_conflict' => 'A file with that name already exists in this area',

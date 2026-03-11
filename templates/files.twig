@@ -132,7 +132,22 @@
                     <dd class="col-sm-9" id="detailFrom"></dd>
 
                     <dt class="col-sm-3">{{ t('ui.files.virus_scan', {}, 'common') }}:</dt>
-                    <dd class="col-sm-9" id="detailVirusScan"></dd>
+                    <dd class="col-sm-9">
+                        <span id="detailVirusScan"></span>
+                        {% if current_user.is_admin %}
+                        <div id="scanStatusEditor" class="mt-1 d-none">
+                            <div class="input-group input-group-sm" style="max-width:340px;">
+                                <select class="form-select form-select-sm" id="scanStatusSelect">
+                                    <option value="not_scanned">{{ t('ui.files.not_scanned', {}, 'common') }}</option>
+                                    <option value="clean">{{ t('ui.files.clean', {}, 'common') }}</option>
+                                    <option value="infected">{{ t('ui.files.infected', {}, 'common') }}</option>
+                                </select>
+                                <input type="text" class="form-control form-control-sm" id="scanStatusSignature" placeholder="{{ t('ui.files.virus_name_placeholder', {}, 'common') }}" style="display:none;">
+                                <button class="btn btn-outline-primary btn-sm" onclick="saveScanStatus()">{{ t('ui.common.save', {}, 'common') }}</button>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </dd>
 
                     <dt class="col-sm-3">{{ t('ui.common.description', {}, 'common') }}:</dt>
                     <dd class="col-sm-9" id="detailDescription"></dd>
@@ -735,6 +750,14 @@ function showFileDetails(fileId) {
             }
             $('#detailVirusScan').html(scanStatus);
 
+            if (isAdmin) {
+                const editorVal = !file.virus_scanned ? 'not_scanned' : (file.virus_scan_result || 'not_scanned');
+                $('#scanStatusSelect').val(editorVal);
+                $('#scanStatusSignature').val(file.virus_signature || '');
+                $('#scanStatusSignature').toggle(editorVal === 'infected');
+                $('#scanStatusEditor').removeClass('d-none');
+            }
+
             $('#detailDescription').text(file.short_description || uiT('ui.files.no_description', 'No description'));
 
             if (file.long_description) {
@@ -916,6 +939,36 @@ function requestVirusScan() {
         },
         complete: function() {
             $btn.prop('disabled', false).html('<i class="fas fa-shield-alt"></i> ' + uiT('ui.files.virus_scan_now', 'Virus Scan'));
+        }
+    });
+}
+
+// Show/hide signature field when infected is selected
+$(document).on('change', '#scanStatusSelect', function() {
+    $('#scanStatusSignature').toggle($(this).val() === 'infected');
+});
+
+function saveScanStatus() {
+    const fileId = currentFile ? currentFile.id : null;
+    if (!fileId) return;
+
+    const status = $('#scanStatusSelect').val();
+    const signature = status === 'infected' ? $('#scanStatusSignature').val().trim() : null;
+
+    $.ajax({
+        url: `/api/files/${fileId}/scan-status`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ status, signature }),
+        success: function() {
+            showSuccess(uiT('ui.files.scan_status_saved', 'Scan status updated'));
+            showFileDetails(fileId);
+        },
+        error: function(xhr) {
+            const msg = window.getApiErrorMessage && xhr.responseJSON
+                ? window.getApiErrorMessage(xhr.responseJSON, uiT('ui.files.scan_status_save_failed', 'Failed to update scan status'))
+                : uiT('ui.files.scan_status_save_failed', 'Failed to update scan status');
+            showError(msg);
         }
     });
 }
