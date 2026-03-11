@@ -151,11 +151,11 @@ class EchoareaImporter
             );
         }
 
-        if (!preg_match('/^[A-Z0-9._-]+$/', $tag)) {
+        if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
             throw new EchoareaImportException(
                 'ui.echoareas_import.error_invalid_tag',
                 [],
-                'Invalid ECHOTAG. Use only letters, numbers, dots, underscores, and hyphens.'
+                "Invalid ECHOTAG. Use only letters, numbers, dots, underscores, hyphens, and apostrophes."
             );
         }
 

@@ -1833,8 +1833,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._-]+$/', $tag)) {
-                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, and hyphens');
+            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
+                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
@@ -1914,8 +1914,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
                 throw new \Exception('Tag and description are required');
             }
 
-            if (!preg_match('/^[A-Z0-9._-]+$/', $tag)) {
-                throw new \Exception('Invalid tag format. Use only letters, numbers, dots, underscores, and hyphens');
+            if (!preg_match('/^[A-Z0-9._\'-]+$/', $tag)) {
+                throw new \Exception("Invalid tag format. Use only letters, numbers, dots, underscores, hyphens, and apostrophes");
             }
 
             if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
