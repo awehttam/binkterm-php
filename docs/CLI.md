@@ -545,10 +545,23 @@ php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --ad=claudes1.ans --
 
 ## Restart Daemons
 
-Stops and restarts all running BinktermPHP daemons (admin daemon, scheduler, BinkP server, telnet, SSH, MRC, DOS bridge, Gemini). Uses PID files in `data/run/` to manage processes.
+Stops and restarts BinktermPHP daemons (admin daemon, scheduler, BinkP server, telnet, SSH, MRC, DOS bridge, Gemini). Uses PID files in `data/run/` to manage processes.
 
 ```bash
+# Restart all services
 bash scripts/restart_daemons.sh
+
+# Restart a single service
+bash scripts/restart_daemons.sh binkp_server
+
+# Start a single service
+bash scripts/restart_daemons.sh --start telnet
+
+# Stop a single service without restarting
+bash scripts/restart_daemons.sh --stop mrc
+
+# List available services
+bash scripts/restart_daemons.sh --list
 ```
 
 ## Who
