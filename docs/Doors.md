@@ -229,6 +229,51 @@ If your BBS is served over HTTPS, browsers will require the WebSocket connection
 **Option A — Expose the bridge on a separate port with SSL:**
 Configure your reverse proxy to terminate SSL on a dedicated port (e.g. 6001) and forward to the bridge on `127.0.0.1:6001`. Set `DOSDOOR_WS_URL=wss://bbs.example.com:6001`.
 
+**Caddy** (`Caddyfile`):
+```caddy
+bbs.example.com:6001 {
+    reverse_proxy 127.0.0.1:6001 {
+        header_up Upgrade {http.upgrade}
+        header_up Connection "Upgrade"
+    }
+}
+```
+
+**NGINX** (`nginx.conf` / site config):
+```nginx
+server {
+    listen 6001 ssl;
+    server_name bbs.example.com;
+
+    ssl_certificate     /etc/ssl/certs/bbs.example.com.crt;
+    ssl_certificate_key /etc/ssl/private/bbs.example.com.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:6001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600;
+    }
+}
+```
+
+**Apache** (requires `mod_proxy`, `mod_proxy_http`, `mod_proxy_wstunnel`, and `mod_ssl`):
+```apache
+Listen 6001
+<VirtualHost *:6001>
+    ServerName bbs.example.com
+
+    SSLEngine on
+    SSLCertificateFile    /etc/ssl/certs/bbs.example.com.crt
+    SSLCertificateKeyFile /etc/ssl/private/bbs.example.com.key
+
+    ProxyPass / ws://127.0.0.1:6001/
+    ProxyPassReverse / ws://127.0.0.1:6001/
+</VirtualHost>
+```
+
 **Option B — Path-based proxy:**
 Forward a path to the bridge. Set `DOSDOOR_WS_URL=wss://bbs.example.com/doorplayersocket`.
 
