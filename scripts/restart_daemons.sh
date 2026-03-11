@@ -52,7 +52,7 @@ start_process() {
     local name="$2"
 
     echo "Starting ${name}..."
-    (cd "$ROOT_DIR" && nohup ${cmd} > /dev/null 2>&1 &)
+    (cd "$ROOT_DIR" && setsid ${cmd} < /dev/null > /dev/null 2>&1 &)
 }
 
 stop_service() {
