@@ -865,9 +865,14 @@ class BbsSession
         // telnet transport.  Leaving binary mode un-negotiated keeps both sides
         // consistent — the client continues to IAC-unescape incoming data and
         // IAC-escape outgoing data.
+        //
+        // Do NOT send DO LINEMODE: some clients (e.g. ZOC) pause display rendering
+        // while waiting for the server to send a linemode subnegotiation (IAC SB
+        // LINEMODE MODE … IAC SE) that never comes, producing a blank-screen hang
+        // until the user presses a key.  A BBS needs character-at-a-time mode;
+        // WILL ECHO + WILL SUPPRESS-GA already establish that without linemode.
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_NAWS);
         $this->sendTelnetCommand($conn, self::WILL,      self::OPT_SUPPRESS_GA);
-        $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_LINEMODE);
         $this->sendTelnetCommand($conn, self::TELNET_DO, self::OPT_TTYPE);
     }
 
