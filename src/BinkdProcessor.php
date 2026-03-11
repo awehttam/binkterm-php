@@ -69,8 +69,10 @@ class BinkdProcessor
         
         // Process compressed bundles (various formats)
         // Include both lowercase and uppercase patterns for case-sensitive filesystems
+        // Only match FTN day-of-week bundle extensions — these are unambiguously
+        // packet bundles. Generic archive extensions (.zip, .arc, .arj, .lzh, .rar)
+        // are intentionally excluded because they may be regular file attachments.
         $bundlePatterns = [
-            '/*.zip',    // Standard ZIP
             '/*.su?',    // Sunday bundles: .su0, .su1, etc.
             '/*.mo?',    // Monday bundles: .mo0, .mo1, etc.
             '/*.tu?',    // Tuesday bundles: .tu0, .tu1, etc.
@@ -85,10 +87,6 @@ class BinkdProcessor
             '/*.TH?',    // Thursday bundles (uppercase)
             '/*.FR?',    // Friday bundles (uppercase)
             '/*.SA?',    // Saturday bundles (uppercase)
-            '/*.arc',    // ARC compressed
-            '/*.arj',    // ARJ compressed
-            '/*.lzh',    // LHA compressed
-            '/*.rar'     // RAR compressed
         ];
         
         foreach ($bundlePatterns as $pattern) {
