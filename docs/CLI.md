@@ -396,3 +396,150 @@ php scripts/update_nodelists.php --force
 # Show help and available macros
 php scripts/update_nodelists.php --help
 ```
+
+## Database Backup
+
+Creates PostgreSQL database backups using `pg_dump` with connection settings from `.env`. Backups are saved to the `backups/` directory with a timestamp in the filename.
+
+```bash
+# Default SQL backup
+php scripts/backup_database.php
+
+# Custom format with compression
+php scripts/backup_database.php --format=custom --compress
+
+# Clean up backups older than 14 days
+php scripts/backup_database.php --cleanup=14
+
+# Quiet mode for cron
+php scripts/backup_database.php --quiet
+```
+
+Options:
+- `--format=TYPE` — Backup format: `sql`, `custom`, or `tar` (default: `sql`)
+- `--compress` — Enable compression
+- `--cleanup=DAYS` — Delete backups older than X days (default: 30)
+- `--quiet` — Suppress output except errors
+
+## Crashmail Poll
+
+Processes the crashmail queue, attempting direct delivery of messages marked with the crash attribute.
+
+```bash
+# Process crashmail queue
+php scripts/crashmail_poll.php
+
+# Limit items processed
+php scripts/crashmail_poll.php --limit=5
+
+# Preview without delivering
+php scripts/crashmail_poll.php --dry-run --verbose
+```
+
+Options:
+- `--limit=N` — Maximum items to process (default: 10)
+- `--verbose` — Show detailed output
+- `--dry-run` — Check queue without attempting delivery
+
+## Echomail Robots
+
+Runs the echomail robot processors — a rule-based framework that watches echo areas for matching messages and dispatches them to configured processors.
+
+```bash
+# Run all active robots
+php scripts/echomail_robots.php
+
+# Run a specific robot by ID
+php scripts/echomail_robots.php --robot-id=3
+
+# Preview without making changes
+php scripts/echomail_robots.php --dry-run
+
+# Debug message parsing
+php scripts/echomail_robots.php --debug
+```
+
+See [docs/Robots.md](Robots.md) for information on creating custom processors.
+
+## Create Translation Catalog
+
+Generates i18n translation catalogs for new locales using AI (Claude or OpenAI). Translates from the `en` baseline catalog.
+
+```bash
+# Generate a French translation catalog
+php scripts/create_translation_catalog.php fr
+
+# Use a specific model
+php scripts/create_translation_catalog.php fr --model=claude-sonnet-4-6
+
+# Set batch size for large catalogs
+php scripts/create_translation_catalog.php de --batch-size=50
+```
+
+## Generate Ad
+
+Generates ANSI advertisement art from current system settings (BBS name, node address, networks, etc.).
+
+```bash
+# Output ANSI ad to stdout
+php scripts/generate_ad.php --stdout
+
+# Save to file
+php scripts/generate_ad.php --output=bbs_ads/myad.ans
+```
+
+## Log Rotate
+
+Rotates and archives log files in `data/logs/`, keeping a configurable number of old logs.
+
+```bash
+# Rotate logs, keep 10 most recent
+php scripts/logrotate.php
+
+# Keep only 5 logs
+php scripts/logrotate.php --keep=5
+
+# Preview without rotating
+php scripts/logrotate.php --dry-run
+```
+
+## Post Ad
+
+Posts an ANSI advertisement from the `bbs_ads/` directory to an echomail area.
+
+```bash
+# Post a random ad
+php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet
+
+# Post a specific ad file
+php scripts/post_ad.php --echoarea=BBS_ADS --domain=fidonet --ad=claudes1.ans --subject="BBS Advertisement"
+```
+
+## Restart Daemons
+
+Stops and restarts all running BinktermPHP daemons (admin daemon, scheduler, BinkP server, telnet, SSH, MRC, DOS bridge, Gemini). Uses PID files in `data/run/` to manage processes.
+
+```bash
+bash scripts/restart_daemons.sh
+```
+
+## Who
+
+Shows currently active users — those who have been active within the last N minutes.
+
+```bash
+# Show users active in the last 15 minutes (default)
+php scripts/who.php
+
+# Custom time window
+php scripts/who.php --minutes=30
+```
+
+## Admin Client
+
+Sends commands to the running admin daemon from the command line.
+
+```bash
+php scripts/admin_client.php process-packets
+php scripts/admin_client.php binkp-poll 1:153/149
+```

@@ -596,21 +596,37 @@ BinktermPHP includes a full suite of CLI tools for managing your system from the
 | `binkp_scheduler.php` | Automated polling scheduler |
 | `admin_daemon.php` | Control socket for backend task management |
 | `telnet/telnet_daemon.php` | Telnet server daemon |
+| `ssh/ssh_daemon.php` | SSH server daemon |
 | `scripts/gemini_daemon.php` | Gemini capsule server daemon |
+| `mrc/mrc_daemon.php` | MRC chat relay daemon |
+| `scripts/dosbox-bridge/multiplexing-server.js` | DOS door multiplexing bridge |
 
 **Utility Scripts** — run on demand or via cron:
 
 | Script | Description |
 |--------|-------------|
+| `admin_client.php` | Send commands to the admin daemon from the command line |
+| `backup_database.php` | PostgreSQL database backup via pg_dump |
 | `binkp_poll.php` | Manually poll uplinks |
 | `binkp_status.php` | View connection and queue status |
-| `process_packets.php` | Process inbound packets manually |
-| `post_message.php` | Post netmail or echomail from the command line |
-| `user-manager.php` | Manage user accounts |
-| `update_nodelists.php` | Download and import nodelists |
+| `crashmail_poll.php` | Process the crashmail queue for direct delivery |
+| `create_translation_catalog.php` | Generate i18n translation catalogs using AI |
 | `echomail_maintenance.php` | Purge old messages by age or count |
-| `weather_report.php` | Generate weather forecasts for echomail posting |
+| `echomail_robots.php` | Run echomail robot processors |
+| `generate_ad.php` | Generate ANSI ads from current system settings |
+| `logrotate.php` | Rotate and archive log files in data/logs |
 | `lovlynet_setup.php` | Automated LovlyNet network registration |
+| `move_messages.php` | Move messages between echo areas |
+| `post_ad.php` | Post an ANSI ad to an echomail area |
+| `post_message.php` | Post netmail or echomail from the command line |
+| `process_packets.php` | Process inbound packets manually |
+| `restart_daemons.sh` | Stop and restart all running daemons |
+| `send_activityreport.php` | Generate and send an activity digest as netmail |
+| `subscribe_users.php` | Bulk subscribe users to echo areas |
+| `update_nodelists.php` | Download and import nodelists |
+| `user-manager.php` | Manage user accounts |
+| `weather_report.php` | Generate weather forecasts for echomail posting |
+| `who.php` | Show currently active users |
 
 Run any script with `--help` for full usage. See **[docs/CLI.md](docs/CLI.md)** for complete documentation on all scripts including usage examples, options, and cron job examples.
 
