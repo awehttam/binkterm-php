@@ -22,47 +22,101 @@ There are no doubt bugs and omissions in the project as it was written by an AI.
 
 awehttam operates a full instance of BinktermPHP over at https://claudes.lovelybits.org - Claude's very own BBS, and a point system @ https://mypoint.lovelybits.org.
 
-## 🤝 Contributors Wanted
+# 🤝 Contributors Wanted
 
 We're looking for experienced PHP developers interested in contributing to BinktermPHP. Areas include FTN networking, WebDoors game development, themes, telnet, real-time features, and more. See **[HELP_WANTED.md](HELP_WANTED.md)** for details.
 
 ---
 
-## Table of Contents
+# Table of Contents
 
 - [Contributors Wanted](#-contributors-wanted)
 - [Screen shots](#screen-shots)
 - [Features](#features)
+  - [Web Interface](#web-interface)
+  - [Native Binkp Protocol Support](#native-binkp-protocol-support)
+  - [Command Line Tools](#command-line-tools)
   - [Terminal Server](#terminal-server)
+  - [Credits System](#credits-system)
+  - [Markup Support](#markup-support)
 - [Installation](#installation)
+  - [Requirements](#requirements)
+  - [Method 1: Using the Installer (Experimental)](#method-1-using-the-installer-experimental)
+  - [Method 2: From Git](#method-2-from-git)
+  - [Configure Web Server](#configure-web-server)
+  - [Set Up Cron Jobs (Recommended)](#set-up-cron-jobs-recommended)
 - [Configuration](#configuration) — see also [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
 - [Network Ports](#network-ports)
 - [Upgrading](#upgrading)
+  - [From Git](#from-git)
+  - [Using the BinktermPHP Installer](#using-the-binktermphp-installer)
+  - [Version-Specific Upgrade Guides](#version-specific-upgrade-guides)
 - [Database Management](#database-management)
+  - [Database Scripts](#database-scripts)
+  - [Migration System](#migration-system)
 - [Command Line Scripts](#command-line-scripts)
+  - [Message Posting Tool](#message-posting-tool)
+  - [Weather Report Generator](#weather-report-generator)
+  - [Activity Digest Generator](#activity-digest-generator)
+  - [Activity Report Sender](#activity-report-sender)
+  - [Echomail Maintenance Utility](#echomail-maintenance-utility)
+  - [Subscribe Users to Echo Areas](#subscribe-users-to-echo-areas)
+  - [Move Messages Between Echo Areas](#move-messages-between-echo-areas)
+  - [User Management Tool](#user-management-tool)
+  - [Binkp Server Management](#binkp-server-management)
+  - [Packet Processing](#packet-processing)
+  - [Admin Daemon](#admin-daemon)
+  - [Nodelist Updates](#nodelist-updates)
 - [Operation](#operation)
+  - [Starting the System](#starting-the-system)
+  - [Daily Operations](#daily-operations)
+  - [Cron Job Setup](#cron-job-setup)
 - [Joining LovlyNet Network](#joining-lovlynet-network)
+  - [Quick Start](#quick-start)
+  - [Public vs Passive Nodes](#public-vs-passive-nodes)
+  - [Setting Up Polling for Passive Nodes](#setting-up-polling-for-passive-nodes)
+  - [Updating Registration](#updating-registration)
+  - [Complete Documentation](#complete-documentation)
+  - [Quick Reference](#quick-reference)
 - [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Log Files](#log-files)
+  - [Debug Mode](#debug-mode)
+  - [Analytics](#analytics)
 - [Customization](#customization)
+  - [Appearance System (Admin UI)](#appearance-system-admin-ui)
+  - [Manual Customization](#manual-customization)
+  - [Performance Tuning](#performance-tuning)
+- [Getting Help](#getting-help)
 - [Security Considerations](#security-considerations)
+  - [Network Security](#network-security)
+  - [File Security](#file-security)
+  - [Web Security](#web-security)
 - [File Areas](#file-areas)
-- [File Area Rules](#file-area-rules)
+  - [File Area Rules](#file-area-rules)
 - [Gateway Token Authentication](#gateway-token-authentication)
   - [Authentication Flow](#authentication-flow)
   - [API Specification](#api-specification)
-- [Native Doors](#native-doors---native-linux--windows-door-programs)
-- [DOS Doors](#dos-doors---classic-bbs-door-games)
-- [WebDoors](#webdoors---web-based-door-games)
+- [Doors](#doors)
+  - [Native Doors](#native-doors---native-linux--windows-door-programs)
+  - [DOS Doors](#dos-doors---classic-bbs-door-games)
+  - [WebDoors](#webdoors---web-based-door-games)
 - [Gemini Support](#gemini-support)
+  - [Gemini Browser](#gemini-browser)
+  - [Gemini Capsule Hosting](#gemini-capsule-hosting)
 - [Frequently Asked Questions](#frequently-asked-questions)
 - [Developer Guide](#developer-guide)
 - [Localization (i18n) for Contributors](#localization-i18n-for-contributors)
+  - [Catalogs and Key Layout](#catalogs-and-key-layout)
+  - [Twig Usage](#twig-usage)
+  - [JavaScript Usage](#javascript-usage)
+  - [API Errors](#api-errors-error_code)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
 - [Acknowledgments](#acknowledgments)
 
-## Screen shots
+# Screen shots
 
 Here are some screen shots showing various aspects of the interface with different themes.
 
@@ -101,9 +155,9 @@ Here are some screen shots showing various aspects of the interface with differe
 </table>
 
 
-## Features
+# Features
 
-### Web Interface
+## Web Interface
 - **Modern Bootstrap 5 UI** - Clean, responsive interface accessible from any device including mobile phones. 
 - **Netmail Management** - Send and receive private network mail messages
 - **Echomail Support** - Participate in public discussion areas (forums).  Sortable and threaded view available.
@@ -131,14 +185,14 @@ Here are some screen shots showing various aspects of the interface with differe
 - **Localization** - Full multi-language support across the web interface, admin panel, and API error messages. The active locale is resolved automatically from user preferences, browser settings, or a cookie — no configuration required for users. Sysops can add new languages by dropping catalog files in place with no code changes. Ships with English and Spanish out of the box.
 
 
-### Native Binkp Protocol Support
+## Native Binkp Protocol Support
 - **FTS-1026 Compliant** - binkp/1.0 protocol implementation
 - **TCP/IP Connectivity** - Direct connections over internet (port 24554)
 - **Automated Scheduling** - Cron-style polling with configurable intervals
 - **Password Authentication** - Plaintext and Crypt-MD5 Uplink authentication
 - **Connection Management** - Multiple concurrent connections with limits
 
-### Command Line Tools
+## Command Line Tools
 - **Message Posting** - CLI tool for automated netmail/echomail posting
 - **Connection Testing** - Debug and test binkp connections
 - **Server Management** - Start/stop binkp server daemon (Linux/UNIX only)
@@ -181,13 +235,13 @@ The built-in pure-PHP SSH server is another access method for the same Terminal 
 
 See **[docs/SSHServer.md](docs/SSHServer.md)** for daemon setup, configuration, and troubleshooting.
 
-### Credits System
+## Credits System
 
 BinktermPHP includes an integrated credits economy that rewards user participation and allows charging for certain actions. Credits can be used to encourage quality content, manage resource usage, and gamify the BBS experience. Configuration is done in `config/bbs.json` under the `credits` section, or via **Admin → BBS Settings → Credits System Configuration**.
 
 See **[docs/CreditSystem.md](docs/CreditSystem.md)** for default values, configuration options, transaction types, and the developer API.
 
-### Markup Support
+## Markup Support
 
 BinktermPHP supports rich text formatting in echomail and netmail messages on networks that allow it. When enabled for an uplink, users can compose messages using Markdown or StyleCodes and have them rendered with full formatting in the message reader.
 
@@ -260,7 +314,7 @@ Incoming messages are rendered based on the `^AMARKUP` kludge in the message. Ma
 
 BinktermPHP can be installed using two methods: Git-based installation, or the installer.
 
-### Requirements
+## Requirements
 - **PHP 8.1+** with extensions: PDO, PostgreSQL, Sockets, JSON, DOM, Zip, OpenSSL, GMP
 - **NodeJS** for DOS Doors support (optional)
 - **PostgreSQL** - Database server
@@ -270,7 +324,7 @@ BinktermPHP can be installed using two methods: Git-based installation, or the i
 - **Operating User** - It is recommended to run BinktermPHP out of its own user account
 
 
-#### Ubuntu/Debian package requirements
+### Ubuntu/Debian package requirements
 ```bash
 sudo apt-get update
 sudo apt-get install libapache2-mod-php apache2 php-zip php-mcrypt php-iconv php-mbstring php-pdo php-pgsql php-dom postgresql
@@ -278,7 +332,7 @@ sudo apt-get install -y unzip p7zip-full
 ```
 The `unzip` and `p7zip-full` packages are required for Fidonet bundle extraction.
 
-#### Postgres Database setup
+### Postgres Database setup
 
 First, decide on a database name, username, and password. These will be used in your `.env` file later.
 
@@ -314,7 +368,7 @@ DB_PASS=your_password
 
 > **Note:** Using `127.0.0.1` instead of `localhost` forces a TCP connection, which avoids peer authentication issues on some systems.
 
-### Method 1: Using the Installer (Experimental)
+## Method 1: Using the Installer (Experimental)
 
 The installer provides an automated setup process that downloads, configures, and installs BinktermPHP.
 
@@ -339,22 +393,22 @@ The installer will:
 
 **Note:** The installer is experimental and under active development. The standard Git-based installation (Method 2) is currently the primary installation method used by most installations.
 
-### Method 2: From Git
+## Method 2: From Git
 
 This is the standard installation method currently in use while the installer is being developed.
 
-#### Step 1: Clone Repository
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/awehttam/binkterm-php
 cd binkterm-php
 ```
 
-#### Step 2: Install Dependencies
+### Step 2: Install Dependencies
 ```bash
 composer install
 ```
 
-#### Step 3: Configure Environment
+### Step 3: Configure Environment
 Copy the example environment file and configure your settings:
 ```bash
 cp .env.example .env
@@ -363,7 +417,7 @@ cp binkp.json.example binkp.json
 
 Edit `.env` to configure your database connection, SMTP settings, and other options. At minimum, set the PostgreSQL database credentials.  Once the system is up you can adjust your BBS settings and BinkP configuration through the administration interface.
 
-#### Step 4: Install the database schema and configure the initial Admin user
+### Step 4: Install the database schema and configure the initial Admin user
 
 First, use the installation script for automated setup:
 ```bash
@@ -386,9 +440,9 @@ php scripts/upgrade.php
 ```
 
 
-### Configure Web Server
+## Configure Web Server
 
-#### Apache
+### Apache
 ```apache
 <VirtualHost *:80>
     ServerName binktest.local
@@ -401,7 +455,7 @@ php scripts/upgrade.php
 </VirtualHost>
 ```
 
-#### Nginx
+### Nginx
 ```nginx
 server {
     listen 80;
@@ -422,13 +476,13 @@ server {
 }
 ```
 
-#### PHP Built-in Server (Development)
+### PHP Built-in Server (Development)
 ```bash
 cd public_html
 php -S localhost:8080
 ```
 
-### Set Up Cron Jobs (Recommended)
+## Set Up Cron Jobs (Recommended)
 Start the core long-running services at boot and keep cron for periodic maintenance tasks. If you enable optional features such as telnet, Gemini, or DOS doors, see the [Operation](#operation) section for the additional `@reboot` entries for those daemons.
 
 ```cron
@@ -487,7 +541,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference co
 - Bind internal services (admin daemon, DOSBox bridge, PostgreSQL) to `127.0.0.1`.
 - Publish user-facing services through a reverse proxy with TLS.
 
-## Upgrading
+# Upgrading
 
 In general, you can follow these general steps when upgrading BinktermPHP however individual versions may have their own requirements.
 
@@ -495,13 +549,13 @@ In general, you can follow these general steps when upgrading BinktermPHP howeve
 
 The general steps are:
 
-### From Git
+## From Git
 1. **Pull the latest code** - `git pull`
 2. **Run setup** - `php scripts/setup.php` (handles database migrations automatically)
 3. **Update configurations** - Review and update `config/binkp.json` and `.env` as needed for new features
 4. **Restart daemons (admin_daemon, binkd_scheduler, binkd_server)** - `bash scripts/restart_daemons.sh` or restart using your preferred system service tool
 
-### Using the BinktermPHP installer
+## Using the BinktermPHP installer
 
 If you previously installed BinktermPHP using the installer, re-run the installer to perform an upgrade.  
 
@@ -514,7 +568,7 @@ php binkterm-installer.phar
 ```
 
 
-### Version-Specific Upgrade Guides
+## Version-Specific Upgrade Guides
 
 Individual versions with specific upgrade documentation:
 
@@ -535,9 +589,9 @@ Individual versions with specific upgrade documentation:
 | [1.7.0](docs/UPGRADING_1.7.0.md)       | Jan 28 2026 | New daemon/scheduler cron model                                                                                                                                                                                                                                                                                  |
 | [1.6.7](docs/UPGRADING_1.6.7.md)       | Jan 24 2026 | Multi-network support (FidoNet, FSXNet, etc.)                                                                                                                                                                                                                                                                    |
 
-## Database Management
+# Database Management
 
-### Database Scripts
+## Database Scripts
 
 ```bash
 # Fresh installation with admin user
@@ -556,7 +610,7 @@ php scripts/upgrade.php status             # Show migration status
 php scripts/upgrade.php create 1.3.0 "add feature"
 ```
 
-### Migration System
+## Migration System
 Database changes are managed through versioned SQL migration files stored in `database/migrations/`:
 
 - **Filename format**: `vX.Y.Z_description.sql` (e.g., `v1.1.0_add_user_preferences.sql`)
@@ -564,9 +618,9 @@ Database changes are managed through versioned SQL migration files stored in `da
 - **Safe execution**: Each migration runs in a transaction with rollback on failure
 - **Comment support**: SQL comments are automatically stripped during execution
 
-## Command Line Scripts
+# Command Line Scripts
 
-### Message Posting Tool
+## Message Posting Tool
 Post netmail or echomail from command line:
 
 ```bash
@@ -588,7 +642,7 @@ php scripts/post_message.php --list-users
 php scripts/post_message.php --list-areas
 ```
 
-### Weather Report Generator
+## Weather Report Generator
 Generate detailed weather forecasts for posting to echomail areas:
 
 ```bash
@@ -607,7 +661,7 @@ php scripts/weather_report.php --config=/path/to/custom/weather.json
 
 The weather script is fully configurable via JSON configuration files, supporting any worldwide locations with descriptive forecasts and current conditions. See [scripts/README_weather.md](scripts/README_weather.md) for detailed setup instructions and configuration examples.
 
-### Activity Digest Generator
+## Activity Digest Generator
 Generate a monthly (or custom) digest covering polls, shoutbox, chat, and message activity:
 
 ```bash
@@ -621,7 +675,7 @@ php scripts/activity_digest.php --from=2026-01-01 --to=2026-01-31 --output=diges
 php scripts/activity_digest.php --since=30d --format=ansi --output=digests/last_month.ans
 ```
 
-### Activity Report Sender
+## Activity Report Sender
 Generate an ANSI digest and send it as netmail to the sysop (weekly by default):
 
 ```bash
@@ -638,7 +692,7 @@ Weekly cron example:
 0 9 * * 1 /usr/bin/php /path/to/binkterm/scripts/send_activityreport.php --since=7d
 ```
 
-### Echomail Maintenance Utility
+## Echomail Maintenance Utility
 Manage echomail storage by purging old messages based on age or message count limits:
 
 ```bash
@@ -657,7 +711,7 @@ php scripts/echomail_maintenance.php --echo=SYNCDATA --max-age=90 --max-count=20
 
 The maintenance script provides flexible echomail cleanup with age-based deletion, count-based limits, dry-run preview mode, and per-echo or bulk processing. See [scripts/README_echomail_maintenance.md](scripts/README_echomail_maintenance.md) for detailed documentation, cron job examples, and best practices.
 
-### Subscribe Users to Echo Areas
+## Subscribe Users to Echo Areas
 Forcefully subscribe users to echo areas for important announcements or required areas:
 
 ```bash
@@ -686,7 +740,7 @@ This is particularly useful for:
 - Pre-subscribing new users to recommended areas
 - Managing default subscriptions for community areas
 
-### Move Messages Between Echo Areas
+## Move Messages Between Echo Areas
 Move all messages from one echo area to another for reorganization or consolidation:
 
 ```bash
@@ -705,7 +759,7 @@ php scripts/move_messages.php --from-tag=TEST --to-tag=GENERAL --domain=fsxnet -
 
 The move_messages script transfers all messages from a source echo area to a destination area, automatically updating message counts for both areas. This is useful for consolidating duplicate echoes, reorganizing areas, or fixing misrouted messages. The script supports both echo area IDs and tag-based lookups, includes confirmation prompts, and provides dry-run mode for safe previewing.
 
-### User Management Tool
+## User Management Tool
 Manage user accounts from the command line:
 
 ```bash
@@ -745,7 +799,7 @@ Options:
 - `--confirm`: Confirm destructive operations
 - `--non-interactive`: Don't prompt for input
 
-### Binkp Server Management
+## Binkp Server Management
 
 The binkp server (`binkp_server.php`) listens for incoming connections from other FTN nodes. When another system wants to send you mail or pick up outbound packets, they connect to your binkp server. This is essential for receiving crashmail (direct delivery) and for other nodes to poll your system.
 
@@ -753,7 +807,7 @@ Polling (`binkp_poll.php`) makes outbound connections to your uplinks to send an
 
 **Note:** The binkp server requires `pcntl_fork()` which is not available on Windows.
 
-#### Start Binkp Server
+### Start Binkp Server
 ```bash
 # Start server in foreground
 php scripts/binkp_server.php
@@ -765,7 +819,7 @@ php scripts/binkp_server.php --daemon
 php scripts/binkp_server.php --port=24554 --log-level=DEBUG
 ```
 
-#### Running as a System Service
+### Running as a System Service
 
 To run the binkp server automatically on system startup, create a systemd service file:
 
@@ -801,7 +855,7 @@ sudo systemctl start binkp
 sudo systemctl status binkp
 ```
 
-#### Manual Polling
+### Manual Polling
 ```bash
 # Poll specific uplink
 php scripts/binkp_poll.php 1:153/149
@@ -816,7 +870,7 @@ php scripts/binkp_poll.php --all --queued-only
 php scripts/binkp_poll.php --test 1:153/149
 ```
 
-#### System Status
+### System Status
 ```bash
 # Show all status information
 php scripts/binkp_status.php
@@ -830,7 +884,7 @@ php scripts/binkp_status.php --config
 php scripts/binkp_status.php --json
 ```
 
-#### Automated Scheduler
+### Automated Scheduler
 ```bash
 # Start scheduler daemon
 php scripts/binkp_scheduler.php --daemon
@@ -845,13 +899,13 @@ php scripts/binkp_scheduler.php --status
 php scripts/binkp_scheduler.php --interval=120
 ```
 
-#### Debug Connection Issues
+### Debug Connection Issues
 ```bash
 # Detailed connection debugging
 php scripts/debug_binkp.php 1:153/149
 ```
 
-### Packet Processing
+## Packet Processing
 ```bash
 # Process inbound packets
 php scripts/process_packets.php
@@ -860,7 +914,7 @@ php scripts/process_packets.php
 By default, leftover unprocessed files in `data/inbound/` are deleted after processing.
 Set `BINKP_KEEP_UNPROCESSED_FILES=true` in `.env` to move them to `data/inbound/unprocessed/` instead.
 
-#### Fidonet Bundle Extraction
+### Fidonet Bundle Extraction
 Fidonet day bundles (e.g., `.su0`, `.mo1`, `.we1`) and legacy archives like `.arc`, `.arj`, `.lzh`, `.rar` may contain `.pkt` files. BinktermPHP will try ZIP first, then fall back to external extractors.
 
 Configure extractors via `.env`:
@@ -870,7 +924,7 @@ ARCMAIL_EXTRACTORS=["7z x -y -o{dest} {archive}","unzip -o {archive} -d {dest}"]
 
 Install a compatible extractor (7-Zip recommended) so non-ZIP bundles can be unpacked.
 
-### Admin Daemon
+## Admin Daemon
 The admin daemon is a lightweight control socket that accepts authenticated commands to run backend tasks from inside the app. It listens on a Unix socket by default (Linux/macOS) and TCP on Windows.
 
 ```bash
@@ -902,10 +956,10 @@ Environment options:
 - `ADMIN_DAEMON_SOCKET_PERMS`: Unix socket permissions (octal, e.g. `0660`)
 - `ADMIN_DAEMON_SECRET`: Shared secret required on connect
 - `ADMIN_DAEMON_PID_FILE`: Optional PID file location
-### Nodelist Updates
+## Nodelist Updates
 Automatically download and import nodelists from configured sources.
 
-#### Configuration
+### Configuration
 Create `config/nodelists.json` (or run the script once to generate an example):
 
 ```json
@@ -932,7 +986,7 @@ Create `config/nodelists.json` (or run the script once to generate an example):
 }
 ```
 
-#### URL Macros
+### URL Macros
 URLs support date macros for dynamic nodelist filenames:
 
 | Macro | Description | Example |
@@ -945,7 +999,7 @@ URLs support date macros for dynamic nodelist filenames:
 
 Example: `https://example.com/NODELIST.Z|DAY|` becomes `NODELIST.Z23` on day 23.
 
-#### Usage
+### Usage
 ```bash
 # Run nodelist update (downloads and imports all enabled sources)
 php scripts/update_nodelists.php
@@ -960,9 +1014,9 @@ php scripts/update_nodelists.php --force
 php scripts/update_nodelists.php --help
 ```
 
-## Operation
+# Operation
 
-### Starting the System
+## Starting the System
 
 1. **Start Web Server**: Ensure Apache/Nginx is running, or use PHP built-in server
 2. **Start Admin Daemon**: `php scripts/admin_daemon.php --daemon`
@@ -974,21 +1028,21 @@ php scripts/update_nodelists.php --help
    - `node scripts/dosbox-bridge/multiplexing-server.js --daemon`
 6. **Polling + Packet Processing**: handled by the scheduler via the admin daemon
 
-### Daily Operations
+## Daily Operations
 
-#### Via Web Interface
+### Via Web Interface
 1. Navigate to your binktest URL
 2. Login with your credentials
 3. Use the Binkp tab to monitor connections and manage uplinks
 4. Send/receive messages via Netmail and Echomail tabs
 
-#### Via Command Line
+### Via Command Line
 - Monitor status: `php scripts/binkp_status.php`
 - Manual poll: `php scripts/binkp_poll.php --all`
 - Post messages: `php scripts/post_message.php [options]`
 - Chat cleanup: `php scripts/chat_cleanup.php --limit=500 --max-age-days=30`
 
-#### BBS Advertising System
+### BBS Advertising System
 ANSI ads can be placed in the `bbs_ads/` directory (files ending in `.ans`). A random ad will be displayed on the main dashboard and can be viewed full-screen via `/ads/random`.
 
 Post a random ad to an echoarea using:
@@ -1012,7 +1066,7 @@ php scripts/generate_ad.php --stdout
 
 For extended usage and examples, see `docs/ANSI_Ads_Generator.md`.
 
-### Cron Job Setup
+## Cron Job Setup
 The recommended approach is to start the core services at boot (systemd or `@reboot` cron). If you use telnet, Gemini, or DOS doors, add the optional daemon entries below as needed. Direct cron usage of `binkp_poll.php` and `process_packets.php` is deprecated but still supported.
 
 ```bash
@@ -1048,11 +1102,11 @@ The recommended approach is to start the core services at boot (systemd or `@reb
 # */5 * * * * /usr/bin/php /path/to/binktest/scripts/binkp_poll.php --all
 ```
 
-## Joining LovlyNet Network
+# Joining LovlyNet Network
 
 LovlyNet is a FidoNet Technology Network (FTN) operating in Zone 227 with automated registration and configuration. You can join the network and get an FTN address assigned automatically without manual coordination with a hub sysop.
 
-### Quick Start
+## Quick Start
 
 Join LovlyNet in minutes:
 
@@ -1067,7 +1121,7 @@ The setup script will:
 - Subscribe you to default echo areas (LVLY_BINKTERMPHP, LVLY_ANNOUNCE, LVLY_TEST)
 - Generate secure passwords for binkp and areafix
 
-### Public vs Passive Nodes
+## Public vs Passive Nodes
 
 **Choose Public Node if:**
 - Your BBS is accessible from the internet
@@ -1083,7 +1137,7 @@ The setup script will:
 
 Passive nodes must poll the hub regularly (cron recommended every 15-30 minutes).
 
-### Setting Up Polling for Passive Nodes
+## Setting Up Polling for Passive Nodes
 
 Add to crontab:
 ```bash
@@ -1091,7 +1145,7 @@ Add to crontab:
 */15 * * * * cd /path/to/binkterm-php && php scripts/binkp_poll.php >> data/logs/poll.log 2>&1
 ```
 
-### Updating Registration
+## Updating Registration
 
 To change your hostname, switch between public/passive modes, or update other details:
 
@@ -1099,7 +1153,7 @@ To change your hostname, switch between public/passive modes, or update other de
 php scripts/lovlynet_setup.php --update
 ```
 
-### Complete Documentation
+## Complete Documentation
 
 For detailed information including:
 - Public vs passive node comparison
@@ -1111,18 +1165,18 @@ For detailed information including:
 
 See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's guide.
 
-### Quick Reference
+## Quick Reference
 
 - **Network**: LovlyNet (Zone 227)
 - **Hub**: 227:1/1 at lovlynet.lovelybits.org:24554
 - **Registration**: Automated via `lovlynet_setup.php`
 - **Services**: AREAFIX and FILEFIX using your AreaFix password as the subject line
 
-## Troubleshooting
+# Troubleshooting
 
-### Common Issues
+## Common Issues
 
-#### Connection Problems
+### Connection Problems
 **Problem**: Cannot connect to uplink
 **Solutions**:
 1. Check network connectivity: `ping uplink.hostname.com`
@@ -1131,7 +1185,7 @@ See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's gu
 4. Check logs in `data/logs/` directory
 5. Verify password in configuration
 
-#### Authentication Failures
+### Authentication Failures
 **Problem**: Password mismatch errors
 **Solutions**:
 1. Verify password in `config/binkp.json` matches uplink configuration
@@ -1139,7 +1193,7 @@ See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's gu
 3. Ensure uplink has your address and password configured
 4. Run debug script to see exact authentication flow
 
-#### File Transfer Issues
+### File Transfer Issues
 **Problem**: Files not transferring properly
 **Solutions**:
 1. Check file permissions on inbound/outbound directories
@@ -1148,7 +1202,7 @@ See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's gu
 4. Review transfer logs for specific error messages
 5. Test with smaller files first
 
-#### Web Interface Problems
+### Web Interface Problems
 **Problem**: Cannot access web interface
 **Solutions**:
 1. Check web server error logs
@@ -1157,7 +1211,7 @@ See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's gu
 4. Test PHP configuration: `php -m`
 5. Verify database file permissions
 
-### Log Files
+## Log Files
 Monitor these log files for troubleshooting:
 
 - `data/logs/binkp_server.log` - Server daemon logs
@@ -1166,7 +1220,7 @@ Monitor these log files for troubleshooting:
 - `data/logs/binkp_debug.log` - Debug connection issues
 - `data/logs/binkp_web.log` - Web interface API calls
 
-### Debug Mode
+## Debug Mode
 Enable detailed logging for troubleshooting:
 
 ```bash
@@ -1180,16 +1234,16 @@ php scripts/debug_binkp.php 1:153/149
 tail -f data/logs/binkp_server.log
 ```
 
-### Analytics
+## Analytics
 
 You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.
 See `templates/custom/header.insert.twig.example` for reference with Google Analytics and other tracking examples.
 
-## Customization
+# Customization
 
 BinktermPHP provides several ways to customize the look and feel without modifying core files:
 
-### Appearance System (Admin UI)
+## Appearance System (Admin UI)
 
 The easiest way to customize your BBS is through **Admin → Appearance**, which provides a point-and-click interface for:
 
@@ -1202,7 +1256,7 @@ The easiest way to customize your BBS is through **Admin → Appearance**, which
 
 All appearance settings are stored in `data/appearance.json` and take effect immediately.
 
-### Manual Customization
+## Manual Customization
 
 - **Custom Stylesheet**: Set `STYLESHEET=/css/mytheme.css` in `.env` (includes built-in dark theme at `/css/dark.css`)
 - **Template Overrides**: Copy any template to `templates/custom/` to override it without touching core files
@@ -1215,16 +1269,16 @@ All customizations are upgrade-safe and won't be overwritten when updating Binkt
 
 For detailed instructions including the full appearance configuration reference, shell template structure, Twig variables, and code examples, see **[docs/CUSTOMIZING.md](docs/CUSTOMIZING.md)**.
 
-### Performance Tuning
+## Performance Tuning
 
-#### High Traffic Systems
+### High Traffic Systems
 1. Increase `max_connections` in configuration
 2. Use faster storage for inbound/outbound directories
 3. Consider SSD storage for database
 4. Monitor system resources during peak times
 5. Optimize PHP opcache settings
 
-#### Backend Profiling (Slow Request Logging)
+### Backend Profiling (Slow Request Logging)
 For deployed systems where you need lightweight backend profiling, you can enable slow request logging. This logs slow
 requests to the PHP error log via `error_log()` so you can identify bottlenecks without external tooling.
 
@@ -1237,13 +1291,13 @@ PERF_LOG_SLOW_MS=500
 - `PERF_LOG_ENABLED`: Set to `true` to enable logging.
 - `PERF_LOG_SLOW_MS`: Minimum duration in milliseconds before a request is logged.
 
-#### Memory Issues
+### Memory Issues
 1. Monitor PHP memory usage
 2. Process packets more frequently to avoid large queues
 3. Clean up old log files regularly
 4. Consider increasing PHP memory limit
 
-### Getting Help
+# Getting Help
 If you encounter issues not covered here:
 
 1. Check the debug logs with maximum verbosity
@@ -1256,27 +1310,27 @@ If you encounter issues not covered here:
    - Debug log excerpts
    - System information (OS, PHP version)
 
-## Security Considerations
+# Security Considerations
 
-### Network Security
+## Network Security
 - Binkp server listens on all interfaces by default
 - Consider firewall rules to restrict access
 - Monitor connection logs for unauthorized attempts
 - Use strong passwords for uplink authentication
 
-### File Security
+## File Security
 - Inbound directory should not be web-accessible
 - Set appropriate file permissions (755 for directories, 644 for files)
 - Regular backup of database and configuration files
 - Monitor disk space to prevent DoS via large files
 
-### Web Security
+## Web Security
 - Use HTTPS in production environments
 - Implement proper session management
 - Regular security updates of dependencies
 - Consider rate limiting for API endpoints
 
-## File Areas
+# File Areas
 
 File areas are organized collections of downloadable files, similar to echo areas but for file distribution. Each area is identified by a `tag` and a `domain` (e.g., `NODELIST` in `fidonet` or `localnet`). File areas can be local‑only or networked for distribution to uplinks, and they support controls like maximum file size, upload permissions, and virus scanning.
 
@@ -1401,6 +1455,10 @@ if ($userIdFromUrl && $tokenFromUrl) {
 ```
 ---
 
+# Doors
+
+Doors are external programs or games that run within the BBS, launched on demand for individual users. BinktermPHP supports three types of doors: native Linux and Windows programs that run directly via PTY, classic DOS games running under DOSBox emulation, and browser-based doors that run as web applications in the user's browser. All door types are managed from the admin interface and can integrate with the credits economy.
+
 ## Native Doors - Native Linux / Windows Door Programs
 
 BinktermPHP supports running native Linux binaries and Windows executables as BBS doors. Native doors run directly via PTY (pseudo-terminal) with no emulator overhead, making them suitable for modern programs, shell scripts, or compiled binaries.
@@ -1412,7 +1470,7 @@ BinktermPHP supports running native Linux binaries and Windows executables as BB
 - **PTY Execution** - Door runs in a pseudo-terminal with full ANSI/VT100 support
 - **Drop Files & Environment Variables** - DOOR.SYS written to `native-doors/drops/NODE{n}/`; user data also injected as environment variables
 
-### Key Features
+##3# Key Features
 
 - **No Emulator Required** - Doors launch instantly with no DOSBox overhead
 - **Multi-Node Support** - Isolated sessions per node with DOOR.SYS drop files written per-session, same as DOS doors
@@ -1564,11 +1622,11 @@ Games interact with the BBS through REST endpoints:
 
 For the WebDoor documentation as used by BinktermPHP see [docs/WebDoors.md](docs/WebDoors.md).
 
-## Gemini Support
+# Gemini Support
 
 BinktermPHP includes first-class support for the [Gemini protocol](https://geminiprotocol.net/) — a lightweight, privacy-focused alternative to the web that uses a simple text format called gemtext.
 
-### Gemini Browser
+## Gemini Browser
 
 A built-in Gemini browser WebDoor lets users explore Geminispace without leaving the BBS. It includes:
 
@@ -1580,7 +1638,7 @@ A built-in Gemini browser WebDoor lets users explore Geminispace without leaving
 
 The browser opens to a curated start page with links to popular Geminispace destinations. The start page can be overridden in Admin → WebDoors → Gemini Browser.
 
-### Gemini Capsule Hosting
+## Gemini Capsule Hosting
 
 BBS users can publish personal Gemini capsules directly from the web interface. The **Gemini Capsule** WebDoor provides:
 
@@ -1601,11 +1659,11 @@ The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) tha
 
 See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
 
-## Frequently Asked Questions
+# Frequently Asked Questions
 
 See [FAQ.md](FAQ.md) for Frequently (or infrequently) Asked Questions
 
-## Developer Guide
+# Developer Guide
 
 For developers working on BinktermPHP or integrating with the system, see the comprehensive **[Developer Guide](docs/DEVELOPER_GUIDE.md)** which covers:
 
@@ -1618,11 +1676,11 @@ For developers working on BinktermPHP or integrating with the system, see the co
 
 The Developer Guide is essential reading for anyone contributing code, developing WebDoors, or extending the system.
 
-## Localization (i18n) for Contributors
+# Localization (i18n) for Contributors
 
 BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and API errors. For a full technical reference see [docs/Localization.md](docs/Localization.md).
 
-### Catalogs and Key Layout
+## Catalogs and Key Layout
 
 - Translation files live in:
   - `config/i18n/en/common.php`
@@ -1632,7 +1690,7 @@ BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and A
 - UI keys should use the `ui.*` prefix (for example `ui.settings.*`).
 - API error keys should use the `errors.*` prefix.
 
-### Twig Usage
+## Twig Usage
 
 - Use the Twig `t()` helper instead of hardcoded literals:
 ```twig
@@ -1640,7 +1698,7 @@ BinktermPHP uses key-based localization for Twig templates, JavaScript UI, and A
 {{ t('ui.polls.create.submit', {'cost': poll_cost}, 'common') }}
 ```
 
-### JavaScript Usage
+## JavaScript Usage
 
 - Use `window.t(key, params, fallback)` (or a local `uiT` wrapper).
 - Always provide a fallback string for resilience.
@@ -1652,7 +1710,7 @@ window.t('ui.polls.create.submit', { cost: 25 }, 'Create Poll ({cost} credits)')
 JavaScript catalogs are loaded on demand from:
 - `GET /api/i18n/catalog?ns=common,errors&locale=<locale>`
 
-### API Errors (`error_code`)
+## API Errors (`error_code`)
 
 - API responses should include both:
   - `error_code` (translation key)
@@ -1671,7 +1729,7 @@ php scripts/check_i18n_hardcoded_strings.php
 php scripts/check_i18n_error_keys.php
 ```
 
-## Contributing
+# Contributing
 
 We welcome contributions to BinktermPHP! Before contributing, please review:
 
@@ -1686,17 +1744,17 @@ We welcome contributions to BinktermPHP! Before contributing, please review:
 
 All contributions must be submitted via pull request and will be reviewed by project maintainers.
 
-## License
+# License
 
 This project is licensed under a BSD License. See LICENSE.md for more information.
 
-## Support
+# Support
 
 - **Documentation**: This README and inline code comments
 - **Issues**: GitHub issue tracker
 - **Community**: Fidonet echo areas and developer forums
 
-## Acknowledgments
+# Acknowledgments
 
 - Fidonet Technical Standards Committee for protocol specifications
 - Original binkd developers for reference implementation
