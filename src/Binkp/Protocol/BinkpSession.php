@@ -1049,16 +1049,20 @@ class BinkpSession
 
         $inboundPath = $this->config->getInboundPath();
         $filepath = $inboundPath . '/' . $filename;
+        $tmpPath   = $filepath . '.tmp';
 
         // Handle resume if offset > 0
         if ($offset > 0) {
-            $this->fileHandle = fopen($filepath, 'r+b');
+            // Try resuming the temp file; fall back to the final file if the
+            // temp was already renamed (e.g. after a crash-recovery scenario).
+            $resumePath = file_exists($tmpPath) ? $tmpPath : $filepath;
+            $this->fileHandle = fopen($resumePath, 'r+b');
             if ($this->fileHandle) {
                 fseek($this->fileHandle, $offset);
                 $this->currentFile['received'] = $offset;
             }
         } else {
-            $this->fileHandle = fopen($filepath, 'wb');
+            $this->fileHandle = fopen($tmpPath, 'wb');
         }
 
         if (!$this->fileHandle) {
@@ -1083,7 +1087,16 @@ class BinkpSession
             if ($this->currentFile['received'] >= $this->currentFile['size']) {
                 fclose($this->fileHandle);
                 $this->fileHandle = null;
-                
+
+                // Atomically rename the temp file to its final name so that
+                // process_packets cannot see the file until it is fully written.
+                $inboundPath = $this->config->getInboundPath();
+                $finalPath   = $inboundPath . '/' . $this->currentFile['name'];
+                $tmpPath     = $finalPath . '.tmp';
+                if (!rename($tmpPath, $finalPath)) {
+                    $this->log("Failed to rename temp file to final: " . $this->currentFile['name'], 'ERROR');
+                }
+
                 $this->filesReceived[] = $this->currentFile['name'];
                 $this->log("File received: " . $this->currentFile['name'] . " ({$this->currentFile['received']} bytes)", 'INFO');
 
@@ -1373,10 +1386,10 @@ class BinkpSession
 
         if ($this->currentFile) {
             $inboundPath = $this->config->getInboundPath();
-            $filepath = $inboundPath . '/' . $this->currentFile['name'];
-            if (file_exists($filepath) && $this->currentFile['received'] < $this->currentFile['size']) {
-                unlink($filepath);
-                $this->log("Deleted incomplete file: " . $this->currentFile['name'], 'DEBUG');
+            $tmpPath = $inboundPath . '/' . $this->currentFile['name'] . '.tmp';
+            if (file_exists($tmpPath) && $this->currentFile['received'] < $this->currentFile['size']) {
+                unlink($tmpPath);
+                $this->log("Deleted incomplete temp file: " . $this->currentFile['name'], 'DEBUG');
             }
         }
     }

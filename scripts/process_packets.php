@@ -146,6 +146,9 @@ try {
         if ($ext === 'tic') {
             continue; // Leave TIC files because they may still be waiting for their data file
         }
+        if ($ext === 'tmp') {
+            continue; // Leave .tmp files — they are being actively received by the binkp session
+        }
 
         if ($keepUnprocessedFiles) {
             $dest = $unprocessedDir . '/' . basename($file);
