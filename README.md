@@ -78,16 +78,10 @@ We're looking for experienced PHP developers interested in contributing to Binkt
   - [Updating Registration](#updating-registration)
   - [Complete Documentation](#complete-documentation)
   - [Quick Reference](#quick-reference)
-- [Troubleshooting](#troubleshooting)
-  - [Common Issues](#common-issues)
-  - [Log Files](#log-files)
-  - [Debug Mode](#debug-mode)
-  - [Analytics](#analytics)
 - [Customization](#customization)
   - [Appearance System (Admin UI)](#appearance-system-admin-ui)
   - [Manual Customization](#manual-customization)
   - [Performance Tuning](#performance-tuning)
-- [Getting Help](#getting-help)
 - [Security Considerations](#security-considerations)
   - [Network Security](#network-security)
   - [File Security](#file-security)
@@ -104,7 +98,6 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Gemini Support](#gemini-support)
   - [Gemini Browser](#gemini-browser)
   - [Gemini Capsule Hosting](#gemini-capsule-hosting)
-- [Frequently Asked Questions](#frequently-asked-questions)
 - [Developer Guide](#developer-guide)
 - [Localization (i18n) for Contributors](#localization-i18n-for-contributors)
   - [Catalogs and Key Layout](#catalogs-and-key-layout)
@@ -114,6 +107,13 @@ We're looking for experienced PHP developers interested in contributing to Binkt
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
+  - [Troubleshooting](#troubleshooting)
+    - [Common Issues](#common-issues)
+    - [Log Files](#log-files)
+    - [Debug Mode](#debug-mode)
+    - [Analytics](#analytics)
+  - [Getting Help](#getting-help)
+  - [Frequently Asked Questions](#frequently-asked-questions)
 - [Acknowledgments](#acknowledgments)
 
 # Screen shots
@@ -1172,73 +1172,6 @@ See **[docs/LovlyNet.md](docs/LovlyNet.md)** for the complete administrator's gu
 - **Registration**: Automated via `lovlynet_setup.php`
 - **Services**: AREAFIX and FILEFIX using your AreaFix password as the subject line
 
-# Troubleshooting
-
-## Common Issues
-
-### Connection Problems
-**Problem**: Cannot connect to uplink
-**Solutions**:
-1. Check network connectivity: `ping uplink.hostname.com`
-2. Verify port is open: `telnet uplink.hostname.com 24554`
-3. Run debug script: `php scripts/debug_binkp.php 1:153/149`
-4. Check logs in `data/logs/` directory
-5. Verify password in configuration
-
-### Authentication Failures
-**Problem**: Password mismatch errors
-**Solutions**:
-1. Verify password in `config/binkp.json` matches uplink configuration
-2. Check that uplink address is correct
-3. Ensure uplink has your address and password configured
-4. Run debug script to see exact authentication flow
-
-### File Transfer Issues
-**Problem**: Files not transferring properly
-**Solutions**:
-1. Check file permissions on inbound/outbound directories
-2. Verify disk space availability
-3. Check for firewall blocking data transfer
-4. Review transfer logs for specific error messages
-5. Test with smaller files first
-
-### Web Interface Problems
-**Problem**: Cannot access web interface
-**Solutions**:
-1. Check web server error logs
-2. Verify PHP extensions are installed
-3. Check file permissions on web directory
-4. Test PHP configuration: `php -m`
-5. Verify database file permissions
-
-## Log Files
-Monitor these log files for troubleshooting:
-
-- `data/logs/binkp_server.log` - Server daemon logs
-- `data/logs/binkp_poll.log` - Polling activity
-- `data/logs/binkp_scheduler.log` - Automated scheduling
-- `data/logs/binkp_debug.log` - Debug connection issues
-- `data/logs/binkp_web.log` - Web interface API calls
-
-## Debug Mode
-Enable detailed logging for troubleshooting:
-
-```bash
-# Start server with debug logging
-php scripts/binkp_server.php --log-level=DEBUG
-
-# Debug specific connection
-php scripts/debug_binkp.php 1:153/149
-
-# Monitor logs in real-time
-tail -f data/logs/binkp_server.log
-```
-
-## Analytics
-
-You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.
-See `templates/custom/header.insert.twig.example` for reference with Google Analytics and other tracking examples.
-
 # Customization
 
 BinktermPHP provides several ways to customize the look and feel without modifying core files:
@@ -1296,19 +1229,6 @@ PERF_LOG_SLOW_MS=500
 2. Process packets more frequently to avoid large queues
 3. Clean up old log files regularly
 4. Consider increasing PHP memory limit
-
-# Getting Help
-If you encounter issues not covered here:
-
-1. Check the debug logs with maximum verbosity
-2. Test with minimal configuration (one uplink)
-3. Verify your FTN address is correct and authorized
-4. Contact your uplink administrator to verify connectivity
-5. Create issues on the project GitHub repository with:
-   - Full error messages
-   - Configuration details (remove passwords)
-   - Debug log excerpts
-   - System information (OS, PHP version)
 
 # Security Considerations
 
@@ -1659,10 +1579,6 @@ The capsule server is a separate opt-in daemon (`scripts/gemini_daemon.php`) tha
 
 See **[docs/GeminiCapsule.md](docs/GeminiCapsule.md)** for full setup instructions, TLS configuration, and Let's Encrypt integration.
 
-# Frequently Asked Questions
-
-See [FAQ.md](FAQ.md) for Frequently (or infrequently) Asked Questions
-
 # Developer Guide
 
 For developers working on BinktermPHP or integrating with the system, see the comprehensive **[Developer Guide](docs/DEVELOPER_GUIDE.md)** which covers:
@@ -1753,6 +1669,90 @@ This project is licensed under a BSD License. See LICENSE.md for more informatio
 - **Documentation**: This README and inline code comments
 - **Issues**: GitHub issue tracker
 - **Community**: Fidonet echo areas and developer forums
+
+## Troubleshooting
+
+### Common Issues
+
+#### Connection Problems
+**Problem**: Cannot connect to uplink
+**Solutions**:
+1. Check network connectivity: `ping uplink.hostname.com`
+2. Verify port is open: `telnet uplink.hostname.com 24554`
+3. Run debug script: `php scripts/debug_binkp.php 1:153/149`
+4. Check logs in `data/logs/` directory
+5. Verify password in configuration
+
+#### Authentication Failures
+**Problem**: Password mismatch errors
+**Solutions**:
+1. Verify password in `config/binkp.json` matches uplink configuration
+2. Check that uplink address is correct
+3. Ensure uplink has your address and password configured
+4. Run debug script to see exact authentication flow
+
+#### File Transfer Issues
+**Problem**: Files not transferring properly
+**Solutions**:
+1. Check file permissions on inbound/outbound directories
+2. Verify disk space availability
+3. Check for firewall blocking data transfer
+4. Review transfer logs for specific error messages
+5. Test with smaller files first
+
+#### Web Interface Problems
+**Problem**: Cannot access web interface
+**Solutions**:
+1. Check web server error logs
+2. Verify PHP extensions are installed
+3. Check file permissions on web directory
+4. Test PHP configuration: `php -m`
+5. Verify database file permissions
+
+### Log Files
+Monitor these log files for troubleshooting:
+
+- `data/logs/binkp_server.log` - Server daemon logs
+- `data/logs/binkp_poll.log` - Polling activity
+- `data/logs/binkp_scheduler.log` - Automated scheduling
+- `data/logs/binkp_debug.log` - Debug connection issues
+- `data/logs/binkp_web.log` - Web interface API calls
+
+### Debug Mode
+Enable detailed logging for troubleshooting:
+
+```bash
+# Start server with debug logging
+php scripts/binkp_server.php --log-level=DEBUG
+
+# Debug specific connection
+php scripts/debug_binkp.php 1:153/149
+
+# Monitor logs in real-time
+tail -f data/logs/binkp_server.log
+```
+
+### Analytics
+
+You can inject analytics tracking code into the page header by creating a template named `templates/custom/header.insert.twig`.
+See `templates/custom/header.insert.twig.example` for reference with Google Analytics and other tracking examples.
+
+## Getting Help
+If you encounter issues not covered here:
+
+1. Check the debug logs with maximum verbosity
+2. Test with minimal configuration (one uplink)
+3. Verify your FTN address is correct and authorized
+4. Contact your uplink administrator to verify connectivity
+5. Create issues on the project GitHub repository with:
+   - Full error messages
+   - Configuration details (remove passwords)
+   - Debug log excerpts
+   - System information (OS, PHP version)
+
+## Frequently Asked Questions
+
+See [FAQ.md](FAQ.md) for Frequently (or infrequently) Asked Questions
 
 # Acknowledgments
 
