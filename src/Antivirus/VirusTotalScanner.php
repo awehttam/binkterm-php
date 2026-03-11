@@ -72,29 +72,49 @@ class VirusTotalScanner implements ScannerInterface
                 'errors.virus_scanner.file_not_found', 'File not found');
         }
 
-        $hash = $sha256 ?? hash_file('sha256', $filePath);
+        $basename = basename($filePath);
+        $hash     = $sha256 ?? hash_file('sha256', $filePath);
+
+        error_log("[VirusTotal] Scan started: {$basename} (sha256={$hash})");
 
         // Step 1: hash lookup — returns immediately if VT already knows the file
+        error_log("[VirusTotal] Hash lookup: {$hash}");
         $known = $this->hashLookup($hash);
         if ($known !== null) {
+            $resultLabel = $known['result'] ?? 'unknown';
+            $signature   = $known['signature'] ? " signature={$known['signature']}" : '';
+            $permalink   = $known['permalink'] ? " url={$known['permalink']}" : '';
+            error_log("[VirusTotal] Hash known — result={$resultLabel}{$signature}{$permalink}");
             return $known;
         }
 
+        error_log("[VirusTotal] Hash not found in database");
+
         // Step 2: upload if within size limit
         if (filesize($filePath) > self::MAX_FILE_SIZE) {
+            error_log("[VirusTotal] Skipped upload: {$basename} exceeds 32 MB limit");
             return $this->result(false, 'skipped', null,
                 'errors.virustotal.file_too_large',
                 'File exceeds 32 MB VirusTotal upload limit; hash not found in database');
         }
 
+        error_log("[VirusTotal] Uploading file: {$basename}");
         $analysisId = $this->uploadFile($filePath);
         if ($analysisId === null) {
+            error_log("[VirusTotal] Upload failed: {$basename}");
             return $this->result(false, 'error', null,
                 'errors.virustotal.upload_failed', 'Failed to upload file to VirusTotal');
         }
 
+        error_log("[VirusTotal] Upload successful, analysis ID: {$analysisId}");
+
         // Step 3: poll for completed analysis
-        return $this->pollAnalysis($analysisId);
+        $result = $this->pollAnalysis($analysisId);
+        $resultLabel = $result['result'] ?? 'unknown';
+        $signature   = $result['signature'] ? " signature={$result['signature']}" : '';
+        $permalink   = $result['permalink'] ? " url={$result['permalink']}" : '';
+        error_log("[VirusTotal] Analysis complete: {$basename} result={$resultLabel}{$signature}{$permalink}");
+        return $result;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -147,7 +167,7 @@ class VirusTotalScanner implements ScannerInterface
         curl_close($ch);
 
         if ($body === false || $httpCode < 200 || $httpCode >= 300) {
-            error_log("[VirusTotal] Upload failed: HTTP {$httpCode}");
+            error_log("[VirusTotal] Upload HTTP error: {$httpCode}");
             return null;
         }
 
@@ -178,6 +198,7 @@ class VirusTotalScanner implements ScannerInterface
             sleep(self::POLL_INTERVAL);
         }
 
+        error_log("[VirusTotal] Poll timeout after " . self::POLL_TIMEOUT . "s for analysis ID: {$analysisId}");
         return $this->result(false, 'pending', null,
             'errors.virustotal.analysis_pending', 'Analysis still in progress; re-scan later');
     }
