@@ -142,7 +142,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('ui.common.close', {}, 'common') }}</button>
-                {% if current_user.is_admin %}
+                {% if current_user.is_admin and not virus_scan_disabled %}
                 <button type="button" class="btn btn-outline-secondary" id="virusScanBtn" onclick="requestVirusScan()" style="display:none;">
                     <i class="fas fa-shield-alt"></i> {{ t('ui.files.virus_scan_now', {}, 'common') }}
                 </button>

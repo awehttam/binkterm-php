@@ -870,7 +870,9 @@ SimpleRouter::get('/files', function() {
     }
 
     $template = new Template();
-    $template->renderResponse('files.twig');
+    $template->renderResponse('files.twig', [
+        'virus_scan_disabled' => \BinktermPHP\Config::env('VIRUS_SCAN_DISABLED', 'false') === 'true',
+    ]);
 });
 
 SimpleRouter::get('/compose/{type}', function($type) {
