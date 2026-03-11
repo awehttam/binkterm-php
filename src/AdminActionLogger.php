@@ -16,8 +16,18 @@
 
 namespace BinktermPHP;
 
+/**
+ * Logs administrative actions to the server log via the admin daemon.
+ */
 class AdminActionLogger
 {
+    /**
+     * Log an administrative action.
+     *
+     * @param int    $userId  ID of the admin user performing the action
+     * @param string $action  Short description of the action (e.g. 'user.ban', 'settings.save')
+     * @param array  $details Optional key/value context (affected record IDs, changed values, etc.)
+     */
     public static function logAction(int $userId, string $action, array $details = []): void
     {
         \BinktermPHP\Admin\AdminDaemonClient::log('INFO', "Admin action: {$action}", array_merge(
