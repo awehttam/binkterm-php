@@ -272,6 +272,9 @@ function updateProcessorConfigHint(type) {
         }
     } else {
         $('#processorConfigHint').text('');
+        // No config for this processor — clear the box so a previous
+        // processor's config doesn't carry over
+        $('#robotProcessorConfig').val('{}');
     }
 }
 
