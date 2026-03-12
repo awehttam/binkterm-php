@@ -2532,4 +2532,8 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.api.door.session_resumed' => 'Reprise de la session existante',
     'ui.files.previous_file' => 'Fichier précédent',
     'ui.files.next_file' => 'Fichier suivant',
+    'ui.bbs_directory.tab_list' => 'Liste du répertoire',
+    'ui.bbs_directory.tab_map' => 'Carte des systèmes BBS',
+    'ui.bbs_directory.map_no_coordinates' => 'Aucun système BBS ne dispose encore de coordonnées cartographiques.',
+    'ui.bbs_directory.map_partial_notice' => '{count} systèmes BBS ne sont pas affichés sur la carte car leurs emplacements n\'ont pas encore pu être géocodés.',
 ];

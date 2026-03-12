@@ -9,10 +9,12 @@ class BbsDirectory
 {
     /** @var \PDO */
     private \PDO $db;
+    private BbsDirectoryGeocoder $geocoder;
 
     public function __construct(\PDO $db)
     {
         $this->db = $db;
+        $this->geocoder = new BbsDirectoryGeocoder();
     }
 
     /**
@@ -97,12 +99,18 @@ class BbsDirectory
      */
     public function createPendingEntry(array $data, int $userId): int
     {
+        $coords = $this->resolveCoordinates(
+            $data['location'] ?? null,
+            null,
+            true
+        );
+
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
-                (name, sysop, location, os, telnet_host, telnet_port, website, notes,
+                (name, sysop, location, os, telnet_host, telnet_port, website, notes, latitude, longitude,
                  source, status, is_active, submitted_by_user_id, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes,
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, :latitude, :longitude,
                  'manual', 'pending', FALSE, :user_id, NOW(), NOW())
             RETURNING id
         ");
@@ -116,6 +124,8 @@ class BbsDirectory
             ':telnet_port' => isset($data['telnet_port']) ? (int)$data['telnet_port'] : 23,
             ':website'     => $data['website'] ?? null,
             ':notes'       => $data['notes'] ?? null,
+            ':latitude'    => $coords['latitude'],
+            ':longitude'   => $coords['longitude'],
             ':user_id'     => $userId,
         ]);
 
@@ -194,21 +204,22 @@ class BbsDirectory
     {
         $telnetHost = !empty($data['telnet_host']) ? trim($data['telnet_host']) : null;
         $telnetPort = isset($data['telnet_port']) && $data['telnet_port'] !== '' ? (int)$data['telnet_port'] : 23;
+        $existingByName = $this->findEntryByName((string)$data['name']);
 
-        // ── Step 1: try to match by telnet address ────────────────────────────
+        // Step 1: try to match by telnet address
         if ($telnetHost !== null) {
-            $sel = $this->db->prepare("
-                SELECT id, is_local FROM bbs_directory
-                WHERE LOWER(telnet_host) = LOWER(?) AND telnet_port = ?
-                LIMIT 1
-            ");
-            $sel->execute([$telnetHost, $telnetPort]);
-            $existing = $sel->fetch(\PDO::FETCH_ASSOC);
-
+            $existing = $this->findEntryByTelnet($telnetHost, $telnetPort);
             if ($existing) {
                 if ($existing['is_local']) {
                     return (int)$existing['id'];
                 }
+
+                $effectiveLocation = array_key_exists('location', $data)
+                    ? $data['location']
+                    : ($existing['location'] ?? null);
+                $locationChanged = array_key_exists('location', $data)
+                    && $this->normalizeLocation($data['location'] ?? null) !== $this->normalizeLocation($existing['location'] ?? null);
+                $coords = $this->resolveCoordinates($effectiveLocation, $existing, $locationChanged);
 
                 // Update in place; preserve the stored name
                 $upd = $this->db->prepare("
@@ -221,6 +232,8 @@ class BbsDirectory
                         ssh_port    = COALESCE(:ssh_port,  ssh_port),
                         website     = COALESCE(:website,   website),
                         software    = COALESCE(:software,  software),
+                        latitude    = :latitude,
+                        longitude   = :longitude,
                         source      = CASE WHEN source = 'manual' THEN 'manual' ELSE 'auto' END,
                         status      = 'active',
                         last_seen   = NOW(),
@@ -237,18 +250,31 @@ class BbsDirectory
                     ':ssh_port'    => isset($data['ssh_port']) && $data['ssh_port'] !== '' ? (int)$data['ssh_port'] : null,
                     ':website'     => $data['website'] ?? null,
                     ':software'    => $data['software'] ?? null,
+                    ':latitude'    => $coords['latitude'],
+                    ':longitude'   => $coords['longitude'],
                     ':id'          => (int)$existing['id'],
                 ]);
                 return (int)$existing['id'];
             }
         }
 
-        // ── Step 2: fall back to name-based upsert ────────────────────────────
+        // Step 2: fall back to name-based upsert
+        if ($existingByName && !empty($existingByName['is_local'])) {
+            return (int)$existingByName['id'];
+        }
+
+        $effectiveLocation = array_key_exists('location', $data)
+            ? $data['location']
+            : ($existingByName['location'] ?? null);
+        $locationChanged = array_key_exists('location', $data)
+            && $this->normalizeLocation($data['location'] ?? null) !== $this->normalizeLocation($existingByName['location'] ?? null);
+        $coords = $this->resolveCoordinates($effectiveLocation, $existingByName, $locationChanged);
+
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
-                (name, sysop, location, os, telnet_host, telnet_port, ssh_port, website, software, source, status, last_seen, is_active, created_at, updated_at)
+                (name, sysop, location, os, telnet_host, telnet_port, ssh_port, website, software, latitude, longitude, source, status, last_seen, is_active, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :ssh_port, :website, :software, 'auto', 'active', NOW(), TRUE, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :ssh_port, :website, :software, :latitude, :longitude, 'auto', 'active', NOW(), TRUE, NOW(), NOW())
             ON CONFLICT (LOWER(name)) DO UPDATE SET
                 sysop        = COALESCE(EXCLUDED.sysop,       bbs_directory.sysop),
                 location     = COALESCE(EXCLUDED.location,    bbs_directory.location),
@@ -258,6 +284,8 @@ class BbsDirectory
                 ssh_port     = COALESCE(EXCLUDED.ssh_port,    bbs_directory.ssh_port),
                 website      = COALESCE(EXCLUDED.website,     bbs_directory.website),
                 software     = COALESCE(EXCLUDED.software,    bbs_directory.software),
+                latitude     = EXCLUDED.latitude,
+                longitude    = EXCLUDED.longitude,
                 source       = CASE WHEN bbs_directory.source = 'manual' THEN 'manual' ELSE 'auto' END,
                 status       = 'active',
                 last_seen    = NOW(),
@@ -277,15 +305,15 @@ class BbsDirectory
             ':ssh_port'    => isset($data['ssh_port']) && $data['ssh_port'] !== '' ? (int)$data['ssh_port'] : null,
             ':website'     => $data['website'] ?? null,
             ':software'    => $data['software'] ?? null,
+            ':latitude'    => $coords['latitude'],
+            ':longitude'   => $coords['longitude'],
         ]);
 
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if ($row === false) {
-            // Entry exists but is protected (is_local=TRUE) — return its id without modifying it
-            $sel = $this->db->prepare("SELECT id FROM bbs_directory WHERE LOWER(name) = LOWER(?)");
-            $sel->execute([$data['name']]);
-            $row = $sel->fetch(\PDO::FETCH_ASSOC);
+            // Entry exists but is protected (is_local=TRUE); return its id without modifying it.
+            $row = $this->findEntryByName((string)$data['name']);
         }
 
         return (int)$row['id'];
@@ -299,11 +327,17 @@ class BbsDirectory
      */
     public function createEntry(array $data): int
     {
+        $coords = $this->resolveCoordinates(
+            $data['location'] ?? null,
+            null,
+            true
+        );
+
         $stmt = $this->db->prepare("
             INSERT INTO bbs_directory
-                (name, sysop, location, os, telnet_host, telnet_port, website, notes, source, is_active, is_local, created_at, updated_at)
+                (name, sysop, location, os, telnet_host, telnet_port, website, notes, latitude, longitude, source, is_active, is_local, created_at, updated_at)
             VALUES
-                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, 'manual', :is_active, :is_local, NOW(), NOW())
+                (:name, :sysop, :location, :os, :telnet_host, :telnet_port, :website, :notes, :latitude, :longitude, 'manual', :is_active, :is_local, NOW(), NOW())
             RETURNING id
         ");
 
@@ -316,6 +350,8 @@ class BbsDirectory
             ':telnet_port' => isset($data['telnet_port']) ? (int)$data['telnet_port'] : 23,
             ':website'     => $data['website'] ?? null,
             ':notes'       => $data['notes'] ?? null,
+            ':latitude'    => $coords['latitude'],
+            ':longitude'   => $coords['longitude'],
             ':is_active'   => isset($data['is_active']) ? ($data['is_active'] ? 'true' : 'false') : 'true',
             ':is_local'    => !empty($data['is_local']) ? 'true' : 'false',
         ]);
@@ -333,6 +369,10 @@ class BbsDirectory
      */
     public function updateEntry(int $id, array $data): bool
     {
+        $existing = $this->getEntry($id);
+        $locationChanged = $this->normalizeLocation($data['location'] ?? null) !== $this->normalizeLocation($existing['location'] ?? null);
+        $coords = $this->resolveCoordinates($data['location'] ?? null, $existing, $locationChanged);
+
         $stmt = $this->db->prepare("
             UPDATE bbs_directory SET
                 name        = :name,
@@ -343,6 +383,8 @@ class BbsDirectory
                 telnet_port = :telnet_port,
                 website     = :website,
                 notes       = :notes,
+                latitude    = :latitude,
+                longitude   = :longitude,
                 is_active   = :is_active,
                 is_local    = :is_local,
                 updated_at  = NOW()
@@ -358,6 +400,8 @@ class BbsDirectory
             ':telnet_port' => isset($data['telnet_port']) ? (int)$data['telnet_port'] : 23,
             ':website'     => $data['website'] ?? null,
             ':notes'       => $data['notes'] ?? null,
+            ':latitude'    => $coords['latitude'],
+            ':longitude'   => $coords['longitude'],
             ':is_active'   => isset($data['is_active']) ? ($data['is_active'] ? 'true' : 'false') : 'true',
             ':is_local'    => !empty($data['is_local']) ? 'true' : 'false',
             ':id'          => $id,
@@ -409,6 +453,9 @@ class BbsDirectory
 
         // source: 'manual' wins
         $mergedSource = ($keep['source'] === 'manual' || $discard['source'] === 'manual') ? 'manual' : $keep['source'];
+        $mergedLocation = $nullCoalesce($keep['location'], $discard['location']);
+        $locationChanged = $this->normalizeLocation($mergedLocation) !== $this->normalizeLocation($keep['location'] ?? null);
+        $coords = $this->resolveCoordinates($mergedLocation, $keep, $locationChanged);
 
         $this->db->prepare("
             UPDATE bbs_directory SET
@@ -421,13 +468,15 @@ class BbsDirectory
                 website     = :website,
                 software    = :software,
                 notes       = :notes,
+                latitude    = :latitude,
+                longitude   = :longitude,
                 last_seen   = :last_seen,
                 source      = :source,
                 updated_at  = NOW()
             WHERE id = :id
         ")->execute([
             ':sysop'       => $nullCoalesce($keep['sysop'],    $discard['sysop']),
-            ':location'    => $nullCoalesce($keep['location'], $discard['location']),
+            ':location'    => $mergedLocation,
             ':os'          => $nullCoalesce($keep['os'],       $discard['os']),
             ':telnet_host' => $mergedTelnetHost,
             ':telnet_port' => $mergedTelnetPort,
@@ -435,6 +484,8 @@ class BbsDirectory
             ':website'     => $nullCoalesce($keep['website'],  $discard['website']),
             ':software'    => $nullCoalesce($keep['software'], $discard['software']),
             ':notes'       => $nullCoalesce($keep['notes'],    $discard['notes']),
+            ':latitude'    => $coords['latitude'],
+            ':longitude'   => $coords['longitude'],
             ':last_seen'   => $mergedLastSeen,
             ':source'      => $mergedSource,
             ':id'          => $keepId,
@@ -477,5 +528,145 @@ class BbsDirectory
         }
 
         return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Backfill coordinates for entries that have a location but no coordinates.
+     *
+     * @param int|null $limit
+     * @param bool $dryRun
+     * @return array{selected:int, updated:int, skipped:int, failed:int}
+     */
+    public function backfillMissingCoordinates(?int $limit = null, bool $dryRun = false): array
+    {
+        $sql = "
+            SELECT id, name, location, latitude, longitude
+            FROM bbs_directory
+            WHERE location IS NOT NULL
+              AND BTRIM(location) <> ''
+              AND (latitude IS NULL OR longitude IS NULL)
+            ORDER BY id ASC
+        ";
+
+        if ($limit !== null && $limit > 0) {
+            $sql .= " LIMIT " . (int)$limit;
+        }
+
+        $stmt = $this->db->query($sql);
+        $entries = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $result = [
+            'selected' => count($entries),
+            'updated' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+        ];
+
+        $updateStmt = $this->db->prepare("
+            UPDATE bbs_directory
+            SET latitude = :latitude,
+                longitude = :longitude,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+
+        foreach ($entries as $entry) {
+            $coords = $this->resolveCoordinates($entry['location'] ?? null, $entry, true);
+            if ($coords['latitude'] === null || $coords['longitude'] === null) {
+                $result['failed']++;
+                continue;
+            }
+
+            if ($dryRun) {
+                $result['updated']++;
+                continue;
+            }
+
+            $updateStmt->execute([
+                ':latitude' => $coords['latitude'],
+                ':longitude' => $coords['longitude'],
+                ':id' => (int)$entry['id'],
+            ]);
+
+            if ($updateStmt->rowCount() > 0) {
+                $result['updated']++;
+            } else {
+                $result['skipped']++;
+            }
+        }
+
+        return $result;
+    }
+
+    private function findEntryByTelnet(string $telnetHost, int $telnetPort): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM bbs_directory
+            WHERE LOWER(telnet_host) = LOWER(?) AND telnet_port = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$telnetHost, $telnetPort]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    private function findEntryByName(string $name): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM bbs_directory WHERE LOWER(name) = LOWER(?)");
+        $stmt->execute([$name]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    private function resolveCoordinates(?string $location, ?array $existingEntry = null, bool $locationChanged = true): array
+    {
+        $normalizedLocation = $this->normalizeLocation($location);
+        $existingLocation = $this->normalizeLocation($existingEntry['location'] ?? null);
+        $hasExistingCoords = isset($existingEntry['latitude'], $existingEntry['longitude'])
+            && $existingEntry['latitude'] !== null
+            && $existingEntry['longitude'] !== null;
+
+        if (!$locationChanged && $existingLocation === $normalizedLocation && $hasExistingCoords) {
+            return [
+                'latitude' => (float)$existingEntry['latitude'],
+                'longitude' => (float)$existingEntry['longitude'],
+            ];
+        }
+
+        if ($normalizedLocation === null) {
+            return ['latitude' => null, 'longitude' => null];
+        }
+
+        $coords = $this->geocoder->geocodeLocation($normalizedLocation);
+        if ($coords !== null) {
+            return $coords;
+        }
+
+        return ['latitude' => null, 'longitude' => null];
+    }
+
+    private function normalizeLocation(?string $location): ?string
+    {
+        $location = trim((string)$location);
+        if ($location === '') {
+            return null;
+        }
+
+        $segments = array_map(static function ($segment) {
+            $segment = trim((string)$segment);
+            if ($segment === '') {
+                return null;
+            }
+
+            $segment = preg_replace('/\s+/', ' ', $segment);
+            return $segment === '' ? null : $segment;
+        }, explode(',', $location));
+
+        $segments = array_values(array_filter($segments, static fn($segment) => $segment !== null));
+        if ($segments === []) {
+            return null;
+        }
+
+        return implode(', ', $segments);
     }
 }

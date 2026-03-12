@@ -2,6 +2,20 @@
 
 {% block title %}{{ t('ui.bbs_directory.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
+{% block head %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <style>
+        #bbsSystemsMap {
+            height: 540px;
+            min-height: 360px;
+        }
+
+        .bbs-map-shell {
+            background: rgba(0, 0, 0, 0.18);
+        }
+    </style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
     <div>
@@ -19,87 +33,111 @@
     {% endif %}
 </div>
 
-{% if entries | length == 0 %}
-<div class="card">
-    <div class="card-body text-center text-muted py-5">
-        <i class="fas fa-server fa-3x mb-3 d-block"></i>
-        {{ t('ui.bbs_directory.no_entries', {}, 'common') }}
+<ul class="nav nav-tabs mb-3" id="bbsDirectoryTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="bbs-list-tab" data-bs-toggle="tab" data-bs-target="#bbs-list-pane" type="button" role="tab">
+            {{ t('ui.bbs_directory.tab_list', {}, 'common') }}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="bbs-map-tab" data-bs-toggle="tab" data-bs-target="#bbs-map-pane" type="button" role="tab">
+            {{ t('ui.bbs_directory.tab_map', {}, 'common') }}
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="bbs-list-pane" role="tabpanel" aria-labelledby="bbs-list-tab">
+        {% if entries | length == 0 %}
+        <div class="card">
+            <div class="card-body text-center text-muted py-5">
+                <i class="fas fa-server fa-3x mb-3 d-block"></i>
+                {{ t('ui.bbs_directory.no_entries', {}, 'common') }}
+            </div>
+        </div>
+        {% else %}
+        <div class="mb-3">
+            <input type="search" id="bbsSearch" class="form-control"
+                   placeholder="{{ t('ui.bbs_directory.search_placeholder', {}, 'common') }}"
+                   autocomplete="off">
+        </div>
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="bbsTable">
+                        <thead>
+                            <tr>
+                                <th>{{ t('ui.bbs_directory.col_name', {}, 'common') }}</th>
+                                <th>{{ t('ui.bbs_directory.col_sysop', {}, 'common') }}</th>
+                                <th>{{ t('ui.bbs_directory.col_location', {}, 'common') }}</th>
+                                <th>{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</th>
+                                <th>{{ t('ui.bbs_directory.col_website', {}, 'common') }}</th>
+                                <th>{{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}</th>
+                                {% if current_user and current_user.is_admin %}<th></th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody id="bbsTableBody">
+                            {% for entry in entries %}
+                            <tr data-search="{{ ([entry.name, entry.sysop, entry.location, entry.telnet_host, entry.software] | join(' ') | lower | e) }}">
+                                <td>
+                                    {% if entry.telnet_host %}
+                                        <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="fw-semibold">
+                                            {{ entry.name | e }}
+                                        </a>
+                                    {% else %}
+                                        <span class="fw-semibold">{{ entry.name | e }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ entry.sysop | e | default('') }}</td>
+                                <td>{{ entry.location | e | default('') }}</td>
+                                <td>
+                                    {% if entry.telnet_host %}
+                                        <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="font-monospace small">
+                                            {{ entry.telnet_host | e }}{% if entry.telnet_port != 23 %}:{{ entry.telnet_port }}{% endif %}
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.website %}
+                                        <a href="{{ entry.website | e }}" target="_blank" rel="noopener noreferrer" title="{{ entry.website | e }}">
+                                            <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td class="text-nowrap">
+                                    {% if entry.last_seen %}
+                                        <small class="text-muted" title="{{ entry.last_seen }}">{{ entry.last_seen | date('Y-m-d') }}</small>
+                                    {% endif %}
+                                </td>
+                                {% if current_user and current_user.is_admin %}
+                                <td>
+                                    <a href="/admin/bbs-directory?edit={{ entry.id }}" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.common.edit', {}, 'common') }}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div id="bbsNoResults" class="text-center text-muted py-4 d-none">
+                    {{ t('ui.bbs_directory.no_results', {}, 'common') }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="tab-pane fade" id="bbs-map-pane" role="tabpanel" aria-labelledby="bbs-map-tab">
+        <div class="card bbs-map-shell">
+            <div class="card-body">
+                <div id="bbsMapNotice" class="alert alert-secondary mb-3 d-none"></div>
+                <div id="bbsSystemsMap"></div>
+            </div>
+        </div>
     </div>
 </div>
-{% else %}
-<div class="mb-3">
-    <input type="search" id="bbsSearch" class="form-control"
-           placeholder="{{ t('ui.bbs_directory.search_placeholder', {}, 'common') }}"
-           autocomplete="off">
-</div>
-<div class="card">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0" id="bbsTable">
-                <thead>
-                    <tr>
-                        <th>{{ t('ui.bbs_directory.col_name', {}, 'common') }}</th>
-                        <th>{{ t('ui.bbs_directory.col_sysop', {}, 'common') }}</th>
-                        <th>{{ t('ui.bbs_directory.col_location', {}, 'common') }}</th>
-                        <th>{{ t('ui.bbs_directory.col_os', {}, 'common') }}</th>
-                        <th>{{ t('ui.bbs_directory.col_telnet', {}, 'common') }}</th>
-                        <th>{{ t('ui.bbs_directory.col_website', {}, 'common') }}</th>
-                        <th>{{ t('ui.bbs_directory.col_last_seen', {}, 'common') }}</th>
-                        {% if current_user and current_user.is_admin %}<th></th>{% endif %}
-                    </tr>
-                </thead>
-                <tbody id="bbsTableBody">
-                    {% for entry in entries %}
-                    <tr data-search="{{ ([entry.name, entry.sysop, entry.location, entry.os, entry.telnet_host, entry.software] | join(' ') | lower | e) }}">
-                        <td>
-                            {% if entry.telnet_host %}
-                                <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="fw-semibold">
-                                    {{ entry.name | e }}
-                                </a>
-                            {% else %}
-                                <span class="fw-semibold">{{ entry.name | e }}</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ entry.sysop | e | default('') }}</td>
-                        <td>{{ entry.location | e | default('') }}</td>
-                        <td>{{ entry.os | e | default('') }}</td>
-                        <td>
-                            {% if entry.telnet_host %}
-                                <a href="telnet://{{ entry.telnet_host }}:{{ entry.telnet_port }}" class="font-monospace small">
-                                    {{ entry.telnet_host | e }}{% if entry.telnet_port != 23 %}:{{ entry.telnet_port }}{% endif %}
-                                </a>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if entry.website %}
-                                <a href="{{ entry.website | e }}" target="_blank" rel="noopener noreferrer" title="{{ entry.website | e }}">
-                                    <i class="fas fa-external-link-alt"></i>
-                                </a>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if entry.last_seen %}
-                                <small class="text-muted" title="{{ entry.last_seen }}">{{ entry.last_seen | date('Y-m-d') }}</small>
-                            {% endif %}
-                        </td>
-                        {% if current_user and current_user.is_admin %}
-                        <td>
-                            <a href="/admin/bbs-directory?edit={{ entry.id }}" class="btn btn-sm btn-outline-secondary" title="{{ t('ui.common.edit', {}, 'common') }}">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                        </td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div id="bbsNoResults" class="text-center text-muted py-4 d-none">
-            {{ t('ui.bbs_directory.no_results', {}, 'common') }}
-        </div>
-    </div>
-</div>
-{% endif %}
 
 {% if current_user %}
 {# ── Submit BBS Modal ──────────────────────────────────────────────────── #}
@@ -171,32 +209,138 @@
 {% endblock %}
 
 {% block scripts %}
-{% if entries | length > 0 %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
 (function() {
     const input    = document.getElementById('bbsSearch');
     const rows     = document.querySelectorAll('#bbsTableBody tr');
     const noResult = document.getElementById('bbsNoResults');
     const table    = document.getElementById('bbsTable');
+    const mapTab   = document.getElementById('bbs-map-tab');
+    const mapNotice = document.getElementById('bbsMapNotice');
+    const mapEntries = [
+        {% for entry in entries %}
+        {
+            name: {{ entry.name|json_encode|raw }},
+            sysop: {{ (entry.sysop ?? '')|json_encode|raw }},
+            location: {{ (entry.location ?? '')|json_encode|raw }},
+            telnet_host: {{ (entry.telnet_host ?? '')|json_encode|raw }},
+            telnet_port: {{ (entry.telnet_port ?? 23)|json_encode|raw }},
+            website: {{ (entry.website ?? '')|json_encode|raw }},
+            last_seen: {{ (entry.last_seen ? entry.last_seen|date('Y-m-d') : null)|json_encode|raw }},
+            latitude: {{ entry.latitude is not null ? entry.latitude : 'null' }},
+            longitude: {{ entry.longitude is not null ? entry.longitude : 'null' }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    let bbsSystemsMap = null;
 
-    if (!input) return;
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
 
-    input.addEventListener('input', function() {
-        const q = this.value.trim().toLowerCase();
-        let visible = 0;
+    function initMap() {
+        if (bbsSystemsMap) {
+            bbsSystemsMap.invalidateSize();
+            return;
+        }
 
-        rows.forEach(function(row) {
-            const match = !q || row.dataset.search.indexOf(q) !== -1;
-            row.style.display = match ? '' : 'none';
-            if (match) visible++;
+        const mappableEntries = mapEntries.filter(function(entry) {
+            return entry.latitude !== null && entry.longitude !== null;
         });
 
-        table.style.display  = visible > 0 ? '' : 'none';
-        noResult.classList.toggle('d-none', visible > 0);
-    });
+        if (mappableEntries.length === 0) {
+            mapNotice.textContent = {{ t('ui.bbs_directory.map_no_coordinates', {}, 'common')|json_encode|raw }};
+            mapNotice.classList.remove('d-none');
+            document.getElementById('bbsSystemsMap').style.display = 'none';
+            return;
+        }
+
+        const unmappableCount = mapEntries.length - mappableEntries.length;
+        if (unmappableCount > 0) {
+            mapNotice.textContent = {{ t('ui.bbs_directory.map_partial_notice', {}, 'common')|json_encode|raw }}.replace('{count}', String(unmappableCount));
+            mapNotice.classList.remove('d-none');
+        }
+
+        bbsSystemsMap = L.map('bbsSystemsMap', {
+            scrollWheelZoom: false
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(bbsSystemsMap);
+
+        const bounds = [];
+        mappableEntries.forEach(function(entry) {
+            const lat = Number(entry.latitude);
+            const lon = Number(entry.longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                return;
+            }
+
+            const popupParts = [
+                '<div class="bbs-map-popup">',
+                '<strong>' + escapeHtml(entry.name) + '</strong>'
+            ];
+
+            if (entry.location) {
+                popupParts.push('<div>' + escapeHtml(entry.location) + '</div>');
+            }
+            if (entry.sysop) {
+                popupParts.push('<div>{{ t('ui.bbs_directory.col_sysop', {}, 'common')|escape('js') }}: ' + escapeHtml(entry.sysop) + '</div>');
+            }
+            if (entry.telnet_host) {
+                const portText = entry.telnet_port && Number(entry.telnet_port) !== 23 ? ':' + Number(entry.telnet_port) : '';
+                popupParts.push('<div><a href="telnet://' + encodeURI(entry.telnet_host) + portText + '">' + escapeHtml(entry.telnet_host + portText) + '</a></div>');
+            }
+            if (entry.website) {
+                popupParts.push('<div><a href="' + encodeURI(entry.website) + '" target="_blank" rel="noopener noreferrer">{{ t('ui.bbs_directory.col_website', {}, 'common')|escape('js') }}</a></div>');
+            }
+            if (entry.last_seen) {
+                popupParts.push('<div>{{ t('ui.bbs_directory.col_last_seen', {}, 'common')|escape('js') }}: ' + escapeHtml(entry.last_seen) + '</div>');
+            }
+            popupParts.push('</div>');
+
+            L.marker([lat, lon]).addTo(bbsSystemsMap).bindPopup(popupParts.join(''));
+            bounds.push([lat, lon]);
+        });
+
+        if (bounds.length === 1) {
+            bbsSystemsMap.setView(bounds[0], 6);
+        } else {
+            bbsSystemsMap.fitBounds(bounds, { padding: [30, 30] });
+        }
+    }
+
+    if (input) {
+        input.addEventListener('input', function() {
+            const q = this.value.trim().toLowerCase();
+            let visible = 0;
+
+            rows.forEach(function(row) {
+                const match = !q || row.dataset.search.indexOf(q) !== -1;
+                row.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+
+            table.style.display  = visible > 0 ? '' : 'none';
+            noResult.classList.toggle('d-none', visible > 0);
+        });
+    }
+
+    if (mapTab) {
+        mapTab.addEventListener('shown.bs.tab', function() {
+            initMap();
+            if (bbsSystemsMap) {
+                bbsSystemsMap.invalidateSize();
+            }
+        });
+    }
 })();
 </script>
-{% endif %}
 {% if current_user %}
 <script>
 function showSubmitModal() {

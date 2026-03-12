@@ -112,6 +112,17 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 ### BBS Directory
 
 - New public **BBS Directory** page (`/bbs-directory`) lists known BBS systems — automatically populated from echomail announcements and supplementable with manual entries. Accessible without login.
+- The public BBS Directory now includes Bootstrap tabs with a new **Map of BBS Systems** view powered by **OpenStreetMap/Leaflet**.
+- BBS Directory records now store optional `latitude` / `longitude` coordinates. These are geocoded from the entry's `location` field.
+- Geocoding occurs on BBS Directory create/update/upsert only when needed: when the normalized location changes, or when a location exists but coordinates are missing. Malformed location strings such as empty comma segments are normalized before lookup.
+- New `.env` controls for BBS Directory geocoding:
+  - `BBS_DIRECTORY_GEOCODING_ENABLED`
+  - `BBS_DIRECTORY_GEOCODER_URL`
+  - `BBS_DIRECTORY_GEOCODER_USER_AGENT`
+  - `BBS_DIRECTORY_GEOCODER_EMAIL`
+- Existing BBS Directory rows will not automatically gain coordinates at upgrade time. After running `php scripts/setup.php`, you can backfill missing coordinates with:
+  - `php scripts/backfill_bbs_directory_geocoding.php --dry-run`
+  - `php scripts/backfill_bbs_directory_geocoding.php`
 - Admin CRUD at **Admin → BBS Directory**: add, edit, and delete entries; search and paginate. Entries carry an Auto/Manual source badge; auto-populated entries updated by robots preserve manual entries' source flag.
 - New **Echomail Robots** framework: generic rule-based system that watches echo areas for matching messages and dispatches them to a configured processor. Manage rules at **Admin → Area Management → Echomail Robots**.
 - Built-in processor `ibbslastcall_rot47`: decodes ROT47-encoded `ibbslastcall-data` messages from FSXNet's FSX_DAT echo area and upserts BBS entries into the directory automatically.

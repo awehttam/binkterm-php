@@ -78,6 +78,18 @@ SITE_URL=https://yourbbs.example.com
 
 Used when generating share links, password-reset emails, and any absolute URL the server builds.  Must be the public-facing URL including scheme.  When behind a reverse proxy, set this explicitly — the server cannot reliably detect HTTPS from `$_SERVER`.
 
+### BBS Directory Geocoding
+
+```bash
+# Enabled by default
+# BBS_DIRECTORY_GEOCODING_ENABLED=true
+# BBS_DIRECTORY_GEOCODER_URL=https://nominatim.openstreetmap.org/search
+# BBS_DIRECTORY_GEOCODER_USER_AGENT=
+# BBS_DIRECTORY_GEOCODER_EMAIL=
+```
+
+These settings control the best-effort geocoding used to place BBS Directory entries on the public map. Coordinates are looked up from the entry's `location` field when a directory entry is created, updated, or upserted. If geocoding fails, the entry still saves normally and simply will not appear on the map until coordinates are available.
+
 ### SMTP Email
 
 ```bash
