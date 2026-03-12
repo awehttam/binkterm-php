@@ -1210,8 +1210,9 @@ function hasAnsiCodes(text) {
  * Check if text contains pipe codes (BBS color codes like |15, |04, etc. or special codes like |CL)
  */
 function hasPipeCodes(text) {
-    // Match either hex color codes (|00-|FF) or special letter codes (|CL, |PA, etc.)
-    return /\|[0-9A-Fa-f]{2}|\|[A-Z]{2}/i.test(text);
+    // Match single-digit shorthand (|1), two-digit color codes (|01, |0A, |1F),
+    // or special letter codes (|CL, |PA, etc.).
+    return /\|(?:[0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2}|[A-Z]{2})/i.test(text);
 }
 
 /**
@@ -1293,7 +1294,12 @@ function convertPipeCodesToAnsi(text) {
     // Codes use Renegade-style decimal notation: |00-|15 = foreground, |16-|23 = background.
     // Mystic-style hex codes (|0A = bright green, |1F = blue bg + white fg, etc.) are also
     // handled: codes with letters A-F are parsed as hex nibbles.
-    text = text.replace(/\|([0-9A-Fa-f]{2})/g, (match, codeStr) => {
+    text = text.replace(/\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/g, (match, codeStr) => {
+        if (codeStr.length === 1) {
+            const ansiFg = pipeToAnsiFg[parseInt(codeStr, 10)] || 37;
+            return `\x1b[${ansiFg}m`;
+        }
+
         // Detect Mystic-style hex encoding: code contains a letter (A-F)
         const isMysticHex = /[A-Fa-f]/.test(codeStr);
 
@@ -1383,7 +1389,7 @@ function parsePipeCodes(text) {
     let spanOpen = false;
 
     // Pipe code pattern: |XX where XX is hex digits
-    const pipePattern = /\|([0-9A-Fa-f]{2})/g;
+    const pipePattern = /\|([0-9](?![0-9A-Fa-f])|[0-9A-Fa-f]{2})/g;
     let lastIndex = 0;
     let match;
 
@@ -1414,15 +1420,19 @@ function parsePipeCodes(text) {
             result += escapeHtml(textBefore);
         }
 
-        // Parse the pipe code as decimal (Renegade style)
-        const code = parseInt(match[1], 10);
+        if (match[1].length === 1) {
+            currentFg = parseInt(match[1], 10);
+        } else {
+            // Parse the pipe code as decimal (Renegade style)
+            const code = parseInt(match[1], 10);
 
-        if (code <= 15) {
-            // Codes 00-15: foreground color 0-15
-            currentFg = code;
-        } else if (code >= 16 && code <= 23) {
-            // Codes 16-23: background color 0-7 (code - 16)
-            currentBg = code - 16;
+            if (code <= 15) {
+                // Codes 00-15: foreground color 0-15
+                currentFg = code;
+            } else if (code >= 16 && code <= 23) {
+                // Codes 16-23: background color 0-7 (code - 16)
+                currentBg = code - 16;
+            }
         }
         // Codes above 23 have no standard meaning in this scheme
 
