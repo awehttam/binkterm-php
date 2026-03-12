@@ -1236,6 +1236,16 @@ SimpleRouter::post('/api/bbs-directory/submit', function() {
     try {
         $id = $directory->createPendingEntry($input, $userId);
         echo json_encode(['success' => true, 'id' => $id]);
+
+        // Notify the sysop that a new BBS listing is awaiting approval
+        $bbsName    = $input['name'] ?? 'Unknown';
+        $approvalUrl = \BinktermPHP\Config::getSiteUrl() . '/admin/bbs-directory';
+        \BinktermPHP\SysopNotificationService::sendNoticeToSysop(
+            'New BBS listing pending approval',
+            "A new BBS listing has been submitted and is awaiting your review.\n\n" .
+            "BBS Name: {$bbsName}\n\n" .
+            "Approve or reject it at:\n{$approvalUrl}"
+        );
     } catch (\PDOException $e) {
         http_response_code(400);
         if (strpos($e->getMessage(), 'duplicate key') !== false || strpos($e->getMessage(), 'unique') !== false) {
