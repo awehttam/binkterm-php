@@ -82,6 +82,7 @@ return [
     'errors.echoareas.admin_required' => 'Des privilèges administrateur sont requis',
     'errors.echoareas.not_found' => 'Zone echo introuvable',
     'errors.echoareas.invalid_posting_name_policy' => 'Politique de nom de publication invalide',
+    'errors.echoareas.invalid_art_format_hint' => 'Indication de format artistique invalide',
     'errors.echoareas.tag_description_required' => 'Le tag et la description sont requis',
     'errors.echoareas.invalid_tag_format' => 'Format de tag invalide',
     'errors.echoareas.invalid_color_format' => 'Format de couleur invalide',

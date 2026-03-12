@@ -232,6 +232,127 @@ function formatMessageText(messageText, searchTerms = [], forcePlain = false) {
     return `<div class="message-formatted">${formattedLines.join('')}</div>`;
 }
 
+function formatPlainMessageText(messageText, searchTerms = []) {
+    if (!messageText || messageText.trim() === '') {
+        return '';
+    }
+
+    if (!searchTerms || searchTerms.length === 0) {
+        searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
+    }
+
+    let plainText = messageText;
+    if (window.hasPipeCodes && window.hasPipeCodes(plainText) && window.convertPipeCodesToAnsi) {
+        plainText = window.convertPipeCodesToAnsi(plainText);
+    }
+    if (window.stripAllAnsi) {
+        plainText = window.stripAllAnsi(plainText);
+    }
+
+    let escaped = escapeHtml(plainText).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    escaped = linkifyUrls(escaped);
+    if (searchTerms && searchTerms.length > 0) {
+        escaped = highlightSearchTerms(escaped, searchTerms);
+    }
+
+    return `<div class="message-formatted"><pre class="mb-0" style="white-space: pre-wrap;">${escaped}</pre></div>`;
+}
+
+function normalizeViewerRenderMode(mode) {
+    const normalized = String(mode || 'auto').toLowerCase();
+    if (normalized === 'plain') {
+        return 'plain';
+    }
+    if (window.normalizeArtFormat) {
+        return window.normalizeArtFormat(normalized);
+    }
+    return normalized || 'auto';
+}
+
+function getNextViewerRenderMode(mode) {
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const normalized = normalizeViewerRenderMode(mode);
+    const currentIndex = modes.indexOf(normalized);
+    return modes[(currentIndex + 1 + modes.length) % modes.length];
+}
+
+function getViewerRenderModeLabel(mode) {
+    const normalized = normalizeViewerRenderMode(mode);
+    switch (normalized) {
+        case 'ansi':
+            return window.t ? window.t('ui.echomail.viewer_mode_ansi', {}, 'ANSI') : 'ANSI';
+        case 'amiga_ansi':
+            return window.t ? window.t('ui.echomail.viewer_mode_amiga_ansi', {}, 'Amiga ANSI') : 'Amiga ANSI';
+        case 'petscii':
+            return window.t ? window.t('ui.echomail.viewer_mode_petscii', {}, 'PETSCII') : 'PETSCII';
+        case 'plain':
+            return window.t ? window.t('ui.echomail.viewer_mode_plain', {}, 'Plain Text') : 'Plain Text';
+        default:
+            return window.t ? window.t('ui.echomail.viewer_mode_auto', {}, 'Auto') : 'Auto';
+    }
+}
+
+function formatMessageBodyForDisplay(message, bodyText, searchTerms = [], forcePlain = false) {
+    const text = bodyText || '';
+    let forcePlainText = !!forcePlain;
+    let formatOverride = null;
+    if (typeof forcePlain === 'object' && forcePlain !== null) {
+        forcePlainText = !!forcePlain.forcePlain;
+        formatOverride = forcePlain.formatOverride || null;
+    }
+
+    const messageArtFormat = window.normalizeArtFormat ? window.normalizeArtFormat(message?.art_format || 'auto') : (message?.art_format || 'auto');
+    const requestedFormat = normalizeViewerRenderMode(formatOverride || messageArtFormat || 'auto');
+    const rawBytesB64 = message?.message_bytes_b64 || null;
+
+    if (!text || text.trim() === '') {
+        return '';
+    }
+
+    if (!searchTerms || searchTerms.length === 0) {
+        searchTerms = (typeof currentSearchTerms !== 'undefined') ? currentSearchTerms : [];
+    }
+
+    if (forcePlainText || requestedFormat === 'plain') {
+        return formatPlainMessageText(text, searchTerms);
+    }
+
+    const hasAnsi = /\x1b\[[0-9;]*m/.test(text);
+    const hasCursorAnsi = /\x1b\[[0-9;]*[ABCDEFGHJKfsu]/.test(text);
+    const hasPipes = /\|[0-9A-Fa-f]{2}/.test(text);
+    const hasColorCodes = hasAnsi || hasPipes;
+    const lines = text.split(/\r?\n/);
+    const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
+    const maxLineLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+    const linesWithLeadingSpaces = lines.filter(line => /^\s{5,}\S/.test(line)).length;
+    const hasLeadingSpaceArt = linesWithLeadingSpaces >= 3 && linesWithLeadingSpaces >= (nonEmptyLines * 0.5);
+    const explicitArtMode = ['ansi', 'amiga_ansi', 'petscii'].includes(requestedFormat);
+    const shouldRenderAnsiArt = !forcePlainText && (
+        explicitArtMode ||
+        hasCursorAnsi ||
+        (hasColorCodes && nonEmptyLines >= 4 && maxLineLength >= 30) ||
+        (hasLeadingSpaceArt && nonEmptyLines >= 4 && maxLineLength >= 30)
+    );
+
+    if (shouldRenderAnsiArt) {
+        const renderFormat = explicitArtMode ? requestedFormat : 'ansi';
+        let rendered = renderArtMessage(text, {
+            format: renderFormat,
+            bytesBase64: rawBytesB64,
+            cols: renderFormat === 'petscii' ? 40 : 80,
+            rows: 500
+        });
+        rendered = linkifyUrls(rendered);
+        if (searchTerms && searchTerms.length > 0) {
+            rendered = highlightSearchTerms(rendered, searchTerms);
+        }
+        const profileClass = window.getArtProfileClass ? window.getArtProfileClass(renderFormat) : 'art-format-ansi';
+        return `<div class="ansi-art-container ${profileClass}"><pre class="ansi-art ${profileClass}">${rendered}</pre></div>`;
+    }
+
+    return formatMessageText(text, searchTerms, false);
+}
+
 // Helper function to highlight search terms in escaped HTML text
 // Only highlights text content, not text inside HTML tags or attributes
 function highlightSearchTerms(htmlText, searchTerms) {

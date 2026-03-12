@@ -103,6 +103,7 @@ return [
     'errors.echoareas.admin_required' => 'Admin privileges are required',
     'errors.echoareas.not_found' => 'Echo area not found',
     'errors.echoareas.invalid_posting_name_policy' => 'Invalid posting name policy',
+    'errors.echoareas.invalid_art_format_hint' => 'Invalid art format hint',
     'errors.echoareas.tag_description_required' => 'Tag and description are required',
     'errors.echoareas.invalid_tag_format' => 'Invalid tag format',
     'errors.echoareas.invalid_color_format' => 'Invalid color format',

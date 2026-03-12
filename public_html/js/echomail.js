@@ -10,7 +10,7 @@ let currentMessageIndex = -1;
 let currentSearchTerms = [];
 let currentMessageData = null;
 let currentParsedMessage = null;
-let ansiRenderingEnabled = true;
+let currentRenderMode = 'auto';
 let keyboardHelpVisible = false;
 let allEchoareas = [];
 let echoareaSearchQuery = '';
@@ -111,7 +111,7 @@ $(document).ready(function() {
                 case 'a':
                 case 'A':
                     e.preventDefault();
-                    toggleAnsiRendering();
+                    cycleRenderMode();
                     break;
                 case '?':
                 case 'h':
@@ -762,33 +762,93 @@ function hideKeyboardHelp() {
     $('#keyboardHelpOverlay').hide();
 }
 
-function toggleAnsiRendering() {
-    if (!currentMessageData || !currentParsedMessage) return;
+function getNextRenderMode(mode) {
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const currentIndex = modes.indexOf(mode);
+    return modes[(currentIndex + 1 + modes.length) % modes.length];
+}
 
-    ansiRenderingEnabled = !ansiRenderingEnabled;
+function showRenderModeToast() {
+    const modalBody = document.querySelector('#messageModal .modal-body');
+    if (!modalBody) {
+        return;
+    }
+
+    const existing = document.getElementById('renderModeToast');
+    if (existing) {
+        existing.remove();
+    }
+
+    const modeLabel = window.getViewerRenderModeLabel
+        ? window.getViewerRenderModeLabel(currentRenderMode)
+        : currentRenderMode;
+
+    const toast = document.createElement('div');
+    toast.id = 'renderModeToast';
+    toast.className = 'badge bg-secondary';
+    toast.style.position = 'absolute';
+    toast.style.top = '0.75rem';
+    toast.style.right = '0.75rem';
+    toast.style.zIndex = '25';
+    toast.textContent = `${uiT('ui.echomail.viewer_mode_prefix', 'Viewer mode:')} ${modeLabel}`;
+    modalBody.appendChild(toast);
+
+    window.setTimeout(() => {
+        const currentToast = document.getElementById('renderModeToast');
+        if (currentToast) {
+            currentToast.remove();
+        }
+    }, 1200);
+}
+
+function updateRenderModeBadge() {
+    const badge = document.getElementById('ansiRenderBadge');
+    const badgeText = document.getElementById('ansiRenderBadgeText');
+    if (!badge || !badgeText) {
+        return;
+    }
+
+    if (currentRenderMode === 'auto') {
+        badge.style.display = 'none';
+        return;
+    }
+
+    const modeLabel = window.getViewerRenderModeLabel
+        ? window.getViewerRenderModeLabel(currentRenderMode)
+        : currentRenderMode;
+    const prefix = uiT('ui.echomail.viewer_mode_prefix', 'Viewer mode:');
+    const suffix = uiT('ui.echomail.press_a_to_cycle', 'press A to cycle');
+    badgeText.textContent = `${prefix} ${modeLabel} — ${suffix}`;
+    badge.style.display = '';
+}
+
+function renderCurrentMessageBody() {
+    if (!currentMessageData || !currentParsedMessage) return;
 
     const body = currentParsedMessage.messageBody;
     let bodyHtml;
-    if (ansiRenderingEnabled && currentMessageData.markup_html) {
+    if (currentRenderMode === 'auto' && currentMessageData.markup_html) {
         bodyHtml = currentMessageData.markup_html;
     } else {
-        bodyHtml = formatMessageText(body, currentSearchTerms, !ansiRenderingEnabled);
+        bodyHtml = formatMessageBodyForDisplay(currentMessageData, body, currentSearchTerms, {
+            forcePlain: currentRenderMode === 'plain',
+            formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
+        });
     }
 
-    // Replace only the body content, keeping the badge
     const container = document.getElementById('messageTextContainer');
     if (!container) return;
 
-    // Update badge visibility
-    const badge = document.getElementById('ansiRenderBadge');
-    if (badge) badge.style.display = ansiRenderingEnabled ? 'none' : '';
-
-    // Replace everything after the badge with the new body
-    const existing = container.querySelectorAll(':scope > :not(#ansiRenderBadge)');
-    existing.forEach(el => el.remove());
+    container.innerHTML = '';
     const tmp = document.createElement('div');
     tmp.innerHTML = bodyHtml;
     while (tmp.firstChild) container.appendChild(tmp.firstChild);
+}
+
+function cycleRenderMode() {
+    currentRenderMode = getNextRenderMode(currentRenderMode);
+    renderCurrentMessageBody();
+    showRenderModeToast();
 }
 
 function downloadCurrentMessage() {
@@ -827,7 +887,7 @@ function checkAndDisplayEchomailMessage(message, parsedMessage) {
 
 function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
     currentParsedMessage = parsedMessage;
-    ansiRenderingEnabled = true;
+    currentRenderMode = 'auto';
     hideKeyboardHelp();
     let addressBookButton;
     if (isInAddressBook) {
@@ -850,7 +910,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
 
     const bodyHtml = message.markup_html
         ? message.markup_html
-        : formatMessageText(parsedMessage.messageBody);
+        : formatMessageBodyForDisplay(message, parsedMessage.messageBody);
 
     const html = `
         <div class="message-header-full mb-3">
@@ -899,12 +959,7 @@ function renderEchomailMessageContent(message, parsedMessage, isInAddressBook) {
             </div>
         </div>
 
-        <div class="message-text" id="messageTextContainer">
-            <div id="ansiRenderBadge" style="display:none;" class="mb-2">
-                <span class="badge bg-secondary">${uiT('ui.echomail.plain_text_mode', 'Plain text mode')} &mdash; ${uiT('ui.echomail.press_a_to_toggle', 'press A to toggle')}</span>
-            </div>
-            ${bodyHtml}
-        </div>
+        <div class="message-text" id="messageTextContainer">${bodyHtml}</div>
         ${message.origin_line ? `<div class="message-origin mt-2"><small class="text-muted">${escapeHtml(message.origin_line)}</small></div>` : ''}
     `;
 

@@ -103,6 +103,7 @@ return [
     'errors.echoareas.admin_required' => 'Se requieren privilegios de administrador',
     'errors.echoareas.not_found' => 'Area de eco no encontrada',
     'errors.echoareas.invalid_posting_name_policy' => 'Politica de nombre de publicacion invalida',
+    'errors.echoareas.invalid_art_format_hint' => 'Indicio de formato artistico no valido',
     'errors.echoareas.tag_description_required' => 'Se requieren etiqueta y descripcion',
     'errors.echoareas.invalid_tag_format' => 'Formato de etiqueta invalido',
     'errors.echoareas.invalid_color_format' => 'Formato de color invalido',

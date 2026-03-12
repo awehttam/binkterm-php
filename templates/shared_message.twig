@@ -243,7 +243,7 @@ function displaySharedMessage(message, shareInfo) {
     const parsedMessage = parseEchomailMessage(message.message_text || '', message.kludge_lines || '');
     const bodyHtml = message.markup_html
         ? message.markup_html
-        : formatMessageText(parsedMessage.messageBody);
+        : formatMessageBodyForDisplay(message, parsedMessage.messageBody);
     
     // Build message content
     const html = `

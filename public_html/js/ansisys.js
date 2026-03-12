@@ -410,6 +410,698 @@ class AnsiTerminal {
     }
 }
 
+class ArtScreenBuffer {
+    constructor(cols = 80, rows = 25) {
+        this.cols = cols;
+        this.rows = rows;
+        this.defaultCell = {
+            char: ' ',
+            fg: 7,
+            bg: 0,
+            bold: false,
+            dim: false,
+            italic: false,
+            underline: false,
+            blink: false,
+            reverse: false
+        };
+        this.reset();
+    }
+
+    reset() {
+        this.buffer = [];
+        for (let r = 0; r < this.rows; r++) {
+            this.buffer.push(this.createEmptyRow());
+        }
+        this.cursorRow = 0;
+        this.cursorCol = 0;
+        this.savedCursor = { row: 0, col: 0 };
+        this.currentAttr = { ...this.defaultCell };
+        this.maxRowUsed = 0;
+        this.maxColUsed = 0;
+    }
+
+    createEmptyRow() {
+        const row = [];
+        for (let c = 0; c < this.cols; c++) {
+            row.push({ ...this.defaultCell });
+        }
+        return row;
+    }
+
+    clampCursor() {
+        this.cursorRow = Math.max(0, Math.min(this.rows - 1, this.cursorRow));
+        this.cursorCol = Math.max(0, Math.min(this.cols - 1, this.cursorCol));
+    }
+
+    ensureRows(needed) {
+        while (this.buffer.length < needed) {
+            this.buffer.push(this.createEmptyRow());
+        }
+        if (needed > this.rows) {
+            this.rows = needed;
+        }
+    }
+
+    writeChar(char, attr = this.currentAttr) {
+        if (char === '\n') {
+            this.cursorRow++;
+            this.cursorCol = 0;
+            this.ensureRows(this.cursorRow + 1);
+            this.maxRowUsed = Math.max(this.maxRowUsed, this.cursorRow);
+            return;
+        }
+        if (char === '\r') {
+            this.cursorCol = 0;
+            return;
+        }
+        if (char === '\t') {
+            const nextTab = Math.floor(this.cursorCol / 8) * 8 + 8;
+            this.cursorCol = Math.min(nextTab, this.cols - 1);
+            return;
+        }
+        if (char === '\b') {
+            if (this.cursorCol > 0) this.cursorCol--;
+            return;
+        }
+
+        const code = char.charCodeAt(0);
+        if (code < 32 && code !== 27) return;
+
+        this.ensureRows(this.cursorRow + 1);
+        this.clampCursor();
+        this.buffer[this.cursorRow][this.cursorCol] = {
+            char,
+            fg: attr.fg,
+            bg: attr.bg,
+            bold: attr.bold,
+            dim: attr.dim,
+            italic: attr.italic,
+            underline: attr.underline,
+            blink: attr.blink,
+            reverse: attr.reverse
+        };
+        this.maxRowUsed = Math.max(this.maxRowUsed, this.cursorRow);
+        this.maxColUsed = Math.max(this.maxColUsed, this.cursorCol);
+
+        this.cursorCol++;
+        if (this.cursorCol >= this.cols) {
+            this.cursorCol = 0;
+            this.cursorRow++;
+            this.ensureRows(this.cursorRow + 1);
+        }
+    }
+
+    clearScreen(mode) {
+        if (mode === 0) {
+            for (let c = this.cursorCol; c < this.cols; c++) {
+                this.buffer[this.cursorRow][c] = { ...this.defaultCell };
+            }
+            for (let r = this.cursorRow + 1; r < this.buffer.length; r++) {
+                this.buffer[r] = this.createEmptyRow();
+            }
+        } else if (mode === 1) {
+            for (let r = 0; r < this.cursorRow; r++) {
+                this.buffer[r] = this.createEmptyRow();
+            }
+            for (let c = 0; c <= this.cursorCol; c++) {
+                this.buffer[this.cursorRow][c] = { ...this.defaultCell };
+            }
+        } else if (mode === 2 || mode === 3) {
+            for (let r = 0; r < this.buffer.length; r++) {
+                this.buffer[r] = this.createEmptyRow();
+            }
+            this.cursorRow = 0;
+            this.cursorCol = 0;
+        }
+    }
+
+    clearLine(mode) {
+        if (this.cursorRow >= this.buffer.length) return;
+
+        if (mode === 0) {
+            for (let c = this.cursorCol; c < this.cols; c++) {
+                this.buffer[this.cursorRow][c] = { ...this.defaultCell };
+            }
+        } else if (mode === 1) {
+            for (let c = 0; c <= this.cursorCol; c++) {
+                this.buffer[this.cursorRow][c] = { ...this.defaultCell };
+            }
+        } else if (mode === 2) {
+            this.buffer[this.cursorRow] = this.createEmptyRow();
+        }
+    }
+
+    scrollUp(lines = 1) {
+        for (let s = 0; s < lines; s++) {
+            this.buffer.shift();
+            this.buffer.push(this.createEmptyRow());
+        }
+    }
+
+    scrollDown(lines = 1) {
+        for (let s = 0; s < lines; s++) {
+            this.buffer.pop();
+            this.buffer.unshift(this.createEmptyRow());
+        }
+    }
+}
+
+class ArtHtmlRenderer {
+    getColorClass(colorIndex, isBg = false) {
+        const colors = [
+            'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
+            'bright-black', 'bright-red', 'bright-green', 'bright-yellow',
+            'bright-blue', 'bright-magenta', 'bright-cyan', 'bright-white'
+        ];
+        const prefix = isBg ? 'ansi-bg-' : 'ansi-';
+        if (colorIndex >= 0 && colorIndex < 16) {
+            return prefix + colors[colorIndex];
+        }
+        return '';
+    }
+
+    escapeChar(char) {
+        switch (char) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case "'": return '&#039;';
+            default: return char;
+        }
+    }
+
+    render(buffer) {
+        let html = '';
+        const rowsToRender = Math.min(buffer.buffer.length, buffer.maxRowUsed + 1);
+
+        for (let r = 0; r < rowsToRender; r++) {
+            const row = buffer.buffer[r];
+            let lastNonSpace = -1;
+            for (let c = row.length - 1; c >= 0; c--) {
+                if (row[c].char !== ' ' || row[c].bg !== 0) {
+                    lastNonSpace = c;
+                    break;
+                }
+            }
+
+            for (let c = 0; c <= lastNonSpace; c++) {
+                const cell = row[c];
+                const classes = ['ansi-c'];
+                const fgClass = this.getColorClass(cell.fg, false);
+                const bgClass = this.getColorClass(cell.bg, true);
+
+                if (fgClass && cell.fg !== 7) classes.push(fgClass);
+                if (bgClass && cell.bg !== 0) classes.push(bgClass);
+                if (cell.bold) classes.push('ansi-bold');
+                if (cell.dim) classes.push('ansi-dim');
+                if (cell.italic) classes.push('ansi-italic');
+                if (cell.underline) classes.push('ansi-underline');
+                if (cell.blink) classes.push('ansi-blink');
+                if (cell.reverse) classes.push('ansi-reverse');
+
+                html += `<span class="${classes.join(' ')}">${this.escapeChar(cell.char)}</span>`;
+            }
+
+            if (r < rowsToRender - 1) {
+                html += '\n';
+            }
+        }
+
+        return html;
+    }
+}
+
+class ArtAnsiDecoder {
+    constructor(buffer) {
+        this.buffer = buffer;
+    }
+
+    translateChar(char) {
+        return char;
+    }
+
+    processSGR(params) {
+        if (params.length === 0) params = [0];
+
+        for (let i = 0; i < params.length; i++) {
+            const code = params[i];
+            if (code === 0) {
+                this.buffer.currentAttr = { ...this.buffer.defaultCell };
+            } else if (code === 1) {
+                this.buffer.currentAttr.bold = true;
+            } else if (code === 2) {
+                this.buffer.currentAttr.dim = true;
+            } else if (code === 3) {
+                this.buffer.currentAttr.italic = true;
+            } else if (code === 4) {
+                this.buffer.currentAttr.underline = true;
+            } else if (code === 5 || code === 6) {
+                this.buffer.currentAttr.blink = true;
+            } else if (code === 7) {
+                this.buffer.currentAttr.reverse = true;
+            } else if (code === 22) {
+                this.buffer.currentAttr.bold = false;
+                this.buffer.currentAttr.dim = false;
+            } else if (code === 23) {
+                this.buffer.currentAttr.italic = false;
+            } else if (code === 24) {
+                this.buffer.currentAttr.underline = false;
+            } else if (code === 25) {
+                this.buffer.currentAttr.blink = false;
+            } else if (code === 27) {
+                this.buffer.currentAttr.reverse = false;
+            } else if (code >= 30 && code <= 37) {
+                this.buffer.currentAttr.fg = code - 30;
+            } else if (code === 38) {
+                if (params[i + 1] === 5 && params[i + 2] !== undefined) {
+                    this.buffer.currentAttr.fg = params[i + 2];
+                    i += 2;
+                }
+            } else if (code === 39) {
+                this.buffer.currentAttr.fg = 7;
+            } else if (code >= 40 && code <= 47) {
+                this.buffer.currentAttr.bg = code - 40;
+            } else if (code === 48) {
+                if (params[i + 1] === 5 && params[i + 2] !== undefined) {
+                    this.buffer.currentAttr.bg = params[i + 2];
+                    i += 2;
+                }
+            } else if (code === 49) {
+                this.buffer.currentAttr.bg = 0;
+            } else if (code >= 90 && code <= 97) {
+                this.buffer.currentAttr.fg = code - 90 + 8;
+            } else if (code >= 100 && code <= 107) {
+                this.buffer.currentAttr.bg = code - 100 + 8;
+            }
+        }
+    }
+
+    decode(text) {
+        let i = 0;
+        while (i < text.length) {
+            const char = text[i];
+            if (char === '\x1b' && text[i + 1] === '[') {
+                i += 2;
+                let params = '';
+                while (i < text.length && /[0-9;]/.test(text[i])) {
+                    params += text[i];
+                    i++;
+                }
+
+                const cmd = text[i] || '';
+                i++;
+                const paramList = params ? params.split(';').map(p => parseInt(p, 10) || 0) : [];
+                const n = paramList[0] || 1;
+
+                switch (cmd) {
+                    case 'A':
+                        this.buffer.cursorRow -= n;
+                        this.buffer.clampCursor();
+                        break;
+                    case 'B':
+                        this.buffer.cursorRow += n;
+                        this.buffer.ensureRows(this.buffer.cursorRow + 1);
+                        this.buffer.clampCursor();
+                        break;
+                    case 'C':
+                        this.buffer.cursorCol += n;
+                        this.buffer.clampCursor();
+                        break;
+                    case 'D':
+                        this.buffer.cursorCol -= n;
+                        this.buffer.clampCursor();
+                        break;
+                    case 'E':
+                        this.buffer.cursorRow += n;
+                        this.buffer.cursorCol = 0;
+                        this.buffer.ensureRows(this.buffer.cursorRow + 1);
+                        break;
+                    case 'F':
+                        this.buffer.cursorRow -= n;
+                        this.buffer.cursorCol = 0;
+                        this.buffer.clampCursor();
+                        break;
+                    case 'G':
+                        this.buffer.cursorCol = n - 1;
+                        this.buffer.clampCursor();
+                        break;
+                    case 'H':
+                    case 'f':
+                        this.buffer.cursorRow = (paramList[0] || 1) - 1;
+                        this.buffer.cursorCol = (paramList[1] || 1) - 1;
+                        this.buffer.ensureRows(this.buffer.cursorRow + 1);
+                        this.buffer.clampCursor();
+                        break;
+                    case 'J':
+                        this.buffer.clearScreen(paramList[0] || 0);
+                        break;
+                    case 'K':
+                        this.buffer.clearLine(paramList[0] || 0);
+                        break;
+                    case 'm':
+                        this.processSGR(paramList);
+                        break;
+                    case 's':
+                        this.buffer.savedCursor = { row: this.buffer.cursorRow, col: this.buffer.cursorCol };
+                        break;
+                    case 'u':
+                        this.buffer.cursorRow = this.buffer.savedCursor.row;
+                        this.buffer.cursorCol = this.buffer.savedCursor.col;
+                        break;
+                    case 'S':
+                        this.buffer.scrollUp(n);
+                        break;
+                    case 'T':
+                        this.buffer.scrollDown(n);
+                        break;
+                }
+            } else if (char === '\x1b') {
+                i++;
+                if (i < text.length) i++;
+            } else {
+                this.buffer.writeChar(this.translateChar(char), this.buffer.currentAttr);
+                i++;
+            }
+        }
+    }
+}
+
+class ArtAmigaAnsiDecoder extends ArtAnsiDecoder {
+    constructor(buffer) {
+        super(buffer);
+        this.translationMap = {
+            '\u00a0': ' ',
+            '\u00ac': '\u2500',
+            '\u00a6': '\u2502',
+            '\u00bb': '\u2510',
+            '\u00ab': '\u250c',
+            '\u00bf': '\u2518',
+            '\u00a1': '\u2514'
+        };
+    }
+
+    translateChar(char) {
+        return this.translationMap[char] || char;
+    }
+}
+
+class ArtPetsciiDecoder {
+    constructor(buffer) {
+        this.buffer = buffer;
+        this.reverse = false;
+    }
+
+    decode(input) {
+        const bytes = this.toBytes(input);
+        for (const value of bytes) {
+            this.processByte(value);
+        }
+    }
+
+    toBytes(input) {
+        if (input instanceof Uint8Array) {
+            return input;
+        }
+
+        if (Array.isArray(input)) {
+            return Uint8Array.from(input);
+        }
+
+        const text = String(input || '');
+        const bytes = new Uint8Array(text.length);
+        for (let i = 0; i < text.length; i++) {
+            bytes[i] = text.charCodeAt(i) & 0xff;
+        }
+        return bytes;
+    }
+
+    processByte(byte) {
+        switch (byte) {
+            case 13: // CR
+                this.buffer.writeChar('\n');
+                return;
+            case 10: // LF
+                return;
+            case 17: // cursor down
+                this.buffer.cursorRow++;
+                this.buffer.ensureRows(this.buffer.cursorRow + 1);
+                this.buffer.clampCursor();
+                return;
+            case 18: // reverse on
+                this.reverse = true;
+                return;
+            case 19: // home
+                this.buffer.cursorRow = 0;
+                this.buffer.cursorCol = 0;
+                return;
+            case 20: // delete
+                if (this.buffer.cursorCol > 0) {
+                    this.buffer.cursorCol--;
+                    this.buffer.buffer[this.buffer.cursorRow][this.buffer.cursorCol] = { ...this.buffer.defaultCell };
+                }
+                return;
+            case 29: // cursor right
+                this.buffer.cursorCol++;
+                this.buffer.clampCursor();
+                return;
+            case 141: // line feed / cursor up in some contexts
+                this.buffer.cursorRow = Math.max(0, this.buffer.cursorRow - 1);
+                return;
+            case 142: // reverse off
+            case 146:
+                this.reverse = false;
+                return;
+            case 147: // clear / home
+                this.buffer.clearScreen(2);
+                return;
+            case 157: // cursor left
+                this.buffer.cursorCol = Math.max(0, this.buffer.cursorCol - 1);
+                return;
+            default:
+                this.writeMappedByte(byte);
+        }
+    }
+
+    writeMappedByte(byte) {
+        const attr = { ...this.buffer.currentAttr };
+        if (this.reverse) {
+            const fg = attr.fg;
+            attr.fg = attr.bg;
+            attr.bg = fg;
+            attr.reverse = true;
+        }
+        this.buffer.writeChar(this.mapByteToChar(byte), attr);
+    }
+
+    mapByteToChar(byte) {
+        if (byte >= 32 && byte <= 126) {
+            return String.fromCharCode(byte);
+        }
+
+        const petsciiMap = {
+            64: '@',
+            92: '\u00a3',
+            95: '\u2190',
+            96: '\u2500',
+            97: '\u2660',
+            98: '\u2502',
+            99: '\u2500',
+            100: '\u2500',
+            101: '\u2502',
+            102: '\u2571',
+            103: '\u2572',
+            104: '\u2573',
+            105: '\u25cf',
+            106: '\u2665',
+            107: '\u256d',
+            108: '\u256e',
+            109: '\u256f',
+            110: '\u2570',
+            111: '\u256e',
+            112: '\u2570',
+            113: '\u256f',
+            114: '\u25e4',
+            115: '\u25e5',
+            116: '\u25e3',
+            117: '\u25e2',
+            118: '\u2582',
+            119: '\u2502',
+            120: '\u258e',
+            121: '\u2595',
+            122: '\u256d',
+            123: '\u2573',
+            124: '\u25cb',
+            125: '\u2663',
+            126: '\u2592',
+            127: '\u2666',
+            160: '\u00a0',
+            161: '\u258c',
+            162: '\u2584',
+            163: '\u2594',
+            164: '\u2581',
+            165: '\u258f',
+            166: '\u2592',
+            167: '\u2595',
+            168: '\u25e4',
+            169: '\u251c',
+            170: '\u2597',
+            171: '\u2514',
+            172: '\u2510',
+            173: '\u2582',
+            174: '\u250c',
+            175: '\u2534',
+            176: '\u252c',
+            177: '\u2524',
+            178: '\u258e',
+            179: '\u258d',
+            180: '\u2583',
+            181: '\u2713',
+            182: '\u2596',
+            183: '\u259d',
+            184: '\u2518',
+            185: '\u2598',
+            186: '\u259a',
+            187: '\u2500',
+            188: '\u2660',
+            189: '\u2502',
+            190: '\u2500',
+            191: '\u2665',
+            255: '\u03c0'
+        };
+
+        return petsciiMap[byte] || ' ';
+    }
+}
+
+function renderAnsiBuffer(text, cols = 80, rows = 500) {
+    const buffer = new ArtScreenBuffer(cols, rows);
+    const decoder = new ArtAnsiDecoder(buffer);
+    const renderer = new ArtHtmlRenderer();
+    decoder.decode(text);
+    return renderer.render(buffer);
+}
+
+function renderAmigaAnsiBuffer(text, cols = 80, rows = 500) {
+    const buffer = new ArtScreenBuffer(cols, rows);
+    const decoder = new ArtAmigaAnsiDecoder(buffer);
+    const renderer = new ArtHtmlRenderer();
+    decoder.decode(text);
+    return renderer.render(buffer);
+}
+
+function renderPetsciiBuffer(input, cols = 40, rows = 500) {
+    const buffer = new ArtScreenBuffer(cols, rows);
+    buffer.currentAttr.fg = 14;
+    buffer.currentAttr.bg = 4;
+    const decoder = new ArtPetsciiDecoder(buffer);
+    const renderer = new ArtHtmlRenderer();
+    decoder.decode(input);
+    return renderer.render(buffer);
+}
+
+function byteStringFromBase64(base64Text) {
+    if (!base64Text) {
+        return '';
+    }
+
+    try {
+        return atob(base64Text);
+    } catch (error) {
+        return '';
+    }
+}
+
+function resolveArtSource(options = {}) {
+    if (options.byteString) {
+        return options.byteString;
+    }
+
+    if (options.bytesBase64) {
+        const decoded = byteStringFromBase64(options.bytesBase64);
+        if (decoded) {
+            return decoded;
+        }
+    }
+
+    return options.text || '';
+}
+
+function normalizeArtFormat(format) {
+    const normalized = String(format || 'auto').toLowerCase();
+    if (normalized === 'amiga' || normalized === 'amigaansi') {
+        return 'amiga_ansi';
+    }
+    if (normalized === 'petscii') {
+        return 'petscii';
+    }
+    if (normalized === 'ansi') {
+        return 'ansi';
+    }
+    return 'auto';
+}
+
+function getArtProfileClass(format) {
+    const normalized = normalizeArtFormat(format);
+    if (normalized === 'amiga_ansi') {
+        return 'art-format-amiga-ansi';
+    }
+    if (normalized === 'petscii') {
+        return 'art-format-petscii';
+    }
+    return 'art-format-ansi';
+}
+
+function renderArtMessage(text, options = {}) {
+    const format = normalizeArtFormat(options.format || 'auto');
+    const sourceText = options.byteString || text || '';
+
+    if (format === 'amiga_ansi') {
+        return renderAmigaAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
+    }
+
+    if (format === 'petscii') {
+        const sourceBytes = options.bytesBase64 ? byteStringFromBase64(options.bytesBase64) : sourceText;
+        return renderPetsciiBuffer(sourceBytes, options.cols || 40, options.rows || 500);
+    }
+
+    if (format === 'ansi' || format === 'auto' || !format) {
+        return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
+    }
+
+    return renderAnsiBuffer(sourceText, options.cols || 80, options.rows || 500);
+}
+
+function stripNonSgrAnsi(text) {
+    if (!text) {
+        return text;
+    }
+
+    let stripped = text.replace(/\x1b\[[0-9;]*[ABCDEFGHJKSTfnsu]/g, '');
+    stripped = stripped.replace(/\x1b[^\[]/g, '');
+    stripped = stripped.replace(/\x1b\][^\x07]*\x07/g, '');
+    stripped = stripped.replace(/\x1b\][^\x1b]*\x1b\\/g, '');
+    return stripped;
+}
+
+function stripAllAnsi(text) {
+    if (!text) {
+        return text;
+    }
+
+    let stripped = stripNonSgrAnsi(text);
+    stripped = stripped.replace(/\x1b\[[0-9;?]*m/g, '');
+    stripped = stripped.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+    stripped = stripped.replace(/\x1b./g, '');
+    return stripped;
+}
+
+function renderAnsiSgrOnly(text, cols = 80, rows = 500) {
+    const stripped = stripNonSgrAnsi(text);
+    return renderAnsiBuffer(stripped, cols, rows);
+}
+
 /**
  * Render ANSI text using terminal emulation
  * Falls back to simple parsing for non-ANSI text
@@ -435,9 +1127,7 @@ function renderAnsiTerminal(text, cols = 80, rows = 500) {
         return parseAnsi(text);
     }
 
-    const terminal = new AnsiTerminal(cols, rows);
-    terminal.process(text);
-    return terminal.render();
+    return renderArtMessage(text, { format: 'ansi', cols, rows });
 }
 
 
@@ -463,172 +1153,7 @@ function parseAnsi(text) {
     if (hasPipeCodes(text)) {
         text = convertPipeCodesToAnsi(text);
     }
-
-    // First, strip all non-SGR escape sequences (cursor movement, clear screen, etc.)
-    // These don't make sense in web display context
-    // Pattern matches: ESC[ followed by optional params and a command letter (not 'm')
-    // Common sequences: A (up), B (down), C (forward), D (back), H (position), J (clear), K (erase line), etc.
-    text = text.replace(/\x1b\[[0-9;]*[ABCDEFGHJKSTfnsu]/g, '');
-
-    // Also strip other escape sequences: ESC followed by single char, or ESC] (OSC), etc.
-    text = text.replace(/\x1b[^\[]/g, '');
-    text = text.replace(/\x1b\][^\x07]*\x07/g, ''); // OSC sequences ending with BEL
-    text = text.replace(/\x1b\][^\x1b]*\x1b\\/g, ''); // OSC sequences ending with ST
-
-    // ANSI color maps
-    const fgColors = {
-        30: 'ansi-black',
-        31: 'ansi-red',
-        32: 'ansi-green',
-        33: 'ansi-yellow',
-        34: 'ansi-blue',
-        35: 'ansi-magenta',
-        36: 'ansi-cyan',
-        37: 'ansi-white',
-        39: '', // default
-        90: 'ansi-bright-black',
-        91: 'ansi-bright-red',
-        92: 'ansi-bright-green',
-        93: 'ansi-bright-yellow',
-        94: 'ansi-bright-blue',
-        95: 'ansi-bright-magenta',
-        96: 'ansi-bright-cyan',
-        97: 'ansi-bright-white'
-    };
-
-    const bgColors = {
-        40: 'ansi-bg-black',
-        41: 'ansi-bg-red',
-        42: 'ansi-bg-green',
-        43: 'ansi-bg-yellow',
-        44: 'ansi-bg-blue',
-        45: 'ansi-bg-magenta',
-        46: 'ansi-bg-cyan',
-        47: 'ansi-bg-white',
-        49: '', // default
-        100: 'ansi-bg-bright-black',
-        101: 'ansi-bg-bright-red',
-        102: 'ansi-bg-bright-green',
-        103: 'ansi-bg-bright-yellow',
-        104: 'ansi-bg-bright-blue',
-        105: 'ansi-bg-bright-magenta',
-        106: 'ansi-bg-bright-cyan',
-        107: 'ansi-bg-bright-white'
-    };
-
-    // Current state
-    let currentClasses = [];
-    let result = '';
-    let spanOpen = false;
-
-    // ANSI SGR escape sequence pattern: ESC[ followed by params and ending with 'm'
-    // ESC is \x1b (decimal 27)
-    const ansiPattern = /\x1b\[([0-9;]*)m/g;
-
-    let lastIndex = 0;
-    let match;
-
-    while ((match = ansiPattern.exec(text)) !== null) {
-        // Add text before this escape sequence (escaped for XSS safety)
-        if (match.index > lastIndex) {
-            const textBefore = text.substring(lastIndex, match.index);
-            result += escapeHtml(textBefore);
-        }
-
-        // Parse the SGR parameters
-        const params = match[1] ? match[1].split(';').map(p => parseInt(p, 10) || 0) : [0];
-
-        for (const code of params) {
-            if (code === 0) {
-                // Reset all attributes
-                if (spanOpen) {
-                    result += '</span>';
-                    spanOpen = false;
-                }
-                currentClasses = [];
-            } else if (code === 1) {
-                // Bold
-                if (!currentClasses.includes('ansi-bold')) {
-                    currentClasses.push('ansi-bold');
-                }
-            } else if (code === 2) {
-                // Dim/faint
-                if (!currentClasses.includes('ansi-dim')) {
-                    currentClasses.push('ansi-dim');
-                }
-            } else if (code === 3) {
-                // Italic
-                if (!currentClasses.includes('ansi-italic')) {
-                    currentClasses.push('ansi-italic');
-                }
-            } else if (code === 4) {
-                // Underline
-                if (!currentClasses.includes('ansi-underline')) {
-                    currentClasses.push('ansi-underline');
-                }
-            } else if (code === 5 || code === 6) {
-                // Blink (slow/fast)
-                if (!currentClasses.includes('ansi-blink')) {
-                    currentClasses.push('ansi-blink');
-                }
-            } else if (code === 7) {
-                // Reverse/inverse
-                if (!currentClasses.includes('ansi-reverse')) {
-                    currentClasses.push('ansi-reverse');
-                }
-            } else if (code === 8) {
-                // Hidden
-                if (!currentClasses.includes('ansi-hidden')) {
-                    currentClasses.push('ansi-hidden');
-                }
-            } else if (code === 9) {
-                // Strikethrough
-                if (!currentClasses.includes('ansi-strike')) {
-                    currentClasses.push('ansi-strike');
-                }
-            } else if (code >= 30 && code <= 37 || code === 39 || code >= 90 && code <= 97) {
-                // Foreground colors - remove any existing fg color first
-                currentClasses = currentClasses.filter(c => !c.startsWith('ansi-') || c.startsWith('ansi-bg-') ||
-                    ['ansi-bold', 'ansi-dim', 'ansi-italic', 'ansi-underline', 'ansi-blink', 'ansi-reverse', 'ansi-hidden', 'ansi-strike'].includes(c));
-                if (fgColors[code]) {
-                    currentClasses.push(fgColors[code]);
-                }
-            } else if (code >= 40 && code <= 47 || code === 49 || code >= 100 && code <= 107) {
-                // Background colors - remove any existing bg color first
-                currentClasses = currentClasses.filter(c => !c.startsWith('ansi-bg-'));
-                if (bgColors[code]) {
-                    currentClasses.push(bgColors[code]);
-                }
-            }
-            // Note: codes 22-29 reset specific attributes, could add if needed
-        }
-
-        // Close previous span if open and update
-        if (spanOpen) {
-            result += '</span>';
-            spanOpen = false;
-        }
-
-        // Open new span if we have classes
-        if (currentClasses.length > 0) {
-            result += `<span class="${currentClasses.join(' ')}">`;
-            spanOpen = true;
-        }
-
-        lastIndex = ansiPattern.lastIndex;
-    }
-
-    // Add remaining text after last escape sequence
-    if (lastIndex < text.length) {
-        result += escapeHtml(text.substring(lastIndex));
-    }
-
-    // Close any remaining open span
-    if (spanOpen) {
-        result += '</span>';
-    }
-
-    return result;
+    return renderAnsiSgrOnly(text);
 }
 
 /**
@@ -888,3 +1413,21 @@ function parsePipeCodes(text) {
 function parseColorCodes(text) {
     return renderAnsiTerminal(text);
 }
+
+window.ArtScreenBuffer = ArtScreenBuffer;
+window.ArtHtmlRenderer = ArtHtmlRenderer;
+window.ArtAnsiDecoder = ArtAnsiDecoder;
+window.ArtAmigaAnsiDecoder = ArtAmigaAnsiDecoder;
+window.ArtPetsciiDecoder = ArtPetsciiDecoder;
+window.renderArtMessage = renderArtMessage;
+window.byteStringFromBase64 = byteStringFromBase64;
+window.normalizeArtFormat = normalizeArtFormat;
+window.getArtProfileClass = getArtProfileClass;
+window.stripAllAnsi = stripAllAnsi;
+window.renderAnsiTerminal = renderAnsiTerminal;
+window.parseAnsi = parseAnsi;
+window.parsePipeCodes = parsePipeCodes;
+window.parseColorCodes = parseColorCodes;
+window.hasAnsiCodes = hasAnsiCodes;
+window.hasPipeCodes = hasPipeCodes;
+window.convertPipeCodesToAnsi = convertPipeCodesToAnsi;

@@ -117,7 +117,7 @@
 
 <!-- Add/Edit Echoarea Modal -->
 <div class="modal fade" id="echoareaModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="echoareaModalTitle">{{ t('ui.echoareas.add_echo_area', {}, locale, ['common']) }}</h5>
@@ -127,100 +127,115 @@
                 <div id="echoareaModalError" class="alert alert-danger d-none" role="alert"></div>
                 <form id="echoareaForm">
                     <input type="hidden" id="echoareaId">
-                    
-                    <div class="mb-3">
-                        <label for="echoareaTag" class="form-label">{{ t('ui.echoareas.tag_required', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control text-uppercase" id="echoareaTag" name="tag" required maxlength="20">
-                        <div class="form-text">{{ t('ui.echoareas.tag_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="echoareaDescription" class="form-label">{{ t('ui.echoareas.description_required', {}, locale, ['common']) }}</label>
-                        <textarea class="form-control" id="echoareaDescription" name="description" rows="2" required maxlength="255"></textarea>
-                        <div class="form-text">{{ t('ui.echoareas.description_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-8">
-                            <label for="echoareaUplink" class="form-label">{{ t('ui.echoareas.uplink_address', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
-                            <div class="form-text">{{ t('ui.echoareas.uplink_address_help', {}, locale, ['common']) }}</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="echoareaColor" class="form-label">{{ t('ui.echoareas.color', {}, locale, ['common']) }}</label>
-                            <input type="hidden" id="echoareaColor" name="color" value="#28a745">
-                            <div class="color-palette">
-                                <div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;" title="{{ t('ui.echoareas.color_red', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#fd7e14" style="background-color: #fd7e14;" title="{{ t('ui.echoareas.color_orange', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;" title="{{ t('ui.echoareas.color_yellow', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#28a745" style="background-color: #28a745;" title="{{ t('ui.echoareas.color_green', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#20c997" style="background-color: #20c997;" title="{{ t('ui.echoareas.color_teal', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#17a2b8" style="background-color: #17a2b8;" title="{{ t('ui.echoareas.color_cyan', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="{{ t('ui.echoareas.color_light_blue', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#0d6efd" style="background-color: #0d6efd;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#6610f2" style="background-color: #6610f2;" title="{{ t('ui.echoareas.color_indigo', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;" title="{{ t('ui.echoareas.color_purple', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#d63384" style="background-color: #d63384;" title="{{ t('ui.echoareas.color_pink', {}, locale, ['common']) }}"></div>
-                                <div class="color-swatch" data-color="#6c757d" style="background-color: #6c757d;" title="{{ t('ui.echoareas.color_gray', {}, locale, ['common']) }}"></div>
+
+                    <div class="row g-4">
+                        <div class="col-lg-7">
+                            <div class="mb-3">
+                                <label for="echoareaTag" class="form-label">{{ t('ui.echoareas.tag_required', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control text-uppercase" id="echoareaTag" name="tag" required maxlength="20">
+                                <div class="form-text">{{ t('ui.echoareas.tag_help', {}, locale, ['common']) }}</div>
                             </div>
-                            <div class="form-text mt-2">{{ t('ui.echoareas.selected_color', {}, locale, ['common']) }} <span id="selectedColorPreview" style="display: inline-block; width: 20px; height: 20px; border: 1px solid #ccc; vertical-align: middle; background-color: #28a745;"></span></div>
+
+                            <div class="mb-3">
+                                <label for="echoareaDescription" class="form-label">{{ t('ui.echoareas.description_required', {}, locale, ['common']) }}</label>
+                                <textarea class="form-control" id="echoareaDescription" name="description" rows="2" required maxlength="255"></textarea>
+                                <div class="form-text">{{ t('ui.echoareas.description_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="echoareaUplink" class="form-label">{{ t('ui.echoareas.uplink_address', {}, locale, ['common']) }}</label>
+                                    <input type="text" class="form-control" id="echoareaUplink" name="uplink_address" maxlength="20">
+                                    <div class="form-text">{{ t('ui.echoareas.uplink_address_help', {}, locale, ['common']) }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="echoareaColor" class="form-label">{{ t('ui.echoareas.color', {}, locale, ['common']) }}</label>
+                                    <input type="hidden" id="echoareaColor" name="color" value="#28a745">
+                                    <div class="color-palette">
+                                        <div class="color-swatch" data-color="#dc3545" style="background-color: #dc3545;" title="{{ t('ui.echoareas.color_red', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#fd7e14" style="background-color: #fd7e14;" title="{{ t('ui.echoareas.color_orange', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#ffc107" style="background-color: #ffc107;" title="{{ t('ui.echoareas.color_yellow', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#28a745" style="background-color: #28a745;" title="{{ t('ui.echoareas.color_green', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#20c997" style="background-color: #20c997;" title="{{ t('ui.echoareas.color_teal', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#17a2b8" style="background-color: #17a2b8;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="{{ t('ui.echoareas.color_light_blue', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#0d6efd" style="background-color: #0d6efd;" title="{{ t('ui.echoareas.color_blue', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#6610f2" style="background-color: #6610f2;" title="{{ t('ui.echoareas.color_indigo', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#6f42c1" style="background-color: #6f42c1;" title="{{ t('ui.echoareas.color_purple', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#d63384" style="background-color: #d63384;" title="{{ t('ui.echoareas.color_pink', {}, locale, ['common']) }}"></div>
+                                        <div class="color-swatch" data-color="#6c757d" style="background-color: #6c757d;" title="{{ t('ui.echoareas.color_gray', {}, locale, ['common']) }}"></div>
+                                    </div>
+                                    <div class="form-text mt-2">{{ t('ui.echoareas.selected_color', {}, locale, ['common']) }} <span id="selectedColorPreview" style="display: inline-block; width: 20px; height: 20px; border: 1px solid #ccc; vertical-align: middle; background-color: #28a745;"></span></div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="echoareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="echoareaDomain" name="domain" maxlength="20">
+                                <div class="form-text">{{ t('ui.echoareas.network_domain_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="mb-0">
+                                <label for="echoareaModerator" class="form-label">{{ t('ui.echoareas.moderator', {}, locale, ['common']) }}</label>
+                                <input type="text" class="form-control" id="echoareaModerator" name="moderator" maxlength="100">
+                                <div class="form-text">{{ t('ui.echoareas.moderator_help', {}, locale, ['common']) }}</div>
+                            </div>
                         </div>
-                    </div>
+                        <div class="col-lg-5">
+                            <div class="mb-3">
+                                <label for="echoareaPostingNamePolicy" class="form-label">{{ t('ui.echoareas.posting_name_policy', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="echoareaPostingNamePolicy" name="posting_name_policy">
+                                    <option value="inherit">{{ t('ui.echoareas.posting_name_policy_inherit', {}, locale, ['common']) }}</option>
+                                    <option value="real_name">{{ t('ui.echoareas.posting_name_policy_real_name', {}, locale, ['common']) }}</option>
+                                    <option value="username">{{ t('ui.echoareas.posting_name_policy_username', {}, locale, ['common']) }}</option>
+                                </select>
+                                <div class="form-text">{{ t('ui.echoareas.posting_name_policy_help', {}, locale, ['common']) }}</div>
+                            </div>
 
-                    <div class="row mb-3">
-                        <div class="col-md-8">
-                            <label for="echoareaDomain" class="form-label">{{ t('ui.common.domain', {}, locale, ['common']) }}</label>
-                            <input type="text" class="form-control" id="echoareaDomain" name="domain" maxlength="20">
-                            <div class="form-text">{{ t('ui.echoareas.network_domain_help', {}, locale, ['common']) }}</div>
+                            <div class="mb-3">
+                                <label for="echoareaArtFormatHint" class="form-label">{{ t('ui.echoareas.art_format_hint', {}, locale, ['common']) }}</label>
+                                <select class="form-select" id="echoareaArtFormatHint" name="art_format_hint">
+                                    <option value="inherit">{{ t('ui.echoareas.art_format_hint_inherit', {}, locale, ['common']) }}</option>
+                                    <option value="ansi">{{ t('ui.echoareas.art_format_hint_ansi', {}, locale, ['common']) }}</option>
+                                    <option value="amiga_ansi">{{ t('ui.echoareas.art_format_hint_amiga_ansi', {}, locale, ['common']) }}</option>
+                                    <option value="petscii">{{ t('ui.echoareas.art_format_hint_petscii', {}, locale, ['common']) }}</option>
+                                </select>
+                                <div class="form-text">{{ t('ui.echoareas.art_format_hint_help', {}, locale, ['common']) }}</div>
+                            </div>
+
+                            <div class="border rounded p-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="echoareaActive" name="is_active" checked>
+                                    <label class="form-check-label" for="echoareaActive">
+                                        {{ t('ui.common.active', {}, locale, ['common']) }}
+                                    </label>
+                                </div>
+
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="checkbox" id="echoareaLocal" name="is_local">
+                                    <label class="form-check-label" for="echoareaLocal">
+                                        {{ t('ui.echoareas.local_only', {}, locale, ['common']) }}
+                                    </label>
+                                    <div class="form-text">{{ t('ui.echoareas.local_only_help', {}, locale, ['common']) }}</div>
+                                </div>
+
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="checkbox" id="echoareaSysopOnly" name="is_sysop_only">
+                                    <label class="form-check-label" for="echoareaSysopOnly">
+                                        {{ t('ui.echoareas.sysop_access_only', {}, locale, ['common']) }}
+                                    </label>
+                                    <div class="form-text">{{ t('ui.echoareas.sysop_access_only_help', {}, locale, ['common']) }}</div>
+                                </div>
+
+                                <div class="form-check mt-3">
+                                    <input class="form-check-input" type="checkbox" id="echoareaGeminiPublic" name="gemini_public">
+                                    <label class="form-check-label" for="echoareaGeminiPublic">
+                                        {{ t('ui.echoareas.public_gemini_access', {}, locale, ['common']) }}
+                                    </label>
+                                    <div class="form-text">{{ t('ui.echoareas.public_gemini_access_help', {}, locale, ['common']) }}</div>
+                                </div>
+                            </div>
                         </div>
-
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="echoareaModerator" class="form-label">{{ t('ui.echoareas.moderator', {}, locale, ['common']) }}</label>
-                        <input type="text" class="form-control" id="echoareaModerator" name="moderator" maxlength="100">
-                        <div class="form-text">{{ t('ui.echoareas.moderator_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="echoareaPostingNamePolicy" class="form-label">{{ t('ui.echoareas.posting_name_policy', {}, locale, ['common']) }}</label>
-                        <select class="form-select" id="echoareaPostingNamePolicy" name="posting_name_policy">
-                            <option value="inherit">{{ t('ui.echoareas.posting_name_policy_inherit', {}, locale, ['common']) }}</option>
-                            <option value="real_name">{{ t('ui.echoareas.posting_name_policy_real_name', {}, locale, ['common']) }}</option>
-                            <option value="username">{{ t('ui.echoareas.posting_name_policy_username', {}, locale, ['common']) }}</option>
-                        </select>
-                        <div class="form-text">{{ t('ui.echoareas.posting_name_policy_help', {}, locale, ['common']) }}</div>
-                    </div>
-                    
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="echoareaActive" name="is_active" checked>
-                        <label class="form-check-label" for="echoareaActive">
-                            {{ t('ui.common.active', {}, locale, ['common']) }}
-                        </label>
-                    </div>
-
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="echoareaLocal" name="is_local">
-                        <label class="form-check-label" for="echoareaLocal">
-                            {{ t('ui.echoareas.local_only', {}, locale, ['common']) }}
-                        </label>
-                        <div class="form-text">{{ t('ui.echoareas.local_only_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="echoareaSysopOnly" name="is_sysop_only">
-                        <label class="form-check-label" for="echoareaSysopOnly">
-                            {{ t('ui.echoareas.sysop_access_only', {}, locale, ['common']) }}
-                        </label>
-                        <div class="form-text">{{ t('ui.echoareas.sysop_access_only_help', {}, locale, ['common']) }}</div>
-                    </div>
-
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="echoareaGeminiPublic" name="gemini_public">
-                        <label class="form-check-label" for="echoareaGeminiPublic">
-                            {{ t('ui.echoareas.public_gemini_access', {}, locale, ['common']) }}
-                        </label>
-                        <div class="form-text">{{ t('ui.echoareas.public_gemini_access_help', {}, locale, ['common']) }}</div>
                     </div>
                 </form>
             </div>
@@ -473,6 +488,7 @@ function showAddEchoareaModal() {
     $('#echoareaSysopOnly').prop('checked', false);
     $('#echoareaGeminiPublic').prop('checked', false);
     $('#echoareaPostingNamePolicy').val('inherit');
+    $('#echoareaArtFormatHint').val('inherit');
     updateColorSelection('#28a745');
     $('#echoareaModal').modal('show');
 }
@@ -497,6 +513,7 @@ function editEchoarea(id) {
             $('#echoareaSysopOnly').prop('checked', area.is_sysop_only);
             $('#echoareaGeminiPublic').prop('checked', area.gemini_public);
             $('#echoareaPostingNamePolicy').val(area.posting_name_policy || 'inherit');
+            $('#echoareaArtFormatHint').val(area.art_format_hint || 'inherit');
             updateColorSelection(area.color || '#28a745');
             $('#echoareaModal').modal('show');
         })
@@ -523,7 +540,8 @@ function saveEchoarea() {
         is_sysop_only: $('#echoareaSysopOnly').is(':checked'),
         gemini_public: $('#echoareaGeminiPublic').is(':checked'),
         domain: $("#echoareaDomain").val() || null,
-        posting_name_policy: $('#echoareaPostingNamePolicy').val()
+        posting_name_policy: $('#echoareaPostingNamePolicy').val(),
+        art_format_hint: $('#echoareaArtFormatHint').val()
     };
     
     const url = currentEchoareaId ? `/api/echoareas/${currentEchoareaId}` : '/api/echoareas';

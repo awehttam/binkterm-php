@@ -11,6 +11,9 @@ let currentSearchTerms = [];
 let selectMode = false;
 let selectedMessages = new Set();
 let keyboardHelpVisible = false;
+let currentMessageData = null;
+let currentParsedMessage = null;
+let currentRenderMode = 'auto';
 
 function apiError(payload, fallback) {
     if (window.getApiErrorMessage) {
@@ -70,6 +73,11 @@ $(document).ready(function() {
                 case 'D':
                     e.preventDefault();
                     downloadCurrentMessage();
+                    break;
+                case 'a':
+                case 'A':
+                    e.preventDefault();
+                    cycleRenderMode();
                     break;
                 case '?':
                 case 'h':
@@ -426,9 +434,79 @@ function displayMessageContent(message) {
 
     // Parse message to separate kludge lines from body (use stored kludge_lines if available)
     const parsedMessage = parseNetmailMessage(message.message_text || '', message.kludge_lines || null, message.bottom_kludges || null);
+    currentMessageData = message;
+    currentParsedMessage = parsedMessage;
+    currentRenderMode = 'auto';
 
     // Check if sender is already in address book before rendering
     checkAndDisplayMessage(message, parsedMessage, isSent);
+}
+
+function getNextRenderMode(mode) {
+    const modes = ['auto', 'ansi', 'amiga_ansi', 'petscii', 'plain'];
+    const currentIndex = modes.indexOf(mode);
+    return modes[(currentIndex + 1 + modes.length) % modes.length];
+}
+
+function showRenderModeToast() {
+    const modalBody = document.querySelector('#messageModal .modal-body');
+    if (!modalBody) {
+        return;
+    }
+
+    const existing = document.getElementById('renderModeToast');
+    if (existing) {
+        existing.remove();
+    }
+
+    const modeLabel = window.getViewerRenderModeLabel
+        ? window.getViewerRenderModeLabel(currentRenderMode)
+        : currentRenderMode;
+
+    const toast = document.createElement('div');
+    toast.id = 'renderModeToast';
+    toast.className = 'badge bg-secondary';
+    toast.style.position = 'absolute';
+    toast.style.top = '0.75rem';
+    toast.style.right = '0.75rem';
+    toast.style.zIndex = '25';
+    toast.textContent = `${uiT('ui.echomail.viewer_mode_prefix', 'Viewer mode:')} ${modeLabel}`;
+    modalBody.appendChild(toast);
+
+    window.setTimeout(() => {
+        const currentToast = document.getElementById('renderModeToast');
+        if (currentToast) {
+            currentToast.remove();
+        }
+    }, 1200);
+}
+
+function renderCurrentMessageBody() {
+    if (!currentMessageData || !currentParsedMessage) {
+        return;
+    }
+
+    const bodyHtml = currentMessageData.markup_html && currentRenderMode === 'auto'
+        ? currentMessageData.markup_html
+        : formatMessageBodyForDisplay(currentMessageData, currentParsedMessage.messageBody, currentSearchTerms, {
+            forcePlain: currentRenderMode === 'plain',
+            formatOverride: currentRenderMode === 'plain' ? null : currentRenderMode
+        });
+
+    const container = document.getElementById('messageBodyContainer');
+    if (container) {
+        container.innerHTML = bodyHtml;
+    }
+}
+
+function cycleRenderMode() {
+    if (!$('#messageModal').hasClass('show')) {
+        return;
+    }
+
+    currentRenderMode = getNextRenderMode(currentRenderMode);
+    renderCurrentMessageBody();
+    showRenderModeToast();
 }
 
 function checkAndDisplayMessage(message, parsedMessage, isSent) {
@@ -476,7 +554,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
 
     const bodyHtml = message.markup_html
         ? message.markup_html
-        : formatMessageText(parsedMessage.messageBody);
+        : formatMessageBodyForDisplay(message, parsedMessage.messageBody);
 
     const html = `
         <div class="message-header-full mb-3">
@@ -536,7 +614,7 @@ function renderMessageContent(message, parsedMessage, isSent, isInAddressBook) {
         </div>
         ` : ''}
 
-        <div class="message-text">
+        <div class="message-text" id="messageBodyContainer">
             ${bodyHtml}
         </div>
 

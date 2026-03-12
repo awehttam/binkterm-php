@@ -642,7 +642,9 @@ class MessageHandler
         } else {
             // Echomail is public, so no user restriction needed
             $stmt = $this->db->prepare("
-                SELECT em.*, ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only,
+                SELECT em.*,
+                       COALESCE(NULLIF(em.art_format, ''), NULLIF(ea.art_format_hint, '')) as art_format,
+                       ea.tag as echoarea, ea.domain as domain, ea.color as echoarea_color, ea.is_sysop_only as is_sysop_only,
                        CASE WHEN sav.id IS NOT NULL THEN 1 ELSE 0 END as is_saved,
                        CASE WHEN sm.id IS NOT NULL THEN 1 ELSE 0 END as is_shared
                 FROM echomail em

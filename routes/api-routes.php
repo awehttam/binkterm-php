@@ -1822,11 +1822,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
+            $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
             } elseif (!in_array($postingNamePolicy, ['real_name', 'username'], true)) {
                 throw new \Exception('Invalid posting name policy');
+            }
+
+            if ($artFormatHint === '' || $artFormatHint === 'auto' || $artFormatHint === 'inherit') {
+                $artFormatHint = null;
+            } elseif (!in_array($artFormatHint, ['ansi', 'amiga_ansi', 'petscii'], true)) {
+                throw new \Exception('Invalid art format hint');
             }
 
             if (empty($tag) || empty($description)) {
@@ -1844,11 +1851,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $db = Database::getInstance()->getPdo();
 
             $stmt = $db->prepare("
-                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, color, is_active, is_local, is_sysop_only, domain, gemini_public)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO echoareas (tag, description, moderator, uplink_address, posting_name_policy, art_format_hint, color, is_active, is_local, is_sysop_only, domain, gemini_public)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false']);
 
             if ($result) {
                 echo json_encode([
@@ -1864,6 +1871,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $message = $e->getMessage();
             if ($message === 'Invalid posting name policy') {
                 apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
+            } elseif ($message === 'Invalid art format hint') {
+                apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
             } elseif ($message === 'Tag and description are required') {
                 apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
             } elseif (str_starts_with($message, 'Invalid tag format')) {
@@ -1903,11 +1912,18 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $geminiPublic = !empty($input['gemini_public']);
             $domain = trim($input['domain'] ?? '');
             $postingNamePolicy = strtolower(trim((string)($input['posting_name_policy'] ?? '')));
+            $artFormatHint = strtolower(trim((string)($input['art_format_hint'] ?? '')));
 
             if ($postingNamePolicy === '' || $postingNamePolicy === 'inherit') {
                 $postingNamePolicy = null;
             } elseif (!in_array($postingNamePolicy, ['real_name', 'username'], true)) {
                 throw new \Exception('Invalid posting name policy');
+            }
+
+            if ($artFormatHint === '' || $artFormatHint === 'auto' || $artFormatHint === 'inherit') {
+                $artFormatHint = null;
+            } elseif (!in_array($artFormatHint, ['ansi', 'amiga_ansi', 'petscii'], true)) {
+                throw new \Exception('Invalid art format hint');
             }
 
             if (empty($tag) || empty($description)) {
@@ -1926,11 +1942,11 @@ SimpleRouter::group(['prefix' => '/api'], function() {
 
             $stmt = $db->prepare("
                 UPDATE echoareas
-                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
+                SET tag = ?, description = ?, moderator = ?, uplink_address = ?, posting_name_policy = ?, art_format_hint = ?, color = ?, is_active = ?, is_local = ?, is_sysop_only = ?, domain = ?, gemini_public = ?
                 WHERE id = ?
             ");
 
-            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
+            $result = $stmt->execute([$tag, $description, $moderator, $uplinkAddress, $postingNamePolicy, $artFormatHint, $color, $isActive ? 'true' : 'false', $isLocal ? 'true' : 'false', $isSysopOnly ? 'true' : 'false', $domain, $geminiPublic ? 'true' : 'false', $id]);
 
             if ($result && $stmt->rowCount() > 0) {
                 echo json_encode([
@@ -1945,6 +1961,8 @@ SimpleRouter::group(['prefix' => '/api'], function() {
             $message = $e->getMessage();
             if ($message === 'Invalid posting name policy') {
                 apiError('errors.echoareas.invalid_posting_name_policy', apiLocalizedText('errors.echoareas.invalid_posting_name_policy', 'Invalid posting name policy', $user));
+            } elseif ($message === 'Invalid art format hint') {
+                apiError('errors.echoareas.invalid_art_format_hint', apiLocalizedText('errors.echoareas.invalid_art_format_hint', 'Invalid art format hint', $user));
             } elseif ($message === 'Tag and description are required') {
                 apiError('errors.echoareas.tag_description_required', apiLocalizedText('errors.echoareas.tag_description_required', 'Tag and description are required', $user));
             } elseif (str_starts_with($message, 'Invalid tag format')) {

@@ -96,9 +96,11 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 
 ### Web Echomail Reader
 - **ANSI / plain text toggle**: Press `A` while reading a message to switch between ANSI/preformatted rendering and plain text mode. A badge is shown when plain text mode is active. The mode resets to ANSI when opening a new message.
+- **Viewer mode cycling**: Press `A` while reading a message to cycle viewer modes: `Auto`, `ANSI`, `Amiga ANSI`, `PETSCII`, and `Plain Text`.
 - **Keyboard shortcuts help**: Press `?` or `H` while the message reader is open to display an overlay listing all available keyboard shortcuts. Press either key again to dismiss.
 
 ### Web Netmail Reader
+- **Viewer mode cycling**: Press `A` while reading a netmail message to cycle viewer modes: `Auto`, `ANSI`, `Amiga ANSI`, `PETSCII`, and `Plain Text`.
 - **Keyboard shortcuts help**: Press `?` or `H` while the message reader is open to display an overlay listing all available keyboard shortcuts. Press either key again to dismiss.
 
 ### Echomail / Netmail
@@ -140,6 +142,7 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 
 ### Echo Areas
 - **Apostrophes allowed in echo area tag names**: Tags containing apostrophes (e.g. `WEN-80'S_MUSIC`) are now accepted by the API and the echoarea importer.
+- Echo area editor now includes an **Art format hint** field. When set, it provides a default rendering hint for messages in that area when a message does not already carry an explicit `art_format`. Supported hints are `ANSI`, `Amiga ANSI`, and `PETSCII`.
 
 ### Gemini Capsule
 - Gemini capsule home page wording updated for clarity: the heading now reads **"Echo Message area stats by network"** and each network summary uses **"message areas"** instead of **"areas"**.

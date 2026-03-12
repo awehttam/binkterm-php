@@ -15,6 +15,16 @@
     font-display: block;
 }
 
+/* Optional Amiga-style font for alternate art profiles.
+   Place the TTF file at public_html/fonts/TopazPlus.ttf if available. */
+@font-face {
+    font-family: 'Topaz Plus';
+    src: url('/fonts/TopazPlus.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 /* Container for ANSI art */
 .ansi-art-container {
     overflow-x: auto;
@@ -74,6 +84,24 @@
     color: #aaa;
     background-color: #000;
     display: block;
+}
+
+.ansi-art-container.art-format-amiga-ansi,
+.ansi-art.art-format-amiga-ansi {
+    background-color: #06090f;
+    color: #cfd8ff;
+}
+
+.ansi-art-container.art-format-amiga-ansi pre,
+.ansi-art.art-format-amiga-ansi {
+    font-family: 'Topaz Plus', 'Courier New', monospace;
+    letter-spacing: 0.01em;
+}
+
+.ansi-art-container.art-format-petscii,
+.ansi-art.art-format-petscii {
+    background-color: #1e1e7a;
+    color: #8cc7ff;
 }
 
 /* Standard ANSI foreground colors (0-7) */
