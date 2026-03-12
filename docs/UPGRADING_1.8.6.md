@@ -1,18 +1,18 @@
-# Upgrading to 1.8.6
+﻿# Upgrading to 1.8.6
 
 > **Note:** This release introduces localization (i18n) support across the
-> entire application — templates, admin panel, API error responses, JavaScript
+> entire application â€” templates, admin panel, API error responses, JavaScript
 > UI, and outgoing emails. Localization touches virtually every part of the
 > system. Testing has been performed, but some areas may have been missed.
 > If you encounter any text that appears untranslated, displays a raw key
 > (e.g. `ui.some.key`), or behaves unexpectedly after upgrading, please report
 > it at **https://github.com/awehttam/binkterm-php/issues**.
 
-⚠️ Make sure you've made a backup of your database and files before upgrading.
+âš ï¸ Make sure you've made a backup of your database and files before upgrading.
 
 ## Summary of Changes
 
-1.8.6 is a major release. The headline feature is full **localization (i18n) support** across the web interface, admin panel, terminal server, and API — shipping with English, Spanish, and French out of the box. The **terminal server** receives significant attention: a new pure-PHP **SSH-2 daemon** joins the existing telnet server, and the terminal experience gains a redesigned message header layout, scroll optimization, ANSI auto-detection, Z-Modem file transfer improvements, and the ability to jump directly to a message by typing its number. **File Areas** gain a pluggable antivirus layer with **VirusTotal cloud scanning** alongside ClamAV, a new web-based file editor and move tool, and new `.env` controls for scanning behaviour. The **BBS Directory** is introduced as a new public-facing page automatically populated from echomail announcements via a new **Echomail Robots** framework. Rounding it out are a new **Guest Doors** page for anonymous door access, DOS door multiplexing improvements, admin language override tools, and miscellaneous bug fixes and stability improvements throughout.
+1.8.6 is a major release. The headline feature is full **localization (i18n) support** across the web interface, admin panel, terminal server, and API â€” shipping with English, Spanish, and French out of the box. The **terminal server** receives significant attention: a new pure-PHP **SSH-2 daemon** joins the existing telnet server, and the terminal experience gains a redesigned message header layout, scroll optimization, ANSI auto-detection, Z-Modem file transfer improvements, and the ability to jump directly to a message by typing its number. **File Areas** gain a pluggable antivirus layer with **VirusTotal cloud scanning** alongside ClamAV, a new web-based file editor and move tool, and new `.env` controls for scanning behaviour. The **BBS Directory** is introduced as a new public-facing page automatically populated from echomail announcements via a new **Echomail Robots** framework. Rounding it out are a new **Guest Doors** page for anonymous door access, DOS door multiplexing improvements, admin language override tools, and miscellaneous bug fixes and stability improvements throughout.
 
 ## Localization (i18n) Support
 
@@ -30,13 +30,13 @@
 
 The BinktermPHP Terminal Server provides a BBS-style interactive terminal accessible over two protocols:
 
-- **Telnet** (`telnet_daemon.php`) — default port `2323`; TLS available on port `8023`
-- **SSH** (`ssh/ssh_daemon.php`) — pure-PHP SSH-2 daemon; default port `8022`
+- **Telnet** (`telnet_daemon.php`) â€” default port `2323`; TLS available on port `8023`
+- **SSH** (`ssh/ssh_daemon.php`) â€” pure-PHP SSH-2 daemon; default port `8022`
 
 Both access methods share the same session logic (`BbsSession`) and deliver identical BBS features: menus, messaging, file areas, doors, polls, shoutbox, and more.
 
 #### SSH Access
-- New **SSH-2 server** (`ssh/ssh_daemon.php`) — pure-PHP SSH daemon using only `ext-openssl` and `ext-gmp`, no new Composer dependencies. Default port `8022` (configurable via `SSH_PORT` in `.env`). Correct SSH credentials skip the BBS login screen; failed auth drops to the login/register screen instead of disconnecting. Host key is auto-generated on first run at `data/ssh/ssh_host_rsa_key`. See `docs/SSHServer.md` for full documentation.
+- New **SSH-2 server** (`ssh/ssh_daemon.php`) â€” pure-PHP SSH daemon using only `ext-openssl` and `ext-gmp`, no new Composer dependencies. Default port `8022` (configurable via `SSH_PORT` in `.env`). Correct SSH credentials skip the BBS login screen; failed auth drops to the login/register screen instead of disconnecting. Host key is auto-generated on first run at `data/ssh/ssh_host_rsa_key`. See `docs/SSHServer.md` for full documentation.
 
 #### Telnet Access
 - TLS encryption (experimental): enabled by default on port 8023 with an auto-generated self-signed certificate stored in `data/telnet/`. Set `TELNET_TLS=false` in `.env` to disable, or provide your own certificate via `TELNET_TLS_CERT` and `TELNET_TLS_KEY`. Use `--no-tls` on the command line to disable for a single run.
@@ -57,17 +57,17 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - In the message list, you can now type a message number to jump directly to it. The selection highlight updates live as digits are typed; press Enter to open.
 - The message reader now displays headers in a **styled box** instead of plain `---` separators. The box uses charset-appropriate line-drawing characters (UTF-8, CP437, or ASCII) and renders with a dark blue background and gray border on ANSI terminals. The subject line is bold; the date and secondary fields are dimmed for visual hierarchy.
 - **Scroll optimization**: Scrolling through a message no longer clears and redraws the entire screen. Only the body rows are repainted in-place using cursor positioning, eliminating flicker on every keypress.- The terminal capability detection wizard now correctly detects **ASCII-only terminals**. When UTF-8 is not supported, the wizard shows a CP437 box-drawing test; terminals that cannot render CP437 are set to ASCII mode instead of defaulting to CP437.
-- **Automatic ANSI detection on telnet connect**: ANSI color capability is now detected at connection time via the TELNET TTYPE negotiation (RFC 1091). The server sends `TTYPE SEND` only after the client acknowledges `DO TTYPE` (proper RFC sequence), then uses the terminal-type string to enable color automatically. Clients reporting `DUMB` or sending no TTYPE are served plain ASCII with no color escape sequences. The previous ESC[6n DSR/CPR probe has been removed — it caused SyncTerm and similar clients to pause display rendering until a key was pressed. Saved user terminal settings continue to override the auto-detected value after login.
-- **Telnet connect hang fix**: Added `stream_set_write_buffer($conn, 0)` on accepted sockets to disable PHP's userspace write buffer. Previously, banner text and prompts could sit in an 8 KB buffer and not reach the client until a read operation flushed it — appearing as a blank screen on connect.
+- **Automatic ANSI detection on telnet connect**: ANSI color capability is now detected at connection time via the TELNET TTYPE negotiation (RFC 1091). The server sends `TTYPE SEND` only after the client acknowledges `DO TTYPE` (proper RFC sequence), then uses the terminal-type string to enable color automatically. Clients reporting `DUMB` or sending no TTYPE are served plain ASCII with no color escape sequences. The previous ESC[6n DSR/CPR probe has been removed â€” it caused SyncTerm and similar clients to pause display rendering until a key was pressed. Saved user terminal settings continue to override the auto-detected value after login.
+- **Telnet connect hang fix**: Added `stream_set_write_buffer($conn, 0)` on accepted sockets to disable PHP's userspace write buffer. Previously, banner text and prompts could sit in an 8 KB buffer and not reach the client until a read operation flushed it â€” appearing as a blank screen on connect.
 
 ### File Areas
 - **Pluggable antivirus layer**: Virus scanning now uses a generic `Antivirus\ScannerInterface` that multiple backends can be plugged into. Built-in backends:
-  - **ClamAV** — unchanged behaviour; local scanning via `clamdscan`. Files can be manually re-scanned by admins from the file details modal using the **Virus Scan** button.
-  - **VirusTotal** — new optional cloud scanning backend. Enable by setting `VIRUSTOTAL_API_KEY` in `.env`. Performs a hash lookup first; only uploads files whose hash is not already in the VirusTotal database. **Note:** files uploaded to VirusTotal may be shared with security researchers and should not be considered private — see [docs/AntiVirus.md](AntiVirus.md) for details.
+  - **ClamAV** â€” unchanged behaviour; local scanning via `clamdscan`. Files can be manually re-scanned by admins from the file details modal using the **Virus Scan** button.
+  - **VirusTotal** â€” new optional cloud scanning backend. Enable by setting `VIRUSTOTAL_API_KEY` in `.env`. Performs a hash lookup first; only uploads files whose hash is not already in the VirusTotal database. **Note:** files uploaded to VirusTotal may be shared with security researchers and should not be considered private â€” see [docs/AntiVirus.md](AntiVirus.md) for details.
 - The `CLAMAV_ALLOW_INFECTED` `.env` variable has been renamed to `FILES_ALLOW_INFECTED`. Update your `.env` if you had this set.
 - New **global antivirus controls** in `.env`:
-  - `VIRUS_SCAN_DISABLED=true` — disables all virus scanning (both automatic and manual).
-  - `VIRUS_SCAN_NOAUTO=true` — disables automatic scanning on upload while keeping the manual **Virus Scan** button available. See [docs/AntiVirus.md](AntiVirus.md) for details.
+  - `VIRUS_SCAN_DISABLED=true` â€” disables all virus scanning (both automatic and manual).
+  - `VIRUS_SCAN_NOAUTO=true` â€” disables automatic scanning on upload while keeping the manual **Virus Scan** button available. See [docs/AntiVirus.md](AntiVirus.md) for details.
 - **Virus detection error**: When an upload is rejected due to virus detection, the UI now shows a specific "File rejected: virus detected" message instead of the generic upload failure. The rejection is also logged to the server log. See [docs/AntiVirus.md](AntiVirus.md) for full setup and configuration instructions.
 - The file areas sidebar now has a **search/filter box** to quickly find areas by tag or description.
 - The file areas sidebar list is now scrollable with a fixed height, matching the echomail reader style.
@@ -80,8 +80,8 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Admins can **move a file to a different file area** from the same edit dialog. A "Move to Area" dropdown is shown to admins only; selecting a different area moves the physical file on disk to the new area's storage directory and updates the database record.
 ### Native Doors
 - Anonymous (guest) access: sysops can now allow unauthenticated users to launch specific native doors by setting `allow_anonymous: true` and `guest_max_sessions: N` in `config/nativedoors.json`. Requires migration v1.10.17.2 (run via `setup.php`).
-- New native door: **PubTerm (Public Terminal)** — connects anonymous users to the BBS via telnet. Disabled by default; enable in Admin → Native Doors. Configure target host/port via `PUBTERM_HOST` and `PUBTERM_PORT` in `.env` (defaults to `127.0.0.1:2323`). Linux uses `telnet -E -K`; Windows uses PuTTY `plink` (install via `winget install PuTTY.PuTTY`, or set `PUBTERM_PLINK_BIN` in `.env`). When enabled, a "Connect via Telnet" button appears on the login page.
-- New **Guest Doors** page (`/guest-doors`) listing all anonymous-accessible native doors. Enable via Admin → BBS Settings → Enable Guest Doors Page. When enabled, a Guest Doors link appears in the navigation for logged-out users.
+- New native door: **PubTerm (Public Terminal)** â€” connects anonymous users to the BBS via telnet. Disabled by default; enable in Admin â†’ Native Doors. Configure target host/port via `PUBTERM_HOST` and `PUBTERM_PORT` in `.env` (defaults to `127.0.0.1:2323`). Linux uses `telnet -E -K`; Windows uses PuTTY `plink` (install via `winget install PuTTY.PuTTY`, or set `PUBTERM_PLINK_BIN` in `.env`). When enabled, a "Connect via Telnet" button appears on the login page.
+- New **Guest Doors** page (`/guest-doors`) listing all anonymous-accessible native doors. Enable via Admin â†’ BBS Settings â†’ Enable Guest Doors Page. When enabled, a Guest Doors link appears in the navigation for logged-out users.
 - Manifests now support a `platform` field in `requirements` (e.g. `["linux", "windows"]`). The admin UI shows a warning badge if a door's platform requirements don't match the server OS.
 - Manifests now support `launch_command_windows` for platform-specific launch commands on Windows.
 - Documentation reorganised: new `docs/Doors.md` entry point covers all door types and shared multiplexing bridge setup (including `--daemon` mode); `docs/DOSDoors.md` and `docs/NativeDoors.md` updated to reference it.
@@ -106,17 +106,18 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 ### Echomail / Netmail
 - Fixed multi-level echomail quoting: when replying to a message containing already-quoted lines (e.g. `RW>> text`), the bumped quote now consistently carries a leading space (` RW>>> text`) matching the FSC-0032 quoting style used for first-level quotes.
 - Fixed netmail replies using plain `>` quoting instead of FSC-0032 initials style. Netmail replies now quote identically to echomail replies.
-- Fixed 30–45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** — see upgrade instructions below.
+- Fixed 30â€“45 second delay when sending echomail or netmail. The immediate outbound poll triggered after sending was blocking the HTTP response on non-PHP-FPM setups (Apache mod_php, nginx without FPM). The admin daemon now spawns the poll in the background so the response returns as soon as the message is saved. **Requires admin daemon restart** â€” see upgrade instructions below.
 - **Netmail attachments now supported for local delivery.** Sending a file attachment to a user on the local system (including the sysop) stores the file directly into the recipient's private file area. Previously this returned an error. Crashmail is not required for local attachment delivery.
-- Fixed locally sent netmail (e.g. messages to Sysop) not appearing in the sender's All view — only in Sent. The message record is now owned by the sender so it appears in both views; the sysop still sees it in their inbox via address matching.
+- Fixed locally sent netmail (e.g. messages to Sysop) not appearing in the sender's All view â€” only in Sent. The message record is now owned by the sender so it appears in both views; the sysop still sees it in their inbox via address matching.
 - Fixed malformed or misaddressed echomail (e.g. newsletter feeds without `AREA:`/`SEEN-BY`/`PATH` kludges) being incorrectly delivered to the sysop's netmail inbox. The sysop catch-all fallback in address routing has been removed. Undeliverable messages are now dropped with a detailed log entry (from, to, subject, date, MSGID) and the original `.pkt` packet file is preserved to `data/undeliverable/` for manual inspection.
 
 ### BBS Directory
 
-- New public **BBS Directory** page (`/bbs-directory`) lists known BBS systems — automatically populated from echomail announcements and supplementable with manual entries. Accessible without login.
+- New public **BBS Directory** page (`/bbs-directory`) lists known BBS systems â€” automatically populated from echomail announcements and supplementable with manual entries. Accessible without login.
 - The public BBS Directory now includes Bootstrap tabs with a new **Map of BBS Systems** view powered by **OpenStreetMap/Leaflet**.
 - BBS Directory records now store optional `latitude` / `longitude` coordinates. These are geocoded from the entry's `location` field.
 - Geocoding occurs on BBS Directory create/update/upsert only when needed: when the normalized location changes, or when a location exists but coordinates are missing. Malformed location strings such as empty comma segments are normalized before lookup.
+- Geocoder results are now cached in the database for 32 days, including misses, to reduce repeated requests for the same location lookups.
 - New `.env` controls for BBS Directory geocoding:
   - `BBS_DIRECTORY_GEOCODING_ENABLED`
   - `BBS_DIRECTORY_GEOCODER_URL`
@@ -125,12 +126,8 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - Existing BBS Directory rows will not automatically gain coordinates at upgrade time. After running `php scripts/setup.php`, you can backfill missing coordinates with:
   - `php scripts/backfill_bbs_directory_geocoding.php --dry-run`
   - `php scripts/backfill_bbs_directory_geocoding.php`
-- Admin CRUD at **Admin → BBS Directory**: add, edit, and delete entries; search and paginate. Entries carry an Auto/Manual source badge; auto-populated entries updated by robots preserve manual entries' source flag.
-- New **Echomail Robots** framework: generic rule-based system that watches echo areas for matching messages and dispatches them to a configured processor. Manage rules at **Admin → Area Management → Echomail Robots**.
-- Built-in processor `ibbslastcall_rot47`: decodes ROT47-encoded `ibbslastcall-data` messages from FSXNet's FSX_DAT echo area and upserts BBS entries into the directory automatically.
-- CLI runner `scripts/echomail_robots.php` — run all enabled robots or a specific one (`--robot-id=N`). Supports `--dry-run` and `--quiet`. Schedule via cron for automatic processing.
+- Admin CRUD at **Admin â†’ BBS Directory**: add, edit, and delete entries; search and paginate. Entries carry an Auto/Manual source badge; auto-populated entries updated by robots preserve manual entries' source flag.
 - **BBS Lists** dropdown replaces the standalone Nodelist link in the main navigation (logged-in and guest views). The dropdown contains BBS Directory and Nodelist.
-- See `docs/Robots.md` for architecture details and instructions for writing custom processors.
 
 ### File Areas (continued)
 - **Virus name display**: When a file is marked as infected, the file info modal now shows the detected virus signature name alongside the "Infected" badge.
@@ -138,17 +135,23 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 - **VirusTotal suspicious detections ignored**: VirusTotal results now only treat `malicious` detections as infected; `suspicious` votes are disregarded to reduce false positives.
 
 ### TIC File Processing
-- **Improved failure logging**: TIC file processing now logs a detailed trace to `data/logs/packets.log` at each step — parsed TIC fields, domain resolution, file area lookup (including detection of inactive areas), password check source, validation result, SHA-256 hash, duplicate check, storage result, and virus scan outcome. Exceptions now include file and line number. Failures from `process_packets.php` are also written to `packets.log` with their error code, so failures are visible even when invoked via the admin daemon.
+- **Improved failure logging**: TIC file processing now logs a detailed trace to `data/logs/packets.log` at each step â€” parsed TIC fields, domain resolution, file area lookup (including detection of inactive areas), password check source, validation result, SHA-256 hash, duplicate check, storage result, and virus scan outcome. Exceptions now include file and line number. Failures from `process_packets.php` are also written to `packets.log` with their error code, so failures are visible even when invoked via the admin daemon.
 
 ### Echo Areas
 - **Apostrophes allowed in echo area tag names**: Tags containing apostrophes (e.g. `WEN-80'S_MUSIC`) are now accepted by the API and the echoarea importer.
 - Echo area editor now includes an **Art format hint** field. When set, it provides a default rendering hint for messages in that area when a message does not already carry an explicit `art_format`. Supported hints are `ANSI`, `Amiga ANSI`, and `PETSCII`.
 
+### Echomail Robots
+- New **Echomail Robots** framework: generic rule-based system that watches echo areas for matching messages and dispatches them to a configured processor. Manage rules at **Admin → Area Management → Echomail Robots**.
+- Built-in processor `ibbslastcall_rot47`: decodes ROT47-encoded `ibbslastcall-data` messages from FSXNet's FSX_DAT echo area and upserts BBS entries into the directory automatically.
+- CLI runner `scripts/echomail_robots.php` — run all enabled robots or a specific one (`--robot-id=N`). Supports `--dry-run` and `--quiet`. Schedule via cron for automatic processing.
+- See `docs/Robots.md` for architecture details and instructions for writing custom processors.
+
 ### Gemini Capsule
 - Gemini capsule home page wording updated for clarity: the heading now reads **"Echo Message area stats by network"** and each network summary uses **"message areas"** instead of **"areas"**.
 
 ### Admin / Sysop Tools
-- New **Language Overrides** editor in Admin → BBS Settings → Language Overrides. Sysops can customize individual phrases for any locale and catalog without editing the base translation files. Overrides are stored as JSON in `config/i18n/overrides/<locale>/<namespace>.json` and are applied transparently on top of the base catalog at runtime.
+- New **Language Overrides** editor in Admin â†’ BBS Settings â†’ Language Overrides. Sysops can customize individual phrases for any locale and catalog without editing the base translation files. Overrides are stored as JSON in `config/i18n/overrides/<locale>/<namespace>.json` and are applied transparently on top of the base catalog at runtime.
 - PWA manifest: added app shortcuts for Doors (`/games`) and Files (`/files`). Shortcuts updated: Compose Netmail, Netmail inbox, and Echomail replace the previous Compose Echomail shortcut; Compose Netmail is listed first.
 - **Echo area editor error display**: When saving an echo area fails, the error message is now shown inline within the edit modal instead of behind it where it was invisible. Duplicate tag submissions now return a specific "An echo area with that tag already exists" message instead of the generic failure.
 

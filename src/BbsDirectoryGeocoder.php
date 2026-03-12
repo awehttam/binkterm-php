@@ -7,6 +7,7 @@ class BbsDirectoryGeocoder
     private const DEFAULT_ENDPOINT = 'https://nominatim.openstreetmap.org/search';
     private const REQUEST_INTERVAL_US = 1000000;
     private const TIMEOUT_SECONDS = 10;
+    private const CACHE_TTL_SECONDS = 2764800; // 32 days
 
     private static float $lastRequestAt = 0.0;
 
@@ -20,6 +21,12 @@ class BbsDirectoryGeocoder
         $location = trim((string)$location);
         if ($location === '' || !$this->isEnabled()) {
             return null;
+        }
+
+        $cacheKey = $this->buildCacheKey($location);
+        $cached = $this->getCachedResult($cacheKey);
+        if ($cached !== null) {
+            return $cached;
         }
 
         $query = [
@@ -38,13 +45,81 @@ class BbsDirectoryGeocoder
 
         $response = $this->httpGetJson($url);
         if (!is_array($response) || empty($response[0]['lat']) || empty($response[0]['lon'])) {
+            $this->storeCachedResult($cacheKey, $location, null);
             return null;
         }
 
-        return [
+        $result = [
             'latitude' => round((float)$response[0]['lat'], 6),
             'longitude' => round((float)$response[0]['lon'], 6),
         ];
+
+        $this->storeCachedResult($cacheKey, $location, $result);
+
+        return $result;
+    }
+
+    private function buildCacheKey(string $location): string
+    {
+        return hash('sha256', mb_strtolower(trim($location), 'UTF-8'));
+    }
+
+    private function getCachedResult(string $cacheKey): ?array
+    {
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                SELECT latitude, longitude, cached_at
+                FROM bbs_directory_geocode_cache
+                WHERE location_key = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$cacheKey]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$row) {
+                return null;
+            }
+
+            $cachedAt = strtotime((string)($row['cached_at'] ?? ''));
+            if ($cachedAt === false || (time() - $cachedAt) > self::CACHE_TTL_SECONDS) {
+                return null;
+            }
+
+            if ($row['latitude'] === null || $row['longitude'] === null) {
+                return ['latitude' => null, 'longitude' => null];
+            }
+
+            return [
+                'latitude' => round((float)$row['latitude'], 6),
+                'longitude' => round((float)$row['longitude'], 6),
+            ];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function storeCachedResult(string $cacheKey, string $location, ?array $result): void
+    {
+        try {
+            $db = Database::getInstance()->getPdo();
+            $stmt = $db->prepare("
+                INSERT INTO bbs_directory_geocode_cache (location_key, normalized_location, latitude, longitude, cached_at)
+                VALUES (:location_key, :normalized_location, :latitude, :longitude, NOW())
+                ON CONFLICT (location_key) DO UPDATE
+                SET normalized_location = EXCLUDED.normalized_location,
+                    latitude = EXCLUDED.latitude,
+                    longitude = EXCLUDED.longitude,
+                    cached_at = NOW()
+            ");
+            $stmt->execute([
+                ':location_key' => $cacheKey,
+                ':normalized_location' => $location,
+                ':latitude' => $result['latitude'] ?? null,
+                ':longitude' => $result['longitude'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            // Ignore cache failures and allow live geocoding to continue.
+        }
     }
 
     private function httpGetJson(string $url): ?array
