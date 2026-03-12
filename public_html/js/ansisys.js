@@ -828,6 +828,7 @@ class ArtPetsciiDecoder {
     constructor(buffer) {
         this.buffer = buffer;
         this.reverse = false;
+        this.charsetMode = 'upper_graphics';
         this.colorMap = {
             5: 15,    // white
             28: 1,    // red
@@ -882,6 +883,9 @@ class ArtPetsciiDecoder {
             case 13: // CR
                 this.buffer.writeChar('\n');
                 return;
+            case 14: // switch to lower/upper case character set
+                this.charsetMode = 'lower_upper';
+                return;
             case 10: // LF
                 return;
             case 17: // cursor down
@@ -909,8 +913,10 @@ class ArtPetsciiDecoder {
             case 141: // line feed / cursor up in some contexts
                 this.buffer.cursorRow = Math.max(0, this.buffer.cursorRow - 1);
                 return;
-            case 142: // reverse off
-            case 146:
+            case 142: // switch to upper/graphics character set
+                this.charsetMode = 'upper_graphics';
+                return;
+            case 146: // reverse off
                 this.reverse = false;
                 return;
             case 147: // clear / home
@@ -936,7 +942,17 @@ class ArtPetsciiDecoder {
     }
 
     mapByteToChar(byte) {
-        if (byte >= 32 && byte <= 126) {
+        if (byte < 32) {
+            return ' ';
+        }
+
+        // Keep ordinary text readable through normal ASCII/Unicode codepoints.
+        if (byte >= 32 && byte <= 95) {
+            return String.fromCharCode(byte);
+        }
+
+        // In lower/upper mode, the 96-127 block is primarily lowercase text.
+        if (this.charsetMode === 'lower_upper' && byte >= 96 && byte <= 127) {
             return String.fromCharCode(byte);
         }
 
@@ -985,15 +1001,15 @@ class ArtPetsciiDecoder {
             166: '\u2592',
             167: '\u2595',
             168: '\u25e4',
-            169: '\u251c',
+            169: '\u2502',
             170: '\u2597',
             171: '\u2514',
             172: '\u2510',
             173: '\u2582',
             174: '\u250c',
-            175: '\u2534',
+            175: '\u2500',
             176: '\u252c',
-            177: '\u2524',
+            177: '\u2502',
             178: '\u258e',
             179: '\u258d',
             180: '\u2583',
@@ -1011,7 +1027,7 @@ class ArtPetsciiDecoder {
             255: '\u03c0'
         };
 
-        return petsciiMap[byte] || ' ';
+        return petsciiMap[byte] || String.fromCharCode(byte);
     }
 }
 

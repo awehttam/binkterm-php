@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PETSCII Test - BinktermPHP</title>
+    <link rel="stylesheet" href="/css/ansisys.css">
+    <style>
+        body {
+            font-family: monospace;
+            background: #111827;
+            color: #d1d5db;
+            padding: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #f9fafb;
+            border-bottom: 1px solid #374151;
+            padding-bottom: 10px;
+        }
+        .example {
+            margin: 20px 0;
+            padding: 15px;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 6px;
+        }
+        .example h3 {
+            color: #93c5fd;
+            margin-top: 0;
+        }
+        .code, textarea {
+            background: #0f172a;
+            color: #e5e7eb;
+            padding: 10px;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: Consolas, "Courier New", monospace;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+        .output {
+            padding: 12px;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow-x: auto;
+            background: #111827;
+        }
+        .note {
+            color: #fbbf24;
+            margin: 10px 0;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: 0;
+            border-radius: 4px;
+            padding: 8px 14px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        label {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .glyph-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .glyph-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 8px 6px;
+            text-align: center;
+        }
+        .glyph-code {
+            color: #93c5fd;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        .glyph-char {
+            font-family: 'Pet Me 64', "Courier New", Consolas, monospace;
+            font-size: 30px;
+            line-height: 1;
+            color: #f8fafc;
+            background: #1e1e7a;
+            border-radius: 3px;
+            padding: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>PETSCII Rendering Test</h1>
+    <p>This page exercises the current PETSCII web renderer using canned byte sequences and custom input.</p>
+
+    <div class="example">
+        <h3>Palette Sample</h3>
+        <div class="code">Shows current implemented PETSCII color bytes for the word HELLO.</div>
+        <div class="output" id="output-colors"></div>
+    </div>
+
+    <div class="example">
+        <h3>Reverse Video</h3>
+        <div class="code">Demonstrates reverse on (`18`) and reverse off (`146`).</div>
+        <div class="output" id="output-reverse"></div>
+    </div>
+
+    <div class="example">
+        <h3>Cursor Controls</h3>
+        <div class="code">Uses home (`19`), cursor right (`29`), cursor down (`17`), and cursor left (`157`) without relying on carriage returns that reset the column.</div>
+        <div class="output" id="output-cursor"></div>
+    </div>
+
+    <div class="example">
+        <h3>Box Drawing</h3>
+        <div class="code">Uses PETSCII graphic bytes from the current mapping table with explicit spacing so the shapes are visible.</div>
+        <div class="output" id="output-box"></div>
+    </div>
+
+    <div class="example">
+        <h3>Custom Byte Sequence</h3>
+        <div class="note">Enter decimal bytes separated by spaces, commas, or newlines.</div>
+        <textarea id="custom-bytes">147, 158, 66, 73, 78, 75, 84, 69, 82, 77, 13, 5, 80, 69, 84, 83, 67, 73, 73, 13, 18, 82, 69, 86, 69, 82, 83, 69, 146, 13</textarea>
+        <div class="controls">
+            <button type="button" id="render-custom">Render</button>
+            <label>Columns <input type="number" id="custom-cols" value="40" min="20" max="132"></label>
+        </div>
+        <div class="output" id="output-custom"></div>
+    </div>
+
+    <div class="example">
+        <h3>Glyph Atlas</h3>
+        <div class="note">This shows how <code>PetMe64.ttf</code> renders codepoints 32-255. Use it to identify where the font places box and graphics glyphs.</div>
+        <div class="output" id="output-atlas"></div>
+    </div>
+
+    <div class="example">
+        <h3>Focused Graphics Atlas (160-191)</h3>
+        <div class="note">This isolates the high PETSCII graphics block that the box sample is using.</div>
+        <div class="glyph-grid" id="output-graphics-atlas"></div>
+    </div>
+
+    <div class="example">
+        <h3>Focused Graphics Atlas (96-127)</h3>
+        <div class="note">This isolates the shifted/graphics range that may contain the box-drawing glyphs for this font.</div>
+        <div class="glyph-grid" id="output-graphics-atlas-low"></div>
+    </div>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/ansisys.js"></script>
+    <script>
+        function bytesToBase64(bytes) {
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function renderPetsciiSample(targetId, bytes, cols = 40) {
+            const html = renderArtMessage('', {
+                format: 'petscii',
+                bytesBase64: bytesToBase64(bytes),
+                cols: cols,
+                rows: 200
+            });
+            document.getElementById(targetId).innerHTML =
+                `<div class="ansi-art-container art-format-petscii"><pre class="ansi-art art-format-petscii">${html}</pre></div>`;
+        }
+
+        const colorsSample = [
+            5, 72, 69, 76, 76, 79, 13,
+            28, 72, 69, 76, 76, 79, 13,
+            30, 72, 69, 76, 76, 79, 13,
+            31, 72, 69, 76, 76, 79, 13,
+            129, 72, 69, 76, 76, 79, 13,
+            149, 72, 69, 76, 76, 79, 13,
+            150, 72, 69, 76, 76, 79, 13,
+            151, 72, 69, 76, 76, 79, 13,
+            152, 72, 69, 76, 76, 79, 13,
+            153, 72, 69, 76, 76, 79, 13,
+            154, 72, 69, 76, 76, 79, 13,
+            156, 72, 69, 76, 76, 79, 13,
+            158, 72, 69, 76, 76, 79, 13,
+            159, 72, 69, 76, 76, 79, 13
+        ];
+
+        const reverseSample = [
+            5, 78, 79, 82, 77, 65, 76, 13,
+            18, 82, 69, 86, 69, 82, 83, 69, 13,
+            146, 78, 79, 82, 77, 65, 76, 13
+        ];
+
+        const cursorSample = [
+            147,
+            5, 65,
+            29, 29, 29, 29, 30, 66,
+            17, 157, 157, 158, 67,
+            17, 29, 29, 159, 68
+        ];
+
+        const boxSample = [
+            158, 174, 187, 187, 187, 187, 172, 13,
+            158, 169, 32, 32, 66, 66, 177, 13,
+            158, 171, 175, 175, 175, 175, 184, 13
+        ];
+
+        function parseCustomBytes(text) {
+            return String(text || '')
+                .split(/[\s,]+/)
+                .map(part => part.trim())
+                .filter(Boolean)
+                .map(part => Number(part))
+                .filter(value => Number.isInteger(value) && value >= 0 && value <= 255);
+        }
+
+        function renderCustom() {
+            const bytes = parseCustomBytes(document.getElementById('custom-bytes').value);
+            const cols = parseInt(document.getElementById('custom-cols').value, 10) || 40;
+            renderPetsciiSample('output-custom', bytes, cols);
+        }
+
+        function buildGlyphAtlas() {
+            let html = '<div class="ansi-art-container art-format-petscii"><pre class="ansi-art art-format-petscii">';
+            for (let rowStart = 32; rowStart <= 255; rowStart += 16) {
+                const rowLabel = String(rowStart).padStart(3, '0');
+                html += `<span class="ansi-c ansi-bright-white">${rowLabel}</span><span class="ansi-c ansi-bright-white">:</span><span class="ansi-c ansi-bright-white">&nbsp;</span>`;
+                for (let cp = rowStart; cp < rowStart + 16 && cp <= 255; cp++) {
+                    const ch = String.fromCharCode(cp);
+                    const safe = ch === ' ' ? '&nbsp;' :
+                        ch === '&' ? '&amp;' :
+                        ch === '<' ? '&lt;' :
+                        ch === '>' ? '&gt;' :
+                        ch === '"' ? '&quot;' :
+                        ch === "'" ? '&#039;' : ch;
+                    html += `<span class="ansi-c">${safe}</span>`;
+                }
+                if (rowStart < 255) {
+                    html += '\n';
+                }
+            }
+            html += '</pre></div>';
+            document.getElementById('output-atlas').innerHTML = html;
+        }
+
+        function buildFocusedGraphicsAtlas() {
+            let html = '';
+            for (let cp = 160; cp <= 191; cp++) {
+                const ch = String.fromCharCode(cp);
+                html += `<div class="glyph-card"><div class="glyph-code">${cp}</div><div class="glyph-char">${ch}</div></div>`;
+            }
+            document.getElementById('output-graphics-atlas').innerHTML = html;
+        }
+
+        function buildFocusedGraphicsAtlasLow() {
+            let html = '';
+            for (let cp = 96; cp <= 127; cp++) {
+                const ch = String.fromCharCode(cp);
+                html += `<div class="glyph-card"><div class="glyph-code">${cp}</div><div class="glyph-char">${ch}</div></div>`;
+            }
+            document.getElementById('output-graphics-atlas-low').innerHTML = html;
+        }
+
+        renderPetsciiSample('output-colors', colorsSample);
+        renderPetsciiSample('output-reverse', reverseSample);
+        renderPetsciiSample('output-cursor', cursorSample);
+        renderPetsciiSample('output-box', boxSample);
+        renderCustom();
+        buildGlyphAtlas();
+        buildFocusedGraphicsAtlas();
+        buildFocusedGraphicsAtlasLow();
+
+        document.getElementById('render-custom').addEventListener('click', renderCustom);
+    </script>
+</body>
+</html>
