@@ -795,10 +795,26 @@ class ArtAmigaAnsiDecoder extends ArtAnsiDecoder {
             '\u00a0': ' ',
             '\u00ac': '\u2500',
             '\u00a6': '\u2502',
+            '\u00af': '\u2501',
+            '\u00a9': '\u2503',
             '\u00bb': '\u2510',
             '\u00ab': '\u250c',
             '\u00bf': '\u2518',
-            '\u00a1': '\u2514'
+            '\u00a1': '\u2514',
+            '\u00b4': '\u251c',
+            '\u00b5': '\u2524',
+            '\u00b7': '\u252c',
+            '\u00b6': '\u2534',
+            '\u00b8': '\u253c',
+            '\u00c4': '\u2500',
+            '\u00c5': '\u253c',
+            '\u00b9': '\u2588',
+            '\u00b2': '\u2593',
+            '\u00b3': '\u2592',
+            '\u00b0': '\u2591',
+            '\u00ba': '\u25cf',
+            '\u00f7': '\u00f7',
+            '\u00d7': '\u00d7'
         };
     }
 
@@ -811,6 +827,24 @@ class ArtPetsciiDecoder {
     constructor(buffer) {
         this.buffer = buffer;
         this.reverse = false;
+        this.colorMap = {
+            5: 15,    // white
+            28: 1,    // red
+            30: 2,    // green
+            31: 4,    // blue
+            129: 3,   // orange
+            144: 0,   // black
+            149: 3,   // brown
+            150: 9,   // light red
+            151: 8,   // dark gray
+            152: 7,   // gray
+            153: 10,  // light green
+            154: 12,  // light blue
+            155: 7,   // light gray
+            156: 5,   // purple
+            158: 11,  // yellow
+            159: 6    // cyan
+        };
     }
 
     decode(input) {
@@ -838,6 +872,11 @@ class ArtPetsciiDecoder {
     }
 
     processByte(byte) {
+        if (Object.prototype.hasOwnProperty.call(this.colorMap, byte)) {
+            this.buffer.currentAttr.fg = this.colorMap[byte];
+            return;
+        }
+
         switch (byte) {
             case 13: // CR
                 this.buffer.writeChar('\n');
