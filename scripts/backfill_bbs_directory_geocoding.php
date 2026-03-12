@@ -35,6 +35,34 @@ try {
     $directory = new BbsDirectory($db);
     $result = $directory->backfillMissingCoordinates($limit, $dryRun);
 
+    foreach ($result['rows'] as $row) {
+        $prefix = '[' . strtoupper((string)$row['status']) . ']';
+        $line = sprintf(
+            "%s #%d %s",
+            $prefix,
+            (int)$row['id'],
+            (string)$row['name']
+        );
+
+        if (!empty($row['location'])) {
+            $line .= ' | ' . $row['location'];
+        }
+
+        if (isset($row['latitude'], $row['longitude'])) {
+            $line .= sprintf(' -> %.6f, %.6f', (float)$row['latitude'], (float)$row['longitude']);
+        }
+
+        if (!empty($row['message'])) {
+            $line .= ' | ' . $row['message'];
+        }
+
+        echo $line . "\n";
+    }
+
+    if ($result['selected'] > 0) {
+        echo "\n";
+    }
+
     echo "Rows selected: {$result['selected']}\n";
     echo "Rows geocoded: {$result['updated']}\n";
     echo "Rows skipped: {$result['skipped']}\n";

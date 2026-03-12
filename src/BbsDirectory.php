@@ -535,7 +535,7 @@ class BbsDirectory
      *
      * @param int|null $limit
      * @param bool $dryRun
-     * @return array{selected:int, updated:int, skipped:int, failed:int}
+     * @return array{selected:int, updated:int, skipped:int, failed:int, rows:array<int, array<string, mixed>>}
      */
     public function backfillMissingCoordinates(?int $limit = null, bool $dryRun = false): array
     {
@@ -560,6 +560,7 @@ class BbsDirectory
             'updated' => 0,
             'skipped' => 0,
             'failed' => 0,
+            'rows' => [],
         ];
 
         $updateStmt = $this->db->prepare("
@@ -574,11 +575,27 @@ class BbsDirectory
             $coords = $this->resolveCoordinates($entry['location'] ?? null, $entry, true);
             if ($coords['latitude'] === null || $coords['longitude'] === null) {
                 $result['failed']++;
+                $result['rows'][] = [
+                    'id' => (int)$entry['id'],
+                    'name' => $entry['name'] ?? '',
+                    'location' => $entry['location'] ?? '',
+                    'status' => 'failed',
+                    'message' => 'Geocoding returned no coordinates',
+                ];
                 continue;
             }
 
             if ($dryRun) {
                 $result['updated']++;
+                $result['rows'][] = [
+                    'id' => (int)$entry['id'],
+                    'name' => $entry['name'] ?? '',
+                    'location' => $entry['location'] ?? '',
+                    'status' => 'updated',
+                    'message' => 'Would update coordinates',
+                    'latitude' => $coords['latitude'],
+                    'longitude' => $coords['longitude'],
+                ];
                 continue;
             }
 
@@ -590,8 +607,26 @@ class BbsDirectory
 
             if ($updateStmt->rowCount() > 0) {
                 $result['updated']++;
+                $result['rows'][] = [
+                    'id' => (int)$entry['id'],
+                    'name' => $entry['name'] ?? '',
+                    'location' => $entry['location'] ?? '',
+                    'status' => 'updated',
+                    'message' => 'Updated coordinates',
+                    'latitude' => $coords['latitude'],
+                    'longitude' => $coords['longitude'],
+                ];
             } else {
                 $result['skipped']++;
+                $result['rows'][] = [
+                    'id' => (int)$entry['id'],
+                    'name' => $entry['name'] ?? '',
+                    'location' => $entry['location'] ?? '',
+                    'status' => 'skipped',
+                    'message' => 'Row was not modified',
+                    'latitude' => $coords['latitude'],
+                    'longitude' => $coords['longitude'],
+                ];
             }
         }
 
