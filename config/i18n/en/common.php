@@ -1759,6 +1759,7 @@ return [
     'ui.files.search_placeholder' => 'Search files...',
     'ui.files.loading_recent_uploads' => 'Loading recent uploads...',
     'ui.files.statistics' => 'Statistics',
+    'ui.files.status_heading' => 'File Areas Status',
     'ui.files.total_areas' => 'Total Areas',
     'ui.files.total_files' => 'Total Files',
     'ui.files.total_size' => 'Total Size',

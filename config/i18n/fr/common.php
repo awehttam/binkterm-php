@@ -1674,6 +1674,7 @@ Vous pouvez envoyer des rappels individuels en utilisant les boutons « Rappeler
     'ui.files.search_placeholder' => 'Rechercher des fichiers...',
     'ui.files.loading_recent_uploads' => 'Chargement des téléversements récents...',
     'ui.files.statistics' => 'Statistiques',
+    'ui.files.status_heading' => 'État des zones de fichiers',
     'ui.files.total_areas' => 'Total des zones',
     'ui.files.total_files' => 'Total des fichiers',
     'ui.files.total_size' => 'Taille totale',

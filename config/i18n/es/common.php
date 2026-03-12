@@ -1759,6 +1759,7 @@ return [
     'ui.files.search_placeholder' => 'Buscar archivos...',
     'ui.files.loading_recent_uploads' => 'Cargando subidas recientes...',
     'ui.files.statistics' => 'Estadisticas',
+    'ui.files.status_heading' => 'Estado de las areas de archivos',
     'ui.files.total_areas' => 'Total de areas',
     'ui.files.total_files' => 'Total de archivos',
     'ui.files.total_size' => 'Tamano total',
