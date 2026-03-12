@@ -3,10 +3,9 @@
 {% block title %}{{ t('ui.bbs_directory.page_title', {}, 'common') }} - {{ parent() }}{% endblock %}
 
 {% block head %}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@3.0.0/Control.FullScreen.css" crossorigin="">
+    <link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+    <link rel="stylesheet" href="/assets/leaflet/MarkerCluster.css">
+    <link rel="stylesheet" href="/assets/leaflet/MarkerCluster.Default.css">
     <style>
         #bbsSystemsMap {
             height: 540px;
@@ -15,6 +14,26 @@
 
         .bbs-map-shell {
             background: rgba(0, 0, 0, 0.18);
+        }
+
+        #bbsMapShell:fullscreen {
+            padding: 1rem;
+            background: #111;
+        }
+
+        #bbsMapShell:fullscreen #bbsSystemsMap {
+            height: calc(100vh - 5rem);
+        }
+
+        .bbs-fullscreen-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            color: inherit;
+            text-decoration: none;
+            background: #fff;
         }
     </style>
 {% endblock %}
@@ -133,7 +152,7 @@
     </div>
 
     <div class="tab-pane fade" id="bbs-map-pane" role="tabpanel" aria-labelledby="bbs-map-tab">
-        <div class="card bbs-map-shell">
+        <div class="card bbs-map-shell" id="bbsMapShell">
             <div class="card-body">
                 <div id="bbsMapNotice" class="alert alert-secondary mb-3 d-none"></div>
                 <div id="bbsSystemsMap"></div>
@@ -212,9 +231,8 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet.fullscreen@3.0.0/Control.FullScreen.js" crossorigin=""></script>
+<script src="/assets/leaflet/leaflet.js"></script>
+<script src="/assets/leaflet/leaflet.markercluster.js"></script>
 <script>
 (function() {
     const input    = document.getElementById('bbsSearch');
@@ -223,6 +241,7 @@
     const table    = document.getElementById('bbsTable');
     const mapTab   = document.getElementById('bbs-map-tab');
     const mapNotice = document.getElementById('bbsMapNotice');
+    const mapShell = document.getElementById('bbsMapShell');
     const mapEntries = [
         {% for entry in entries %}
         {
@@ -244,6 +263,35 @@
         return String(value || '').replace(/[&<>"']/g, function(ch) {
             return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
         });
+    }
+
+    function addFullscreenControl() {
+        const FullscreenControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                const container = L.DomUtil.create('div', 'leaflet-bar');
+                const link = L.DomUtil.create('a', 'bbs-fullscreen-toggle', container);
+                link.href = '#';
+                link.title = 'Toggle fullscreen';
+                link.innerHTML = '<i class="fas fa-expand"></i>';
+
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.on(link, 'click', function(event) {
+                    L.DomEvent.stop(event);
+                    if (!document.fullscreenElement) {
+                        if (mapShell && typeof mapShell.requestFullscreen === 'function') {
+                            mapShell.requestFullscreen();
+                        }
+                    } else if (typeof document.exitFullscreen === 'function') {
+                        document.exitFullscreen();
+                    }
+                });
+
+                return container;
+            }
+        });
+
+        bbsSystemsMap.addControl(new FullscreenControl());
     }
 
     function initMap() {
@@ -273,11 +321,7 @@
             scrollWheelZoom: true
         });
 
-        if (L.control && typeof L.control.fullscreen === 'function') {
-            bbsSystemsMap.addControl(L.control.fullscreen({
-                position: 'topleft'
-            }));
-        }
+        addFullscreenControl();
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -360,6 +404,21 @@
             }
         });
     }
+
+    document.addEventListener('fullscreenchange', function() {
+        if (!bbsSystemsMap) {
+            return;
+        }
+
+        const icon = document.querySelector('.bbs-fullscreen-toggle i');
+        if (icon) {
+            icon.className = document.fullscreenElement ? 'fas fa-compress' : 'fas fa-expand';
+        }
+
+        setTimeout(function() {
+            bbsSystemsMap.invalidateSize();
+        }, 100);
+    });
 })();
 </script>
 {% if current_user %}
