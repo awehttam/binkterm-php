@@ -66,6 +66,7 @@ awehttam operates a full instance of BinktermPHP over at https://claudes.lovelyb
   - [Gateway Token Authentication](#gateway-token-authentication)
     - [Authentication Flow](#authentication-flow)
     - [API Specification](#api-specification)
+- [Echo Areas](#echo-areas)
 - [File Areas](#file-areas)
   - [File Area Rules](#file-area-rules)
 - [Optional Features](#optional-features)
@@ -919,6 +920,18 @@ if ($userIdFromUrl && $tokenFromUrl) {
     }
 }
 ```
+---
+
+# Echo Areas
+
+Echo areas are public message forums distributed across FidoNet-compatible (FTN) networks. Each area is identified by a **tag** (e.g., `GENERAL`) and a **domain** (e.g., `fidonet`), allowing the same tag to exist independently in multiple networks. Areas marked **Local Only** are stored purely on the local system and never transmitted to uplinks — useful for internal discussion boards or testing.
+
+Inbound echomail arrives in `.pkt` packets or FTN day-of-week bundles, is validated and deduplicated by MSGID, then stored in the database. If a packet references an area that doesn't exist yet, BinktermPHP creates it automatically. Outbound messages composed through the web interface or terminal server are bundled into packets at the next binkp poll.
+
+New users are automatically subscribed to areas marked as default subscriptions. Users can manage their own subscriptions, and areas can be restricted to admins only (`Sysop Access Only`) or exposed to Gemini protocol readers (`Public Gemini Access`).
+
+Areas are managed at **Admin → Echo Areas** and support bulk import via CSV. For full configuration details, see **[docs/EchoAreas.md](docs/EchoAreas.md)**.
+
 ---
 
 # File Areas
