@@ -572,13 +572,113 @@ class BinkdProcessor
         return null;
     }
 
-    private function detectArtFormat(?string $rawBody): ?string
+    private function detectArtFormat(?string $rawBody, ?string $detectedEncoding = null): ?string
     {
         if (!is_string($rawBody) || $rawBody === '') {
             return null;
         }
 
-        return preg_match('/\x1b\[[0-9;?]*[A-Za-z]/', $rawBody) ? 'ansi' : null;
+        $normalizedEncoding = strtoupper(trim((string)$detectedEncoding));
+
+        if ($this->isPetsciiEncoding($normalizedEncoding)) {
+            return 'petscii';
+        }
+
+        $hasAnsiSequences = preg_match('/\x1b\[[0-9;?]*[A-Za-z]/', $rawBody) === 1;
+        if ($hasAnsiSequences && $this->isAmigaAnsiEncoding($normalizedEncoding)) {
+            return 'amiga_ansi';
+        }
+
+        if ($hasAnsiSequences) {
+            return 'ansi';
+        }
+
+        if ($this->looksLikePetscii($rawBody)) {
+            return 'petscii';
+        }
+
+        return null;
+    }
+
+    private function isPetsciiEncoding(string $encoding): bool
+    {
+        if ($encoding === '') {
+            return false;
+        }
+
+        $petsciiEncodings = [
+            'PETSCII',
+            'PETSCII-SHIFTED',
+            'PETSCII-UNSHIFTED',
+            'CBMASCII',
+            'COMMODORE',
+            'COMMODORE-64',
+            'COMMODORE64',
+            'C64',
+            'C128',
+        ];
+
+        return in_array($encoding, $petsciiEncodings, true);
+    }
+
+    private function isAmigaAnsiEncoding(string $encoding): bool
+    {
+        if ($encoding === '') {
+            return false;
+        }
+
+        $amigaEncodings = [
+            'AMIGA',
+            'AMIGA-ANSI',
+            'AMIGAASCII',
+            'AMIGA-TOPAZ',
+            'TOPAZ',
+        ];
+
+        return in_array($encoding, $amigaEncodings, true);
+    }
+
+    private function looksLikePetscii(string $rawBody): bool
+    {
+        static $petsciiControlBytes = [
+            0x05, // white
+            0x11, // cursor down
+            0x12, // reverse on
+            0x13, // home
+            0x1c, // red
+            0x1d, // cursor right
+            0x1e, // green
+            0x1f, // blue
+            0x81, // orange
+            0x90, // black
+            0x91, // cursor up
+            0x92, // reverse off
+            0x93, // clear/home
+            0x95, // brown
+            0x96, // pink
+            0x97, // dark gray
+            0x98, // medium gray
+            0x99, // light green
+            0x9a, // light blue
+            0x9b, // light gray
+            0x9c, // purple
+            0x9d, // cursor left
+            0x9e, // yellow
+            0x9f, // cyan
+        ];
+
+        $controlHits = 0;
+        $length = strlen($rawBody);
+        for ($i = 0; $i < $length; $i++) {
+            if (in_array(ord($rawBody[$i]), $petsciiControlBytes, true)) {
+                $controlHits++;
+                if ($controlHits >= 2) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -836,7 +936,7 @@ class BinkdProcessor
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
         $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $messageTextRaw);
-        $artFormat = $this->detectArtFormat($cleanMessageRaw);
+        $artFormat = $this->detectArtFormat($cleanMessageRaw, $message['detectedEncoding'] ?? null);
 
         // Use addresses from kludges if available (more reliable than INTL kludge)
         // Priority: REPLYADDR > MSGID original author > message envelope
@@ -1116,7 +1216,7 @@ class BinkdProcessor
         $kludgeText = implode("\n", $kludgeLines);
         $bottomKludgeText = implode("\n", $bottomKludges);
         $messageCharset = $this->normalizeDetectedEncoding($message['detectedEncoding'] ?? null, $message['textRaw'] ?? '');
-        $artFormat = $this->detectArtFormat($messageTextRaw);
+        $artFormat = $this->detectArtFormat($messageTextRaw, $message['detectedEncoding'] ?? null);
 
         // Extract REPLY MSGID from kludges to populate reply_to_id for threading
         $replyToId = null;
