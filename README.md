@@ -525,12 +525,14 @@ Full configuration reference: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
 
 To get started, two critical files must be configured before first run:
 
+If you are installing manually from Git, these are the initial two files that must be set up by hand before the first run. If you use the installer, it creates and populates these files for you during setup.
+
 - **`.env`** — database, SMTP, daemon ports, and feature flags. Copy `.env.example` to `.env` and fill in values before first run.
 - **`config/binkp.json`** — your FTN system identity, uplinks, binkp daemon, security, and crashmail. Copy `config/binkp.json.example` as a starting point.
 
 Additional configuration files cover nodelists, file areas, WebDoors, appearance, and more — see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** for the full reference.
 
-Most settings can also be changed at runtime through the **Admin web interface** without editing files directly.
+After those two files are configured and the system is installed, ongoing BBS settings are generally managed through the **Admin web interface** rather than by manually editing configuration files. In particular, day-to-day feature settings are typically handled through **Admin -> BBS Settings**.
 
 After editing any config file, restart services:
 ```bash
