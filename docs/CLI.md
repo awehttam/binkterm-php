@@ -318,8 +318,8 @@ php scripts/debug_binkp.php 1:153/149
 php scripts/process_packets.php
 ```
 
-By default, leftover unprocessed files in `data/inbound/` are deleted after processing.
-Set `BINKP_KEEP_UNPROCESSED_FILES=true` in `.env` to move them to `data/inbound/unprocessed/` instead.
+By default, leftover unprocessed files in `data/inbound/` are moved to `data/inbound/unprocessed/` after they have been untouched for 24 hours.
+Set `BINKP_DELETE_UNPROCESSED_FILES=true` in `.env` to delete those stale files instead.
 
 ### Fidonet Bundle Extraction
 Fidonet day bundles (e.g., `.su0`, `.mo1`, `.we1`) and legacy archives like `.arc`, `.arj`, `.lzh`, `.rar` may contain `.pkt` files. BinktermPHP will try ZIP first, then fall back to external extractors.

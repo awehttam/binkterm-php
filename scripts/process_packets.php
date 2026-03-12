@@ -130,19 +130,21 @@ try {
         $logger->info("Cleaned up {$cleaned} old packet records");
     }
 
-    // Keep unprocessed files only when explicitly enabled in .env.
-    $keepUnprocessedFiles = filter_var(
-        (string) Config::env('BINKP_KEEP_UNPROCESSED_FILES', 'false'),
+    // Delete stale unprocessed files only when explicitly enabled in .env.
+    // Default behavior is to quarantine them in data/inbound/unprocessed/.
+    $deleteUnprocessedFiles = filter_var(
+        (string) Config::env('BINKP_DELETE_UNPROCESSED_FILES', 'false'),
         FILTER_VALIDATE_BOOLEAN
     );
 
-    // Handle any unrecognized/unprocessed files in inbound.
+    // Handle stale unrecognized/unprocessed files in inbound.
     // TIC files are left in place because they may still be waiting for their data file.
     $inboundPath    = __DIR__ . '/../data/inbound';
     $unprocessedDir = $inboundPath . '/unprocessed';
     $leftover       = array_filter(glob($inboundPath . '/*') ?: [], 'is_file');
+    $staleCutoff    = time() - 86400;
 
-    if ($keepUnprocessedFiles && !is_dir($unprocessedDir)) {
+    if (!$deleteUnprocessedFiles && !is_dir($unprocessedDir)) {
         mkdir($unprocessedDir, 0755, true);
     }
 
@@ -155,16 +157,21 @@ try {
             continue; // Leave .tmp files — they are being actively received by the binkp session
         }
 
-        if ($keepUnprocessedFiles) {
+        $mtime = @filemtime($file);
+        if ($mtime === false || $mtime > $staleCutoff) {
+            continue;
+        }
+
+        if (!$deleteUnprocessedFiles) {
             $dest = $unprocessedDir . '/' . basename($file);
             if (rename($file, $dest)) {
-                $logger->info('Moved unprocessed file to unprocessed/: ' . basename($file));
+                $logger->info('Moved stale unprocessed file to unprocessed/: ' . basename($file));
             }
             continue;
         }
 
         if (unlink($file)) {
-            $logger->info('Deleted unprocessed file: ' . basename($file));
+            $logger->info('Deleted stale unprocessed file: ' . basename($file));
         }
     }
 
