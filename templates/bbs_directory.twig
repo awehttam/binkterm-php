@@ -10,20 +10,20 @@
         #bbsSystemsMap {
             height: 540px;
             min-height: 360px;
-            border: 1px solid rgba(148, 163, 184, 0.28);
+            border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 0.5rem;
-            background: #243241;
+            background: #111827;
         }
 
         .bbs-map-shell {
-            background: linear-gradient(180deg, #334155 0%, #1f2937 100%);
-            border-color: rgba(148, 163, 184, 0.24);
-            color: #e5edf5;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-color: rgba(148, 163, 184, 0.18);
+            color: #e2e8f0;
         }
 
         #bbsMapShell:fullscreen {
-            padding: 1rem;
-            background: #1f2937;
+            padding: 0.9rem;
+            background: #020617;
         }
 
         #bbsMapShell:fullscreen #bbsSystemsMap {
@@ -32,19 +32,29 @@
 
         #bbsSystemsMap .leaflet-control-container .leaflet-bar a,
         #bbsSystemsMap .leaflet-control-zoom a {
-            background: #334155;
-            color: #e5edf5;
-            border-bottom-color: rgba(148, 163, 184, 0.28);
+            background: rgba(15, 23, 42, 0.92);
+            color: #e2e8f0;
+            border-bottom-color: rgba(148, 163, 184, 0.18);
         }
 
         #bbsSystemsMap .leaflet-control-container .leaflet-bar a:hover,
         #bbsSystemsMap .leaflet-control-zoom a:hover {
-            background: #475569;
+            background: rgba(30, 41, 59, 0.98);
             color: #fff;
         }
 
         #bbsSystemsMap .leaflet-tile-pane {
-            filter: saturate(0.7) hue-rotate(180deg) brightness(0.72) contrast(1.05);
+            filter: grayscale(0.45) saturate(0.45) brightness(0.38) contrast(1.28);
+        }
+
+        #bbsSystemsMap .leaflet-popup-content-wrapper,
+        #bbsSystemsMap .leaflet-popup-tip {
+            background: #111827;
+            color: #e2e8f0;
+        }
+
+        #bbsSystemsMap .leaflet-popup-content a {
+            color: #93c5fd;
         }
 
         .bbs-fullscreen-toggle {
