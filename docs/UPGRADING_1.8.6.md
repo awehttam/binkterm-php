@@ -130,6 +130,9 @@ Both access methods share the same session logic (`BbsSession`) and deliver iden
 ### Echo Areas
 - **Apostrophes allowed in echo area tag names**: Tags containing apostrophes (e.g. `WEN-80'S_MUSIC`) are now accepted by the API and the echoarea importer.
 
+### Gemini Capsule
+- Gemini capsule home page wording updated for clarity: the heading now reads **"Echo Message area stats by network"** and each network summary uses **"message areas"** instead of **"areas"**.
+
 ### Admin / Sysop Tools
 - New **Language Overrides** editor in Admin → BBS Settings → Language Overrides. Sysops can customize individual phrases for any locale and catalog without editing the base translation files. Overrides are stored as JSON in `config/i18n/overrides/<locale>/<namespace>.json` and are applied transparently on top of the base catalog at runtime.
 - PWA manifest: added app shortcuts for Doors (`/games`) and Files (`/files`). Shortcuts updated: Compose Netmail, Netmail inbox, and Echomail replace the previous Compose Echomail shortcut; Compose Netmail is listed first.

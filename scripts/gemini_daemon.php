@@ -413,7 +413,7 @@ function handleHomePage($socket, string $geminiHost): void
             });
 
             $lines[] = '';
-            $lines[] = '## Echo Area Stats by Network';
+            $lines[] = '## Echo Message area stats by network';
             $lines[] = '';
             foreach ($networkStats as $row) {
                 $network = (string)$row['network'];
@@ -425,7 +425,7 @@ function handleHomePage($socket, string $geminiHost): void
                 } elseif ($network === 'lovelynet') {
                     $label = 'LOVELYNET';
                 }
-                $lines[] = "* {$label}: {$areaCount} areas, {$messageCount} messages";
+                $lines[] = "* {$label}: {$areaCount} message areas, {$messageCount} messages";
             }
         }
 
